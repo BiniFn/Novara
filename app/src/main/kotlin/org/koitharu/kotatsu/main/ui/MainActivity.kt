@@ -46,6 +46,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koitharu.kotatsu.R
 import org.koitharu.kotatsu.backups.ui.periodical.PeriodicalBackupService
+import org.koitharu.kotatsu.backups.ui.webdav.WebDavAutoRestoreService
+import org.koitharu.kotatsu.backups.ui.webdav.DataSyncManager
 import org.koitharu.kotatsu.browser.AdListUpdateService
 import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
 import org.koitharu.kotatsu.core.nav.router
@@ -90,6 +92,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 
 	@Inject
 	lateinit var settings: AppSettings
+
+	@Inject
+	lateinit var dataSyncManager: DataSyncManager
 
 	private val viewModel by viewModels<MainViewModel>()
 	private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
@@ -163,6 +168,22 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		super.onRestoreInstanceState(savedInstanceState)
 		adjustSearchUI(viewBinding.searchView.isShowing)
 		navigationDelegate.syncSelectedItem()
+	}
+
+	override fun onResume() {
+		super.onResume()
+		// 在每次进入前台时触发一次自动恢复检查（由服务内部节流控制实际频率）
+		lifecycleScope.launch {
+			kotlin.runCatching {
+				if (settings.isBackupWebDavAutoRestoreEnabled &&
+					!settings.backupWebDavServerUrl.isNullOrBlank() &&
+					!settings.backupWebDavUsername.isNullOrBlank() &&
+					!settings.backupWebDavPassword.isNullOrBlank()
+				) {
+					WebDavAutoRestoreService.start(this@MainActivity)
+				}
+			}.onFailure { it.printStackTraceDebug() }
+		}
 	}
 
 	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {
@@ -301,6 +322,26 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
 				startService(Intent(this@MainActivity, PeriodicalBackupService::class.java))
+				// 启动数据自动同步管理器：无条件开始监听，由管理器内部进行条件判定
+				kotlin.runCatching {
+					dataSyncManager.start()
+				}.onFailure { it.printStackTraceDebug() }
+				// 延迟启动 WebDavAutoRestoreService 以避免系统级 DiskWriteViolation
+				// 并且只在 WebDAV 配置完整时启动
+				lifecycleScope.launch {
+					kotlinx.coroutines.delay(3000) // 延迟 3 秒
+					try {
+						// 检查 WebDAV 配置是否完整
+						if (settings.isBackupWebDavAutoRestoreEnabled && 
+							!settings.backupWebDavServerUrl.isNullOrBlank() &&
+							!settings.backupWebDavUsername.isNullOrBlank() &&
+							!settings.backupWebDavPassword.isNullOrBlank()) {
+							WebDavAutoRestoreService.start(this@MainActivity)
+						}
+					} catch (e: Exception) {
+						e.printStackTraceDebug()
+					}
+				}
 				if (settings.isAdBlockEnabled) {
 					startService(Intent(this@MainActivity, AdListUpdateService::class.java))
 				}

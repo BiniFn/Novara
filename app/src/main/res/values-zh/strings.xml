@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 周期性备份与 WebDAV 中文文案 -->
+    <string name="periodic_backups_enable">启用周期性备份</string>
+    <string name="backups_output_directory">备份输出目录</string>
+    <string name="last_successful_backup">上次成功备份：%s</string>
+    <string name="telegram_integration">Telegram 集成</string>
+    <string name="send_backups_telegram">上传备份到 Telegram</string>
+    <string name="telegram_chat_id">Telegram 聊天 ID</string>
+    <string name="open_telegram_bot">打开 Telegram 机器人</string>
+    <string name="open_telegram_bot_summary">在 Telegram 应用中打开备份机器人</string>
+    <string name="test_connection">测试连接</string>
+
+    <string name="webdav_integration">WebDAV 集成</string>
+    <string name="send_backups_webdav">上传备份到 WebDAV</string>
+    <string name="webdav_server_url">WebDAV 服务器 URL</string>
+    <string name="webdav_username">WebDAV 用户名</string>
+    <string name="webdav_password">WebDAV 密码</string>
+    <string name="webdav_remote_path">远端路径</string>
+    <string name="webdav_auto_restore">自动从 WebDAV 恢复</string>
+    <string name="webdav_auto_restore_summary">应用启动时自动检查并恢复 WebDAV 上最新备份（仅恢复，不上传）</string>
+    <string name="webdav_upload_now">立即上传备份</string>
+    <string name="webdav_restore_now">恢复最新备份</string>
+    <string name="webdav_upload_success">已上传到 WebDAV</string>
+    <string name="recent_webdav_action">最近的 WebDAV 操作</string>
+	<string name="action_upload">上传</string>
+	<string name="action_auto_upload">自动上传</string>
+	<string name="action_manual_upload">手动上传</string>
+    <string name="action_manual_restore">手动恢复</string>
+    <string name="action_auto_restore">自动恢复</string>
+    <string name="webdav_keep_local_copy">上传后保留本地副本</string>
+    <string name="webdav_keep_local_copy_summary">上传到 WebDAV 时保留本地备份。关闭后仅上传，不保留本地文件。</string>
+
+    <!-- 新增：自动同步到 WebDAV（自动上传） -->
+    <string name="webdav_auto_sync">自动同步到 WebDAV</string>
+    <string name="webdav_auto_sync_summary">监听历史、收藏等数据变更，短暂聚合后自动上传备份到 WebDAV。</string>
+
+    <string name="backup_periodic_explain_keep_local_copy_off">关闭“保留本地副本”时，周期性任务仅上传到远端；“最近本地备份时间”可能为空</string>
+    <string name="backup_periodic_last_local_empty">已关闭保留本地副本；无本地备份时间</string>
+</resources>

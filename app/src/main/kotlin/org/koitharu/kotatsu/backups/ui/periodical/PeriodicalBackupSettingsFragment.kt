@@ -10,6 +10,7 @@ import androidx.fragment.app.viewModels
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
+import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.koitharu.kotatsu.R
@@ -47,10 +48,31 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 		super.onViewCreated(view, savedInstanceState)
 		viewModel.lastBackupDate.observe(viewLifecycleOwner, ::bindLastBackupInfo)
 		viewModel.backupsDirectory.observe(viewLifecycleOwner, ::bindOutputSummary)
+		viewModel.webDavLastAction.observe(viewLifecycleOwner, ::bindWebDavLastAction)
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(listView, this))
+		viewModel.onActionDone.observeEvent(viewLifecycleOwner, org.koitharu.kotatsu.core.ui.util.ReversibleActionObserver(listView))
 		viewModel.isTelegramCheckLoading.observe(viewLifecycleOwner) {
 			findPreference<Preference>(AppSettings.KEY_BACKUP_TG_TEST)?.isEnabled = !it
 		}
+		viewModel.isWebDavCheckLoading.observe(viewLifecycleOwner) {
+			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_TEST)?.isEnabled = !it
+			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_UPLOAD_NOW)?.isEnabled = !it
+			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_RESTORE_NOW)?.isEnabled = !it
+		}
+		updatePolicyNoteVisibility()
+		updateAutoSyncSummary()
+		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
+			updatePolicyNoteVisibility(); true
+		}
+		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_ENABLED)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
+			updatePolicyNoteVisibility(); true
+		}
+
+		// 自动同步开关切换时刷新摘要显示
+		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_AUTO_SYNC)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
+			updateAutoSyncSummary(); true
+		}
+
 	}
 
 	override fun onPreferenceTreeClick(preference: Preference): Boolean {
@@ -59,6 +81,18 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 			AppSettings.KEY_BACKUP_TG_OPEN -> telegramBackupUploader.openBotInApp(router)
 			AppSettings.KEY_BACKUP_TG_TEST -> {
 				viewModel.checkTelegram()
+				true
+			}
+			AppSettings.KEY_BACKUP_WEBDAV_TEST -> {
+				viewModel.checkWebDav()
+				true
+			}
+			AppSettings.KEY_BACKUP_WEBDAV_UPLOAD_NOW -> {
+				viewModel.uploadWebDavNow()
+				true
+			}
+			AppSettings.KEY_BACKUP_WEBDAV_RESTORE_NOW -> {
+				viewModel.restoreWebDavNow()
 				true
 			}
 
@@ -95,13 +129,51 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 
 	private fun bindLastBackupInfo(lastBackupDate: Date?) {
 		val preference = findPreference<Preference>(AppSettings.KEY_BACKUP_PERIODICAL_LAST) ?: return
-		preference.summary = lastBackupDate?.let {
-			preference.context.getString(
+		val keepLocal = settings.isBackupWebDavKeepLocalCopyEnabled
+		if (lastBackupDate != null) {
+			preference.summary = preference.context.getString(
 				R.string.last_successful_backup,
-				DateUtils.getRelativeTimeSpanString(it.time),
+				DateUtils.getRelativeTimeSpanString(lastBackupDate.time),
 			)
+			preference.isVisible = true
+			preference.icon = null
+		} else if (!keepLocal) {
+			preference.summary = getString(R.string.backup_periodic_last_local_empty)
+			preference.isVisible = true
+			preference.icon = getWarningIcon()
+		} else {
+			preference.isVisible = false
+			preference.icon = null
 		}
-		preference.isVisible = lastBackupDate != null
+	}
+
+	private fun bindWebDavLastAction(action: Pair<Int, Long>?) {
+		val preference = findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_LAST_ACTIONS) ?: return
+		if (action == null) {
+			preference.isVisible = false
+			return
+		}
+		preference.title = getString(R.string.recent_webdav_action)
+		preference.summary = getString(action.first) + " • " + DateUtils.getRelativeTimeSpanString(action.second)
+		preference.isVisible = true
+		// WebDAV 最近动作变化时，更新自动同步开关摘要中的“最近上传”时间
+		updateAutoSyncSummary()
+	}
+
+	private fun updatePolicyNoteVisibility() {
+		val pref = findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_POLICY_NOTE) ?: return
+		val visible = !settings.isBackupWebDavKeepLocalCopyEnabled && settings.isBackupWebDavUploadEnabled
+		pref.isVisible = visible
+	}
+
+	private fun updateAutoSyncSummary() {
+		val pref = findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_AUTO_SYNC) ?: return
+		val base = getString(R.string.webdav_auto_sync_summary)
+		val last = settings.backupWebDavLastUploadTime
+		if (settings.isBackupWebDavAutoSyncEnabled && last > 0L) {
+			pref.summary = base + " • " + DateUtils.getRelativeTimeSpanString(last)
+		} else {
+			pref.summary = base
+		}
 	}
 }
-

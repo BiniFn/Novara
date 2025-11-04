@@ -569,6 +569,60 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 	val backupTelegramChatId: String?
 		get() = prefs.getString(KEY_BACKUP_TG_CHAT, null)?.nullIfEmpty()
 
+	// WebDAV backup settings
+	val isBackupWebDavUploadEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_ENABLED, false)
+
+	// 是否在上传到 WebDAV 后保留本地副本
+	val isBackupWebDavKeepLocalCopyEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY, true)
+
+	val backupWebDavServerUrl: String?
+		get() = prefs.getString(KEY_BACKUP_WEBDAV_URL, null)?.trim()?.nullIfEmpty()
+
+	val backupWebDavUsername: String?
+		get() = prefs.getString(KEY_BACKUP_WEBDAV_USERNAME, null)?.trim()?.nullIfEmpty()
+
+	val backupWebDavPassword: String?
+		get() = prefs.getString(KEY_BACKUP_WEBDAV_PASSWORD, null)?.nullIfEmpty()
+
+	val backupWebDavRemotePath: String?
+		get() = prefs.getString(KEY_BACKUP_WEBDAV_PATH, null)?.trim()?.nullIfEmpty()
+
+	// 是否启用数据自动同步（监听数据变更并自动上传至 WebDAV）
+	val isBackupWebDavAutoSyncEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_AUTO_SYNC, false)
+
+	// 数据版本号（用于版本化命名与兼容性判断）
+	var backupWebDavDataVersion: Int
+		get() = prefs.getInt(KEY_BACKUP_WEBDAV_DATA_VERSION, 1)
+		set(value) = prefs.edit { putInt(KEY_BACKUP_WEBDAV_DATA_VERSION, value) }
+
+	val isBackupWebDavAutoRestoreEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_AUTO_RESTORE, false)
+
+	var backupWebDavLastRestoreTime: Long
+		get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME, 0L)
+		set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME, value) }
+
+	var backupWebDavLastUploadTime: Long
+		get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME, 0L)
+		set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME, value) }
+
+    // 自动恢复最近一次“检查”的时间（不一定发生了恢复，仅记录检查节流）
+    var backupWebDavLastAutoRestoreCheckTime: Long
+        get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME, 0L)
+        set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME, value) }
+
+	// 最近一次 WebDAV 上传类型："auto"（自动）或 "manual"（手动）
+	var backupWebDavLastUploadKind: String?
+		get() = prefs.getString(KEY_BACKUP_WEBDAV_LAST_UPLOAD_KIND, null)
+		set(value) = prefs.edit { putString(KEY_BACKUP_WEBDAV_LAST_UPLOAD_KIND, value) }
+
+	var backupWebDavLastManualRestoreTime: Long
+		get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME, 0L)
+		set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME, value) }
+
 	val isReadingTimeEstimationEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READING_TIME, true)
 
@@ -810,6 +864,30 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"
 		const val KEY_BACKUP_TG_CHAT = "backup_periodic_tg_chat_id"
+		// WebDAV backup keys
+		const val KEY_BACKUP_WEBDAV = "backup_periodic_webdav"
+		const val KEY_BACKUP_WEBDAV_ENABLED = "backup_periodic_webdav_enabled"
+		const val KEY_BACKUP_WEBDAV_URL = "backup_periodic_webdav_server_url"
+		const val KEY_BACKUP_WEBDAV_USERNAME = "backup_periodic_webdav_username"
+		const val KEY_BACKUP_WEBDAV_PASSWORD = "backup_periodic_webdav_password"
+		const val KEY_BACKUP_WEBDAV_PATH = "backup_periodic_webdav_remote_path"
+		const val KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY = "backup_periodic_webdav_keep_local_copy"
+		const val KEY_BACKUP_WEBDAV_TEST = "backup_periodic_webdav_test"
+		const val KEY_BACKUP_WEBDAV_UPLOAD_NOW = "backup_periodic_webdav_upload_now"
+		const val KEY_BACKUP_WEBDAV_RESTORE_NOW = "backup_periodic_webdav_restore_now"
+		const val KEY_BACKUP_WEBDAV_AUTO_RESTORE = "backup_periodic_webdav_auto_restore"
+		const val KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME = "backup_periodic_webdav_last_restore_time"
+		const val KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME = "backup_periodic_webdav_last_upload_time"
+		const val KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME = "backup_periodic_webdav_last_auto_restore_check_time"
+		const val KEY_BACKUP_WEBDAV_LAST_UPLOAD_KIND = "backup_periodic_webdav_last_upload_kind"
+		const val KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME = "backup_periodic_webdav_last_manual_restore_time"
+		const val KEY_BACKUP_WEBDAV_LAST_ACTIONS = "backup_periodic_webdav_last_actions"
+
+		// WebDAV 自动同步与数据版本
+		const val KEY_BACKUP_WEBDAV_AUTO_SYNC = "backup_periodic_webdav_auto_sync"
+		const val KEY_BACKUP_WEBDAV_DATA_VERSION = "backup_periodic_webdav_data_version"
+
+		const val KEY_BACKUP_WEBDAV_POLICY_NOTE = "backup_periodic_webdav_policy_note"
 		const val KEY_MANGA_LIST_BADGES = "manga_list_badges"
 		const val KEY_TAGS_WARNINGS = "tags_warnings"
 		const val KEY_DISCORD_RPC = "discord_rpc"

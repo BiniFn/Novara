@@ -83,4 +83,98 @@
 
 	</PreferenceCategory>
 
+	<PreferenceCategory
+		android:key="backup_periodic_webdav"
+		android:title="@string/webdav_integration">
+
+		<SwitchPreferenceCompat
+			android:defaultValue="false"
+			android:dependency="backup_periodic"
+			android:key="backup_periodic_webdav_enabled"
+			android:title="@string/send_backups_webdav" />
+
+		<EditTextPreference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:inputType="textUri"
+			android:key="backup_periodic_webdav_server_url"
+			android:title="@string/webdav_server_url" />
+
+		<EditTextPreference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:inputType="text"
+			android:key="backup_periodic_webdav_username"
+			android:title="@string/webdav_username" />
+
+		<EditTextPreference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:inputType="textPassword"
+			android:key="backup_periodic_webdav_password"
+			android:title="@string/webdav_password" />
+
+		<EditTextPreference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:inputType="text"
+			android:key="backup_periodic_webdav_remote_path"
+			android:title="@string/webdav_remote_path" />
+
+		<Preference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_test"
+			android:persistent="false"
+			android:title="@string/test_connection" />
+
+		<Preference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_upload_now"
+			android:persistent="false"
+			android:title="@string/webdav_upload_now" />
+
+		<Preference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_restore_now"
+			android:persistent="false"
+			android:title="@string/webdav_restore_now" />
+
+		<SwitchPreferenceCompat
+			android:defaultValue="true"
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_keep_local_copy"
+			android:title="@string/webdav_keep_local_copy"
+			android:summary="@string/webdav_keep_local_copy_summary" />
+
+		<SwitchPreferenceCompat
+			android:defaultValue="false"
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_auto_restore"
+			android:title="@string/webdav_auto_restore"
+			android:summary="@string/webdav_auto_restore_summary" />
+
+		<!-- Auto sync uploads changes to WebDAV when enabled -->
+		<SwitchPreferenceCompat
+			android:defaultValue="false"
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_auto_sync"
+			android:title="@string/webdav_auto_sync"
+			android:summary="@string/webdav_auto_sync_summary" />
+
+		<Preference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:key="backup_periodic_webdav_last_actions"
+			android:persistent="false"
+			android:selectable="false"
+			app:isPreferenceVisible="false" />
+
+		<!-- 策略说明：当关闭“保留本地副本”时，仅上传到远端 -->
+		<Preference
+			android:dependency="backup_periodic_webdav_enabled"
+			android:icon="@drawable/ic_info_outline"
+			android:key="backup_periodic_webdav_policy_note"
+			android:persistent="false"
+			android:selectable="false"
+			android:summary="@string/backup_periodic_explain_keep_local_copy_off"
+			app:isPreferenceVisible="false" />
+
+
+	</PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>
