@@ -52,8 +52,8 @@ class MangaSourcesRepository @Inject constructor(
 	private val dao: MangaSourcesDao
 		get() = db.getSourcesDao()
 
-    val allMangaSources: Set<MangaParserSource> = Collections.unmodifiableSet(
-        EnumSet.noneOf<MangaParserSource>(MangaParserSource::class.java).also {
+	val allMangaSources: Set<MangaParserSource> = Collections.unmodifiableSet(
+		EnumSet.noneOf<MangaParserSource>(MangaParserSource::class.java).also {
             val allowedLocales = setOf("en", "ja", "zh")
             MangaParserSource.entries.filterTo(it) { src ->
                 !src.isBroken && src.locale.isNotEmpty() && src.locale in allowedLocales

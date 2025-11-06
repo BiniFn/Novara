@@ -894,6 +894,30 @@
     <string name="no_chapters_in_manga">This manga does not contain any chapters</string>
     <string name="chapters_load_failed">Failed to load chapter list</string>
     <string name="telegram_integration">Telegram integration</string>
+    <!-- WebDAV -->
+    <string name="webdav_integration">WebDAV integration</string>
+    <string name="send_backups_webdav">Upload backups to WebDAV</string>
+    <string name="webdav_server_url">WebDAV server URL</string>
+    <string name="webdav_username">WebDAV username</string>
+    <string name="webdav_password">WebDAV password</string>
+    <string name="webdav_remote_path">Remote path</string>
+    <string name="webdav_auto_restore">Auto restore from WebDAV</string>
+    <string name="webdav_auto_restore_summary">Automatically check and restore the latest backup from WebDAV server on app startup</string>
+    <string name="webdav_auto_sync">Auto sync to WebDAV</string>
+    <string name="webdav_auto_sync_summary">Monitor changes in history and favorites, then upload a backup to WebDAV after a short delay</string>
+    <string name="webdav_upload_now">Upload backup now</string>
+    <string name="webdav_restore_now">Restore latest backup</string>
+    <string name="webdav_upload_success">Backup uploaded to WebDAV</string>
+    <string name="webdav_restore_success">Data restored from WebDAV</string>
+    <string name="checking_for_backups">Checking for backups…</string>
+    <string name="recent_webdav_action">Recent WebDAV action</string>
+	<string name="action_upload">Upload</string>
+	<string name="action_auto_upload">Auto upload</string>
+	<string name="action_manual_upload">Manual upload</string>
+    <string name="action_manual_restore">Manual restore</string>
+    <string name="action_auto_restore">Auto restore</string>
+    <string name="webdav_keep_local_copy">Keep local copy after uploading</string>
+    <string name="webdav_keep_local_copy_summary">Save a local copy of the backup when uploading to WebDAV. Disable to upload-only without retaining local file.</string>
     <string name="test_parser">Test manga source</string>
     <string name="rename">Rename</string>
     <string name="save_filter">Save filter</string>
@@ -907,4 +931,8 @@
     <string name="download_default_directory">Default directory for downloading manga</string>
     <string name="private_app_directory_warning">This directory with all data will be deleted if you uninstall the application</string>
     <string name="available_pattern">%1$s available</string>
+    
+    <string name="backup_periodic_explain_keep_local_copy_off">When local copy is off, periodic task uploads only to remote; local last backup time may be empty</string>
+    
+    <string name="backup_periodic_last_local_empty">Local copy disabled; no local backup time</string>
 </resources>

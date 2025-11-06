@@ -306,6 +306,10 @@
 			android:foregroundServiceType="dataSync"
 			android:label="@string/periodic_backups" />
 		<service
+			android:name="org.koitharu.kotatsu.backups.ui.webdav.WebDavAutoRestoreService"
+			android:foregroundServiceType="dataSync"
+			android:label="@string/webdav_auto_restore" />
+		<service
 			android:name="org.koitharu.kotatsu.alternatives.ui.AutoFixService"
 			android:foregroundServiceType="dataSync"
 			android:label="@string/fixing_manga" />
