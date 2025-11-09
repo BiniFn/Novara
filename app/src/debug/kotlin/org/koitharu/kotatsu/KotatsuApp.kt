@@ -36,10 +36,20 @@ class KotatsuApp : BaseApp() {
 		} else {
 			null
 		}
+		// OPPO / OnePlus / realme 设备使用 Oplus UIFirst，会在主线程布局阶段写入 /proc 节点，触发 StrictMode 磁盘写入告警。
+		// 这是厂商系统行为，不是应用代码问题。为避免无意义噪声，在这些设备上跳过 detectDiskWrites。
+		val isOplusDevice = run {
+			val m = Build.MANUFACTURER.lowercase()
+			val b = Build.BRAND.lowercase()
+			m.contains("oppo") || m.contains("oneplus") || m.contains("realme") ||
+				b.contains("oppo") || b.contains("oneplus") || b.contains("realme")
+		}
 		StrictMode.setThreadPolicy(
 			StrictMode.ThreadPolicy.Builder().apply {
 				detectNetwork()
-				detectDiskWrites()
+				if (!isOplusDevice) {
+					detectDiskWrites()
+				}
 				detectCustomSlowCalls()
 				detectResourceMismatches()
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) detectUnbufferedIo()

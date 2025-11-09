@@ -50,7 +50,12 @@ class WebDavAutoRestoreService : Service() {
 	override fun onBind(intent: Intent?): IBinder? = null
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-		if (!settings.isBackupWebDavAutoRestoreEnabled) {
+		// 遵循开关并校验 WebDAV 配置有效性，避免错误
+		if (!settings.isBackupWebDavAutoRestoreEnabled ||
+			settings.backupWebDavServerUrl.isNullOrBlank() ||
+			settings.backupWebDavUsername.isNullOrBlank() ||
+			settings.backupWebDavPassword.isNullOrBlank()
+		) {
 			stopSelf()
 			return START_NOT_STICKY
 		}
@@ -143,32 +148,29 @@ class WebDavAutoRestoreService : Service() {
                 }
                 Log.d(TAG, "WebDAV auto restore completed successfully")
 
-                // 仅在实际合并有改动时触发备份上传
-                if (changesApplied && settings.isBackupWebDavUploadEnabled) {
-                    if (settings.isBackupWebDavAutoSyncEnabled) {
-                        // 开启自动同步时，数据库变更会被监听并自动上传，这里不重复上传
-                        Log.d(TAG, "Changes applied; auto-sync enabled, relying on DataSyncManager upload")
-                    } else {
-                        // 未开启自动同步时，显式备份并上传一次
-                        kotlin.runCatching {
-                            val out = File.createTempFile("webdav_backup_post_restore", ".bk.zip", this.cacheDir)
-                            try {
-                                java.util.zip.ZipOutputStream(out.outputStream()).use { zos ->
-                                    backupRepository.createBackup(zos, null)
-                                }
-                                val nextVersion = settings.backupWebDavDataVersion + 1
-                                webDavUploader.uploadBackup(out, targetVersion = nextVersion)
-                                settings.backupWebDavLastUploadTime = System.currentTimeMillis()
-                                settings.backupWebDavLastUploadKind = "auto"
-                                settings.backupWebDavDataVersion = nextVersion
-                                Log.d(TAG, "Post-restore re-upload completed")
-                            } finally {
-                                out.delete()
-                            }
-                        }.onFailure { e ->
-                            Log.e(TAG, "Post-restore re-upload failed", e)
+                // 仅在“合并后的本地备份”与“拉取的远端备份”内容不同的情况下，上传一次
+                kotlin.runCatching {
+                    val out = File.createTempFile("webdav_backup_post_restore", ".bk.zip", this.cacheDir)
+                    try {
+                        java.util.zip.ZipOutputStream(out.outputStream()).use { zos ->
+                            backupRepository.createBackup(zos, null)
                         }
+                        val isSame = areBackupsEqual(tempFile, out)
+                        if (!isSame) {
+                            val nextVersion = settings.backupWebDavDataVersion + 1
+                            webDavUploader.uploadBackup(out, targetVersion = nextVersion)
+                            settings.backupWebDavLastUploadTime = System.currentTimeMillis()
+                            settings.backupWebDavLastUploadKind = "auto"
+                            settings.backupWebDavDataVersion = nextVersion
+                            Log.d(TAG, "Post-restore upload completed (content differed)")
+                        } else {
+                            Log.d(TAG, "Post-restore upload skipped (content identical)")
+                        }
+                    } finally {
+                        out.delete()
                     }
+                }.onFailure { e ->
+                    Log.e(TAG, "Post-restore comparison/upload failed", e)
                 }
 
             } finally {
@@ -195,4 +197,46 @@ class WebDavAutoRestoreService : Service() {
 			ContextCompat.startForegroundService(context, intent)
 		}
 	}
+
+    /**
+     * 比较两个备份 zip 文件的实际内容是否相同。
+     * 逐项读取每个条目（entry）内容并计算 SHA-256 摘要，按文件名比对。
+     */
+    private fun areBackupsEqual(fileA: File, fileB: File): Boolean {
+        fun digestOfZip(file: File): Map<String, String> {
+            val map = mutableMapOf<String, String>()
+            ZipInputStream(FileInputStream(file)).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory) {
+                        // 读取内容并计算摘要
+                        val md = java.security.MessageDigest.getInstance("SHA-256")
+                        val buf = ByteArray(8192)
+                        var read: Int
+                        while (true) {
+                            read = zis.read(buf)
+                            if (read <= 0) break
+                            md.update(buf, 0, read)
+                        }
+                        map[entry.name] = md.digest().joinToString(separator = "") { b ->
+                            val i = (b.toInt() and 0xFF)
+                            i.toString(16).padStart(2, '0')
+                        }
+                    }
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                }
+            }
+            return map
+        }
+
+        val a = digestOfZip(fileA)
+        val b = digestOfZip(fileB)
+        if (a.size != b.size) return false
+        for ((name, hashA) in a) {
+            val hashB = b[name] ?: return false
+            if (hashA != hashB) return false
+        }
+        return true
+    }
 }

@@ -149,13 +149,6 @@
 			android:title="@string/webdav_auto_restore"
 			android:summary="@string/webdav_auto_restore_summary" />
 
-		<!-- Auto sync uploads changes to WebDAV when enabled -->
-		<SwitchPreferenceCompat
-			android:defaultValue="false"
-			android:dependency="backup_periodic_webdav_enabled"
-			android:key="backup_periodic_webdav_auto_sync"
-			android:title="@string/webdav_auto_sync"
-			android:summary="@string/webdav_auto_sync_summary" />
 
 		<Preference
 			android:dependency="backup_periodic_webdav_enabled"

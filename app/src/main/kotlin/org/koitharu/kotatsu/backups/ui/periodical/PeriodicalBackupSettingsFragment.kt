@@ -60,17 +60,11 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_RESTORE_NOW)?.isEnabled = !it
 		}
 		updatePolicyNoteVisibility()
-		updateAutoSyncSummary()
 		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
 			updatePolicyNoteVisibility(); true
 		}
 		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_ENABLED)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
 			updatePolicyNoteVisibility(); true
-		}
-
-		// 自动同步开关切换时刷新摘要显示
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_AUTO_SYNC)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
-			updateAutoSyncSummary(); true
 		}
 
 	}
@@ -156,8 +150,6 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 		preference.title = getString(R.string.recent_webdav_action)
 		preference.summary = getString(action.first) + " • " + DateUtils.getRelativeTimeSpanString(action.second)
 		preference.isVisible = true
-		// WebDAV 最近动作变化时，更新自动同步开关摘要中的“最近上传”时间
-		updateAutoSyncSummary()
 	}
 
 	private fun updatePolicyNoteVisibility() {
@@ -166,14 +158,5 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 		pref.isVisible = visible
 	}
 
-	private fun updateAutoSyncSummary() {
-		val pref = findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_AUTO_SYNC) ?: return
-		val base = getString(R.string.webdav_auto_sync_summary)
-		val last = settings.backupWebDavLastUploadTime
-		if (settings.isBackupWebDavAutoSyncEnabled && last > 0L) {
-			pref.summary = base + " • " + DateUtils.getRelativeTimeSpanString(last)
-		} else {
-			pref.summary = base
-		}
-	}
+    
 }

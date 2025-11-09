@@ -21,7 +21,9 @@ import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
 import org.koitharu.kotatsu.core.util.ext.call
 import org.koitharu.kotatsu.explore.data.MangaSourcesRepository
 import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
+import org.koitharu.kotatsu.parsers.MangaParserCredentialsAuthProvider
 import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
+import org.koitharu.kotatsu.parsers.exception.ParseException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -99,15 +101,34 @@ class SourceSettingsViewModel @Inject constructor(
 		}
 	}
 
-	private fun loadUsername(authProvider: MangaParserAuthProvider?) {
-		launchLoadingJob(Dispatchers.Default) {
-			try {
-				username.value = null
-				isAuthorized.value = null
-				isAuthorized.value = authProvider?.isAuthorized()
-				username.value = authProvider?.getUsername()
-			} catch (_: AuthRequiredException) {
-			}
-		}
-	}
+    private fun loadUsername(authProvider: MangaParserAuthProvider?) {
+        launchLoadingJob(Dispatchers.Default) {
+            try {
+                username.value = null
+                isAuthorized.value = null
+                isAuthorized.value = authProvider?.isAuthorized()
+                username.value = authProvider?.getUsername()
+            } catch (_: AuthRequiredException) {
+                // 未登录或登录过期，保持为空，不上报错误
+            } catch (_: ParseException) {
+                // 用户名解析失败（例如站点不返回用户名或需要站点域 Cookie），不影响授权状态展示
+            }
+        }
+    }
+
+    fun loginByCredentials(username: String, password: String) {
+        val authProvider = (repository as? ParserMangaRepository)?.getAuthProvider() as? MangaParserCredentialsAuthProvider
+        if (authProvider == null) return
+        launchLoadingJob(Dispatchers.IO) {
+            val success = authProvider.login(username, password)
+            // 登录成功后刷新授权状态与用户名展示
+            val refreshed = (repository as? ParserMangaRepository)?.getAuthProvider()
+            isAuthorized.value = success
+            if (success) {
+                // 先用输入的 username 进行乐观更新，避免解析失败导致界面报错
+                this@SourceSettingsViewModel.username.value = username
+            }
+            loadUsername(refreshed)
+        }
+    }
 }

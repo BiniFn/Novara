@@ -172,7 +172,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 
 	override fun onResume() {
 		super.onResume()
-		// 在每次进入前台时触发一次自动恢复检查（由服务内部节流控制实际频率）
+		// 在每次进入前台时触发一次自动恢复检查（遵循开关且仅在配置有效时启动）
 		lifecycleScope.launch {
 			kotlin.runCatching {
 				if (settings.isBackupWebDavAutoRestoreEnabled &&
@@ -322,20 +322,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
 				startService(Intent(this@MainActivity, PeriodicalBackupService::class.java))
-				// 启动数据自动同步管理器：无条件开始监听，由管理器内部进行条件判定
-				kotlin.runCatching {
-					dataSyncManager.start()
-				}.onFailure { it.printStackTraceDebug() }
 				// 延迟启动 WebDavAutoRestoreService 以避免系统级 DiskWriteViolation
-				// 并且只在 WebDAV 配置完整时启动
+				// 并且仅在 WebDAV 自动恢复开关开启且配置完整时启动
 				lifecycleScope.launch {
-					kotlinx.coroutines.delay(3000) // 延迟 3 秒
+					kotlinx.coroutines.delay(3000)
 					try {
-						// 检查 WebDAV 配置是否完整
-						if (settings.isBackupWebDavAutoRestoreEnabled && 
+						if (settings.isBackupWebDavAutoRestoreEnabled &&
 							!settings.backupWebDavServerUrl.isNullOrBlank() &&
 							!settings.backupWebDavUsername.isNullOrBlank() &&
-							!settings.backupWebDavPassword.isNullOrBlank()) {
+							!settings.backupWebDavPassword.isNullOrBlank()
+						) {
 							WebDavAutoRestoreService.start(this@MainActivity)
 						}
 					} catch (e: Exception) {

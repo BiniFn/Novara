@@ -25,6 +25,9 @@ import org.koitharu.kotatsu.core.util.ext.observe
 import org.koitharu.kotatsu.core.util.ext.observeEvent
 import org.koitharu.kotatsu.core.util.ext.withArgs
 import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.koitharu.kotatsu.parsers.MangaParserCredentialsAuthProvider
+import org.koitharu.kotatsu.settings.utils.EditTextBindListener
+import org.koitharu.kotatsu.settings.utils.PasswordSummaryProvider
 import java.io.File
 
 @AndroidEntryPoint
@@ -50,10 +53,19 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			isVisible = isValidSource && !settings.isAllSourcesEnabled
 			onPreferenceChangeListener = this@SourceSettingsFragment
 		}
-		findPreference<Preference>(KEY_AUTH)?.run {
-			val authProvider = (viewModel.repository as? ParserMangaRepository)?.getAuthProvider()
-			isVisible = authProvider != null
-		}
+        // 显示 Web 登录入口：当解析器支持“网页登录”但不支持“凭证登录”时才显示
+        findPreference<Preference>(KEY_AUTH)?.run {
+            val repo = (viewModel.repository as? ParserMangaRepository)
+            val authProvider = repo?.getAuthProvider()
+            val credentialsProvider = authProvider as? MangaParserCredentialsAuthProvider
+            isVisible = authProvider != null && credentialsProvider == null
+        }
+
+        // 如果解析器支持用户名/密码登录，在当前页面插入输入框与登录按钮
+        val credentialsProvider = (viewModel.repository as? ParserMangaRepository)?.getAuthProvider() as? MangaParserCredentialsAuthProvider
+        if (credentialsProvider != null) {
+            addCredentialsPreferences()
+        }
 		findPreference<Preference>(SourceSettings.KEY_SLOWDOWN)?.isVisible = isValidSource
 	}
 
@@ -61,11 +73,19 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		super.onViewCreated(view, savedInstanceState)
 		viewModel.isAuthorized.filterNotNull().observe(viewLifecycleOwner) { isAuthorized ->
 			findPreference<Preference>(KEY_AUTH)?.isEnabled = !isAuthorized
+			findPreference<Preference>(KEY_AUTH_STATUS)?.summary = if (isAuthorized) {
+				viewModel.username.value?.let { getString(R.string.logged_in_as, it) } ?: getString(R.string.auth_complete)
+			} else {
+				getString(R.string.auth_required)
+			}
 		}
 		viewModel.username.observe(viewLifecycleOwner) { username ->
 			findPreference<Preference>(KEY_AUTH)?.summary = username?.let {
 				getString(R.string.logged_in_as, it)
 			}
+			findPreference<Preference>(KEY_AUTH_STATUS)?.summary = username?.let {
+				getString(R.string.logged_in_as, it)
+			} ?: getString(R.string.auth_required)
 		}
 		viewModel.onError.observeEvent(
 			viewLifecycleOwner,
@@ -77,6 +97,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		)
 		viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
 			findPreference<Preference>(KEY_AUTH)?.isEnabled = !isLoading
+			findPreference<Preference>(KEY_AUTH_LOGIN)?.isEnabled = !isLoading
 		}
 		viewModel.isEnabled.observe(viewLifecycleOwner) { enabled ->
 			findPreference<SwitchPreferenceCompat>(KEY_ENABLE)?.isChecked = enabled
@@ -94,6 +115,13 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		return when (preference.key) {
 			KEY_AUTH -> {
 				router.openSourceAuth(viewModel.source)
+				true
+			}
+
+			KEY_AUTH_LOGIN -> {
+				val username = findPreference<EditTextPreference>(KEY_AUTH_USERNAME)?.text.orEmpty()
+				val password = findPreference<EditTextPreference>(KEY_AUTH_PASSWORD)?.text.orEmpty()
+				viewModel.loginByCredentials(username, password)
 				true
 			}
 
@@ -167,9 +195,65 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 
 		private const val KEY_AUTH = "auth"
 		private const val KEY_ENABLE = "enable"
+		private const val KEY_AUTH_STATUS = "auth_status"
+		private const val KEY_AUTH_USERNAME = "auth_username"
+		private const val KEY_AUTH_PASSWORD = "auth_password"
+		private const val KEY_AUTH_LOGIN = "auth_login"
 
 		fun newInstance(source: MangaSource) = SourceSettingsFragment().withArgs(1) {
 			putString(AppRouter.KEY_SOURCE, source.name)
+		}
+	}
+
+	private fun addCredentialsPreferences() {
+		// 登录状态展示（位于用户名/密码输入之前）
+		Preference(requireContext()).apply {
+			key = KEY_AUTH_STATUS
+			order = 97
+			isIconSpaceReserved = false
+			summary = getString(R.string.auth_required)
+			setPersistent(false)
+			preferenceScreen.addPreference(this)
+		}
+		// 用户名输入
+		EditTextPreference(requireContext()).apply {
+			key = KEY_AUTH_USERNAME
+			order = 98
+			isIconSpaceReserved = false
+			title = getString(R.string.enter_name)
+			setOnBindEditTextListener(
+				EditTextBindListener(
+					inputType = android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT,
+					hint = null,
+					validator = null,
+				),
+			)
+			preferenceScreen.addPreference(this)
+		}
+		// 密码输入
+		EditTextPreference(requireContext()).apply {
+			key = KEY_AUTH_PASSWORD
+			order = 99
+			isIconSpaceReserved = false
+			title = getString(R.string.enter_password)
+			summaryProvider = PasswordSummaryProvider()
+			setOnBindEditTextListener(
+				EditTextBindListener(
+					inputType = android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT or android.view.inputmethod.EditorInfo.TYPE_TEXT_VARIATION_PASSWORD,
+					hint = null,
+					validator = null,
+				),
+			)
+			preferenceScreen.addPreference(this)
+		}
+		// 登录按钮
+		Preference(requireContext()).apply {
+			key = KEY_AUTH_LOGIN
+			order = 100
+			isIconSpaceReserved = false
+			title = getString(R.string.sign_in)
+			setPersistent(false)
+			preferenceScreen.addPreference(this)
 		}
 	}
 }
