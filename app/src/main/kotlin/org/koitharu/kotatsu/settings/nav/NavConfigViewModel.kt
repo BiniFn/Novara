@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.nav
+package org.skepsun.kototoro.settings.nav
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,17 +12,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.NavItem
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.ui.util.ActivityRecreationHandle
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.main.ui.MainActivity
-import org.koitharu.kotatsu.main.ui.MainNavigationDelegate
-import org.koitharu.kotatsu.parsers.util.move
-import org.koitharu.kotatsu.settings.nav.model.NavItemAddModel
-import org.koitharu.kotatsu.settings.nav.model.NavItemConfigModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.ui.util.ActivityRecreationHandle
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.main.ui.MainActivity
+import org.skepsun.kototoro.main.ui.MainNavigationDelegate
+import org.skepsun.kototoro.parsers.util.move
+import org.skepsun.kototoro.settings.nav.model.NavItemAddModel
+import org.skepsun.kototoro.settings.nav.model.NavItemConfigModel
 import javax.inject.Inject
 
 @HiltViewModel

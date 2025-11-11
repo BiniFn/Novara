@@ -1,16 +1,16 @@
-package org.koitharu.kotatsu.settings.storage
+package org.skepsun.kototoro.settings.storage
 
 import android.net.Uri
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.isWriteable
-import org.koitharu.kotatsu.local.data.LocalStorageManager
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.isWriteable
+import org.skepsun.kototoro.local.data.LocalStorageManager
 import javax.inject.Inject
 
 @HiltViewModel

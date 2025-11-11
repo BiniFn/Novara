@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.utils
+package org.skepsun.kototoro.settings.utils
 
 import androidx.annotation.StringRes
 import androidx.preference.MultiSelectListPreference

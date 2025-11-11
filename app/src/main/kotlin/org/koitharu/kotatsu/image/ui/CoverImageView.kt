@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.image.ui
+package org.skepsun.kototoro.image.ui
 
 import android.content.Context
 import android.graphics.drawable.LayerDrawable
@@ -23,28 +23,28 @@ import coil3.size.ViewSizeResolver
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okio.FileNotFoundException
 import org.jsoup.HttpStatusException
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.core.exceptions.CloudFlareProtectedException
-import org.koitharu.kotatsu.core.exceptions.UnsupportedSourceException
-import org.koitharu.kotatsu.core.image.CoilImageView
-import org.koitharu.kotatsu.core.ui.image.AnimatedPlaceholderDrawable
-import org.koitharu.kotatsu.core.ui.image.TextDrawable
-import org.koitharu.kotatsu.core.ui.image.TrimTransformation
-import org.koitharu.kotatsu.core.util.ext.bookmarkExtra
-import org.koitharu.kotatsu.core.util.ext.decodeRegion
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.core.util.ext.isNetworkError
-import org.koitharu.kotatsu.core.util.ext.mangaExtra
-import org.koitharu.kotatsu.core.util.ext.mangaSourceExtra
-import org.koitharu.kotatsu.favourites.domain.model.Cover
-import org.koitharu.kotatsu.parsers.exception.ContentUnavailableException
-import org.koitharu.kotatsu.parsers.exception.ParseException
-import org.koitharu.kotatsu.parsers.exception.TooManyRequestExceptions
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaPage
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
+import org.skepsun.kototoro.core.image.CoilImageView
+import org.skepsun.kototoro.core.ui.image.AnimatedPlaceholderDrawable
+import org.skepsun.kototoro.core.ui.image.TextDrawable
+import org.skepsun.kototoro.core.ui.image.TrimTransformation
+import org.skepsun.kototoro.core.util.ext.bookmarkExtra
+import org.skepsun.kototoro.core.util.ext.decodeRegion
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.isNetworkError
+import org.skepsun.kototoro.core.util.ext.mangaExtra
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.favourites.domain.model.Cover
+import org.skepsun.kototoro.parsers.exception.ContentUnavailableException
+import org.skepsun.kototoro.parsers.exception.ParseException
+import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import kotlin.coroutines.resume
 import androidx.appcompat.R as appcompatR
 import com.google.android.material.R as materialR

@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.details.ui.adapter
+package org.skepsun.kototoro.details.ui.adapter
 
 import android.content.Context
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.fastscroll.FastScroller
-import org.koitharu.kotatsu.details.ui.model.ChapterListItem
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.listHeaderAD
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
+import org.skepsun.kototoro.details.ui.model.ChapterListItem
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.listHeaderAD
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 class ChaptersAdapter(
 	onItemClickListener: OnListItemClickListener<ChapterListItem>,

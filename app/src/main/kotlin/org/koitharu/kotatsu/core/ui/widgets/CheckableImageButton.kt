@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.widgets
+package org.skepsun.kototoro.core.ui.widgets
 
 import android.content.Context
 import android.os.Parcel

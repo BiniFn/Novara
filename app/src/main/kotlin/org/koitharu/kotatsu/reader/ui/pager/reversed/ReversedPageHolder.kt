@@ -1,17 +1,17 @@
-package org.koitharu.kotatsu.reader.ui.pager.reversed
+package org.skepsun.kototoro.reader.ui.pager.reversed
 
 import android.graphics.PointF
 import android.view.Gravity
 import android.widget.FrameLayout
 import androidx.lifecycle.LifecycleOwner
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.model.ZoomMode
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.databinding.ItemPageBinding
-import org.koitharu.kotatsu.reader.domain.PageLoader
-import org.koitharu.kotatsu.reader.ui.config.ReaderSettings
-import org.koitharu.kotatsu.reader.ui.pager.standard.PageHolder
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.model.ZoomMode
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.databinding.ItemPageBinding
+import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.ui.config.ReaderSettings
+import org.skepsun.kototoro.reader.ui.pager.standard.PageHolder
 
 class ReversedPageHolder(
 	owner: LifecycleOwner,

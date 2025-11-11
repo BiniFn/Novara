@@ -1,6 +1,8 @@
-package org.koitharu.kotatsu.backups.ui.webdav
+package org.skepsun.kototoro.backups.ui.webdav
 
 import android.content.Context
+import android.os.Build
+import android.net.ConnectivityManager
 import androidx.room.InvalidationTracker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -12,22 +14,22 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.collect
-import org.koitharu.kotatsu.backups.data.BackupRepository
-import org.koitharu.kotatsu.backups.domain.BackupUtils
-import org.koitharu.kotatsu.backups.domain.ExternalBackupStorage
-import org.koitharu.kotatsu.backups.ui.periodical.WebDavBackupUploader
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.db.TABLE_CHAPTERS
-import org.koitharu.kotatsu.core.db.TABLE_FAVOURITE_CATEGORIES
-import org.koitharu.kotatsu.core.db.TABLE_FAVOURITES
-import org.koitharu.kotatsu.core.db.TABLE_HISTORY
-import org.koitharu.kotatsu.core.db.TABLE_MANGA
-import org.koitharu.kotatsu.core.db.TABLE_MANGA_TAGS
-import org.koitharu.kotatsu.core.db.TABLE_PREFERENCES
-import org.koitharu.kotatsu.core.db.TABLE_SOURCES
-import org.koitharu.kotatsu.core.db.TABLE_TAGS
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
+import org.skepsun.kototoro.backups.ui.periodical.WebDavBackupUploader
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.TABLE_CHAPTERS
+import org.skepsun.kototoro.core.db.TABLE_FAVOURITE_CATEGORIES
+import org.skepsun.kototoro.core.db.TABLE_FAVOURITES
+import org.skepsun.kototoro.core.db.TABLE_HISTORY
+import org.skepsun.kototoro.core.db.TABLE_MANGA
+import org.skepsun.kototoro.core.db.TABLE_MANGA_TAGS
+import org.skepsun.kototoro.core.db.TABLE_SOURCES
+import org.skepsun.kototoro.core.db.TABLE_TAGS
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.ext.connectivityManager
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +53,13 @@ class DataSyncManager @Inject constructor(
     private var settingsJob: Job? = null
     private val uploadMutex = Mutex()
 
+    private companion object {
+        // 自动同步的最小间隔，防止过于频繁的上传（3 小时）
+        private const val AUTO_SYNC_MIN_INTERVAL_MS: Long = 3L * 60L * 60_000L
+        // 去抖动聚合时长保持 30 秒
+        private const val AUTO_SYNC_DEBOUNCE_MS: Long = 30_000
+    }
+
     private val tablesToObserve = arrayOf(
         TABLE_HISTORY,
         TABLE_FAVOURITES,
@@ -60,7 +69,6 @@ class DataSyncManager @Inject constructor(
         TABLE_MANGA_TAGS,
         TABLE_SOURCES,
         TABLE_CHAPTERS,
-        TABLE_PREFERENCES,
     )
 
     private val observer = object : InvalidationTracker.Observer(tablesToObserve) {
@@ -80,7 +88,8 @@ class DataSyncManager @Inject constructor(
         settingsJob = scope.launch {
             settings.observe(AppSettings.KEY_BACKUP_WEBDAV_DATA_VERSION).collect { key ->
                 if (key == AppSettings.KEY_BACKUP_WEBDAV_DATA_VERSION) {
-                    runCatching { uploadNow() }.onFailure { it.printStackTraceDebug() }
+                    // 数据版本变化时立即上传，忽略最小间隔限制
+                    runCatching { uploadNow(force = true) }.onFailure { it.printStackTraceDebug() }
                 }
             }
         }
@@ -103,21 +112,43 @@ class DataSyncManager @Inject constructor(
         val pass = settings.backupWebDavPassword
         if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) return
 
+        // 收紧策略：若距离上次上传不足最小间隔，则跳过本次调度
+        val lastUpload = settings.backupWebDavLastUploadTime
+        if (lastUpload > 0L && System.currentTimeMillis() - lastUpload < AUTO_SYNC_MIN_INTERVAL_MS) return
+
         debounceJob?.cancel()
         debounceJob = scope.launch {
             // 聚合 30 秒内的变更
-            delay(30_000)
-            runCatching { uploadNow() }.onFailure { it.printStackTraceDebug() }
+            delay(AUTO_SYNC_DEBOUNCE_MS)
+            runCatching { uploadNow(force = false) }.onFailure { it.printStackTraceDebug() }
         }
     }
 
-    private suspend fun uploadNow() {
+    private suspend fun uploadNow(force: Boolean = false) {
         // 条件判断：需启用自动同步且 WebDAV 上传可用、配置完整
         if (!settings.isBackupWebDavAutoSyncEnabled || !settings.isBackupWebDavUploadEnabled) return
         val url = settings.backupWebDavServerUrl
         val user = settings.backupWebDavUsername
         val pass = settings.backupWebDavPassword
         if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) return
+
+        // 收紧策略：仅在非计量网络上进行自动同步，且避免后台网络受限情形
+        val cm = appContext.connectivityManager
+        if (cm.isActiveNetworkMetered) {
+            // 计量网络下不进行自动上传
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            if (cm.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED) {
+                return
+            }
+        }
+
+        // 非强制触发时遵守最小间隔
+        if (!force) {
+            val lastUpload = settings.backupWebDavLastUploadTime
+            if (lastUpload > 0L && System.currentTimeMillis() - lastUpload < AUTO_SYNC_MIN_INTERVAL_MS) return
+        }
 
         uploadMutex.withLock {
             val output = BackupUtils.createTempFile(appContext)

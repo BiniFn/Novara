@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.databinding.ItemEmptyCardBinding
-import org.koitharu.kotatsu.list.ui.model.EmptyHint
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.databinding.ItemEmptyCardBinding
+import org.skepsun.kototoro.list.ui.model.EmptyHint
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 fun emptyHintAD(
 	listener: ListStateHolderListener,

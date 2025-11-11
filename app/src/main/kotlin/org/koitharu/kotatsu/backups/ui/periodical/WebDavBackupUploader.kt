@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.periodical
+package org.skepsun.kototoro.backups.ui.periodical
 
 import androidx.annotation.CheckResult
 import okhttp3.Credentials
@@ -6,9 +6,9 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
-import org.koitharu.kotatsu.core.network.BaseHttpClient
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.parsers.util.await
+import org.skepsun.kototoro.core.network.BaseHttpClient
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.parsers.util.await
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import java.io.File
@@ -59,9 +59,9 @@ class WebDavBackupUploader @Inject constructor(
 
     private fun buildVersionedRemoteName(version: Int): String {
         // 延续使用 .zip 扩展名，版本写在文件名：
-        // kotatsu-v<version>-<yyyyMMdd-HHmmss>.zip
+        // kototoro-v<version>-<yyyyMMdd-HHmmss>.zip
         val ts = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        return "kotatsu-v${version}-${ts}.zip"
+        return "kototoro-v${version}-${ts}.zip"
     }
 
     suspend fun uploadBackup(file: File, targetVersion: Int = settings.backupWebDavDataVersion) {
@@ -247,8 +247,8 @@ class WebDavBackupUploader @Inject constructor(
     }
 
     private fun parseDataVersion(fileName: String): Int? {
-        // 优先匹配新的 .kotatsu 命名：kotatsu-v<version>-<ts>.kotatsu
-        val strict = Regex("^kotatsu(?:-data)?-v(\\d+)-")
+        // 优先匹配新的 .kototoro 命名：kototoro-v<version>-<ts>.kototoro
+        val strict = Regex("^kototoro(?:-data)?-v(\\d+)-")
         val m1 = strict.find(fileName)
         if (m1 != null) return m1.groupValues.getOrNull(1)?.toIntOrNull()
         // 兼容其它命名包含 -v<version>- 的形式

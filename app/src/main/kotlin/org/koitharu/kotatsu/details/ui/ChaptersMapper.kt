@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.details.ui
+package org.skepsun.kototoro.details.ui
 
 import android.content.Context
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.details.ui.model.ChapterListItem
-import org.koitharu.kotatsu.details.ui.model.toListItem
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.util.mapToSet
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.ui.model.ChapterListItem
+import org.skepsun.kototoro.details.ui.model.toListItem
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.util.mapToSet
 
 fun MangaDetails.mapChapters(
 	currentChapterId: Long,

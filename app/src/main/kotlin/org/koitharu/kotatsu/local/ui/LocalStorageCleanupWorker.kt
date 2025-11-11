@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.ui
+package org.skepsun.kototoro.local.ui
 
 import android.content.Context
 import android.content.Intent
@@ -21,12 +21,12 @@ import androidx.work.WorkerParameters
 import androidx.work.await
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.local.data.LocalMangaRepository
-import org.koitharu.kotatsu.local.domain.DeleteReadChaptersUseCase
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.local.domain.DeleteReadChaptersUseCase
 import java.util.concurrent.TimeUnit
 
 @HiltWorker

@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.list.domain
+package org.skepsun.kototoro.list.domain
 
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.parsers.util.find
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.parsers.util.find
 import java.util.EnumSet
 
 enum class ListSortOrder(

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.domain
+package org.skepsun.kototoro.reader.domain
 
 import android.content.res.ColorStateList
 import android.graphics.Color

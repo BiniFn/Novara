@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.favourites.domain
+package org.skepsun.kototoro.favourites.domain
 
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.MangaListQuickFilter
 
 class FavoritesListQuickFilter @AssistedInject constructor(
 	@Assisted private val categoryId: Long,

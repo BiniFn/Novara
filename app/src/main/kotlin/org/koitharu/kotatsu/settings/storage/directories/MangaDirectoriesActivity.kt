@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.storage.directories
+package org.skepsun.kototoro.settings.storage.directories
 
 import android.Manifest
 import android.content.Intent
@@ -15,18 +15,18 @@ import androidx.core.view.updatePadding
 import com.google.android.material.snackbar.Snackbar
 import com.hannesdorfmann.adapterdelegates4.AsyncListDifferDelegationAdapter
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
-import org.koitharu.kotatsu.core.os.OpenDocumentTreeHelper
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.decor.SpacingItemDecoration
-import org.koitharu.kotatsu.core.util.ext.consumeAllSystemBarsInsets
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
-import org.koitharu.kotatsu.databinding.ActivityMangaDirectoriesBinding
-import org.koitharu.kotatsu.settings.storage.RequestStorageManagerPermissionContract
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.decor.SpacingItemDecoration
+import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.databinding.ActivityMangaDirectoriesBinding
+import org.skepsun.kototoro.settings.storage.RequestStorageManagerPermissionContract
 
 @AndroidEntryPoint
 class MangaDirectoriesActivity : BaseActivity<ActivityMangaDirectoriesBinding>(),

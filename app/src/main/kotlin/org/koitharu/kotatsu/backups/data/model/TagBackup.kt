@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.backups.data.model
+package org.skepsun.kototoro.backups.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.koitharu.kotatsu.core.db.entity.TagEntity
+import org.skepsun.kototoro.core.db.entity.TagEntity
 
 @Serializable
 class TagBackup(

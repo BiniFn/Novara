@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.explore.ui.adapter
+package org.skepsun.kototoro.explore.ui.adapter
 
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.explore.ui.model.MangaSourceItem
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.emptyHintAD
-import org.koitharu.kotatsu.list.ui.adapter.listHeaderAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingStateAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.emptyHintAD
+import org.skepsun.kototoro.list.ui.adapter.listHeaderAD
+import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
 
 class ExploreAdapter(
 	listener: ExploreListEventListener,

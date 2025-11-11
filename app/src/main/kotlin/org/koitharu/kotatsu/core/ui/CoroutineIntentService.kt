@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui
+package org.skepsun.kototoro.core.ui
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 
 abstract class CoroutineIntentService : BaseService() {
 

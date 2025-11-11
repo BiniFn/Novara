@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.details.ui
+package org.skepsun.kototoro.details.ui
 
 import android.text.Spannable
 import android.text.TextPaint

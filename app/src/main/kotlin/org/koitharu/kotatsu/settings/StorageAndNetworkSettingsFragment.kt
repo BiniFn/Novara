@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.content.SharedPreferences
 import android.os.Bundle
@@ -7,16 +7,16 @@ import androidx.fragment.app.viewModels
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.google.android.material.snackbar.Snackbar
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
-import org.koitharu.kotatsu.core.network.DoHProvider
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.setDefaultValueCompat
-import org.koitharu.kotatsu.parsers.util.names
-import org.koitharu.kotatsu.settings.userdata.storage.StorageUsagePreference
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.network.DoHProvider
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
+import org.skepsun.kototoro.parsers.util.names
+import org.skepsun.kototoro.settings.userdata.storage.StorageUsagePreference
 import java.net.Proxy
 
 class StorageAndNetworkSettingsFragment :

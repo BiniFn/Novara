@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.network.webview.adblock
+package org.skepsun.kototoro.core.network.webview.adblock
 
 import androidx.annotation.CheckResult
 import okhttp3.HttpUrl

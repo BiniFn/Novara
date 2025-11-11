@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.parser.favicon
+package org.skepsun.kototoro.core.parser.favicon
 
 import android.graphics.Color
 import android.graphics.drawable.AdaptiveIconDrawable
@@ -25,21 +25,21 @@ import kotlinx.coroutines.runInterruptible
 import okio.FileSystem
 import okio.IOException
 import okio.Path.Companion.toOkioPath
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.CloudFlareProtectedException
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.parser.EmptyMangaRepository
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.parser.external.ExternalMangaRepository
-import org.koitharu.kotatsu.core.util.MimeTypes
-import org.koitharu.kotatsu.core.util.ext.fetch
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.toMimeTypeOrNull
-import org.koitharu.kotatsu.local.data.FaviconCache
-import org.koitharu.kotatsu.local.data.LocalMangaRepository
-import org.koitharu.kotatsu.local.data.LocalStorageCache
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.parser.EmptyMangaRepository
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.external.ExternalMangaRepository
+import org.skepsun.kototoro.core.util.MimeTypes
+import org.skepsun.kototoro.core.util.ext.fetch
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
+import org.skepsun.kototoro.local.data.FaviconCache
+import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.local.data.LocalStorageCache
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import javax.inject.Inject
 import coil3.Uri as CoilUri

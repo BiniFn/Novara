@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.tracker.ui.feed.model
+package org.skepsun.kototoro.tracker.ui.feed.model
 
-import org.koitharu.kotatsu.core.model.withOverride
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.core.model.withOverride
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 
 data class FeedItem(
 	val id: Long,

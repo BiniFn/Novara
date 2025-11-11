@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import android.view.View
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.list.ui.model.MangaListModel
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaTag
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaTag
 
 interface MangaDetailsClickListener : OnListItemClickListener<MangaListModel> {
 

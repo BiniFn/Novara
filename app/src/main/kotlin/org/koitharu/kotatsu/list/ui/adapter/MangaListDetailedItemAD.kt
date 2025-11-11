@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import androidx.core.view.isVisible
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.AdapterDelegateClickListenerAdapter
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ItemMangaListDetailsBinding
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.MangaDetailedListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ItemMangaListDetailsBinding
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.MangaDetailedListModel
 
 fun mangaListDetailedItemAD(
 	clickListener: MangaDetailsClickListener,

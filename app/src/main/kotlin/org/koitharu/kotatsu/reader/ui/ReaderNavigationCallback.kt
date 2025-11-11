@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 
 interface ReaderNavigationCallback {
 

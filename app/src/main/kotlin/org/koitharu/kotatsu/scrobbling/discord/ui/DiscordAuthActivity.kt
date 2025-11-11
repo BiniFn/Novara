@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.scrobbling.discord.ui
+package org.skepsun.kototoro.scrobbling.discord.ui
 
 import android.os.Bundle
 import android.view.MenuItem
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.browser.BaseBrowserActivity
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.browser.BaseBrowserActivity
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.parsers.model.MangaSource
 import javax.inject.Inject
 
 @AndroidEntryPoint

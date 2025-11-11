@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.os.Bundle
 import android.view.View
@@ -7,15 +7,15 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.core.util.ext.addMenuProvider
-import org.koitharu.kotatsu.core.util.ext.getQuantityStringSafe
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.settings.search.SettingsSearchMenuProvider
-import org.koitharu.kotatsu.settings.search.SettingsSearchViewModel
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.settings.search.SettingsSearchMenuProvider
+import org.skepsun.kototoro.settings.search.SettingsSearchViewModel
 
 @AndroidEntryPoint
 class RootSettingsFragment : BasePreferenceFragment(0) {

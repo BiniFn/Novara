@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.parser
+package org.skepsun.kototoro.core.parser
 
 import android.graphics.Canvas
 import androidx.core.graphics.createBitmap
-import org.koitharu.kotatsu.parsers.bitmap.Bitmap
-import org.koitharu.kotatsu.parsers.bitmap.Rect
+import org.skepsun.kototoro.parsers.bitmap.Bitmap
+import org.skepsun.kototoro.parsers.bitmap.Rect
 import java.io.OutputStream
 import android.graphics.Bitmap as AndroidBitmap
 import android.graphics.Rect as AndroidRect

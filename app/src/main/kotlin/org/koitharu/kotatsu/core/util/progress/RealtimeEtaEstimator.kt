@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util.progress
+package org.skepsun.kototoro.core.util.progress
 
 import android.os.SystemClock
 import androidx.annotation.AnyThread

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.favourites.ui.categories.edit
+package org.skepsun.kototoro.favourites.ui.categories.edit
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -9,15 +9,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.favourites.ui.categories.edit.FavouritesCategoryEditActivity.Companion.NO_ID
-import org.koitharu.kotatsu.list.domain.ListSortOrder
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.favourites.ui.categories.edit.FavouritesCategoryEditActivity.Companion.NO_ID
+import org.skepsun.kototoro.list.domain.ListSortOrder
 import javax.inject.Inject
 
 @HiltViewModel

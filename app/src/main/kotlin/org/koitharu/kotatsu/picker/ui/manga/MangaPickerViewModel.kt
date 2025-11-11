@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.picker.ui.manga
+package org.skepsun.kototoro.picker.ui.manga
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -9,20 +9,20 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.list.domain.MangaListMapper
-import org.koitharu.kotatsu.list.ui.MangaListViewModel
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.LoadingState
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingState
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharedFlow
-import org.koitharu.kotatsu.local.data.LocalStorageChanges
-import org.koitharu.kotatsu.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.LocalStorageChanges
+import org.skepsun.kototoro.local.domain.model.LocalManga
 
 @HiltViewModel
 class MangaPickerViewModel @Inject constructor(

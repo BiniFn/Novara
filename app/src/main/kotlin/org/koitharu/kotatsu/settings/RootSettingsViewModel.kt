@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -6,8 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import javax.inject.Inject
 
 @HiltViewModel

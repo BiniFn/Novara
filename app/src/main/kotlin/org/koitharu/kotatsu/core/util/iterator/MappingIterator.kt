@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util.iterator
+package org.skepsun.kototoro.core.util.iterator
 
 class MappingIterator<T, R>(
 	private val upstream: Iterator<T>,

@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.scrobbling.common.domain
+package org.skepsun.kototoro.scrobbling.common.domain
 
-import org.koitharu.kotatsu.scrobbling.anilist.data.AniListRepository
-import org.koitharu.kotatsu.scrobbling.common.data.ScrobblerRepository
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerService
-import org.koitharu.kotatsu.scrobbling.kitsu.data.KitsuRepository
-import org.koitharu.kotatsu.scrobbling.mal.data.MALRepository
-import org.koitharu.kotatsu.scrobbling.shikimori.data.ShikimoriRepository
+import org.skepsun.kototoro.scrobbling.anilist.data.AniListRepository
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
+import org.skepsun.kototoro.scrobbling.mal.data.MALRepository
+import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriRepository
 import javax.inject.Inject
 import javax.inject.Provider
 

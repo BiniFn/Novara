@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.scrobbling.common.domain.model
+package org.skepsun.kototoro.scrobbling.common.domain.model
 
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 enum class ScrobblingStatus : ListModel {
 

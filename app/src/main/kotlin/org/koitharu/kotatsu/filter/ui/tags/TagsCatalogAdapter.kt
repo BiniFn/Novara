@@ -1,20 +1,20 @@
-package org.koitharu.kotatsu.filter.ui.tags
+package org.skepsun.kototoro.filter.ui.tags
 
 import android.content.Context
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.fastscroll.FastScroller
-import org.koitharu.kotatsu.core.util.ext.setChecked
-import org.koitharu.kotatsu.databinding.ItemCheckableNewBinding
-import org.koitharu.kotatsu.filter.ui.model.TagCatalogItem
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.errorFooterAD
-import org.koitharu.kotatsu.list.ui.adapter.errorStateListAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingFooterAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingStateAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
+import org.skepsun.kototoro.core.util.ext.setChecked
+import org.skepsun.kototoro.databinding.ItemCheckableNewBinding
+import org.skepsun.kototoro.filter.ui.model.TagCatalogItem
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.errorFooterAD
+import org.skepsun.kototoro.list.ui.adapter.errorStateListAD
+import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
+import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 class TagsCatalogAdapter(
 	listener: OnListItemClickListener<TagCatalogItem>,

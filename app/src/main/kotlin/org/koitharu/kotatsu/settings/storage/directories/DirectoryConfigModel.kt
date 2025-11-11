@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.settings.storage.directories
+package org.skepsun.kototoro.settings.storage.directories
 
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 import java.io.File
 
 data class DirectoryConfigModel(

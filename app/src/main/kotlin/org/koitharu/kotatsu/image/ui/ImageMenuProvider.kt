@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.image.ui
+package org.skepsun.kototoro.image.ui
 
 import android.Manifest
 import android.os.Build
@@ -10,9 +10,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.MenuProvider
 import com.google.android.material.snackbar.Snackbar
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.isZipUri
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.isZipUri
+import org.skepsun.kototoro.core.util.ext.tryLaunch
 
 class ImageMenuProvider(
 	private val activity: ComponentActivity,

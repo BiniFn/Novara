@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.exceptions.resolve
+package org.skepsun.kototoro.core.exceptions.resolve
 
 import android.Manifest
 import android.app.Notification
@@ -34,30 +34,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.LocalizedAppContext
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.exceptions.CloudFlareException
-import org.koitharu.kotatsu.core.exceptions.CloudFlareProtectedException
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.model.UnknownMangaSource
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.network.webview.WebViewExecutor
-import org.koitharu.kotatsu.core.parser.favicon.faviconUri
-import org.koitharu.kotatsu.core.prefs.SourceSettings
-import org.koitharu.kotatsu.core.util.ext.checkNotificationPermission
-import org.koitharu.kotatsu.core.util.ext.getNotificationIconSize
-import org.koitharu.kotatsu.core.util.ext.goAsync
-import org.koitharu.kotatsu.core.util.ext.mangaSourceExtra
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.processLifecycleScope
-import org.koitharu.kotatsu.core.util.ext.toBitmapOrNull
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
-import org.koitharu.kotatsu.parsers.util.mapToArray
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.LocalizedAppContext
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.exceptions.CloudFlareException
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.network.webview.WebViewExecutor
+import org.skepsun.kototoro.core.parser.favicon.faviconUri
+import org.skepsun.kototoro.core.prefs.SourceSettings
+import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
+import org.skepsun.kototoro.core.util.ext.getNotificationIconSize
+import org.skepsun.kototoro.core.util.ext.goAsync
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.processLifecycleScope
+import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
+import org.skepsun.kototoro.parsers.util.mapToArray
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -283,10 +283,10 @@ class CaptchaHandler @Inject constructor(
 
 		private const val CHANNEL_ID = "captcha"
 		private const val TAG = CHANNEL_ID
-		private const val GROUP_CAPTCHA = "org.koitharu.kotatsu.CAPTCHA"
+		private const val GROUP_CAPTCHA = "org.skepsun.kototoro.CAPTCHA"
 		private const val GROUP_NOTIFICATION_ID = 34
 		private const val SETTINGS_ACTION_CODE = 3
-		private const val ACTION_DISCARD = "org.koitharu.kotatsu.CAPTCHA_DISCARD"
+		private const val ACTION_DISCARD = "org.skepsun.kototoro.CAPTCHA_DISCARD"
 		private const val RESOLVE_TIMEOUT = 20_000L
 	}
 }

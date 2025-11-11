@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.search.domain
+package org.skepsun.kototoro.search.domain
 
 enum class SearchKind {
 

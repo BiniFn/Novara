@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.widget.shelf.model
+package org.skepsun.kototoro.widget.shelf.model
 
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 data class CategoryItem(
 	val id: Long,

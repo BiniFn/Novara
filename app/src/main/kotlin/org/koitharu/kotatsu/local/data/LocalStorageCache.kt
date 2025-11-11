@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.data
+package org.skepsun.kototoro.local.data
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -12,18 +12,18 @@ import okio.Source
 import okio.buffer
 import okio.sink
 import okio.use
-import org.koitharu.kotatsu.core.exceptions.NoDataReceivedException
-import org.koitharu.kotatsu.core.util.MimeTypes
-import org.koitharu.kotatsu.core.util.ext.MimeType
-import org.koitharu.kotatsu.core.util.ext.compressToPNG
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.subdir
-import org.koitharu.kotatsu.core.util.ext.takeIfReadable
-import org.koitharu.kotatsu.core.util.ext.takeIfWriteable
-import org.koitharu.kotatsu.core.util.ext.writeAllCancellable
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
-import org.koitharu.kotatsu.parsers.util.suspendlazy.suspendLazy
+import org.skepsun.kototoro.core.exceptions.NoDataReceivedException
+import org.skepsun.kototoro.core.util.MimeTypes
+import org.skepsun.kototoro.core.util.ext.MimeType
+import org.skepsun.kototoro.core.util.ext.compressToPNG
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.subdir
+import org.skepsun.kototoro.core.util.ext.takeIfReadable
+import org.skepsun.kototoro.core.util.ext.takeIfWriteable
+import org.skepsun.kototoro.core.util.ext.writeAllCancellable
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import java.io.File
 import java.util.UUID
 

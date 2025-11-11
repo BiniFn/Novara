@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.settings.sources.model
+package org.skepsun.kototoro.settings.sources.model
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 sealed interface SourceConfigItem : ListModel {
 

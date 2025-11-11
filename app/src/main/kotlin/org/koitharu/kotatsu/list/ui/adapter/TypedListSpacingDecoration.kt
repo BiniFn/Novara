@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import android.content.Context
 import android.graphics.Rect
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.ItemDecoration
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 
 class TypedListSpacingDecoration(
 	context: Context,

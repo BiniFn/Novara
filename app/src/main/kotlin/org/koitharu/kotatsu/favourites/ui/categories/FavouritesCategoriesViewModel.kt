@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.favourites.ui.categories
+package org.skepsun.kototoro.favourites.ui.categories
 
 import androidx.collection.LongSet
 import androidx.lifecycle.viewModelScope
@@ -13,19 +13,19 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsFlow
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.requireValue
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.favourites.domain.model.Cover
-import org.koitharu.kotatsu.favourites.ui.categories.adapter.AllCategoriesListModel
-import org.koitharu.kotatsu.favourites.ui.categories.adapter.CategoryListModel
-import org.koitharu.kotatsu.list.ui.model.EmptyState
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.LoadingState
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.requireValue
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.favourites.domain.model.Cover
+import org.skepsun.kototoro.favourites.ui.categories.adapter.AllCategoriesListModel
+import org.skepsun.kototoro.favourites.ui.categories.adapter.CategoryListModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingState
 import javax.inject.Inject
 
 @HiltViewModel

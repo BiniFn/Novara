@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui.pager.doublepage
+package org.skepsun.kototoro.reader.ui.pager.doublepage
 
 import android.content.Context
 import android.util.AttributeSet

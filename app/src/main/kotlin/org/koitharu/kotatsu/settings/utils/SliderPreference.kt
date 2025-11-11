@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.utils
+package org.skepsun.kototoro.settings.utils
 
 import android.content.Context
 import android.content.res.TypedArray
@@ -10,8 +10,8 @@ import androidx.customview.view.AbsSavedState
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.google.android.material.slider.Slider
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.setValueRounded
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.setValueRounded
 
 class SliderPreference @JvmOverloads constructor(
 	context: Context,

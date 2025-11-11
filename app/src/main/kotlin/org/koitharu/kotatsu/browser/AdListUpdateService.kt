@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.browser
+package org.skepsun.kototoro.browser
 
 import android.content.Intent
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.core.network.webview.adblock.AdBlock
-import org.koitharu.kotatsu.core.ui.CoroutineIntentService
+import org.skepsun.kototoro.core.network.webview.adblock.AdBlock
+import org.skepsun.kototoro.core.ui.CoroutineIntentService
 import javax.inject.Inject
 
 @AndroidEntryPoint

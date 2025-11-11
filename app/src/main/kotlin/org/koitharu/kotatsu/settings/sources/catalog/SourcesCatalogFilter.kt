@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.settings.sources.catalog
+package org.skepsun.kototoro.settings.sources.catalog
 
-import org.koitharu.kotatsu.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.ContentType
 
 data class SourcesCatalogFilter(
 	val types: Set<ContentType>,

@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.filter.ui.model
+package org.skepsun.kototoro.filter.ui.model
 
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.parsers.model.SortOrder
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.parsers.model.SortOrder
 
 data class FilterHeaderModel(
 	val chips: Collection<ChipsView.ChipModel>,

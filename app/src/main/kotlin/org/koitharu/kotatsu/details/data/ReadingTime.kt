@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.details.data
+package org.skepsun.kototoro.details.data
 
 import android.content.res.Resources
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.getQuantityStringSafe
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 
 data class ReadingTime(
 	val minutes: Int,

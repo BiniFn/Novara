@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.main.domain
+package org.skepsun.kototoro.main.domain
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -6,10 +6,10 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.history.data.HistoryRepository
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.history.data.HistoryRepository
 import javax.inject.Inject
 
 class ReadingResumeEnabledUseCase @Inject constructor(

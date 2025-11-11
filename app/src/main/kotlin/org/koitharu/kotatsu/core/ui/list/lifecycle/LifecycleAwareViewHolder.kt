@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.list.lifecycle
+package org.skepsun.kototoro.core.ui.list.lifecycle
 
 import android.view.View
 import androidx.annotation.CallSuper

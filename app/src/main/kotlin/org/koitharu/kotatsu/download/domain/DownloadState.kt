@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.download.domain
+package org.skepsun.kototoro.download.domain
 
 import androidx.work.Data
-import org.koitharu.kotatsu.list.domain.ReadingProgress.Companion.PROGRESS_NONE
-import org.koitharu.kotatsu.local.domain.model.LocalManga
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
+import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.parsers.model.Manga
 import java.time.Instant
 
 data class DownloadState(

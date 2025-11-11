@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.main.ui
+package org.skepsun.kototoro.main.ui
 
 import android.Manifest
 import android.app.BackgroundServiceStartNotAllowedException
@@ -44,41 +44,41 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.ui.periodical.PeriodicalBackupService
-import org.koitharu.kotatsu.backups.ui.webdav.WebDavAutoRestoreService
-import org.koitharu.kotatsu.backups.ui.webdav.DataSyncManager
-import org.koitharu.kotatsu.browser.AdListUpdateService
-import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.os.VoiceInputContract
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.NavItem
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.util.FadingAppbarMediator
-import org.koitharu.kotatsu.core.ui.util.MenuInvalidator
-import org.koitharu.kotatsu.core.ui.widgets.SlidingBottomNavigationView
-import org.koitharu.kotatsu.core.util.ext.consume
-import org.koitharu.kotatsu.core.util.ext.end
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.start
-import org.koitharu.kotatsu.databinding.ActivityMainBinding
-import org.koitharu.kotatsu.details.service.MangaPrefetchService
-import org.koitharu.kotatsu.favourites.ui.container.FavouritesContainerFragment
-import org.koitharu.kotatsu.history.ui.HistoryListFragment
-import org.koitharu.kotatsu.local.ui.LocalIndexUpdateService
-import org.koitharu.kotatsu.local.ui.LocalStorageCleanupWorker
-import org.koitharu.kotatsu.main.ui.owners.AppBarOwner
-import org.koitharu.kotatsu.main.ui.owners.BottomNavOwner
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.remotelist.ui.MangaSearchMenuProvider
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionItemCallback
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionListenerImpl
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionMenuProvider
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionViewModel
-import org.koitharu.kotatsu.search.ui.suggestion.adapter.SearchSuggestionAdapter
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupService
+import org.skepsun.kototoro.backups.ui.webdav.WebDavAutoRestoreService
+import org.skepsun.kototoro.backups.ui.webdav.DataSyncManager
+import org.skepsun.kototoro.browser.AdListUpdateService
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.os.VoiceInputContract
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.util.FadingAppbarMediator
+import org.skepsun.kototoro.core.ui.util.MenuInvalidator
+import org.skepsun.kototoro.core.ui.widgets.SlidingBottomNavigationView
+import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.end
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.start
+import org.skepsun.kototoro.databinding.ActivityMainBinding
+import org.skepsun.kototoro.details.service.MangaPrefetchService
+import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
+import org.skepsun.kototoro.history.ui.HistoryListFragment
+import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
+import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.remotelist.ui.MangaSearchMenuProvider
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionItemCallback
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListenerImpl
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionMenuProvider
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionViewModel
+import org.skepsun.kototoro.search.ui.suggestion.adapter.SearchSuggestionAdapter
 import javax.inject.Inject
 import com.google.android.material.R as materialR
 
@@ -147,6 +147,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 
 		if (savedInstanceState == null) {
 			onFirstStart()
+			// 首次创建 Activity 时启动 WebDAV 自动同步监听（避免重复添加观察者）
+			runCatching { dataSyncManager.start() }.onFailure { it.printStackTraceDebug() }
 		}
 
 		viewModel.onOpenReader.observeEvent(this, this::onOpenReader)
@@ -172,18 +174,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 
 	override fun onResume() {
 		super.onResume()
-		// 在每次进入前台时触发一次自动恢复检查（遵循开关且仅在配置有效时启动）
-		lifecycleScope.launch {
-			kotlin.runCatching {
-				if (settings.isBackupWebDavAutoRestoreEnabled &&
-					!settings.backupWebDavServerUrl.isNullOrBlank() &&
-					!settings.backupWebDavUsername.isNullOrBlank() &&
-					!settings.backupWebDavPassword.isNullOrBlank()
-				) {
-					WebDavAutoRestoreService.start(this@MainActivity)
-				}
-			}.onFailure { it.printStackTraceDebug() }
-		}
 	}
 
 	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {

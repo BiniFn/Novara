@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.picker.ui.page
+package org.skepsun.kototoro.picker.ui.page
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -12,26 +12,26 @@ import androidx.lifecycle.Lifecycle
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BaseFragment
-import org.koitharu.kotatsu.core.ui.list.BoundsScrollListener
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.util.PagerNestedScrollHelper
-import org.koitharu.kotatsu.core.util.ext.consumeAll
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.showOrHide
-import org.koitharu.kotatsu.databinding.FragmentPagesBinding
-import org.koitharu.kotatsu.details.ui.pager.pages.PageThumbnail
-import org.koitharu.kotatsu.details.ui.pager.pages.PageThumbnailAdapter
-import org.koitharu.kotatsu.list.ui.GridSpanResolver
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.TypedListSpacingDecoration
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.picker.ui.PageImagePickActivity
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.ui.list.BoundsScrollListener
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.util.PagerNestedScrollHelper
+import org.skepsun.kototoro.core.util.ext.consumeAll
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.showOrHide
+import org.skepsun.kototoro.databinding.FragmentPagesBinding
+import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
+import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnailAdapter
+import org.skepsun.kototoro.list.ui.GridSpanResolver
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.picker.ui.PageImagePickActivity
 import javax.inject.Inject
 
 @AndroidEntryPoint

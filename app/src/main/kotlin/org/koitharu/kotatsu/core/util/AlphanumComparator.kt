@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 class AlphanumComparator : Comparator<String> {
 

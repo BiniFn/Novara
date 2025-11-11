@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.local.data.CacheDir
-import org.koitharu.kotatsu.local.data.LocalStorageManager
-import org.koitharu.kotatsu.settings.userdata.storage.StorageUsage
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.local.data.CacheDir
+import org.skepsun.kototoro.local.data.LocalStorageManager
+import org.skepsun.kototoro.settings.userdata.storage.StorageUsage
 import javax.inject.Inject
 
 @HiltViewModel

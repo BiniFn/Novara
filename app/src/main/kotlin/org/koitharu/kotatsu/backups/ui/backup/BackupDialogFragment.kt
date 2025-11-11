@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.backup
+package org.skepsun.kototoro.backups.ui.backup
 
 import android.net.Uri
 import android.os.Bundle
@@ -9,13 +9,13 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.AlertDialogFragment
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.progress.Progress
-import org.koitharu.kotatsu.databinding.DialogProgressBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.progress.Progress
+import org.skepsun.kototoro.databinding.DialogProgressBinding
 
 @AndroidEntryPoint
 class BackupDialogFragment : AlertDialogFragment<DialogProgressBinding>() {

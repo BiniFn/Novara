@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.search.ui.suggestion
+package org.skepsun.kototoro.search.ui.suggestion
 
 import android.text.TextWatcher
 import android.widget.TextView
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.search.domain.SearchKind
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.search.domain.SearchKind
 
 interface SearchSuggestionListener : TextWatcher, TextView.OnEditorActionListener {
 

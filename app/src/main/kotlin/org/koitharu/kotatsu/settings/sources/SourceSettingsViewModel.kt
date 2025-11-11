@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.sources
+package org.skepsun.kototoro.settings.sources
 
 import android.content.SharedPreferences
 import androidx.lifecycle.SavedStateHandle
@@ -7,23 +7,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.HttpUrl
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.network.cookies.MutableCookieJar
-import org.koitharu.kotatsu.core.parser.CachingMangaRepository
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.prefs.SourceSettings
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.ui.util.ReversibleAction
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.explore.data.MangaSourcesRepository
-import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
-import org.koitharu.kotatsu.parsers.MangaParserCredentialsAuthProvider
-import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
-import org.koitharu.kotatsu.parsers.exception.ParseException
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
+import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.prefs.SourceSettings
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.ui.util.ReversibleAction
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.parsers.MangaParserAuthProvider
+import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
+import org.skepsun.kototoro.parsers.exception.AuthRequiredException
+import org.skepsun.kototoro.parsers.exception.ParseException
 import javax.inject.Inject
 
 @HiltViewModel

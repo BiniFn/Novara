@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.restore
+package org.skepsun.kototoro.backups.ui.restore
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
@@ -9,12 +9,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
-import org.koitharu.kotatsu.backups.data.model.BackupIndex
-import org.koitharu.kotatsu.backups.domain.BackupSection
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.toUriOrNull
+import org.skepsun.kototoro.backups.data.model.BackupIndex
+import org.skepsun.kototoro.backups.domain.BackupSection
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.util.Date

@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.local.data.output
+package org.skepsun.kototoro.local.data.output
 
 import androidx.core.net.toFile
 import androidx.core.net.toUri
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.parsers.model.Manga
 
 class LocalMangaUtil(
 	private val manga: Manga,

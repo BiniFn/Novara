@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.scrobbling.anilist.data
+package org.skepsun.kototoro.scrobbling.anilist.data
 
 import okhttp3.Interceptor
 import okhttp3.Response
-import org.koitharu.kotatsu.core.network.CommonHeaders
-import org.koitharu.kotatsu.scrobbling.common.data.ScrobblerStorage
-import org.koitharu.kotatsu.scrobbling.common.domain.ScrobblerAuthRequiredException
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.core.network.CommonHeaders
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
+import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerAuthRequiredException
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import java.net.HttpURLConnection
 
 private const val JSON = "application/json"

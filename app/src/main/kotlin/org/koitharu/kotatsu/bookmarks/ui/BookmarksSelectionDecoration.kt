@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.bookmarks.ui
+package org.skepsun.kototoro.bookmarks.ui
 
 import android.content.Context
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.core.util.ext.getItem
-import org.koitharu.kotatsu.list.ui.MangaSelectionDecoration
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.core.util.ext.getItem
+import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
 
 class BookmarksSelectionDecoration(context: Context) : MangaSelectionDecoration(context) {
 

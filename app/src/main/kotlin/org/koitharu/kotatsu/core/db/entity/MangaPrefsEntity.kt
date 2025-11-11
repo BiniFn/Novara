@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.core.db.entity
+package org.skepsun.kototoro.core.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
-import org.koitharu.kotatsu.core.db.TABLE_PREFERENCES
+import org.skepsun.kototoro.core.db.TABLE_PREFERENCES
 
 @Entity(
 	tableName = TABLE_PREFERENCES,

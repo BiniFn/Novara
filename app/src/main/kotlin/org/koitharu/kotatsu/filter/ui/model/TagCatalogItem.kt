@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.filter.ui.model
+package org.skepsun.kototoro.filter.ui.model
 
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.MangaTag
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.MangaTag
 
 data class TagCatalogItem(
 	val tag: MangaTag,

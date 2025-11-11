@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.stats.ui.sheet
+package org.skepsun.kototoro.stats.ui.sheet
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -9,16 +9,16 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.sheet.BaseAdaptiveSheet
-import org.koitharu.kotatsu.core.util.KotatsuColors
-import org.koitharu.kotatsu.core.util.ext.consume
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.SheetStatsMangaBinding
-import org.koitharu.kotatsu.parsers.util.format
-import org.koitharu.kotatsu.stats.ui.views.BarChartView
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
+import org.skepsun.kototoro.core.util.KototoroColors
+import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.SheetStatsMangaBinding
+import org.skepsun.kototoro.parsers.util.format
+import org.skepsun.kototoro.stats.ui.views.BarChartView
 
 @AndroidEntryPoint
 class MangaStatsSheet : BaseAdaptiveSheet<SheetStatsMangaBinding>(), View.OnClickListener {
@@ -32,7 +32,7 @@ class MangaStatsSheet : BaseAdaptiveSheet<SheetStatsMangaBinding>(), View.OnClic
 	override fun onViewBindingCreated(binding: SheetStatsMangaBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		binding.textViewTitle.text = viewModel.manga.title
-		binding.chartView.barColor = KotatsuColors.ofManga(binding.root.context, viewModel.manga)
+		binding.chartView.barColor = KototoroColors.ofManga(binding.root.context, viewModel.manga)
 		viewModel.stats.observe(viewLifecycleOwner, ::onStatsChanged)
 		viewModel.startDate.observe(viewLifecycleOwner) {
 			binding.textViewStart.textAndVisible = it?.format(binding.root.context)

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core
+package org.skepsun.kototoro.core
 
 import javax.inject.Qualifier
 

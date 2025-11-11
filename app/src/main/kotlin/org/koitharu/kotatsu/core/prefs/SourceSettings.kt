@@ -1,18 +1,18 @@
-package org.koitharu.kotatsu.core.prefs
+package org.skepsun.kototoro.core.prefs
 
 import android.content.Context
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.core.content.edit
-import org.koitharu.kotatsu.core.util.ext.getEnumValue
-import org.koitharu.kotatsu.core.util.ext.putEnumValue
-import org.koitharu.kotatsu.core.util.ext.sanitizeHeaderValue
-import org.koitharu.kotatsu.parsers.config.ConfigKey
-import org.koitharu.kotatsu.parsers.config.MangaSourceConfig
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.SortOrder
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
-import org.koitharu.kotatsu.settings.utils.validation.DomainValidator
+import org.skepsun.kototoro.core.util.ext.getEnumValue
+import org.skepsun.kototoro.core.util.ext.putEnumValue
+import org.skepsun.kototoro.core.util.ext.sanitizeHeaderValue
+import org.skepsun.kototoro.parsers.config.ConfigKey
+import org.skepsun.kototoro.parsers.config.MangaSourceConfig
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.settings.utils.validation.DomainValidator
 import java.io.File
 
 class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig {

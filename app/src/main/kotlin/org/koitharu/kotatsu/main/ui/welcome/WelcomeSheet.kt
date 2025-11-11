@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.main.ui.welcome
+package org.skepsun.kototoro.main.ui.welcome
 
 import android.accounts.AccountManager
 import android.net.Uri
@@ -15,18 +15,18 @@ import androidx.fragment.app.viewModels
 import com.google.android.material.chip.Chip
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.titleResId
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.sheet.BaseAdaptiveSheet
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.core.util.ext.consume
-import org.koitharu.kotatsu.core.util.ext.getDisplayName
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
-import org.koitharu.kotatsu.databinding.SheetWelcomeBinding
-import org.koitharu.kotatsu.filter.ui.model.FilterProperty
-import org.koitharu.kotatsu.parsers.model.ContentType
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.titleResId
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.getDisplayName
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.databinding.SheetWelcomeBinding
+import org.skepsun.kototoro.filter.ui.model.FilterProperty
+import org.skepsun.kototoro.parsers.model.ContentType
 import java.util.Locale
 
 @AndroidEntryPoint

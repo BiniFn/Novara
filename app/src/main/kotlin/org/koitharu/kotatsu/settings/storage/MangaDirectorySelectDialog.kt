@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.storage
+package org.skepsun.kototoro.settings.storage
 
 import android.Manifest
 import android.content.Intent
@@ -13,15 +13,15 @@ import androidx.fragment.app.viewModels
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.hannesdorfmann.adapterdelegates4.AsyncListDifferDelegationAdapter
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.ToastErrorObserver
-import org.koitharu.kotatsu.core.os.OpenDocumentTreeHelper
-import org.koitharu.kotatsu.core.ui.AlertDialogFragment
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
-import org.koitharu.kotatsu.databinding.DialogDirectorySelectBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ToastErrorObserver
+import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
+import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.databinding.DialogDirectorySelectBinding
 
 @AndroidEntryPoint
 class MangaDirectorySelectDialog : AlertDialogFragment<DialogDirectorySelectBinding>(),

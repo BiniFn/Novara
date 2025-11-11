@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu
+package org.skepsun.kototoro
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -7,9 +7,9 @@ import android.os.StrictMode
 import androidx.core.content.edit
 import androidx.fragment.app.strictmode.FragmentStrictMode
 import leakcanary.LeakCanary
-import org.koitharu.kotatsu.core.BaseApp
+import org.skepsun.kototoro.core.BaseApp
 
-class KotatsuApp : BaseApp() {
+class KototoroApp : BaseApp() {
 
 	var isLeakCanaryEnabled: Boolean
 		get() = getDebugPreferences(this).getBoolean(KEY_LEAK_CANARY, true)

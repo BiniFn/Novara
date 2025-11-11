@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.reader.ui.pager.standard
+package org.skepsun.kototoro.reader.ui.pager.standard
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.lifecycle.LifecycleOwner
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.databinding.ItemPageBinding
-import org.koitharu.kotatsu.reader.domain.PageLoader
-import org.koitharu.kotatsu.reader.ui.config.ReaderSettings
-import org.koitharu.kotatsu.reader.ui.pager.BaseReaderAdapter
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.databinding.ItemPageBinding
+import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.ui.config.ReaderSettings
+import org.skepsun.kototoro.reader.ui.pager.BaseReaderAdapter
 
 class PagesAdapter(
 	private val lifecycleOwner: LifecycleOwner,

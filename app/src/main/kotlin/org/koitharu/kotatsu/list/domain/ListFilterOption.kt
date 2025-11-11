@@ -1,17 +1,17 @@
-package org.koitharu.kotatsu.list.domain
+package org.skepsun.kototoro.list.domain
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.db.entity.toEntity
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.model.LocalMangaSource
-import org.koitharu.kotatsu.core.model.unwrap
-import org.koitharu.kotatsu.core.parser.external.ExternalMangaSource
-import org.koitharu.kotatsu.core.parser.favicon.faviconUri
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaTag
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.db.entity.toEntity
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
+import org.skepsun.kototoro.core.parser.favicon.faviconUri
+import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaTag
 
 sealed interface ListFilterOption {
 

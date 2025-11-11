@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.core.model
+package org.skepsun.kototoro.core.model
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
-import org.koitharu.kotatsu.list.domain.ListSortOrder
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.domain.ListSortOrder
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
 import java.time.Instant
 
 @Parcelize

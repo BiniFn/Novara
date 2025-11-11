@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.periodical
+package org.skepsun.kototoro.backups.ui.periodical
 
 import android.content.Intent
 import android.net.Uri
@@ -13,16 +13,16 @@ import androidx.preference.PreferenceCategory
 import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.os.OpenDocumentTreeHelper
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
-import org.koitharu.kotatsu.settings.utils.EditTextFallbackSummaryProvider
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.settings.utils.EditTextFallbackSummaryProvider
 import java.util.Date
 import javax.inject.Inject
 
@@ -50,7 +50,7 @@ class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodi
 		viewModel.backupsDirectory.observe(viewLifecycleOwner, ::bindOutputSummary)
 		viewModel.webDavLastAction.observe(viewLifecycleOwner, ::bindWebDavLastAction)
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(listView, this))
-		viewModel.onActionDone.observeEvent(viewLifecycleOwner, org.koitharu.kotatsu.core.ui.util.ReversibleActionObserver(listView))
+		viewModel.onActionDone.observeEvent(viewLifecycleOwner, org.skepsun.kototoro.core.ui.util.ReversibleActionObserver(listView))
 		viewModel.isTelegramCheckLoading.observe(viewLifecycleOwner) {
 			findPreference<Preference>(AppSettings.KEY_BACKUP_TG_TEST)?.isEnabled = !it
 		}

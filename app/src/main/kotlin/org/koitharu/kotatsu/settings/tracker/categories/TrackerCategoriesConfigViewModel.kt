@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.tracker.categories
+package org.skepsun.kototoro.settings.tracker.categories
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -7,9 +7,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import javax.inject.Inject
 
 @HiltViewModel

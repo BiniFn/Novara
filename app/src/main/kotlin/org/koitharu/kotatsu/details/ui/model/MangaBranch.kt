@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.details.ui.model
+package org.skepsun.kototoro.details.ui.model
 
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 data class MangaBranch(
 	val name: String?,

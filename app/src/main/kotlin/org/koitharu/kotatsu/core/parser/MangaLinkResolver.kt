@@ -1,21 +1,21 @@
-package org.koitharu.kotatsu.core.parser
+package org.skepsun.kototoro.core.parser
 
 import android.net.Uri
 import coil3.request.CachePolicy
 import dagger.Reusable
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.model.UnknownMangaSource
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.core.util.ext.isHttpUrl
-import org.koitharu.kotatsu.parsers.MangaLoaderContext
-import org.koitharu.kotatsu.parsers.exception.NotFoundException
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.almostEquals
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.parsers.util.levenshteinDistance
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.util.ext.isHttpUrl
+import org.skepsun.kototoro.parsers.MangaLoaderContext
+import org.skepsun.kototoro.parsers.exception.NotFoundException
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.almostEquals
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.parsers.util.levenshteinDistance
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 @Reusable
@@ -26,7 +26,7 @@ class MangaLinkResolver @Inject constructor(
 ) {
 
 	suspend fun resolve(uri: Uri): Manga {
-		return if (uri.scheme == "kotatsu" || uri.host == "kotatsu.app") {
+		return if (uri.scheme == "kototoro" || uri.host == "kototoro.app") {
 			resolveAppLink(uri)
 		} else {
 			resolveExternalLink(uri.toString())
@@ -118,7 +118,7 @@ class MangaLinkResolver @Inject constructor(
 	companion object {
 
 		fun isValidLink(str: String): Boolean {
-			return str.isHttpUrl() || str.startsWith("kotatsu://", ignoreCase = true)
+			return str.isHttpUrl() || str.startsWith("kototoro://", ignoreCase = true)
 		}
 	}
 }

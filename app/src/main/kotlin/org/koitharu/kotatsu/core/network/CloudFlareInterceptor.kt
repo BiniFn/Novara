@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.core.network
+package org.skepsun.kototoro.core.network
 
 import okhttp3.Interceptor
 import okhttp3.Response
 import okio.IOException
-import org.koitharu.kotatsu.core.exceptions.CloudFlareBlockedException
-import org.koitharu.kotatsu.core.exceptions.CloudFlareProtectedException
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
+import org.skepsun.kototoro.core.exceptions.CloudFlareBlockedException
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 
 class CloudFlareInterceptor : Interceptor {
 

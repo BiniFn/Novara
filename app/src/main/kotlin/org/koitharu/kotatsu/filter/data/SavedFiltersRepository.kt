@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.filter.data
+package org.skepsun.kototoro.filter.data
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -14,10 +14,10 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import org.koitharu.kotatsu.core.util.ext.observeChanges
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.core.util.ext.observeChanges
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaSource
 import java.io.File
 import javax.inject.Inject
 

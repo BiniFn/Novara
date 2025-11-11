@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.search.ui.suggestion.adapter
+package org.skepsun.kototoro.search.ui.suggestion.adapter
 
 import androidx.core.view.updatePadding
 import androidx.recyclerview.widget.DiffUtil
@@ -6,14 +6,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.hannesdorfmann.adapterdelegates4.AsyncListDifferDelegationAdapter
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegate
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.decor.SpacingItemDecoration
-import org.koitharu.kotatsu.core.util.RecyclerViewScrollCallback
-import org.koitharu.kotatsu.core.util.ext.setTooltipCompat
-import org.koitharu.kotatsu.databinding.ItemSearchSuggestionMangaGridBinding
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionListener
-import org.koitharu.kotatsu.search.ui.suggestion.model.SearchSuggestionItem
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.decor.SpacingItemDecoration
+import org.skepsun.kototoro.core.util.RecyclerViewScrollCallback
+import org.skepsun.kototoro.core.util.ext.setTooltipCompat
+import org.skepsun.kototoro.databinding.ItemSearchSuggestionMangaGridBinding
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListener
+import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 fun searchSuggestionMangaListAD(
 	listener: SearchSuggestionListener,

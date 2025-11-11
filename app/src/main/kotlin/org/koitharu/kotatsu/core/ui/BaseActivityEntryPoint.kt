@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.core.ui
+package org.skepsun.kototoro.core.ui
 
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.prefs.AppSettings
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)

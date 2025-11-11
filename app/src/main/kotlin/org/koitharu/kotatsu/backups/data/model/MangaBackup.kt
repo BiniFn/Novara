@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.backups.data.model
+package org.skepsun.kototoro.backups.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.koitharu.kotatsu.core.db.entity.MangaEntity
-import org.koitharu.kotatsu.core.db.entity.MangaWithTags
-import org.koitharu.kotatsu.parsers.model.RATING_UNKNOWN
-import org.koitharu.kotatsu.parsers.util.mapToSet
+import org.skepsun.kototoro.core.db.entity.MangaEntity
+import org.skepsun.kototoro.core.db.entity.MangaWithTags
+import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
+import org.skepsun.kototoro.parsers.util.mapToSet
 
 @Serializable
 class MangaBackup(

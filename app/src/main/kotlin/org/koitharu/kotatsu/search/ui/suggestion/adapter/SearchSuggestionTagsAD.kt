@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.search.ui.suggestion.adapter
+package org.skepsun.kototoro.search.ui.suggestion.adapter
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.databinding.ItemSearchSuggestionTagsBinding
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionListener
-import org.koitharu.kotatsu.search.ui.suggestion.model.SearchSuggestionItem
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.databinding.ItemSearchSuggestionTagsBinding
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListener
+import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 fun searchSuggestionTagsAD(
 	listener: SearchSuggestionListener,

@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.tracker.domain.model
+package org.skepsun.kototoro.tracker.domain.model
 
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Manga
 import java.time.Instant
 
 data class MangaTracking(

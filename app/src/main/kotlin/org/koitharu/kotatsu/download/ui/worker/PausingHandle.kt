@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.download.ui.worker
+package org.skepsun.kototoro.download.ui.worker
 
 import androidx.annotation.AnyThread
 import kotlinx.coroutines.currentCoroutineContext

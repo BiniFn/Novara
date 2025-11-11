@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui.pager.webtoon
+package org.skepsun.kototoro.reader.ui.pager.webtoon
 
 import android.animation.ValueAnimator
 import android.content.Context
@@ -19,9 +19,9 @@ import android.widget.FrameLayout
 import android.widget.OverScroller
 import androidx.core.animation.doOnEnd
 import androidx.core.view.ViewConfigurationCompat
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.widgets.ZoomControl
-import org.koitharu.kotatsu.core.util.ext.getAnimationDuration
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.widgets.ZoomControl
+import org.skepsun.kototoro.core.util.ext.getAnimationDuration
 import kotlin.math.roundToInt
 
 private const val MAX_SCALE = 2.5f

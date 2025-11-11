@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.image
+package org.skepsun.kototoro.core.ui.image
 
 import android.content.Context
 import android.util.AttributeSet
@@ -9,13 +9,13 @@ import coil3.Image
 import coil3.asImage
 import coil3.request.Disposable
 import coil3.request.ImageRequest
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.CaptchaHandler.Companion.suppressCaptchaErrors
-import org.koitharu.kotatsu.core.image.CoilImageView
-import org.koitharu.kotatsu.core.parser.favicon.faviconUri
-import org.koitharu.kotatsu.core.util.ext.isAnimationsEnabled
-import org.koitharu.kotatsu.core.util.ext.mangaSourceExtra
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler.Companion.suppressCaptchaErrors
+import org.skepsun.kototoro.core.image.CoilImageView
+import org.skepsun.kototoro.core.parser.favicon.faviconUri
+import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 class FaviconView @JvmOverloads constructor(
 	context: Context,

@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.core.db
+package org.skepsun.kototoro.core.db
 
 import android.content.res.Resources
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.parsers.model.SortOrder
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.parsers.model.SortOrder
 
 class DatabasePrePopulateCallback(private val resources: Resources) : RoomDatabase.Callback() {
 

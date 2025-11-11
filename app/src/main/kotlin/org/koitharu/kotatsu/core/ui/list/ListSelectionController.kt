@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.list
+package org.skepsun.kototoro.core.ui.list
 
 import android.os.Bundle
 import android.view.Menu
@@ -17,9 +17,9 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryOwner
 import kotlinx.coroutines.Dispatchers
-import org.koitharu.kotatsu.core.ui.list.decor.AbstractSelectionItemDecoration
-import org.koitharu.kotatsu.core.util.ext.toLongArray
-import org.koitharu.kotatsu.core.util.ext.toSet
+import org.skepsun.kototoro.core.ui.list.decor.AbstractSelectionItemDecoration
+import org.skepsun.kototoro.core.util.ext.toLongArray
+import org.skepsun.kototoro.core.util.ext.toSet
 import kotlin.coroutines.EmptyCoroutineContext
 
 private const val KEY_SELECTION = "selection"

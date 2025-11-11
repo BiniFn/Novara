@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.tracker
+package org.skepsun.kototoro.settings.tracker
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -17,18 +17,18 @@ import androidx.preference.MultiSelectListPreference
 import androidx.preference.Preference
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.TrackerDownloadStrategy
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.setDefaultValueCompat
-import org.koitharu.kotatsu.parsers.util.names
-import org.koitharu.kotatsu.settings.utils.DozeHelper
-import org.koitharu.kotatsu.settings.utils.MultiSummaryProvider
-import org.koitharu.kotatsu.tracker.ui.debug.TrackerDebugActivity
-import org.koitharu.kotatsu.tracker.work.TrackerNotificationHelper
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.TrackerDownloadStrategy
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
+import org.skepsun.kototoro.parsers.util.names
+import org.skepsun.kototoro.settings.utils.DozeHelper
+import org.skepsun.kototoro.settings.utils.MultiSummaryProvider
+import org.skepsun.kototoro.tracker.ui.debug.TrackerDebugActivity
+import org.skepsun.kototoro.tracker.work.TrackerNotificationHelper
 import javax.inject.Inject
 
 @AndroidEntryPoint

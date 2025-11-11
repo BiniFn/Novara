@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.github
+package org.skepsun.kototoro.core.github
 
 import android.os.Parcelable
 import kotlinx.parcelize.IgnoredOnParcel

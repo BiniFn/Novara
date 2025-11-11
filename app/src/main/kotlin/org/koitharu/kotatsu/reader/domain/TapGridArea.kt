@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.domain
+package org.skepsun.kototoro.reader.domain
 
 enum class TapGridArea {
 

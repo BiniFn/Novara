@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.os
+package org.skepsun.kototoro.core.os
 
 import android.app.Activity
 import android.content.Context

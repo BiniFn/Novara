@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.backups.data.model
+package org.skepsun.kototoro.backups.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.koitharu.kotatsu.BuildConfig
+import org.skepsun.kototoro.BuildConfig
 
 @Serializable
 class BackupIndex(

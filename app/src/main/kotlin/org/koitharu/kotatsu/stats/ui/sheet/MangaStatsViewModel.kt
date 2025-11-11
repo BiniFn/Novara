@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.stats.ui.sheet
+package org.skepsun.kototoro.stats.ui.sheet
 
 import androidx.collection.MutableIntList
 import androidx.collection.emptyIntList
@@ -6,13 +6,13 @@ import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.ui.model.DateTimeAgo
-import org.koitharu.kotatsu.core.util.ext.calculateTimeAgo
-import org.koitharu.kotatsu.core.util.ext.require
-import org.koitharu.kotatsu.stats.data.StatsRepository
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.ui.model.DateTimeAgo
+import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
+import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.stats.data.StatsRepository
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject

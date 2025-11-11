@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.details.ui.pager.bookmarks
+package org.skepsun.kototoro.details.ui.pager.bookmarks
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,23 +12,23 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.bookmarks.domain.BookmarksRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsStateFlow
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.ui.util.ReversibleAction
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.requireValue
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.list.ui.model.EmptyState
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.LoadingState
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.ui.util.ReversibleAction
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.requireValue
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import javax.inject.Inject
 
 @HiltViewModel

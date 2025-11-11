@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui.config
+package org.skepsun.kototoro.reader.ui.config
 
 import android.graphics.Bitmap
 import android.view.View
@@ -19,15 +19,15 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.core.model.ZoomMode
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ReaderBackground
-import org.koitharu.kotatsu.core.prefs.ReaderMode
-import org.koitharu.kotatsu.core.util.MediatorStateFlow
-import org.koitharu.kotatsu.core.util.ext.isLowRamDevice
-import org.koitharu.kotatsu.core.util.ext.processLifecycleScope
-import org.koitharu.kotatsu.reader.domain.ReaderColorFilter
+import org.skepsun.kototoro.core.model.ZoomMode
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ReaderBackground
+import org.skepsun.kototoro.core.prefs.ReaderMode
+import org.skepsun.kototoro.core.util.MediatorStateFlow
+import org.skepsun.kototoro.core.util.ext.isLowRamDevice
+import org.skepsun.kototoro.core.util.ext.processLifecycleScope
+import org.skepsun.kototoro.reader.domain.ReaderColorFilter
 
 data class ReaderSettings(
 	val zoomMode: ZoomMode,

@@ -1,21 +1,21 @@
-package org.koitharu.kotatsu.local.ui.info
+package org.skepsun.kototoro.local.ui.info
 
 import androidx.core.net.toUri
 import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.computeSize
-import org.koitharu.kotatsu.core.util.ext.require
-import org.koitharu.kotatsu.core.util.ext.toFileOrNull
-import org.koitharu.kotatsu.local.data.LocalMangaRepository
-import org.koitharu.kotatsu.local.data.LocalStorageManager
-import org.koitharu.kotatsu.local.domain.DeleteReadChaptersUseCase
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.computeSize
+import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.util.ext.toFileOrNull
+import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.local.data.LocalStorageManager
+import org.skepsun.kototoro.local.domain.DeleteReadChaptersUseCase
 import javax.inject.Inject
 
 @HiltViewModel

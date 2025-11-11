@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.image
+package org.skepsun.kototoro.core.ui.image
 
 import android.animation.TimeAnimator
 import android.content.Context
@@ -12,10 +12,10 @@ import coil3.getExtra
 import coil3.request.ImageRequest
 import com.google.android.material.animation.ArgbEvaluatorCompat
 import com.google.android.material.color.MaterialColors
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.util.ext.getAnimationDuration
-import org.koitharu.kotatsu.core.util.ext.mangaSourceKey
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.util.ext.getAnimationDuration
+import org.skepsun.kototoro.core.util.ext.mangaSourceKey
 import kotlin.math.abs
 
 class AnimatedFaviconDrawable(

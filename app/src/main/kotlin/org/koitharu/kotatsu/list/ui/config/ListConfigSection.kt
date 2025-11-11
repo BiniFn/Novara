@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.list.ui.config
+package org.skepsun.kototoro.list.ui.config
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize

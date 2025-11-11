@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.list.domain
+package org.skepsun.kototoro.list.domain
 
 import androidx.collection.ArraySet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.koitharu.kotatsu.core.model.toChipModel
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.list.ui.model.QuickFilter
-import org.koitharu.kotatsu.parsers.util.suspendlazy.getOrNull
-import org.koitharu.kotatsu.parsers.util.suspendlazy.suspendLazy
+import org.skepsun.kototoro.core.model.toChipModel
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.list.ui.model.QuickFilter
+import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
+import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 
 abstract class MangaListQuickFilter(
 	private val settings: AppSettings,

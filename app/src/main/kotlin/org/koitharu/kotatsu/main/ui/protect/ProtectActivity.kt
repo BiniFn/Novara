@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.main.ui.protect
+package org.skepsun.kototoro.main.ui.protect
 
 import android.content.Context
 import android.content.Intent
@@ -24,16 +24,16 @@ import androidx.lifecycle.withResumed
 import com.google.android.material.textfield.TextInputLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.util.DefaultTextWatcher
-import org.koitharu.kotatsu.core.util.ext.consumeAllSystemBarsInsets
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.getParcelableExtraCompat
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.systemBarsInsets
-import org.koitharu.kotatsu.databinding.ActivityProtectBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.util.DefaultTextWatcher
+import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.systemBarsInsets
+import org.skepsun.kototoro.databinding.ActivityProtectBinding
 import com.google.android.material.R as materialR
 
 @AndroidEntryPoint

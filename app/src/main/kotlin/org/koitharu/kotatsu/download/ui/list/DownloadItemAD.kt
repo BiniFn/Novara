@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.download.ui.list
+package org.skepsun.kototoro.download.ui.list
 
 import android.view.View
 import androidx.core.view.isGone
@@ -11,18 +11,18 @@ import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.util.ext.getQuantityStringSafe
-import org.koitharu.kotatsu.core.util.ext.setContentDescriptionAndTooltip
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ItemDownloadBinding
-import org.koitharu.kotatsu.download.ui.list.chapters.DownloadChapter
-import org.koitharu.kotatsu.download.ui.list.chapters.downloadChapterAD
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.util.format
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
+import org.skepsun.kototoro.core.util.ext.setContentDescriptionAndTooltip
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ItemDownloadBinding
+import org.skepsun.kototoro.download.ui.list.chapters.DownloadChapter
+import org.skepsun.kototoro.download.ui.list.chapters.downloadChapterAD
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.util.format
 
 fun downloadItemAD(
 	lifecycleOwner: LifecycleOwner,

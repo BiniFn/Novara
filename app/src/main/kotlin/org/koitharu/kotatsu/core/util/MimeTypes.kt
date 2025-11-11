@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 import android.os.Build
 import android.webkit.MimeTypeMap
 import org.jetbrains.annotations.Blocking
-import org.koitharu.kotatsu.core.util.ext.MimeType
-import org.koitharu.kotatsu.core.util.ext.toMimeTypeOrNull
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
-import org.koitharu.kotatsu.parsers.util.removeSuffix
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.util.ext.MimeType
+import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.parsers.util.removeSuffix
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import java.nio.file.Files
 import coil3.util.MimeTypeMap as CoilMimeTypeMap

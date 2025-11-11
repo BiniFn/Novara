@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.details.ui.scrobbling
+package org.skepsun.kototoro.details.ui.scrobbling
 
 import android.graphics.Rect
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 
 class ScrobblingItemDecoration : RecyclerView.ItemDecoration() {
 

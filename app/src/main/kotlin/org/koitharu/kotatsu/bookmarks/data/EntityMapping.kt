@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.bookmarks.data
+package org.skepsun.kototoro.bookmarks.data
 
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.parsers.model.Manga
 import java.time.Instant
 
 fun BookmarkEntity.toBookmark(manga: Manga) = Bookmark(

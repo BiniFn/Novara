@@ -1,17 +1,17 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import androidx.core.view.isVisible
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.AdapterDelegateClickListenerAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.util.ext.setTooltipCompat
-import org.koitharu.kotatsu.databinding.ItemMangaGridBinding
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback.Companion.PAYLOAD_PROGRESS_CHANGED
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.MangaGridModel
-import org.koitharu.kotatsu.list.ui.model.MangaListModel
-import org.koitharu.kotatsu.list.ui.size.ItemSizeResolver
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.util.ext.setTooltipCompat
+import org.skepsun.kototoro.databinding.ItemMangaGridBinding
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_PROGRESS_CHANGED
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.MangaGridModel
+import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 
 fun mangaGridItemAD(
 	sizeResolver: ItemSizeResolver,

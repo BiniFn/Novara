@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.image
+package org.skepsun.kototoro.core.image
 
 import android.os.Parcel
 import android.os.Parcelable

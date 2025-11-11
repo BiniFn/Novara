@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.download.ui.worker
+package org.skepsun.kototoro.download.ui.worker
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -7,7 +7,7 @@ import android.content.IntentFilter
 import android.os.PatternMatcher
 import androidx.core.app.PendingIntentCompat
 import androidx.core.net.toUri
-import org.koitharu.kotatsu.core.util.ext.toUUIDOrNull
+import org.skepsun.kototoro.core.util.ext.toUUIDOrNull
 import java.util.UUID
 
 class PausingReceiver(
@@ -30,10 +30,10 @@ class PausingReceiver(
 
 	companion object {
 
-		private const val ACTION_PAUSE = "org.koitharu.kotatsu.download.PAUSE"
-		private const val ACTION_RESUME = "org.koitharu.kotatsu.download.RESUME"
-		private const val ACTION_SKIP = "org.koitharu.kotatsu.download.SKIP"
-		private const val ACTION_SKIP_ALL = "org.koitharu.kotatsu.download.SKIP_ALL"
+		private const val ACTION_PAUSE = "org.skepsun.kototoro.download.PAUSE"
+		private const val ACTION_RESUME = "org.skepsun.kototoro.download.RESUME"
+		private const val ACTION_SKIP = "org.skepsun.kototoro.download.SKIP"
+		private const val ACTION_SKIP_ALL = "org.skepsun.kototoro.download.SKIP_ALL"
 		private const val EXTRA_UUID = "uuid"
 		private const val SCHEME = "workuid"
 

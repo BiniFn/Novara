@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.history.domain
+package org.skepsun.kototoro.history.domain
 
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.MangaListQuickFilter
 import javax.inject.Inject
 
 class HistoryListQuickFilter @Inject constructor(

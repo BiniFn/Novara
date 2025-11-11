@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.sources.catalog
+package org.skepsun.kototoro.settings.sources.catalog
 
 import android.os.Bundle
 import android.view.Menu
@@ -14,24 +14,24 @@ import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.combine
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.titleResId
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.util.FadingAppbarMediator
-import org.koitharu.kotatsu.core.ui.util.ReversibleActionObserver
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView.ChipModel
-import org.koitharu.kotatsu.core.util.LocaleComparator
-import org.koitharu.kotatsu.core.util.ext.getDisplayName
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.toLocale
-import org.koitharu.kotatsu.databinding.ActivitySourcesCatalogBinding
-import org.koitharu.kotatsu.list.ui.adapter.TypedListSpacingDecoration
-import org.koitharu.kotatsu.main.ui.owners.AppBarOwner
-import org.koitharu.kotatsu.parsers.model.ContentType
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.titleResId
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.util.FadingAppbarMediator
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.core.ui.widgets.ChipsView.ChipModel
+import org.skepsun.kototoro.core.util.LocaleComparator
+import org.skepsun.kototoro.core.util.ext.getDisplayName
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.toLocale
+import org.skepsun.kototoro.databinding.ActivitySourcesCatalogBinding
+import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.parsers.model.ContentType
 
 @AndroidEntryPoint
 class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),

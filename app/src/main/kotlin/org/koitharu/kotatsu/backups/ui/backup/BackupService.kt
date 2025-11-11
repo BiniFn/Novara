@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.backup
+package org.skepsun.kototoro.backups.ui.backup
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -17,17 +17,17 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.data.BackupRepository
-import org.koitharu.kotatsu.backups.ui.BaseBackupRestoreService
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.util.CompositeResult
-import org.koitharu.kotatsu.core.util.ext.checkNotificationPermission
-import org.koitharu.kotatsu.core.util.ext.powerManager
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.toUriOrNull
-import org.koitharu.kotatsu.core.util.ext.withPartialWakeLock
-import org.koitharu.kotatsu.core.util.progress.Progress
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.util.CompositeResult
+import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
+import org.skepsun.kototoro.core.util.ext.powerManager
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.toUriOrNull
+import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
+import org.skepsun.kototoro.core.util.progress.Progress
 import java.io.FileNotFoundException
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject

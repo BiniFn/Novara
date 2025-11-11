@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.explore.ui.model
+package org.skepsun.kototoro.explore.ui.model
 
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.MangaCompactListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.MangaCompactListModel
 
 data class RecommendationsItem(
 	val manga: List<MangaCompactListModel>

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.nav
+package org.skepsun.kototoro.settings.nav
 
 import android.content.DialogInterface
 import android.os.Bundle
@@ -10,26 +10,26 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.NavItem
-import org.koitharu.kotatsu.core.ui.BaseFragment
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.dialog.buildAlertDialog
-import org.koitharu.kotatsu.core.ui.dialog.setRecyclerViewList
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.util.RecyclerViewOwner
-import org.koitharu.kotatsu.core.util.ext.consumeAllSystemBarsInsets
-import org.koitharu.kotatsu.core.util.ext.container
-import org.koitharu.kotatsu.core.util.ext.end
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.start
-import org.koitharu.kotatsu.core.util.ext.systemBarsInsets
-import org.koitharu.kotatsu.databinding.FragmentSettingsSourcesBinding
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.settings.nav.adapter.navAddAD
-import org.koitharu.kotatsu.settings.nav.adapter.navAvailableAD
-import org.koitharu.kotatsu.settings.nav.adapter.navConfigAD
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.ui.dialog.setRecyclerViewList
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
+import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.container
+import org.skepsun.kototoro.core.util.ext.end
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.start
+import org.skepsun.kototoro.core.util.ext.systemBarsInsets
+import org.skepsun.kototoro.databinding.FragmentSettingsSourcesBinding
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.settings.nav.adapter.navAddAD
+import org.skepsun.kototoro.settings.nav.adapter.navAvailableAD
+import org.skepsun.kototoro.settings.nav.adapter.navConfigAD
 
 @AndroidEntryPoint
 class NavConfigFragment : BaseFragment<FragmentSettingsSourcesBinding>(), RecyclerViewOwner,

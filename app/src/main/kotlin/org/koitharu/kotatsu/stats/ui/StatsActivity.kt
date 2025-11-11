@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.stats.ui
+package org.skepsun.kototoro.stats.ui
 
 import android.os.Bundle
 import android.view.Menu
@@ -19,28 +19,28 @@ import androidx.recyclerview.widget.AsyncListDiffer
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipDrawable
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.dialog.buildAlertDialog
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.util.ReversibleActionObserver
-import org.koitharu.kotatsu.core.util.KotatsuColors
-import org.koitharu.kotatsu.core.util.ext.end
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.core.util.ext.showOrHide
-import org.koitharu.kotatsu.core.util.ext.start
-import org.koitharu.kotatsu.databinding.ActivityStatsBinding
-import org.koitharu.kotatsu.databinding.ItemEmptyStateBinding
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.stats.domain.StatsPeriod
-import org.koitharu.kotatsu.stats.domain.StatsRecord
-import org.koitharu.kotatsu.stats.ui.views.PieChartView
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.util.KototoroColors
+import org.skepsun.kototoro.core.util.ext.end
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.core.util.ext.showOrHide
+import org.skepsun.kototoro.core.util.ext.start
+import org.skepsun.kototoro.databinding.ActivityStatsBinding
+import org.skepsun.kototoro.databinding.ItemEmptyStateBinding
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.stats.domain.StatsPeriod
+import org.skepsun.kototoro.stats.domain.StatsRecord
+import org.skepsun.kototoro.stats.ui.views.PieChartView
 
 @AndroidEntryPoint
 class StatsActivity : BaseActivity<ActivityStatsBinding>(),
@@ -81,7 +81,7 @@ class StatsActivity : BaseActivity<ActivityStatsBinding>(),
 						value = (v.duration / 1000).toInt(),
 						label = v.manga?.title ?: getString(R.string.other_manga),
 						percent = (v.duration.toDouble() / sum).toFloat(),
-						color = KotatsuColors.ofManga(this, v.manga),
+						color = KototoroColors.ofManga(this, v.manga),
 						tag = v.manga,
 					)
 				},
@@ -185,7 +185,7 @@ class StatsActivity : BaseActivity<ActivityStatsBinding>(),
 		val checkedIds = viewModel.selectedCategories.value
 		for (category in categories) {
 			val chip = Chip(this)
-			val drawable = ChipDrawable.createFromAttributes(this, null, 0, R.style.Widget_Kotatsu_Chip_Filter)
+			val drawable = ChipDrawable.createFromAttributes(this, null, 0, R.style.Widget_Kototoro_Chip_Filter)
 			chip.setChipDrawable(drawable)
 			chip.text = category.title
 			chip.tag = category

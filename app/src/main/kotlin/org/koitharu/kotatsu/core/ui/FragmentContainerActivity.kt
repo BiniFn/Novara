@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui
+package org.skepsun.kototoro.core.ui
 
 import android.os.Bundle
 import android.view.View
@@ -9,11 +9,11 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.consumeSystemBarsInsets
-import org.koitharu.kotatsu.databinding.ActivityContainerBinding
-import org.koitharu.kotatsu.main.ui.owners.AppBarOwner
-import org.koitharu.kotatsu.main.ui.owners.SnackbarOwner
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.consumeSystemBarsInsets
+import org.skepsun.kototoro.databinding.ActivityContainerBinding
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.main.ui.owners.SnackbarOwner
 
 @AndroidEntryPoint
 abstract class FragmentContainerActivity(private val fragmentClass: Class<out Fragment>) :

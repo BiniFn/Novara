@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.favourites.ui
+package org.skepsun.kototoro.favourites.ui
 
 import android.os.Bundle
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.FragmentContainerActivity
-import org.koitharu.kotatsu.favourites.ui.list.FavouritesListFragment
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.FragmentContainerActivity
+import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment
 
 class FavouritesActivity : FragmentContainerActivity(FavouritesListFragment::class.java) {
 

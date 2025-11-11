@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.download.ui.worker
+package org.skepsun.kototoro.download.ui.worker
 
 import android.os.Parcelable
 import androidx.work.Data
 import kotlinx.parcelize.Parcelize
-import org.koitharu.kotatsu.core.prefs.DownloadFormat
-import org.koitharu.kotatsu.parsers.util.find
+import org.skepsun.kototoro.core.prefs.DownloadFormat
+import org.skepsun.kototoro.parsers.util.find
 import java.io.File
 
 @Parcelize

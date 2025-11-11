@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.local.domain
+package org.skepsun.kototoro.local.domain
 
-import org.koitharu.kotatsu.core.util.MultiMutex
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.util.MultiMutex
+import org.skepsun.kototoro.parsers.model.Manga
 import javax.inject.Inject
 import javax.inject.Singleton
 

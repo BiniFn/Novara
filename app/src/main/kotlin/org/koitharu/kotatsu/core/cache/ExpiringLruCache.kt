@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.cache
+package org.skepsun.kototoro.core.cache
 
-import org.koitharu.kotatsu.core.util.SynchronizedSieveCache
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.core.util.SynchronizedSieveCache
+import org.skepsun.kototoro.parsers.model.MangaSource
 import java.util.concurrent.TimeUnit
-import org.koitharu.kotatsu.core.cache.MemoryContentCache.Key as CacheKey
+import org.skepsun.kototoro.core.cache.MemoryContentCache.Key as CacheKey
 
 class ExpiringLruCache<T>(
 	val maxSize: Int,

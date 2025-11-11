@@ -1,20 +1,20 @@
-package org.koitharu.kotatsu.suggestions.domain
+package org.skepsun.kototoro.suggestions.domain
 
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.db.entity.toEntities
-import org.koitharu.kotatsu.core.db.entity.toEntity
-import org.koitharu.kotatsu.core.db.entity.toManga
-import org.koitharu.kotatsu.core.db.entity.toMangaTagsList
-import org.koitharu.kotatsu.core.model.toMangaSources
-import org.koitharu.kotatsu.core.util.ext.mapItems
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.suggestions.data.SuggestionEntity
-import org.koitharu.kotatsu.suggestions.data.SuggestionWithManga
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.entity.toEntities
+import org.skepsun.kototoro.core.db.entity.toEntity
+import org.skepsun.kototoro.core.db.entity.toManga
+import org.skepsun.kototoro.core.db.entity.toMangaTagsList
+import org.skepsun.kototoro.core.model.toMangaSources
+import org.skepsun.kototoro.core.util.ext.mapItems
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.suggestions.data.SuggestionEntity
+import org.skepsun.kototoro.suggestions.data.SuggestionWithManga
 import javax.inject.Inject
 
 class SuggestionRepository @Inject constructor(

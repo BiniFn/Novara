@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.explore.domain
+package org.skepsun.kototoro.explore.domain
 
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 class RecoverMangaUseCase @Inject constructor(

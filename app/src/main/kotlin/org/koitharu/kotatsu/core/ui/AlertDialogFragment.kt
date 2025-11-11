@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui
+package org.skepsun.kototoro.core.ui
 
 import android.app.Dialog
 import android.os.Bundle

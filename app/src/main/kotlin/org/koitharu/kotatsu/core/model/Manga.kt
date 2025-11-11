@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.model
+package org.skepsun.kototoro.core.model
 
 import android.content.res.Resources
 import android.net.Uri
@@ -10,19 +10,19 @@ import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.core.text.buildSpannedString
 import androidx.core.text.strikeThrough
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.core.util.ext.iterator
-import org.koitharu.kotatsu.details.ui.model.ChapterListItem
-import org.koitharu.kotatsu.parsers.model.ContentRating
-import org.koitharu.kotatsu.parsers.model.Demographic
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaState
-import org.koitharu.kotatsu.parsers.util.findById
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.parsers.util.mapToSet
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.util.ext.iterator
+import org.skepsun.kototoro.details.ui.model.ChapterListItem
+import org.skepsun.kototoro.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.Demographic
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.util.findById
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.parsers.util.mapToSet
 import com.google.android.material.R as materialR
 
 @JvmName("mangaIds")
@@ -130,7 +130,7 @@ val Manga.isBroken: Boolean
 	get() = source == UnknownMangaSource
 
 val Manga.appUrl: Uri
-	get() = "https://kotatsu.app/manga".toUri()
+	get() = "https://kototoro.app/manga".toUri()
 		.buildUpon()
 		.appendQueryParameter("source", source.name)
 		.appendQueryParameter("name", title)

@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import android.view.View
-import org.koitharu.kotatsu.core.ui.widgets.TipView
+import org.skepsun.kototoro.core.ui.widgets.TipView
 
 interface MangaListListener : MangaDetailsClickListener, ListStateHolderListener, ListHeaderClickListener,
 	TipView.OnButtonClickListener, QuickFilterClickListener {

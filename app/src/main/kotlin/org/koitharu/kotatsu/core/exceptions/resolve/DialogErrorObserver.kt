@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.core.exceptions.resolve
+package org.skepsun.kototoro.core.exceptions.resolve
 
 import android.content.DialogInterface
 import android.view.View
 import androidx.core.util.Consumer
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.isSerializable
-import org.koitharu.kotatsu.parsers.exception.ParseException
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.isSerializable
+import org.skepsun.kototoro.parsers.exception.ParseException
 
 class DialogErrorObserver(
 	host: View,

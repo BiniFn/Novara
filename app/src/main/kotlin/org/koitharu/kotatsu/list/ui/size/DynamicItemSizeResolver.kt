@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.list.ui.size
+package org.skepsun.kototoro.list.ui.size
 
 import android.content.SharedPreferences
 import android.content.res.Resources
@@ -8,9 +8,9 @@ import androidx.annotation.StyleRes
 import androidx.core.widget.TextViewCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.history.ui.util.ReadingProgressView
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.history.ui.util.ReadingProgressView
 import kotlin.math.roundToInt
 
 class DynamicItemSizeResolver(
@@ -103,9 +103,9 @@ class DynamicItemSizeResolver(
 
 		private fun TextView.adjustTextAppearance(width: Int) {
 			val textAppearanceResId = if (width < widthThreshold) {
-				R.style.TextAppearance_Kotatsu_GridTitle_Small
+				R.style.TextAppearance_Kototoro_GridTitle_Small
 			} else {
-				R.style.TextAppearance_Kotatsu_GridTitle
+				R.style.TextAppearance_Kototoro_GridTitle
 			}
 			if (textAppearanceResId != prevTextAppearance) {
 				prevTextAppearance = textAppearanceResId

@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.reader.ui.pager.webtoon
+package org.skepsun.kototoro.reader.ui.pager.webtoon
 
 import android.view.View
 import androidx.lifecycle.LifecycleOwner
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.databinding.ItemPageWebtoonBinding
-import org.koitharu.kotatsu.reader.domain.PageLoader
-import org.koitharu.kotatsu.reader.ui.config.ReaderSettings
-import org.koitharu.kotatsu.reader.ui.pager.BasePageHolder
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.databinding.ItemPageWebtoonBinding
+import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.ui.config.ReaderSettings
+import org.skepsun.kototoro.reader.ui.pager.BasePageHolder
 
 class WebtoonHolder(
 	owner: LifecycleOwner,

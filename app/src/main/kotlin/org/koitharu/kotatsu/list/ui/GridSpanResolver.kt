@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.list.ui
+package org.skepsun.kototoro.list.ui
 
 import android.content.res.Resources
 import android.view.View
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 import kotlin.math.abs
 import kotlin.math.roundToInt
 

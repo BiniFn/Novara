@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.settings.utils
+package org.skepsun.kototoro.settings.utils
 
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 
 class EditTextDefaultSummaryProvider(
 	private val defaultValue: String,

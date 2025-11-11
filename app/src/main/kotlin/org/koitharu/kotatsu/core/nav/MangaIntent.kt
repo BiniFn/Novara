@@ -1,15 +1,15 @@
-package org.koitharu.kotatsu.core.nav
+package org.skepsun.kototoro.core.nav
 
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.lifecycle.SavedStateHandle
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter.Companion.KEY_ID
-import org.koitharu.kotatsu.core.nav.AppRouter.Companion.KEY_MANGA
-import org.koitharu.kotatsu.core.util.ext.getParcelableCompat
-import org.koitharu.kotatsu.core.util.ext.getParcelableExtraCompat
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter.Companion.KEY_ID
+import org.skepsun.kototoro.core.nav.AppRouter.Companion.KEY_MANGA
+import org.skepsun.kototoro.core.util.ext.getParcelableCompat
+import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
+import org.skepsun.kototoro.parsers.model.Manga
 
 class MangaIntent private constructor(
 	@JvmField val manga: Manga?,

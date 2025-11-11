@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.backups.ui.restore
+package org.skepsun.kototoro.backups.ui.restore
 
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.domain.BackupSection
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.domain.BackupSection
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 data class BackupSectionModel(
 	val section: BackupSection,

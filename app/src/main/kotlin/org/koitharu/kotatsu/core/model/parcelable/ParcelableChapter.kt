@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.core.model.parcelable
+package org.skepsun.kototoro.core.model.parcelable
 
 import android.os.Parcel
 import android.os.Parcelable
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaChapter
 
 @Parcelize
 data class ParcelableChapter(

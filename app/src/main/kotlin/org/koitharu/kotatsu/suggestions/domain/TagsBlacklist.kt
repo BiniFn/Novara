@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.suggestions.domain
+package org.skepsun.kototoro.suggestions.domain
 
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.parsers.util.almostEquals
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.util.almostEquals
 
 class TagsBlacklist(
 	private val tags: Set<String>,

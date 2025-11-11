@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.scrobbling.common.ui.selector
+package org.skepsun.kototoro.scrobbling.common.ui.selector
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -15,30 +15,30 @@ import androidx.recyclerview.widget.RecyclerView.NO_ID
 import com.google.android.material.tabs.TabLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.PaginationScrollListener
-import org.koitharu.kotatsu.core.ui.sheet.BaseAdaptiveSheet
-import org.koitharu.kotatsu.core.ui.util.CollapseActionViewCallback
-import org.koitharu.kotatsu.core.util.RecyclerViewScrollCallback
-import org.koitharu.kotatsu.core.util.ext.consume
-import org.koitharu.kotatsu.core.util.ext.firstVisibleItemPosition
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.setProgressIcon
-import org.koitharu.kotatsu.core.util.ext.setTabsEnabled
-import org.koitharu.kotatsu.core.util.ext.viewLifecycleScope
-import org.koitharu.kotatsu.databinding.SheetScrobblingSelectorBinding
-import org.koitharu.kotatsu.list.ui.adapter.ListStateHolderListener
-import org.koitharu.kotatsu.list.ui.adapter.TypedListSpacingDecoration
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.LoadingFooter
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerManga
-import org.koitharu.kotatsu.scrobbling.common.ui.selector.adapter.ScrobblerMangaSelectionDecoration
-import org.koitharu.kotatsu.scrobbling.common.ui.selector.adapter.ScrobblerSelectorAdapter
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.PaginationScrollListener
+import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
+import org.skepsun.kototoro.core.ui.util.CollapseActionViewCallback
+import org.skepsun.kototoro.core.util.RecyclerViewScrollCallback
+import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.firstVisibleItemPosition
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.setProgressIcon
+import org.skepsun.kototoro.core.util.ext.setTabsEnabled
+import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
+import org.skepsun.kototoro.databinding.SheetScrobblingSelectorBinding
+import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
+import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingFooter
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.scrobbling.common.ui.selector.adapter.ScrobblerMangaSelectionDecoration
+import org.skepsun.kototoro.scrobbling.common.ui.selector.adapter.ScrobblerSelectorAdapter
 
 @AndroidEntryPoint
 class ScrobblingSelectorSheet :

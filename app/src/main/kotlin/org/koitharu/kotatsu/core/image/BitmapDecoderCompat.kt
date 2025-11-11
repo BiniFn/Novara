@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.image
+package org.skepsun.kototoro.core.image
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -14,13 +14,13 @@ import okio.source
 import org.aomedia.avif.android.AvifDecoder
 import org.aomedia.avif.android.AvifDecoder.Info
 import org.jetbrains.annotations.Blocking
-import org.koitharu.kotatsu.core.util.MimeTypes
-import org.koitharu.kotatsu.core.util.ext.MimeType
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.readByteBuffer
-import org.koitharu.kotatsu.core.util.ext.toByteBuffer
-import org.koitharu.kotatsu.core.util.ext.toMimeTypeOrNull
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.util.MimeTypes
+import org.skepsun.kototoro.core.util.ext.MimeType
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.readByteBuffer
+import org.skepsun.kototoro.core.util.ext.toByteBuffer
+import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import java.io.InputStream
 import java.nio.ByteBuffer

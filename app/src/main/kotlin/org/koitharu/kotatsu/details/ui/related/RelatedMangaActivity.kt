@@ -1,5 +1,5 @@
-package org.koitharu.kotatsu.details.ui.related
+package org.skepsun.kototoro.details.ui.related
 
-import org.koitharu.kotatsu.core.ui.FragmentContainerActivity
+import org.skepsun.kototoro.core.ui.FragmentContainerActivity
 
 class RelatedMangaActivity : FragmentContainerActivity(RelatedListFragment::class.java)

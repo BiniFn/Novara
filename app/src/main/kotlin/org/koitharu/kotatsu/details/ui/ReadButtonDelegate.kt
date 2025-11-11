@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.details.ui
+package org.skepsun.kototoro.details.ui
 
 import android.content.Context
 import android.graphics.Color
@@ -20,13 +20,13 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialSplitButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.flow.combine
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.nav.ReaderIntent
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.details.ui.model.HistoryInfo
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.details.ui.model.HistoryInfo
 
 class ReadButtonDelegate(
 	private val splitButton: MaterialSplitButton,

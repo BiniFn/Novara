@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.core.ui.util
+package org.skepsun.kototoro.core.ui.util
 
 import android.view.View
 import androidx.annotation.Px
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.parsers.util.toIntUp
+import org.skepsun.kototoro.parsers.util.toIntUp
 import kotlin.math.abs
 
 class SpanSizeResolver(

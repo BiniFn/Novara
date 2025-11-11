@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.picker.ui
+package org.skepsun.kototoro.picker.ui
 
 import android.content.Intent
 import android.os.Bundle
@@ -13,22 +13,22 @@ import androidx.core.view.updatePadding
 import androidx.fragment.app.commit
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.DialogErrorObserver
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.util.ext.consume
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.databinding.ActivityPickerBinding
-import org.koitharu.kotatsu.main.ui.owners.AppBarOwner
-import org.koitharu.kotatsu.main.ui.owners.SnackbarOwner
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.picker.ui.manga.MangaPickerFragment
-import org.koitharu.kotatsu.picker.ui.page.PagePickerFragment
-import org.koitharu.kotatsu.reader.ui.PageSaveHelper
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.DialogErrorObserver
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.databinding.ActivityPickerBinding
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.main.ui.owners.SnackbarOwner
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.picker.ui.manga.MangaPickerFragment
+import org.skepsun.kototoro.picker.ui.page.PagePickerFragment
+import org.skepsun.kototoro.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import java.io.File
 import javax.inject.Inject
 

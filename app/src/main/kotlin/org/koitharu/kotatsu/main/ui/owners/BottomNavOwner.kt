@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.main.ui.owners
+package org.skepsun.kototoro.main.ui.owners
 
-import org.koitharu.kotatsu.core.ui.widgets.SlidingBottomNavigationView
+import org.skepsun.kototoro.core.ui.widgets.SlidingBottomNavigationView
 
 interface BottomNavOwner {
 

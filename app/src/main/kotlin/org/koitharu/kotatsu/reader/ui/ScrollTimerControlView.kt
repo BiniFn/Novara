@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
 import android.content.Context
 import android.util.AttributeSet
@@ -17,14 +17,14 @@ import com.google.android.material.slider.Slider
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ReaderMode
-import org.koitharu.kotatsu.core.prefs.observeAsStateFlow
-import org.koitharu.kotatsu.core.util.ext.isAnimationsEnabled
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.parentView
-import org.koitharu.kotatsu.databinding.ViewScrollTimerBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ReaderMode
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
+import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.parentView
+import org.skepsun.kototoro.databinding.ViewScrollTimerBinding
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.abs

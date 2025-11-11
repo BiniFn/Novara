@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.bookmarks.domain
+package org.skepsun.kototoro.bookmarks.domain
 
-import org.koitharu.kotatsu.core.util.MimeTypes
-import org.koitharu.kotatsu.core.util.ext.isImage
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaPage
+import org.skepsun.kototoro.core.util.MimeTypes
+import org.skepsun.kototoro.core.util.ext.isImage
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaPage
 import java.time.Instant
 
 data class Bookmark(

@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.search.ui.suggestion
+package org.skepsun.kototoro.search.ui.suggestion
 
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.core.util.ext.getItem
-import org.koitharu.kotatsu.search.ui.suggestion.adapter.SEARCH_SUGGESTION_ITEM_TYPE_QUERY
-import org.koitharu.kotatsu.search.ui.suggestion.model.SearchSuggestionItem
+import org.skepsun.kototoro.core.util.ext.getItem
+import org.skepsun.kototoro.search.ui.suggestion.adapter.SEARCH_SUGGESTION_ITEM_TYPE_QUERY
+import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 class SearchSuggestionItemCallback(
 	private val listener: SuggestionItemListener,

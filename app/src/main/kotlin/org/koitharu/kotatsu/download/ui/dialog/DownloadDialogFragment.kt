@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.download.ui.dialog
+package org.skepsun.kototoro.download.ui.dialog
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -16,24 +16,24 @@ import androidx.lifecycle.LifecycleOwner
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.prefs.DownloadFormat
-import org.koitharu.kotatsu.core.ui.AlertDialogFragment
-import org.koitharu.kotatsu.core.ui.widgets.TwoLinesItemView
-import org.koitharu.kotatsu.core.util.ext.findActivity
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.getQuantityStringSafe
-import org.koitharu.kotatsu.core.util.ext.joinToStringWithLimit
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.parentView
-import org.koitharu.kotatsu.core.util.ext.showOrHide
-import org.koitharu.kotatsu.databinding.DialogDownloadBinding
-import org.koitharu.kotatsu.main.ui.owners.BottomNavOwner
-import org.koitharu.kotatsu.parsers.util.format
-import org.koitharu.kotatsu.settings.storage.DirectoryModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.prefs.DownloadFormat
+import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.ui.widgets.TwoLinesItemView
+import org.skepsun.kototoro.core.util.ext.findActivity
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
+import org.skepsun.kototoro.core.util.ext.joinToStringWithLimit
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.parentView
+import org.skepsun.kototoro.core.util.ext.showOrHide
+import org.skepsun.kototoro.databinding.DialogDownloadBinding
+import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
+import org.skepsun.kototoro.parsers.util.format
+import org.skepsun.kototoro.settings.storage.DirectoryModel
 
 @AndroidEntryPoint
 class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), View.OnClickListener {

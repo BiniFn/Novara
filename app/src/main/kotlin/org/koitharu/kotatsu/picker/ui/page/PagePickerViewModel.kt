@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.picker.ui.page
+package org.skepsun.kototoro.picker.ui.page
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -10,17 +10,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.nav.MangaIntent
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsStateFlow
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.firstNotNull
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.details.domain.DetailsLoadUseCase
-import org.koitharu.kotatsu.details.ui.pager.pages.PageThumbnail
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.reader.domain.ChaptersLoader
+import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.firstNotNull
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.domain.DetailsLoadUseCase
+import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.reader.domain.ChaptersLoader
 import javax.inject.Inject
 
 @HiltViewModel

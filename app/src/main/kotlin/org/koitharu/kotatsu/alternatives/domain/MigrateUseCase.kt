@@ -1,20 +1,20 @@
-package org.koitharu.kotatsu.alternatives.domain
+package org.skepsun.kototoro.alternatives.domain
 
 import androidx.room.withTransaction
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.model.getPreferredBranch
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.details.domain.ProgressUpdateUseCase
-import org.koitharu.kotatsu.history.data.HistoryEntity
-import org.koitharu.kotatsu.history.data.toMangaHistory
-import org.koitharu.kotatsu.list.domain.ReadingProgress.Companion.PROGRESS_NONE
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
-import org.koitharu.kotatsu.scrobbling.common.domain.Scrobbler
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblingStatus
-import org.koitharu.kotatsu.tracker.data.TrackEntity
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.model.getPreferredBranch
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.details.domain.ProgressUpdateUseCase
+import org.skepsun.kototoro.history.data.HistoryEntity
+import org.skepsun.kototoro.history.data.toMangaHistory
+import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
+import org.skepsun.kototoro.tracker.data.TrackEntity
 import javax.inject.Inject
 
 class MigrateUseCase

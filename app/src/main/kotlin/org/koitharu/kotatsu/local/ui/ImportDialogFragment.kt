@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.ui
+package org.skepsun.kototoro.local.ui
 
 import android.net.Uri
 import android.os.Bundle
@@ -9,12 +9,12 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.os.OpenDocumentTreeHelper
-import org.koitharu.kotatsu.core.ui.AlertDialogFragment
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
-import org.koitharu.kotatsu.databinding.DialogImportBinding
-import org.koitharu.kotatsu.local.data.LocalStorageManager
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
+import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.databinding.DialogImportBinding
+import org.skepsun.kototoro.local.data.LocalStorageManager
 import javax.inject.Inject
 
 @AndroidEntryPoint

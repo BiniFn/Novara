@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.details.ui.pager.pages
+package org.skepsun.kototoro.details.ui.pager.pages
 
 import coil3.size.Size
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.AdapterDelegateClickListenerAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.util.ext.setTextColorAttr
-import org.koitharu.kotatsu.databinding.ItemPageThumbBinding
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.util.ext.setTextColorAttr
+import org.skepsun.kototoro.databinding.ItemPageThumbBinding
+import org.skepsun.kototoro.list.ui.model.ListModel
 import com.google.android.material.R as materialR
 
 fun pageThumbnailAD(

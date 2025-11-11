@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.settings.utils
+package org.skepsun.kototoro.settings.utils
 
 import android.content.Context
 import android.util.AttributeSet
 import android.view.View
 import androidx.preference.PreferenceViewHolder
 import androidx.preference.SwitchPreferenceCompat
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 
 class SplitSwitchPreference @JvmOverloads constructor(
 	context: Context,

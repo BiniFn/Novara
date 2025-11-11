@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.widgets
+package org.skepsun.kototoro.core.ui.widgets
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -24,11 +24,11 @@ import androidx.core.widget.TextViewCompat
 import com.google.android.material.ripple.RippleUtils
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.getDrawableCompat
-import org.koitharu.kotatsu.core.util.ext.resolveDp
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ViewTwoLinesItemBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getDrawableCompat
+import org.skepsun.kototoro.core.util.ext.resolveDp
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ViewTwoLinesItemBinding
 
 @SuppressLint("RestrictedApi")
 class TwoLinesItemView @JvmOverloads constructor(
@@ -63,7 +63,7 @@ class TwoLinesItemView @JvmOverloads constructor(
 			set = attrs,
 			attrs = R.styleable.TwoLinesItemView,
 			defStyleAttr = defStyleAttr,
-			defStyleRes = R.style.Widget_Kotatsu_TwoLinesItemView,
+			defStyleRes = R.style.Widget_Kototoro_TwoLinesItemView,
 		) {
 			val itemRippleColor = getRippleColor(context)
 			val shape = createShapeDrawable(this)

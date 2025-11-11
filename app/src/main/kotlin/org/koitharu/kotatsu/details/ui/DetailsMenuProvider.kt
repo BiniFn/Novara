@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.details.ui
+package org.skepsun.kototoro.details.ui
 
 import android.app.Activity
 import android.view.Menu
@@ -14,13 +14,13 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.LocalMangaSource
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.os.AppShortcutManager
-import org.koitharu.kotatsu.core.ui.dialog.buildAlertDialog
-import org.koitharu.kotatsu.core.util.ext.isHttpUrl
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.os.AppShortcutManager
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.util.ext.isHttpUrl
 
 class DetailsMenuProvider(
 	private val activity: FragmentActivity,

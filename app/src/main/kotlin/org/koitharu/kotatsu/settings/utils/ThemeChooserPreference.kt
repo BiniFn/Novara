@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.utils
+package org.skepsun.kototoro.settings.utils
 
 import android.content.Context
 import android.content.res.TypedArray
@@ -17,10 +17,10 @@ import androidx.core.view.updatePaddingRelative
 import androidx.customview.view.AbsSavedState
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.ColorScheme
-import org.koitharu.kotatsu.databinding.ItemColorSchemeBinding
-import org.koitharu.kotatsu.databinding.PreferenceThemeBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.ColorScheme
+import org.skepsun.kototoro.databinding.ItemColorSchemeBinding
+import org.skepsun.kototoro.databinding.PreferenceThemeBinding
 import java.lang.ref.WeakReference
 import com.google.android.material.R as materialR
 

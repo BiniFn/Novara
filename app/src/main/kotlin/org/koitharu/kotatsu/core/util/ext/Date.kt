@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.core.util.ext
+package org.skepsun.kototoro.core.util.ext
 
 import android.content.res.Resources
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.model.DateTimeAgo
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.model.DateTimeAgo
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime

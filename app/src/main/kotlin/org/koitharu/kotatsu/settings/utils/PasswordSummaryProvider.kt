@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.utils
+package org.skepsun.kototoro.settings.utils
 
 import android.text.TextUtils
 import androidx.preference.EditTextPreference

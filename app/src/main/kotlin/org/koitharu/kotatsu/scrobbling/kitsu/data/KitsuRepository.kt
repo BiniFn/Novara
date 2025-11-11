@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.scrobbling.kitsu.data
+package org.skepsun.kototoro.scrobbling.kitsu.data
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -9,24 +9,24 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.IOException
 import org.json.JSONObject
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.util.ext.parseJsonOrNull
-import org.koitharu.kotatsu.parsers.util.await
-import org.koitharu.kotatsu.parsers.util.json.getFloatOrDefault
-import org.koitharu.kotatsu.parsers.util.json.getIntOrDefault
-import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
-import org.koitharu.kotatsu.parsers.util.json.mapJSON
-import org.koitharu.kotatsu.parsers.util.parseJson
-import org.koitharu.kotatsu.parsers.util.urlEncoded
-import org.koitharu.kotatsu.scrobbling.common.data.ScrobblerRepository
-import org.koitharu.kotatsu.scrobbling.common.data.ScrobblerStorage
-import org.koitharu.kotatsu.scrobbling.common.data.ScrobblingEntity
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerManga
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerMangaInfo
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerService
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerUser
-import org.koitharu.kotatsu.scrobbling.kitsu.data.KitsuInterceptor.Companion.VND_JSON
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.util.ext.parseJsonOrNull
+import org.skepsun.kototoro.parsers.util.await
+import org.skepsun.kototoro.parsers.util.json.getFloatOrDefault
+import org.skepsun.kototoro.parsers.util.json.getIntOrDefault
+import org.skepsun.kototoro.parsers.util.json.getStringOrNull
+import org.skepsun.kototoro.parsers.util.json.mapJSON
+import org.skepsun.kototoro.parsers.util.parseJson
+import org.skepsun.kototoro.parsers.util.urlEncoded
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuInterceptor.Companion.VND_JSON
 
 private const val BASE_WEB_URL = "https://kitsu.app"
 
@@ -41,7 +41,7 @@ class KitsuRepository(
 	private val clientId = context.getString(R.string.kitsu_clientId)
 	private val clientSecret = context.getString(R.string.kitsu_clientSecret)
 
-	override val oauthUrl: String = "kotatsu+kitsu://auth"
+	override val oauthUrl: String = "kototoro+kitsu://auth"
 
 	override val isAuthorized: Boolean
 		get() = storage.accessToken != null

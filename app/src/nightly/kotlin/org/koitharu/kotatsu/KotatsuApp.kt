@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu
+package org.skepsun.kototoro
 
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import leakcanary.LeakCanary
-import org.koitharu.kotatsu.core.BaseApp
+import org.skepsun.kototoro.core.BaseApp
 
-class KotatsuApp : BaseApp(), SharedPreferences.OnSharedPreferenceChangeListener {
+class KototoroApp : BaseApp(), SharedPreferences.OnSharedPreferenceChangeListener {
 
 	override fun attachBaseContext(base: Context) {
 		super.attachBaseContext(base)

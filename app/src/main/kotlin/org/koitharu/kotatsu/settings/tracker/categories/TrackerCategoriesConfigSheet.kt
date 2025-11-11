@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.tracker.categories
+package org.skepsun.kototoro.settings.tracker.categories
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -8,13 +8,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.sheet.BaseAdaptiveSheet
-import org.koitharu.kotatsu.core.util.ext.consume
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.databinding.SheetBaseBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
+import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.databinding.SheetBaseBinding
 
 @AndroidEntryPoint
 class TrackerCategoriesConfigSheet :

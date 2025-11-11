@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.tracker.data
+package org.skepsun.kototoro.tracker.data
 
-import org.koitharu.kotatsu.core.db.entity.toManga
-import org.koitharu.kotatsu.core.db.entity.toMangaTags
-import org.koitharu.kotatsu.tracker.domain.model.TrackingLogItem
+import org.skepsun.kototoro.core.db.entity.toManga
+import org.skepsun.kototoro.core.db.entity.toMangaTags
+import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import java.time.Instant
 
 fun TrackLogWithManga.toTrackingLogItem(): TrackingLogItem {

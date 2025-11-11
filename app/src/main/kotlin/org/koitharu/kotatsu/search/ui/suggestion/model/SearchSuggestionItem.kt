@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.search.ui.suggestion.model
+package org.skepsun.kototoro.search.ui.suggestion.model
 
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 sealed interface SearchSuggestionItem : ListModel {
 

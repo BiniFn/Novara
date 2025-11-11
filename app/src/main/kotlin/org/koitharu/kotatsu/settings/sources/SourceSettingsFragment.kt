@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.sources
+package org.skepsun.kototoro.settings.sources
 
 import android.os.Bundle
 import android.view.View
@@ -10,24 +10,24 @@ import androidx.preference.Preference
 import androidx.preference.SwitchPreferenceCompat
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.filterNotNull
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.SnackbarErrorObserver
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.parser.EmptyMangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.SourceSettings
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.core.ui.util.ReversibleActionObserver
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.withArgs
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.MangaParserCredentialsAuthProvider
-import org.koitharu.kotatsu.settings.utils.EditTextBindListener
-import org.koitharu.kotatsu.settings.utils.PasswordSummaryProvider
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.parser.EmptyMangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.SourceSettings
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.withArgs
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
+import org.skepsun.kototoro.settings.utils.EditTextBindListener
+import org.skepsun.kototoro.settings.utils.PasswordSummaryProvider
 import java.io.File
 
 @AndroidEntryPoint
@@ -119,8 +119,8 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			}
 
 			KEY_AUTH_LOGIN -> {
-				val username = findPreference<EditTextPreference>(KEY_AUTH_USERNAME)?.text.orEmpty()
-				val password = findPreference<EditTextPreference>(KEY_AUTH_PASSWORD)?.text.orEmpty()
+				val username = findPreference<EditTextPreference>(KEY_AUTH_USERNAME)?.text?.trim().orEmpty()
+				val password = findPreference<EditTextPreference>(KEY_AUTH_PASSWORD)?.text?.trim().orEmpty()
 				viewModel.loginByCredentials(username, password)
 				true
 			}

@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.settings.sources.adapter
+package org.skepsun.kototoro.settings.sources.adapter
 
-import org.koitharu.kotatsu.core.ui.list.OnTipCloseListener
-import org.koitharu.kotatsu.settings.sources.model.SourceConfigItem
+import org.skepsun.kototoro.core.ui.list.OnTipCloseListener
+import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
 
 interface SourceConfigListener : OnTipCloseListener<SourceConfigItem.Tip> {
 

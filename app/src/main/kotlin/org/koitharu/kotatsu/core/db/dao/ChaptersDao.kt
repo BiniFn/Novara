@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.core.db.dao
+package org.skepsun.kototoro.core.db.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import org.koitharu.kotatsu.core.db.entity.ChapterEntity
+import org.skepsun.kototoro.core.db.entity.ChapterEntity
 
 @Dao
 abstract class ChaptersDao {

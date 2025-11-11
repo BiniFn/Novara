@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.tracker.domain.model
+package org.skepsun.kototoro.tracker.domain.model
 
-import org.koitharu.kotatsu.parsers.exception.TooManyRequestExceptions
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.util.ifZero
+import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.util.ifZero
 
 sealed interface MangaUpdates {
 

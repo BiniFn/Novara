@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 
 data class ReaderContent(
 	val pages: List<ReaderPage>,

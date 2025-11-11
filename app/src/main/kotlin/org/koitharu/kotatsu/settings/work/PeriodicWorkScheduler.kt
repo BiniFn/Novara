@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.work
+package org.skepsun.kototoro.settings.work
 
 interface PeriodicWorkScheduler {
 

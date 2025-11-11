@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.sync.ui
+package org.skepsun.kototoro.sync.ui
 
 import android.accounts.Account
 import android.accounts.AccountAuthenticatorResponse
@@ -20,18 +20,18 @@ import androidx.transition.TransitionManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.transition.MaterialSharedAxis
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.util.DefaultTextWatcher
-import org.koitharu.kotatsu.core.util.ext.consumeAllSystemBarsInsets
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.getParcelableExtraCompat
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.systemBarsInsets
-import org.koitharu.kotatsu.databinding.ActivitySyncAuthBinding
-import org.koitharu.kotatsu.sync.data.SyncSettings
-import org.koitharu.kotatsu.sync.domain.SyncAuthResult
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.util.DefaultTextWatcher
+import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.systemBarsInsets
+import org.skepsun.kototoro.databinding.ActivitySyncAuthBinding
+import org.skepsun.kototoro.sync.data.SyncSettings
+import org.skepsun.kototoro.sync.domain.SyncAuthResult
 
 private const val PAGE_EMAIL = 0
 private const val PAGE_PASSWORD = 1

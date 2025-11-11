@@ -1,21 +1,21 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.os.Bundle
 import androidx.preference.Preference
 import leakcanary.LeakCanary
-import org.koitharu.kotatsu.KotatsuApp
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.TestMangaSource
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.settings.utils.SplitSwitchPreference
-import org.koitharu.workinspector.WorkInspector
+import org.skepsun.kototoro.KototoroApp
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.TestMangaSource
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.settings.utils.SplitSwitchPreference
+import org.skepsun.workinspector.WorkInspector
 
 class DebugSettingsFragment : BasePreferenceFragment(R.string.debug), Preference.OnPreferenceChangeListener,
 	Preference.OnPreferenceClickListener {
 
 	private val application
-		get() = requireContext().applicationContext as KotatsuApp
+		get() = requireContext().applicationContext as KototoroApp
 
 	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
 		addPreferencesFromResource(R.xml.pref_debug)

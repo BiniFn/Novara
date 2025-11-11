@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.periodical
+package org.skepsun.kototoro.backups.ui.periodical
 import android.util.Log
 
 import android.content.Intent
@@ -6,17 +6,17 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.PendingIntentCompat
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.data.BackupRepository
-import org.koitharu.kotatsu.backups.domain.BackupUtils
-import org.koitharu.kotatsu.backups.domain.ExternalBackupStorage
-import org.koitharu.kotatsu.backups.ui.BaseBackupRestoreService
-import org.koitharu.kotatsu.core.ErrorReporterReceiver
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.CoroutineIntentService
-import org.koitharu.kotatsu.core.util.ext.checkNotificationPermission
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
+import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
+import org.skepsun.kototoro.core.ErrorReporterReceiver
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.CoroutineIntentService
+import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.util
+package org.skepsun.kototoro.core.ui.util
 
 import android.os.Build
 import android.view.View

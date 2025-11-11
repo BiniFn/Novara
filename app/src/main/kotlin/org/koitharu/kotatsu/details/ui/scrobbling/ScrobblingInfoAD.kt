@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.details.ui.scrobbling
+package org.skepsun.kototoro.details.ui.scrobbling
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.databinding.ItemScrobblingInfoBinding
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblingInfo
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.databinding.ItemScrobblingInfoBinding
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 
 fun scrobblingInfoAD(
 	router: AppRouter,

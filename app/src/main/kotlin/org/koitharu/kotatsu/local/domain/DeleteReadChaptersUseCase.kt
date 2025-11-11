@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.domain
+package org.skepsun.kototoro.local.domain
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.buffer
@@ -6,18 +6,18 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.core.model.ids
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.local.data.LocalMangaRepository
-import org.koitharu.kotatsu.local.domain.model.LocalManga
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.util.findById
-import org.koitharu.kotatsu.parsers.util.recoverCatchingCancellable
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.model.ids
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.util.findById
+import org.skepsun.kototoro.parsers.util.recoverCatchingCancellable
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 class DeleteReadChaptersUseCase @Inject constructor(

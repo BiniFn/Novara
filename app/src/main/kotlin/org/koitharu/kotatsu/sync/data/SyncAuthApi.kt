@@ -1,16 +1,16 @@
-package org.koitharu.kotatsu.sync.data
+package org.skepsun.kototoro.sync.data
 
 import dagger.Reusable
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import org.koitharu.kotatsu.core.exceptions.SyncApiException
-import org.koitharu.kotatsu.core.network.BaseHttpClient
-import org.koitharu.kotatsu.core.util.ext.toRequestBody
-import org.koitharu.kotatsu.parsers.util.await
-import org.koitharu.kotatsu.parsers.util.parseJson
-import org.koitharu.kotatsu.parsers.util.parseRaw
-import org.koitharu.kotatsu.parsers.util.removeSurrounding
+import org.skepsun.kototoro.core.exceptions.SyncApiException
+import org.skepsun.kototoro.core.network.BaseHttpClient
+import org.skepsun.kototoro.core.util.ext.toRequestBody
+import org.skepsun.kototoro.parsers.util.await
+import org.skepsun.kototoro.parsers.util.parseJson
+import org.skepsun.kototoro.parsers.util.parseRaw
+import org.skepsun.kototoro.parsers.util.removeSurrounding
 import javax.inject.Inject
 
 @Reusable

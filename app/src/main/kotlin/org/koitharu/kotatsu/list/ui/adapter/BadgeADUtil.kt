@@ -1,6 +1,6 @@
 @file:androidx.annotation.OptIn(ExperimentalBadgeUtils::class)
 
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import android.view.View
 import androidx.annotation.CheckResult
@@ -9,8 +9,8 @@ import androidx.core.view.doOnNextLayout
 import com.google.android.material.badge.BadgeDrawable
 import com.google.android.material.badge.BadgeUtils
 import com.google.android.material.badge.ExperimentalBadgeUtils
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
 
 @Deprecated("")
 @CheckResult

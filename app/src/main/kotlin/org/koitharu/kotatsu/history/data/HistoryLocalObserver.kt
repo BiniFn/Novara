@@ -1,15 +1,15 @@
-package org.koitharu.kotatsu.history.data
+package org.skepsun.kototoro.history.data
 
 import dagger.Reusable
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.db.entity.toManga
-import org.koitharu.kotatsu.core.db.entity.toMangaTags
-import org.koitharu.kotatsu.history.domain.model.MangaWithHistory
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.list.domain.ListSortOrder
-import org.koitharu.kotatsu.local.data.index.LocalMangaIndex
-import org.koitharu.kotatsu.local.domain.LocalObserveMapper
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.entity.toManga
+import org.skepsun.kototoro.core.db.entity.toMangaTags
+import org.skepsun.kototoro.history.domain.model.MangaWithHistory
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.ListSortOrder
+import org.skepsun.kototoro.local.data.index.LocalMangaIndex
+import org.skepsun.kototoro.local.domain.LocalObserveMapper
+import org.skepsun.kototoro.parsers.model.Manga
 import javax.inject.Inject
 
 @Reusable

@@ -1,16 +1,16 @@
-package org.koitharu.kotatsu.details.data
+package org.skepsun.kototoro.details.data
 
-import org.koitharu.kotatsu.core.model.getLocale
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.model.withOverride
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.local.domain.model.LocalManga
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaState
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
-import org.koitharu.kotatsu.reader.data.filterChapters
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.model.withOverride
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.reader.data.filterChapters
 import java.util.Locale
 
 data class MangaDetails(

@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.backups.data.model
+package org.skepsun.kototoro.backups.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.koitharu.kotatsu.core.db.entity.MangaWithTags
-import org.koitharu.kotatsu.history.data.HistoryEntity
-import org.koitharu.kotatsu.history.data.HistoryWithManga
-import org.koitharu.kotatsu.list.domain.ReadingProgress.Companion.PROGRESS_NONE
+import org.skepsun.kototoro.core.db.entity.MangaWithTags
+import org.skepsun.kototoro.history.data.HistoryEntity
+import org.skepsun.kototoro.history.data.HistoryWithManga
+import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 
 @Serializable
 class HistoryBackup(

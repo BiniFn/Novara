@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.main.ui.protect
+package org.skepsun.kototoro.main.ui.protect
 
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import org.koitharu.kotatsu.core.exceptions.WrongPasswordException
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.parsers.util.md5
+import org.skepsun.kototoro.core.exceptions.WrongPasswordException
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.parsers.util.md5
 import javax.inject.Inject
 
 private const val PASSWORD_COMPARE_DELAY = 1_000L

@@ -1,15 +1,15 @@
-package org.koitharu.kotatsu.details.ui
+package org.skepsun.kototoro.details.ui
 
 import com.google.android.material.snackbar.Snackbar
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.UnsupportedSourceException
-import org.koitharu.kotatsu.core.exceptions.resolve.ErrorObserver
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.isNetworkError
-import org.koitharu.kotatsu.core.util.ext.isSerializable
-import org.koitharu.kotatsu.parsers.exception.NotFoundException
-import org.koitharu.kotatsu.parsers.exception.ParseException
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
+import org.skepsun.kototoro.core.exceptions.resolve.ErrorObserver
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.isNetworkError
+import org.skepsun.kototoro.core.util.ext.isSerializable
+import org.skepsun.kototoro.parsers.exception.NotFoundException
+import org.skepsun.kototoro.parsers.exception.ParseException
 
 class DetailsErrorObserver(
 	override val activity: DetailsActivity,

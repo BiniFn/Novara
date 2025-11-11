@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util.ext
+package org.skepsun.kototoro.core.util.ext
 
 import android.content.ActivityNotFoundException
 import android.content.res.Resources
@@ -15,37 +15,37 @@ import okio.ProtocolException
 import org.acra.ktx.sendSilentlyWithAcra
 import org.acra.ktx.sendWithAcra
 import org.jsoup.HttpStatusException
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.BadBackupFormatException
-import org.koitharu.kotatsu.core.exceptions.CaughtException
-import org.koitharu.kotatsu.core.exceptions.CloudFlareBlockedException
-import org.koitharu.kotatsu.core.exceptions.CloudFlareProtectedException
-import org.koitharu.kotatsu.core.exceptions.EmptyHistoryException
-import org.koitharu.kotatsu.core.exceptions.EmptyMangaException
-import org.koitharu.kotatsu.core.exceptions.IncompatiblePluginException
-import org.koitharu.kotatsu.core.exceptions.InteractiveActionRequiredException
-import org.koitharu.kotatsu.core.exceptions.NoDataReceivedException
-import org.koitharu.kotatsu.core.exceptions.NonFileUriException
-import org.koitharu.kotatsu.core.exceptions.ProxyConfigException
-import org.koitharu.kotatsu.core.exceptions.SyncApiException
-import org.koitharu.kotatsu.core.exceptions.UnsupportedFileException
-import org.koitharu.kotatsu.core.exceptions.UnsupportedSourceException
-import org.koitharu.kotatsu.core.exceptions.WrapperIOException
-import org.koitharu.kotatsu.core.exceptions.WrongPasswordException
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.parsers.ErrorMessages.FILTER_BOTH_LOCALE_GENRES_NOT_SUPPORTED
-import org.koitharu.kotatsu.parsers.ErrorMessages.FILTER_BOTH_STATES_GENRES_NOT_SUPPORTED
-import org.koitharu.kotatsu.parsers.ErrorMessages.FILTER_MULTIPLE_GENRES_NOT_SUPPORTED
-import org.koitharu.kotatsu.parsers.ErrorMessages.FILTER_MULTIPLE_STATES_NOT_SUPPORTED
-import org.koitharu.kotatsu.parsers.ErrorMessages.SEARCH_NOT_SUPPORTED
-import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
-import org.koitharu.kotatsu.parsers.exception.ContentUnavailableException
-import org.koitharu.kotatsu.parsers.exception.NotFoundException
-import org.koitharu.kotatsu.parsers.exception.ParseException
-import org.koitharu.kotatsu.parsers.exception.TooManyRequestExceptions
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.scrobbling.common.domain.ScrobblerAuthRequiredException
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.BadBackupFormatException
+import org.skepsun.kototoro.core.exceptions.CaughtException
+import org.skepsun.kototoro.core.exceptions.CloudFlareBlockedException
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
+import org.skepsun.kototoro.core.exceptions.EmptyMangaException
+import org.skepsun.kototoro.core.exceptions.IncompatiblePluginException
+import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
+import org.skepsun.kototoro.core.exceptions.NoDataReceivedException
+import org.skepsun.kototoro.core.exceptions.NonFileUriException
+import org.skepsun.kototoro.core.exceptions.ProxyConfigException
+import org.skepsun.kototoro.core.exceptions.SyncApiException
+import org.skepsun.kototoro.core.exceptions.UnsupportedFileException
+import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
+import org.skepsun.kototoro.core.exceptions.WrapperIOException
+import org.skepsun.kototoro.core.exceptions.WrongPasswordException
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_BOTH_LOCALE_GENRES_NOT_SUPPORTED
+import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_BOTH_STATES_GENRES_NOT_SUPPORTED
+import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_MULTIPLE_GENRES_NOT_SUPPORTED
+import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_MULTIPLE_STATES_NOT_SUPPORTED
+import org.skepsun.kototoro.parsers.ErrorMessages.SEARCH_NOT_SUPPORTED
+import org.skepsun.kototoro.parsers.exception.AuthRequiredException
+import org.skepsun.kototoro.parsers.exception.ContentUnavailableException
+import org.skepsun.kototoro.parsers.exception.NotFoundException
+import org.skepsun.kototoro.parsers.exception.ParseException
+import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerAuthRequiredException
 import java.io.File
 import java.net.ConnectException
 import java.net.HttpURLConnection
@@ -109,7 +109,14 @@ private fun Throwable.getDisplayMessageOrNull(resources: Resources): String? = w
     is SyncApiException,
     is ContentUnavailableException -> message
 
-    is ParseException -> shortMessage
+    is ParseException -> {
+        val sm = shortMessage
+        if (sm.equals("Wrong password", ignoreCase = true)) {
+            resources.getString(R.string.wrong_password)
+        } else {
+            sm
+        }
+    }
     is ConnectException,
     is UnknownHostException,
     is NoRouteToHostException,
@@ -257,8 +264,8 @@ fun FileNotFoundException.parseMessage(resources: Resources): String? {
     /*
     Examples:
     /storage/0000-0000/Android/media/d1f08350-0c25-460b-8f50-008e49de3873.jpg.tmp: open failed: EROFS (Read-only file system)
-     /storage/emulated/0/Android/data/org.koitharu.kotatsu/cache/pages/fe06e192fa371e55918980f7a24c91ea.jpg: open failed: ENOENT (No such file or directory)
-     /storage/0000-0000/Android/data/org.koitharu.kotatsu/files/manga/e57d3af4-216e-48b2-8432-1541d58eea1e.tmp (I/O error)
+     /storage/emulated/0/Android/data/org.skepsun.kototoro/cache/pages/fe06e192fa371e55918980f7a24c91ea.jpg: open failed: ENOENT (No such file or directory)
+     /storage/0000-0000/Android/data/org.skepsun.kototoro/files/manga/e57d3af4-216e-48b2-8432-1541d58eea1e.tmp (I/O error)
      */
     val groups = FNFE_MESSAGE_REGEX.matchEntire(message ?: return null)?.groupValues ?: return null
     val path = groups.getOrNull(1)

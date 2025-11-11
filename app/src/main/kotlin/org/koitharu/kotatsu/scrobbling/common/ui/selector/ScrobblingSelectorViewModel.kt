@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.scrobbling.common.ui.selector
+package org.skepsun.kototoro.scrobbling.common.ui.selector
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -12,27 +12,27 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.require
-import org.koitharu.kotatsu.core.util.ext.requireValue
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.list.domain.ReadingProgress
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.LoadingFooter
-import org.koitharu.kotatsu.list.ui.model.LoadingState
-import org.koitharu.kotatsu.parsers.util.ifZero
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
-import org.koitharu.kotatsu.scrobbling.common.domain.Scrobbler
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerManga
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblingStatus
-import org.koitharu.kotatsu.scrobbling.common.ui.selector.model.ScrobblerHint
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.util.ext.requireValue
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.list.domain.ReadingProgress
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingFooter
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.util.ifZero
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
+import org.skepsun.kototoro.scrobbling.common.ui.selector.model.ScrobblerHint
 import javax.inject.Inject
 
 @HiltViewModel

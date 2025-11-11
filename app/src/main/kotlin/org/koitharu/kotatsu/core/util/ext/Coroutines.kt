@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util.ext
+package org.skepsun.kototoro.core.util.ext
 
 import android.content.BroadcastReceiver
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -10,10 +10,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.util.AcraCoroutineErrorHandler
-import org.koitharu.kotatsu.core.util.RetainedLifecycleCoroutineScope
-import org.koitharu.kotatsu.parsers.util.cancelAll
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.util.AcraCoroutineErrorHandler
+import org.skepsun.kototoro.core.util.RetainedLifecycleCoroutineScope
+import org.skepsun.kototoro.parsers.util.cancelAll
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.cancellation.CancellationException

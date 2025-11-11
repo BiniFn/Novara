@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
 import android.content.res.Resources
 import android.os.SystemClock
@@ -20,9 +20,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsFlow
-import org.koitharu.kotatsu.core.util.ext.resolveDp
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.util.ext.resolveDp
 import kotlin.math.roundToLong
 
 private const val MAX_DELAY = 32L

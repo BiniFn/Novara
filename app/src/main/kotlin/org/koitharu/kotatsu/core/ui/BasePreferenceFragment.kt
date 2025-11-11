@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui
+package org.skepsun.kototoro.core.ui
 
 import android.content.Context
 import android.graphics.drawable.Drawable
@@ -16,19 +16,19 @@ import androidx.preference.get
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.util.RecyclerViewOwner
-import org.koitharu.kotatsu.core.util.ext.consumeAllSystemBarsInsets
-import org.koitharu.kotatsu.core.util.ext.container
-import org.koitharu.kotatsu.core.util.ext.end
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.core.util.ext.getThemeDrawable
-import org.koitharu.kotatsu.core.util.ext.parentView
-import org.koitharu.kotatsu.core.util.ext.start
-import org.koitharu.kotatsu.core.util.ext.systemBarsInsets
-import org.koitharu.kotatsu.settings.SettingsActivity
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
+import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.container
+import org.skepsun.kototoro.core.util.ext.end
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.getThemeDrawable
+import org.skepsun.kototoro.core.util.ext.parentView
+import org.skepsun.kototoro.core.util.ext.start
+import org.skepsun.kototoro.core.util.ext.systemBarsInsets
+import org.skepsun.kototoro.settings.SettingsActivity
 import javax.inject.Inject
 import com.google.android.material.R as materialR
 

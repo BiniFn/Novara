@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.reader.ui.pager
+package org.skepsun.kototoro.reader.ui.pager
 
 import android.content.res.Resources
-import org.koitharu.kotatsu.core.model.getLocalizedTitle
-import org.koitharu.kotatsu.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.model.getLocalizedTitle
+import org.skepsun.kototoro.parsers.model.MangaChapter
 
 data class ReaderUiState(
 	val mangaName: String?,

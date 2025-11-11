@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.model
+package org.skepsun.kototoro.core.model
 
 enum class ZoomMode {
 

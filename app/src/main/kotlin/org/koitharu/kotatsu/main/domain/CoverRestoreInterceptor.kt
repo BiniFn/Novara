@@ -1,21 +1,21 @@
-package org.koitharu.kotatsu.main.domain
+package org.skepsun.kototoro.main.domain
 
 import androidx.collection.ArraySet
 import coil3.intercept.Interceptor
 import coil3.request.ErrorResult
 import coil3.request.ImageResult
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.bookmarks.domain.BookmarksRepository
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.util.ext.bookmarkKey
-import org.koitharu.kotatsu.core.util.ext.mangaKey
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.util.findById
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.util.ext.bookmarkKey
+import org.skepsun.kototoro.core.util.ext.mangaKey
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.util.findById
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.util.Collections
 import javax.inject.Inject
 

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.filter.ui
+package org.skepsun.kototoro.filter.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,20 +10,20 @@ import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.BaseFragment
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.core.util.ext.isAnimationsEnabled
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.databinding.FragmentFilterHeaderBinding
-import org.koitharu.kotatsu.filter.data.PersistableFilter
-import org.koitharu.kotatsu.filter.ui.model.FilterHeaderModel
-import org.koitharu.kotatsu.parsers.model.ContentRating
-import org.koitharu.kotatsu.parsers.model.ContentType
-import org.koitharu.kotatsu.parsers.model.Demographic
-import org.koitharu.kotatsu.parsers.model.MangaState
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.parsers.model.YEAR_UNKNOWN
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.databinding.FragmentFilterHeaderBinding
+import org.skepsun.kototoro.filter.data.PersistableFilter
+import org.skepsun.kototoro.filter.ui.model.FilterHeaderModel
+import org.skepsun.kototoro.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.Demographic
+import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.YEAR_UNKNOWN
 import java.util.Locale
 import javax.inject.Inject
 

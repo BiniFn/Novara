@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.domain
+package org.skepsun.kototoro.backups.domain
 
 import android.net.Uri
 import java.util.Date

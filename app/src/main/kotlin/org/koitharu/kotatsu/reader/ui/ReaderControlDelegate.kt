@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
 import android.content.res.Resources
 import android.view.KeyEvent
 import android.view.View
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ReaderMode
-import org.koitharu.kotatsu.reader.data.TapGridSettings
-import org.koitharu.kotatsu.reader.domain.TapGridArea
-import org.koitharu.kotatsu.reader.ui.tapgrid.TapAction
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ReaderMode
+import org.skepsun.kototoro.reader.data.TapGridSettings
+import org.skepsun.kototoro.reader.domain.TapGridArea
+import org.skepsun.kototoro.reader.ui.tapgrid.TapAction
 import kotlin.math.sign
 
 class ReaderControlDelegate(

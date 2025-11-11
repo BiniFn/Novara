@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.favourites.data
+package org.skepsun.kototoro.favourites.data
 
-import org.koitharu.kotatsu.core.db.entity.toManga
-import org.koitharu.kotatsu.core.db.entity.toMangaTags
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.list.domain.ListSortOrder
+import org.skepsun.kototoro.core.db.entity.toManga
+import org.skepsun.kototoro.core.db.entity.toMangaTags
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.list.domain.ListSortOrder
 import java.time.Instant
 
 fun FavouriteCategoryEntity.toFavouriteCategory(id: Long = categoryId.toLong()) = FavouriteCategory(

@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.core.prefs
+package org.skepsun.kototoro.core.prefs
 
 import androidx.annotation.Keep
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 
 @Keep
 enum class SearchSuggestionType(

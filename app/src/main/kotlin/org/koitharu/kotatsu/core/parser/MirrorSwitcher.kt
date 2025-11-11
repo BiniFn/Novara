@@ -1,16 +1,16 @@
-package org.koitharu.kotatsu.core.parser
+package org.skepsun.kototoro.core.parser
 
 import android.util.Log
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.core.network.MangaHttpClient
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
-import org.koitharu.kotatsu.parsers.util.await
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.util.await
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.util.EnumSet
 import javax.inject.Inject
 

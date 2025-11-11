@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.details.ui.model
+package org.skepsun.kototoro.details.ui.model
 
-import org.koitharu.kotatsu.core.model.MangaHistory
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.details.data.ReadingTime
+import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ReadingTime
 
 data class HistoryInfo(
 	val totalChapters: Int,

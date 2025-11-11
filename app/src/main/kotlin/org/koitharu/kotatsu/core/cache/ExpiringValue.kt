@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.cache
+package org.skepsun.kototoro.core.cache
 
 import android.os.SystemClock
 import java.util.concurrent.TimeUnit

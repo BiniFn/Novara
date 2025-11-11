@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.io
+package org.skepsun.kototoro.core.io
 
 import java.io.OutputStream
 import java.util.Objects

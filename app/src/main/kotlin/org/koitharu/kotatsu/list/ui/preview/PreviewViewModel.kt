@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.list.ui.preview
+package org.skepsun.kototoro.list.ui.preview
 
 import android.text.Html
 import android.text.SpannableString
@@ -20,16 +20,16 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.model.getPreferredBranch
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.require
-import org.koitharu.kotatsu.core.util.ext.sanitize
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.list.domain.MangaListMapper
-import org.koitharu.kotatsu.list.domain.ReadingProgress.Companion.PROGRESS_NONE
+import org.skepsun.kototoro.core.model.getPreferredBranch
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.util.ext.sanitize
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import javax.inject.Inject
 
 @HiltViewModel

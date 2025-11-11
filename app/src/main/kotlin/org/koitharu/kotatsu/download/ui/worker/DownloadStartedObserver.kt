@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.download.ui.worker
+package org.skepsun.kototoro.download.ui.worker
 
 import android.view.View
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.flow.FlowCollector
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.util.ext.findActivity
-import org.koitharu.kotatsu.main.ui.owners.BottomNavOwner
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.util.ext.findActivity
+import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 
 class DownloadStartedObserver(
 	private val snackbarHost: View,

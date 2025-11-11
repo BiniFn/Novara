@@ -1,20 +1,20 @@
-package org.koitharu.kotatsu.settings.sources.catalog
+package org.skepsun.kototoro.settings.sources.catalog
 
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePaddingRelative
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.getSummary
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.ui.image.FaviconDrawable
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.util.ext.drawableStart
-import org.koitharu.kotatsu.core.util.ext.getThemeDimensionPixelOffset
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.databinding.ItemEmptyHintBinding
-import org.koitharu.kotatsu.databinding.ItemSourceCatalogBinding
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getSummary
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.ui.image.FaviconDrawable
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.util.ext.drawableStart
+import org.skepsun.kototoro.core.util.ext.getThemeDimensionPixelOffset
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.databinding.ItemEmptyHintBinding
+import org.skepsun.kototoro.databinding.ItemSourceCatalogBinding
+import org.skepsun.kototoro.list.ui.model.ListModel
 import androidx.appcompat.R as appcompatR
 
 fun sourceCatalogItemSourceAD(

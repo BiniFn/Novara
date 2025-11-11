@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.network
+package org.skepsun.kototoro.core.network
 
 import dagger.Lazy
 import okhttp3.Headers
@@ -7,16 +7,16 @@ import okhttp3.Interceptor.Chain
 import okhttp3.Request
 import okhttp3.Response
 import okio.IOException
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.parser.MangaLoaderContextImpl
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.mergeWith
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.parser.MangaLoaderContextImpl
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.mergeWith
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.net.IDN
 import javax.inject.Inject
 import javax.inject.Singleton

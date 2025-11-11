@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.history.data
+package org.skepsun.kototoro.history.data
 
-import org.koitharu.kotatsu.core.model.MangaHistory
+import org.skepsun.kototoro.core.model.MangaHistory
 import java.time.Instant
 
 fun HistoryEntity.toMangaHistory() = MangaHistory(

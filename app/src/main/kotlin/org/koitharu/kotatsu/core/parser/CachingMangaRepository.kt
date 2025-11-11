@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.parser
+package org.skepsun.kototoro.core.parser
 
 import android.util.Log
 import androidx.collection.MutableLongSet
@@ -9,15 +9,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.core.cache.MemoryContentCache
-import org.koitharu.kotatsu.core.cache.SafeDeferred
-import org.koitharu.kotatsu.core.util.MultiMutex
-import org.koitharu.kotatsu.core.util.ext.processLifecycleScope
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaPage
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.cache.MemoryContentCache
+import org.skepsun.kototoro.core.cache.SafeDeferred
+import org.skepsun.kototoro.core.util.MultiMutex
+import org.skepsun.kototoro.core.util.ext.processLifecycleScope
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 
 abstract class CachingMangaRepository(
 	private val cache: MemoryContentCache,

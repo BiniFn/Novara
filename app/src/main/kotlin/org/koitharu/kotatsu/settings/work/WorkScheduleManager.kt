@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.settings.work
+package org.skepsun.kototoro.settings.work
 
 import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.ext.processLifecycleScope
-import org.koitharu.kotatsu.suggestions.ui.SuggestionsWorker
-import org.koitharu.kotatsu.tracker.work.TrackWorker
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.ext.processLifecycleScope
+import org.skepsun.kototoro.suggestions.ui.SuggestionsWorker
+import org.skepsun.kototoro.tracker.work.TrackWorker
 import javax.inject.Inject
 import javax.inject.Singleton
 

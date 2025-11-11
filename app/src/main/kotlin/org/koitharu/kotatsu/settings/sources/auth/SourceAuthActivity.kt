@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.sources.auth
+package org.skepsun.kototoro.settings.sources.auth
 
 import android.content.Context
 import android.content.Intent
@@ -11,17 +11,17 @@ import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.browser.BaseBrowserActivity
-import org.koitharu.kotatsu.browser.BrowserCallback
-import org.koitharu.kotatsu.browser.BrowserClient
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.browser.BaseBrowserActivity
+import org.skepsun.kototoro.browser.BrowserCallback
+import org.skepsun.kototoro.browser.BrowserClient
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.parsers.MangaParserAuthProvider
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 
 @AndroidEntryPoint
 class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {

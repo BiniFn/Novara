@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.list
+package org.skepsun.kototoro.core.ui.list
 
 interface OnTipCloseListener<T> {
 

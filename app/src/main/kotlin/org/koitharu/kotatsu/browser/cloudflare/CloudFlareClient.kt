@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.browser.cloudflare
+package org.skepsun.kototoro.browser.cloudflare
 
 import android.graphics.Bitmap
 import android.webkit.WebView
-import org.koitharu.kotatsu.browser.BrowserClient
-import org.koitharu.kotatsu.core.network.cookies.MutableCookieJar
-import org.koitharu.kotatsu.core.network.webview.adblock.AdBlock
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
+import org.skepsun.kototoro.browser.BrowserClient
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
+import org.skepsun.kototoro.core.network.webview.adblock.AdBlock
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 
 private const val LOOP_COUNTER = 3
 

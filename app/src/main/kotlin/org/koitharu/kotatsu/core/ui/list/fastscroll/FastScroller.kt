@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.list.fastscroll
+package org.skepsun.kototoro.core.ui.list.fastscroll
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -31,10 +31,10 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.core.util.ext.isLayoutReversed
-import org.koitharu.kotatsu.databinding.FastScrollerBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.isLayoutReversed
+import org.skepsun.kototoro.databinding.FastScrollerBinding
 import kotlin.math.roundToInt
 import androidx.appcompat.R as appcompatR
 import com.google.android.material.R as materialR

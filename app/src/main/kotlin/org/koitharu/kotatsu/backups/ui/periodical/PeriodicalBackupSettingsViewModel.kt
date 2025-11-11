@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.periodical
+package org.skepsun.kototoro.backups.ui.periodical
 
 import android.content.Context
 import android.net.Uri
@@ -7,15 +7,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.domain.BackupUtils
-import org.koitharu.kotatsu.backups.domain.ExternalBackupStorage
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.ui.util.ReversibleAction
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.resolveFile
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.ui.util.ReversibleAction
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.resolveFile
 import java.util.Date
 import javax.inject.Inject
 
@@ -25,7 +25,7 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 	private val telegramUploader: TelegramBackupUploader,
 	private val webDavUploader: WebDavBackupUploader,
 	private val backupStorage: ExternalBackupStorage,
-	private val repository: org.koitharu.kotatsu.backups.data.BackupRepository,
+	private val repository: org.skepsun.kototoro.backups.data.BackupRepository,
 	@ApplicationContext private val appContext: Context,
 ) : BaseViewModel() {
 
@@ -71,7 +71,7 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 
 	fun uploadWebDavNow() {
 		launchJob(Dispatchers.Default) {
-			val output = org.koitharu.kotatsu.backups.domain.BackupUtils.createTempFile(appContext)
+			val output = org.skepsun.kototoro.backups.domain.BackupUtils.createTempFile(appContext)
 			try {
 				java.util.zip.ZipOutputStream(output.outputStream()).use {
 					repository.createBackup(it, null)
@@ -114,12 +114,12 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 				try {
 					webDavUploader.downloadBackup(latest.name, tempFile)
 					val allSections = setOf(
-						org.koitharu.kotatsu.backups.domain.BackupSection.HISTORY,
-						org.koitharu.kotatsu.backups.domain.BackupSection.CATEGORIES,
-						org.koitharu.kotatsu.backups.domain.BackupSection.FAVOURITES,
-						org.koitharu.kotatsu.backups.domain.BackupSection.BOOKMARKS,
-						org.koitharu.kotatsu.backups.domain.BackupSection.SOURCES,
-						org.koitharu.kotatsu.backups.domain.BackupSection.SETTINGS,
+						org.skepsun.kototoro.backups.domain.BackupSection.HISTORY,
+						org.skepsun.kototoro.backups.domain.BackupSection.CATEGORIES,
+						org.skepsun.kototoro.backups.domain.BackupSection.FAVOURITES,
+						org.skepsun.kototoro.backups.domain.BackupSection.BOOKMARKS,
+						org.skepsun.kototoro.backups.domain.BackupSection.SOURCES,
+						org.skepsun.kototoro.backups.domain.BackupSection.SETTINGS,
 					)
 					java.util.zip.ZipInputStream(java.io.FileInputStream(tempFile)).use { zis ->
 						repository.restoreBackup(zis, allSections, null)

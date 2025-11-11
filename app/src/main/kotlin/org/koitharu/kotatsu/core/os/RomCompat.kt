@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.core.os
+package org.skepsun.kototoro.core.os
 
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.annotations.Blocking
-import org.koitharu.kotatsu.parsers.util.suspendlazy.suspendLazy
+import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import java.io.InputStreamReader
 
 object RomCompat {

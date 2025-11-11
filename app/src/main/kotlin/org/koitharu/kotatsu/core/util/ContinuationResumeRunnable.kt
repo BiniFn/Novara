@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume

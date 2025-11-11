@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.list.decor
+package org.skepsun.kototoro.core.ui.list.decor
 
 import android.graphics.Rect
 import android.view.View

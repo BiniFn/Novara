@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.settings.utils.validation
+package org.skepsun.kototoro.settings.utils.validation
 
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.EditTextValidator
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.EditTextValidator
 
 class PortNumberValidator : EditTextValidator() {
 

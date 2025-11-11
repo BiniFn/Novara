@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.history.domain
+package org.skepsun.kototoro.history.domain
 
 import dagger.Reusable
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.parsers.model.Manga
 import javax.inject.Inject
 
 @Reusable

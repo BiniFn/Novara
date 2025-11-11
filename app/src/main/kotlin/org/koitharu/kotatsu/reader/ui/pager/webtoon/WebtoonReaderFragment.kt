@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui.pager.webtoon
+package org.skepsun.kototoro.reader.ui.pager.webtoon
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -16,18 +16,18 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.ui.list.lifecycle.RecyclerViewLifecycleDispatcher
-import org.koitharu.kotatsu.core.util.ext.firstVisibleItemPosition
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.removeItemDecoration
-import org.koitharu.kotatsu.databinding.FragmentReaderWebtoonBinding
-import org.koitharu.kotatsu.reader.domain.PageLoader
-import org.koitharu.kotatsu.reader.ui.ReaderState
-import org.koitharu.kotatsu.reader.ui.pager.BaseReaderAdapter
-import org.koitharu.kotatsu.reader.ui.pager.BaseReaderFragment
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.ui.list.lifecycle.RecyclerViewLifecycleDispatcher
+import org.skepsun.kototoro.core.util.ext.firstVisibleItemPosition
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.removeItemDecoration
+import org.skepsun.kototoro.databinding.FragmentReaderWebtoonBinding
+import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.ui.ReaderState
+import org.skepsun.kototoro.reader.ui.pager.BaseReaderAdapter
+import org.skepsun.kototoro.reader.ui.pager.BaseReaderFragment
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import javax.inject.Inject
 
 @AndroidEntryPoint

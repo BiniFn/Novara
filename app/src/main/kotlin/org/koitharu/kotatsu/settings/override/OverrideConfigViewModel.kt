@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.override
+package org.skepsun.kototoro.settings.override
 
 import android.content.Context
 import androidx.core.net.toUri
@@ -10,21 +10,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import okio.buffer
 import okio.sink
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.core.util.MimeTypes
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.isFileUri
-import org.koitharu.kotatsu.core.util.ext.openSource
-import org.koitharu.kotatsu.core.util.ext.require
-import org.koitharu.kotatsu.core.util.ext.toMimeTypeOrNull
-import org.koitharu.kotatsu.core.util.ext.toUriOrNull
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.util.md5
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.util.MimeTypes
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.isFileUri
+import org.skepsun.kototoro.core.util.ext.openSource
+import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
+import org.skepsun.kototoro.core.util.ext.toUriOrNull
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.util.md5
 import java.io.File
 import javax.inject.Inject
 

@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.core.parser.favicon
+package org.skepsun.kototoro.core.parser.favicon
 
 import android.net.Uri
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 const val URI_SCHEME_FAVICON = "favicon"
 

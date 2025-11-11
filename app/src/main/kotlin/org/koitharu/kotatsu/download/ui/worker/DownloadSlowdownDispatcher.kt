@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.download.ui.worker
+package org.skepsun.kototoro.download.ui.worker
 
 import android.os.SystemClock
 import androidx.collection.MutableObjectLongMap
 import kotlinx.coroutines.delay
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.parsers.model.MangaSource
 import javax.inject.Inject
 import javax.inject.Singleton
 

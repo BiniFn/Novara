@@ -1,3 +1,3 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 interface CloseableSequence<T> : Sequence<T>, AutoCloseable

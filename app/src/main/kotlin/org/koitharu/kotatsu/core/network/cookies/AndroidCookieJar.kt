@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.network.cookies
+package org.skepsun.kototoro.core.network.cookies
 
 import android.webkit.CookieManager
 import androidx.annotation.WorkerThread

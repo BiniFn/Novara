@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.favourites.ui.categories.adapter
+package org.skepsun.kototoro.favourites.ui.categories.adapter
 
-import org.koitharu.kotatsu.core.ui.ReorderableListAdapter
-import org.koitharu.kotatsu.favourites.ui.categories.FavouriteCategoriesListListener
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.ListStateHolderListener
-import org.koitharu.kotatsu.list.ui.adapter.emptyStateListAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingStateAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.ui.ReorderableListAdapter
+import org.skepsun.kototoro.favourites.ui.categories.FavouriteCategoriesListListener
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
+import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
+import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 class CategoriesAdapter(
 	onItemClickListener: FavouriteCategoriesListListener,

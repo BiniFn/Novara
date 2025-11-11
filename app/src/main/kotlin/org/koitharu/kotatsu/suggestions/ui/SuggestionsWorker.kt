@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.suggestions.ui
+package org.skepsun.kototoro.suggestions.ui
 
 import android.Manifest
 import android.app.PendingIntent
@@ -44,44 +44,44 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.CloudFlareException
-import org.koitharu.kotatsu.core.exceptions.resolve.CaptchaHandler
-import org.koitharu.kotatsu.core.model.distinctById
-import org.koitharu.kotatsu.core.model.getLocale
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.nav.ReaderIntent
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.LocaleComparator
-import org.koitharu.kotatsu.core.util.ext.asArrayList
-import org.koitharu.kotatsu.core.util.ext.awaitUniqueWorkInfoByName
-import org.koitharu.kotatsu.core.util.ext.awaitWorkInfosByTag
-import org.koitharu.kotatsu.core.util.ext.checkNotificationPermission
-import org.koitharu.kotatsu.core.util.ext.flatten
-import org.koitharu.kotatsu.core.util.ext.getQuantityStringSafe
-import org.koitharu.kotatsu.core.util.ext.mangaSourceExtra
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.sanitize
-import org.koitharu.kotatsu.core.util.ext.takeMostFrequent
-import org.koitharu.kotatsu.core.util.ext.toBitmapOrNull
-import org.koitharu.kotatsu.core.util.ext.trySetForeground
-import org.koitharu.kotatsu.explore.data.MangaSourcesRepository
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.parsers.model.SortOrder
-import org.koitharu.kotatsu.parsers.util.almostEquals
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
-import org.koitharu.kotatsu.parsers.util.sizeOrZero
-import org.koitharu.kotatsu.settings.work.PeriodicWorkScheduler
-import org.koitharu.kotatsu.suggestions.domain.MangaSuggestion
-import org.koitharu.kotatsu.suggestions.domain.SuggestionRepository
-import org.koitharu.kotatsu.suggestions.domain.TagsBlacklist
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.CloudFlareException
+import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler
+import org.skepsun.kototoro.core.model.distinctById
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.LocaleComparator
+import org.skepsun.kototoro.core.util.ext.asArrayList
+import org.skepsun.kototoro.core.util.ext.awaitUniqueWorkInfoByName
+import org.skepsun.kototoro.core.util.ext.awaitWorkInfosByTag
+import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
+import org.skepsun.kototoro.core.util.ext.flatten
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.sanitize
+import org.skepsun.kototoro.core.util.ext.takeMostFrequent
+import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
+import org.skepsun.kototoro.core.util.ext.trySetForeground
+import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.parsers.util.almostEquals
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.parsers.util.sizeOrZero
+import org.skepsun.kototoro.settings.work.PeriodicWorkScheduler
+import org.skepsun.kototoro.suggestions.domain.MangaSuggestion
+import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
+import org.skepsun.kototoro.suggestions.domain.TagsBlacklist
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.pow
@@ -460,7 +460,7 @@ class SuggestionsWorker @AssistedInject constructor(
 		const val DATA_COUNT = "count"
 		const val WORKER_CHANNEL_ID = "suggestion_worker"
 		const val MANGA_CHANNEL_ID = "suggestions"
-		const val GROUP_SUGGESTION = "org.koitharu.kotatsu.SUGGESTIONS"
+		const val GROUP_SUGGESTION = "org.skepsun.kototoro.SUGGESTIONS"
 		const val WORKER_NOTIFICATION_ID = 36
 		const val MAX_RESULTS = 160
 		const val MAX_PARALLELISM = 3

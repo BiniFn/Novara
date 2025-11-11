@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.databinding.ItemInfoBinding
-import org.koitharu.kotatsu.list.ui.model.InfoModel
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.databinding.ItemInfoBinding
+import org.skepsun.kototoro.list.ui.model.InfoModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 fun infoAD() = adapterDelegateViewBinding<InfoModel, ListModel, ItemInfoBinding>(
 	{ layoutInflater, parent -> ItemInfoBinding.inflate(layoutInflater, parent, false) },

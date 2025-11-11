@@ -37,12 +37,12 @@ dependencyResolutionManagement {
 }
 
 include ':app'
-rootProject.name = "Kotatsu"
+rootProject.name = "Kototoro"
 
-// 使用本地 kotatsu-parsers 进行编译：通过复合构建替换远程依赖
-includeBuild('../kotatsu-parsers') {
+// 使用本地 kototoro-parsers 进行编译：通过复合构建替换远程依赖
+includeBuild('../kototoro-parsers') {
     dependencySubstitution {
-        // 将远程坐标 com.github.KotatsuApp:kotatsu-parsers 替换为本地项目
-        substitute module('com.github.KotatsuApp:kotatsu-parsers') using project(':')
+        // 将远程坐标 com.github.KototoroApp:kototoro-parsers 替换为本地项目
+        substitute module('com.github.KototoroApp:kototoro-parsers') using project(':')
     }
 }

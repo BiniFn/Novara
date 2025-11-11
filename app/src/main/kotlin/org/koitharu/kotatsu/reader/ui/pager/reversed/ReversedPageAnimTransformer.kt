@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui.pager.reversed
+package org.skepsun.kototoro.reader.ui.pager.reversed
 
 import android.view.View
 import androidx.viewpager2.widget.ViewPager2

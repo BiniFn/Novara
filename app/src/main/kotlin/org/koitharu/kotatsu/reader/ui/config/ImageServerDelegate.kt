@@ -1,18 +1,18 @@
-package org.koitharu.kotatsu.reader.ui.config
+package org.skepsun.kototoro.reader.ui.config
 
 import android.content.Context
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.parsers.config.ConfigKey
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.mapToArray
-import org.koitharu.kotatsu.parsers.util.suspendlazy.getOrNull
-import org.koitharu.kotatsu.parsers.util.suspendlazy.suspendLazy
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.parsers.config.ConfigKey
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.mapToArray
+import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
+import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import kotlin.coroutines.resume
 
 class ImageServerDelegate(

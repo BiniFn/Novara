@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.reader.ui.pager
+package org.skepsun.kototoro.reader.ui.pager
 
 import android.view.ViewGroup
 import androidx.recyclerview.widget.AsyncListDiffer
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.util.ext.resetTransformations
-import org.koitharu.kotatsu.reader.domain.PageLoader
-import org.koitharu.kotatsu.reader.ui.config.ReaderSettings
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.util.ext.resetTransformations
+import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.network.webview.adblock
+package org.skepsun.kototoro.core.network.webview.adblock
 
 import android.content.Context
 import android.util.Log
@@ -10,14 +10,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.sink
-import org.koitharu.kotatsu.core.network.BaseHttpClient
-import org.koitharu.kotatsu.core.network.CommonHeaders
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.ext.isNotEmpty
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.util.await
-import org.koitharu.kotatsu.parsers.util.requireBody
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.network.BaseHttpClient
+import org.skepsun.kototoro.core.network.CommonHeaders
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.ext.isNotEmpty
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.util.await
+import org.skepsun.kototoro.parsers.util.requireBody
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import java.net.HttpURLConnection
 import java.text.SimpleDateFormat

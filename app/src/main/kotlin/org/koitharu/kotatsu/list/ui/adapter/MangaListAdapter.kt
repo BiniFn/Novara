@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.size.ItemSizeResolver
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 
 open class MangaListAdapter(
 	listener: MangaListListener,

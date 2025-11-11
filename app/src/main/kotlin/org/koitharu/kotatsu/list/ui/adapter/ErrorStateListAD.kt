@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.list.ui.adapter
+package org.skepsun.kototoro.list.ui.adapter
 
 import android.view.View
 import androidx.core.view.isVisible
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.databinding.ItemErrorStateBinding
-import org.koitharu.kotatsu.list.ui.model.ErrorState
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.databinding.ItemErrorStateBinding
+import org.skepsun.kototoro.list.ui.model.ErrorState
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 fun errorStateListAD(
 	listener: ListStateHolderListener?,

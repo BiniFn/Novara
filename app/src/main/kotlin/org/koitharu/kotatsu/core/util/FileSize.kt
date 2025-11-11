@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 import android.content.Context
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 import java.text.DecimalFormat
 import kotlin.math.log10
 import kotlin.math.pow

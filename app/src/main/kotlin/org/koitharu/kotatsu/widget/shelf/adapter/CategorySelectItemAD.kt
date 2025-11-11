@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.widget.shelf.adapter
+package org.skepsun.kototoro.widget.shelf.adapter
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.databinding.ItemCategoryCheckableSingleBinding
-import org.koitharu.kotatsu.widget.shelf.model.CategoryItem
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.databinding.ItemCategoryCheckableSingleBinding
+import org.skepsun.kototoro.widget.shelf.model.CategoryItem
 
 fun categorySelectItemAD(
 	clickListener: OnListItemClickListener<CategoryItem>

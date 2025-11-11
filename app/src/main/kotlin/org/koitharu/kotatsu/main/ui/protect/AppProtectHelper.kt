@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.main.ui.protect
+package org.skepsun.kototoro.main.ui.protect
 
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import org.acra.dialog.CrashReportDialog
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.DefaultActivityLifecycleCallbacks
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.DefaultActivityLifecycleCallbacks
 import javax.inject.Inject
 import javax.inject.Singleton
 

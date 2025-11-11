@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.details.domain
+package org.skepsun.kototoro.details.domain
 
-import org.koitharu.kotatsu.core.util.LocaleStringComparator
-import org.koitharu.kotatsu.details.ui.model.MangaBranch
+import org.skepsun.kototoro.core.util.LocaleStringComparator
+import org.skepsun.kototoro.details.ui.model.MangaBranch
 
 class BranchComparator : Comparator<MangaBranch> {
 

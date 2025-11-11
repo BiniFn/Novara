@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.settings.storage
+package org.skepsun.kototoro.settings.storage
 
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
 import java.io.File
 
 data class DirectoryModel(

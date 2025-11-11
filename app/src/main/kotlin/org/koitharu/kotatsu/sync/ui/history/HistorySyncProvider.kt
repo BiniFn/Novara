@@ -1,5 +1,5 @@
-package org.koitharu.kotatsu.sync.ui.history
+package org.skepsun.kototoro.sync.ui.history
 
-import org.koitharu.kotatsu.sync.ui.SyncProvider
+import org.skepsun.kototoro.sync.ui.SyncProvider
 
 class HistorySyncProvider : SyncProvider()

@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.content.Intent
 import android.os.Bundle
@@ -17,29 +17,29 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.ui.periodical.PeriodicalBackupSettingsFragment
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.util.ext.buildBundle
-import org.koitharu.kotatsu.core.util.ext.end
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.start
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ActivitySettingsBinding
-import org.koitharu.kotatsu.main.ui.owners.AppBarOwner
-import org.koitharu.kotatsu.settings.about.AboutSettingsFragment
-import org.koitharu.kotatsu.settings.discord.DiscordSettingsFragment
-import org.koitharu.kotatsu.settings.search.SettingsItem
-import org.koitharu.kotatsu.settings.search.SettingsSearchFragment
-import org.koitharu.kotatsu.settings.search.SettingsSearchViewModel
-import org.koitharu.kotatsu.settings.sources.SourceSettingsFragment
-import org.koitharu.kotatsu.settings.sources.SourcesSettingsFragment
-import org.koitharu.kotatsu.settings.sources.manage.SourcesManageFragment
-import org.koitharu.kotatsu.settings.tracker.TrackerSettingsFragment
-import org.koitharu.kotatsu.settings.userdata.BackupsSettingsFragment
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsFragment
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.util.ext.buildBundle
+import org.skepsun.kototoro.core.util.ext.end
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.start
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ActivitySettingsBinding
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.settings.about.AboutSettingsFragment
+import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
+import org.skepsun.kototoro.settings.search.SettingsItem
+import org.skepsun.kototoro.settings.search.SettingsSearchFragment
+import org.skepsun.kototoro.settings.search.SettingsSearchViewModel
+import org.skepsun.kototoro.settings.sources.SourceSettingsFragment
+import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
+import org.skepsun.kototoro.settings.sources.manage.SourcesManageFragment
+import org.skepsun.kototoro.settings.tracker.TrackerSettingsFragment
+import org.skepsun.kototoro.settings.userdata.BackupsSettingsFragment
 
 @AndroidEntryPoint
 class SettingsActivity :

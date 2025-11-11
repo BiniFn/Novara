@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.parser.external
+package org.skepsun.kototoro.core.parser.external
 
 import android.database.Cursor
 import android.database.CursorWrapper
-import org.koitharu.kotatsu.core.exceptions.IncompatiblePluginException
-import org.koitharu.kotatsu.core.util.ext.getBoolean
+import org.skepsun.kototoro.core.exceptions.IncompatiblePluginException
+import org.skepsun.kototoro.core.util.ext.getBoolean
 
 class ExternalPluginCursor(private val source: ExternalMangaSource, cursor: Cursor) : CursorWrapper(cursor) {
 

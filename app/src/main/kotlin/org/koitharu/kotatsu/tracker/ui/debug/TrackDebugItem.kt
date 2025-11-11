@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.tracker.ui.debug
+package org.skepsun.kototoro.tracker.ui.debug
 
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
 import java.time.Instant
 
 data class TrackDebugItem(

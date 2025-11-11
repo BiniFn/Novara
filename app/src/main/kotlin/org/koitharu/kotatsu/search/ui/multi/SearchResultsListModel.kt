@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.search.ui.multi
+package org.skepsun.kototoro.search.ui.multi
 
 import android.content.Context
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.MangaListModel
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.SortOrder
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.SortOrder
 
 data class SearchResultsListModel(
 	@StringRes val titleResId: Int,

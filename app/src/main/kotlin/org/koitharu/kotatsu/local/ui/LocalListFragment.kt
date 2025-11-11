@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.ui
+package org.skepsun.kototoro.local.ui
 
 import android.Manifest
 import android.os.Build
@@ -14,21 +14,21 @@ import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.LocalMangaSource
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.list.ListSelectionController
-import org.koitharu.kotatsu.core.ui.widgets.TipView
-import org.koitharu.kotatsu.core.util.ShareHelper
-import org.koitharu.kotatsu.core.util.ext.addMenuProvider
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.tryLaunch
-import org.koitharu.kotatsu.databinding.FragmentListBinding
-import org.koitharu.kotatsu.filter.ui.FilterCoordinator
-import org.koitharu.kotatsu.list.ui.MangaListFragment
-import org.koitharu.kotatsu.remotelist.ui.MangaSearchMenuProvider
-import org.koitharu.kotatsu.remotelist.ui.RemoteListFragment
-import org.koitharu.kotatsu.settings.storage.RequestStorageManagerPermissionContract
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.list.ListSelectionController
+import org.skepsun.kototoro.core.ui.widgets.TipView
+import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.filter.ui.FilterCoordinator
+import org.skepsun.kototoro.list.ui.MangaListFragment
+import org.skepsun.kototoro.remotelist.ui.MangaSearchMenuProvider
+import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
+import org.skepsun.kototoro.settings.storage.RequestStorageManagerPermissionContract
 
 class LocalListFragment : MangaListFragment(), FilterCoordinator.Owner {
 

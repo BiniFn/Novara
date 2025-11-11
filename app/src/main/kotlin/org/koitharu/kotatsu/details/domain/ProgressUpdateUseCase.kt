@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.details.domain
+package org.skepsun.kototoro.details.domain
 
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.list.domain.ReadingProgress.Companion.PROGRESS_NONE
-import org.koitharu.kotatsu.local.data.LocalMangaRepository
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
+import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.parsers.model.Manga
 import javax.inject.Inject
 
 class ProgressUpdateUseCase @Inject constructor(

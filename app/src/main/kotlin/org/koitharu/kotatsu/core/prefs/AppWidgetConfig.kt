@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.prefs
+package org.skepsun.kototoro.core.prefs
 
 import android.appwidget.AppWidgetProvider
 import android.content.Context

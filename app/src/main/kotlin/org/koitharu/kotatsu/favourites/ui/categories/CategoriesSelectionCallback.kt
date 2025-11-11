@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.favourites.ui.categories
+package org.skepsun.kototoro.favourites.ui.categories
 
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.appcompat.view.ActionMode
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.dialog.buildAlertDialog
-import org.koitharu.kotatsu.core.ui.list.ListSelectionController
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.ui.list.ListSelectionController
 
 class CategoriesSelectionCallback(
 	private val recyclerView: RecyclerView,

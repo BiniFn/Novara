@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.list.ui.model
+package org.skepsun.kototoro.list.ui.model
 
 import android.content.Context
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.core.model.getLocalizedTitle
-import org.koitharu.kotatsu.core.ui.model.DateTimeAgo
-import org.koitharu.kotatsu.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.model.getLocalizedTitle
+import org.skepsun.kototoro.core.ui.model.DateTimeAgo
+import org.skepsun.kototoro.parsers.model.MangaChapter
 
 data class ListHeader private constructor(
 	private val textRaw: Any,

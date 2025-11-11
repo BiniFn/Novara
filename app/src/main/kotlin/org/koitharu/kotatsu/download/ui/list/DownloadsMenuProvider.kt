@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.download.ui.list
+package org.skepsun.kototoro.download.ui.list
 
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.FragmentActivity
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 
 class DownloadsMenuProvider(
 	private val activity: FragmentActivity,

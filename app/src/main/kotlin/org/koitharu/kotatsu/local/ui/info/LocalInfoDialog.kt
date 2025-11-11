@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.ui.info
+package org.skepsun.kototoro.local.ui.info
 
 import android.content.res.ColorStateList
 import android.os.Bundle
@@ -11,16 +11,16 @@ import androidx.fragment.app.viewModels
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.combine
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.AlertDialogFragment
-import org.koitharu.kotatsu.core.ui.widgets.SegmentedBarView
-import org.koitharu.kotatsu.core.util.FileSize
-import org.koitharu.kotatsu.core.util.KotatsuColors
-import org.koitharu.kotatsu.core.util.ext.getQuantityStringSafe
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.setProgressIcon
-import org.koitharu.kotatsu.databinding.DialogLocalInfoBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.ui.widgets.SegmentedBarView
+import org.skepsun.kototoro.core.util.FileSize
+import org.skepsun.kototoro.core.util.KototoroColors
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.setProgressIcon
+import org.skepsun.kototoro.databinding.DialogLocalInfoBinding
 import androidx.appcompat.R as appcompatR
 
 @AndroidEntryPoint
@@ -86,7 +86,7 @@ class LocalInfoDialog : AlertDialogFragment<DialogLocalInfoBinding>(), View.OnCl
 		val total = size + available
 		val segment = SegmentedBarView.Segment(
 			percent = (size.toDouble() / total.toDouble()).toFloat(),
-			color = KotatsuColors.segmentColor(view.context, appcompatR.attr.colorPrimary),
+			color = KototoroColors.segmentColor(view.context, appcompatR.attr.colorPrimary),
 		)
 		requireViewBinding().labelUsed.text = view.context.getString(
 			R.string.memory_usage_pattern,

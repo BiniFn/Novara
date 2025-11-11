@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.list.ui
+package org.skepsun.kototoro.list.ui
 
 import android.content.Context
 import android.graphics.Canvas
@@ -10,11 +10,11 @@ import androidx.cardview.widget.CardView
 import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.NO_ID
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.decor.AbstractSelectionItemDecoration
-import org.koitharu.kotatsu.core.util.ext.getItem
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.list.ui.model.MangaListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.decor.AbstractSelectionItemDecoration
+import org.skepsun.kototoro.core.util.ext.getItem
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.list.ui.model.MangaListModel
 import androidx.appcompat.R as appcompatR
 import com.google.android.material.R as materialR
 

@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.core.model.parcelable
+package org.skepsun.kototoro.core.model.parcelable
 
 import android.os.Parcel
 import android.os.Parcelable
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.TypeParceler
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaPage
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaPage
 
 object MangaPageParceler : Parceler<MangaPage> {
 	override fun create(parcel: Parcel) = MangaPage(

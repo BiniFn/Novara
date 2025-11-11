@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.main.ui
+package org.skepsun.kototoro.main.ui
 
 import android.os.Bundle
 import android.view.Gravity
@@ -26,24 +26,24 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.bookmarks.ui.AllBookmarksFragment
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.NavItem
-import org.koitharu.kotatsu.core.ui.util.RecyclerViewOwner
-import org.koitharu.kotatsu.core.ui.widgets.SlidingBottomNavigationView
-import org.koitharu.kotatsu.core.util.ext.buildBundle
-import org.koitharu.kotatsu.core.util.ext.setContentDescriptionAndTooltip
-import org.koitharu.kotatsu.core.util.ext.smoothScrollToTop
-import org.koitharu.kotatsu.databinding.NavigationRailFabBinding
-import org.koitharu.kotatsu.explore.ui.ExploreFragment
-import org.koitharu.kotatsu.favourites.ui.container.FavouritesContainerFragment
-import org.koitharu.kotatsu.history.ui.HistoryListFragment
-import org.koitharu.kotatsu.local.ui.LocalListFragment
-import org.koitharu.kotatsu.suggestions.ui.SuggestionsFragment
-import org.koitharu.kotatsu.tracker.ui.feed.FeedFragment
-import org.koitharu.kotatsu.tracker.ui.updates.UpdatesFragment
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.bookmarks.ui.AllBookmarksFragment
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
+import org.skepsun.kototoro.core.ui.widgets.SlidingBottomNavigationView
+import org.skepsun.kototoro.core.util.ext.buildBundle
+import org.skepsun.kototoro.core.util.ext.setContentDescriptionAndTooltip
+import org.skepsun.kototoro.core.util.ext.smoothScrollToTop
+import org.skepsun.kototoro.databinding.NavigationRailFabBinding
+import org.skepsun.kototoro.explore.ui.ExploreFragment
+import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
+import org.skepsun.kototoro.history.ui.HistoryListFragment
+import org.skepsun.kototoro.local.ui.LocalListFragment
+import org.skepsun.kototoro.suggestions.ui.SuggestionsFragment
+import org.skepsun.kototoro.tracker.ui.feed.FeedFragment
+import org.skepsun.kototoro.tracker.ui.updates.UpdatesFragment
 import java.util.LinkedList
 import com.google.android.material.R as materialR
 

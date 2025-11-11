@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.details.ui.pager.pages
+package org.skepsun.kototoro.details.ui.pager.pages
 
 import android.net.Uri
 import androidx.lifecycle.viewModelScope
@@ -9,20 +9,20 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsStateFlow
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.core.util.ext.MutableEventFlow
-import org.koitharu.kotatsu.core.util.ext.call
-import org.koitharu.kotatsu.core.util.ext.firstNotNull
-import org.koitharu.kotatsu.core.util.ext.requireValue
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.reader.domain.ChaptersLoader
-import org.koitharu.kotatsu.reader.ui.PageSaveHelper
-import org.koitharu.kotatsu.reader.ui.ReaderState
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
+import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.core.util.ext.firstNotNull
+import org.skepsun.kototoro.core.util.ext.requireValue
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.reader.domain.ChaptersLoader
+import org.skepsun.kototoro.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.reader.ui.ReaderState
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import javax.inject.Inject
 
 @HiltViewModel

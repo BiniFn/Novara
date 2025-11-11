@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.util
+package org.skepsun.kototoro.core.ui.util
 
 import androidx.appcompat.view.ActionMode
 

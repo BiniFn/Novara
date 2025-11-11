@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.backups.ui.webdav
+package org.skepsun.kototoro.backups.ui.webdav
 
 import android.app.Service
 import android.content.Context
@@ -15,13 +15,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.backups.data.BackupRepository
-import org.koitharu.kotatsu.backups.domain.BackupSection
-import org.koitharu.kotatsu.backups.ui.BaseBackupRestoreService
-import org.koitharu.kotatsu.backups.ui.periodical.WebDavBackupUploader
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.BackupSection
+import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
+import org.skepsun.kototoro.backups.ui.periodical.WebDavBackupUploader
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import java.io.File
 import java.io.FileInputStream
 import java.util.concurrent.TimeUnit
@@ -124,13 +124,14 @@ class WebDavAutoRestoreService : Service() {
 
                 Log.d(TAG, "Restoring backup from: ${tempFile.absolutePath}")
                 val zipInputStream = ZipInputStream(FileInputStream(tempFile))
+                // 自动恢复不包含 SETTINGS，以免覆盖本地偏好（例如阅读器横屏双页开关）
+                // 手动恢复仍可包含 SETTINGS（见 PeriodicalBackupSettingsViewModel.restoreWebDavNow）
                 val allSections = setOf(
                     BackupSection.HISTORY,
                     BackupSection.CATEGORIES,
                     BackupSection.FAVOURITES,
                     BackupSection.BOOKMARKS,
-                    BackupSection.SOURCES,
-                    BackupSection.SETTINGS
+                    BackupSection.SOURCES
                 )
 
                 val restoreResult = zipInputStream.use { zis ->

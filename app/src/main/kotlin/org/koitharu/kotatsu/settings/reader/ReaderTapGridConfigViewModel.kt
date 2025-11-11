@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.reader
+package org.skepsun.kototoro.settings.reader
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.reader.data.TapGridSettings
-import org.koitharu.kotatsu.reader.domain.TapGridArea
-import org.koitharu.kotatsu.reader.ui.tapgrid.TapAction
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.reader.data.TapGridSettings
+import org.skepsun.kototoro.reader.domain.TapGridArea
+import org.skepsun.kototoro.reader.ui.tapgrid.TapAction
 import java.util.EnumMap
 import javax.inject.Inject
 

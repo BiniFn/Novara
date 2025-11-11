@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.favourites.ui.container
+package org.skepsun.kototoro.favourites.ui.container
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -14,21 +14,21 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.tabs.TabLayoutMediator
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.BaseFragment
-import org.koitharu.kotatsu.core.ui.util.ActionModeListener
-import org.koitharu.kotatsu.core.ui.util.RecyclerViewOwner
-import org.koitharu.kotatsu.core.ui.util.ReversibleActionObserver
-import org.koitharu.kotatsu.core.util.ext.addMenuProvider
-import org.koitharu.kotatsu.core.util.ext.findCurrentPagerFragment
-import org.koitharu.kotatsu.core.util.ext.observe
-import org.koitharu.kotatsu.core.util.ext.observeEvent
-import org.koitharu.kotatsu.core.util.ext.recyclerView
-import org.koitharu.kotatsu.core.util.ext.setTabsEnabled
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.databinding.FragmentFavouritesContainerBinding
-import org.koitharu.kotatsu.databinding.ItemEmptyStateBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.ui.util.ActionModeListener
+import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.findCurrentPagerFragment
+import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.recyclerView
+import org.skepsun.kototoro.core.util.ext.setTabsEnabled
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.databinding.FragmentFavouritesContainerBinding
+import org.skepsun.kototoro.databinding.ItemEmptyStateBinding
 
 @AndroidEntryPoint
 class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBinding>(),

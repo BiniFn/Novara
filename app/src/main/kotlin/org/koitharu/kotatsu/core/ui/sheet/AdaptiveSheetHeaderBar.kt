@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.sheet
+package org.skepsun.kototoro.core.ui.sheet
 
 import android.content.Context
 import android.util.AttributeSet
@@ -14,8 +14,8 @@ import androidx.core.content.withStyledAttributes
 import androidx.core.view.ancestors
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.databinding.LayoutSheetHeaderAdaptiveBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.databinding.LayoutSheetHeaderAdaptiveBinding
 
 class AdaptiveSheetHeaderBar @JvmOverloads constructor(
 	context: Context,

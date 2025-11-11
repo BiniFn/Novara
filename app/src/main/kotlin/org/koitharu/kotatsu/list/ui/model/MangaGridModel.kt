@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.list.ui.model
+package org.skepsun.kototoro.list.ui.model
 
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.list.domain.ReadingProgress
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback.Companion.PAYLOAD_ANYTHING_CHANGED
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback.Companion.PAYLOAD_PROGRESS_CHANGED
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.list.domain.ReadingProgress
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_ANYTHING_CHANGED
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_PROGRESS_CHANGED
+import org.skepsun.kototoro.parsers.model.Manga
 
 data class MangaGridModel(
 	override val manga: Manga,

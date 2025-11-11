@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.reader.ui.tapgrid
+package org.skepsun.kototoro.reader.ui.tapgrid
 
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import org.koitharu.kotatsu.reader.domain.TapGridArea
+import org.skepsun.kototoro.reader.domain.TapGridArea
 import kotlin.math.roundToInt
 
 class TapGridDispatcher(

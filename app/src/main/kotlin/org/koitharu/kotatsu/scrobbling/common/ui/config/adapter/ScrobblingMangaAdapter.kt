@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.scrobbling.common.ui.config.adapter
+package org.skepsun.kototoro.scrobbling.common.ui.config.adapter
 
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.emptyStateListAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblingInfo
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 
 class ScrobblingMangaAdapter(
 	clickListener: OnListItemClickListener<ScrobblingInfo>,

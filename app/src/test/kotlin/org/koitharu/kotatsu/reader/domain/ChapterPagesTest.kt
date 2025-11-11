@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.reader.domain
+package org.skepsun.kototoro.reader.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.koitharu.kotatsu.core.model.TestMangaSource
-import org.koitharu.kotatsu.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.core.model.TestMangaSource
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import kotlin.random.Random
 
 class ChapterPagesTest {

@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.alternatives.ui
+package org.skepsun.kototoro.alternatives.ui
 
-import org.koitharu.kotatsu.core.model.chaptersCount
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.MangaGridModel
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.model.chaptersCount
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.MangaGridModel
+import org.skepsun.kototoro.parsers.model.Manga
 
 data class MangaAlternativeModel(
 	val mangaModel: MangaGridModel,

@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.filter.data
+package org.skepsun.kototoro.filter.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
-import org.koitharu.kotatsu.core.model.MangaSourceSerializer
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.core.model.MangaSourceSerializer
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 @Serializable
 @JsonIgnoreUnknownKeys

@@ -1,18 +1,18 @@
-package org.koitharu.kotatsu.tracker.ui.feed.adapter
+package org.skepsun.kototoro.tracker.ui.feed.adapter
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.databinding.ItemListGroupBinding
-import org.koitharu.kotatsu.list.ui.adapter.ListHeaderClickListener
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.mangaGridItemAD
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.MangaListModel
-import org.koitharu.kotatsu.list.ui.size.ItemSizeResolver
-import org.koitharu.kotatsu.tracker.ui.feed.model.UpdatedMangaHeader
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.databinding.ItemListGroupBinding
+import org.skepsun.kototoro.list.ui.adapter.ListHeaderClickListener
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.mangaGridItemAD
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
+import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedMangaHeader
 
 fun updatedMangaAD(
 	sizeResolver: ItemSizeResolver,

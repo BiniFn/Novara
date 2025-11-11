@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.sheet
+package org.skepsun.kototoro.core.ui.sheet
 
 import android.app.Dialog
 import android.content.Context
@@ -24,11 +24,11 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.sidesheet.SideSheetDialog
 import dagger.hilt.android.EntryPointAccessors
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.exceptions.resolve.ExceptionResolver
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.ui.BaseActivityEntryPoint
-import org.koitharu.kotatsu.core.ui.util.ActionModeDelegate
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
+import org.skepsun.kototoro.core.ui.util.ActionModeDelegate
 import com.google.android.material.R as materialR
 
 abstract class BaseAdaptiveSheet<B : ViewBinding> : AppCompatDialogFragment(),

@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.nav
+package org.skepsun.kototoro.core.nav
 
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import org.koitharu.kotatsu.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)

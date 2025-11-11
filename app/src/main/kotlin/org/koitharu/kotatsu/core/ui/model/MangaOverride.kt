@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.core.ui.model
+package org.skepsun.kototoro.core.ui.model
 
-import org.koitharu.kotatsu.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.ContentRating
 
 data class MangaOverride(
 	val coverUrl: String?,

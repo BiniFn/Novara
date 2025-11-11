@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.browser.cloudflare
+package org.skepsun.kototoro.browser.cloudflare
 
-import org.koitharu.kotatsu.browser.BrowserCallback
+import org.skepsun.kototoro.browser.BrowserCallback
 
 interface CloudFlareCallback : BrowserCallback {
 

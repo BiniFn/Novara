@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.list.domain
+package org.skepsun.kototoro.list.domain
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -8,24 +8,24 @@ import androidx.collection.MutableScatterSet
 import androidx.collection.ScatterSet
 import dagger.Reusable
 import dagger.hilt.android.qualifiers.ApplicationContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ListMode
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.list.ui.model.MangaCompactListModel
-import org.koitharu.kotatsu.list.ui.model.MangaDetailedListModel
-import org.koitharu.kotatsu.list.ui.model.MangaGridModel
-import org.koitharu.kotatsu.list.ui.model.MangaListModel
-import org.koitharu.kotatsu.local.data.index.LocalMangaIndex
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.tracker.domain.TrackingRepository
-import org.koitharu.kotatsu.tracker.domain.model.TrackingLogItem
-import org.koitharu.kotatsu.tracker.ui.feed.model.FeedItem
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.list.ui.model.MangaCompactListModel
+import org.skepsun.kototoro.list.ui.model.MangaDetailedListModel
+import org.skepsun.kototoro.list.ui.model.MangaGridModel
+import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.local.data.index.LocalMangaIndex
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.tracker.domain.TrackingRepository
+import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
+import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 import javax.inject.Inject
 
 @Reusable

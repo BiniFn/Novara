@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -16,19 +16,19 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import com.google.android.material.slider.Slider
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ReaderControl
-import org.koitharu.kotatsu.core.util.ext.hasVisibleChildren
-import org.koitharu.kotatsu.core.util.ext.isRtl
-import org.koitharu.kotatsu.core.util.ext.setContentDescriptionAndTooltip
-import org.koitharu.kotatsu.core.util.ext.setTooltipCompat
-import org.koitharu.kotatsu.core.util.ext.setValueRounded
-import org.koitharu.kotatsu.databinding.LayoutReaderActionsBinding
-import org.koitharu.kotatsu.details.ui.pager.ChaptersPagesSheet
-import org.koitharu.kotatsu.details.ui.pager.ChaptersPagesSheet.Companion.TAB_PAGES
-import org.koitharu.kotatsu.reader.ui.ReaderControlDelegate.OnInteractionListener
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ReaderControl
+import org.skepsun.kototoro.core.util.ext.hasVisibleChildren
+import org.skepsun.kototoro.core.util.ext.isRtl
+import org.skepsun.kototoro.core.util.ext.setContentDescriptionAndTooltip
+import org.skepsun.kototoro.core.util.ext.setTooltipCompat
+import org.skepsun.kototoro.core.util.ext.setValueRounded
+import org.skepsun.kototoro.databinding.LayoutReaderActionsBinding
+import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
+import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.Companion.TAB_PAGES
+import org.skepsun.kototoro.reader.ui.ReaderControlDelegate.OnInteractionListener
 import javax.inject.Inject
 import com.google.android.material.R as materialR
 

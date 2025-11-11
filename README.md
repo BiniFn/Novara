@@ -1,114 +1,86 @@
-> [!IMPORTANT]
-> Continue Kotatsu with limited support.
-> 将来可能只支持中文用户
+# Kototoro - 中文漫画阅读器
+
+[![中文](https://img.shields.io/badge/语言-中文-blue)](README.md)
+
+## 📖 项目简介
+
+**Kototoro** 是一个基于 **Kotatsu** 的非官方分支项目，专注于为中国用户提供更好的漫画阅读体验。
+
+### 🎯 主要特性
+
+#### 🌟 核心功能
+- ✅ **中文网站支持** - 优化了对中文漫画网站的支持
+- ✅ **继承Kotatsu所有功能** - 完整的漫画阅读器功能
+
+#### 🚀 额外功能
+- 📱 **折叠屏阅读支持** - 完美适配折叠屏设备
+- ☁️ **WebDAV自动同步** - 自动备份和同步阅读进度
+
+## 🛠️ 技术栈
+
+- **Kotlin** - 主要开发语言
+- **Android Jetpack** - 现代Android开发架构
+- **Kotatsu Parser** - 漫画解析器框架
+- **WebDAV** - 云同步协议
+
+## 📦 安装
+
+### 从源码构建
+
+```bash
+# 克隆项目
+git clone https://github.com/skepsun/kototoro.git
+
+# 进入项目目录
+cd kototoro
+
+# 构建项目
+./gradlew assembleDebug
+```
+
+### 下载APK
+
+从 [Releases页面](https://github.com/skepsun/kototoro/releases) 下载最新版本的APK文件。
+
+## 🎮 使用指南
+
+### 折叠屏使用
+
+1. **分屏阅读** - 在折叠屏上分屏显示目录和内容
+2. **自适应布局** - 自动适应不同的屏幕形态（正在开发）
+
+### WebDAV同步
+
+1. **配置WebDAV** - 在设置中配置WebDAV服务器信息
+2. **自动备份** - 阅读进度自动同步到云端
+3. **多设备同步** - 在不同设备间同步阅读状态
+
+## 🔧 开发
+
+### 环境要求
+
+- Android Studio 2022.3+
+- JDK 17+
+- Android SDK 33+
+
+### 贡献指南
+
+欢迎提交Issue和Pull Request！
+
+## 📝 许可证
+
+本项目基于 **Kotatsu** 的许可证，详情请查看 [LICENSE](LICENSE) 文件。
+
+## 🤝 致谢
+
+- **Kotatsu团队** - 原始项目的开发者，提供漫画阅读器和解析器框架
+- **Venera团队** - 另一个优秀的功能强大的开源漫画阅读器项目，并提供优秀的中文解析器代码
+
+## 📞 联系方式
+
+- **GitHub Issues**: [问题反馈](https://github.com/skepsun/kototoro/issues)
+- **Email**: chuxiongsun@gmail.com
 
 ---
 
-<div align="center">
-
-**[Kotatsu](https://github.com/KotatsuApp/Kotatsu) is a free and open-source manga reader for Android with built-in
-online content sources.**
-
-![Android 6.0](https://img.shields.io/badge/android-6.0+-brightgreen) [![Sources count](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FKotatsuApp%2Fkotatsu-parsers%2Frefs%2Fheads%2Fmaster%2F.github%2Fsummary.yaml&query=total&label=manga%20sources&color=%23E9321C)](https://github.com/KotatsuApp/kotatsu-parsers) [![weblate](https://hosted.weblate.org/widgets/kotatsu/-/strings/svg-badge.svg)](https://hosted.weblate.org/engage/kotatsu/) [![Discord](https://img.shields.io/discord/898363402467045416?color=5865f2&label=discord)](https://discord.gg/NNJ5RgVBC5) [![Telegram](https://img.shields.io/badge/chat-telegram-60ACFF?)](https://t.me/kotatsuapp) [![License](https://img.shields.io/github/license/KotatsuApp/Kotatsu)](https://github.com/KotatsuApp/Kotatsu/blob/devel/LICENSE)
-
-### Main Features
-
-<div align="left">
-
-* Online [manga catalogues](https://github.com/KotatsuApp/kotatsu-parsers) (with 1200+ manga sources)
-* Search manga by name, genres and more filters
-* Favorites organized by user-defined categories
-* Reading history, bookmarks and incognito mode support
-* Download manga and read it offline. Third-party CBZ archives are also supported
-* Clean and convenient Material You UI, optimized for phones, tablets and desktop
-* Standard and Webtoon-optimized customizable reader, gesture support on reading interface
-* Notifications about new chapters with updates feed, manga recommendations (with filters)
-* Integration with manga tracking services: Shikimori, AniList, MyAnimeList, Kitsu
-* Password / fingerprint-protected access to the app
-* Automatically sync app data with other devices on the same account
-* Support for older devices running Android 6.0+
-
-</div>
-
-### In-App Screenshots
-
-<div align="center">
-    <img src="./metadata/en-US/images/phoneScreenshots/1.png" alt="Mobile view" width="250"/>
-    <img src="./metadata/en-US/images/phoneScreenshots/2.png" alt="Mobile view" width="250"/>
-    <img src="./metadata/en-US/images/phoneScreenshots/3.png" alt="Mobile view" width="250"/>
-    <img src="./metadata/en-US/images/phoneScreenshots/4.png" alt="Mobile view" width="250"/>
-    <img src="./metadata/en-US/images/phoneScreenshots/5.png" alt="Mobile view" width="250"/>
-    <img src="./metadata/en-US/images/phoneScreenshots/6.png" alt="Mobile view" width="250"/>
-</div>
-
-<br>
-
-<div align="center">
-    <img src="./metadata/en-US/images/tenInchScreenshots/1.png" alt="Tablet view" width="400"/>
-    <img src="./metadata/en-US/images/tenInchScreenshots/2.png" alt="Tablet view" width="400"/>
-</div>
-
-### Localization
-
-<a href="https://hosted.weblate.org/engage/kotatsu/">
-<img src="https://hosted.weblate.org/widget/kotatsu/horizontal-auto.png" alt="Translation status" />
-</a>
-
-**[Kotatsu](https://github.com/KotatsuApp/Kotatsu) is localized in a number of different languages.**<br>
-**📌 If you would like to help improve these or add new languages,
-please head over to the [Weblate project page](https://hosted.weblate.org/engage/kotatsu/)**
-
-### Contributing
-
-<br>
-
-<a href="https://github.com/KotatsuApp/Kotatsu">
-  <picture>
-    <source srcset="https://github-readme-stats.vercel.app/api/pin/?username=KotatsuApp&repo=Kotatsu&bg_color=0d1117&text_color=1976d2&title_color=1976d2&icon_color=0877d2&border_radius=10&description_lines_count=2&show_owner=true" media="(prefers-color-scheme: dark)">
-    <img src="https://github-readme-stats.vercel.app/api/pin/?username=KotatsuApp&repo=Kotatsu&text_color=1976d2&title_color=1976d2&icon_color=0877d2&border_radius=10&description_lines_count=2&show_owner=true" alt="Kotatsu GitHub Repository">
-  </picture>
-</a>
-<a href="https://github.com/KotatsuApp/Kotatsu-parsers">
-  <picture>
-    <source srcset="https://github-readme-stats.vercel.app/api/pin/?username=KotatsuApp&repo=Kotatsu-parsers&bg_color=0d1117&text_color=1976d2&title_color=1976d2&icon_color=0877d2&border_radius=10&description_lines_count=2&show_owner=true" media="(prefers-color-scheme: dark)">
-    <img src="https://github-readme-stats.vercel.app/api/pin/?username=KotatsuApp&repo=Kotatsu-parsers&text_color=1976d2&title_color=1976d2&icon_color=0877d2&border_radius=10&description_lines_count=2&show_owner=true" alt="Kotatsu-parsers GitHub Repository">
-  </picture>
-</a><br></br>
-
-</br>
-
-**📌 Pull requests are welcome, if you want:
-See [CONTRIBUTING.md](https://github.com/KotatsuApp/Kotatsu/blob/devel/CONTRIBUTING.md) for the guidelines**
-
-### Certificate fingerprints
-
-```plaintext
-2C:19:C7:E8:07:61:2B:8E:94:51:1B:FD:72:67:07:64:5D:C2:58:AE
-```
-
-```plaintext
-67:E1:51:00:BB:80:93:01:78:3E:DC:B6:34:8F:A3:BB:F8:30:34:D9:1E:62:86:8A:91:05:3D:BD:70:DB:3F:18
-```
-
-### License
-
-[![GNU GPLv3 Image](https://www.gnu.org/graphics/gplv3-127x51.png)](http://www.gnu.org/licenses/gpl-3.0.en.html)
-
-<div align="left">
-
-You may copy, distribute and modify the software as long as you track changes/dates in source files. Any modifications
-to or software including (via compiler) GPL-licensed code must also be made available under the GPL along with build &
-install instructions.
-
-</div>
-
-### DMCA disclaimer
-
-<div align="left">
-
-The developers of this application do not have any affiliation with the content available in the app and does not store
-or distribute any content. This application should be considered a web browser, all content that can be found using this
-application is freely available on the Internet. All DMCA takedown requests should be sent to the owners of the website
-where the content is hosted.
-
-</div>
+⭐ 如果这个项目对你有帮助，请给我们一个Star！

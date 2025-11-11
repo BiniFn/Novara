@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.download.ui.dialog
+package org.skepsun.kototoro.download.ui.dialog
 
 import android.content.Context
 import android.view.LayoutInflater
@@ -7,10 +7,10 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import androidx.core.view.isVisible
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ItemStorageConfigBinding
-import org.koitharu.kotatsu.settings.storage.DirectoryModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ItemStorageConfigBinding
+import org.skepsun.kototoro.settings.storage.DirectoryModel
 
 class DestinationsAdapter(context: Context, dataset: List<DirectoryModel>) :
 	ArrayAdapter<DirectoryModel>(context, android.R.layout.simple_spinner_dropdown_item, android.R.id.text1, dataset) {

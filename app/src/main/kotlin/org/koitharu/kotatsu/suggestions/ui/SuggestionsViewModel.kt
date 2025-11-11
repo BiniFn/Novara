@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.suggestions.ui
+package org.skepsun.kototoro.suggestions.ui
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,22 +10,22 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsFlow
-import org.koitharu.kotatsu.core.util.ext.onFirst
-import org.koitharu.kotatsu.list.domain.MangaListMapper
-import org.koitharu.kotatsu.list.domain.QuickFilterListener
-import org.koitharu.kotatsu.list.ui.MangaListViewModel
-import org.koitharu.kotatsu.list.ui.model.EmptyState
-import org.koitharu.kotatsu.list.ui.model.LoadingState
-import org.koitharu.kotatsu.list.ui.model.toErrorState
-import org.koitharu.kotatsu.suggestions.domain.SuggestionRepository
-import org.koitharu.kotatsu.suggestions.domain.SuggestionsListQuickFilter
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.util.ext.onFirst
+import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.QuickFilterListener
+import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.list.ui.model.toErrorState
+import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
+import org.skepsun.kototoro.suggestions.domain.SuggestionsListQuickFilter
 import javax.inject.Inject
-import org.koitharu.kotatsu.local.data.LocalStorageChanges
-import org.koitharu.kotatsu.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.LocalStorageChanges
+import org.skepsun.kototoro.local.domain.model.LocalManga
 import kotlinx.coroutines.flow.SharedFlow
 
 @HiltViewModel

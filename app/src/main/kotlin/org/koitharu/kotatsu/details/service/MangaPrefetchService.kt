@@ -1,25 +1,25 @@
-package org.koitharu.kotatsu.details.service
+package org.skepsun.kototoro.details.service
 
 import android.content.Context
 import android.content.Intent
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
-import org.koitharu.kotatsu.core.cache.MemoryContentCache
-import org.koitharu.kotatsu.core.model.LocalMangaSource
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableChapter
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.ui.CoroutineIntentService
-import org.koitharu.kotatsu.core.util.ext.getParcelableExtraCompat
-import org.koitharu.kotatsu.core.util.ext.isPowerSaveMode
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.history.data.HistoryRepository
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.findById
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.cache.MemoryContentCache
+import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.model.parcelable.ParcelableChapter
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.ui.CoroutineIntentService
+import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
+import org.skepsun.kototoro.core.util.ext.isPowerSaveMode
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.findById
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 @AndroidEntryPoint

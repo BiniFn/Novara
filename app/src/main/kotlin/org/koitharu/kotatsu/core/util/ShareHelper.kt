@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.app.ShareCompat
 import androidx.core.content.FileProvider
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.appUrl
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.appUrl
+import org.skepsun.kototoro.parsers.model.Manga
 import java.io.File
 
 private const val TYPE_TEXT = "text/plain"

@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.tracker.data
+package org.skepsun.kototoro.tracker.data
 
 import androidx.annotation.IntDef
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
-import org.koitharu.kotatsu.core.db.entity.MangaEntity
+import org.skepsun.kototoro.core.db.entity.MangaEntity
 
 @Entity(
 	tableName = "tracks",

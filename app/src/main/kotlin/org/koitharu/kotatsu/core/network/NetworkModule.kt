@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.network
+package org.skepsun.kototoro.core.network
 
 import android.content.Context
 import dagger.Binds
@@ -10,17 +10,17 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.Cache
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.core.network.cookies.AndroidCookieJar
-import org.koitharu.kotatsu.core.network.cookies.MutableCookieJar
-import org.koitharu.kotatsu.core.network.cookies.PreferencesCookieJar
-import org.koitharu.kotatsu.core.network.imageproxy.ImageProxyInterceptor
-import org.koitharu.kotatsu.core.network.imageproxy.RealImageProxyInterceptor
-import org.koitharu.kotatsu.core.network.proxy.ProxyProvider
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.ext.assertNotInMainThread
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.local.data.LocalStorageManager
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.network.cookies.AndroidCookieJar
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
+import org.skepsun.kototoro.core.network.cookies.PreferencesCookieJar
+import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
+import org.skepsun.kototoro.core.network.imageproxy.RealImageProxyInterceptor
+import org.skepsun.kototoro.core.network.proxy.ProxyProvider
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.ext.assertNotInMainThread
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.local.data.LocalStorageManager
 import java.util.concurrent.TimeUnit
 import javax.inject.Provider
 import javax.inject.Singleton

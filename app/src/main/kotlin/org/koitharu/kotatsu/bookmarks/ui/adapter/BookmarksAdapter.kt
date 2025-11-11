@@ -1,18 +1,18 @@
-package org.koitharu.kotatsu.bookmarks.ui.adapter
+package org.skepsun.kototoro.bookmarks.ui.adapter
 
 import android.content.Context
-import org.koitharu.kotatsu.bookmarks.domain.Bookmark
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.fastscroll.FastScroller
-import org.koitharu.kotatsu.list.ui.adapter.ListHeaderClickListener
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.emptyStateListAD
-import org.koitharu.kotatsu.list.ui.adapter.errorStateListAD
-import org.koitharu.kotatsu.list.ui.adapter.listHeaderAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingFooterAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingStateAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
+import org.skepsun.kototoro.list.ui.adapter.ListHeaderClickListener
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
+import org.skepsun.kototoro.list.ui.adapter.errorStateListAD
+import org.skepsun.kototoro.list.ui.adapter.listHeaderAD
+import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
+import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 class BookmarksAdapter(
 	clickListener: OnListItemClickListener<Bookmark>,

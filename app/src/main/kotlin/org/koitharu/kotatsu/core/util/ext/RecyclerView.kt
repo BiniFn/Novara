@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util.ext
+package org.skepsun.kototoro.core.util.ext
 
 import android.util.DisplayMetrics
 import androidx.core.view.doOnNextLayout

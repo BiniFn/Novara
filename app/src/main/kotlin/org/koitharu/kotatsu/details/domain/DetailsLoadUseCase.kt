@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.details.domain
+package org.skepsun.kototoro.details.domain
 
 import android.text.Html
 import android.text.SpannableString
@@ -16,23 +16,23 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.runInterruptible
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.nav.MangaIntent
-import org.koitharu.kotatsu.core.os.NetworkState
-import org.koitharu.kotatsu.core.parser.CachingMangaRepository
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.ui.model.MangaOverride
-import org.koitharu.kotatsu.core.util.ext.sanitize
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.explore.domain.RecoverMangaUseCase
-import org.koitharu.kotatsu.local.data.LocalMangaRepository
-import org.koitharu.kotatsu.local.domain.model.LocalManga
-import org.koitharu.kotatsu.parsers.exception.NotFoundException
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
-import org.koitharu.kotatsu.parsers.util.recoverNotNull
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.util.ext.sanitize
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.explore.domain.RecoverMangaUseCase
+import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.parsers.exception.NotFoundException
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.parsers.util.recoverNotNull
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 class DetailsLoadUseCase @Inject constructor(

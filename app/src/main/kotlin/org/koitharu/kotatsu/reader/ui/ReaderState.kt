@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.reader.ui
+package org.skepsun.kototoro.reader.ui
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
-import org.koitharu.kotatsu.core.model.MangaHistory
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.parsers.model.Manga
 
 @Parcelize
 data class ReaderState(

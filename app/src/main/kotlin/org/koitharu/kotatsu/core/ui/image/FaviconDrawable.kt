@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.image
+package org.skepsun.kototoro.core.ui.image
 
 import android.content.Context
 import android.content.res.ColorStateList
@@ -18,11 +18,11 @@ import coil3.asImage
 import coil3.getExtra
 import coil3.request.ImageRequest
 import com.google.android.material.color.MaterialColors
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.util.KotatsuColors
-import org.koitharu.kotatsu.core.util.ext.hasFocusStateSpecified
-import org.koitharu.kotatsu.core.util.ext.mangaSourceKey
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.util.KototoroColors
+import org.skepsun.kototoro.core.util.ext.hasFocusStateSpecified
+import org.skepsun.kototoro.core.util.ext.mangaSourceKey
 
 open class FaviconDrawable(
 	context: Context,
@@ -57,7 +57,7 @@ open class FaviconDrawable(
 		}
 		paint.textAlign = Paint.Align.CENTER
 		paint.isFakeBoldText = true
-		colorForeground = KotatsuColors.random(name)
+		colorForeground = KototoroColors.random(name)
 		currentForegroundColor = MaterialColors.harmonize(colorForeground, colorBackground.defaultColor)
 		onStateChange(state)
 	}

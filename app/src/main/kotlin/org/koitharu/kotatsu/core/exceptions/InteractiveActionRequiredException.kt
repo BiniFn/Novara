@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.core.exceptions
+package org.skepsun.kototoro.core.exceptions
 
 import okio.IOException
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 class InteractiveActionRequiredException(
 	val source: MangaSource,

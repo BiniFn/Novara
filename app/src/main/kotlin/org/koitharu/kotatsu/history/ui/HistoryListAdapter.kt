@@ -1,10 +1,10 @@
-package org.koitharu.kotatsu.history.ui
+package org.skepsun.kototoro.history.ui
 
 import android.content.Context
-import org.koitharu.kotatsu.core.ui.list.fastscroll.FastScroller
-import org.koitharu.kotatsu.list.ui.adapter.MangaListAdapter
-import org.koitharu.kotatsu.list.ui.adapter.MangaListListener
-import org.koitharu.kotatsu.list.ui.size.ItemSizeResolver
+import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
+import org.skepsun.kototoro.list.ui.adapter.MangaListAdapter
+import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 
 class HistoryListAdapter(
 	listener: MangaListListener,

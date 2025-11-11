@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.explore.data
+package org.skepsun.kototoro.explore.data
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -16,25 +16,25 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.core.LocalizedAppContext
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.db.dao.MangaSourcesDao
-import org.koitharu.kotatsu.core.db.entity.MangaSourceEntity
-import org.koitharu.kotatsu.core.model.MangaSourceInfo
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.core.parser.external.ExternalMangaSource
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.observeAsFlow
-import org.koitharu.kotatsu.core.ui.util.ReversibleHandle
-import org.koitharu.kotatsu.core.util.ext.flattenLatest
-import org.koitharu.kotatsu.parsers.model.ContentType
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
-import org.koitharu.kotatsu.parsers.util.mapNotNullToSet
-import org.koitharu.kotatsu.parsers.util.mapToSet
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.LocalizedAppContext
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.dao.MangaSourcesDao
+import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
+import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.ui.util.ReversibleHandle
+import org.skepsun.kototoro.core.util.ext.flattenLatest
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
+import org.skepsun.kototoro.parsers.util.mapNotNullToSet
+import org.skepsun.kototoro.parsers.util.mapToSet
 import java.util.Collections
 import java.util.EnumSet
 import java.util.concurrent.atomic.AtomicBoolean
@@ -357,7 +357,7 @@ class MangaSourcesRepository @Inject constructor(
 	}
 
 	fun getExternalSources(): List<ExternalMangaSource> = context.packageManager.queryIntentContentProviders(
-		Intent("app.kotatsu.parser.PROVIDE_MANGA"), 0,
+		Intent("app.kototoro.parser.PROVIDE_MANGA"), 0,
 	).map { resolveInfo ->
 		ExternalMangaSource(
 			packageName = resolveInfo.providerInfo.packageName,

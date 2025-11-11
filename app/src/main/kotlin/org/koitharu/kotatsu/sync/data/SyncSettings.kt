@@ -1,13 +1,13 @@
-package org.koitharu.kotatsu.sync.data
+package org.skepsun.kototoro.sync.data
 
 import android.accounts.Account
 import android.accounts.AccountManager
 import android.content.Context
 import androidx.annotation.WorkerThread
 import dagger.hilt.android.qualifiers.ApplicationContext
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.isHttpUrl
-import org.koitharu.kotatsu.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.isHttpUrl
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import javax.inject.Inject
 
 class SyncSettings(

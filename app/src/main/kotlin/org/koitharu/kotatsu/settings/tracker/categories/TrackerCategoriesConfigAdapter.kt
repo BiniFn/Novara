@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.settings.tracker.categories
+package org.skepsun.kototoro.settings.tracker.categories
 
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 
 class TrackerCategoriesConfigAdapter(
 	listener: OnListItemClickListener<FavouriteCategory>,

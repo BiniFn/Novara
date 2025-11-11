@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.favourites.ui.categories.adapter
+package org.skepsun.kototoro.favourites.ui.categories.adapter
 
-import org.koitharu.kotatsu.core.model.FavouriteCategory
-import org.koitharu.kotatsu.favourites.domain.model.Cover
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.favourites.domain.model.Cover
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 class CategoryListModel(
 	val mangaCount: Int,

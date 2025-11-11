@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.FragmentResultListener
 import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.sync.data.SyncSettings
-import org.koitharu.kotatsu.sync.ui.SyncHostDialogFragment
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.sync.data.SyncSettings
+import org.skepsun.kototoro.sync.ui.SyncHostDialogFragment
 import javax.inject.Inject
 
 @AndroidEntryPoint

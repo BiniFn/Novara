@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.favourites.ui.container
+package org.skepsun.kototoro.favourites.ui.container
 
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuProvider
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.nav.AppRouter
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
 
 class FavouritesContainerMenuProvider(
 	private val router: AppRouter,

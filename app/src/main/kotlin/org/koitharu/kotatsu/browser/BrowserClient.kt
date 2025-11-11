@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.browser
+package org.skepsun.kototoro.browser
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
@@ -11,7 +11,7 @@ import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import org.koitharu.kotatsu.core.network.webview.adblock.AdBlock
+import org.skepsun.kototoro.core.network.webview.adblock.AdBlock
 import java.io.ByteArrayInputStream
 
 open class BrowserClient(

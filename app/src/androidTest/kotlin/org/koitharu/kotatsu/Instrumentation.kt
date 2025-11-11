@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu
+package org.skepsun.kototoro
 
 import android.app.Instrumentation
 import kotlin.coroutines.resume

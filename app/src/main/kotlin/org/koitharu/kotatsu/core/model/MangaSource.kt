@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.model
+package org.skepsun.kototoro.core.model
 
 import android.content.Context
 import android.os.Build
@@ -9,15 +9,15 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.text.inSpans
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.parser.external.ExternalMangaSource
-import org.koitharu.kotatsu.core.util.ext.getDisplayName
-import org.koitharu.kotatsu.core.util.ext.toLocale
-import org.koitharu.kotatsu.core.util.ext.toLocaleOrNull
-import org.koitharu.kotatsu.parsers.model.ContentType
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.splitTwoParts
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
+import org.skepsun.kototoro.core.util.ext.getDisplayName
+import org.skepsun.kototoro.core.util.ext.toLocale
+import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.splitTwoParts
 import java.util.Locale
 
 data object LocalMangaSource : MangaSource {

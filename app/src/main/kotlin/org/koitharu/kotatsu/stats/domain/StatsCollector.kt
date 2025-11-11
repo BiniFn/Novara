@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.stats.domain
+package org.skepsun.kototoro.stats.domain
 
 import androidx.collection.LongSparseArray
 import androidx.collection.set
@@ -6,13 +6,13 @@ import dagger.hilt.android.ViewModelLifecycle
 import dagger.hilt.android.scopes.ViewModelScoped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.util.RetainedLifecycleCoroutineScope
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
-import org.koitharu.kotatsu.reader.ui.ReaderState
-import org.koitharu.kotatsu.stats.data.StatsEntity
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.RetainedLifecycleCoroutineScope
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.reader.ui.ReaderState
+import org.skepsun.kototoro.stats.data.StatsEntity
 import javax.inject.Inject
 
 @ViewModelScoped

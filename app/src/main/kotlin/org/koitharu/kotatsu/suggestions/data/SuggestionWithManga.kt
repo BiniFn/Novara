@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.suggestions.data
+package org.skepsun.kototoro.suggestions.data
 
 import androidx.room.Embedded
 import androidx.room.Junction
 import androidx.room.Relation
-import org.koitharu.kotatsu.core.db.entity.MangaEntity
-import org.koitharu.kotatsu.core.db.entity.MangaTagsEntity
-import org.koitharu.kotatsu.core.db.entity.TagEntity
+import org.skepsun.kototoro.core.db.entity.MangaEntity
+import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
+import org.skepsun.kototoro.core.db.entity.TagEntity
 
 data class SuggestionWithManga(
 	@Embedded val suggestion: SuggestionEntity,

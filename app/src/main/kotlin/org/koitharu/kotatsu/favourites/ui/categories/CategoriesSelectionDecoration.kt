@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.favourites.ui.categories
+package org.skepsun.kototoro.favourites.ui.categories
 
 import android.content.Context
 import android.graphics.Canvas
@@ -8,11 +8,11 @@ import android.graphics.RectF
 import android.view.View
 import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.decor.AbstractSelectionItemDecoration
-import org.koitharu.kotatsu.core.util.ext.getItem
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.favourites.ui.categories.adapter.CategoryListModel
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.decor.AbstractSelectionItemDecoration
+import org.skepsun.kototoro.core.util.ext.getItem
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.favourites.ui.categories.adapter.CategoryListModel
 import androidx.appcompat.R as appcompatR
 import com.google.android.material.R as materialR
 

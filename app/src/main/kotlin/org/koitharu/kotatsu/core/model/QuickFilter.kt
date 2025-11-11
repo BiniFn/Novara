@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.core.model
+package org.skepsun.kototoro.core.model
 
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.list.domain.ListFilterOption
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.list.domain.ListFilterOption
 
 fun ListFilterOption.toChipModel(isChecked: Boolean) = ChipsView.ChipModel(
 	title = titleText,

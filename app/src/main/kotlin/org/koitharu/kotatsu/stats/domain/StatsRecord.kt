@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.stats.domain
+package org.skepsun.kototoro.stats.domain
 
-import org.koitharu.kotatsu.details.data.ReadingTime
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.details.data.ReadingTime
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
 import java.util.concurrent.TimeUnit
 
 data class StatsRecord(

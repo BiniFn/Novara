@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.widgets
+package org.skepsun.kototoro.core.ui.widgets
 
 import android.content.Context
 import android.graphics.Outline
@@ -16,13 +16,13 @@ import androidx.core.view.isVisible
 import androidx.core.view.setPadding
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.util.ext.drawableStart
-import org.koitharu.kotatsu.core.util.ext.getDrawableCompat
-import org.koitharu.kotatsu.core.util.ext.getThemeColorStateList
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ViewTipBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.drawableStart
+import org.skepsun.kototoro.core.util.ext.getDrawableCompat
+import org.skepsun.kototoro.core.util.ext.getThemeColorStateList
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ViewTipBinding
 
 class TipView @JvmOverloads constructor(
 	context: Context,

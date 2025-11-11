@@ -1,5 +1,5 @@
-package org.koitharu.kotatsu.suggestions.ui
+package org.skepsun.kototoro.suggestions.ui
 
-import org.koitharu.kotatsu.core.ui.FragmentContainerActivity
+import org.skepsun.kototoro.core.ui.FragmentContainerActivity
 
 class SuggestionsActivity : FragmentContainerActivity(SuggestionsFragment::class.java)

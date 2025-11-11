@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.local.domain.model
+package org.skepsun.kototoro.local.domain.model
 
 import android.net.Uri
 import androidx.core.net.toFile
 import androidx.core.net.toUri
-import org.koitharu.kotatsu.core.util.ext.contains
-import org.koitharu.kotatsu.core.util.ext.creationTime
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaTag
+import org.skepsun.kototoro.core.util.ext.contains
+import org.skepsun.kototoro.core.util.ext.creationTime
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaTag
 import java.io.File
 
 data class LocalManga(

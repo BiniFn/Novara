@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.storage.directories
+package org.skepsun.kototoro.settings.storage.directories
 
 import android.view.View
 import androidx.core.content.ContextCompat
@@ -7,13 +7,13 @@ import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import androidx.core.view.isGone
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.util.FileSize
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.core.util.ext.setTooltipCompat
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ItemStorageConfig2Binding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.util.FileSize
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.setTooltipCompat
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ItemStorageConfig2Binding
 
 fun directoryConfigAD(
     clickListener: OnListItemClickListener<DirectoryConfigModel>,

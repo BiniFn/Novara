@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util.ext
+package org.skepsun.kototoro.core.util.ext
 
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.Toolbar

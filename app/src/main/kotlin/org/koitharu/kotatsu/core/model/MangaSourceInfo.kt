@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.core.model
+package org.skepsun.kototoro.core.model
 
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 data class MangaSourceInfo(
 	val mangaSource: MangaSource,

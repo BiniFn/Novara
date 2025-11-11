@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.details.ui.pager.pages
+package org.skepsun.kototoro.details.ui.pager.pages
 
 import android.content.Context
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.fastscroll.FastScroller
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.listHeaderAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.listHeaderAD
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 class PageThumbnailAdapter(
 	clickListener: OnListItemClickListener<PageThumbnail>,

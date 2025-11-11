@@ -1,5 +1,5 @@
-package org.koitharu.kotatsu
+package org.skepsun.kototoro
 
-import org.koitharu.kotatsu.core.BaseApp
+import org.skepsun.kototoro.core.BaseApp
 
-class KotatsuApp : BaseApp()
+class KototoroApp : BaseApp()

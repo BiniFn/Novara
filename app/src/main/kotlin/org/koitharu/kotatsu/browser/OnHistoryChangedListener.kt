@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.browser
+package org.skepsun.kototoro.browser
 
 fun interface OnHistoryChangedListener {
 

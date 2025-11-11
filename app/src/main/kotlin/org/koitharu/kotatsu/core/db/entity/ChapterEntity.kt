@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.db.entity
+package org.skepsun.kototoro.core.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
-import org.koitharu.kotatsu.core.db.TABLE_CHAPTERS
+import org.skepsun.kototoro.core.db.TABLE_CHAPTERS
 
 @Entity(
 	tableName = TABLE_CHAPTERS,

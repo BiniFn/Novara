@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.details.domain
+package org.skepsun.kototoro.details.domain
 
-import org.koitharu.kotatsu.core.model.MangaHistory
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.details.data.MangaDetails
-import org.koitharu.kotatsu.details.data.ReadingTime
-import org.koitharu.kotatsu.parsers.util.findById
-import org.koitharu.kotatsu.stats.data.StatsRepository
+import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ReadingTime
+import org.skepsun.kototoro.parsers.util.findById
+import org.skepsun.kototoro.stats.data.StatsRepository
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.roundToInt

@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.filter.ui.tags
+package org.skepsun.kototoro.filter.ui.tags
 
-import org.koitharu.kotatsu.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.MangaTag
 import java.text.Collator
 import java.util.Locale
 

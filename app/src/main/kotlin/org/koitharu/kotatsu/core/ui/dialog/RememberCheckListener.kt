@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.dialog
+package org.skepsun.kototoro.core.ui.dialog
 
 import android.widget.CompoundButton
 import android.widget.CompoundButton.OnCheckedChangeListener

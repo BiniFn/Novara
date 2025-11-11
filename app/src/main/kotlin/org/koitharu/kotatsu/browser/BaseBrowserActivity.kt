@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.browser
+package org.skepsun.kototoro.browser
 
 import android.os.Bundle
 import android.view.View
@@ -6,19 +6,19 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.network.CommonHeaders
-import org.koitharu.kotatsu.core.network.proxy.ProxyProvider
-import org.koitharu.kotatsu.core.network.webview.adblock.AdBlock
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.core.parser.ParserMangaRepository
-import org.koitharu.kotatsu.core.ui.BaseActivity
-import org.koitharu.kotatsu.core.util.ext.configureForParser
-import org.koitharu.kotatsu.core.util.ext.consumeAll
-import org.koitharu.kotatsu.databinding.ActivityBrowserBinding
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.network.CommonHeaders
+import org.skepsun.kototoro.core.network.proxy.ProxyProvider
+import org.skepsun.kototoro.core.network.webview.adblock.AdBlock
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.util.ext.configureForParser
+import org.skepsun.kototoro.core.util.ext.consumeAll
+import org.skepsun.kototoro.databinding.ActivityBrowserBinding
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import javax.inject.Inject
 
 @AndroidEntryPoint

@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.widget.shelf.adapter
+package org.skepsun.kototoro.widget.shelf.adapter
 
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.widget.shelf.model.CategoryItem
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.widget.shelf.model.CategoryItem
 
 class CategorySelectAdapter(
 	clickListener: OnListItemClickListener<CategoryItem>

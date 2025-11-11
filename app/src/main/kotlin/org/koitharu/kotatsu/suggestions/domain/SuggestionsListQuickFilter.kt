@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.suggestions.domain
+package org.skepsun.kototoro.suggestions.domain
 
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.MangaListQuickFilter
 import javax.inject.Inject
 
 class SuggestionsListQuickFilter @Inject constructor(

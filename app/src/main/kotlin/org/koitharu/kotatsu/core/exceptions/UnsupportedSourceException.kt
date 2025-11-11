@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.core.exceptions
+package org.skepsun.kototoro.core.exceptions
 
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Manga
 
 class UnsupportedSourceException(
 	message: String?,

@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.core.ui.widgets
+package org.skepsun.kototoro.core.ui.widgets
 
 import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import com.google.android.material.button.MaterialButtonGroup
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.databinding.ViewZoomBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.databinding.ViewZoomBinding
 
 class ZoomControl @JvmOverloads constructor(
 	context: Context,

@@ -1,21 +1,21 @@
-package org.koitharu.kotatsu.search.ui.multi.adapter
+package org.skepsun.kototoro.search.ui.multi.adapter
 
 import android.content.Context
 import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
-import org.koitharu.kotatsu.core.ui.BaseListAdapter
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.ui.list.fastscroll.FastScroller
-import org.koitharu.kotatsu.list.ui.MangaSelectionDecoration
-import org.koitharu.kotatsu.list.ui.adapter.ListItemType
-import org.koitharu.kotatsu.list.ui.adapter.MangaListListener
-import org.koitharu.kotatsu.list.ui.adapter.buttonFooterAD
-import org.koitharu.kotatsu.list.ui.adapter.emptyStateListAD
-import org.koitharu.kotatsu.list.ui.adapter.errorStateListAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingFooterAD
-import org.koitharu.kotatsu.list.ui.adapter.loadingStateAD
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.size.ItemSizeResolver
-import org.koitharu.kotatsu.search.ui.multi.SearchResultsListModel
+import org.skepsun.kototoro.core.ui.BaseListAdapter
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
+import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
+import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.adapter.buttonFooterAD
+import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
+import org.skepsun.kototoro.list.ui.adapter.errorStateListAD
+import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
+import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
+import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
 
 class SearchAdapter(
 	listener: MangaListListener,

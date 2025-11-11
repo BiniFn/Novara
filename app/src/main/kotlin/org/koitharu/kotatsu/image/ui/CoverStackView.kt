@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.image.ui
+package org.skepsun.kototoro.image.ui
 
 import android.content.Context
 import android.content.res.ColorStateList
@@ -13,14 +13,14 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.ImageViewCompat
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.UnknownMangaSource
-import org.koitharu.kotatsu.core.ui.widgets.StackLayout
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.databinding.ViewCoverStackBinding
-import org.koitharu.kotatsu.favourites.domain.model.Cover
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.ui.widgets.StackLayout
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.databinding.ViewCoverStackBinding
+import org.skepsun.kototoro.favourites.domain.model.Cover
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 class CoverStackView @JvmOverloads constructor(
 	context: Context,

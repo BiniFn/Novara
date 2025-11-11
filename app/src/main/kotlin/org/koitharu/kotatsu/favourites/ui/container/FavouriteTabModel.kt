@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.favourites.ui.container
+package org.skepsun.kototoro.favourites.ui.container
 
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 data class FavouriteTabModel(
 	val id: Long,

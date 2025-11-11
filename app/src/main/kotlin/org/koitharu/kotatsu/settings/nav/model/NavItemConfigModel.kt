@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.settings.nav.model
+package org.skepsun.kototoro.settings.nav.model
 
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.core.prefs.NavItem
-import org.koitharu.kotatsu.list.ui.model.ListModel
+import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 data class NavItemConfigModel(
 	val item: NavItem,

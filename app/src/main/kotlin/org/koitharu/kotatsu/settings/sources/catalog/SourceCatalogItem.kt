@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.settings.sources.catalog
+package org.skepsun.kototoro.settings.sources.catalog
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 
 sealed interface SourceCatalogItem : ListModel {
 

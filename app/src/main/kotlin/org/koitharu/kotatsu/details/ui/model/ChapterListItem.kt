@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.details.ui.model
+package org.skepsun.kototoro.details.ui.model
 
 import android.content.res.Resources
 import android.text.format.DateUtils
 import org.jsoup.internal.StringUtil.StringJoiner
-import org.koitharu.kotatsu.core.model.getLocalizedTitle
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.model.getLocalizedTitle
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.MangaChapter
 import kotlin.experimental.and
 
 data class ChapterListItem(

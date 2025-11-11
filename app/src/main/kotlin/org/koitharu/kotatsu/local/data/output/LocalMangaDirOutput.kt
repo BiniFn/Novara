@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.data.output
+package org.skepsun.kototoro.local.data.output
 
 import androidx.core.net.toFile
 import androidx.core.net.toUri
@@ -7,18 +7,18 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.internal.closeQuietly
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.util.MimeTypes
-import org.koitharu.kotatsu.core.util.ext.MimeType
-import org.koitharu.kotatsu.core.util.ext.deleteAwait
-import org.koitharu.kotatsu.core.util.ext.takeIfReadable
-import org.koitharu.kotatsu.core.util.ext.toFileNameSafe
-import org.koitharu.kotatsu.core.zip.ZipOutput
-import org.koitharu.kotatsu.local.data.MangaIndex
-import org.koitharu.kotatsu.local.data.input.LocalMangaParser
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.util.MimeTypes
+import org.skepsun.kototoro.core.util.ext.MimeType
+import org.skepsun.kototoro.core.util.ext.deleteAwait
+import org.skepsun.kototoro.core.util.ext.takeIfReadable
+import org.skepsun.kototoro.core.util.ext.toFileNameSafe
+import org.skepsun.kototoro.core.zip.ZipOutput
+import org.skepsun.kototoro.local.data.MangaIndex
+import org.skepsun.kototoro.local.data.input.LocalMangaParser
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import java.io.File
 
 class LocalMangaDirOutput(

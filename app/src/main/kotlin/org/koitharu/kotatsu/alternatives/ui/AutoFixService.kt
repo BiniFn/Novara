@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.alternatives.ui
+package org.skepsun.kototoro.alternatives.ui
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -15,23 +15,23 @@ import coil3.ImageLoader
 import coil3.request.ImageRequest
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.runBlocking
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.alternatives.domain.AutoFixUseCase
-import org.koitharu.kotatsu.alternatives.domain.AutoFixUseCase.NoAlternativesException
-import org.koitharu.kotatsu.core.ErrorReporterReceiver
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.model.isNsfw
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.ui.CoroutineIntentService
-import org.koitharu.kotatsu.core.util.ext.checkNotificationPermission
-import org.koitharu.kotatsu.core.util.ext.getDisplayMessage
-import org.koitharu.kotatsu.core.util.ext.mangaSourceExtra
-import org.koitharu.kotatsu.core.util.ext.powerManager
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.core.util.ext.toBitmapOrNull
-import org.koitharu.kotatsu.core.util.ext.withPartialWakeLock
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.alternatives.domain.AutoFixUseCase
+import org.skepsun.kototoro.alternatives.domain.AutoFixUseCase.NoAlternativesException
+import org.skepsun.kototoro.core.ErrorReporterReceiver
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.CoroutineIntentService
+import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.util.ext.powerManager
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
+import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 import androidx.appcompat.R as appcompatR
 

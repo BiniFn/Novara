@@ -1,14 +1,14 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.content.SharedPreferences
 import android.media.RingtoneManager
 import android.os.Bundle
 import android.view.View
 import androidx.preference.Preference
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.settings.utils.RingtonePickContract
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.settings.utils.RingtonePickContract
 
 class NotificationSettingsLegacyFragment :
 	BasePreferenceFragment(R.string.notifications),

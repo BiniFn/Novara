@@ -1,17 +1,17 @@
-package org.koitharu.kotatsu.core.db.entity
+package org.skepsun.kototoro.core.db.entity
 
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.ContentRating
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaState
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.parsers.model.SortOrder
-import org.koitharu.kotatsu.parsers.util.longHashCode
-import org.koitharu.kotatsu.parsers.util.mapToSet
-import org.koitharu.kotatsu.parsers.util.nullIfEmpty
-import org.koitharu.kotatsu.parsers.util.toArraySet
-import org.koitharu.kotatsu.parsers.util.toTitleCase
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.parsers.util.longHashCode
+import org.skepsun.kototoro.parsers.util.mapToSet
+import org.skepsun.kototoro.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.parsers.util.toArraySet
+import org.skepsun.kototoro.parsers.util.toTitleCase
 
 private const val VALUES_DIVIDER = '\n'
 

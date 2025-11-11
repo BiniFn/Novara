@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.network.imageproxy
+package org.skepsun.kototoro.core.network.imageproxy
 
 import coil3.request.ImageRequest
 import okhttp3.HttpUrl

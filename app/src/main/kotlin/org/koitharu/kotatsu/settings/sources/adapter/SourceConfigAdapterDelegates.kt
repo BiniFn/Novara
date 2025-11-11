@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.sources.adapter
+package org.skepsun.kototoro.settings.sources.adapter
 
 import android.view.View
 import androidx.appcompat.widget.PopupMenu
@@ -8,14 +8,14 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegate
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.getSummary
-import org.koitharu.kotatsu.core.model.getTitle
-import org.koitharu.kotatsu.core.ui.list.OnTipCloseListener
-import org.koitharu.kotatsu.core.util.ext.drawableStart
-import org.koitharu.kotatsu.databinding.ItemSourceConfigBinding
-import org.koitharu.kotatsu.databinding.ItemTipBinding
-import org.koitharu.kotatsu.settings.sources.model.SourceConfigItem
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getSummary
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.ui.list.OnTipCloseListener
+import org.skepsun.kototoro.core.util.ext.drawableStart
+import org.skepsun.kototoro.databinding.ItemSourceConfigBinding
+import org.skepsun.kototoro.databinding.ItemTipBinding
+import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
 
 fun sourceConfigItemDelegate2(
 	listener: SourceConfigListener,

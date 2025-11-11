@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.widgets
+package org.skepsun.kototoro.core.ui.widgets
 
 import android.content.Context
 import android.graphics.Color
@@ -29,12 +29,12 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipDrawable
 import com.google.android.material.chip.ChipGroup
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.ui.image.ChipIconTarget
-import org.koitharu.kotatsu.core.util.ext.enqueueWith
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.core.util.ext.setProgressIcon
-import org.koitharu.kotatsu.parsers.util.ifZero
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.image.ChipIconTarget
+import org.skepsun.kototoro.core.util.ext.enqueueWith
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.setProgressIcon
+import org.skepsun.kototoro.parsers.util.ifZero
 import javax.inject.Inject
 import com.google.android.material.R as materialR
 
@@ -75,7 +75,7 @@ class ChipsView @JvmOverloads constructor(
 
 	init {
 		val ta = context.obtainStyledAttributes(attrs, R.styleable.ChipsView, defStyleAttr, 0)
-		chipStyle = ta.getResourceId(R.styleable.ChipsView_chipStyle, R.style.Widget_Kotatsu_Chip)
+		chipStyle = ta.getResourceId(R.styleable.ChipsView_chipStyle, R.style.Widget_Kototoro_Chip)
 		iconsVisible = ta.getBoolean(R.styleable.ChipsView_chipIconVisible, true)
 		ta.recycle()
 

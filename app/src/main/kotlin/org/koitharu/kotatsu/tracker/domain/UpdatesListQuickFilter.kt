@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.tracker.domain
+package org.skepsun.kototoro.tracker.domain
 
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.MangaListQuickFilter
 import javax.inject.Inject
 
 class UpdatesListQuickFilter @Inject constructor(

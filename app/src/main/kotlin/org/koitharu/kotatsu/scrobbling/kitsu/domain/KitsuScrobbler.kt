@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.scrobbling.kitsu.domain
+package org.skepsun.kototoro.scrobbling.kitsu.domain
 
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.parser.MangaRepository
-import org.koitharu.kotatsu.scrobbling.common.domain.Scrobbler
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblerService
-import org.koitharu.kotatsu.scrobbling.common.domain.model.ScrobblingStatus
-import org.koitharu.kotatsu.scrobbling.kitsu.data.KitsuRepository
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
+import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
 import javax.inject.Inject
 
 class KitsuScrobbler @Inject constructor(

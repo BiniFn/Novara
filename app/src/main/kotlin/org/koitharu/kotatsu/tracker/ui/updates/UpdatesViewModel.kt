@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.tracker.ui.updates
+package org.skepsun.kototoro.tracker.ui.updates
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,29 +10,29 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.parser.MangaDataRepository
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ListMode
-import org.koitharu.kotatsu.core.prefs.observeAsFlow
-import org.koitharu.kotatsu.core.ui.model.DateTimeAgo
-import org.koitharu.kotatsu.core.util.ext.calculateTimeAgo
-import org.koitharu.kotatsu.core.util.ext.onFirst
-import org.koitharu.kotatsu.list.domain.ListFilterOption
-import org.koitharu.kotatsu.list.domain.MangaListMapper
-import org.koitharu.kotatsu.list.domain.QuickFilterListener
-import org.koitharu.kotatsu.list.ui.MangaListViewModel
-import org.koitharu.kotatsu.list.ui.model.EmptyState
-import org.koitharu.kotatsu.list.ui.model.ListHeader
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.list.ui.model.LoadingState
-import org.koitharu.kotatsu.list.ui.model.toErrorState
-import org.koitharu.kotatsu.tracker.domain.TrackingRepository
-import org.koitharu.kotatsu.tracker.domain.UpdatesListQuickFilter
-import org.koitharu.kotatsu.tracker.domain.model.MangaTracking
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.ui.model.DateTimeAgo
+import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
+import org.skepsun.kototoro.core.util.ext.onFirst
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.QuickFilterListener
+import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.list.ui.model.toErrorState
+import org.skepsun.kototoro.tracker.domain.TrackingRepository
+import org.skepsun.kototoro.tracker.domain.UpdatesListQuickFilter
+import org.skepsun.kototoro.tracker.domain.model.MangaTracking
 import javax.inject.Inject
-import org.koitharu.kotatsu.local.data.LocalStorageChanges
-import org.koitharu.kotatsu.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.LocalStorageChanges
+import org.skepsun.kototoro.local.domain.model.LocalManga
 import kotlinx.coroutines.flow.SharedFlow
 
 @HiltViewModel

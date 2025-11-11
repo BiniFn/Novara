@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.sources
+package org.skepsun.kototoro.settings.sources
 
 import android.content.ComponentName
 import android.content.Context
@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.koitharu.kotatsu.core.ui.BaseViewModel
-import org.koitharu.kotatsu.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import javax.inject.Inject
 
 @HiltViewModel
@@ -24,7 +24,7 @@ class SourcesSettingsViewModel @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) : BaseViewModel() {
 
-	private val linksHandlerActivity = ComponentName(context, "org.koitharu.kotatsu.details.ui.DetailsByLinkActivity")
+	private val linksHandlerActivity = ComponentName(context, "org.skepsun.kototoro.details.ui.DetailsByLinkActivity")
 
 	val enabledSourcesCount = sourcesRepository.observeEnabledSourcesCount()
 		.withErrorHandling()

@@ -1,5 +1,5 @@
-package org.koitharu.kotatsu.bookmarks.ui
+package org.skepsun.kototoro.bookmarks.ui
 
-import org.koitharu.kotatsu.core.ui.FragmentContainerActivity
+import org.skepsun.kototoro.core.ui.FragmentContainerActivity
 
 class AllBookmarksActivity : FragmentContainerActivity(AllBookmarksFragment::class.java)

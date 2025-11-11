@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.search.ui.suggestion.adapter
+package org.skepsun.kototoro.search.ui.suggestion.adapter
 
 import android.view.View
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.databinding.ItemSearchSuggestionQueryBinding
-import org.koitharu.kotatsu.search.domain.SearchKind
-import org.koitharu.kotatsu.search.ui.suggestion.SearchSuggestionListener
-import org.koitharu.kotatsu.search.ui.suggestion.model.SearchSuggestionItem
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.databinding.ItemSearchSuggestionQueryBinding
+import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListener
+import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 fun searchSuggestionQueryAD(
 	listener: SearchSuggestionListener,

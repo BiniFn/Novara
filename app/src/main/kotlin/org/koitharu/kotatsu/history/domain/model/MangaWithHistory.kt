@@ -1,7 +1,7 @@
-package org.koitharu.kotatsu.history.domain.model
+package org.skepsun.kototoro.history.domain.model
 
-import org.koitharu.kotatsu.core.model.MangaHistory
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.parsers.model.Manga
 
 data class MangaWithHistory(
 	val manga: Manga,

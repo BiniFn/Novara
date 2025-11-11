@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.local.data
+package org.skepsun.kototoro.local.data
 
 import androidx.annotation.WorkerThread
 import okio.FileSystem
@@ -8,27 +8,27 @@ import okio.buffer
 import org.jetbrains.annotations.Blocking
 import org.json.JSONArray
 import org.json.JSONObject
-import org.koitharu.kotatsu.BuildConfig
-import org.koitharu.kotatsu.core.model.MangaSource
-import org.koitharu.kotatsu.core.model.isLocal
-import org.koitharu.kotatsu.core.util.ext.printStackTraceDebug
-import org.koitharu.kotatsu.parsers.model.ContentRating
-import org.koitharu.kotatsu.parsers.model.Manga
-import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaState
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.parsers.model.RATING_UNKNOWN
-import org.koitharu.kotatsu.parsers.util.json.getBooleanOrDefault
-import org.koitharu.kotatsu.parsers.util.json.getEnumValueOrNull
-import org.koitharu.kotatsu.parsers.util.json.getFloatOrDefault
-import org.koitharu.kotatsu.parsers.util.json.getIntOrDefault
-import org.koitharu.kotatsu.parsers.util.json.getLongOrDefault
-import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
-import org.koitharu.kotatsu.parsers.util.json.mapJSONToSet
-import org.koitharu.kotatsu.parsers.util.json.toStringSet
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
-import org.koitharu.kotatsu.parsers.util.toTitleCase
+import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
+import org.skepsun.kototoro.parsers.util.json.getBooleanOrDefault
+import org.skepsun.kototoro.parsers.util.json.getEnumValueOrNull
+import org.skepsun.kototoro.parsers.util.json.getFloatOrDefault
+import org.skepsun.kototoro.parsers.util.json.getIntOrDefault
+import org.skepsun.kototoro.parsers.util.json.getLongOrDefault
+import org.skepsun.kototoro.parsers.util.json.getStringOrNull
+import org.skepsun.kototoro.parsers.util.json.mapJSONToSet
+import org.skepsun.kototoro.parsers.util.json.toStringSet
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.parsers.util.toTitleCase
 import java.io.File
 
 class MangaIndex(source: String?) {
@@ -146,7 +146,7 @@ class MangaIndex(source: String?) {
 			item.put(KEY_ID, id)
 			list.add(item)
 		}
-		val comparator = org.koitharu.kotatsu.core.util.AlphanumComparator()
+		val comparator = org.skepsun.kototoro.core.util.AlphanumComparator()
 		list.sortWith(compareBy(comparator) { it.getString(KEY_NAME) })
 		val newJo = JSONObject()
 		list.forEachIndexed { i, obj ->

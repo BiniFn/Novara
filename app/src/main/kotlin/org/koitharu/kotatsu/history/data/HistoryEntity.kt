@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.history.data
+package org.skepsun.kototoro.history.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
-import org.koitharu.kotatsu.core.db.TABLE_HISTORY
-import org.koitharu.kotatsu.core.db.entity.MangaEntity
+import org.skepsun.kototoro.core.db.TABLE_HISTORY
+import org.skepsun.kototoro.core.db.entity.MangaEntity
 
 @Entity(
 	tableName = TABLE_HISTORY,

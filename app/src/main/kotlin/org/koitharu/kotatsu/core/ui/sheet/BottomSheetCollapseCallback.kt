@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.sheet
+package org.skepsun.kototoro.core.ui.sheet
 
 import android.annotation.SuppressLint
 import android.view.View

@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.exceptions
+package org.skepsun.kototoro.core.exceptions
 
 import okhttp3.Headers
-import org.koitharu.kotatsu.core.model.UnknownMangaSource
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
+import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 
 class CloudFlareProtectedException(
 	override val url: String,

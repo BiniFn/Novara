@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.settings.sources.catalog
+package org.skepsun.kototoro.settings.sources.catalog
 
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.ContentType
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.ContentType
 
 data class SourceCatalogPage(
 	val type: ContentType,

@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.settings.storage
+package org.skepsun.kototoro.settings.storage
 
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
-import org.koitharu.kotatsu.core.util.ext.textAndVisible
-import org.koitharu.kotatsu.databinding.ItemStorageBinding
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.util.ext.textAndVisible
+import org.skepsun.kototoro.databinding.ItemStorageBinding
 
 fun directoryAD(
 	clickListener: OnListItemClickListener<DirectoryModel>,

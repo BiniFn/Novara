@@ -1,9 +1,9 @@
-package org.koitharu.kotatsu.core.network.webview
+package org.skepsun.kototoro.core.network.webview
 
 import android.graphics.Bitmap
 import android.webkit.WebView
-import org.koitharu.kotatsu.core.network.cookies.MutableCookieJar
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import kotlin.coroutines.Continuation
 
 class CaptchaContinuationClient(

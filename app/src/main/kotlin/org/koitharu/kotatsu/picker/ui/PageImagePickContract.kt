@@ -1,12 +1,12 @@
-package org.koitharu.kotatsu.picker.ui
+package org.skepsun.kototoro.picker.ui
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContract
-import org.koitharu.kotatsu.core.model.parcelable.ParcelableManga
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.parsers.model.Manga
 
 class PageImagePickContract : ActivityResultContract<Manga?, Uri?>() {
 

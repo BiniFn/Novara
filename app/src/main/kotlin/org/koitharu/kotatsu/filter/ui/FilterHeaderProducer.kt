@@ -1,19 +1,19 @@
-package org.koitharu.kotatsu.filter.ui
+package org.skepsun.kototoro.filter.ui
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.titleResId
-import org.koitharu.kotatsu.core.ui.widgets.ChipsView
-import org.koitharu.kotatsu.filter.data.PersistableFilter
-import org.koitharu.kotatsu.filter.ui.model.FilterHeaderModel
-import org.koitharu.kotatsu.filter.ui.model.FilterProperty
-import org.koitharu.kotatsu.parsers.model.MangaListFilter
-import org.koitharu.kotatsu.parsers.model.MangaListFilterCapabilities
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.model.MangaTag
-import org.koitharu.kotatsu.parsers.util.toTitleCase
-import org.koitharu.kotatsu.search.domain.MangaSearchRepository
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.titleResId
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.filter.data.PersistableFilter
+import org.skepsun.kototoro.filter.ui.model.FilterHeaderModel
+import org.skepsun.kototoro.filter.ui.model.FilterProperty
+import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.util.toTitleCase
+import org.skepsun.kototoro.search.domain.MangaSearchRepository
 import javax.inject.Inject
 import androidx.appcompat.R as appcompatR
 

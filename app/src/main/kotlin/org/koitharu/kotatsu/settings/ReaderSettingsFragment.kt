@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings
+package org.skepsun.kototoro.settings
 
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
@@ -8,21 +8,21 @@ import androidx.preference.ListPreference
 import androidx.preference.MultiSelectListPreference
 import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.model.ZoomMode
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.prefs.AppSettings
-import org.koitharu.kotatsu.core.prefs.ReaderAnimation
-import org.koitharu.kotatsu.core.prefs.ReaderBackground
-import org.koitharu.kotatsu.core.prefs.ReaderControl
-import org.koitharu.kotatsu.core.prefs.ReaderMode
-import org.koitharu.kotatsu.core.ui.BasePreferenceFragment
-import org.koitharu.kotatsu.core.util.ext.setDefaultValueCompat
-import org.koitharu.kotatsu.parsers.util.mapToSet
-import org.koitharu.kotatsu.parsers.util.names
-import org.koitharu.kotatsu.settings.utils.MultiSummaryProvider
-import org.koitharu.kotatsu.settings.utils.PercentSummaryProvider
-import org.koitharu.kotatsu.settings.utils.SliderPreference
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.ZoomMode
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ReaderAnimation
+import org.skepsun.kototoro.core.prefs.ReaderBackground
+import org.skepsun.kototoro.core.prefs.ReaderControl
+import org.skepsun.kototoro.core.prefs.ReaderMode
+import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
+import org.skepsun.kototoro.parsers.util.mapToSet
+import org.skepsun.kototoro.parsers.util.names
+import org.skepsun.kototoro.settings.utils.MultiSummaryProvider
+import org.skepsun.kototoro.settings.utils.PercentSummaryProvider
+import org.skepsun.kototoro.settings.utils.SliderPreference
 
 @AndroidEntryPoint
 class ReaderSettingsFragment :

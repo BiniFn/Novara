@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.util
+package org.skepsun.kototoro.core.util
 
 import android.content.Context
 import androidx.annotation.AttrRes
@@ -6,11 +6,11 @@ import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
 import com.google.android.material.R
 import com.google.android.material.color.MaterialColors
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.parsers.model.Manga
 import kotlin.math.absoluteValue
 
-object KotatsuColors {
+object KototoroColors {
 
 	@ColorInt
 	@Deprecated("")

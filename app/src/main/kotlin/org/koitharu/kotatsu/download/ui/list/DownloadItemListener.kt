@@ -1,6 +1,6 @@
-package org.koitharu.kotatsu.download.ui.list
+package org.skepsun.kototoro.download.ui.list
 
-import org.koitharu.kotatsu.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 
 interface DownloadItemListener : OnListItemClickListener<DownloadItemModel> {
 

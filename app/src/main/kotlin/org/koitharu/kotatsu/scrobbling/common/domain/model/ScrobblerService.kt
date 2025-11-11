@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.scrobbling.common.domain.model
+package org.skepsun.kototoro.scrobbling.common.domain.model
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import org.koitharu.kotatsu.R
+import org.skepsun.kototoro.R
 
 enum class ScrobblerService(
 	val id: Int,

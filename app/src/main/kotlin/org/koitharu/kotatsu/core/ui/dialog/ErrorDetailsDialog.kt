@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.core.ui.dialog
+package org.skepsun.kototoro.core.ui.dialog
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -7,19 +7,19 @@ import android.view.ViewGroup
 import androidx.core.view.isVisible
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
-import org.koitharu.kotatsu.R
-import org.koitharu.kotatsu.core.github.AppUpdateRepository
-import org.koitharu.kotatsu.core.nav.AppRouter
-import org.koitharu.kotatsu.core.nav.router
-import org.koitharu.kotatsu.core.ui.AlertDialogFragment
-import org.koitharu.kotatsu.core.util.ext.copyToClipboard
-import org.koitharu.kotatsu.core.util.ext.getCauseUrl
-import org.koitharu.kotatsu.core.util.ext.isHttpUrl
-import org.koitharu.kotatsu.core.util.ext.isReportable
-import org.koitharu.kotatsu.core.util.ext.report
-import org.koitharu.kotatsu.core.util.ext.requireSerializable
-import org.koitharu.kotatsu.core.util.ext.setTextAndVisible
-import org.koitharu.kotatsu.databinding.DialogErrorDetailsBinding
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.github.AppUpdateRepository
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.util.ext.copyToClipboard
+import org.skepsun.kototoro.core.util.ext.getCauseUrl
+import org.skepsun.kototoro.core.util.ext.isHttpUrl
+import org.skepsun.kototoro.core.util.ext.isReportable
+import org.skepsun.kototoro.core.util.ext.report
+import org.skepsun.kototoro.core.util.ext.requireSerializable
+import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.databinding.DialogErrorDetailsBinding
 import javax.inject.Inject
 
 @AndroidEntryPoint

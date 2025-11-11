@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.download.ui.list
+package org.skepsun.kototoro.download.ui.list
 
 import android.content.Context
 import android.graphics.Color
@@ -8,11 +8,11 @@ import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import androidx.work.WorkInfo
 import kotlinx.coroutines.flow.StateFlow
-import org.koitharu.kotatsu.core.util.ext.getThemeColor
-import org.koitharu.kotatsu.download.ui.list.chapters.DownloadChapter
-import org.koitharu.kotatsu.list.ui.ListModelDiffCallback
-import org.koitharu.kotatsu.list.ui.model.ListModel
-import org.koitharu.kotatsu.parsers.model.Manga
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.download.ui.list.chapters.DownloadChapter
+import org.skepsun.kototoro.list.ui.ListModelDiffCallback
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.Manga
 import java.time.Instant
 import java.util.UUID
 import androidx.appcompat.R as appcompatR

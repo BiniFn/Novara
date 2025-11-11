@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.main.ui.owners
+package org.skepsun.kototoro.main.ui.owners
 
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 

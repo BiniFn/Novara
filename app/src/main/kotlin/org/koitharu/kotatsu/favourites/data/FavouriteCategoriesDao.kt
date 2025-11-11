@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.favourites.data
+package org.skepsun.kototoro.favourites.data
 
 import androidx.room.Dao
 import androidx.room.Insert
