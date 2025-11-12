@@ -1,8 +1,8 @@
-package org.koitharu.kotatsu.core.parser
+package org.skepsun.kototoro.core.parser
 
-import org.koitharu.kotatsu.core.cache.MemoryContentCache
-import org.koitharu.kotatsu.core.model.TestMangaSource
-import org.koitharu.kotatsu.parsers.MangaLoaderContext
+import org.skepsun.kototoro.core.cache.MemoryContentCache
+import org.skepsun.kototoro.core.model.TestMangaSource
+import org.skepsun.kototoro.parsers.MangaLoaderContext
 
 @Suppress("unused")
 class TestMangaRepository(

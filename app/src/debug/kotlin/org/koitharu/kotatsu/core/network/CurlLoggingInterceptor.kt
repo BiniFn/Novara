@@ -1,11 +1,11 @@
-package org.koitharu.kotatsu.core.network
+package org.skepsun.kototoro.core.network
 
 import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import okio.Buffer
-import org.koitharu.kotatsu.core.network.CommonHeaders.ACCEPT_ENCODING
+import org.skepsun.kototoro.core.network.CommonHeaders.ACCEPT_ENCODING
 
 class CurlLoggingInterceptor(
 	private val curlOptions: String? = null

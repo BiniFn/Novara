@@ -32,7 +32,7 @@
 		android:summary="@string/delete_old_backups_summary"
 		android:title="@string/delete_old_backups" />
 
-	<org.koitharu.kotatsu.settings.utils.SliderPreference
+	<org.skepsun.kototoro.settings.utils.SliderPreference
 		android:dependency="backup_periodic_trim"
 		android:key="backup_periodic_count"
 		android:stepSize="1"
@@ -149,13 +149,13 @@
 			android:title="@string/webdav_auto_restore"
 			android:summary="@string/webdav_auto_restore_summary" />
 
-		<!-- Auto sync uploads changes to WebDAV when enabled -->
 		<SwitchPreferenceCompat
 			android:defaultValue="false"
 			android:dependency="backup_periodic_webdav_enabled"
 			android:key="backup_periodic_webdav_auto_sync"
 			android:title="@string/webdav_auto_sync"
 			android:summary="@string/webdav_auto_sync_summary" />
+
 
 		<Preference
 			android:dependency="backup_periodic_webdav_enabled"

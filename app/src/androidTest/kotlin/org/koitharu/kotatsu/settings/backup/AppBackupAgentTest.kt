@@ -1,4 +1,4 @@
-package org.koitharu.kotatsu.settings.backup
+package org.skepsun.kototoro.settings.backup
 
 import android.content.res.AssetManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -14,13 +14,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.koitharu.kotatsu.SampleData
-import org.koitharu.kotatsu.backups.data.BackupRepository
-import org.koitharu.kotatsu.backups.domain.AppBackupAgent
-import org.koitharu.kotatsu.core.db.MangaDatabase
-import org.koitharu.kotatsu.core.db.entity.toMangaTags
-import org.koitharu.kotatsu.favourites.domain.FavouritesRepository
-import org.koitharu.kotatsu.history.data.HistoryRepository
+import org.skepsun.kototoro.SampleData
+import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.AppBackupAgent
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.entity.toMangaTags
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.history.data.HistoryRepository
 import java.io.File
 import javax.inject.Inject
 
@@ -95,7 +95,7 @@ class AppBackupAgentTest {
 		val agent = AppBackupAgent()
 		val backup = File.createTempFile("backup_", ".tmp")
 		InstrumentationRegistry.getInstrumentation().context.assets
-			.open("kotatsu_test.bak", AssetManager.ACCESS_STREAMING)
+			.open("kototoro_test.bak", AssetManager.ACCESS_STREAMING)
 			.use { input ->
 				backup.outputStream().use { output ->
 					input.copyTo(output)

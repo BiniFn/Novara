@@ -23,8 +23,10 @@
 .DS_Store
 /build
 /captures
+keystore
 .externalNativeBuild
 .cxx
 /.idea/deviceManager.xml
 /.kotlin/
 /.idea/AndroidProjectSystem.xml
+*.keystore

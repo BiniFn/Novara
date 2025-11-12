@@ -1,32 +1,48 @@
 pluginManagement {
-	repositories {
-		google {
-			content {
-				includeGroupByRegex("com\\.android.*")
-				includeGroupByRegex("com\\.google.*")
-				includeGroupByRegex("androidx.*")
-			}
-		}
-		mavenCentral()
-		gradlePluginPortal()
-		maven {
-			url 'https://jitpack.io'
-			content {
-				includeGroupByRegex("com\\.github.*")
-			}
-		}
-	}
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+        maven {
+            url 'https://jitpack.io'
+            content {
+                includeGroupByRegex("com\\.github.*")
+            }
+        }
+        // 备用镜像，降低 TLS 握手失败概率（国内网络）
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+    }
 }
 dependencyResolutionManagement {
-	repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-	repositories {
-		google()
-		mavenCentral()
-		maven {
-			url 'https://jitpack.io'
-		}
-	}
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            url 'https://jitpack.io'
+        }
+        // 备用镜像仓库
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+    }
 }
 
 include ':app'
-rootProject.name = "Kotatsu"
+rootProject.name = "Kototoro"
+
+// 使用本地 kototoro-parsers 进行编译：通过复合构建替换远程依赖
+includeBuild('../kototoro-parsers') {
+    dependencySubstitution {
+        // 将远程坐标 com.github.KototoroApp:kototoro-parsers 替换为本地项目
+        substitute module('com.github.KototoroApp:kototoro-parsers') using project(':')
+    }
+}

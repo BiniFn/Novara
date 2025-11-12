@@ -1,0 +1,118 @@
+package org.skepsun.kototoro.tracker.ui.updates
+
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.plus
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.ui.model.DateTimeAgo
+import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
+import org.skepsun.kototoro.core.util.ext.onFirst
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.QuickFilterListener
+import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.list.ui.model.toErrorState
+import org.skepsun.kototoro.tracker.domain.TrackingRepository
+import org.skepsun.kototoro.tracker.domain.UpdatesListQuickFilter
+import org.skepsun.kototoro.tracker.domain.model.MangaTracking
+import javax.inject.Inject
+import org.skepsun.kototoro.local.data.LocalStorageChanges
+import org.skepsun.kototoro.local.domain.model.LocalManga
+import kotlinx.coroutines.flow.SharedFlow
+
+@HiltViewModel
+class UpdatesViewModel @Inject constructor(
+	private val repository: TrackingRepository,
+	settings: AppSettings,
+	private val mangaListMapper: MangaListMapper,
+	private val quickFilter: UpdatesListQuickFilter,
+	mangaDataRepository: MangaDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
+) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+
+	override val content = combine(
+		quickFilter.appliedOptions.flatMapLatest { filterOptions ->
+			repository.observeUpdatedManga(
+				limit = 0,
+				filterOptions = filterOptions,
+			)
+		},
+		quickFilter.appliedOptions,
+		settings.observeAsFlow(AppSettings.KEY_UPDATED_GROUPING) { isUpdatedGroupingEnabled },
+		observeListModeWithTriggers(),
+	) { mangaList, filters, grouping, mode ->
+		when {
+			mangaList.isEmpty() -> listOfNotNull(
+				quickFilter.filterItem(filters),
+				EmptyState(
+					icon = R.drawable.ic_empty_history,
+					textPrimary = R.string.text_history_holder_primary,
+					textSecondary = R.string.text_history_holder_secondary,
+					actionStringRes = 0,
+				),
+			)
+
+			else -> mangaList.toUi(mode, filters, grouping)
+		}
+	}.onStart {
+		loadingCounter.increment()
+	}.onFirst {
+		loadingCounter.decrement()
+	}.catch {
+		emit(listOf(it.toErrorState(canRetry = false)))
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
+
+	init {
+		launchJob(Dispatchers.Default) {
+			repository.gc()
+		}
+	}
+
+	override fun onRefresh() = Unit
+
+	override fun onRetry() = Unit
+
+	fun remove(ids: Set<Long>) {
+		launchJob(Dispatchers.Default) {
+			repository.clearUpdates(ids)
+		}
+	}
+
+	private suspend fun List<MangaTracking>.toUi(
+		mode: ListMode,
+		filters: Set<ListFilterOption>,
+		grouped: Boolean,
+	): List<ListModel> {
+		val result = ArrayList<ListModel>(if (grouped) (size * 1.4).toInt() else size + 1)
+		quickFilter.filterItem(filters)?.let(result::add)
+		var prevHeader: DateTimeAgo? = null
+		for (item in this) {
+			if (grouped) {
+				val header = item.lastChapterDate?.let { calculateTimeAgo(it) }
+				if (header != prevHeader) {
+					if (header != null) {
+						result += ListHeader(header)
+					}
+					prevHeader = header
+				}
+			}
+			result += mangaListMapper.toListModel(item.manga, mode)
+		}
+		return result
+	}
+}
