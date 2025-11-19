@@ -117,14 +117,6 @@ abstract class BaseActivity<B : ViewBinding> :
 	}
 
 	override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-		if (BuildConfig.DEBUG) {
-			if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-				ActivityCompat.recreate(this)
-				return true
-			} else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-				throw RuntimeException("Test crash")
-			}
-		}
 		return super.onKeyDown(keyCode, event)
 	}
 

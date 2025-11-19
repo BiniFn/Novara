@@ -24,9 +24,13 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.core.model.unwrap
 
 class ReadButtonDelegate(
 	private val splitButton: MaterialSplitButton,
@@ -105,24 +109,34 @@ class ReadButtonDelegate(
 		menu.findItem(R.id.action_download)?.isVisible = viewModel.getMangaOrNull()?.isLocal == false
 	}
 
-	private fun openReader(isIncognitoMode: Boolean) {
-		val manga = viewModel.getMangaOrNull() ?: return
-		if (viewModel.historyInfo.value.isChapterMissing) {
-			Snackbar.make(buttonRead, R.string.chapter_is_missing, Snackbar.LENGTH_SHORT)
-				.show() // TODO
-		} else {
-			val intentBuilder = ReaderIntent.Builder(context)
-				.manga(manga)
-				.branch(viewModel.selectedBranchValue)
-			if (isIncognitoMode) {
-				intentBuilder.incognito()
-			}
-			router.openReader(intentBuilder.build())
-			if (isIncognitoMode) {
-				Toast.makeText(context, R.string.incognito_mode, Toast.LENGTH_SHORT).show()
-			}
-		}
-	}
+    private fun openReader(isIncognitoMode: Boolean) {
+        val manga = viewModel.getMangaOrNull() ?: return
+        if (viewModel.historyInfo.value.isChapterMissing) {
+            Snackbar.make(buttonRead, R.string.chapter_is_missing, Snackbar.LENGTH_SHORT)
+                .show() // TODO
+        } else {
+            val intentBuilder = ReaderIntent.Builder(context)
+                .manga(manga)
+                .branch(viewModel.selectedBranchValue)
+
+            // 对视频内容：传入初始 ReaderState（首个章节的 chapterId），用于 AppRouter 异步解析直链
+            runCatching {
+                val source = manga.source.unwrap()
+                if (source is MangaParserSource && source.contentType == ContentType.VIDEO && !manga.chapters.isNullOrEmpty()) {
+                    val preferredBranch = viewModel.selectedBranchValue
+                    val state = ReaderState(manga, preferredBranch)
+                    intentBuilder.state(state)
+                }
+            }.getOrElse { /* 忽略异常，保持默认行为 */ }
+            if (isIncognitoMode) {
+                intentBuilder.incognito()
+            }
+            router.openReader(intentBuilder.build())
+            if (isIncognitoMode) {
+                Toast.makeText(context, R.string.incognito_mode, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
 	private fun onHistoryChanged(isLoading: Boolean, info: HistoryInfo) {
 		val isChaptersLoading = isLoading && (info.totalChapters <= 0 || info.isChapterMissing)

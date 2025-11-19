@@ -4,9 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.content.res.Configuration
 import androidx.appcompat.view.ActionMode
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,6 +26,7 @@ import org.skepsun.kototoro.core.ui.util.ActionModeListener
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.util.ext.doOnPageChanged
 import org.skepsun.kototoro.core.util.ext.findCurrentPagerFragment
 import org.skepsun.kototoro.core.util.ext.menuView
@@ -36,6 +39,7 @@ import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.ReadButtonDelegate
 import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
@@ -48,13 +52,15 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
 	private val viewModel by ChaptersPagesViewModel.ActivityVMLazy(this)
 
+	private var isFoldUnfolded: Boolean = false
+
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetChaptersPagesBinding {
 		return SheetChaptersPagesBinding.inflate(inflater, container, false)
 	}
 
-	override fun onViewBindingCreated(binding: SheetChaptersPagesBinding, savedInstanceState: Bundle?) {
-		super.onViewBindingCreated(binding, savedInstanceState)
-		disableFitToContents()
+		override fun onViewBindingCreated(binding: SheetChaptersPagesBinding, savedInstanceState: Bundle?) {
+			super.onViewBindingCreated(binding, savedInstanceState)
+			disableFitToContents()
 
 		val args = arguments ?: Bundle.EMPTY
 		var defaultTab = args.getInt(AppRouter.KEY_TAB, settings.defaultDetailsTab)
@@ -72,7 +78,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		TabLayoutMediator(binding.tabs, binding.pager, adapter).attach()
 		binding.tabs.addOnTabSelectedListener(this)
 		binding.pager.setCurrentItem(defaultTab, false)
-		binding.tabs.isVisible = adapter.itemCount > 1
+			binding.tabs.isVisible = adapter.itemCount > 1
 
 		val menuProvider = ChapterPagesMenuProvider(viewModel, this, binding.pager, settings)
 		onBackPressedDispatcher.addCallback(viewLifecycleOwner, menuProvider)
@@ -94,6 +100,9 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		} else {
 			PeekHeightController(arrayOf(binding.headerBar, binding.toolbar)).attach()
 		}
+
+		// 观察折叠屏状态并在竖屏展开时缩放分裂阅读按钮至 80%
+		observeFoldableStateForReadButton()
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
@@ -167,6 +176,24 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 			badge.number = counter
 		}
 	}
+
+	private fun observeFoldableStateForReadButton() {
+		val owner = viewLifecycleOwner
+		val foldableState = FoldableUtils.observeFoldableState(requireActivity(), owner)
+		owner.lifecycleScope.launch {
+			foldableState.collect { unfolded ->
+				isFoldUnfolded = unfolded
+				adjustReadSplitButtonScale()
+			}
+		}
+	}
+
+    private fun adjustReadSplitButtonScale() {
+        val binding = viewBinding ?: return
+        // 统一所有场景下为 80% 缩放，避免割裂感
+        binding.splitButtonRead.scaleX = 0.8f
+        binding.splitButtonRead.scaleY = 0.8f
+    }
 
 	companion object {
 

@@ -14,13 +14,13 @@ import androidx.annotation.CheckResult
 import androidx.annotation.UiContext
 import androidx.core.app.ShareCompat
 import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.findFragment
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
@@ -34,6 +34,7 @@ import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.image.CoilMemoryCacheKey
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isBroken
@@ -53,6 +54,7 @@ import org.skepsun.kototoro.core.util.ext.connectivityManager
 import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.core.util.ext.getThemeDrawable
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withArgs
@@ -81,11 +83,16 @@ import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaListFilter
 import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.ellipsize
 import org.skepsun.kototoro.parsers.util.isNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToArray
+import org.skepsun.kototoro.reader.ui.ReaderState
+import org.skepsun.kototoro.core.parser.MangaRepository
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.reader.ui.colorfilter.ColorFilterConfigActivity
 import org.skepsun.kototoro.reader.ui.config.ReaderConfigSheet
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -123,6 +130,10 @@ class AppRouter private constructor(
         EntryPointAccessors.fromApplication<AppRouterEntryPoint>(checkNotNull(contextOrNull())).settings
     }
 
+    private val mangaRepositoryFactory: MangaRepository.Factory by lazy {
+        EntryPointAccessors.fromApplication<AppRouterEntryPoint>(checkNotNull(contextOrNull())).mangaRepositoryFactory
+    }
+
     /** Activities **/
 
     fun openList(source: MangaSource, filter: MangaListFilter?, sortOrder: SortOrder?) {
@@ -157,16 +168,138 @@ class AppRouter private constructor(
     }
 
     fun openReader(manga: Manga, anchor: View? = null) {
-        openReader(
-            ReaderIntent.Builder(contextOrNull() ?: return)
-                .manga(manga)
-                .build(),
-            anchor,
-        )
+        val source = manga.source.unwrap()
+        if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
+            val url = manga.publicUrl
+            val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
+            val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
+                lastSegment.endsWith(".mp4", ignoreCase = true)
+
+            if (isDirectStream) {
+                // 直链视频：若已加载章节，则附带首章 ReaderState 以便统计/保存进度
+                val state = runCatching {
+                    val chapters = manga.chapters
+                    if (!chapters.isNullOrEmpty()) {
+                        org.skepsun.kototoro.reader.ui.ReaderState(manga, null)
+                    } else null
+                }.getOrNull()
+                openVideo(
+                    url = url,
+                    manga = manga,
+                    anchor = anchor,
+                    state = state,
+                )
+            } else {
+                // 非直链：尝试通过仓库解析章节页面找到直链；失败再回退到内置浏览器
+                val owner = activity ?: fragment?.activity
+                if (owner is FragmentActivity) {
+                    owner.lifecycleScope.launch {
+                        try {
+                            val repo = mangaRepositoryFactory.create(manga.source)
+                            val details = repo.getDetails(manga)
+                            val chapter = details.chapters?.firstOrNull()
+                            val pages = if (chapter != null) repo.getPages(chapter) else emptyList()
+                            var streamUrl: String? = null
+                            for (page in pages) {
+                                val link = repo.getPageUrl(page)
+                                val seg = link.toUriOrNull()?.lastPathSegment ?: link
+                                if (seg.endsWith(".m3u8", true) || seg.endsWith(".mp4", true)) {
+                                    streamUrl = link
+                                    break
+                                }
+                            }
+                            if (streamUrl != null) {
+                                openVideo(url = streamUrl, manga = manga, anchor = anchor)
+                            } else {
+                                openBrowser(url = url, source = manga.source, title = manga.title)
+                            }
+                        } catch (_: Throwable) {
+                            openBrowser(url = url, source = manga.source, title = manga.title)
+                        }
+                    }
+                    return
+                } else {
+                    openBrowser(url = url, source = manga.source, title = manga.title)
+                }
+            }
+        } else {
+            openReader(
+                ReaderIntent.Builder(contextOrNull() ?: return)
+                    .manga(manga)
+                    .build(),
+                anchor,
+            )
+        }
     }
 
     fun openReader(intent: ReaderIntent, anchor: View? = null) {
         val activityIntent = intent.intent
+        // Intercept video sources when ReaderIntent carries a Manga extra and route accordingly
+        runCatching {
+            val parcelable = activityIntent.getParcelableExtraCompat<ParcelableManga>(KEY_MANGA)
+            val manga = parcelable?.manga
+            if (manga != null) {
+                val source = manga.source.unwrap()
+                if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
+                    val url = manga.publicUrl
+                    val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
+                    val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
+                        lastSegment.endsWith(".mp4", ignoreCase = true)
+
+                    if (isDirectStream) {
+                        val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                        openVideo(
+                            url = url,
+                            manga = manga,
+                            anchor = anchor,
+                            state = state,
+                        )
+                    } else {
+                        // Try resolve direct stream asynchronously using chapterId from ReaderState
+                        val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                        val owner = activity ?: fragment?.activity
+                        if (state?.chapterId != null && owner is FragmentActivity) {
+                            owner.lifecycleScope.launch {
+                                try {
+                                    val repo = mangaRepositoryFactory.create(manga.source)
+                                    val details = repo.getDetails(manga)
+                                    // 查找目标章节
+                                    val chapter = details.chapters?.firstOrNull { it.id == state.chapterId }
+                                    // 加载页面列表
+                                    val pages = if (chapter != null) repo.getPages(chapter) else emptyList()
+                                    // 依次解析页面直链（避免在非挂起 lambda 内调用挂起函数）
+                                    var streamUrl: String? = null
+                                    for (page in pages) {
+                                        val link = repo.getPageUrl(page)
+                                        val seg = link.toUriOrNull()?.lastPathSegment ?: link
+                                        if (seg.endsWith(".m3u8", true) || seg.endsWith(".mp4", true)) {
+                                            streamUrl = link
+                                            break
+                                        }
+                                    }
+                                    if (streamUrl != null) {
+                                        openVideo(
+                                            url = streamUrl,
+                                            manga = manga,
+                                            anchor = anchor,
+                                            state = state,
+                                        )
+                                    } else {
+                                        openBrowser(url = url, source = manga.source, title = manga.title)
+                                    }
+                                } catch (_: Throwable) {
+                                    openBrowser(url = url, source = manga.source, title = manga.title)
+                                }
+                            }
+                            return
+                        } else {
+                            openBrowser(url = url, source = manga.source, title = manga.title)
+                        }
+                    }
+                    return
+                }
+            }
+        }.getOrElse { /* ignore and fallback to reader */ }
         if (settings.isReaderMultiTaskEnabled && activityIntent.data != null) {
             activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
         }
@@ -190,9 +323,47 @@ class AppRouter private constructor(
     fun openImage(url: String, source: MangaSource?, anchor: View? = null, preview: CoilMemoryCacheKey? = null) {
         startActivity(
             Intent(contextOrNull(), ImageActivity::class.java)
-                .setData(url.toUri())
+                .setData(Uri.parse(url))
                 .putExtra(KEY_SOURCE, source?.name)
                 .putExtra(KEY_PREVIEW, preview),
+            anchor?.let { scaleUpActivityOptionsOf(it) },
+        )
+    }
+
+    fun openVideo(
+        url: String,
+        source: MangaSource?,
+        title: String? = null,
+        anchor: View? = null,
+        state: ReaderState? = null,
+    ) {
+        val ctx = contextOrNull() ?: return
+        startActivity(
+            Intent(ctx, org.skepsun.kototoro.video.ui.VideoPlayerActivity::class.java)
+                .setData(Uri.parse(url))
+                .putExtra(KEY_URL, url)
+                .putExtra(KEY_SOURCE, source?.name)
+                .putExtra(KEY_TITLE, title)
+                .putExtra(ReaderIntent.EXTRA_STATE, state),
+            anchor?.let { scaleUpActivityOptionsOf(it) },
+        )
+    }
+
+    fun openVideo(
+        url: String,
+        manga: Manga,
+        anchor: View? = null,
+        state: ReaderState? = null,
+    ) {
+        val ctx = contextOrNull() ?: return
+        startActivity(
+            Intent(ctx, org.skepsun.kototoro.video.ui.VideoPlayerActivity::class.java)
+                .setData(Uri.parse(url))
+                .putExtra(KEY_URL, url)
+                .putExtra(KEY_SOURCE, manga.source.name)
+                .putExtra(KEY_TITLE, manga.title)
+                .putExtra(KEY_MANGA, ParcelableManga(manga))
+                .putExtra(ReaderIntent.EXTRA_STATE, state),
             anchor?.let { scaleUpActivityOptionsOf(it) },
         )
     }
@@ -424,7 +595,7 @@ class AppRouter private constructor(
             return
         }
         if (manga.isLocal) {
-            manga.url.toUri().toFileOrNull()?.let {
+            manga.url.toUriOrNull()?.toFileOrNull()?.let {
                 shareFile(it)
             }
             return
@@ -608,7 +779,7 @@ class AppRouter private constructor(
 
     private fun startActivity(intent: Intent, options: Bundle? = null) {
         fragment?.also {
-            if (it.host != null) {
+            if (it.isAdded) {
                 it.startActivity(intent, options)
             }
         } ?: activity?.startActivity(intent, options)
@@ -716,7 +887,7 @@ class AppRouter private constructor(
 
         fun cloudFlareResolveIntent(context: Context, exception: CloudFlareProtectedException): Intent =
             Intent(context, CloudFlareActivity::class.java).apply {
-                data = exception.url.toUri()
+                data = Uri.parse(exception.url)
                 putExtra(KEY_SOURCE, exception.source.name)
                 exception.headers[CommonHeaders.USER_AGENT]?.let {
                     putExtra(KEY_USER_AGENT, it)
@@ -729,7 +900,7 @@ class AppRouter private constructor(
             source: MangaSource?,
             title: String?
         ): Intent = Intent(context, BrowserActivity::class.java)
-            .setData(url.toUri())
+            .setData(Uri.parse(url))
             .putExtra(KEY_TITLE, title)
             .putExtra(KEY_SOURCE, source?.name)
 
@@ -800,7 +971,7 @@ class AppRouter private constructor(
 
         fun isShareSupported(manga: Manga): Boolean = when {
             manga.isBroken -> false
-            manga.isLocal -> manga.url.toUri().toFileOrNull() != null
+            manga.isLocal -> manga.url.toUriOrNull()?.toFileOrNull() != null
             else -> true
         }
 
@@ -834,18 +1005,18 @@ class AppRouter private constructor(
         const val KEY_URL = "url"
         const val KEY_USER_AGENT = "user_agent"
 
-        const val ACTION_HISTORY = "${BuildConfig.APPLICATION_ID}.action.MANAGE_HISTORY"
-        const val ACTION_MANAGE_DOWNLOADS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DOWNLOADS"
-        const val ACTION_MANAGE_SOURCES = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCES_LIST"
-        const val ACTION_MANGA_EXPLORE = "${BuildConfig.APPLICATION_ID}.action.EXPLORE_MANGA"
-        const val ACTION_PROXY = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PROXY"
-        const val ACTION_READER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_READER_SETTINGS"
-        const val ACTION_SOURCE = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCE_SETTINGS"
-        const val ACTION_SOURCES = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCES"
-        const val ACTION_MANAGE_DISCORD = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DISCORD"
-        const val ACTION_SUGGESTIONS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SUGGESTIONS"
-        const val ACTION_TRACKER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRACKER"
-        const val ACTION_PERIODIC_BACKUP = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PERIODIC_BACKUP"
+        val ACTION_HISTORY = "${BuildConfig.APPLICATION_ID}.action.MANAGE_HISTORY"
+        val ACTION_MANAGE_DOWNLOADS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DOWNLOADS"
+        val ACTION_MANAGE_SOURCES = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCES_LIST"
+        val ACTION_MANGA_EXPLORE = "${BuildConfig.APPLICATION_ID}.action.EXPLORE_MANGA"
+        val ACTION_PROXY = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PROXY"
+        val ACTION_READER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_READER_SETTINGS"
+        val ACTION_SOURCE = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCE_SETTINGS"
+        val ACTION_SOURCES = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCES"
+        val ACTION_MANAGE_DISCORD = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DISCORD"
+        val ACTION_SUGGESTIONS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SUGGESTIONS"
+        val ACTION_TRACKER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRACKER"
+        val ACTION_PERIODIC_BACKUP = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PERIODIC_BACKUP"
 
         private const val ACCOUNT_KEY = "account"
         private const val ACTION_ACCOUNT_SYNC_SETTINGS = "android.settings.ACCOUNT_SYNC_SETTINGS"

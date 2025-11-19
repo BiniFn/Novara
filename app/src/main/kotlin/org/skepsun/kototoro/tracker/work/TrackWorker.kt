@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.hilt.work.HiltWorker
+import androidx.hilt.work.WorkerAssistedFactory
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -29,6 +30,7 @@ import dagger.Lazy
 import dagger.Reusable
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dagger.assisted.AssistedFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -342,4 +344,7 @@ class TrackWorker @AssistedInject constructor(
 		val BATCH_SIZE = if (BuildConfig.DEBUG) 20 else 46
 		const val SETTINGS_ACTION_CODE = 5
 	}
+
+	@AssistedFactory
+	interface Factory : WorkerAssistedFactory<TrackWorker>
 }

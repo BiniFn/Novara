@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false">
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:keepScreenOn="true"
+        app:show_buffering="when_playing"
+        app:use_controller="false" />
+
+    <!-- 顶部状态栏区域的遮罩（scrim），用于在显示工具栏时让状态栏不透明且与工具栏颜色一致 -->
+    <View
+        android:id="@+id/status_bar_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="?colorSurfaceContainerHigh"
+        android:visibility="gone"
+        android:elevation="4dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?colorSurfaceContainerHigh"
+        android:elevation="8dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:visibility="gone"
+        
+        app:contentInsetStart="8dp"
+        app:contentInsetEnd="8dp"
+        app:contentInsetStartWithNavigation="8dp"
+        app:theme="@style/ThemeOverlay.Kototoro.MainToolbar"
+        app:layout_scrollFlags="scroll|enterAlways"
+        app:popupTheme="@style/ThemeOverlay.Kototoro"
+        app:titleTextAppearance="?textAppearanceTitleSmall"
+        app:titleTextColor="?attr/colorOnSurface"
+        app:subtitleTextColor="?attr/colorOnSurfaceVariant">
+
+        <!-- 顶部工具栏内的短进度条，用于显示播放进度 -->
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/toolbar_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:visibility="gone"
+            android:indeterminate="false"
+            app:trackThickness="4dp"
+            app:indicatorColor="?attr/colorPrimary"
+            app:trackColor="?attr/colorOutline" />
+
+    </com.google.android.material.appbar.MaterialToolbar>
+
+    <!-- 外层 PlayerControlView 包裹 DockedToolbar，使播放控件自动绑定到 ExoPlayer -->
+    <androidx.media3.ui.PlayerControlView
+        android:id="@+id/controller"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:visibility="gone"
+        app:show_timeout="0"
+        app:controller_layout_id="@layout/video_player_docked_toolbar" />
+
+    <!-- 左右双击/长按手势提示浮层 -->
+    <TextView
+        android:id="@+id/overlay_seek_left"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical|start"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:padding="10dp"
+        android:textColor="#FFFFFF"
+        android:text="快退 10 秒"
+        android:background="#88000000"
+        android:elevation="6dp"
+        android:visibility="gone"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/overlay_seek_right"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical|end"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:padding="10dp"
+        android:textColor="#FFFFFF"
+        android:text="快进 10 秒"
+        android:background="#88000000"
+        android:elevation="6dp"
+        android:visibility="gone"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+    <!-- 中部双击播放/暂停提示浮层 -->
+    <TextView
+        android:id="@+id/overlay_play_pause"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:textColor="#FFFFFF"
+        android:text="播放/暂停"
+        android:background="#88000000"
+        android:elevation="6dp"
+        android:visibility="gone"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+</FrameLayout>

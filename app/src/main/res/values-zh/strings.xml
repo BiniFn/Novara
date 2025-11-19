@@ -21,6 +21,9 @@
 <string name="webdav_auto_restore_summary">应用启动时仅检查一次并恢复 WebDAV 上最新备份；恢复完成后仅在内容不一致时可能上传一次以保持远端同步</string>
     <string name="webdav_upload_now">立即上传备份</string>
     <string name="webdav_restore_now">恢复最新备份</string>
+
+    <!-- 内容类型：视频（用于来源筛选标签） -->
+    <string name="content_type_video">视频</string>
     <string name="webdav_upload_success">已上传到 WebDAV</string>
     <string name="recent_webdav_action">最近的 WebDAV 操作</string>
 	<string name="action_upload">上传</string>

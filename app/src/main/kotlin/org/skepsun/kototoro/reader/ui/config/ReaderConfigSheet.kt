@@ -1,16 +1,21 @@
 package org.skepsun.kototoro.reader.ui.config
 
 import android.os.Bundle
+import android.app.Dialog
+import android.content.res.Configuration
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CompoundButton
+import androidx.appcompat.view.ActionMode
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.activityViewModels
 import androidx.transition.TransitionManager
+import com.google.android.material.sidesheet.SideSheetDialog
+import com.google.android.material.sidesheet.SideSheetBehavior
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.slider.Slider
 import dagger.hilt.android.AndroidEntryPoint
@@ -60,6 +65,35 @@ class ReaderConfigSheet :
 
     @Inject
     lateinit var settings: AppSettings
+
+    /**
+     * 在折叠屏展开竖屏或宽屏竖向场景下，将 Reader 设置弹窗改为右侧侧栏 SideSheet。
+     * 其他场景仍保持默认的底部弹窗样式。
+     */
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val context = requireContext()
+        val conf = context.resources.configuration
+        val isPortrait = conf.orientation == Configuration.ORIENTATION_PORTRAIT
+        // 以 600dp 作为宽屏阈值，覆盖折叠竖屏和大屏竖向场景
+        val isWidePortrait = conf.screenWidthDp >= 600
+
+        return if (isPortrait && isWidePortrait) {
+            object : SideSheetDialog(context, theme) {
+                override fun onSupportActionModeStarted(mode: ActionMode?) {
+                    super.onSupportActionModeStarted(mode)
+                    if (mode != null) dispatchSupportActionModeStarted(mode)
+                }
+
+                override fun onSupportActionModeFinished(mode: ActionMode?) {
+                    super.onSupportActionModeFinished(mode)
+                    if (mode != null) dispatchSupportActionModeFinished(mode)
+                }
+            }
+        } else {
+            // 其他场景维持 BaseAdaptiveSheet 默认逻辑（平板为侧栏，手机为底部弹窗）
+            super.onCreateDialog(savedInstanceState)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -62,6 +62,7 @@ val ContentType.titleResId
 		ContentType.MANGA -> R.string.content_type_manga
 		ContentType.HENTAI -> R.string.content_type_hentai
 		ContentType.COMICS -> R.string.content_type_comics
+		ContentType.VIDEO -> R.string.content_type_video
 		ContentType.OTHER -> R.string.content_type_other
 		ContentType.MANHWA -> R.string.content_type_manhwa
 		ContentType.MANHUA -> R.string.content_type_manhua

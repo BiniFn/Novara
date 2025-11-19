@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
+import androidx.hilt.work.WorkerAssistedFactory
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -23,6 +24,7 @@ import androidx.work.await
 import dagger.Reusable
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dagger.assisted.AssistedFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -591,4 +593,7 @@ class DownloadWorker @AssistedInject constructor(
 		const val MAX_RETRY_DELAY = 7_200_000L // 2 hours
 		const val TAG = "download"
 	}
+
+	@AssistedFactory
+	interface Factory : WorkerAssistedFactory<DownloadWorker>
 }

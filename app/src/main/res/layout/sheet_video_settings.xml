@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <org.skepsun.kototoro.core.ui.sheet.AdaptiveSheetHeaderBar
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:title="@string/options" />
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:scrollIndicators="top">
+
+        <LinearLayout
+            android:id="@+id/layout_main"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="@dimen/margin_normal">
+
+            <!-- 屏幕旋转控制：若系统开启自动旋转则显示锁定开关；否则显示手动旋转按钮 -->
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_screen_rotate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/rotate_screen"
+                android:visibility="gone"
+                app:drawableStartCompat="@drawable/ic_screen_rotation"
+                tools:visibility="visible" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_screen_lock_rotation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:drawablePadding="?android:listPreferredItemPaddingStart"
+                android:ellipsize="end"
+                android:minHeight="?android:listPreferredItemHeightSmall"
+                android:paddingStart="?android:listPreferredItemPaddingStart"
+                android:paddingEnd="?android:listPreferredItemPaddingEnd"
+                android:singleLine="true"
+                android:text="@string/lock_screen_rotation"
+                android:textAppearance="?textAppearanceListItem"
+                android:textColor="?colorOnSurfaceVariant"
+                android:visibility="gone"
+                app:drawableStartCompat="@drawable/ic_screen_rotation_lock"
+                tools:visibility="visible" />
+
+            <!-- 清晰度设置：点击打开清晰度选择对话框 -->
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_quality"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/video_quality"
+                app:drawableStartCompat="@drawable/ic_network_cellular" />
+
+            <!-- 预留：后续在此扩展字幕等更多设置项 -->
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

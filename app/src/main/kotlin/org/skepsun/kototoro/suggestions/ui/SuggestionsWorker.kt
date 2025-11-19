@@ -18,6 +18,7 @@ import androidx.core.text.bold
 import androidx.core.text.buildSpannedString
 import androidx.core.text.parseAsHtml
 import androidx.hilt.work.HiltWorker
+import androidx.hilt.work.WorkerAssistedFactory
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -36,6 +37,7 @@ import coil3.request.ImageRequest
 import dagger.Reusable
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dagger.assisted.AssistedFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.map
@@ -477,4 +479,7 @@ class SuggestionsWorker @AssistedInject constructor(
 			SortOrder.RATING,
 		)
 	}
+
+	@AssistedFactory
+	interface Factory : WorkerAssistedFactory<SuggestionsWorker>
 }

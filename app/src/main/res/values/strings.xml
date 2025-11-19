@@ -206,6 +206,9 @@
     <string name="suggestions_info">All data is only analyzed locally on this device and never sent anywhere.</string>
     <string name="text_suggestion_holder">Start reading manga and you will get personalized suggestions</string>
     <string name="exclude_nsfw_from_suggestions">Do not suggest NSFW manga</string>
+    <string name="video_quality">Quality</string>
+    <string name="quality_auto">Auto</string>
+    <string name="quality_select">Select quality</string>
     <string name="enabled">Enabled</string>
     <string name="disabled">Disabled</string>
     <string name="reset_filter">Reset filter</string>
@@ -515,6 +518,7 @@
     <string name="content_type_hentai">Hentai</string>
     <string name="content_type_comics">Comics</string>
     <string name="content_type_other">Other</string>
+    <string name="content_type_video">Video</string>
     <string name="source_summary_pattern" translatable="false">%1$s, %2$s</string>
     <string name="sources_catalog">Sources catalog</string>
     <string name="source_enabled">Source enabled</string>
@@ -568,6 +572,8 @@
     <string name="toggle_ui">Show/hide UI</string>
     <string name="prev_chapter">Previous chapter</string>
     <string name="next_chapter">Next chapter</string>
+    <string name="rewind">Rewind</string>
+    <string name="fast_forward">Fast forward</string>
     <string name="prev_page">Previous page</string>
     <string name="next_page">Next page</string>
     <string name="reader_actions">Reader actions</string>
@@ -935,4 +941,5 @@
     <string name="backup_periodic_explain_keep_local_copy_off">When local copy is off, periodic task uploads only to remote; local last backup time may be empty</string>
     
     <string name="backup_periodic_last_local_empty">Local copy disabled; no local backup time</string>
+    <string name="play">Play</string>
 </resources>

@@ -31,7 +31,7 @@ android {
 		minSdk = 23
 		targetSdk = 36
         versionCode = 1033
-        versionName = '9.4.2'
+        versionName = '0.0.2'
 		generatedDensities = []
 		testInstrumentationRunner 'org.skepsun.kototoro.HiltTestRunner'
 		ksp {
@@ -72,6 +72,7 @@ android {
 			excludes += [
 				'META-INF/README.md',
 				'META-INF/NOTICE.md'
+				,'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
 			]
 		}
 	}
@@ -134,11 +135,11 @@ dependencies {
 	def parsersVersion = libs.versions.parsers.get()
 	if (System.properties.containsKey('parsersVersionOverride')) {
 		// usage:
-		// -DparsersVersionOverride=$(curl -s https://api.github.com/repos/kototoroapp/kototoro-parsers/commits/master -H "Accept: application/vnd.github.sha" | cut -c -10)
+		// -DparsersVersionOverride=$(curl -s https://api.github.com/repos/skepsun/kototoro-parsers/commits/master -H "Accept: application/vnd.github.sha" | cut -c -10)
 		parsersVersion = System.getProperty('parsersVersionOverride')
 	}
 	//noinspection UseTomlInstead
-	implementation("com.github.KototoroApp:kototoro-parsers:$parsersVersion") {
+	implementation("com.github.skepsun:kototoro-parsers:$parsersVersion") {
 		exclude group: 'org.json', module: 'json'
 	}
 
@@ -200,6 +201,12 @@ dependencies {
 	implementation libs.disk.lru.cache
 	implementation libs.markwon
 	implementation libs.kizzyrpc
+
+	// Media3 for video playback
+	implementation libs.androidx.media3.exoplayer
+	implementation libs.androidx.media3.ui
+	implementation libs.androidx.media3.exoplayer.hls
+	implementation libs.androidx.media3.datasource.okhttp
 
 	implementation libs.acra.http
 	implementation libs.acra.dialog

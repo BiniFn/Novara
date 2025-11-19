@@ -48,6 +48,8 @@ import org.skepsun.kototoro.parsers.model.MangaState
 import org.skepsun.kototoro.reader.ui.ReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.reader.ui.ReaderViewModel
+import org.skepsun.kototoro.video.ui.VideoPlayerActivity
+import org.skepsun.kototoro.video.ui.VideoChaptersViewModel
 
 abstract class ChaptersPagesViewModel(
 	@JvmField protected val settings: AppSettings,
@@ -277,6 +279,7 @@ abstract class ChaptersPagesViewModel(
 		private fun getViewModelClass(activity: Activity) = when (activity) {
 			is ReaderActivity -> ReaderViewModel::class.java
 			is DetailsActivity -> DetailsViewModel::class.java
+			is VideoPlayerActivity -> VideoChaptersViewModel::class.java
 			else -> error("Wrong activity ${activity.javaClass.simpleName} for ${ChaptersPagesViewModel::class.java.simpleName}")
 		}
 	}

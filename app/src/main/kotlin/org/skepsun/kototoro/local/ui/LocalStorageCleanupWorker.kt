@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.hilt.work.HiltWorker
+import androidx.hilt.work.WorkerAssistedFactory
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -21,6 +22,7 @@ import androidx.work.WorkerParameters
 import androidx.work.await
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dagger.assisted.AssistedFactory
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.parser.MangaDataRepository
@@ -118,4 +120,7 @@ class LocalStorageCleanupWorker @AssistedInject constructor(
 			WorkManager.getInstance(context).enqueueUniqueWork(TAG, ExistingWorkPolicy.KEEP, request).await()
 		}
 	}
+
+	@AssistedFactory
+	interface Factory : WorkerAssistedFactory<LocalStorageCleanupWorker>
 }

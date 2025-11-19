@@ -248,6 +248,12 @@
 		<activity
 			android:name="org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity"
 			android:label="@string/sources_catalog" />
+
+        <activity
+            android:name="org.skepsun.kototoro.video.ui.VideoPlayerActivity"
+            android:exported="false"
+            android:label="@string/content_type_video"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode" />
 		<activity
 			android:name="org.skepsun.kototoro.scrobbling.kitsu.ui.KitsuAuthActivity"
 			android:exported="false"

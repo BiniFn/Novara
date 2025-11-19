@@ -40,6 +40,7 @@ class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 	MenuItem.OnActionExpandListener,
 	ChipsView.OnChipClickListener {
 
+
 	override val appBar: AppBarLayout
 		get() = viewBinding.appbar
 
@@ -113,7 +114,7 @@ class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 		return true
 	}
 
-	private fun updateFilers(
+    private fun updateFilers(
 		appliedFilter: SourcesCatalogFilter,
 		hasNewSources: Boolean,
 		contentTypes: List<ContentType>,
