@@ -121,6 +121,12 @@
 				android:resource="@xml/remote_action" />
 		</activity>
 		<activity
+			android:name="org.skepsun.kototoro.reader.novel.NovelReaderActivity"
+			android:exported="false"
+			android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+			android:windowSoftInputMode="adjustResize"
+			android:label="@string/content_type_novel" />
+		<activity
 			android:name="org.skepsun.kototoro.search.ui.MangaListActivity"
 			android:exported="true"
 			android:label="@string/manga_list">

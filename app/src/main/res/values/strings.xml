@@ -467,6 +467,17 @@
     <string name="tracker_wifi_only_summary">Do not check for new chapters using metered network connections</string>
     <string name="search_hint">Enter manga title, genre or source name</string>
     <string name="progress">Progress</string>
+    <string name="reader_progress_template">第 %1$d/%2$d 话 · %3$d%%</string>
+    <string name="reader_font_size">字体大小</string>
+    <string name="reader_line_height">行距</string>
+    <string name="reader_margins">边距</string>
+    <string name="reader_mode">阅读模式</string>
+    <string name="reader_mode_default">默认（从左到右翻页）</string>
+    <string name="reader_mode_rtl">从右到左翻页</string>
+    <string name="reader_mode_vertical">从上到下（分页）</string>
+    <string name="reader_mode_vertical_continuous">从上到下（连续）</string>
+    <string name="reader_dual_page">横屏/大屏双栏显示</string>
+    <string name="action_apply">应用</string>
     <string name="order_added">Added</string>
     <string name="show">Show</string>
     <string name="captcha_required_summary">%s requires a captcha to be resolved to work properly</string>

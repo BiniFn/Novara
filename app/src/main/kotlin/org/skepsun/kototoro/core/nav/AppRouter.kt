@@ -90,6 +90,7 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.ellipsize
 import org.skepsun.kototoro.parsers.util.isNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToArray
+import org.skepsun.kototoro.reader.novel.NovelReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.core.parser.MangaRepository
 import kotlinx.coroutines.launch
@@ -167,8 +168,16 @@ class AppRouter private constructor(
         )
     }
 
-    fun openReader(manga: Manga, anchor: View? = null) {
-        val source = manga.source.unwrap()
+	fun openReader(manga: Manga, anchor: View? = null) {
+		val source = manga.source.unwrap()
+        if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
+            startActivity(
+                Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
+                    .putExtra(KEY_MANGA, ParcelableManga(manga)),
+                anchor?.let { scaleUpActivityOptionsOf(it) },
+            )
+            return
+        }
         if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
             val url = manga.publicUrl
             val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
@@ -232,15 +241,23 @@ class AppRouter private constructor(
         }
     }
 
-    fun openReader(intent: ReaderIntent, anchor: View? = null) {
-        val activityIntent = intent.intent
-        // Intercept video sources when ReaderIntent carries a Manga extra and route accordingly
-        runCatching {
-            val parcelable = activityIntent.getParcelableExtraCompat<ParcelableManga>(KEY_MANGA)
-            val manga = parcelable?.manga
-            if (manga != null) {
-                val source = manga.source.unwrap()
-                if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
+	fun openReader(intent: ReaderIntent, anchor: View? = null) {
+		val activityIntent = intent.intent
+		// Intercept video sources when ReaderIntent carries a Manga extra and route accordingly
+		runCatching {
+			val parcelable = activityIntent.getParcelableExtraCompat<ParcelableManga>(KEY_MANGA)
+			val manga = parcelable?.manga
+			if (manga != null) {
+				val source = manga.source.unwrap()
+                if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
+                    startActivity(
+                        Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
+                            .putExtra(KEY_MANGA, ParcelableManga(manga)),
+                        anchor?.let { scaleUpActivityOptionsOf(it) },
+                    )
+                    return
+                }
+				if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
                     val url = manga.publicUrl
                     val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
                     val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
