@@ -21,6 +21,7 @@ class AppValidator @Inject constructor(
 	}
 
 	private companion object {
-		private const val CERT_SHA256 = "67e15100bb809301783edcb6348fa3bbf83034d91e62868a91053dbd70db3f18"
+		// 你的签名证书 SHA256 (从 keystore 提取)
+		private const val CERT_SHA256 = "572e4a38c90c34a985f09e9003db316683 6b03731440 7fce81770131a10027f3"
 	}
 }
