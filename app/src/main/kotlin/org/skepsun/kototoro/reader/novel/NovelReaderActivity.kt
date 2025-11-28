@@ -68,6 +68,9 @@ class NovelReaderActivity :
     @Inject
     lateinit var historyUpdateUseCase: org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
 
+    @Inject
+    lateinit var novelContentLoader: NovelContentLoader
+
     private lateinit var manga: Manga
     private lateinit var repository: MangaRepository
     private lateinit var readerSettings: NovelReaderSettings
@@ -510,10 +513,9 @@ class NovelReaderActivity :
                     return@launch
                 }
                 
-                android.util.Log.d("NovelReaderActivity", "Processing as regular chapter")
-                val html = pages.firstOrNull()?.url?.let(::decodeChapterHtml)
-                    ?: getString(R.string.chapter_is_missing)
-                val plainText = htmlToPlainText(html)
+                android.util.Log.d("NovelReaderActivity", "Processing as regular chapter with cache")
+                // 使用缓存加载器加载章节内容
+                val plainText = novelContentLoader.loadChapterContent(repository, chapter)
                 
                 android.util.Log.d("NovelReaderActivity", "Plain text length: ${plainText.length}")
                 

@@ -56,6 +56,7 @@ import org.skepsun.kototoro.local.data.CacheDir
 import org.skepsun.kototoro.local.data.FaviconCache
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.LocalStorageChanges
+import org.skepsun.kototoro.local.data.NovelCache
 import org.skepsun.kototoro.local.data.PageCache
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.main.domain.CoverRestoreInterceptor
@@ -221,6 +222,18 @@ interface AppModule {
 			dir = CacheDir.FAVICONS,
 			defaultSize = FileSize.MEGABYTES.convert(8, FileSize.BYTES),
 			minSize = FileSize.MEGABYTES.convert(2, FileSize.BYTES),
+		)
+
+		@Provides
+		@Singleton
+		@NovelCache
+		fun provideNovelCache(
+			@ApplicationContext context: Context,
+		) = LocalStorageCache(
+			context = context,
+			dir = CacheDir.NOVELS,
+			defaultSize = FileSize.MEGABYTES.convert(100, FileSize.BYTES),
+			minSize = FileSize.MEGABYTES.convert(10, FileSize.BYTES),
 		)
 	}
 }

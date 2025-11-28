@@ -23,12 +23,14 @@ class VideoCache @Inject constructor(
 ) {
 
 	companion object {
-		// 缓存大小限制：512MB
-		private const val CACHE_SIZE = 512L * 1024 * 1024
+		// 缓存大小限制：1GB（增加缓存容量）
+		private const val CACHE_SIZE = 1024L * 1024 * 1024
 	}
 
 	val cache: Cache by lazy {
-		val cacheDir = File(context.externalCacheDir ?: context.cacheDir, "video_cache")
+		// 优先使用getExternalFilesDir，不容易被系统清理
+		val cacheDir = context.getExternalFilesDir("video_cache")
+			?: File(context.filesDir, "video_cache") // 降级到内部存储
 		val databaseProvider = StandaloneDatabaseProvider(context)
 		val evictor = LeastRecentlyUsedCacheEvictor(CACHE_SIZE)
 		
@@ -47,5 +49,29 @@ class VideoCache @Inject constructor(
 		return runCatching {
 			cache.cacheSpace
 		}.getOrDefault(0L)
+	}
+
+	/**
+	 * 检查缓存健康状态
+	 */
+	fun checkCacheHealth(): Boolean {
+		return runCatching {
+			cache.cacheSpace >= 0
+		}.getOrDefault(false)
+	}
+
+	/**
+	 * 修复缓存（清空并重建）
+	 */
+	fun repairCache() {
+		runCatching {
+			val cacheDir = context.getExternalFilesDir("video_cache")
+				?: File(context.filesDir, "video_cache")
+			if (cacheDir.exists()) {
+				cache.release()
+				cacheDir.deleteRecursively()
+				cacheDir.mkdirs()
+			}
+		}
 	}
 }

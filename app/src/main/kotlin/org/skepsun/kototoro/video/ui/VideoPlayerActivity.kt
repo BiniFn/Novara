@@ -103,6 +103,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             viewBinding.root.postDelayed(this, controllerProgressIntervalMs.toLong())
         }
     }
+    // 定期保存播放进度（每5秒）
+    private val progressSaveIntervalMs = 5000L
+    private val progressSaveRunnable = object : Runnable {
+        override fun run() {
+            savePlaybackProgress()
+            viewBinding.root.postDelayed(this, progressSaveIntervalMs)
+        }
+    }
     // 长按持续快进/快退配置与状态
     private val longSeekIntervalMs = 200
     private val longSeekStepMs = 2000
@@ -588,7 +596,20 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_READY) {
                             tryApplyInitialSeek(exo)
+                            // 播放器准备就绪后启动定期保存
+                            viewBinding.root.removeCallbacks(progressSaveRunnable)
+                            viewBinding.root.postDelayed(progressSaveRunnable, progressSaveIntervalMs)
+                        } else if (playbackState == Player.STATE_ENDED) {
+                            // 播放结束时保存进度
+                            savePlaybackProgress()
+                            saveHistoryProgressAsync()
                         }
+                    }
+                    
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        android.util.Log.e("VideoPlayer", "Playback error", error)
+                        // 播放错误时也保存进度
+                        savePlaybackProgress()
                     }
                 })
                 exo.prepare()
@@ -858,6 +879,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.root.removeCallbacks(hideUiRunnable)
         viewBinding.root.removeCallbacks(progressUpdateRunnable)
         viewBinding.root.removeCallbacks(controllerProgressRunnable)
+        viewBinding.root.removeCallbacks(progressSaveRunnable)
         stopLongSeek()
         super.onStop()
         // 保存当前播放进度（本地与历史）
@@ -870,6 +892,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.root.removeCallbacks(hideUiRunnable)
         viewBinding.root.removeCallbacks(progressUpdateRunnable)
         viewBinding.root.removeCallbacks(controllerProgressRunnable)
+        viewBinding.root.removeCallbacks(progressSaveRunnable)
         stopLongSeek()
         // 兜底保存进度（本地与历史）
         savePlaybackProgress()
@@ -883,11 +906,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val exo = player ?: return
         val id = exo.currentMediaItem?.mediaId ?: return
         val pos = exo.currentPosition
+        val dur = exo.duration
         runCatching {
             getSharedPreferences("video_progress", MODE_PRIVATE)
                 .edit()
                 .putLong(id, pos)
-                .apply()
+                .putLong("${id}_duration", dur)
+                .putLong("${id}_timestamp", System.currentTimeMillis())
+                .commit() // 使用commit()同步保存，确保数据不丢失
+        }.onFailure { e ->
+            android.util.Log.e("VideoPlayer", "Failed to save progress", e)
         }
     }
 
