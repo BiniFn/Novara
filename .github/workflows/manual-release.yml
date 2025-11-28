@@ -45,12 +45,12 @@ jobs:
         fi
     
     - name: Build Release APK
-      env:
-        RELEASE_STORE_FILE: ../release.keystore
-        RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'password' }}
-        RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'release' }}
-        RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'password' }}
-      run: ./gradlew assembleRelease --no-daemon
+      run: |
+        ./gradlew assembleRelease --no-daemon \
+          -PRELEASE_STORE_FILE=../release.keystore \
+          -PRELEASE_STORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD || 'password' }}" \
+          -PRELEASE_KEY_ALIAS="${{ secrets.KEY_ALIAS || 'release' }}" \
+          -PRELEASE_KEY_PASSWORD="${{ secrets.KEY_PASSWORD || 'password' }}"
     
     - name: Get version info
       id: version
