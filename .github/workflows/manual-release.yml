@@ -32,7 +32,6 @@ jobs:
     
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-      working-directory: Kototoro
     
     - name: Setup keystore
       run: |
@@ -44,7 +43,6 @@ jobs:
             -storepass password -keypass password \
             -dname "CN=Kototoro, OU=Dev, O=Kototoro, L=City, S=State, C=CN"
         fi
-      working-directory: Kototoro
     
     - name: Build Release APK
       env:
@@ -53,7 +51,6 @@ jobs:
         RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'release' }}
         RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'password' }}
       run: ./gradlew assembleRelease --no-daemon
-      working-directory: Kototoro
     
     - name: Get version info
       id: version
@@ -62,14 +59,12 @@ jobs:
         VERSION_CODE=$(grep "versionCode" app/build.gradle | awk '{print $3}')
         echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
         echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
-      working-directory: Kototoro
     
     - name: Prepare release files
       run: |
         mkdir -p release
         cp app/build/outputs/apk/release/app-release.apk \
            release/Kototoro-${{ steps.version.outputs.version_name }}.apk
-      working-directory: Kototoro
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -82,7 +77,7 @@ jobs:
           **Version:** ${{ steps.version.outputs.version_name }} (Build ${{ steps.version.outputs.version_code }})
           
           **下载:** Kototoro-${{ steps.version.outputs.version_name }}.apk
-        files: Kototoro/release/*.apk
+        files: release/*.apk
         draft: false
         prerelease: false
       env:
