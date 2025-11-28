@@ -1,0 +1,190 @@
+package org.skepsun.kototoro.local.epub
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.entity.EpubChapterEntity
+import org.skepsun.kototoro.core.ui.CoroutineIntentService
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import java.io.File
+import javax.inject.Inject
+
+@AndroidEntryPoint
+class EpubDownloadService : CoroutineIntentService() {
+
+	@Inject
+	lateinit var database: MangaDatabase
+
+	@Inject
+	lateinit var okHttpClient: OkHttpClient
+
+	private lateinit var notificationManager: NotificationManager
+
+	override fun onCreate() {
+		super.onCreate()
+		notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+		createNotificationChannel()
+	}
+
+	override suspend fun IntentJobContext.processIntent(intent: Intent) {
+		val novelId = intent.getStringExtra(EXTRA_NOVEL_ID) ?: return
+		val volumeId = intent.getStringExtra(EXTRA_VOLUME_ID) ?: return
+		val downloadUrl = intent.getStringExtra(EXTRA_DOWNLOAD_URL) ?: return
+		val token = intent.getStringExtra(EXTRA_AUTH_TOKEN)
+
+		// 启动前台服务
+		val notification = createNotification("准备下载...")
+		setForeground(
+			NOTIFICATION_ID,
+			notification,
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+				ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+			} else {
+				0
+			},
+		)
+
+		try {
+			// 1. 下载EPUB文件
+			updateNotification("正在下载EPUB...")
+			val epubFile = downloadEpubFile(downloadUrl, volumeId, token)
+
+			// 2. 解析EPUB
+			updateNotification("正在解析EPUB...")
+			val parser = NoveliaEpubFile(this@EpubDownloadService, epubFile)
+			val chapters = parser.parseChapters()
+
+			// 3. 保存到数据库
+			updateNotification("正在保存章节...")
+			val entities = chapters.map { chapter ->
+				EpubChapterEntity(
+					id = "$novelId-$volumeId-${chapter.index}",
+					novelId = novelId,
+					volumeId = volumeId,
+					chapterIndex = chapter.index,
+					chapterTitle = chapter.title,
+					chapterUrl = chapter.url,
+					content = chapter.content,
+				)
+			}
+			database.getEpubChapterDao().insertChapters(entities)
+
+			// 4. 完成
+			updateNotification("下载完成！共${chapters.size}章")
+			kotlinx.coroutines.delay(2000)
+
+			// 5. 发送广播通知刷新
+			sendBroadcast(
+				Intent(ACTION_EPUB_DOWNLOADED).apply {
+					putExtra(EXTRA_NOVEL_ID, novelId)
+					putExtra(EXTRA_VOLUME_ID, volumeId)
+					putExtra(EXTRA_CHAPTER_COUNT, chapters.size)
+				},
+			)
+		} catch (e: Exception) {
+			e.printStackTraceDebug()
+			updateNotification("下载失败: ${e.message}")
+			kotlinx.coroutines.delay(3000)
+			throw e
+		}
+	}
+
+	override fun IntentJobContext.onError(error: Throwable) {
+		error.printStackTraceDebug()
+		updateNotification("下载失败: ${error.message}")
+	}
+
+	private suspend fun downloadEpubFile(url: String, volumeId: String, token: String?): File =
+		withContext(Dispatchers.IO) {
+			val cacheDir = File(cacheDir, "epub")
+			if (!cacheDir.exists()) cacheDir.mkdirs()
+
+			val file = File(cacheDir, "$volumeId.epub")
+
+			// 构建请求
+			val requestBuilder = Request.Builder().url(url)
+			if (token != null) {
+				requestBuilder.addHeader("Authorization", "Bearer $token")
+			}
+
+			// 下载文件
+			val response = okHttpClient.newCall(requestBuilder.build()).execute()
+			if (!response.isSuccessful) {
+				throw Exception("下载失败: HTTP ${response.code}")
+			}
+
+			response.body?.byteStream()?.use { input ->
+				file.outputStream().use { output ->
+					input.copyTo(output)
+				}
+			} ?: throw Exception("响应体为空")
+
+			file
+		}
+
+	private fun createNotificationChannel() {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			val channel = NotificationChannel(
+				CHANNEL_ID,
+				"EPUB下载",
+				NotificationManager.IMPORTANCE_LOW,
+			)
+			notificationManager.createNotificationChannel(channel)
+		}
+	}
+
+	private fun createNotification(message: String): Notification =
+		NotificationCompat.Builder(this, CHANNEL_ID)
+			.setContentTitle("EPUB下载")
+			.setContentText(message)
+			.setSmallIcon(R.drawable.ic_download)
+			.setOngoing(true)
+			.build()
+
+	private fun updateNotification(message: String) {
+		notificationManager.notify(NOTIFICATION_ID, createNotification(message))
+	}
+
+	companion object {
+		private const val CHANNEL_ID = "epub_download"
+		private const val NOTIFICATION_ID = 1001
+
+		const val EXTRA_NOVEL_ID = "novel_id"
+		const val EXTRA_VOLUME_ID = "volume_id"
+		const val EXTRA_DOWNLOAD_URL = "download_url"
+		const val EXTRA_AUTH_TOKEN = "auth_token"
+		const val EXTRA_CHAPTER_COUNT = "chapter_count"
+
+		const val ACTION_EPUB_DOWNLOADED = "org.skepsun.kototoro.EPUB_DOWNLOADED"
+
+		fun start(
+			context: Context,
+			novelId: String,
+			volumeId: String,
+			downloadUrl: String,
+			authToken: String? = null,
+		) {
+			val intent = Intent(context, EpubDownloadService::class.java).apply {
+				putExtra(EXTRA_NOVEL_ID, novelId)
+				putExtra(EXTRA_VOLUME_ID, volumeId)
+				putExtra(EXTRA_DOWNLOAD_URL, downloadUrl)
+				if (authToken != null) {
+					putExtra(EXTRA_AUTH_TOKEN, authToken)
+				}
+			}
+			context.startService(intent)
+		}
+	}
+}

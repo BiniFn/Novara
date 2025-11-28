@@ -18,13 +18,10 @@ fun emptyStateListAD(
 	}
 
 	bind {
-		if (item.icon == 0) {
-			binding.icon.isVisible = false
-			binding.icon.disposeImage()
-		} else {
-			binding.icon.isVisible = true
-			binding.icon.setImageAsync(item.icon)
-		}
+		// 始终隐藏图片
+		binding.icon.isVisible = false
+		binding.icon.disposeImage()
+		
 		binding.textPrimary.setText(item.textPrimary)
 		binding.textSecondary.setTextAndVisible(item.textSecondary)
 		if (listener != null) {

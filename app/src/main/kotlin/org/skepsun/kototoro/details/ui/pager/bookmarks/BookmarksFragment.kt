@@ -212,6 +212,7 @@ class BookmarksFragment : BaseFragment<FragmentMangaBookmarksBinding>(),
 			val total = (viewBinding?.recyclerView?.layoutManager as? GridLayoutManager)?.spanCount ?: return 1
 			return when (bookmarksAdapter?.getItemViewType(position)) {
 				ListItemType.PAGE_THUMB.ordinal -> 1
+				ListItemType.NOVEL_BOOKMARK.ordinal -> total
 				else -> total
 			}
 		}

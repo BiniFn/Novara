@@ -202,6 +202,10 @@ dependencies {
 	implementation libs.markwon
 	implementation libs.kizzyrpc
 
+	// EPUB support for Novelia Wenku
+	//noinspection UseTomlInstead
+	implementation 'com.github.ag2s20150909:EpubLib:0.0.1'
+
 	// Media3 for video playback
 	implementation libs.androidx.media3.exoplayer
 	implementation libs.androidx.media3.ui

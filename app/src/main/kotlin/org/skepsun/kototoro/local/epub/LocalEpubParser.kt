@@ -1,0 +1,137 @@
+package org.skepsun.kototoro.local.epub
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.util.longHashCode
+import java.io.File
+import java.util.zip.ZipFile
+
+/**
+ * 本地EPUB文件解析器
+ * 
+ * 功能：
+ * 1. 检测CBZ文件是否包含EPUB
+ * 2. 解析EPUB并提取章节
+ * 3. 生成Manga对象供应用使用
+ */
+class LocalEpubParser(private val cbzFile: File) {
+
+    /**
+     * 检查CBZ文件是否包含EPUB
+     */
+    suspend fun isEpubFile(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            ZipFile(cbzFile).use { zip ->
+                // 检查是否有mimetype文件（EPUB标准）
+                val hasMimetype = zip.getEntry("mimetype") != null
+                if (hasMimetype) {
+                    return@withContext true
+                }
+                
+                // 检查是否有META-INF/container.xml（EPUB标准）
+                val hasContainer = zip.getEntry("META-INF/container.xml") != null
+                if (hasContainer) {
+                    return@withContext true
+                }
+                
+                // 检查是否有.opf文件（EPUB内容文件）
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    if (entry.name.endsWith(".opf", ignoreCase = true)) {
+                        return@withContext true
+                    }
+                }
+                
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("LocalEpubParser", "Failed to check if file is EPUB", e)
+            false
+        }
+    }
+
+    /**
+     * 解析EPUB文件并生成Manga对象
+     */
+    suspend fun parseManga(): Manga? = withContext(Dispatchers.IO) {
+        try {
+            // 使用EpubReader解析EPUB
+            val epubReader = EpubReader()
+            val uri = android.net.Uri.fromFile(cbzFile)
+            val epubContent = epubReader.readEpub(uri) ?: return@withContext null
+            
+            // 生成Manga对象
+            val mangaId = cbzFile.absolutePath.longHashCode()
+            val title = epubContent.title
+            val author = epubContent.author
+            
+            // 生成章节列表
+            val chapters = epubContent.chapters.map { epubChapter ->
+                MangaChapter(
+                    id = "${cbzFile.absolutePath}#chapter${epubChapter.index}".longHashCode(),
+                    title = epubChapter.title,
+                    number = (epubChapter.index + 1).toFloat(),
+                    volume = 0,
+                    // URL格式：file:///path/to/file.cbz#chapter/0
+                    url = "file://${cbzFile.absolutePath}#chapter/${epubChapter.index}",
+                    scanlator = author,
+                    uploadDate = cbzFile.lastModified(),
+                    branch = null,
+                    source = LocalMangaSource,
+                )
+            }
+            
+            Manga(
+                id = mangaId,
+                title = title,
+                altTitles = emptySet(),
+                url = "file://${cbzFile.absolutePath}",
+                publicUrl = cbzFile.absolutePath,
+                rating = -1f,
+                contentRating = null,
+                coverUrl = "", // EPUB封面可以后续添加
+                tags = setOf(
+                    MangaTag(
+                        key = "epub",
+                        title = "EPUB",
+                        source = LocalMangaSource,
+                    ),
+                ),
+                state = MangaState.FINISHED,
+                authors = setOf(author),
+                largeCoverUrl = null,
+                description = "EPUB电子书：$title",
+                chapters = chapters,
+                source = LocalMangaSource,
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("LocalEpubParser", "Failed to parse EPUB", e)
+            null
+        }
+    }
+
+    /**
+     * 获取EPUB章节内容
+     * 
+     * @param chapterIndex 章节索引
+     * @return 章节文本内容
+     */
+    suspend fun getChapterContent(chapterIndex: Int): String? = withContext(Dispatchers.IO) {
+        try {
+            val epubReader = EpubReader()
+            val uri = android.net.Uri.fromFile(cbzFile)
+            val epubContent = epubReader.readEpub(uri) ?: return@withContext null
+            
+            epubContent.chapters.getOrNull(chapterIndex)?.content
+        } catch (e: Exception) {
+            android.util.Log.e("LocalEpubParser", "Failed to get chapter content", e)
+            null
+        }
+    }
+}

@@ -13,12 +13,14 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.bookmarks.data.BookmarkEntity
 import org.skepsun.kototoro.bookmarks.data.BookmarksDao
 import org.skepsun.kototoro.core.db.dao.ChaptersDao
+// import org.skepsun.kototoro.core.db.dao.EpubChapterDao
 import org.skepsun.kototoro.core.db.dao.MangaDao
 import org.skepsun.kototoro.core.db.dao.MangaSourcesDao
 import org.skepsun.kototoro.core.db.dao.PreferencesDao
 import org.skepsun.kototoro.core.db.dao.TagsDao
 import org.skepsun.kototoro.core.db.dao.TrackLogsDao
 import org.skepsun.kototoro.core.db.entity.ChapterEntity
+// import org.skepsun.kototoro.core.db.entity.EpubChapterEntity
 import org.skepsun.kototoro.core.db.entity.MangaEntity
 import org.skepsun.kototoro.core.db.entity.MangaPrefsEntity
 import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
@@ -43,6 +45,7 @@ import org.skepsun.kototoro.core.db.migrations.Migration24To23
 import org.skepsun.kototoro.core.db.migrations.Migration24To25
 import org.skepsun.kototoro.core.db.migrations.Migration25To26
 import org.skepsun.kototoro.core.db.migrations.Migration26To27
+// import org.skepsun.kototoro.core.db.migrations.Migration27To28
 import org.skepsun.kototoro.core.db.migrations.Migration2To3
 import org.skepsun.kototoro.core.db.migrations.Migration3To4
 import org.skepsun.kototoro.core.db.migrations.Migration4To5
@@ -78,6 +81,7 @@ const val DATABASE_VERSION = 27
 		FavouriteCategoryEntity::class, FavouriteEntity::class, MangaPrefsEntity::class, TrackEntity::class,
 		TrackLogEntity::class, SuggestionEntity::class, BookmarkEntity::class, ScrobblingEntity::class,
 		MangaSourceEntity::class, StatsEntity::class, LocalMangaIndexEntity::class,
+		// EpubChapterEntity::class,
 	],
 	version = DATABASE_VERSION,
 )
@@ -112,6 +116,8 @@ abstract class MangaDatabase : RoomDatabase() {
 	abstract fun getLocalMangaIndexDao(): LocalMangaIndexDao
 
 	abstract fun getChaptersDao(): ChaptersDao
+
+	// abstract fun getEpubChapterDao(): EpubChapterDao
 }
 
 fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
@@ -142,6 +148,7 @@ fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
 	Migration24To25(),
 	Migration25To26(),
 	Migration26To27(),
+	// Migration27To28(),
 )
 
 fun MangaDatabase(context: Context): MangaDatabase = Room

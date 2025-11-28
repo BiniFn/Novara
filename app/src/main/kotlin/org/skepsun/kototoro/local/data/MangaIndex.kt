@@ -198,6 +198,28 @@ class MangaIndex(source: String?) {
 		json.toString()
 	}
 
+	fun addHiddenChapterId(chapterId: Long) {
+		val hiddenIds = json.optJSONArray(KEY_HIDDEN_CHAPTERS) ?: JSONArray().also {
+			json.put(KEY_HIDDEN_CHAPTERS, it)
+		}
+		// Check if not already present
+		for (i in 0 until hiddenIds.length()) {
+			if (hiddenIds.getLong(i) == chapterId) {
+				return
+			}
+		}
+		hiddenIds.put(chapterId)
+	}
+
+	fun getHiddenChapterIds(): Set<Long> {
+		val hiddenIds = json.optJSONArray(KEY_HIDDEN_CHAPTERS) ?: return emptySet()
+		val result = mutableSetOf<Long>()
+		for (i in 0 until hiddenIds.length()) {
+			result.add(hiddenIds.getLong(i))
+		}
+		return result
+	}
+
 	companion object {
 
 		private const val KEY_ID = "id"
@@ -230,6 +252,7 @@ class MangaIndex(source: String?) {
 		private const val KEY_KEY = "key"
 		private const val KEY_APP_ID = "app_id"
 		private const val KEY_APP_VERSION = "app_version"
+		private const val KEY_HIDDEN_CHAPTERS = "hidden_chapters"
 
 		@Blocking
 		@WorkerThread

@@ -19,7 +19,8 @@ class ReadingTimeUseCase @Inject constructor(
 		if (!settings.isReadingTimeEstimationEnabled) {
 			return null
 		}
-		val chapters = manga?.chapters?.get(branch)
+		// Use all chapters for global reading time estimation
+		val chapters = manga?.allChapters
 		if (chapters.isNullOrEmpty()) {
 			return null
 		}

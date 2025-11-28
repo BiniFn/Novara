@@ -38,6 +38,7 @@ import org.skepsun.kototoro.databinding.SheetChaptersPagesBinding
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.ReadButtonDelegate
 import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
+import org.skepsun.kototoro.core.model.unwrap
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -64,10 +65,27 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
 		val args = arguments ?: Bundle.EMPTY
 		var defaultTab = args.getInt(AppRouter.KEY_TAB, settings.defaultDetailsTab)
-		val adapter = ChaptersPagesAdapter(this, settings.isPagesTabEnabled)
-		if (!adapter.isPagesTabEnabled) {
+		
+		// 对于小说和视频类型，禁用页面（缩略图）和书签标签
+		// 支持从DetailsViewModel或VideoChaptersViewModel获取内容类型
+		val manga = when (viewModel) {
+			is DetailsViewModel -> (viewModel as DetailsViewModel).manga.value
+			is org.skepsun.kototoro.video.ui.VideoChaptersViewModel -> 
+				(viewModel as org.skepsun.kototoro.video.ui.VideoChaptersViewModel).mangaDetails.value?.toManga()
+			else -> null
+		}
+		val contentType = (manga?.source as? org.skepsun.kototoro.parsers.model.MangaParserSource)?.contentType
+		val isNovel = contentType == org.skepsun.kototoro.parsers.model.ContentType.NOVEL
+		val isVideo = contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO
+		val isPagesTabEnabled = settings.isPagesTabEnabled && !isNovel && !isVideo
+		val isBookmarksTabEnabled = !isVideo // 视频不需要书签功能
+		
+		val adapter = ChaptersPagesAdapter(this, isPagesTabEnabled, isBookmarksTabEnabled)
+		// 调整默认标签，确保不超出可用标签范围
+		if (!isPagesTabEnabled && defaultTab > TAB_CHAPTERS) {
 			defaultTab = (defaultTab - 1).coerceAtLeast(TAB_CHAPTERS)
 		}
+		defaultTab = defaultTab.coerceIn(0, adapter.itemCount - 1)
 		(viewModel as? DetailsViewModel)?.let { dvm ->
 			ReadButtonDelegate(binding.splitButtonRead, dvm, router).attach(viewLifecycleOwner)
 		}

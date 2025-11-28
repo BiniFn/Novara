@@ -136,6 +136,27 @@ class LocalMangaRepository @Inject constructor(
 	}
 
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+		android.util.Log.d("LocalMangaRepository", "getPages: chapter.url=${chapter.url}, title=${chapter.title}")
+		
+		// 检查是否是EPUB章节（URL包含#chapter/）
+		if (chapter.url.contains("#chapter/")) {
+			android.util.Log.d("LocalMangaRepository", "Detected EPUB chapter")
+			// 提取CBZ文件路径
+			val cbzPath = chapter.url.substringBefore("#chapter/").removePrefix("file://")
+			val cbzFile = File(cbzPath)
+			
+			android.util.Log.d("LocalMangaRepository", "CBZ file path: $cbzPath, exists: ${cbzFile.exists()}")
+			
+			if (cbzFile.exists()) {
+				val epubSource = org.skepsun.kototoro.local.epub.LocalEpubSource()
+				val pages = epubSource.getEpubPages(chapter, cbzFile)
+				android.util.Log.d("LocalMangaRepository", "EPUB pages count: ${pages.size}")
+				return pages
+			}
+		}
+		
+		// 普通章节，使用LocalMangaParser
+		android.util.Log.d("LocalMangaRepository", "Using LocalMangaParser for regular chapter")
 		return LocalMangaParser(chapter.url.toUri()).getPages(chapter)
 	}
 

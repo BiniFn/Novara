@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.list.ui.adapter
 
+import androidx.core.view.isVisible
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.skepsun.kototoro.core.util.ext.setTextAndVisible
 import org.skepsun.kototoro.databinding.ItemEmptyCardBinding
@@ -15,7 +16,10 @@ fun emptyHintAD(
 	binding.buttonRetry.setOnClickListener { listener.onEmptyActionClick() }
 
 	bind {
-		binding.icon.setImageAsync(item.icon)
+		// 隐藏图片
+		binding.icon.isVisible = false
+		binding.icon.disposeImage()
+		
 		binding.textPrimary.setText(item.textPrimary)
 		binding.textSecondary.setTextAndVisible(item.textSecondary)
 		binding.buttonRetry.setTextAndVisible(item.actionStringRes)

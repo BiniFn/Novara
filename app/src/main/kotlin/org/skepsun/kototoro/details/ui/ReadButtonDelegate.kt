@@ -119,12 +119,19 @@ class ReadButtonDelegate(
                 .manga(manga)
                 .branch(viewModel.selectedBranchValue)
 
-            // 对视频内容：传入初始 ReaderState（首个章节的 chapterId），用于 AppRouter 异步解析直链
+            // 对视频内容：传入 ReaderState，优先使用历史记录中的状态
             runCatching {
                 val source = manga.source.unwrap()
                 if (source is MangaParserSource && source.contentType == ContentType.VIDEO && !manga.chapters.isNullOrEmpty()) {
-                    val preferredBranch = viewModel.selectedBranchValue
-                    val state = ReaderState(manga, preferredBranch)
+                    val history = viewModel.historyInfo.value.history
+                    val state = if (history != null) {
+                        // 使用历史记录中的状态（包含正确的章节ID）
+                        ReaderState(history)
+                    } else {
+                        // 没有历史记录时，使用第一个章节
+                        val preferredBranch = viewModel.selectedBranchValue
+                        ReaderState(manga, preferredBranch)
+                    }
                     intentBuilder.state(state)
                 }
             }.getOrElse { /* 忽略异常，保持默认行为 */ }
@@ -140,12 +147,29 @@ class ReadButtonDelegate(
 
 	private fun onHistoryChanged(isLoading: Boolean, info: HistoryInfo) {
 		val isChaptersLoading = isLoading && (info.totalChapters <= 0 || info.isChapterMissing)
+		
+		// 根据内容类型选择合适的文案
+		val manga = viewModel.getMangaOrNull()
+		val source = manga?.source?.unwrap()
+		val contentType = (source as? MangaParserSource)?.contentType
+		
+		val readText = when (contentType) {
+			ContentType.VIDEO -> R.string.play // 播放
+			ContentType.NOVEL -> R.string.read // 阅读
+			else -> R.string.read // 默认：阅读
+		}
+		
+		val continueText = when (contentType) {
+			ContentType.VIDEO -> R.string._continue_play // 继续播放
+			else -> R.string._continue // 继续
+		}
+		
 		buttonRead.setText(
 			when {
 				isChaptersLoading -> R.string.loading_
 				info.isIncognitoMode -> R.string.incognito
-				info.canContinue -> R.string._continue
-				else -> R.string.read
+				info.canContinue -> continueText
+				else -> readText
 			},
 		)
 		splitButton.isEnabled = !isChaptersLoading && info.isValid

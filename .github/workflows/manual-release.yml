@@ -1,0 +1,89 @@
+name: Manual Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+      release_notes:
+        description: 'Release notes'
+        required: false
+        type: string
+        default: 'Manual release build'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'gradle'
+    
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      working-directory: Kototoro
+    
+    - name: Setup keystore
+      run: |
+        if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+        else
+          keytool -genkey -v -keystore release.keystore -alias release \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass password -keypass password \
+            -dname "CN=Kototoro, OU=Dev, O=Kototoro, L=City, S=State, C=CN"
+        fi
+      working-directory: Kototoro
+    
+    - name: Build Release APK
+      env:
+        RELEASE_STORE_FILE: ../release.keystore
+        RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'password' }}
+        RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'release' }}
+        RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'password' }}
+      run: ./gradlew assembleRelease --no-daemon
+      working-directory: Kototoro
+    
+    - name: Get version info
+      id: version
+      run: |
+        VERSION_NAME=$(grep "versionName" app/build.gradle | awk -F"'" '{print $2}')
+        VERSION_CODE=$(grep "versionCode" app/build.gradle | awk '{print $3}')
+        echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+        echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+      working-directory: Kototoro
+    
+    - name: Prepare release files
+      run: |
+        mkdir -p release
+        cp app/build/outputs/apk/release/app-release.apk \
+           release/Kototoro-${{ steps.version.outputs.version_name }}.apk
+      working-directory: Kototoro
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ inputs.release_tag }}
+        name: Kototoro ${{ inputs.release_tag }}
+        body: |
+          ${{ inputs.release_notes }}
+          
+          **Version:** ${{ steps.version.outputs.version_name }} (Build ${{ steps.version.outputs.version_code }})
+          
+          **下载:** Kototoro-${{ steps.version.outputs.version_name }}.apk
+        files: Kototoro/release/*.apk
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

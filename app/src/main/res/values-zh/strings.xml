@@ -40,4 +40,7 @@
 
     <string name="backup_periodic_explain_keep_local_copy_off">关闭“保留本地副本”时，周期性任务仅上传到远端；“最近本地备份时间”可能为空</string>
     <string name="backup_periodic_last_local_empty">已关闭保留本地副本；无本地备份时间</string>
+    <string name="play">播放</string>
+    <string name="_continue">继续</string>
+    <string name="_continue_play">继续播放</string>
 </resources>

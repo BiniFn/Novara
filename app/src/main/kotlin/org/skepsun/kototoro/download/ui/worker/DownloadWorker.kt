@@ -54,6 +54,7 @@ import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
 import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.DownloadFormat
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.Throttler
 import org.skepsun.kototoro.core.util.ext.MimeType
@@ -84,6 +85,7 @@ import org.skepsun.kototoro.local.data.PageCache
 import org.skepsun.kototoro.local.data.TempFileFilter
 import org.skepsun.kototoro.local.data.input.LocalMangaParser
 import org.skepsun.kototoro.local.data.output.LocalMangaOutput
+import org.skepsun.kototoro.local.data.output.LocalMangaDirOutput
 import org.skepsun.kototoro.local.domain.MangaLock
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
@@ -93,6 +95,7 @@ import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.requireBody
+import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.domain.PageLoader
 import java.io.File
@@ -205,10 +208,29 @@ class DownloadWorker @AssistedInject constructor(
 				}
 				val repo = mangaRepositoryFactory.create(manga.source)
 				val mangaDetails = if (manga.chapters.isNullOrEmpty() || manga.description.isNullOrEmpty()) repo.getDetails(manga) else manga
+				
+				// 检测是否包含EPUB章节
+				val hasEpubChapters = runCatchingCancellable {
+					val chaptersToCheck = getChapters(mangaDetails, task)
+					chaptersToCheck.any { chapter ->
+						val pages = repo.getPages(chapter.value)
+						pages.size == 1 && pages[0].preview == "EPUB"
+					}
+				}.getOrNull() ?: false
+				
+				// 如果包含EPUB章节，强制使用MULTIPLE_CBZ格式
+				val downloadFormat = if (hasEpubChapters) {
+					println("DownloadWorker: Detected EPUB chapters, using MULTIPLE_CBZ format")
+					android.util.Log.i("DownloadWorker", "Detected EPUB chapters, automatically using MULTIPLE_CBZ format for proper chapter extraction")
+					DownloadFormat.MULTIPLE_CBZ
+				} else {
+					task.format ?: settings.preferredDownloadFormat
+				}
+				
 				output = LocalMangaOutput.getOrCreate(
 					root = destination,
 					manga = mangaDetails,
-					format = task.format ?: settings.preferredDownloadFormat,
+					format = downloadFormat,
 				)
 				val coverUrl = mangaDetails.largeCoverUrl.ifNullOrEmpty { mangaDetails.coverUrl }
 				if (!coverUrl.isNullOrEmpty()) {
@@ -220,13 +242,55 @@ class DownloadWorker @AssistedInject constructor(
 				val chapters = getChapters(mangaDetails, task)
 				for ((chapterIndex, chapter) in chapters.withIndex()) {
 					checkIsPaused()
-					if (chaptersToSkip.remove(chapter.value.id)) {
-						publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
-						continue
-					}
+					
+					// 先获取页面信息，判断是否为EPUB
 					val pages = runFailsafe {
 						repo.getPages(chapter.value)
 					} ?: continue
+					
+					// 调试日志
+					println("DownloadWorker: Chapter ${chapter.index}: ${chapter.value.title}")
+					println("DownloadWorker: Pages count: ${pages.size}")
+					if (pages.isNotEmpty()) {
+						println("DownloadWorker: First page preview: ${pages[0].preview}")
+						println("DownloadWorker: First page url: ${pages[0].url}")
+					}
+					
+					// 检查是否为EPUB章节
+					val isEpubChapter = pages.size == 1 && pages[0].preview == "EPUB"
+					
+					// 对于EPUB章节，即使已下载也要重新下载（替换旧章节）
+					// 对于普通章节，如果已下载则跳过
+					if (!isEpubChapter && chaptersToSkip.remove(chapter.value.id)) {
+						println("DownloadWorker: Skipping already downloaded chapter")
+						publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
+						continue
+					}
+					
+					if (isEpubChapter) {
+						println("DownloadWorker: EPUB detected! Calling downloadEpubChapter")
+						// 从跳过列表中移除（如果存在），确保会被处理
+						chaptersToSkip.remove(chapter.value.id)
+						
+						// 处理EPUB下载
+						val result = runFailsafe {
+							downloadEpubChapter(
+								chapter = chapter,
+								epubUrl = pages[0].url,
+								output = output,
+								destination = destination,
+								repo = repo,
+							)
+							true
+						}
+						if (result == true) {
+							publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
+						}
+						continue
+					} else {
+						println("DownloadWorker: Not EPUB, using normal download")
+					}
+					
 					val pageCounter = AtomicInteger(0)
 					channelFlow {
 						val semaphore = Semaphore(MAX_PAGES_PARALLELISM)
@@ -377,6 +441,7 @@ class DownloadWorker @AssistedInject constructor(
 		url: String,
 		destination: File,
 		source: MangaSource,
+		useProxy: Boolean = true,
 	): File {
 		if (url.startsWith("content:", ignoreCase = true) || url.startsWith("file:", ignoreCase = true)) {
 			val uri = url.toUri()
@@ -399,7 +464,12 @@ class DownloadWorker @AssistedInject constructor(
 		}
 		val request = PageLoader.createPageRequest(url, source)
 		slowdownDispatcher.delay(source)
-		return imageProxyInterceptor.interceptPageRequest(request, okHttp)
+		val response = if (useProxy) {
+			imageProxyInterceptor.interceptPageRequest(request, okHttp)
+		} else {
+			okHttp.newCall(request).await()
+		}
+		return response
 			.ensureSuccess()
 			.use { response ->
 				var file: File? = null
@@ -431,6 +501,108 @@ class DownloadWorker @AssistedInject constructor(
 			append(".tmp")
 		},
 	)
+
+	/**
+	 * 下载EPUB章节
+	 * 
+	 * EPUB本质上是ZIP格式，直接保存为CBZ文件，避免ZIP嵌套
+	 * 
+	 * 特殊处理：
+	 * - 对于LocalMangaDirOutput：使用addEpubChapter直接保存EPUB
+	 * - 对于LocalMangaZipOutput：会导致ZIP嵌套（暂不支持）
+	 */
+	private suspend fun downloadEpubChapter(
+		chapter: IndexedValue<MangaChapter>,
+		epubUrl: String,
+		output: LocalMangaOutput,
+		destination: File,
+		repo: MangaRepository,
+	) {
+		println("DownloadWorker.downloadEpubChapter: Starting EPUB download")
+		println("DownloadWorker.downloadEpubChapter: URL = $epubUrl")
+		println("DownloadWorker.downloadEpubChapter: Destination = ${destination.absolutePath}")
+		
+		// 下载EPUB文件
+		val tempFile = try {
+			println("DownloadWorker.downloadEpubChapter: Calling downloadFile...")
+			val file = downloadFile(epubUrl, destination, repo.source, useProxy = false)
+			println("DownloadWorker.downloadEpubChapter: Downloaded to ${file.absolutePath}, size=${file.length()} bytes")
+			file
+		} catch (e: Exception) {
+			println("DownloadWorker.downloadEpubChapter: Download failed - ${e.javaClass.simpleName}: ${e.message}")
+			e.printStackTrace()
+			throw e
+		}
+		
+		try {
+			// 验证文件是否真的是EPUB/ZIP
+			if (!isValidEpubFile(tempFile)) {
+				println("DownloadWorker.downloadEpubChapter: ERROR - Downloaded file is not a valid EPUB!")
+				println("DownloadWorker.downloadEpubChapter: First 100 bytes: ${readFileHead(tempFile, 100)}")
+				tempFile.deleteAwait()
+				throw IOException("Downloaded file is not a valid EPUB (possible auth error or HTML error page)")
+			}
+			
+			println("DownloadWorker.downloadEpubChapter: File validation passed - is valid EPUB/ZIP")
+			
+			// 重命名为.cbz（EPUB本质上就是ZIP）
+			val cbzFile = if (tempFile.name.endsWith(".cbz", ignoreCase = true)) {
+				tempFile
+			} else {
+				val newFile = File(tempFile.parentFile, "${tempFile.nameWithoutExtension}.cbz")
+				if (tempFile.renameTo(newFile)) {
+					newFile
+				} else {
+					newFile.outputStream().use { output ->
+						tempFile.inputStream().use { input ->
+							input.copyTo(output)
+						}
+					}
+					tempFile.deleteAwait()
+					newFile
+				}
+			}
+			
+			println("DownloadWorker.downloadEpubChapter: Renamed to ${cbzFile.absolutePath}")
+			
+			// 根据output类型选择处理方式
+			when (output) {
+				is LocalMangaDirOutput -> {
+					// MULTIPLE_CBZ格式：保存EPUB并解析章节
+					println("DownloadWorker.downloadEpubChapter: Using MULTIPLE_CBZ format - saving as single chapter")
+					
+					// 保存EPUB文件（不解析内部章节，避免崩溃）
+					output.addEpubChapter(chapter, cbzFile)
+					println("DownloadWorker.downloadEpubChapter: Successfully saved EPUB")
+				}
+				else -> {
+					// SINGLE_CBZ格式：不支持EPUB解析，抛出错误提示用户更改下载格式
+					println("DownloadWorker.downloadEpubChapter: ERROR - SINGLE_CBZ format does not support EPUB chapters")
+					cbzFile.deleteAwait()
+					throw IOException("EPUB chapters require MULTIPLE_CBZ download format. Please change download format in settings to 'Multiple CBZ files' and try again.")
+				}
+			}
+			
+			// 通知本地存储变化
+			runCatchingCancellable {
+				localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+			}.onFailure(Throwable::printStackTraceDebug)
+			
+			println("DownloadWorker.downloadEpubChapter: Completed successfully")
+			
+		} catch (e: Exception) {
+			println("DownloadWorker.downloadEpubChapter: ERROR - ${e.javaClass.simpleName}: ${e.message}")
+			e.printStackTraceDebug()
+			// Clean up the file (might be tempFile or cbzFile depending on where error occurred)
+			tempFile.deleteAwait()
+			// Also try to delete cbzFile if it was created
+			val possibleCbzFile = File(tempFile.parentFile, "${tempFile.nameWithoutExtension}.cbz")
+			if (possibleCbzFile.exists() && possibleCbzFile != tempFile) {
+				possibleCbzFile.deleteAwait()
+			}
+			throw e
+		}
+	}
 
 	private suspend fun publishState(state: DownloadState) {
 		val previousState = currentState
@@ -583,6 +755,55 @@ class DownloadWorker @AssistedInject constructor(
 		private fun createConstraints(allowMeteredNetwork: Boolean) = Constraints.Builder()
 			.setRequiredNetworkType(if (allowMeteredNetwork) NetworkType.CONNECTED else NetworkType.UNMETERED)
 			.build()
+	}
+
+	/**
+	 * 验证文件是否为有效的EPUB/ZIP文件
+	 * EPUB文件本质上是ZIP格式，magic bytes应该是 PK (0x50 0x4B)
+	 */
+	private fun isValidEpubFile(file: File): Boolean {
+		if (!file.exists() || file.length() < 4) {
+			return false
+		}
+		
+		return try {
+			file.inputStream().use { input ->
+				val header = ByteArray(4)
+				val read = input.read(header)
+				if (read < 2) return false
+				
+				// ZIP/EPUB magic bytes: PK\x03\x04 (0x50 0x4B 0x03 0x04)
+				header[0] == 0x50.toByte() && header[1] == 0x4B.toByte()
+			}
+		} catch (e: Exception) {
+			false
+		}
+	}
+
+	/**
+	 * 读取文件头部用于调试
+	 */
+	private fun readFileHead(file: File, maxBytes: Int): String {
+		if (!file.exists()) return "[File does not exist]"
+		
+		return try {
+			file.inputStream().use { input ->
+				val bytes = ByteArray(minOf(maxBytes, file.length().toInt()))
+				input.read(bytes)
+				
+				// 尝试作为文本读取（如果是HTML错误页）
+				val text = String(bytes, Charsets.UTF_8)
+				if (text.contains("<!DOCTYPE", ignoreCase = true) || 
+				    text.contains("<html", ignoreCase = true)) {
+					"[HTML detected] $text"
+				} else {
+					// 显示hex dump
+					bytes.joinToString(" ") { "%02X".format(it) }
+				}
+			}
+		} catch (e: Exception) {
+			"[Error reading file: ${e.message}]"
+		}
 	}
 
 	private companion object {

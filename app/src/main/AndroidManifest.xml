@@ -314,6 +314,10 @@
 			android:foregroundServiceType="dataSync"
 			android:label="@string/local_manga_processing" />
 		<service
+			android:name="org.skepsun.kototoro.local.epub.EpubDownloadService"
+			android:foregroundServiceType="dataSync"
+			android:label="EPUB下载" />
+		<service
 			android:name="org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupService"
 			android:foregroundServiceType="dataSync"
 			android:label="@string/periodic_backups" />

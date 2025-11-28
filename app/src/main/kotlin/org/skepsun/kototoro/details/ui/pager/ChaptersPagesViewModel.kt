@@ -195,10 +195,11 @@ abstract class ChaptersPagesViewModel(
 	fun markChapterAsCurrent(chapterId: Long) {
 		launchJob(Dispatchers.Default) {
 			val manga = mangaDetails.requireValue()
-			val chapters = checkNotNull(manga.chapters[selectedBranch.value])
-			val chapterIndex = chapters.indexOfFirst { it.id == chapterId }
-			check(chapterIndex in chapters.indices) { "Chapter not found" }
-			val percent = chapterIndex / chapters.size.toFloat()
+			// Use all chapters for global progress calculation
+			val allChapters = manga.allChapters
+			val chapterIndex = allChapters.indexOfFirst { it.id == chapterId }
+			check(chapterIndex in allChapters.indices) { "Chapter not found" }
+			val percent = chapterIndex / allChapters.size.toFloat()
 			historyRepository.addOrUpdate(
 				manga = manga.toManga(),
 				chapterId = chapterId,

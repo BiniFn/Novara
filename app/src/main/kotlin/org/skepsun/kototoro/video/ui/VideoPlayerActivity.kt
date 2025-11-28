@@ -73,6 +73,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     @MangaHttpClient
     lateinit var okHttp: OkHttpClient
 
+    @Inject
+    lateinit var videoCache: org.skepsun.kototoro.video.data.VideoCache
+
     private var player: ExoPlayer? = null
     private var isUiVisible: Boolean = false
     private var isFoldUnfolded: Boolean = false
@@ -538,13 +541,20 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun prepareAndPlay(url: String, source: ParsersMangaSource?) {
         // OkHttp DataSource with common headers support via X-Manga-Source
-        val dsFactory = OkHttpDataSource.Factory(okHttp)
+        val upstreamFactory = OkHttpDataSource.Factory(okHttp)
             .setDefaultRequestProperties(
                 mapOf(CommonHeaders.MANGA_SOURCE to (source?.name ?: ""))
             )
 
+        // 使用缓存数据源，支持视频缓存和断点续播
+        val cacheDataSourceFactory = androidx.media3.datasource.cache.CacheDataSource.Factory()
+            .setCache(videoCache.cache)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setCacheWriteDataSinkFactory(null) // 使用默认的缓存写入
+            .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dsFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
             .build()
             .also { exo ->
                 // Avoid direct reference to StyledPlayerView to sidestep IDE/Kotlin type resolution issues
@@ -892,17 +902,25 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private suspend fun restoreInitialSeekPercentFromHistory() {
         val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga ?: return
         val history = runCatching { historyRepository.getOne(manga) }.getOrNull() ?: return
+        android.util.Log.d("VideoPlayer", "Restore history: chapterId=${history.chapterId}, percent=${history.percent}")
+        
         val overall = history.percent
         if (overall !in 0f..1f) return
         val chapters = manga.chapters ?: run {
             // 无章节信息时无法拆分整体百分比，直接使用整体值（退化为单集）
+            android.util.Log.d("VideoPlayer", "No chapters, using overall percent: $overall")
             pendingInitialSeekPercent = overall
             return
         }
+        
         val chapter = chapters.find { it.id == history.chapterId } ?: run {
+            android.util.Log.w("VideoPlayer", "Chapter not found for id=${history.chapterId}, using overall percent")
             pendingInitialSeekPercent = overall
             return
         }
+        
+        android.util.Log.d("VideoPlayer", "Found chapter: ${chapter.name} (id=${chapter.id})")
+        
         val branchChapters = chapters.filter { it.branch == chapter.branch }
         val count = branchChapters.size
         if (count <= 0) {
@@ -912,6 +930,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val idx = branchChapters.indexOfFirst { it.id == chapter.id }.coerceAtLeast(0)
         // 单集百分比 = 整体百分比 * 总集数 - 当前集索引
         val episodePercent = (overall * count - idx).coerceIn(0f, 1f)
+        android.util.Log.d("VideoPlayer", "Calculated episode percent: $episodePercent (idx=$idx, count=$count, overall=$overall)")
         pendingInitialSeekPercent = episodePercent
     }
 
@@ -939,7 +958,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             (pos.toFloat() / dur).coerceIn(0f, 1f)
         } else 0f
 
+        android.util.Log.d("VideoPlayer", "Save progress: pos=$pos, dur=$dur, episodePercent=$episodePercent")
+
         val state = readerState
+        android.util.Log.d("VideoPlayer", "ReaderState: chapterId=${state?.chapterId}, page=${state?.page}")
 
         fun computeSeriesPercent(m: org.skepsun.kototoro.parsers.model.Manga, s: ReaderState, ep: Float): Float {
             val chapters = m.chapters ?: return ep

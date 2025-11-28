@@ -18,8 +18,42 @@ fun MangaDetails.mapChapters(
 	isGrid: Boolean,
 	isDownloadedOnly: Boolean,
 ): List<ChapterListItem> {
-	val remoteChapters = chapters[branch].orEmpty()
-	val localChapters = local?.manga?.getChapters(branch).orEmpty()
+	// 过滤掉EPUB内部章节
+	// 1. URL包含#chapter/的章节（阅读器内部生成的）
+	// 2. 本地下载的EPUB展开章节（通过检查是否只有1个remote章节但有多个local章节来判断）
+	val allRemoteChapters = chapters[branch].orEmpty()
+	val allLocalChapters = local?.manga?.getChapters(branch).orEmpty()
+	
+	// 检查是否为EPUB：
+	// 1. 只有1个remote章节，且URL以.epub结尾
+	// 2. local章节要么是0（未下载），要么远大于1（已下载并展开）
+	val isSingleEpub = allRemoteChapters.size == 1 && 
+		allRemoteChapters.firstOrNull()?.url?.endsWith(".epub", ignoreCase = true) == true
+	val isEpubExpanded = isSingleEpub && allLocalChapters.size > 1
+	
+	// 过滤章节：
+	// 1. 移除URL包含#chapter/的章节（阅读器内部生成的）
+	// 2. 如果有EPUB文件，移除所有.cbz文件（这些是EPUB展开后保存的）
+	val hasEpubChapter = allRemoteChapters.any { it.url.endsWith(".epub", ignoreCase = true) } ||
+		allLocalChapters.any { it.url.endsWith(".epub", ignoreCase = true) }
+	
+	val remoteChapters = allRemoteChapters.filter { chapter ->
+		!chapter.url.contains("#chapter/") && 
+		(!hasEpubChapter || !chapter.url.endsWith(".cbz", ignoreCase = true))
+	}
+	
+	val localChapters = if (isEpubExpanded) {
+		// 如果是EPUB展开的章节，只保留第一个（原始EPUB章节）
+		android.util.Log.d("ChaptersMapper", "Detected EPUB expansion, filtering local chapters")
+		emptyList()
+	} else {
+		allLocalChapters.filter { chapter ->
+			!chapter.url.contains("#chapter/") &&
+			(!hasEpubChapter || !chapter.url.endsWith(".cbz", ignoreCase = true))
+		}
+	}
+
+	
 	if (remoteChapters.isEmpty() && localChapters.isEmpty()) {
 		return emptyList()
 	}

@@ -250,11 +250,15 @@ class AppRouter private constructor(
 			if (manga != null) {
 				val source = manga.source.unwrap()
                 if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
-                    startActivity(
-                        Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
-                            .putExtra(KEY_MANGA, ParcelableManga(manga)),
-                        anchor?.let { scaleUpActivityOptionsOf(it) },
-                    )
+                    // 获取ReaderState并传递给NovelReaderActivity
+                    val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                    val novelIntent = Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
+                        .putExtra(KEY_MANGA, ParcelableManga(manga))
+                    // 传递ReaderState
+                    if (state != null) {
+                        novelIntent.putExtra(ReaderIntent.EXTRA_STATE, state)
+                    }
+                    startActivity(novelIntent, anchor?.let { scaleUpActivityOptionsOf(it) })
                     return
                 }
 				if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {

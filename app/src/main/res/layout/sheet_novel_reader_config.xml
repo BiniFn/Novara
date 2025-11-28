@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/reader_settings"
+            android:textAppearance="?attr/textAppearanceTitleLarge"
+            android:paddingBottom="16dp" />
+
+        <!-- 字体大小 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="字体大小"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+            <TextView
+                android:id="@+id/textFontSizeValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="18sp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorPrimary" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textSize="12sp"
+                android:paddingEnd="8dp" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/sliderFontSize"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="12"
+                android:valueTo="32"
+                android:stepSize="1"
+                android:value="18" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textSize="24sp"
+                android:paddingStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- 行距 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="行距"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+            <TextView
+                android:id="@+id/textLineSpacingValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1.5"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorPrimary" />
+
+        </LinearLayout>
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderLineSpacing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="1.0"
+            android:valueTo="2.5"
+            android:stepSize="0.1"
+            android:value="1.5" />
+
+        <!-- 段落间距 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="段落间距"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+            <TextView
+                android:id="@+id/textParagraphSpacingValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="8dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorPrimary" />
+
+        </LinearLayout>
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderParagraphSpacing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0"
+            android:valueTo="32"
+            android:stepSize="2"
+            android:value="8" />
+
+        <!-- 页边距 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="页边距"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+            <TextView
+                android:id="@+id/textMarginValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="24dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorPrimary" />
+
+        </LinearLayout>
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderMargin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="8"
+            android:valueTo="48"
+            android:stepSize="4"
+            android:value="24" />
+
+        <!-- 双页模式 -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchDualPage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="双页模式（横屏/平板）"
+            android:layout_marginTop="16dp" />
+
+        <!-- 全屏模式 -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchFullscreen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="全屏模式（隐藏状态栏）"
+            android:layout_marginTop="8dp" />
+
+        <!-- 显示页脚 -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchShowFooter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="显示页脚（进度和章节名）"
+            android:layout_marginTop="8dp" />
+
+        <!-- 按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp">
+
+            <!-- 左侧：书签按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonBookmark"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bookmark_add"
+                app:icon="@drawable/ic_bookmark" />
+
+            <!-- 中间：空白占位 -->
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- 右侧：重置和关闭按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonReset"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="重置"
+                android:layout_marginEnd="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonClose"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@android:string/ok" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>

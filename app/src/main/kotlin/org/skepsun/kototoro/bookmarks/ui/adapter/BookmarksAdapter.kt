@@ -2,6 +2,7 @@ package org.skepsun.kototoro.bookmarks.ui.adapter
 
 import android.content.Context
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.ui.BaseListAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
@@ -13,6 +14,8 @@ import org.skepsun.kototoro.list.ui.adapter.listHeaderAD
 import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
 import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
 import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 
 class BookmarksAdapter(
 	clickListener: OnListItemClickListener<Bookmark>,
@@ -21,11 +24,27 @@ class BookmarksAdapter(
 
 	init {
 		addDelegate(ListItemType.PAGE_THUMB, bookmarkLargeAD(clickListener))
+		addDelegate(ListItemType.NOVEL_BOOKMARK, bookmarkNovelAD(clickListener))
 		addDelegate(ListItemType.HEADER, listHeaderAD(headerClickListener))
 		addDelegate(ListItemType.STATE_ERROR, errorStateListAD(null))
 		addDelegate(ListItemType.FOOTER_LOADING, loadingFooterAD())
 		addDelegate(ListItemType.STATE_LOADING, loadingStateAD())
 		addDelegate(ListItemType.STATE_EMPTY, emptyStateListAD(null))
+	}
+
+	override fun getItemViewType(position: Int): Int {
+		val item = items?.getOrNull(position)
+		return when {
+			item is Bookmark -> {
+				val source = item.manga.source.unwrap()
+				if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
+					ListItemType.NOVEL_BOOKMARK.ordinal
+				} else {
+					ListItemType.PAGE_THUMB.ordinal
+				}
+			}
+			else -> super.getItemViewType(position)
+		}
 	}
 
 	override fun getSectionText(context: Context, position: Int): CharSequence? {

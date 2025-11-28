@@ -30,3 +30,7 @@ keystore
 /.kotlin/
 /.idea/AndroidProjectSystem.xml
 *.keystore
+*.jks
+release.keystore
+app/keystore/
+*.sh

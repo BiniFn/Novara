@@ -64,6 +64,9 @@ class LocalMangaParser(private val uri: Uri) {
 				val coverEntry: Path? = index.getCoverEntry()?.let { rootPath / it }?.takeIf {
 					fileSystem.exists(it)
 				}
+				// 获取隐藏的章节ID列表
+				val hiddenChapterIds = index.getHiddenChapterIds()
+				
 				mangaInfo.copy(
 					source = LocalMangaSource,
 					url = rootFile.toUri().toString(),
@@ -73,6 +76,11 @@ class LocalMangaParser(private val uri: Uri) {
 					largeCoverUrl = null,
 					chapters = if (withDetails) {
 						mangaInfo.chapters?.mapNotNull { c ->
+							// 过滤掉隐藏的章节
+							if (c.id in hiddenChapterIds) {
+								return@mapNotNull null
+							}
+							
 							val path = index.getChapterFileName(c.id)?.toPath()
 							if (path != null && !fileSystem.exists(rootPath / path)) {
 								null

@@ -33,7 +33,8 @@ class ProgressUpdateUseCase @Inject constructor(
 			seed
 		}
 		val chapter = details.findChapterById(history.chapterId) ?: return PROGRESS_NONE
-		val chapters = details.getChapters(chapter.branch)
+		// Use all chapters for global progress calculation, not just current branch
+		val chapters = details.chapters ?: emptyList()
 		val chapterRepo = if (repo.source == chapter.source) {
 			repo
 		} else {

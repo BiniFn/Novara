@@ -170,6 +170,120 @@ class LocalMangaDirOutput(
 		File(rootFile, ENTRY_NAME_INDEX).writeText(index.toString())
 	}
 
+	/**
+	 * 添加完整的EPUB章节文件
+	 * 
+	 * EPUB本身就是ZIP格式，直接保存为CBZ文件，不需要再次打包
+	 * 这个方法跳过ZipOutput，直接保存文件并更新index
+	 * 
+	 * 同时解析EPUB内容，为每个EPUB内部章节创建MangaChapter
+	 * 
+	 * 重要：删除原始章节，避免章节重复
+	 */
+	suspend fun addEpubChapter(chapter: IndexedValue<MangaChapter>, epubFile: File) = mutex.withLock {
+		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Starting, epubFile=${epubFile.absolutePath}, exists=${epubFile.exists()}, size=${epubFile.length()}")
+		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Original chapter ID=${chapter.value.id}, title=${chapter.value.title}")
+		
+		// 第一步：记录需要隐藏的原始章节ID（用于过滤在线章节）
+		try {
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Step 1 - Hiding original chapter")
+			
+			// 删除本地章节文件（如果存在）
+			val originalChapterFileName = index.getChapterFileName(chapter.value.id)
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Original chapter file name: $originalChapterFileName")
+			
+			val originalChapterFile = originalChapterFileName?.let {
+				File(rootFile, it)
+			}
+			if (originalChapterFile != null && originalChapterFile.exists()) {
+				android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Deleting original chapter file: ${originalChapterFile.absolutePath}")
+				originalChapterFile.deleteAwait()
+				android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Original chapter file deleted")
+			} else {
+				android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: No original chapter file to delete (file=$originalChapterFile, exists=${originalChapterFile?.exists()})")
+			}
+			
+			// 从index中删除章节记录
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Removing chapter from index")
+			val removed = index.removeChapter(chapter.value.id)
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Chapter removed from index: $removed")
+			
+			// 添加到隐藏列表（用于过滤在线章节）
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Adding chapter to hidden list")
+			index.addHiddenChapterId(chapter.value.id)
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Chapter added to hidden list, hidden IDs: ${index.getHiddenChapterIds()}")
+			
+			android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Step 1 completed - original chapter hidden")
+		} catch (e: Exception) {
+			android.util.Log.e("LocalMangaDirOutput", "addEpubChapter: ERROR in step 1: ${e.message}", e)
+			// 继续执行，不影响EPUB添加
+		}
+		
+		// 第二步：保存EPUB文件
+		val chapterFile = chapterFileName(chapter)
+		val targetFile = File(rootFile, chapterFile)
+		
+		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Target file=${targetFile.absolutePath}")
+		
+		runInterruptible(Dispatchers.IO) {
+			// 复制EPUB文件到目标位置
+			if (!epubFile.renameTo(targetFile)) {
+				println("LocalMangaDirOutput.addEpubChapter: Rename failed, copying instead")
+				targetFile.outputStream().use { output ->
+					epubFile.inputStream().use { input ->
+						input.copyTo(output)
+					}
+				}
+				epubFile.delete()
+			} else {
+				println("LocalMangaDirOutput.addEpubChapter: Rename succeeded")
+			}
+		}
+		
+		println("LocalMangaDirOutput.addEpubChapter: File saved, size=${targetFile.length()}")
+		
+		// 第三步：解析EPUB并添加内部章节
+		try {
+			val epubParser = org.skepsun.kototoro.local.epub.LocalEpubParser(targetFile)
+			val epubManga = epubParser.parseManga()
+			val epubChapters = epubManga?.chapters
+			
+			if (epubChapters != null && epubChapters.isNotEmpty()) {
+				println("LocalMangaDirOutput.addEpubChapter: Found ${epubChapters.size} chapters in EPUB")
+				
+				// 为每个EPUB内部章节创建MangaChapter
+				// 使用原始章节的index作为基础，确保章节顺序正确
+				epubChapters.forEachIndexed { epubChapterIndex, epubChapter ->
+					val subChapter = IndexedValue(
+						index = chapter.index, // 所有EPUB内部章节使用相同的index（原始卷章节的index）
+						value = epubChapter.copy(
+							url = "file://${targetFile.absolutePath}#chapter/$epubChapterIndex",
+							branch = chapter.value.branch,
+							source = org.skepsun.kototoro.core.model.LocalMangaSource,
+						)
+					)
+					index.addChapter(subChapter, chapterFile)
+					println("LocalMangaDirOutput.addEpubChapter: Added EPUB chapter ${epubChapterIndex}: ${epubChapter.title}, ID=${epubChapter.id}")
+				}
+				
+				println("LocalMangaDirOutput.addEpubChapter: Successfully added ${epubChapters.size} EPUB chapters")
+			} else {
+				println("LocalMangaDirOutput.addEpubChapter: Failed to parse EPUB or no chapters found, adding as single chapter")
+				// 如果解析失败，添加为单个章节
+				index.addChapter(chapter, chapterFile)
+			}
+		} catch (e: Exception) {
+			println("LocalMangaDirOutput.addEpubChapter: Error parsing EPUB: ${e.message}")
+			e.printStackTrace()
+			// 出错时添加为单个章节
+			index.addChapter(chapter, chapterFile)
+		}
+		
+		flushIndex()
+		
+		println("LocalMangaDirOutput.addEpubChapter: Index updated successfully")
+	}
+
 	companion object {
 
 		private const val FILENAME_PATTERN = "%08d_%04d%04d"

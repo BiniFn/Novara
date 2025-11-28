@@ -1,0 +1,141 @@
+package org.skepsun.kototoro.local.epub
+
+import android.content.Context
+import me.ag2s.epublib.epub.EpubReader
+import org.jsoup.Jsoup
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import java.io.File
+
+/**
+ * Novelia EPUB文件解析器
+ * 基于Legado的EpubFile实现简化
+ */
+class NoveliaEpubFile(
+	private val context: Context,
+	private val epubFile: File,
+) {
+
+	data class EpubChapter(
+		val index: Int,
+		val title: String,
+		val url: String,
+		val content: String,
+	)
+
+	/**
+	 * 解析EPUB文件，提取所有章节
+	 */
+	fun parseChapters(): List<EpubChapter> {
+		val chapters = mutableListOf<EpubChapter>()
+
+		try {
+			// 使用Legado的EPUB库解析
+			val epubBook = EpubReader().readEpub(epubFile.inputStream())
+
+			// 获取目录
+			val refs = epubBook.tableOfContents.tocReferences
+
+			if (refs.isNullOrEmpty()) {
+				// 如果没有目录，使用spine
+				val spineReferences = epubBook.spine.spineReferences
+				spineReferences.forEachIndexed { index, spineRef ->
+					val resource = spineRef.resource
+					val title = resource.title.ifEmpty { "第${index + 1}章" }
+					val content = extractContent(resource.data)
+
+					chapters.add(
+						EpubChapter(
+							index = index,
+							title = title,
+							url = resource.href,
+							content = content,
+						),
+					)
+				}
+			} else {
+				// 使用目录解析
+				parseTableOfContents(refs, chapters)
+			}
+		} catch (e: Exception) {
+			e.printStackTraceDebug()
+		}
+
+		return chapters
+	}
+
+	private fun parseTableOfContents(
+		refs: List<me.ag2s.epublib.domain.TOCReference>,
+		chapters: MutableList<EpubChapter>,
+		startIndex: Int = 0,
+	): Int {
+		var index = startIndex
+
+		refs.forEach { ref ->
+			if (ref.resource != null) {
+				val content = extractContent(ref.resource.data)
+				chapters.add(
+					EpubChapter(
+						index = index,
+						title = ref.title,
+						url = ref.completeHref,
+						content = content,
+					),
+				)
+				index++
+			}
+
+			// 递归处理子章节
+			if (!ref.children.isNullOrEmpty()) {
+				index = parseTableOfContents(ref.children, chapters, index)
+			}
+		}
+
+		return index
+	}
+
+	/**
+	 * 从HTML中提取纯文本内容
+	 */
+	private fun extractContent(data: ByteArray): String {
+		return try {
+			val html = String(data, Charsets.UTF_8)
+			val doc = Jsoup.parse(html)
+
+			// 移除不需要的标签
+			doc.select("script, style, title").remove()
+
+			// 获取body内容
+			val body = doc.body()
+
+			// 格式化HTML
+			formatHtml(body.html())
+		} catch (e: Exception) {
+			e.printStackTraceDebug()
+			""
+		}
+	}
+
+	/**
+	 * 格式化HTML内容
+	 * 保留基本的段落结构
+	 */
+	private fun formatHtml(html: String): String {
+		// 保留基本的HTML标签用于显示
+		return html
+			.replace(Regex("<br\\s*/?>"), "\n")
+			.replace(Regex("<p[^>]*>"), "\n\n")
+			.replace(Regex("</p>"), "")
+			.replace(Regex("<div[^>]*>"), "\n")
+			.replace(Regex("</div>"), "")
+			.replace(Regex("<h[1-6][^>]*>"), "\n\n")
+			.replace(Regex("</h[1-6]>"), "\n")
+			.replace(Regex("<[^>]+>"), "") // 移除其他HTML标签
+			.replace(Regex("&nbsp;"), " ")
+			.replace(Regex("&lt;"), "<")
+			.replace(Regex("&gt;"), ">")
+			.replace(Regex("&amp;"), "&")
+			.replace(Regex("&quot;"), "\"")
+			.replace(Regex("\\n{3,}"), "\n\n") // 最多保留两个换行
+			.trim()
+	}
+}

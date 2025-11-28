@@ -175,8 +175,13 @@ class ReaderActionsView @JvmOverloads constructor(
 	}
 
 	fun setSliderValue(value: Int, max: Int) {
-		binding.slider.valueTo = max.toFloat()
-		binding.slider.setValueRounded(value.toFloat())
+		// 确保valueTo始终大于valueFrom，避免崩溃
+		// 当max为0时，设置为1（最小有效值）
+		val safeMax = if (max <= 0) 1f else max.toFloat()
+		val safeValue = if (value < 0) 0f else if (value > max) max.toFloat() else value.toFloat()
+		
+		binding.slider.valueTo = safeMax
+		binding.slider.setValueRounded(safeValue)
 	}
 
 	fun setSliderReversed(reversed: Boolean) {
