@@ -234,6 +234,7 @@ class FavouritesRepository @Inject constructor(
 
 	suspend fun addToCategory(categoryId: Long, mangas: Collection<Manga>) {
 		db.withTransaction {
+			val currentTime = System.currentTimeMillis()
 			for (manga in mangas) {
 				val tags = manga.tags.toEntities()
 				db.getTagsDao().upsert(tags)
@@ -241,10 +242,11 @@ class FavouritesRepository @Inject constructor(
 				val entity = FavouriteEntity(
 					mangaId = manga.id,
 					categoryId = categoryId,
-					createdAt = System.currentTimeMillis(),
+					createdAt = currentTime,
 					sortKey = 0,
 					deletedAt = 0L,
 					isPinned = false,
+					updatedAt = currentTime,
 				)
 				db.getFavouritesDao().insert(entity)
 			}

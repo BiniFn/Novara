@@ -147,7 +147,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 		val window = 10
 		var offset = 0
 		while (currentCoroutineContext().isActive) {
-			val list = findAllRaw(offset, window)
+			val list = findAllRawIncludingDeleted(offset, window)
 			if (list.isEmpty()) {
 				break
 			}
@@ -156,6 +156,10 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 		}
 	}
 
+	@Transaction
+	@Query("SELECT * FROM favourites ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+	abstract suspend fun findAllRawIncludingDeleted(offset: Int, limit: Int): List<FavouriteManga>
+
 	/** INSERT **/
 
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -163,32 +167,35 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	/** DELETE **/
 
-	suspend fun delete(mangaId: Long) = setDeletedAt(
-		mangaId = mangaId,
-		deletedAt = System.currentTimeMillis(),
-	)
+	suspend fun delete(mangaId: Long) {
+		val currentTime = System.currentTimeMillis()
+		setDeletedAt(mangaId = mangaId, deletedAt = currentTime)
+		setUpdatedAt(mangaId = mangaId, updatedAt = currentTime)
+	}
 
-	suspend fun delete(mangaId: Long, categoryId: Long) = setDeletedAt(
-		categoryId = categoryId,
-		mangaId = mangaId,
-		deletedAt = System.currentTimeMillis(),
-	)
+	suspend fun delete(mangaId: Long, categoryId: Long) {
+		val currentTime = System.currentTimeMillis()
+		setDeletedAt(categoryId = categoryId, mangaId = mangaId, deletedAt = currentTime)
+		setUpdatedAt(categoryId = categoryId, mangaId = mangaId, updatedAt = currentTime)
+	}
 
-	suspend fun deleteAll(categoryId: Long) = setDeletedAtAll(
-		categoryId = categoryId,
-		deletedAt = System.currentTimeMillis(),
-	)
+	suspend fun deleteAll(categoryId: Long) {
+		val currentTime = System.currentTimeMillis()
+		setDeletedAtAll(categoryId = categoryId, deletedAt = currentTime)
+		setUpdatedAtAll(categoryId = categoryId, updatedAt = currentTime)
+	}
 
-	suspend fun recover(mangaId: Long) = setDeletedAt(
-		mangaId = mangaId,
-		deletedAt = 0L,
-	)
+	suspend fun recover(mangaId: Long) {
+		val currentTime = System.currentTimeMillis()
+		setDeletedAt(mangaId = mangaId, deletedAt = 0L)
+		setUpdatedAt(mangaId = mangaId, updatedAt = currentTime)
+	}
 
-	suspend fun recover(categoryId: Long, mangaId: Long) = setDeletedAt(
-		categoryId = categoryId,
-		mangaId = mangaId,
-		deletedAt = 0L,
-	)
+	suspend fun recover(categoryId: Long, mangaId: Long) {
+		val currentTime = System.currentTimeMillis()
+		setDeletedAt(categoryId = categoryId, mangaId = mangaId, deletedAt = 0L)
+		setUpdatedAt(categoryId = categoryId, mangaId = mangaId, updatedAt = currentTime)
+	}
 
 	@Query("DELETE FROM favourites WHERE deleted_at != 0 AND deleted_at < :maxDeletionTime")
 	abstract suspend fun gc(maxDeletionTime: Long)
@@ -197,6 +204,19 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	@Upsert
 	abstract suspend fun upsert(entity: FavouriteEntity)
+
+	/**
+	 * Smart merge for backup restore: only update if remote is newer
+	 */
+	suspend fun mergeWithTimestamp(remote: FavouriteEntity) {
+		val local = findByPrimaryKey(remote.mangaId, remote.categoryId)
+		if (local == null || remote.updatedAt >= local.updatedAt) {
+			upsert(remote)
+		}
+	}
+
+	@Query("SELECT * FROM favourites WHERE manga_id = :mangaId AND category_id = :categoryId LIMIT 1")
+	abstract suspend fun findByPrimaryKey(mangaId: Long, categoryId: Long): FavouriteEntity?
 
 	@Transaction
 	@RawQuery(observedEntities = [FavouriteEntity::class])
@@ -213,6 +233,15 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	@Query("UPDATE favourites SET deleted_at = :deletedAt WHERE category_id = :categoryId AND deleted_at = 0")
 	protected abstract suspend fun setDeletedAtAll(categoryId: Long, deletedAt: Long)
+
+	@Query("UPDATE favourites SET updated_at = :updatedAt WHERE manga_id = :mangaId")
+	protected abstract suspend fun setUpdatedAt(mangaId: Long, updatedAt: Long)
+
+	@Query("UPDATE favourites SET updated_at = :updatedAt WHERE manga_id = :mangaId AND category_id = :categoryId")
+	protected abstract suspend fun setUpdatedAt(categoryId: Long, mangaId: Long, updatedAt: Long)
+
+	@Query("UPDATE favourites SET updated_at = :updatedAt WHERE category_id = :categoryId AND deleted_at = 0")
+	protected abstract suspend fun setUpdatedAtAll(categoryId: Long, updatedAt: Long)
 
 	private fun getOrderBy(sortOrder: ListSortOrder) = when (sortOrder) {
 		ListSortOrder.RATING -> "manga.rating DESC"

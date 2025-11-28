@@ -15,6 +15,7 @@ data class FavouriteSyncDto(
 	@SerialName("pinned") val pinned: Boolean,
 	@SerialName("created_at") val createdAt: Long,
 	@SerialName("deleted_at") var deletedAt: Long,
+	@SerialName("updated_at") val updatedAt: Long = 0L,
 ) {
 
 	constructor(cursor: Cursor, manga: MangaSyncDto) : this(
@@ -25,14 +26,16 @@ data class FavouriteSyncDto(
 		pinned = cursor.getBoolean(cursor.getColumnIndexOrThrow("pinned")),
 		createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
 		deletedAt = cursor.getLong(cursor.getColumnIndexOrThrow("deleted_at")),
+		updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at")),
 	)
 
-	fun toContentValues() = buildContentValues(6) {
+	fun toContentValues() = buildContentValues(7) {
 		put("manga_id", mangaId)
 		put("category_id", categoryId)
 		put("sort_key", sortKey)
 		put("pinned", pinned)
 		put("created_at", createdAt)
 		put("deleted_at", deletedAt)
+		put("updated_at", updatedAt)
 	}
 }

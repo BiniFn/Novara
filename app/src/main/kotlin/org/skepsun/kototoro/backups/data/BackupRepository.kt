@@ -172,7 +172,7 @@ class BackupRepository @Inject constructor(
 
                     BackupSection.FAVOURITES -> input.readJsonArray<FavouriteBackup>(serializer()).restoreToDb {
                         upsertManga(it.manga)
-                        getFavouritesDao().upsert(it.toEntity())
+                        getFavouritesDao().mergeWithTimestamp(it.toEntity())
                     }
 
                     BackupSection.SETTINGS -> input.readMap().let {

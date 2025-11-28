@@ -31,4 +31,5 @@ data class FavouriteEntity(
 	@ColumnInfo(name = "pinned") val isPinned: Boolean,
 	@ColumnInfo(name = "created_at") val createdAt: Long,
 	@ColumnInfo(name = "deleted_at") val deletedAt: Long,
+	@ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

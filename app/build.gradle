@@ -248,3 +248,16 @@ dependencies {
 	androidTestImplementation libs.hilt.android.testing
 	kspAndroidTest libs.hilt.android.compiler
 }
+
+// Tasks for CI/CD to get version info
+tasks.register('printVersionName') {
+	doLast {
+		println android.defaultConfig.versionName
+	}
+}
+
+tasks.register('printVersionCode') {
+	doLast {
+		println android.defaultConfig.versionCode
+	}
+}

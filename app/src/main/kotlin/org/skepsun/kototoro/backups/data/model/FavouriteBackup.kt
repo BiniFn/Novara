@@ -13,6 +13,8 @@ class FavouriteBackup(
 	@SerialName("sort_key") val sortKey: Int = 0,
 	@SerialName("pinned") val isPinned: Boolean = false,
 	@SerialName("created_at") val createdAt: Long,
+	@SerialName("deleted_at") val deletedAt: Long = 0L,
+	@SerialName("updated_at") val updatedAt: Long = 0L,
 	@SerialName("manga") val manga: MangaBackup,
 ) {
 
@@ -22,6 +24,8 @@ class FavouriteBackup(
 		sortKey = entity.favourite.sortKey,
 		isPinned = entity.favourite.isPinned,
 		createdAt = entity.favourite.createdAt,
+		deletedAt = entity.favourite.deletedAt,
+		updatedAt = entity.favourite.updatedAt,
 		manga = MangaBackup(MangaWithTags(entity.manga, entity.tags)),
 	)
 
@@ -31,6 +35,7 @@ class FavouriteBackup(
 		sortKey = sortKey,
 		isPinned = isPinned,
 		createdAt = createdAt,
-		deletedAt = 0L,
+		deletedAt = deletedAt,
+		updatedAt = updatedAt,
 	)
 }

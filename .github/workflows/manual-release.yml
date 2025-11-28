@@ -55,10 +55,12 @@ jobs:
     - name: Get version info
       id: version
       run: |
-        VERSION_NAME=$(grep "versionName" app/build.gradle | awk -F"'" '{print $2}')
-        VERSION_CODE=$(grep "versionCode" app/build.gradle | awk '{print $3}')
+        # Use Gradle to get version info (handles Groovy expressions)
+        VERSION_NAME=$(./gradlew -q printVersionName --no-daemon | tail -n 1)
+        VERSION_CODE=$(./gradlew -q printVersionCode --no-daemon | tail -n 1)
         echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
         echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION_NAME ($VERSION_CODE)"
     
     - name: Prepare release files
       run: |
