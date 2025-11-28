@@ -58,11 +58,22 @@ jobs:
         echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
         echo "Version: $VERSION_NAME ($VERSION_CODE)"
     
+    - name: List build outputs
+      run: |
+        echo "Listing APK outputs:"
+        find app/build/outputs/apk -name "*.apk" -type f
+    
     - name: Rename APK
       run: |
         mkdir -p release
-        cp app/build/outputs/apk/release/app-release.apk \
-           release/Kototoro-${{ steps.version.outputs.version_name }}-release.apk
+        # Find the release APK (handles different naming patterns)
+        APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
+        if [ -z "$APK_FILE" ]; then
+          echo "Error: No APK file found in app/build/outputs/apk/release"
+          exit 1
+        fi
+        echo "Found APK: $APK_FILE"
+        cp "$APK_FILE" release/Kototoro-${{ steps.version.outputs.version_name }}-release.apk
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
