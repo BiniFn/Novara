@@ -131,6 +131,16 @@ hilt {
     // Enable aggregating task for KSP/Hilt to avoid generic assisted factory validation issues in release
     enableAggregatingTask = true
 }
+
+// 配置SNAPSHOT版本的缓存策略
+configurations.all {
+	resolutionStrategy {
+		// SNAPSHOT版本缓存1小时，开发时可以改为0秒
+		cacheChangingModulesFor 1, 'hours'
+		// 或者完全禁用缓存：cacheChangingModulesFor 0, 'seconds'
+	}
+}
+
 dependencies {
 	def parsersVersion = libs.versions.parsers.get()
 	if (System.properties.containsKey('parsersVersionOverride')) {
