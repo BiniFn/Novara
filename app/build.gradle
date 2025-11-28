@@ -19,10 +19,13 @@ android {
 
 	signingConfigs {
 		release {
-			storeFile file(RELEASE_STORE_FILE)
-			storePassword RELEASE_STORE_PASSWORD
-			keyAlias RELEASE_KEY_ALIAS
-			keyPassword RELEASE_KEY_PASSWORD
+			// Only configure signing if properties are provided
+			if (project.hasProperty('RELEASE_STORE_FILE')) {
+				storeFile file(RELEASE_STORE_FILE)
+				storePassword RELEASE_STORE_PASSWORD
+				keyAlias RELEASE_KEY_ALIAS
+				keyPassword RELEASE_KEY_PASSWORD
+			}
 		}
 	}
 
@@ -56,7 +59,10 @@ android {
 			minifyEnabled true
 			shrinkResources true
 			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-			signingConfig signingConfigs.release
+			// Only apply signing config if it's properly configured
+			if (project.hasProperty('RELEASE_STORE_FILE')) {
+				signingConfig signingConfigs.release
+			}
 		}
 		nightly {
 			initWith release
@@ -102,9 +108,6 @@ android {
 			'-Xtype-enhancement-improvements-strict-mode'
 		]
 	}
-	room {
-		schemaDirectory "$projectDir/schemas"
-	}
 	lint {
 		abortOnError true
 		checkReleaseBuilds false
@@ -127,6 +130,11 @@ android {
 		}
 	}
 }
+
+room {
+	schemaDirectory("$projectDir/schemas")
+}
+
 hilt {
     // Enable aggregating task for KSP/Hilt to avoid generic assisted factory validation issues in release
     enableAggregatingTask = true
