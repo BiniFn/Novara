@@ -128,8 +128,17 @@ class LocalMangaRepository @Inject constructor(
 	}
 
 	override suspend fun getDetails(manga: Manga): Manga = when {
-		!manga.isLocal -> requireNotNull(findSavedManga(manga, withDetails = true)?.manga) {
-			"Manga is not local or saved"
+		!manga.isLocal -> {
+			// For saved manga, always re-parse from disk to get fresh chapter data
+			// This ensures we get updated chapters after EPUB download/extraction
+			// Bypass localMangaIndex cache by using LocalMangaParser.find directly
+			val parser = LocalMangaParser.find(storageManager.getReadableDirs(), manga)
+			if (parser != null) {
+				// Parse directly from disk to get fresh data
+				parser.getManga(withDetails = true).manga
+			} else {
+				throw IllegalArgumentException("Manga is not local or saved")
+			}
 		}
 
 		else -> LocalMangaParser(manga.url.toUri()).getManga(withDetails = true).manga
@@ -138,21 +147,27 @@ class LocalMangaRepository @Inject constructor(
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
 		android.util.Log.d("LocalMangaRepository", "getPages: chapter.url=${chapter.url}, title=${chapter.title}")
 		
-		// 检查是否是EPUB章节（URL包含#chapter/）
-		if (chapter.url.contains("#chapter/")) {
-			android.util.Log.d("LocalMangaRepository", "Detected EPUB chapter")
-			// 提取CBZ文件路径
-			val cbzPath = chapter.url.substringBefore("#chapter/").removePrefix("file://")
-			val cbzFile = File(cbzPath)
-			
-			android.util.Log.d("LocalMangaRepository", "CBZ file path: $cbzPath, exists: ${cbzFile.exists()}")
-			
-			if (cbzFile.exists()) {
-				val epubSource = org.skepsun.kototoro.local.epub.LocalEpubSource()
-				val pages = epubSource.getEpubPages(chapter, cbzFile)
-				android.util.Log.d("LocalMangaRepository", "EPUB pages count: ${pages.size}")
-				return pages
-			}
+		// NEW ARCHITECTURE: EPUB chapters use epub:// protocol
+		if (chapter.url.startsWith("epub://")) {
+			android.util.Log.d("LocalMangaRepository", "EPUB chapter detected (new architecture)")
+			// Return a special page that will be handled by NovelContentLoader
+			return listOf(
+				MangaPage(
+					id = 0,
+					url = chapter.url,
+					preview = null,
+					source = LocalMangaSource,
+				)
+			)
+		}
+		
+		// Legacy EPUB chapters with file://path#chapter/N format are no longer supported
+		// Users need to re-download to use the new architecture
+		if (chapter.url.contains("#chapter/") && chapter.url.startsWith("file://")) {
+			android.util.Log.w("LocalMangaRepository", "Legacy EPUB chapter format detected: ${chapter.url}")
+			android.util.Log.w("LocalMangaRepository", "Please re-download this manga to use the new EPUB architecture")
+			// Return empty list to indicate unsupported format
+			return emptyList()
 		}
 		
 		// 普通章节，使用LocalMangaParser

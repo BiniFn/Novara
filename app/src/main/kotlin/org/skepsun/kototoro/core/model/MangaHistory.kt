@@ -13,4 +13,5 @@ data class MangaHistory(
 	val scroll: Int,
 	val percent: Float,
 	val chaptersCount: Int,
+	val parentChapterId: Long? = null,  // EPUB父章节ID，用于支持内部章节
 ) : Parcelable

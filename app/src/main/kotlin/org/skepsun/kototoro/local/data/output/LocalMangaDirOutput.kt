@@ -173,16 +173,35 @@ class LocalMangaDirOutput(
 	/**
 	 * 添加完整的EPUB章节文件
 	 * 
-	 * EPUB本身就是ZIP格式，直接保存为CBZ文件，不需要再次打包
+	 * EPUB本身就是ZIP格式，保存为.epub文件以符合标准
 	 * 这个方法跳过ZipOutput，直接保存文件并更新index
 	 * 
 	 * 同时解析EPUB内容，为每个EPUB内部章节创建MangaChapter
 	 * 
 	 * 重要：删除原始章节，避免章节重复
+	 * 
+	 * Requirements: 1.1, 1.2, 1.3, 2.1, 2.6, 5.1, 5.3
+	 * - 1.1: Preserve .epub extension
+	 * - 1.2: Do not convert EPUB to CBZ
+	 * - 1.3: Store in appropriate directory structure
+	 * - 2.1: Extract all spine references as individual chapters
+	 * - 2.6: Assign stable unique IDs to each internal chapter
+	 * - 5.1: Use formula for ID generation
+	 * - 5.3: Persist chapter mappings to database
 	 */
-	suspend fun addEpubChapter(chapter: IndexedValue<MangaChapter>, epubFile: File) = mutex.withLock {
+	suspend fun addEpubChapter(
+		chapter: IndexedValue<MangaChapter>, 
+		epubFile: File,
+		epubChapterMappingDao: org.skepsun.kototoro.core.db.dao.EpubChapterMappingDao? = null
+	) = mutex.withLock {
 		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Starting, epubFile=${epubFile.absolutePath}, exists=${epubFile.exists()}, size=${epubFile.length()}")
 		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Original chapter ID=${chapter.value.id}, title=${chapter.value.title}")
+		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: File extension=${epubFile.extension}")
+		
+		// Verify the file has .epub extension (Requirement 1.1)
+		if (epubFile.extension != "epub") {
+			android.util.Log.w("LocalMangaDirOutput", "addEpubChapter: WARNING - File does not have .epub extension: ${epubFile.extension}")
+		}
 		
 		// 第一步：记录需要隐藏的原始章节ID（用于过滤在线章节）
 		try {
@@ -219,14 +238,16 @@ class LocalMangaDirOutput(
 			// 继续执行，不影响EPUB添加
 		}
 		
-		// 第二步：保存EPUB文件
-		val chapterFile = chapterFileName(chapter)
-		val targetFile = File(rootFile, chapterFile)
+		// 第二步：保存EPUB文件（保持.epub扩展名，Requirement 1.1 & 1.2）
+		// Generate filename that preserves .epub extension
+		val chapterFileName = generateEpubChapterFileName(chapter, epubFile)
+		val targetFile = File(rootFile, chapterFileName)
 		
 		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Target file=${targetFile.absolutePath}")
+		android.util.Log.i("LocalMangaDirOutput", "addEpubChapter: Target extension=${targetFile.extension}")
 		
 		runInterruptible(Dispatchers.IO) {
-			// 复制EPUB文件到目标位置
+			// 复制EPUB文件到目标位置，保持.epub扩展名
 			if (!epubFile.renameTo(targetFile)) {
 				println("LocalMangaDirOutput.addEpubChapter: Rename failed, copying instead")
 				targetFile.outputStream().use { output ->
@@ -240,9 +261,10 @@ class LocalMangaDirOutput(
 			}
 		}
 		
-		println("LocalMangaDirOutput.addEpubChapter: File saved, size=${targetFile.length()}")
+		println("LocalMangaDirOutput.addEpubChapter: File saved with .epub extension, size=${targetFile.length()}")
 		
 		// 第三步：解析EPUB并添加内部章节
+		// Requirements 2.1, 2.6, 5.1, 5.3
 		try {
 			val epubParser = org.skepsun.kototoro.local.epub.LocalEpubParser(targetFile)
 			val epubManga = epubParser.parseManga()
@@ -251,37 +273,103 @@ class LocalMangaDirOutput(
 			if (epubChapters != null && epubChapters.isNotEmpty()) {
 				println("LocalMangaDirOutput.addEpubChapter: Found ${epubChapters.size} chapters in EPUB")
 				
+				// Initialize ChapterIdGenerator for stable ID generation (Requirement 5.1)
+				val chapterIdGenerator = org.skepsun.kototoro.local.epub.ChapterIdGeneratorImpl()
+				
+				// Prepare list of chapter mappings for database storage (Requirement 5.3)
+				val chapterMappings = mutableListOf<org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity>()
+				
 				// 为每个EPUB内部章节创建MangaChapter
 				// 使用原始章节的index作为基础，确保章节顺序正确
+				// Extract all spine references as individual chapters (Requirement 2.1)
 				epubChapters.forEachIndexed { epubChapterIndex, epubChapter ->
+					// Generate stable unique ID for internal chapter (Requirement 2.6, 5.1)
+					val internalChapterId = chapterIdGenerator.generateEpubChapterId(
+						parentChapterId = chapter.value.id,
+						chapterIndex = epubChapterIndex
+					)
+					
 					val subChapter = IndexedValue(
 						index = chapter.index, // 所有EPUB内部章节使用相同的index（原始卷章节的index）
 						value = epubChapter.copy(
+							id = internalChapterId, // Use generated stable ID
 							url = "file://${targetFile.absolutePath}#chapter/$epubChapterIndex",
 							branch = chapter.value.branch,
 							source = org.skepsun.kototoro.core.model.LocalMangaSource,
 						)
 					)
-					index.addChapter(subChapter, chapterFile)
-					println("LocalMangaDirOutput.addEpubChapter: Added EPUB chapter ${epubChapterIndex}: ${epubChapter.title}, ID=${epubChapter.id}")
+					index.addChapter(subChapter, chapterFileName)
+					println("LocalMangaDirOutput.addEpubChapter: Added EPUB chapter ${epubChapterIndex}: ${epubChapter.title}, ID=${internalChapterId}")
+					
+					// Create mapping entity for database storage (Requirement 5.3)
+					val mapping = org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity(
+						internalChapterId = internalChapterId,
+						parentChapterId = chapter.value.id,
+						epubFilePath = targetFile.absolutePath,
+						epubFileName = targetFile.name,
+						chapterIndex = epubChapterIndex,
+						chapterTitle = epubChapter.title ?: "Chapter ${epubChapterIndex + 1}",
+						createdAt = System.currentTimeMillis()
+					)
+					chapterMappings.add(mapping)
+				}
+				
+				// Store chapter mappings in database (Requirement 5.3)
+				if (epubChapterMappingDao != null && chapterMappings.isNotEmpty()) {
+					try {
+						epubChapterMappingDao.insertAll(chapterMappings)
+						println("LocalMangaDirOutput.addEpubChapter: Stored ${chapterMappings.size} chapter mappings in database")
+					} catch (e: Exception) {
+						println("LocalMangaDirOutput.addEpubChapter: Failed to store chapter mappings: ${e.message}")
+						e.printStackTrace()
+						// Continue even if database storage fails - the chapters are still in the index
+					}
+				} else {
+					println("LocalMangaDirOutput.addEpubChapter: No DAO provided or no mappings to store")
 				}
 				
 				println("LocalMangaDirOutput.addEpubChapter: Successfully added ${epubChapters.size} EPUB chapters")
 			} else {
 				println("LocalMangaDirOutput.addEpubChapter: Failed to parse EPUB or no chapters found, adding as single chapter")
 				// 如果解析失败，添加为单个章节
-				index.addChapter(chapter, chapterFile)
+				index.addChapter(chapter, chapterFileName)
 			}
 		} catch (e: Exception) {
 			println("LocalMangaDirOutput.addEpubChapter: Error parsing EPUB: ${e.message}")
 			e.printStackTrace()
 			// 出错时添加为单个章节
-			index.addChapter(chapter, chapterFile)
+			index.addChapter(chapter, chapterFileName)
 		}
 		
 		flushIndex()
 		
 		println("LocalMangaDirOutput.addEpubChapter: Index updated successfully")
+	}
+	
+	/**
+	 * Generates a filename for EPUB chapter that preserves the .epub extension.
+	 * 
+	 * Requirement 1.1: Preserve .epub extension
+	 * Requirement 1.2: Do not convert to .cbz
+	 */
+	private fun generateEpubChapterFileName(chapter: IndexedValue<MangaChapter>, epubFile: File): String {
+		// Check if the file already has .epub extension
+		val baseFileName = if (epubFile.extension == "epub") {
+			epubFile.name
+		} else {
+			"${epubFile.nameWithoutExtension}.epub"
+		}
+		
+		// If file already exists, generate unique name
+		var targetFileName = baseFileName
+		var counter = 1
+		while (File(rootFile, targetFileName).exists()) {
+			val nameWithoutExt = baseFileName.removeSuffix(".epub")
+			targetFileName = "${nameWithoutExt}_${counter}.epub"
+			counter++
+		}
+		
+		return targetFileName
 	}
 
 	companion object {

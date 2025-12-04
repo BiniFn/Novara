@@ -32,9 +32,12 @@ include ':app'
 rootProject.name = "Kototoro"
 
 // 使用本地 kototoro-parsers 进行编译：通过复合构建替换远程依赖
-// includeBuild('../kototoro-parsers') {
-//     dependencySubstitution {
-//         // 将远程坐标 com.github.skepsun:kototoro-parsers 替换为本地项目
-//         substitute module('com.github.skepsun:kototoro-parsers') using project(':')
-//     }
-// }
+// 注释掉以使用在线版本（避免Java 8依赖问题）
+
+includeBuild('../kototoro-parsers') {
+    dependencySubstitution {
+        // 将远程坐标 com.github.skepsun:kototoro-parsers 替换为本地项目
+        substitute module('com.github.skepsun:kototoro-parsers') using project(':')
+    }
+}
+

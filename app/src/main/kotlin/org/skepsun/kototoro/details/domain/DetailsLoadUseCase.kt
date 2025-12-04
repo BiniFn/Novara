@@ -42,6 +42,7 @@ class DetailsLoadUseCase @Inject constructor(
 	private val recoverUseCase: RecoverMangaUseCase,
 	private val imageGetter: Html.ImageGetter,
 	private val networkState: NetworkState,
+	private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
 ) {
 
 	operator fun invoke(intent: MangaIntent, force: Boolean): Flow<MangaDetails> = flow {
@@ -153,17 +154,113 @@ class DetailsLoadUseCase @Inject constructor(
 
 	private suspend fun getDetails(seed: Manga, force: Boolean) = runCatchingCancellable {
 		val repository = mangaRepositoryFactory.create(seed.source)
-		if (repository is CachingMangaRepository) {
-			repository.getDetails(seed, if (force) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
+		
+		// 对于EPUB源（NoveliaWenku等），强制从服务器获取最新章节列表
+		// 这样可以确保未下载的EPUB临时章节不会丢失
+		val isEpubSource = seed.source.name.contains("WENKU", ignoreCase = true) || 
+		                   seed.source.name.contains("EPUB", ignoreCase = true)
+		val shouldForceRefresh = force || isEpubSource
+		
+		val manga = if (repository is CachingMangaRepository) {
+			repository.getDetails(seed, if (shouldForceRefresh) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
 		} else {
 			repository.getDetails(seed)
 		}
+		
+		android.util.Log.d("DetailsLoadUseCase", "getDetails: source=${seed.source.name}, isEpubSource=$isEpubSource, force=$force, shouldForceRefresh=$shouldForceRefresh")
+		android.util.Log.d("DetailsLoadUseCase", "getDetails: manga has ${manga.chapters?.size ?: 0} chapters from server")
+		
+		// 检查是否有EPUB内部章节需要加载
+		expandEpubChaptersIfNeeded(manga)
 	}.recoverNotNull { e ->
 		if (e is NotFoundException) {
 			recoverUseCase(seed)
 		} else {
 			null
 		}
+	}
+	
+	/**
+	 * 如果manga有EPUB下载章节，从数据库加载内部章节并展开
+	 * 
+	 * 策略：
+	 * 1. 对于已下载的EPUB（有内部章节映射），用内部章节替换父章节
+	 * 2. 对于未下载的EPUB，保留原始下载章节
+	 * 3. 保留父章节的volume和branch信息到内部章节
+	 */
+	private suspend fun expandEpubChaptersIfNeeded(manga: Manga): Manga {
+		val chapters = manga.chapters ?: return manga
+		
+		// 从数据库加载所有内部章节映射
+		// 不再依赖URL模式检测，直接查询数据库
+		val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
+		val allMappings = epubChapterMappingDao.findByMangaId(manga.id)
+		
+		if (allMappings.isEmpty()) {
+			// 没有EPUB章节映射，返回原始章节
+			return manga
+		}
+		
+		android.util.Log.d("DetailsLoadUseCase", "Found EPUB chapters, expanding internal chapters for manga ${manga.id}")
+		
+		android.util.Log.d("DetailsLoadUseCase", "Found ${allMappings.size} EPUB chapter mappings")
+		
+		// 按父章节ID分组
+		val mappingsByParent = allMappings.groupBy { it.parentChapterId }
+		val downloadedParentIds = mappingsByParent.keys
+		
+		android.util.Log.d("DetailsLoadUseCase", "Downloaded parent chapter IDs: $downloadedParentIds")
+		
+		// 构建新的章节列表
+		val expandedChapters = mutableListOf<org.skepsun.kototoro.parsers.model.MangaChapter>()
+		
+		android.util.Log.d("DetailsLoadUseCase", "Processing ${chapters.size} chapters...")
+		for ((index, chapter) in chapters.withIndex()) {
+			android.util.Log.d("DetailsLoadUseCase", "  Chapter[$index]: id=${chapter.id}, title=${chapter.title}, isDownloaded=${chapter.id in downloadedParentIds}")
+			
+			if (chapter.id in downloadedParentIds) {
+				// 这个EPUB已下载，用内部章节替换
+				val mappings = mappingsByParent[chapter.id] ?: continue
+				
+				android.util.Log.d("DetailsLoadUseCase", "  -> Expanding with ${mappings.size} internal chapters")
+				
+				// 生成内部章节
+				// IMPORTANT: Set branch to null for EPUB internal chapters
+				// This ensures they can be found when selectedBranch is null
+				val internalChapters = mappings
+					.sortedBy { it.chapterIndex }
+					.map { mapping ->
+						org.skepsun.kototoro.parsers.model.MangaChapter(
+							id = mapping.internalChapterId,
+							title = mapping.chapterTitle,
+							number = mapping.chapterIndex.toFloat(),
+							volume = chapter.volume,  // 保留父章节的volume
+							url = "epub://${manga.id}/chapter/${mapping.chapterIndex}",
+							scanlator = mapping.epubFileName,
+							uploadDate = mapping.createdAt,
+							branch = null,  // EPUB internal chapters have no branch
+							source = manga.source,
+						)
+					}
+				
+				expandedChapters.addAll(internalChapters)
+			} else {
+				// 这个EPUB未下载，保留原始下载章节
+				// IMPORTANT: Set branch to null to match internal chapters
+				android.util.Log.d("DetailsLoadUseCase", "  -> Keeping as download link")
+				expandedChapters.add(chapter.copy(branch = null))
+			}
+		}
+		
+		android.util.Log.d("DetailsLoadUseCase", "Expanded chapters: ${chapters.size} -> ${expandedChapters.size}")
+		android.util.Log.d("DetailsLoadUseCase", "Original chapters: ${chapters.take(3).map { "${it.id}:${it.title}" }}")
+		android.util.Log.d("DetailsLoadUseCase", "Expanded chapters (first 3): ${expandedChapters.take(3).map { "${it.id}:${it.title}" }}")
+		android.util.Log.d("DetailsLoadUseCase", "Expanded chapters (last 3): ${expandedChapters.takeLast(3).map { "${it.id}:${it.title}" }}")
+		android.util.Log.d("DetailsLoadUseCase", "Final chapter count: ${expandedChapters.size}")
+		
+		val result = manga.copy(chapters = expandedChapters)
+		android.util.Log.d("DetailsLoadUseCase", "Returning manga with ${result.chapters?.size ?: 0} chapters")
+		return result
 	}
 
 	private suspend fun String.parseAsHtml(withImages: Boolean): CharSequence? = if (withImages) {

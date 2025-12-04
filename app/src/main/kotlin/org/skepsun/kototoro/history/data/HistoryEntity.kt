@@ -29,4 +29,8 @@ data class HistoryEntity(
 	@ColumnInfo(name = "percent") val percent: Float,
 	@ColumnInfo(name = "deleted_at") val deletedAt: Long,
 	@ColumnInfo(name = "chapters") val chaptersCount: Int,
+	// EPUB父章节ID，用于支持EPUB内部章节的历史记录
+	// 对于EPUB内部章节：chapterId是内部章节ID，parentChapterId是父章节ID
+	// 对于普通章节：parentChapterId为null或等于chapterId
+	@ColumnInfo(name = "parent_chapter_id") val parentChapterId: Long? = null,
 )

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.parser.MangaRepository
@@ -70,18 +71,25 @@ class NovelReaderActivity :
 
     @Inject
     lateinit var novelContentLoader: NovelContentLoader
+    
+    @Inject
+    lateinit var epubFileManager: org.skepsun.kototoro.local.epub.EpubFileManager
+    
+    @Inject
+    lateinit var epubChapterMappingDao: org.skepsun.kototoro.core.db.dao.EpubChapterMappingDao
+    
+    @Inject
+    lateinit var epubContentCache: org.skepsun.kototoro.local.epub.EpubContentCache
 
     private lateinit var manga: Manga
     private lateinit var repository: MangaRepository
     private lateinit var readerSettings: NovelReaderSettings
+    private lateinit var epubInternalChapterLoader: EpubInternalChapterLoader
 
     private var chapters: List<MangaChapter> = emptyList()
     private var currentChapterIndex: Int = 0
     private var isUiVisible: Boolean = false
     private var currentPageIndex: Int = 0
-    
-    // EPUB内容缓存：key是文件路径，value是EpubContent
-    private val epubContentCache = mutableMapOf<String, org.skepsun.kototoro.local.epub.EpubContent>()
 
     override val readerMode: ReaderMode?
         get() = ReaderMode.STANDARD
@@ -106,6 +114,17 @@ class NovelReaderActivity :
 
         manga = mangaSeed
         repository = mangaRepositoryFactory.create(manga.source)
+        epubInternalChapterLoader = EpubInternalChapterLoader(
+            context = this,
+            epubFileManager = epubFileManager,
+            epubChapterMappingDao = epubChapterMappingDao,
+            epubContentCache = epubContentCache
+        )
+        
+        android.util.Log.d("NovelReaderActivity", "=== onCreate ===")
+        android.util.Log.d("NovelReaderActivity", "Manga: id=${manga.id}, title=${manga.title}")
+        android.util.Log.d("NovelReaderActivity", "Manga has chapters: ${manga.chapters != null}, count: ${manga.chapters?.size ?: 0}")
+        android.util.Log.d("NovelReaderActivity", "Repository type: ${repository.javaClass.simpleName}")
 
         setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
         
@@ -302,104 +321,132 @@ class NovelReaderActivity :
         // 用户交互时的处理
     }
 
+    /**
+     * Restore reading progress from Intent or history
+     * Requirements 7.5, 7.6: Restore last read chapter and page position, fallback to first chapter if not found
+     * 
+     * 修复：改进章节ID查找逻辑，支持数据库映射的章节ID
+     */
+    private suspend fun restoreReadingProgress(originalChapters: List<MangaChapter>) {
+        android.util.Log.d("NovelReaderActivity", "=== restoreReadingProgress() ===")
+        
+        // Get ReaderState from Intent
+        val state = intent.getParcelableExtraCompat<org.skepsun.kototoro.reader.ui.ReaderState>(
+            org.skepsun.kototoro.core.nav.ReaderIntent.EXTRA_STATE
+        )
+        
+        // Get history
+        val history = historyRepository.getOne(manga)
+        
+        // Determine which chapter ID to restore
+        val targetChapterId = when {
+            state != null && state.chapterId != 0L -> {
+                android.util.Log.d("NovelReaderActivity", "Using chapter ID from Intent: ${state.chapterId}")
+                state.chapterId
+            }
+            history != null -> {
+                android.util.Log.d("NovelReaderActivity", "Using chapter ID from history: ${history.chapterId}")
+                history.chapterId
+            }
+            else -> {
+                android.util.Log.d("NovelReaderActivity", "No saved state, starting from first chapter")
+                null
+            }
+        }
+        
+        if (targetChapterId != null) {
+            // 直接在展开后的章节列表中查找
+            var targetIndex = chapters.indexOfFirst { it.id == targetChapterId }
+            
+            android.util.Log.d("NovelReaderActivity", "Looking for chapter ID $targetChapterId in ${chapters.size} expanded chapters")
+            android.util.Log.d("NovelReaderActivity", "Found at index: $targetIndex")
+            
+            // 如果没找到，尝试通过数据库映射查找
+            if (targetIndex < 0) {
+                android.util.Log.d("NovelReaderActivity", "Chapter not found in expanded list, checking database mappings")
+                
+                // 检查是否是EPUB内部章节
+                val mapping = try {
+                    epubChapterMappingDao.getById(targetChapterId)
+                } catch (e: Exception) {
+                    android.util.Log.e("NovelReaderActivity", "Failed to query chapter mapping", e)
+                    null
+                }
+                
+                if (mapping != null) {
+                    android.util.Log.d("NovelReaderActivity", "Found EPUB mapping: parentId=${mapping.parentChapterId}, index=${mapping.chapterIndex}")
+                    
+                    // 在展开后的章节列表中查找匹配的章节
+                    // 匹配条件：URL包含相同的父章节ID和章节索引
+                    val targetUrl = "#chapter/${mapping.chapterIndex}"
+                    targetIndex = chapters.indexOfFirst { chapter ->
+                        chapter.url.contains(targetUrl) && 
+                        (chapter.id == targetChapterId || 
+                         chapter.url.contains("chapter_${mapping.parentChapterId}.epub") ||
+                         chapter.url.contains("/${mapping.parentChapterId}/"))
+                    }
+                    
+                    android.util.Log.d("NovelReaderActivity", "Searching for URL pattern: $targetUrl, found at index: $targetIndex")
+                }
+            }
+            
+            // Requirement 7.6: If chapter ID is not found, fallback to first chapter
+            if (targetIndex >= 0) {
+                currentChapterIndex = targetIndex
+                // Restore page position from history if available
+                currentPageIndex = history?.page ?: state?.page ?: 0
+                android.util.Log.d("NovelReaderActivity", "✅ Restored to chapter index $targetIndex (ID: ${chapters[targetIndex].id}), page $currentPageIndex")
+                android.util.Log.d("NovelReaderActivity", "   Chapter title: ${chapters[targetIndex].title}")
+                android.util.Log.d("NovelReaderActivity", "   Chapter URL: ${chapters[targetIndex].url.takeLast(50)}")
+            } else {
+                android.util.Log.w("NovelReaderActivity", "❌ Chapter ID $targetChapterId not found, falling back to first chapter")
+                currentChapterIndex = 0
+                currentPageIndex = 0
+            }
+        } else {
+            // No saved state, start from first chapter
+            currentChapterIndex = 0
+            currentPageIndex = 0
+        }
+        
+        // Clear Intent state to avoid reusing it
+        intent.removeExtra(org.skepsun.kototoro.core.nav.ReaderIntent.EXTRA_STATE)
+    }
+
     private fun loadChapters() {
+        android.util.Log.d("NovelReaderActivity", "=== loadChapters() called ===")
+        android.util.Log.d("NovelReaderActivity", "Current manga.chapters: ${manga.chapters?.size ?: 0} chapters")
+        android.util.Log.d("NovelReaderActivity", "Manga is local: ${manga.isLocal}")
+        
         lifecycleScope.launch {
             try {
                 showLoading(true)
-                val details = repository.getDetails(manga)
+                
+                // For local manga, ALWAYS reload from repository to get fresh chapter list from index
+                // This ensures we get updated chapters after EPUB download/extraction
+                val details = if (manga.isLocal || manga.chapters.isNullOrEmpty()) {
+                    android.util.Log.d("NovelReaderActivity", "Loading chapters from repository (local=${manga.isLocal}, empty=${manga.chapters.isNullOrEmpty()})...")
+                    val startTime = System.currentTimeMillis()
+                    val result = repository.getDetails(manga)
+                    val elapsed = System.currentTimeMillis() - startTime
+                    android.util.Log.d("NovelReaderActivity", "✅ Loaded from repository in ${elapsed}ms, got ${result.chapters?.size ?: 0} chapters")
+                    result
+                } else {
+                    android.util.Log.d("NovelReaderActivity", "✅ Using chapters from manga object (${manga.chapters?.size} chapters) - SKIPPED NETWORK")
+                    manga
+                }
+                
                 var originalChapters = details.chapters.orEmpty()
+                android.util.Log.d("NovelReaderActivity", "Original chapters count: ${originalChapters.size}")
                 
                 // 展开EPUB章节
+                android.util.Log.d("NovelReaderActivity", "Expanding EPUB chapters...")
                 chapters = expandEpubChapters(originalChapters)
+                android.util.Log.d("NovelReaderActivity", "After expansion: ${chapters.size} chapters")
                 
-                // 优先级：Intent参数 > 历史记录 > 第一章
-                // 从Intent中获取ReaderState
-                val state = intent.getParcelableExtraCompat<org.skepsun.kototoro.reader.ui.ReaderState>(
-                    org.skepsun.kototoro.core.nav.ReaderIntent.EXTRA_STATE
-                )
-                
-                if (state != null && state.chapterId != 0L) {
-                    // 1. 优先使用Intent中的ReaderState
-                    
-                    // 首先尝试在展开后的章节列表中精确匹配
-                    var targetIndex = chapters.indexOfFirst { it.id == state.chapterId }
-                    
-                    // 如果找到了，但是是第一个章节（可能是原始EPUB章节），检查历史记录
-                    if (targetIndex == 0 && originalChapters.size == 1) {
-                        // 这可能是EPUB章节，检查历史记录中是否有更精确的位置
-                        val history = historyRepository.getOne(manga)
-                        if (history != null && history.chapterId != state.chapterId) {
-                            // 历史记录中保存的是不同的章节ID（内部章节）
-                            val historyIndex = chapters.indexOfFirst { it.id == history.chapterId }
-                            if (historyIndex >= 0) {
-                                targetIndex = historyIndex
-                                currentPageIndex = history.page
-                            }
-                        }
-                    }
-                    
-                    // 如果找不到精确匹配，尝试查找原始EPUB章节
-                    if (targetIndex < 0) {
-                        val originalIndex = originalChapters.indexOfFirst { it.id == state.chapterId }
-                        if (originalIndex >= 0) {
-                            // 找到了原始章节，计算它在展开后列表中的起始位置
-                            // 由于第一个内部章节保留了原始ID，直接使用原始索引作为fallback
-                            targetIndex = originalIndex
-                            
-                            // 同时检查历史记录
-                            val history = historyRepository.getOne(manga)
-                            if (history != null) {
-                                val historyIndex = chapters.indexOfFirst { it.id == history.chapterId }
-                                if (historyIndex >= 0) {
-                                    targetIndex = historyIndex
-                                    currentPageIndex = history.page
-                                }
-                            }
-                        } else {
-                            // Intent中的章节ID不属于当前小说，尝试从历史记录恢复
-                            val history = historyRepository.getOne(manga)
-                            if (history != null) {
-                                val historyIndex = chapters.indexOfFirst { it.id == history.chapterId }
-                                if (historyIndex >= 0) {
-                                    targetIndex = historyIndex
-                                    currentPageIndex = history.page
-                                }
-                            }
-                        }
-                    }
-                    
-                    if (targetIndex >= 0) {
-                        currentChapterIndex = targetIndex
-                        if (currentPageIndex == 0) { // 只有在没有从历史记录恢复页码时才使用Intent中的页码
-                            currentPageIndex = state.page
-                        }
-                    } else {
-                        // 章节不存在（可能已被删除或来自其他小说），从第一章开始
-                        currentChapterIndex = 0
-                        currentPageIndex = 0
-                    }
-                    
-                    // 清除Intent中的state，避免下次重复使用
-                    intent.removeExtra(org.skepsun.kototoro.core.nav.ReaderIntent.EXTRA_STATE)
-                } else {
-                    // 2. 尝试从历史记录恢复
-                    val history = historyRepository.getOne(manga)
-                    if (history != null) {
-                        val targetIndex = chapters.indexOfFirst { it.id == history.chapterId }
-                        if (targetIndex >= 0) {
-                            currentChapterIndex = targetIndex
-                            currentPageIndex = history.page
-                        } else {
-                            // 历史章节不存在（可能已被删除），从第一章开始
-                            currentChapterIndex = 0
-                            currentPageIndex = 0
-                        }
-                    } else {
-                        // 3. 默认从第一章开始
-                        currentChapterIndex = 0
-                        currentPageIndex = 0
-                    }
-                }
+                // Restore reading progress (Requirements 7.5, 7.6)
+                // Priority: Intent parameters > History > First chapter
+                restoreReadingProgress(originalChapters)
                 
                 if (chapters.isEmpty()) {
                     showLoading(false)
@@ -416,58 +463,51 @@ class NovelReaderActivity :
     }
 
     private fun loadChapter(index: Int) {
+        android.util.Log.d("NovelReaderActivity", "=== loadChapter($index) called ===")
+        android.util.Log.d("NovelReaderActivity", "Total chapters available: ${chapters.size}")
+        
         val chapter = chapters.getOrNull(index)
         if (chapter == null) {
-            android.util.Log.e("NovelReaderActivity", "Chapter at index $index not found")
+            android.util.Log.e("NovelReaderActivity", "❌ Chapter at index $index not found")
             return
         }
+        
+        android.util.Log.d("NovelReaderActivity", "Loading chapter: id=${chapter.id}, name=${chapter.name}")
         
         lifecycleScope.launch {
             try {
                 showLoading(true)
                 
-                // 检查是否为EPUB内部章节（URL包含#chapter/）
-                if (chapter.url.contains("#chapter/")) {
+                // Check if this is an EPUB internal chapter (Requirement 6.1, 6.2, 6.3)
+                if (chapter.url.contains("#chapter/") || chapter.url.startsWith("epub://")) {
                     android.util.Log.d("NovelReaderActivity", "Detected EPUB internal chapter: ${chapter.url}")
                     
-                    // 解析章节索引
-                    val chapterIndexStr = chapter.url.substringAfter("#chapter/")
-                    val chapterIndex = chapterIndexStr.toIntOrNull()
+                    // Show progress indicator for large files (Requirement 11.4)
+                    viewBinding.toolbar.subtitle = "正在加载EPUB章节..."
                     
-                    if (chapterIndex != null) {
-                        android.util.Log.d("NovelReaderActivity", "Parsed chapter index: $chapterIndex")
-                        
-                        // 从EPUB文件读取指定章节
-                        // 使用当前chapter对象查找本地文件（因为所有内部章节共享同一个EPUB文件）
-                        val epubContent = loadEpubContentFromUrl(chapter.url, chapter)
-                        
-                        if (epubContent != null) {
-                            android.util.Log.d("NovelReaderActivity", "EPUB has ${epubContent.chapters.size} chapters, requesting index $chapterIndex")
-                            
-                            if (chapterIndex < epubContent.chapters.size) {
-                                val epubChapter = epubContent.chapters[chapterIndex]
-                                android.util.Log.d("NovelReaderActivity", "Loading EPUB chapter: title='${epubChapter.title}', content length=${epubChapter.content.length}")
-                                
-                                val content = buildString {
-                                    append("【${epubChapter.title}】\n\n")
-                                    append(epubChapter.content)
-                                }
-                                showLoading(false)
-                                renderChapter(chapter, content)
-                                return@launch
-                            } else {
-                                android.util.Log.e("NovelReaderActivity", "Chapter index $chapterIndex out of bounds (total: ${epubContent.chapters.size})")
-                            }
-                        } else {
-                            android.util.Log.e("NovelReaderActivity", "Failed to load EPUB content")
+                    // Load EPUB internal chapter using the dedicated loader
+                    val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
+                    
+                    viewBinding.toolbar.subtitle = chapter.title
+                    
+                    result.onSuccess { loadResult ->
+                        android.util.Log.d("NovelReaderActivity", "Successfully loaded EPUB internal chapter")
+                        showLoading(false)  // Dismiss loading indicator
+                        renderChapterWithEpubInfo(chapter, loadResult.content, loadResult.epubFile, loadResult.chapterHref)
+                    }.onFailure { error ->
+                        android.util.Log.e("NovelReaderActivity", "Failed to load EPUB internal chapter", error)
+                        showLoading(false)  // Dismiss loading indicator even on error
+                        // Display user-friendly error message (Requirement 6.7)
+                        val errorMessage = when {
+                            error.message?.contains("not found") == true -> "EPUB文件未找到，可能已被删除"
+                            error.message?.contains("out of bounds") == true -> "章节索引无效"
+                            error.message?.contains("Invalid chapter URL") == true -> "章节URL格式错误"
+                            error.message?.contains("Failed to parse") == true -> "EPUB文件解析失败"
+                            else -> "无法加载EPUB章节: ${error.message}"
                         }
-                    } else {
-                        android.util.Log.e("NovelReaderActivity", "Failed to parse chapter index from: $chapterIndexStr")
+                        viewBinding.toastView.showTemporary(errorMessage, 3000L)
                     }
                     
-                    // 解析失败，显示错误
-                    showLoading(false)
-                    showError("无法加载EPUB章节")
                     return@launch
                 }
                 
@@ -531,49 +571,214 @@ class NovelReaderActivity :
 
     /**
      * 加载EPUB内容
-     * 从CBZ压缩包中提取并解析EPUB文件
+     * 
+     * 支持两种URL格式：
+     * 1. epub://{manga_id}/chapter/{index} - 新架构（NoveliaWenku, Z-Library等）
+     * 2. file://path#chapter/N - 旧架构（向后兼容）
      */
     private suspend fun loadEpubContent(chapter: MangaChapter): String? {
         return try {
-            android.util.Log.d("NovelReaderActivity", "Loading EPUB content for: ${chapter.title}")
+            android.util.Log.d("NovelReaderActivity", "Loading EPUB content for: ${chapter.title}, URL: ${chapter.url}")
             
-            // 获取章节URL
-            val chapterUri = android.net.Uri.parse(chapter.url)
-            
-            // 使用EpubReader读取EPUB
-            val epubReader = org.skepsun.kototoro.local.epub.EpubReader()
-            val epubContent = epubReader.readEpub(chapterUri)
-            
-            if (epubContent == null) {
-                android.util.Log.e("NovelReaderActivity", "Failed to read EPUB content")
-                return null
-            }
-            
-            // 合并所有章节内容
-            val fullContent = buildString {
-                append("《${epubContent.title}》\n")
-                append("作者：${epubContent.author}\n")
-                append("\n")
-                append("=".repeat(40))
-                append("\n\n")
+            // 检查URL格式
+            if (chapter.url.startsWith("epub://")) {
+                // 新架构：使用EpubInternalChapterLoader
+                android.util.Log.d("NovelReaderActivity", "Using EpubInternalChapterLoader for new architecture")
                 
-                for (epubChapter in epubContent.chapters) {
-                    append("【${epubChapter.title}】\n\n")
-                    append(epubChapter.content)
-                    append("\n\n")
-                    append("-".repeat(40))
-                    append("\n\n")
+                val epubFileManager = org.skepsun.kototoro.local.epub.EpubFileManagerImpl()
+                val database = org.skepsun.kototoro.core.db.MangaDatabase(this)
+                val epubChapterMappingDao = database.getEpubChapterMappingDao()
+                val epubInternalChapterLoader = org.skepsun.kototoro.reader.novel.EpubInternalChapterLoader(
+                    context = this,
+                    epubFileManager = epubFileManager,
+                    epubChapterMappingDao = epubChapterMappingDao
+                )
+                
+                val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
+                
+                if (result.isSuccess) {
+                    val content = result.getOrNull()
+                    android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${content?.length}")
+                    return content
+                } else {
+                    val error = result.exceptionOrNull()
+                    android.util.Log.e("NovelReaderActivity", "Failed to load EPUB content: ${error?.message}", error)
+                    return null
                 }
+            } else {
+                // 旧架构：使用EpubReader直接读取
+                android.util.Log.d("NovelReaderActivity", "Using EpubReader for legacy architecture")
+                
+                val chapterUri = android.net.Uri.parse(chapter.url)
+                val epubReader = org.skepsun.kototoro.local.epub.EpubReaderImpl()
+                val epubContent = epubReader.readEpubFromUri(chapterUri)
+                
+                if (epubContent == null) {
+                    android.util.Log.e("NovelReaderActivity", "Failed to read EPUB content")
+                    return null
+                }
+                
+                // 合并所有章节内容
+                val fullContent = buildString {
+                    append("《${epubContent.title}》\n")
+                    append("作者：${epubContent.author}\n")
+                    append("\n")
+                    append("=".repeat(40))
+                    append("\n\n")
+                    
+                    for (epubChapter in epubContent.chapters) {
+                        append("【${epubChapter.title}】\n\n")
+                        append(epubChapter.content)
+                        append("\n\n")
+                        append("-".repeat(40))
+                        append("\n\n")
+                    }
+                }
+                
+                android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${fullContent.length}")
+                return fullContent
             }
-            
-            android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${fullContent.length}")
-            fullContent
         } catch (e: Exception) {
             android.util.Log.e("NovelReaderActivity", "Failed to load EPUB content", e)
             null
         }
     }
 
+    /**
+     * Render EPUB chapter with proper file info for image loading
+     * 
+     * @param chapter The chapter being rendered
+     * @param text The chapter content
+     * @param epubFile The EPUB file (optional, will be looked up if not provided)
+     * @param chapterHref The chapter's path in EPUB (e.g., "OEBPS/Text/content_1.html")
+     */
+    private fun renderChapterWithEpubInfo(
+        chapter: MangaChapter, 
+        text: String,
+        epubFile: java.io.File? = null,
+        chapterHref: String? = null
+    ) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                var epubFileToSet: java.io.File? = epubFile
+                var chapterPathToSet: String? = chapterHref
+                
+                // If EPUB file info not provided, try to extract from chapter URL
+                if (epubFileToSet == null) {
+                    if (chapter.url.startsWith("epub://")) {
+                        // New architecture: epub://{manga_id}/chapter/{index}
+                        val regex = Regex("epub://(-?\\d+)/chapter/(\\d+)")
+                        val match = regex.matchEntire(chapter.url)
+                        if (match != null) {
+                            val mangaId = match.groupValues[1].toLong()
+                            val chapterIndex = match.groupValues[2].toInt()
+                            
+                            val allMappings = epubChapterMappingDao.findByMangaId(mangaId)
+                            val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
+                            val mapping = sortedMappings.getOrNull(chapterIndex)
+                            
+                            if (mapping != null) {
+                                val file = java.io.File(mapping.epubFilePath)
+                                if (file.exists()) {
+                                    epubFileToSet = file
+                                    // Use actual chapter href if available
+                                    if (chapterPathToSet == null) {
+                                        chapterPathToSet = "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
+                                    }
+                                    android.util.Log.d("NovelReaderActivity", "Found EPUB file for epub:// URL: ${file.name}")
+                                }
+                            }
+                        }
+                    } else if (chapter.url.contains("#chapter/")) {
+                        // Legacy architecture: file://path#chapter/N or local://path#chapter/N
+                        val regex = Regex("#chapter/(\\d+)")
+                        val match = regex.find(chapter.url)
+                        if (match != null) {
+                            val chapterIndex = match.groupValues[1].toInt()
+                            
+                            // Try to find EPUB file from database mapping
+                            val allMappings = epubChapterMappingDao.findByMangaId(manga.id)
+                            val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
+                            val mapping = sortedMappings.getOrNull(chapterIndex)
+                            
+                            if (mapping != null) {
+                                val file = java.io.File(mapping.epubFilePath)
+                                if (file.exists()) {
+                                    epubFileToSet = file
+                                    // Use actual chapter href if available
+                                    if (chapterPathToSet == null) {
+                                        chapterPathToSet = "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
+                                    }
+                                    android.util.Log.d("NovelReaderActivity", "Found EPUB file for #chapter/ URL: ${file.name}")
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Render on main thread with EPUB info
+                withContext(Dispatchers.Main) {
+                    viewBinding.toolbar.subtitle = chapter.title ?: getString(R.string.unnamed_chapter)
+                    
+                    val contentToDisplay = if (text.isBlank()) {
+                        android.util.Log.w("NovelReaderActivity", "Chapter content is blank")
+                        "章节内容为空\n\n请检查网络连接或稍后重试"
+                    } else {
+                        text
+                    }
+                    
+                    android.util.Log.d("NovelReaderActivity", "Content length: ${contentToDisplay.length}, first 100 chars: ${contentToDisplay.take(100)}")
+                    
+                    // Set EPUB info BEFORE setting content
+                    viewBinding.readerView.setEpubInfo(epubFileToSet, chapterPathToSet)
+                    android.util.Log.d("NovelReaderActivity", "Set EPUB info: file=${epubFileToSet?.name}, chapterPath=$chapterPathToSet")
+                    
+                    // Then set content
+                    val savedPageIndex = currentPageIndex
+                    val needsPageRestore = savedPageIndex != 0
+                    
+                    viewBinding.readerView.setContent(
+                        content = contentToDisplay,
+                        resetPage = true,
+                        suppressNotification = needsPageRestore,
+                        initialPageIndex = savedPageIndex
+                    )
+                    
+                    android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
+                    
+                    if (needsPageRestore) {
+                        viewBinding.readerView.postDelayed({
+                            viewBinding.readerView.resumePageChangeNotification()
+                        }, 100)
+                    }
+                    
+                    currentPageIndex = 0
+                    updateNavigationButtons()
+                    
+                    viewBinding.readerView.post {
+                        val currentPage = viewBinding.readerView.getCurrentPage()
+                        val totalPages = viewBinding.readerView.getTotalPages()
+                        if (totalPages > 0) {
+                            updateHistory(currentPage, totalPages)
+                        }
+                    }
+                    
+                    if (settings.isReaderChapterToastEnabled) {
+                        viewBinding.toastView.showTemporary(
+                            chapter.title ?: getString(R.string.unnamed_chapter),
+                            2000L,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("NovelReaderActivity", "Failed to render EPUB chapter", e)
+                withContext(Dispatchers.Main) {
+                    showError("渲染失败: ${e.message}")
+                }
+            }
+        }
+    }
+    
     private fun renderChapter(chapter: MangaChapter, text: String) {
         try {
             android.util.Log.d("NovelReaderActivity", "renderChapter called for: ${chapter.title}")
@@ -590,53 +795,126 @@ class NovelReaderActivity :
             
             android.util.Log.d("NovelReaderActivity", "Content length: ${contentToDisplay.length}, first 100 chars: ${contentToDisplay.take(100)}")
             
-            // 确保在主线程上执行
-            runOnUiThread {
+            // 设置EPUB文件信息（用于提取图片）- 必须在setContent之前完成
+            lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    android.util.Log.d("NovelReaderActivity", "Setting content to readerView")
+                    var epubFileToSet: java.io.File? = null
+                    var chapterPathToSet: String? = null
                     
-                    val savedPageIndex = currentPageIndex
-                    val needsPageRestore = savedPageIndex != 0
-                    
-                    // 直接在 setContent 时设置目标页码，避免中间状态
-                    viewBinding.readerView.setContent(
-                        content = contentToDisplay,
-                        resetPage = true,
-                        suppressNotification = needsPageRestore,
-                        initialPageIndex = savedPageIndex  // 直接传入目标页码（包括 -1）
-                    )
-                    
-                    android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
-                    
-                    // 如果需要恢复页码，等待分页完成后恢复通知
-                    if (needsPageRestore) {
-                        viewBinding.readerView.postDelayed({
-                            // 恢复通知并立即通知一次
-                            viewBinding.readerView.resumePageChangeNotification()
-                        }, 100)
-                    }
-                    
-                    currentPageIndex = 0 // 重置
-                    updateNavigationButtons()
-                    
-                    // 立即保存一次历史记录，确保小说出现在历史列表中
-                    viewBinding.readerView.post {
-                        val currentPage = viewBinding.readerView.getCurrentPage()
-                        val totalPages = viewBinding.readerView.getTotalPages()
-                        if (totalPages > 0) {
-                            updateHistory(currentPage, totalPages)
+                    if (chapter.url.startsWith("epub://")) {
+                        // 新架构：从数据库查找EPUB文件
+                        val regex = Regex("epub://(-?\\d+)/chapter/(\\d+)")
+                        val match = regex.matchEntire(chapter.url)
+                        if (match != null) {
+                            val mangaId = match.groupValues[1].toLong()
+                            val chapterIndex = match.groupValues[2].toInt()
+                            
+                            val allMappings = epubChapterMappingDao.findByMangaId(mangaId)
+                            val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
+                            val mapping = sortedMappings.getOrNull(chapterIndex)
+                            
+                            if (mapping != null) {
+                                val epubFile = java.io.File(mapping.epubFilePath)
+                                if (epubFile.exists()) {
+                                    epubFileToSet = epubFile
+                                    // 从EPUB中获取实际的章节路径
+                                    // 需要读取EPUB的spine来获取章节的href
+                                    try {
+                                        val epubReader = org.skepsun.kototoro.local.epub.EpubReaderImpl(epubContentCache)
+                                        val epubContent = epubReader.readEpub(epubFile)
+                                        
+                                        // 获取章节的实际路径（从EPUB的spine中）
+                                        // 这里我们使用一个简化的方法：假设章节路径格式为 OEBPS/Text/chapterN.xhtml
+                                        // 实际应该从epublib的Book对象中获取
+                                        chapterPathToSet = "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
+                                        
+                                        android.util.Log.d("NovelReaderActivity", "Prepared EPUB info: file=${epubFile.name}, chapterPath=$chapterPathToSet")
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("NovelReaderActivity", "Failed to read EPUB for chapter path", e)
+                                        // 使用fallback路径
+                                        chapterPathToSet = null
+                                        android.util.Log.d("NovelReaderActivity", "Will use null chapterPath (fallback)")
+                                    }
+                                } else {
+                                    android.util.Log.w("NovelReaderActivity", "EPUB file not found: ${epubFile.absolutePath}")
+                                }
+                            } else {
+                                android.util.Log.w("NovelReaderActivity", "No mapping found for chapter index: $chapterIndex")
+                            }
                         }
                     }
                     
-                    if (settings.isReaderChapterToastEnabled) {
-                        viewBinding.toastView.showTemporary(
-                            chapter.title ?: getString(R.string.unnamed_chapter),
-                            2000L,
-                        )
+                    // 在主线程上设置EPUB信息并渲染内容
+                    withContext(Dispatchers.Main) {
+                        try {
+                            // 先设置EPUB信息
+                            viewBinding.readerView.setEpubInfo(epubFileToSet, chapterPathToSet)
+                            android.util.Log.d("NovelReaderActivity", "Set EPUB info: file=${epubFileToSet?.name}, chapterPath=$chapterPathToSet")
+                            
+                            // 然后设置内容
+                            android.util.Log.d("NovelReaderActivity", "Setting content to readerView")
+                            
+                            val savedPageIndex = currentPageIndex
+                            val needsPageRestore = savedPageIndex != 0
+                            
+                            // 直接在 setContent 时设置目标页码，避免中间状态
+                            viewBinding.readerView.setContent(
+                                content = contentToDisplay,
+                                resetPage = true,
+                                suppressNotification = needsPageRestore,
+                                initialPageIndex = savedPageIndex  // 直接传入目标页码（包括 -1）
+                            )
+                            
+                            android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
+                            
+                            // 如果需要恢复页码，等待分页完成后恢复通知
+                            if (needsPageRestore) {
+                                viewBinding.readerView.postDelayed({
+                                    // 恢复通知并立即通知一次
+                                    viewBinding.readerView.resumePageChangeNotification()
+                                }, 100)
+                            }
+                            
+                            currentPageIndex = 0 // 重置
+                            updateNavigationButtons()
+                            
+                            // 立即保存一次历史记录，确保小说出现在历史列表中
+                            viewBinding.readerView.post {
+                                val currentPage = viewBinding.readerView.getCurrentPage()
+                                val totalPages = viewBinding.readerView.getTotalPages()
+                                if (totalPages > 0) {
+                                    updateHistory(currentPage, totalPages)
+                                }
+                            }
+                            
+                            if (settings.isReaderChapterToastEnabled) {
+                                viewBinding.toastView.showTemporary(
+                                    chapter.title ?: getString(R.string.unnamed_chapter),
+                                    2000L,
+                                )
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("NovelReaderActivity", "Failed to set content", e)
+                            showError("显示内容失败: ${e.message}")
+                        }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("NovelReaderActivity", "Failed to set content", e)
-                    showError("显示内容失败: ${e.message}")
+                    android.util.Log.e("NovelReaderActivity", "Failed to prepare EPUB info", e)
+                    // 即使失败也要尝试显示内容
+                    withContext(Dispatchers.Main) {
+                        try {
+                            viewBinding.readerView.setEpubInfo(null, null)
+                            viewBinding.readerView.setContent(
+                                content = contentToDisplay,
+                                resetPage = true,
+                                suppressNotification = false,
+                                initialPageIndex = 0
+                            )
+                        } catch (e2: Exception) {
+                            android.util.Log.e("NovelReaderActivity", "Failed to set content in fallback", e2)
+                            showError("显示内容失败: ${e2.message}")
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -656,22 +934,20 @@ class NovelReaderActivity :
                 // 首先尝试从本地下载的文件加载
                 val localFile = findLocalEpubFile(chapter)
                 if (localFile != null && localFile.exists()) {
-                    val filePath = localFile.absolutePath
-                    android.util.Log.d("NovelReaderActivity", "Found local EPUB file: $filePath")
+                    android.util.Log.d("NovelReaderActivity", "Found local EPUB file: ${localFile.absolutePath}")
                     
-                    // 检查缓存
-                    epubContentCache[filePath]?.let {
-                        android.util.Log.d("NovelReaderActivity", "Using cached EPUB content for: $filePath")
-                        return@withContext it
+                    // 检查缓存 (cache is now managed by EpubReaderImpl)
+                    val cachedContent = epubContentCache.get(localFile)
+                    if (cachedContent != null) {
+                        android.util.Log.d("NovelReaderActivity", "Using cached EPUB content for: ${localFile.absolutePath}")
+                        return@withContext cachedContent
                     }
                     
-                    // 读取并缓存
-                    val epubReader = org.skepsun.kototoro.local.epub.EpubReader()
-                    val uri = android.net.Uri.fromFile(localFile)
-                    val content = epubReader.readEpub(uri)
+                    // 读取并缓存 (cache is automatically managed by EpubReaderImpl)
+                    val epubReader = org.skepsun.kototoro.local.epub.EpubReaderImpl(epubContentCache)
+                    val content = epubReader.readEpub(localFile)
                     if (content != null) {
-                        epubContentCache[filePath] = content
-                        android.util.Log.d("NovelReaderActivity", "Cached EPUB content for: $filePath")
+                        android.util.Log.d("NovelReaderActivity", "Loaded and cached EPUB content for: ${localFile.absolutePath}")
                     }
                     return@withContext content
                 }
@@ -683,19 +959,18 @@ class NovelReaderActivity :
                     if (file.exists()) {
                         android.util.Log.d("NovelReaderActivity", "Loading from file path: $filePath")
                         
-                        // 检查缓存
-                        epubContentCache[filePath]?.let {
+                        // 检查缓存 (cache is now managed by EpubReaderImpl)
+                        val cachedContent = epubContentCache.get(file)
+                        if (cachedContent != null) {
                             android.util.Log.d("NovelReaderActivity", "Using cached EPUB content for: $filePath")
-                            return@withContext it
+                            return@withContext cachedContent
                         }
                         
-                        // 读取并缓存
-                        val epubReader = org.skepsun.kototoro.local.epub.EpubReader()
-                        val uri = android.net.Uri.fromFile(file)
-                        val content = epubReader.readEpub(uri)
+                        // 读取并缓存 (cache is automatically managed by EpubReaderImpl)
+                        val epubReader = org.skepsun.kototoro.local.epub.EpubReaderImpl(epubContentCache)
+                        val content = epubReader.readEpub(file)
                         if (content != null) {
-                            epubContentCache[filePath] = content
-                            android.util.Log.d("NovelReaderActivity", "Cached EPUB content for: $filePath")
+                            android.util.Log.d("NovelReaderActivity", "Loaded and cached EPUB content for: $filePath")
                         }
                         return@withContext content
                     }
@@ -800,6 +1075,10 @@ class NovelReaderActivity :
 
     /**
      * 展开EPUB章节：将EPUB文件章节替换为其内部章节列表
+     * 
+     * 修复：
+     * 1. 使用卷名作为前缀，避免章节名重复
+     * 2. 使用数据库映射的章节ID，确保与详情页一致
      */
     private suspend fun expandEpubChapters(originalChapters: List<MangaChapter>): List<MangaChapter> {
         val expandedChapters = mutableListOf<MangaChapter>()
@@ -808,44 +1087,90 @@ class NovelReaderActivity :
         
         for (chapter in originalChapters) {
             try {
-                // 检查是否为EPUB章节
+                // 快速检查：如果URL不像EPUB文件，直接跳过
+                // EPUB文件通常以.epub结尾，或者URL中包含epub关键字
+                val isLikelyEpub = chapter.url.contains(".epub", ignoreCase = true) || 
+                                   chapter.url.contains("epub", ignoreCase = true) ||
+                                   chapter.url.contains(".cbz", ignoreCase = true)
+                
+                if (!isLikelyEpub) {
+                    // 不像EPUB文件，直接添加，跳过网络请求
+                    android.util.Log.d("NovelReaderActivity", "Chapter '${chapter.title}': Not EPUB-like URL, skipping check")
+                    expandedChapters.add(chapter)
+                    continue
+                }
+                
+                // 可能是EPUB，需要检查
+                android.util.Log.d("NovelReaderActivity", "Chapter '${chapter.title}': Checking if EPUB...")
                 val pages = repository.getPages(chapter)
                 android.util.Log.d("NovelReaderActivity", "Chapter '${chapter.title}': ${pages.size} pages, preview='${pages.firstOrNull()?.preview}'")
                 
                 if (pages.size == 1 && pages[0].preview == "EPUB") {
                     android.util.Log.d("NovelReaderActivity", "Found EPUB chapter: ${chapter.title}, ID=${chapter.id}, expanding...")
                     
-                    // 尝试读取EPUB内容
-                    val epubContent = loadEpubContentFromUrl(pages[0].url, chapter)
-                    if (epubContent != null && epubContent.chapters.isNotEmpty()) {
-                        // 不过滤，显示所有章节
-                        epubContent.chapters.forEachIndexed { chapterIndex, epubChapter ->
-                            val generatedUrl = "${pages[0].url}#chapter/$chapterIndex"
+                    // 首先尝试从数据库读取已保存的章节映射
+                    val dbMappings = try {
+                        epubChapterMappingDao.getByParentId(chapter.id)
+                    } catch (e: Exception) {
+                        android.util.Log.e("NovelReaderActivity", "Failed to query chapter mappings", e)
+                        emptyList()
+                    }
+                    
+                    if (dbMappings.isNotEmpty()) {
+                        // 使用数据库中的映射
+                        android.util.Log.d("NovelReaderActivity", "Using ${dbMappings.size} chapters from database")
+                        
+                        for (mapping in dbMappings.sortedBy { it.chapterIndex }) {
                             val internalChapter = MangaChapter(
-                                // 第一个内部章节保留原始章节ID，这样Intent能正确找到它
-                                // 其他章节使用偏移ID
-                                id = if (chapterIndex == 0) chapter.id else chapter.id + chapterIndex,
-                                title = epubChapter.title,
-                                number = chapter.number + chapterIndex,
+                                id = mapping.internalChapterId,
+                                title = mapping.chapterTitle,  // 不添加卷名前缀，详情页已经分组
+                                number = chapter.number + mapping.chapterIndex,
                                 volume = chapter.volume,
-                                url = generatedUrl, // 使用章节索引
+                                url = "${pages[0].url}#chapter/${mapping.chapterIndex}",
                                 scanlator = chapter.scanlator,
-                                uploadDate = chapter.uploadDate,
+                                uploadDate = mapping.createdAt,
                                 branch = chapter.branch,
                                 source = chapter.source,
                             )
                             expandedChapters.add(internalChapter)
-                            
-                            // 打印章节映射信息（仅前5个和后5个）
-                            if (chapterIndex < 5 || chapterIndex >= epubContent.chapters.size - 5) {
-                                android.util.Log.d("NovelReaderActivity", "  Chapter mapping: index=$chapterIndex, title='${epubChapter.title}', url='${internalChapter.url.takeLast(15)}'")
-                            }
                         }
-                        android.util.Log.d("NovelReaderActivity", "Expanded EPUB chapter into ${epubContent.chapters.size} internal chapters")
+                        android.util.Log.d("NovelReaderActivity", "Expanded EPUB chapter from database into ${dbMappings.size} internal chapters")
                     } else {
-                        // 读取失败，保留原始章节
-                        android.util.Log.w("NovelReaderActivity", "Failed to expand EPUB chapter, keeping original")
-                        expandedChapters.add(chapter)
+                        // 数据库中没有映射，尝试读取EPUB内容
+                        android.util.Log.d("NovelReaderActivity", "No database mappings found, reading EPUB content")
+                        val epubContent = loadEpubContentFromUrl(pages[0].url, chapter)
+                        
+                        if (epubContent != null && epubContent.chapters.isNotEmpty()) {
+                            // 不过滤，显示所有章节
+                            epubContent.chapters.forEachIndexed { chapterIndex, epubChapter ->
+                                val generatedUrl = "${pages[0].url}#chapter/$chapterIndex"
+                                // 使用与DownloadWorker相同的ID生成算法
+                                val internalChapterId = chapter.id + (chapterIndex * 1000000L) + 1
+                                
+                                val internalChapter = MangaChapter(
+                                    id = internalChapterId,
+                                    title = epubChapter.title,  // 不添加卷名前缀，详情页已经分组
+                                    number = chapter.number + chapterIndex,
+                                    volume = chapter.volume,
+                                    url = generatedUrl,
+                                    scanlator = chapter.scanlator,
+                                    uploadDate = chapter.uploadDate,
+                                    branch = chapter.branch,
+                                    source = chapter.source,
+                                )
+                                expandedChapters.add(internalChapter)
+                                
+                                // 打印章节映射信息（仅前5个和后5个）
+                                if (chapterIndex < 5 || chapterIndex >= epubContent.chapters.size - 5) {
+                                    android.util.Log.d("NovelReaderActivity", "  Chapter mapping: index=$chapterIndex, id=$internalChapterId, title='${internalChapter.title}', url='${internalChapter.url.takeLast(15)}'")
+                                }
+                            }
+                            android.util.Log.d("NovelReaderActivity", "Expanded EPUB chapter into ${epubContent.chapters.size} internal chapters")
+                        } else {
+                            // 读取失败，保留原始章节
+                            android.util.Log.w("NovelReaderActivity", "Failed to expand EPUB chapter, keeping original")
+                            expandedChapters.add(chapter)
+                        }
                     }
                 } else {
                     // 非EPUB章节，直接添加

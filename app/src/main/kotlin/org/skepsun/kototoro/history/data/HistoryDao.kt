@@ -125,7 +125,7 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 	abstract suspend fun insert(entity: HistoryEntity): Long
 
 	@Query(
-		"UPDATE history SET page = :page, chapter_id = :chapterId, scroll = :scroll, percent = :percent, updated_at = :updatedAt, chapters = :chapters, deleted_at = 0 WHERE manga_id = :mangaId",
+		"UPDATE history SET page = :page, chapter_id = :chapterId, scroll = :scroll, percent = :percent, updated_at = :updatedAt, chapters = :chapters, parent_chapter_id = :parentChapterId, deleted_at = 0 WHERE manga_id = :mangaId",
 	)
 	abstract suspend fun update(
 		mangaId: Long,
@@ -135,6 +135,7 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 		percent: Float,
 		chapters: Int,
 		updatedAt: Long,
+		parentChapterId: Long?,
 	): Int
 
 	suspend fun delete(mangaId: Long) = setDeletedAt(mangaId, System.currentTimeMillis())
@@ -150,22 +151,41 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 
 	suspend fun clear() = setDeletedAtAfter(0L, System.currentTimeMillis())
 
-	suspend fun update(entity: HistoryEntity) = update(
-		mangaId = entity.mangaId,
-		page = entity.page,
-		chapterId = entity.chapterId,
-		scroll = entity.scroll,
-		percent = entity.percent,
-		chapters = entity.chaptersCount,
-		updatedAt = entity.updatedAt,
-	)
+	suspend fun update(entity: HistoryEntity): Int {
+		android.util.Log.d("HistoryDao", "update(entity): mangaId=${entity.mangaId}, chapterId=${entity.chapterId}, parentChapterId=${entity.parentChapterId}")
+		android.util.Log.d("HistoryDao", "Calling native update method...")
+		try {
+			val result = update(
+				mangaId = entity.mangaId,
+				page = entity.page,
+				chapterId = entity.chapterId,
+				scroll = entity.scroll,
+				percent = entity.percent,
+				chapters = entity.chaptersCount,
+				updatedAt = entity.updatedAt,
+				parentChapterId = entity.parentChapterId,
+			)
+			android.util.Log.d("HistoryDao", "Native update returned: $result")
+			return result
+		} catch (e: Exception) {
+			android.util.Log.e("HistoryDao", "Native update failed", e)
+			throw e
+		}
+	}
 
 	@Transaction
 	open suspend fun upsert(entity: HistoryEntity): Boolean {
-		return if (update(entity) == 0) {
-			insert(entity)
+		android.util.Log.d("HistoryDao", "Upsert: mangaId=${entity.mangaId}, chapterId=${entity.chapterId}, parentChapterId=${entity.parentChapterId}")
+		val updateCount = update(entity)
+		android.util.Log.d("HistoryDao", "Update count: $updateCount")
+		return if (updateCount == 0) {
+			val insertId = insert(entity)
+			android.util.Log.d("HistoryDao", "Insert ID: $insertId")
 			true
-		} else false
+		} else {
+			android.util.Log.d("HistoryDao", "Updated existing record")
+			false
+		}
 	}
 
 	@Transaction

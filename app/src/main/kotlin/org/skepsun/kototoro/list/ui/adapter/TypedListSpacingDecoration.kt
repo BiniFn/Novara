@@ -66,6 +66,7 @@ class TypedListSpacingDecoration(
 			ListItemType.NAV_ITEM,
 			ListItemType.CHAPTER_LIST,
 			ListItemType.INFO,
+			ListItemType.COLLAPSIBLE_HEADER,
 			null,
 				-> outRect.set(0)
 

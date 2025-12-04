@@ -49,12 +49,15 @@ class ChaptersFragment :
 	BaseFragment<FragmentChaptersBinding>(),
 	OnListItemClickListener<ChapterListItem>,
 	RecyclerViewOwner,
-	ChipsView.OnChipClickListener {
+	ChipsView.OnChipClickListener,
+	org.skepsun.kototoro.list.ui.adapter.CollapsibleHeaderClickListener {
 
 	private val viewModel by ChaptersPagesViewModel.ActivityVMLazy(this)
 
 	private var chaptersAdapter: ChaptersAdapter? = null
 	private var selectionController: ListSelectionController? = null
+	private val groupsManager = ChapterGroupsManager()
+	private var originalChaptersList: List<ListModel> = emptyList()  // 保存原始列表
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerViewChapters
@@ -66,7 +69,7 @@ class ChaptersFragment :
 
 	override fun onViewBindingCreated(binding: FragmentChaptersBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		chaptersAdapter = ChaptersAdapter(this)
+		chaptersAdapter = ChaptersAdapter(this, this)
 		selectionController = ListSelectionController(
 			appCompatDelegate = checkNotNull(findAppCompatDelegate()),
 			decoration = ChaptersSelectionDecoration(binding.root.context),
@@ -138,6 +141,19 @@ class ChaptersFragment :
 		viewModel.setSelectedBranch(data.titleText)
 	}
 
+	override fun onCollapsibleHeaderClick(header: org.skepsun.kototoro.list.ui.model.CollapsibleListHeader) {
+		if (!header.isCollapsible) return
+		
+		// Toggle the group state
+		groupsManager.toggleGroup(header.groupId)
+		
+		// Apply the updated collapsed state to the original list
+		if (originalChaptersList.isNotEmpty()) {
+			val updatedList = groupsManager.applyCollapsedState(originalChaptersList)
+			chaptersAdapter?.items = updatedList
+		}
+	}
+
 	override fun onApplyWindowInsets(
 		v: View,
 		insets: WindowInsetsCompat
@@ -159,19 +175,26 @@ class ChaptersFragment :
 
 	private fun onChaptersChanged(list: List<ListModel>) {
 		val adapter = chaptersAdapter ?: return
+		
+		// Save the original list for collapse/expand operations
+		originalChaptersList = list
+		
+		// Apply collapsed state to the list
+		val processedList = groupsManager.applyCollapsedState(list)
+		
 		if (adapter.itemCount == 0) {
-			val position = list.indexOfFirst { it is ChapterListItem && it.isCurrent } - 1
+			val position = processedList.indexOfFirst { it is ChapterListItem && it.isCurrent } - 1
 			if (position > 0) {
 				val offset = (resources.getDimensionPixelSize(R.dimen.chapter_list_item_height) * 0.6).roundToInt()
 				adapter.setItems(
-					list,
+					processedList,
 					RecyclerViewScrollCallback(requireViewBinding().recyclerViewChapters, position, offset),
 				)
 			} else {
-				adapter.items = list
+				adapter.items = processedList
 			}
 		} else {
-			adapter.items = list
+			adapter.items = processedList
 		}
 	}
 

@@ -119,6 +119,8 @@ class DownloadWorker @AssistedInject constructor(
 	private val slowdownDispatcher: DownloadSlowdownDispatcher,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 	notificationFactoryFactory: DownloadNotificationFactory.Factory,
+	private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
+	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 ) : CoroutineWorker(appContext, params) {
 
 	private val task = DownloadTask(params.inputData)
@@ -268,16 +270,18 @@ class DownloadWorker @AssistedInject constructor(
 					}
 					
 					if (isEpubChapter) {
-						println("DownloadWorker: EPUB detected! Calling downloadEpubChapter")
+						println("DownloadWorker: EPUB detected! Using NEW ARCHITECTURE")
+						android.util.Log.i("DownloadWorker", "EPUB chapter detected, using new LocalEpubSource architecture")
+						
 						// 从跳过列表中移除（如果存在），确保会被处理
 						chaptersToSkip.remove(chapter.value.id)
 						
-						// 处理EPUB下载
+						// 使用新架构：下载到独立的epub文件夹
 						val result = runFailsafe {
-							downloadEpubChapter(
+							downloadEpubToStorage(
+								manga = mangaDetails,
 								chapter = chapter,
 								epubUrl = pages[0].url,
-								output = output,
 								destination = destination,
 								repo = repo,
 							)
@@ -285,6 +289,54 @@ class DownloadWorker @AssistedInject constructor(
 						}
 						if (result == true) {
 							publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
+							android.util.Log.i("DownloadWorker", "EPUB downloaded successfully to epub storage")
+							
+							// 触发章节解析和保存到数据库
+							runCatchingCancellable {
+								// 获取刚保存的EPUB文件路径
+								val epubDir = epubStorageManager.getEpubDir(mangaDetails.id)
+								val epubFileName = "chapter_${chapter.value.id}.epub"
+								val epubFile = File(epubDir, epubFileName)
+								
+								if (!epubFile.exists()) {
+									android.util.Log.e("DownloadWorker", "EPUB file not found: ${epubFile.absolutePath}")
+									return@runCatchingCancellable
+								}
+								
+								// 解析EPUB文件
+								val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
+								val epubContent = parser.parseManga()
+								
+								if (epubContent == null) {
+									android.util.Log.e("DownloadWorker", "Failed to parse EPUB file")
+									return@runCatchingCancellable
+								}
+								
+								android.util.Log.d("DownloadWorker", "Parsed ${epubContent.chapters?.size} chapters from EPUB")
+								
+								// 保存章节映射到数据库
+								val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
+								for ((index, epubChapter) in epubContent.chapters.orEmpty().withIndex()) {
+									// 生成内部章节ID：使用parentChapterId + index的组合
+									val internalChapterId = chapter.value.id + (index * 1000000L) + 1
+									
+									val mapping = org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity(
+										internalChapterId = internalChapterId,
+										parentChapterId = chapter.value.id,
+										epubFilePath = epubFile.absolutePath,
+										epubFileName = chapter.value.title ?: epubFileName, // 使用章节标题作为显示名称
+										chapterIndex = index,
+										chapterTitle = epubChapter.title ?: "Chapter ${index + 1}",
+									)
+									epubChapterMappingDao.insert(mapping)
+								}
+								
+								android.util.Log.i("DownloadWorker", "EPUB chapters parsed and saved to database: ${epubContent.chapters?.size} chapters")
+								android.util.Log.i("DownloadWorker", "EPUB file saved at: ${epubFile.absolutePath}")
+							}.onFailure { e ->
+								android.util.Log.e("DownloadWorker", "Failed to parse EPUB chapters", e)
+								e.printStackTrace()
+							}
 						}
 						continue
 					} else {
@@ -505,11 +557,17 @@ class DownloadWorker @AssistedInject constructor(
 	/**
 	 * 下载EPUB章节
 	 * 
-	 * EPUB本质上是ZIP格式，直接保存为CBZ文件，避免ZIP嵌套
+	 * EPUB本质上是ZIP格式，保存为.epub文件以符合标准
 	 * 
 	 * 特殊处理：
 	 * - 对于LocalMangaDirOutput：使用addEpubChapter直接保存EPUB
 	 * - 对于LocalMangaZipOutput：会导致ZIP嵌套（暂不支持）
+	 * 
+	 * Requirements: 1.1, 1.2, 1.3, 1.4
+	 * - 1.1: Save with .epub extension
+	 * - 1.2: Preserve EPUB format without converting to CBZ
+	 * - 1.3: Store in dedicated EPUB directory
+	 * - 1.4: Generate unique filename using parent chapter ID
 	 */
 	private suspend fun downloadEpubChapter(
 		chapter: IndexedValue<MangaChapter>,
@@ -522,7 +580,7 @@ class DownloadWorker @AssistedInject constructor(
 		println("DownloadWorker.downloadEpubChapter: URL = $epubUrl")
 		println("DownloadWorker.downloadEpubChapter: Destination = ${destination.absolutePath}")
 		
-		// 下载EPUB文件
+		// 下载EPUB文件到临时位置
 		val tempFile = try {
 			println("DownloadWorker.downloadEpubChapter: Calling downloadFile...")
 			val file = downloadFile(epubUrl, destination, repo.source, useProxy = false)
@@ -537,19 +595,57 @@ class DownloadWorker @AssistedInject constructor(
 		try {
 			// 验证文件是否真的是EPUB/ZIP
 			if (!isValidEpubFile(tempFile)) {
+				val fileHead = readFileHead(tempFile, 200)
 				println("DownloadWorker.downloadEpubChapter: ERROR - Downloaded file is not a valid EPUB!")
-				println("DownloadWorker.downloadEpubChapter: First 100 bytes: ${readFileHead(tempFile, 100)}")
+				println("DownloadWorker.downloadEpubChapter: File content: $fileHead")
+				println("DownloadWorker.downloadEpubChapter: URL: $epubUrl")
+				println("DownloadWorker.downloadEpubChapter: Source: ${repo.source.name}")
+				
 				tempFile.deleteAwait()
-				throw IOException("Downloaded file is not a valid EPUB (possible auth error or HTML error page)")
+				
+				// Check if it's an HTML login/error page
+				val lowerContent = fileHead.lowercase()
+				when {
+					lowerContent.contains("login") || lowerContent.contains("sign in") || lowerContent.contains("authentication") -> {
+						throw IOException("Authentication required. Please log in to ${repo.source.name} again in the app settings.")
+					}
+					lowerContent.contains("not found") || lowerContent.contains("404") -> {
+						throw IOException("Book not found or no longer available on ${repo.source.name}.")
+					}
+					lowerContent.contains("access denied") || lowerContent.contains("forbidden") -> {
+						throw IOException("Access denied. You may not have permission to download this book.")
+					}
+					lowerContent.contains("<!doctype") || lowerContent.contains("<html") -> {
+						throw IOException("Downloaded an HTML page instead of EPUB. This usually means authentication failed or the download link is invalid.")
+					}
+					else -> {
+						throw IOException("Downloaded file is not a valid EPUB format. The file may be corrupted or the download link may be incorrect.")
+					}
+				}
 			}
 			
 			println("DownloadWorker.downloadEpubChapter: File validation passed - is valid EPUB/ZIP")
 			
-			// 重命名为.cbz（EPUB本质上就是ZIP）
-			val cbzFile = if (tempFile.name.endsWith(".cbz", ignoreCase = true)) {
-				tempFile
+			// Requirement 1.1 & 1.2: Preserve .epub extension (do NOT convert to .cbz)
+			// Requirement 1.4: Generate unique filename using parent chapter ID
+			val epubFileName = generateEpubFileName(chapter.value.id)
+			val epubFile = if (tempFile.name.endsWith(".epub", ignoreCase = true)) {
+				// If already has .epub extension, rename to use our naming pattern
+				val newFile = File(tempFile.parentFile, epubFileName)
+				if (tempFile.renameTo(newFile)) {
+					newFile
+				} else {
+					newFile.outputStream().use { output ->
+						tempFile.inputStream().use { input ->
+							input.copyTo(output)
+						}
+					}
+					tempFile.deleteAwait()
+					newFile
+				}
 			} else {
-				val newFile = File(tempFile.parentFile, "${tempFile.nameWithoutExtension}.cbz")
+				// Add .epub extension if missing
+				val newFile = File(tempFile.parentFile, epubFileName)
 				if (tempFile.renameTo(newFile)) {
 					newFile
 				} else {
@@ -563,22 +659,26 @@ class DownloadWorker @AssistedInject constructor(
 				}
 			}
 			
-			println("DownloadWorker.downloadEpubChapter: Renamed to ${cbzFile.absolutePath}")
+			println("DownloadWorker.downloadEpubChapter: Renamed to ${epubFile.absolutePath}")
+			println("DownloadWorker.downloadEpubChapter: Extension preserved as: ${epubFile.extension}")
 			
 			// 根据output类型选择处理方式
 			when (output) {
 				is LocalMangaDirOutput -> {
 					// MULTIPLE_CBZ格式：保存EPUB并解析章节
-					println("DownloadWorker.downloadEpubChapter: Using MULTIPLE_CBZ format - saving as single chapter")
+					println("DownloadWorker.downloadEpubChapter: Using MULTIPLE_CBZ format - saving as EPUB file")
 					
-					// 保存EPUB文件（不解析内部章节，避免崩溃）
-					output.addEpubChapter(chapter, cbzFile)
-					println("DownloadWorker.downloadEpubChapter: Successfully saved EPUB")
+					// Get the DAO for storing chapter mappings (Requirements 5.3)
+					val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
+					
+					// 保存EPUB文件（保持.epub扩展名）并存储章节映射到数据库
+					output.addEpubChapter(chapter, epubFile, epubChapterMappingDao)
+					println("DownloadWorker.downloadEpubChapter: Successfully saved EPUB with .epub extension and stored chapter mappings")
 				}
 				else -> {
 					// SINGLE_CBZ格式：不支持EPUB解析，抛出错误提示用户更改下载格式
 					println("DownloadWorker.downloadEpubChapter: ERROR - SINGLE_CBZ format does not support EPUB chapters")
-					cbzFile.deleteAwait()
+					epubFile.deleteAwait()
 					throw IOException("EPUB chapters require MULTIPLE_CBZ download format. Please change download format in settings to 'Multiple CBZ files' and try again.")
 				}
 			}
@@ -593,13 +693,96 @@ class DownloadWorker @AssistedInject constructor(
 		} catch (e: Exception) {
 			println("DownloadWorker.downloadEpubChapter: ERROR - ${e.javaClass.simpleName}: ${e.message}")
 			e.printStackTraceDebug()
-			// Clean up the file (might be tempFile or cbzFile depending on where error occurred)
+			// Clean up the file (might be tempFile or epubFile depending on where error occurred)
 			tempFile.deleteAwait()
-			// Also try to delete cbzFile if it was created
-			val possibleCbzFile = File(tempFile.parentFile, "${tempFile.nameWithoutExtension}.cbz")
-			if (possibleCbzFile.exists() && possibleCbzFile != tempFile) {
-				possibleCbzFile.deleteAwait()
+			// Also try to delete epubFile if it was created
+			val possibleEpubFile = File(tempFile.parentFile, generateEpubFileName(chapter.value.id))
+			if (possibleEpubFile.exists() && possibleEpubFile != tempFile) {
+				possibleEpubFile.deleteAwait()
 			}
+			throw e
+		}
+	}
+	
+	/**
+	 * Generates a unique EPUB filename using the parent chapter ID.
+	 * Pattern: chapter_{chapterId}_{timestamp}.epub
+	 * 
+	 * Requirement 1.4: Generate unique filenames using parent chapter ID
+	 */
+	private fun generateEpubFileName(chapterId: Long): String {
+		val timestamp = System.currentTimeMillis()
+		return "chapter_${chapterId}_${timestamp}.epub"
+	}
+	
+	/**
+	 * Download EPUB file to independent epub storage (NEW ARCHITECTURE)
+	 * 
+	 * This method implements the new EPUB architecture where:
+	 * - EPUB files are stored in files/epub/{manga_id}/book.epub
+	 * - No parsing or chapter extraction during download
+	 * - LocalEpubSource will handle parsing when needed
+	 * 
+	 * @param manga The manga being downloaded
+	 * @param chapter The chapter (EPUB download link)
+	 * @param epubUrl The URL to download EPUB from
+	 * @param destination Temporary download destination
+	 * @param repo The manga repository
+	 */
+	private suspend fun downloadEpubToStorage(
+		manga: Manga,
+		chapter: IndexedValue<MangaChapter>,
+		epubUrl: String,
+		destination: File,
+		repo: MangaRepository,
+	) {
+		android.util.Log.i("DownloadWorker", "========================================")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Starting NEW ARCHITECTURE EPUB download")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Manga ID=${manga.id}")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Manga Title=${manga.title}")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Chapter=${chapter.value.title}")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: URL=$epubUrl")
+		android.util.Log.i("DownloadWorker", "========================================")
+		
+		// 1. Download EPUB file to temporary location
+		// IMPORTANT: useProxy = true to ensure cookies are sent for authentication
+		val tempFile = try {
+			android.util.Log.d("DownloadWorker", "downloadEpubToStorage: Downloading file with authentication...")
+			downloadFile(epubUrl, destination, repo.source, useProxy = true)
+		} catch (e: Exception) {
+			android.util.Log.e("DownloadWorker", "downloadEpubToStorage: Download failed", e)
+			throw e
+		}
+		
+		android.util.Log.d("DownloadWorker", "downloadEpubToStorage: Downloaded to ${tempFile.absolutePath}")
+		android.util.Log.d("DownloadWorker", "downloadEpubToStorage: File size=${tempFile.length()} bytes")
+		
+		try {
+			// 2. Validate file is actually EPUB/ZIP
+			if (!isValidEpubFile(tempFile)) {
+				val fileHead = readFileHead(tempFile, 200)
+				android.util.Log.e("DownloadWorker", "downloadEpubToStorage: Invalid EPUB file!")
+				android.util.Log.e("DownloadWorker", "downloadEpubToStorage: File head: $fileHead")
+				tempFile.deleteAwait()
+				throw IOException("Downloaded file is not a valid EPUB (possible authentication error or HTML error page)")
+			}
+			
+			android.util.Log.d("DownloadWorker", "downloadEpubToStorage: File validated successfully")
+			
+			// 3. Save to epub storage using EpubStorageManager
+			// 使用chapter ID来区分同一manga的多个EPUB文件
+			val savedFile = epubStorageManager.saveEpubFile(manga.id, tempFile, chapter.value.id)
+			android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Saved to ${savedFile.absolutePath}, size=${savedFile.length()} bytes")
+			
+			// 4. Delete temporary file
+			tempFile.deleteAwait()
+			
+			android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Completed successfully")
+			android.util.Log.i("DownloadWorker", "========================================")
+			
+		} catch (e: Exception) {
+			android.util.Log.e("DownloadWorker", "downloadEpubToStorage: Error during save", e)
+			tempFile.deleteAwait()
 			throw e
 		}
 	}

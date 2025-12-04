@@ -106,11 +106,26 @@ class HistoryRepository @Inject constructor(
 
 	fun observeOne(id: Long): Flow<MangaHistory?> {
 		return db.getHistoryDao().observe(id).map {
+			android.util.Log.d("HistoryRepository", "observeOne: mangaId=$id, entity=${it?.let { "chapterId=${it.chapterId}, parentChapterId=${it.parentChapterId}" } ?: "null"}")
 			it?.toMangaHistory()
 		}
 	}
 
-	suspend fun addOrUpdate(manga: Manga, chapterId: Long, page: Int, scroll: Int, percent: Float, force: Boolean) {
+	suspend fun addOrUpdate(
+		manga: Manga, 
+		chapterId: Long, 
+		page: Int, 
+		scroll: Int, 
+		percent: Float, 
+		force: Boolean,
+		parentChapterId: Long? = null  // EPUB父章节ID，用于支持内部章节
+	) {
+		// 添加调用栈日志，帮助追踪谁在保存历史记录
+		if (parentChapterId != null && chapterId == parentChapterId) {
+			android.util.Log.w("HistoryRepository", "WARNING: chapterId == parentChapterId! This might be incorrect.")
+			android.util.Log.w("HistoryRepository", "Stack trace:", Exception("Stack trace"))
+		}
+		
 		if (!force && shouldSkip(manga)) {
 			return
 		}
@@ -118,26 +133,37 @@ class HistoryRepository @Inject constructor(
 		db.withTransaction {
 			mangaRepository.storeManga(manga, replaceExisting = true)
 			val branch = manga.chapters?.findById(chapterId)?.branch
-			db.getHistoryDao().upsert(
-				HistoryEntity(
-					mangaId = manga.id,
-					createdAt = System.currentTimeMillis(),
-					updatedAt = System.currentTimeMillis(),
-					chapterId = chapterId,
-					page = page,
-					scroll = scroll.toFloat(), // we migrate to int, but decide to not update database
-					percent = percent,
-					chaptersCount = manga.chapters?.count { it.branch == branch } ?: 0,
-					deletedAt = 0L,
-				),
+			val entity = HistoryEntity(
+				mangaId = manga.id,
+				createdAt = System.currentTimeMillis(),
+				updatedAt = System.currentTimeMillis(),
+				chapterId = chapterId,
+				page = page,
+				scroll = scroll.toFloat(), // we migrate to int, but decide to not update database
+				percent = percent,
+				chaptersCount = manga.chapters?.count { it.branch == branch } ?: 0,
+				deletedAt = 0L,
+				parentChapterId = parentChapterId,  // 保存父章节ID
 			)
+			android.util.Log.d("HistoryRepository", "Upserting history: mangaId=${manga.id}, chapterId=$chapterId, parentChapterId=$parentChapterId")
+			try {
+				val result = db.getHistoryDao().upsert(entity)
+				android.util.Log.d("HistoryRepository", "Upsert result: $result (true=inserted, false=updated)")
+			} catch (e: Exception) {
+				android.util.Log.e("HistoryRepository", "Upsert failed", e)
+				throw e
+			}
 			newChaptersUseCaseProvider.get()(manga, chapterId)
 			scrobblers.forEach { it.tryScrobble(manga, chapterId) }
 		}
 	}
 
 	suspend fun getOne(manga: Manga): MangaHistory? {
-		return db.getHistoryDao().find(manga.id)?.recoverIfNeeded(manga)?.toMangaHistory()
+		val entity = db.getHistoryDao().find(manga.id)
+		android.util.Log.d("HistoryRepository", "getOne: mangaId=${manga.id}, entity=${entity?.let { "chapterId=${it.chapterId}, parentChapterId=${it.parentChapterId}" } ?: "null"}")
+		val recovered = entity?.recoverIfNeeded(manga)
+		android.util.Log.d("HistoryRepository", "getOne after recover: ${recovered?.let { "chapterId=${it.chapterId}, parentChapterId=${it.parentChapterId}" } ?: "null"}")
+		return recovered?.toMangaHistory()
 	}
 
 	suspend fun getProgress(mangaId: Long, mode: ProgressIndicatorMode): ReadingProgress? {
@@ -220,9 +246,21 @@ class HistoryRepository @Inject constructor(
 		if (manga.isLocal || chapters.isNullOrEmpty() || chapters.findById(chapterId) != null) {
 			return this
 		}
+		
+		// 对于EPUB内部章节，不要尝试恢复
+		// parentChapterId != null && parentChapterId != chapterId 表示这是EPUB内部章节
+		// 详情页显示的是父章节列表，所以内部章节ID在列表中找不到是正常的
+		if (parentChapterId != null && parentChapterId != chapterId) {
+			android.util.Log.d("HistoryRepository", "Skipping recovery for EPUB internal chapter: $chapterId (parent: $parentChapterId)")
+			return this
+		}
+		
+		android.util.Log.w("HistoryRepository", "recoverIfNeeded: Chapter $chapterId not found in ${chapters.size} chapters, attempting recovery")
+		android.util.Log.w("HistoryRepository", "First 3 chapter IDs: ${chapters.take(3).map { it.id }}")
 		val newChapterId = chapters.getOrNull(
 			(chapters.size * percent).toInt(),
 		)?.id ?: return this
+		android.util.Log.w("HistoryRepository", "Recovered: $chapterId -> $newChapterId (percent=$percent)")
 		val newEntity = copy(chapterId = newChapterId)
 		db.getHistoryDao().update(newEntity)
 		return newEntity

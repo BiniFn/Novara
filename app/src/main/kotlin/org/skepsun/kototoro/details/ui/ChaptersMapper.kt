@@ -8,7 +8,23 @@ import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.local.epub.ChapterMetadata
+import org.skepsun.kototoro.local.epub.ChapterType
+import org.skepsun.kototoro.parsers.model.MangaChapter
 import org.skepsun.kototoro.parsers.util.mapToSet
+
+/**
+ * Represents a group of chapters for UI display
+ * 
+ * @param name Display name of the group
+ * @param chapters List of chapters in this group
+ * @param isCollapsible Whether the group can be collapsed/expanded in the UI
+ */
+data class ChapterGroup(
+    val name: String,
+    val chapters: List<MangaChapter>,
+    val isCollapsible: Boolean
+)
 
 fun MangaDetails.mapChapters(
 	currentChapterId: Long,
@@ -18,41 +34,52 @@ fun MangaDetails.mapChapters(
 	isGrid: Boolean,
 	isDownloadedOnly: Boolean,
 ): List<ChapterListItem> {
-	// 过滤掉EPUB内部章节
-	// 1. URL包含#chapter/的章节（阅读器内部生成的）
-	// 2. 本地下载的EPUB展开章节（通过检查是否只有1个remote章节但有多个local章节来判断）
+	android.util.Log.d("ChaptersMapper", "=== mapChapters START ===")
+	android.util.Log.d("ChaptersMapper", "Input branch: $branch")
+	android.util.Log.d("ChaptersMapper", "Available branches: ${chapters.keys}")
+	android.util.Log.d("ChaptersMapper", "Total chapters in all branches: ${allChapters.size}")
+	
+	// Get all chapters (including EPUB internal chapters)
+	// Note: EPUB internal chapters have URLs like "file:///.../file.epub#chapter/N" or "epub://..."
+	// These should NOT be filtered out - they are the actual readable chapters
 	val allRemoteChapters = chapters[branch].orEmpty()
 	val allLocalChapters = local?.manga?.getChapters(branch).orEmpty()
 	
-	// 检查是否为EPUB：
-	// 1. 只有1个remote章节，且URL以.epub结尾
-	// 2. local章节要么是0（未下载），要么远大于1（已下载并展开）
-	val isSingleEpub = allRemoteChapters.size == 1 && 
-		allRemoteChapters.firstOrNull()?.url?.endsWith(".epub", ignoreCase = true) == true
-	val isEpubExpanded = isSingleEpub && allLocalChapters.size > 1
+	android.util.Log.d("ChaptersMapper", "allRemoteChapters: ${allRemoteChapters.size}")
+	android.util.Log.d("ChaptersMapper", "allLocalChapters: ${allLocalChapters.size}")
 	
-	// 过滤章节：
-	// 1. 移除URL包含#chapter/的章节（阅读器内部生成的）
-	// 2. 如果有EPUB文件，移除所有.cbz文件（这些是EPUB展开后保存的）
-	val hasEpubChapter = allRemoteChapters.any { it.url.endsWith(".epub", ignoreCase = true) } ||
-		allLocalChapters.any { it.url.endsWith(".epub", ignoreCase = true) }
+	// Check if we have EPUB internal chapters (expanded chapters with #chapter/ in URL or epub:// protocol)
+	val hasEpubInternalChapters = allRemoteChapters.any { it.url.contains("#chapter/") || it.url.startsWith("epub://") } ||
+		allLocalChapters.any { it.url.contains("#chapter/") || it.url.startsWith("epub://") }
 	
+	android.util.Log.d("ChaptersMapper", "hasEpubInternalChapters: $hasEpubInternalChapters")
+	
+	// IMPORTANT: DetailsLoadUseCase already handles EPUB expansion
+	// Downloaded EPUBs are expanded to internal chapters (epub://...)
+	// Undownloaded EPUBs are kept as download links (.epub URLs)
+	// So we should NOT filter out any chapters here!
 	val remoteChapters = allRemoteChapters.filter { chapter ->
-		!chapter.url.contains("#chapter/") && 
-		(!hasEpubChapter || !chapter.url.endsWith(".cbz", ignoreCase = true))
+		// Only filter out legacy .cbz files
+		!chapter.url.endsWith(".cbz", ignoreCase = true)
 	}
 	
-	val localChapters = if (isEpubExpanded) {
-		// 如果是EPUB展开的章节，只保留第一个（原始EPUB章节）
-		android.util.Log.d("ChaptersMapper", "Detected EPUB expansion, filtering local chapters")
-		emptyList()
-	} else {
-		allLocalChapters.filter { chapter ->
-			!chapter.url.contains("#chapter/") &&
-			(!hasEpubChapter || !chapter.url.endsWith(".cbz", ignoreCase = true))
-		}
+	val localChapters = allLocalChapters.filter { chapter ->
+		// Only filter out legacy .cbz files
+		!chapter.url.endsWith(".cbz", ignoreCase = true)
 	}
 
+	
+	android.util.Log.d("ChaptersMapper", "After filtering:")
+	android.util.Log.d("ChaptersMapper", "  remoteChapters: ${remoteChapters.size}")
+	android.util.Log.d("ChaptersMapper", "  localChapters: ${localChapters.size}")
+	
+	// Log first few chapters for debugging
+	remoteChapters.take(3).forEachIndexed { i, ch ->
+		android.util.Log.d("ChaptersMapper", "  remote[$i]: id=${ch.id}, title=${ch.name}, url=${ch.url}")
+	}
+	localChapters.take(3).forEachIndexed { i, ch ->
+		android.util.Log.d("ChaptersMapper", "  local[$i]: id=${ch.id}, title=${ch.name}, url=${ch.url}")
+	}
 	
 	if (remoteChapters.isEmpty() && localChapters.isEmpty()) {
 		return emptyList()
@@ -64,18 +91,46 @@ fun MangaDetails.mapChapters(
 		localChapters.mapTo(this) { it.id }
 	}
 	val result = ArrayList<ChapterListItem>(ids.size)
-	val localMap = if (localChapters.isNotEmpty()) {
+	
+	// Build maps for both ID and URL matching
+	// For EPUB internal chapters, URL matching is more reliable than ID matching
+	val localMapById = if (localChapters.isNotEmpty()) {
 		localChapters.associateByTo(LinkedHashMap(localChapters.size)) { it.id }
 	} else {
 		null
 	}
-	var isUnread = currentChapterId !in ids
+	val localMapByUrl = if (localChapters.isNotEmpty()) {
+		localChapters.associateByTo(LinkedHashMap(localChapters.size)) { it.url }
+	} else {
+		null
+	}
+	
+	// Find the current chapter's number for isUnread calculation
+	val currentChapterNumber = remoteChapters.find { it.id == currentChapterId }?.number
+	
 	if (!isDownloadedOnly || local?.manga?.chapters == null) {
-		for (chapter in remoteChapters) {
-			val local = localMap?.remove(chapter.id)
-			if (chapter.id == currentChapterId) {
-				isUnread = true
+		for ((index, chapter) in remoteChapters.withIndex()) {
+			// Try to find matching local chapter by ID first, then by URL
+			// URL matching is important for EPUB internal chapters which may have different IDs
+			val localById = localMapById?.remove(chapter.id)
+			val localByUrl = if (localById == null && chapter.url.contains("#chapter/")) {
+				localMapByUrl?.remove(chapter.url)?.also {
+					// Also remove from ID map to avoid duplication
+					localMapById?.remove(it.id)
+				}
+			} else {
+				null
 			}
+			val local = localById ?: localByUrl
+			
+			// isUnread: chapters with number > current chapter number are unread
+			// If current chapter not found, all chapters are unread
+			val isUnread = if (currentChapterNumber != null) {
+				chapter.number > currentChapterNumber
+			} else {
+				true  // Current chapter not in list, all chapters are unread
+			}
+			
 			result += (local ?: chapter).toListItem(
 				isCurrent = chapter.id == currentChapterId,
 				isUnread = isUnread,
@@ -86,14 +141,14 @@ fun MangaDetails.mapChapters(
 			)
 		}
 	}
-	if (!localMap.isNullOrEmpty()) {
-		for (chapter in localMap.values) {
-			if (chapter.id == currentChapterId) {
-				isUnread = true
-			}
+	if (!localMapById.isNullOrEmpty()) {
+		android.util.Log.d("ChaptersMapper", "Adding ${localMapById.size} local-only chapters")
+		for (chapter in localMapById.values) {
+			android.util.Log.d("ChaptersMapper", "  local-only: id=${chapter.id}, title=${chapter.name}, url=${chapter.url.takeLast(30)}")
+			// Local-only chapters are always considered unread
 			result += chapter.toListItem(
 				isCurrent = chapter.id == currentChapterId,
-				isUnread = isUnread,
+				isUnread = true,
 				isNew = false,
 				isDownloaded = !isLocal,
 				isBookmarked = chapter.id in bookmarked,
@@ -101,24 +156,254 @@ fun MangaDetails.mapChapters(
 			)
 		}
 	}
+	
+	android.util.Log.d("ChaptersMapper", "=== mapChapters END: ${result.size} total chapters ===")
 	return result
 }
 
 fun List<ChapterListItem>.withVolumeHeaders(context: Context): MutableList<ListModel> {
-	var prevVolume = 0
-	val result = ArrayList<ListModel>((size * 1.4).toInt())
-	for (item in this) {
-		val chapter = item.chapter
-		if (chapter.volume != prevVolume) {
-			val text = if (chapter.volume == 0) {
-				context.getString(R.string.volume_unknown)
-			} else {
-				context.getString(R.string.volume_, chapter.volume)
+	// 检查是否有EPUB章节（通过URL判断）
+	val hasEpubChapters = any { it.chapter.url.startsWith("epub://") || it.chapter.url.contains("#chapter/") }
+	
+	if (hasEpubChapters) {
+		// EPUB章节：按父章节（卷）分组
+		return withEpubVolumeGroups(context)
+	} else {
+		// 普通章节：使用原有的volume分组逻辑
+		var prevVolume = 0
+		val result = ArrayList<ListModel>((size * 1.4).toInt())
+		for (item in this) {
+			val chapter = item.chapter
+			if (chapter.volume != prevVolume) {
+				val text = if (chapter.volume == 0) {
+					context.getString(R.string.volume_unknown)
+				} else {
+					context.getString(R.string.volume_, chapter.volume)
+				}
+				result.add(ListHeader(text))
+				prevVolume = chapter.volume
 			}
-			result.add(ListHeader(text))
-			prevVolume = chapter.volume
+			result.add(item)
 		}
-		result.add(item)
+		return result
 	}
+}
+
+/**
+ * 为EPUB章节添加卷分组（使用CollapsibleListHeader）
+ * 
+ * EPUB章节的特点：
+ * - URL格式：epub://{manga_id}/chapter/{index}
+ * - 需要按EPUB文件（通过epubFileName）分组显示
+ * 
+ * 分组策略：
+ * - 使用chapter.scanlator作为卷名（DownloadWorker保存时设置为父章节标题）
+ * - 如果scanlator为空或为"EPUB下载"，使用chapter.branch作为卷名
+ * - 最后fallback到"Volume {number}"
+ */
+private fun List<ChapterListItem>.withEpubVolumeGroups(context: Context): MutableList<ListModel> {
+	android.util.Log.d("ChaptersMapper", "=== withEpubVolumeGroups START ===")
+	android.util.Log.d("ChaptersMapper", "Total chapters: ${this.size}")
+	
+	val result = ArrayList<ListModel>((size * 1.5).toInt())
+	
+	// 按原始顺序遍历，保持章节顺序不变
+	var currentVolumeName: String? = null
+	var volumeCounter = 0  // 用于生成唯一的groupId
+	
+	for ((index, item) in this.withIndex()) {
+		val chapter = item.chapter
+		android.util.Log.d("ChaptersMapper", "Chapter[$index]: id=${chapter.id}, title=${chapter.name}, url=${chapter.url.takeLast(50)}")
+		
+		// 从URL提取章节索引来判断是否是内部章节
+		val isInternalChapter = chapter.url.contains("#chapter/") || 
+		                        (chapter.url.startsWith("epub://") && chapter.url.contains("/chapter/"))
+		
+		android.util.Log.d("ChaptersMapper", "  isInternalChapter=$isInternalChapter")
+		
+		if (isInternalChapter) {
+			// 确定卷名：优先使用scanlator（LocalEpubSource设置的epubFileName）
+			val volumeName: String = when {
+				!chapter.scanlator.isNullOrBlank() && chapter.scanlator != "EPUB下载" -> chapter.scanlator!!
+				!chapter.branch.isNullOrBlank() -> chapter.branch!!
+				else -> {
+					// Fallback: 从URL提取manga ID和chapter index
+					val urlParts = chapter.url.split("/")
+					val mangaId = urlParts.getOrNull(2) ?: "unknown"
+					"Volume ${mangaId.takeLast(4)}"
+				}
+			}
+			
+			// 如果是新的卷，添加卷标题
+			if (volumeName != currentVolumeName) {
+				volumeCounter++
+				result.add(
+					org.skepsun.kototoro.list.ui.model.CollapsibleListHeader(
+						text = volumeName,
+						isCollapsible = true,
+						isExpanded = true,
+						groupId = "epub_volume_${volumeCounter}"  // 使用计数器确保唯一性
+					)
+				)
+				currentVolumeName = volumeName
+			}
+			
+			// 添加章节
+			result.add(item)
+		} else {
+			// 非内部章节（可能是下载链接或普通章节）：直接添加
+			// 不重置currentVolumeName，避免同一EPUB被分割
+			android.util.Log.d("ChaptersMapper", "  Adding non-internal chapter: ${chapter.name}")
+			result.add(item)
+		}
+	}
+	
+	android.util.Log.d("ChaptersMapper", "=== withEpubVolumeGroups END: ${result.size} items ===")
 	return result
+}
+
+/**
+ * Maps chapters to groups based on chapter type and EPUB filename
+ * 
+ * This function implements the chapter grouping logic according to requirements:
+ * - EPUB_DOWNLOAD chapters are grouped under "下载链接" (Download Links)
+ * - EPUB_INTERNAL chapters are grouped by their EPUB filename
+ * - NORMAL chapters are grouped under "在线章节" (Online Chapters)
+ * 
+ * @param chapters List of all chapters
+ * @param metadataMap Map of chapter ID to ChapterMetadata
+ * @return List of chapter groups for UI display
+ */
+fun mapChaptersToGroups(
+    chapters: List<MangaChapter>,
+    metadataMap: Map<Long, ChapterMetadata>
+): List<ChapterGroup> {
+    if (chapters.isEmpty()) {
+        return emptyList()
+    }
+    
+    val result = mutableListOf<ChapterGroup>()
+    
+    // Group chapters by type
+    val downloadChapters = mutableListOf<MangaChapter>()
+    val normalChapters = mutableListOf<MangaChapter>()
+    val epubInternalByFile = mutableMapOf<String, MutableList<MangaChapter>>()
+    
+    for (chapter in chapters) {
+        val metadata = metadataMap[chapter.id]
+        val chapterType = metadata?.chapterType ?: ChapterType.NORMAL
+        
+        when (chapterType) {
+            ChapterType.EPUB_DOWNLOAD -> {
+                downloadChapters.add(chapter)
+            }
+            ChapterType.EPUB_INTERNAL -> {
+                val epubFileName = metadata?.epubFileName ?: "Unknown EPUB"
+                epubInternalByFile.getOrPut(epubFileName) { mutableListOf() }.add(chapter)
+            }
+            ChapterType.NORMAL -> {
+                normalChapters.add(chapter)
+            }
+        }
+    }
+    
+    // Add download links group if present
+    if (downloadChapters.isNotEmpty()) {
+        result.add(
+            ChapterGroup(
+                name = "下载链接",
+                chapters = downloadChapters,
+                isCollapsible = true
+            )
+        )
+    }
+    
+    // Add EPUB file groups if present (sorted by filename for consistency)
+    for ((epubFileName, epubChapters) in epubInternalByFile.entries.sortedBy { it.key }) {
+        result.add(
+            ChapterGroup(
+                name = epubFileName,
+                chapters = epubChapters,
+                isCollapsible = true
+            )
+        )
+    }
+    
+    // Add normal chapters group if present
+    if (normalChapters.isNotEmpty()) {
+        result.add(
+            ChapterGroup(
+                name = "在线章节",
+                chapters = normalChapters,
+                isCollapsible = false
+            )
+        )
+    }
+    
+    return result
+}
+
+/**
+ * Converts chapter groups into a flat list with collapsible headers
+ * 
+ * @param groups List of chapter groups
+ * @param currentChapterId ID of the currently reading chapter
+ * @param newCount Number of new chapters
+ * @param bookmarks List of bookmarked chapters
+ * @param isGrid Whether to display in grid mode
+ * @return Flat list of ListModel items including headers and chapters
+ */
+fun List<ChapterGroup>.toListModelsWithHeaders(
+    currentChapterId: Long,
+    newCount: Int,
+    bookmarks: List<Bookmark>,
+    isGrid: Boolean,
+): List<ListModel> {
+    if (isEmpty()) {
+        return emptyList()
+    }
+    
+    val result = mutableListOf<ListModel>()
+    val bookmarked = bookmarks.mapToSet { it.chapterId }
+    var isUnread = true
+    var newFrom = Int.MAX_VALUE
+    
+    // Calculate newFrom for the first group with new chapters
+    for (group in this) {
+        if (newCount > 0 && group.chapters.isNotEmpty()) {
+            newFrom = group.chapters.size - newCount
+            break
+        }
+    }
+    
+    for (group in this) {
+        // Add collapsible header
+        result.add(
+            org.skepsun.kototoro.list.ui.model.CollapsibleListHeader(
+                text = group.name,
+                isCollapsible = group.isCollapsible,
+                isExpanded = true,
+                groupId = group.name
+            )
+        )
+        
+        // Add chapters in this group
+        for ((index, chapter) in group.chapters.withIndex()) {
+            if (chapter.id == currentChapterId) {
+                isUnread = true
+            }
+            result.add(
+                chapter.toListItem(
+                    isCurrent = chapter.id == currentChapterId,
+                    isUnread = isUnread,
+                    isNew = isUnread && index >= newFrom,
+                    isDownloaded = false, // Will be determined by the caller
+                    isBookmarked = chapter.id in bookmarked,
+                    isGrid = isGrid,
+                )
+            )
+        }
+    }
+    
+    return result
 }

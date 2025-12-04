@@ -954,4 +954,50 @@
     
     <string name="backup_periodic_last_local_empty">Local copy disabled; no local backup time</string>
     <string name="play">Play</string>
+    
+    <!-- EPUB Reader Strings -->
+    <string name="epub_chapter_title">EPUB Chapter Title</string>
+    <string name="epub_download_link">EPUB Download Link</string>
+    <string name="epub_internal_chapter">EPUB Internal Chapter</string>
+    <string name="epub_group_download_links">Download Links</string>
+    <string name="epub_group_online_chapters">Online Chapters</string>
+    <string name="epub_loading">Loading EPUB…</string>
+    <string name="epub_parsing">Parsing EPUB file…</string>
+    <string name="epub_extracting_chapters">Extracting chapters…</string>
+    
+    <!-- EPUB Error Messages (Requirements 10.1, 10.3, 10.4) -->
+    <string name="epub_error_invalid_format">EPUB file format is invalid and cannot be parsed</string>
+    <string name="epub_error_corrupted_file">EPUB file is corrupted and cannot be read: %s</string>
+    <string name="epub_error_missing_components">EPUB file is missing required component: %s</string>
+    <string name="epub_error_unsupported_version">Unsupported EPUB version: %s</string>
+    <string name="epub_error_malformed_html">HTML format error in chapter %d</string>
+    <string name="epub_error_file_not_found">EPUB file not found, it may have been deleted: %s</string>
+    <string name="epub_error_insufficient_storage">Insufficient storage space. Required: %1$s, Available: %2$s</string>
+    <string name="epub_error_permission_denied">No access permission: %s</string>
+    <string name="epub_error_read_failed">Failed to read EPUB file: %s</string>
+    <string name="epub_error_write_failed">Failed to write EPUB file: %s</string>
+    <string name="epub_error_invalid_chapter_id">Invalid chapter ID: %d</string>
+    <string name="epub_error_chapter_not_found">Chapter does not exist: %d</string>
+    <string name="epub_error_index_out_of_bounds">Chapter index out of range: %1$d (total %2$d chapters)</string>
+    <string name="epub_error_invalid_url">Invalid chapter URL format: %s</string>
+    <string name="epub_error_load_failed">Failed to load chapter: %d</string>
+    <string name="epub_error_mapping_insert_failed">Failed to save chapter mapping: %d</string>
+    <string name="epub_error_query_failed">Database query failed</string>
+    <string name="epub_error_migration_failed">Database upgrade failed: version %1$d → %2$d</string>
+    <string name="epub_error_unexpected">An unknown error occurred: %s</string>
+    
+    <!-- EPUB Legacy Migration -->
+    <string name="epub_legacy_file_indicator">Legacy file (needs migration)</string>
+    <string name="epub_migration_in_progress">Migrating legacy EPUB files…</string>
+    <string name="epub_migration_complete">Migration complete: %d files migrated</string>
+    <string name="epub_migration_failed">Migration failed for some files</string>
+    
+    <!-- EPUB Accessibility Content Descriptions -->
+    <string name="epub_cd_chapter_group_header">Chapter group: %s</string>
+    <string name="epub_cd_chapter_group_expanded">Expanded</string>
+    <string name="epub_cd_chapter_group_collapsed">Collapsed</string>
+    <string name="epub_cd_download_chapter">Download EPUB chapter</string>
+    <string name="epub_cd_internal_chapter">EPUB internal chapter %d</string>
+    <string name="epub_cd_normal_chapter">Online chapter</string>
+    <string name="epub_cd_loading_progress">Loading progress: %d%%</string>
 </resources>

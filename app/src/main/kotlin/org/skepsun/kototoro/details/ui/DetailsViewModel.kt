@@ -18,7 +18,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.nav.MangaIntent
@@ -73,6 +75,9 @@ class DetailsViewModel @Inject constructor(
 	private val progressUpdateUseCase: ProgressUpdateUseCase,
 	private val readingTimeUseCase: ReadingTimeUseCase,
 	statsRepository: StatsRepository,
+	private val epubChapterMappingDao: org.skepsun.kototoro.core.db.dao.EpubChapterMappingDao,
+	private val localEpubSource: org.skepsun.kototoro.local.epub.LocalEpubSource,
+	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -123,16 +128,29 @@ class DetailsViewModel @Inject constructor(
 		)
 
 	val localSize = mangaDetails
-		.map { it?.local }
+		.map { it }  // 获取完整的MangaDetails
 		.distinctUntilChanged()
-		.combine(localStorageChanges.onStart { emit(null) }) { x, _ -> x }
-		.map { local ->
+		.combine(localStorageChanges.onStart { emit(null) }) { details, _ -> details }
+		.map { details ->
+			if (details == null) return@map 0L
+			
+			val local = details.local
 			if (local != null) {
+				// 普通本地漫画：计算文件夹大小
 				runCatchingCancellable {
 					local.file.computeSize()
 				}.getOrDefault(0L)
 			} else {
-				0L
+				// 检查是否有EPUB文件（对于非本地但有EPUB下载的manga）
+				val manga = details.toManga()
+				runCatchingCancellable {
+					val epubDir = epubStorageManager.getEpubDir(manga.id)
+					if (epubDir.exists()) {
+						epubDir.computeSize()
+					} else {
+						0L
+					}
+				}.getOrDefault(0L)
 			}
 		}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.WhileSubscribed(5000), 0L)
 
@@ -241,8 +259,27 @@ class DetailsViewModel @Inject constructor(
 				} else {
 					false
 				}
-			}.collect {
-				mangaDetails.value = it
+			}.collect { details ->
+				// For EPUB sources, DetailsLoadUseCase already handles chapter expansion
+				// We just need to reset selectedBranch to null for EPUB chapters
+				val finalDetails = if (localEpubSource.hasEpubFile(details.id)) {
+					android.util.Log.d("DetailsViewModel", "EPUB file detected for manga ${details.id}")
+					android.util.Log.d("DetailsViewModel", "Using chapters from DetailsLoadUseCase (${details.allChapters.size} chapters)")
+					
+					// IMPORTANT: Reset selectedBranch to null for EPUB
+					// EPUB chapters all have branch=null, so we need to reset selectedBranch
+					// to avoid branch mismatch (e.g., selectedBranch="中日对照" but EPUB branch=null)
+					selectedBranch.value = null
+					android.util.Log.d("DetailsViewModel", "Reset selectedBranch to null for EPUB")
+					
+					// Use the details as-is, which already contains expanded EPUB chapters
+					// from DetailsLoadUseCase (including both internal chapters and download links)
+					details
+				} else {
+					details
+				}
+				
+				mangaDetails.value = finalDetails
 			}
 	}
 
@@ -257,5 +294,22 @@ class DetailsViewModel @Inject constructor(
 			errorEvent.call(IllegalStateException("Scrobbler [$index] is not available"))
 		}
 		return scrobbler
+	}
+
+	/**
+	 * Expand EPUB chapters in the details page (NEW ARCHITECTURE - SIMPLIFIED)
+	 * 
+	 * In the new architecture, EPUB chapters are already loaded by LocalEpubSource
+	 * in the doLoad() method, so this method simply returns the chapters as-is.
+	 * 
+	 * This method is kept for backward compatibility with old EPUB data that
+	 * still uses the file://path#chapter/N format. Once all data is migrated,
+	 * this method can be removed entirely.
+	 */
+	override suspend fun expandEpubChaptersIfNeeded(chapters: List<org.skepsun.kototoro.details.ui.model.ChapterListItem>): List<org.skepsun.kototoro.details.ui.model.ChapterListItem> {
+		android.util.Log.d("DetailsViewModel", "expandEpubChaptersIfNeeded: NEW ARCHITECTURE - returning chapters as-is (${chapters.size} chapters)")
+		// In new architecture, EPUB chapters are already loaded by LocalEpubSource
+		// No expansion needed
+		return chapters
 	}
 }

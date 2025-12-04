@@ -77,8 +77,12 @@ android {
 		resources {
 			excludes += [
 				'META-INF/README.md',
-				'META-INF/NOTICE.md'
-				,'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+				'META-INF/NOTICE.md',
+				'META-INF/LICENSE.md',
+				'META-INF/LICENSE-notice.md',
+				'META-INF/versions/9/OSGI-INF/MANIFEST.MF',
+				'META-INF/AL2.0',
+				'META-INF/LGPL2.1'
 			]
 		}
 	}
@@ -115,7 +119,12 @@ android {
 	}
 	testOptions {
 		unitTests.includeAndroidResources true
-		unitTests.returnDefaultValues false
+		unitTests.returnDefaultValues true
+		unitTests.all {
+			useJUnitPlatform()
+		}
+		execution 'ANDROIDX_TEST_ORCHESTRATOR'
+		animationsDisabled = true
 		kotlinOptions {
 			freeCompilerArgs += ['-opt-in=org.skepsun.kototoro.parsers.InternalParsersApi']
 		}
@@ -242,6 +251,9 @@ dependencies {
 	testImplementation libs.junit
 	testImplementation libs.json
 	testImplementation libs.kotlinx.coroutines.test
+	testImplementation libs.kotest.property
+	testImplementation libs.kotest.runner.junit5
+	testImplementation libs.kotest.assertions.core
 
 	androidTestImplementation libs.androidx.runner
 	androidTestImplementation libs.androidx.rules
@@ -254,6 +266,11 @@ dependencies {
 	androidTestImplementation libs.moshi.kotlin
 
 	androidTestImplementation libs.hilt.android.testing
+	
+	androidTestImplementation libs.kotest.property
+	androidTestImplementation libs.kotest.runner.junit5
+	androidTestImplementation libs.kotest.assertions.core
+	
 	kspAndroidTest libs.hilt.android.compiler
 }
 

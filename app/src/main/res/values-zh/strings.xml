@@ -43,4 +43,50 @@
     <string name="play">播放</string>
     <string name="_continue">继续</string>
     <string name="_continue_play">继续播放</string>
+    
+    <!-- EPUB 阅读器字符串 -->
+    <string name="epub_chapter_title">EPUB 章节标题</string>
+    <string name="epub_download_link">EPUB 下载链接</string>
+    <string name="epub_internal_chapter">EPUB 内部章节</string>
+    <string name="epub_group_download_links">下载链接</string>
+    <string name="epub_group_online_chapters">在线章节</string>
+    <string name="epub_loading">正在加载 EPUB…</string>
+    <string name="epub_parsing">正在解析 EPUB 文件…</string>
+    <string name="epub_extracting_chapters">正在提取章节…</string>
+    
+    <!-- EPUB 错误消息（需求 10.1, 10.3, 10.4） -->
+    <string name="epub_error_invalid_format">EPUB 文件格式无效，无法解析</string>
+    <string name="epub_error_corrupted_file">EPUB 文件已损坏，无法读取：%s</string>
+    <string name="epub_error_missing_components">EPUB 文件缺少必要组件：%s</string>
+    <string name="epub_error_unsupported_version">不支持的 EPUB 版本：%s</string>
+    <string name="epub_error_malformed_html">章节 %d 的 HTML 格式错误</string>
+    <string name="epub_error_file_not_found">EPUB 文件未找到，可能已被删除：%s</string>
+    <string name="epub_error_insufficient_storage">存储空间不足。需要：%1$s，可用：%2$s</string>
+    <string name="epub_error_permission_denied">没有访问权限：%s</string>
+    <string name="epub_error_read_failed">读取 EPUB 文件失败：%s</string>
+    <string name="epub_error_write_failed">写入 EPUB 文件失败：%s</string>
+    <string name="epub_error_invalid_chapter_id">章节 ID 无效：%d</string>
+    <string name="epub_error_chapter_not_found">章节不存在：%d</string>
+    <string name="epub_error_index_out_of_bounds">章节索引超出范围：%1$d（总共 %2$d 章）</string>
+    <string name="epub_error_invalid_url">章节 URL 格式无效：%s</string>
+    <string name="epub_error_load_failed">加载章节失败：%d</string>
+    <string name="epub_error_mapping_insert_failed">保存章节映射失败：%d</string>
+    <string name="epub_error_query_failed">数据库查询失败</string>
+    <string name="epub_error_migration_failed">数据库升级失败：版本 %1$d → %2$d</string>
+    <string name="epub_error_unexpected">发生未知错误：%s</string>
+    
+    <!-- EPUB 旧版迁移 -->
+    <string name="epub_legacy_file_indicator">旧版文件（需要迁移）</string>
+    <string name="epub_migration_in_progress">正在迁移旧版 EPUB 文件…</string>
+    <string name="epub_migration_complete">迁移完成：已迁移 %d 个文件</string>
+    <string name="epub_migration_failed">部分文件迁移失败</string>
+    
+    <!-- EPUB 无障碍内容描述 -->
+    <string name="epub_cd_chapter_group_header">章节组：%s</string>
+    <string name="epub_cd_chapter_group_expanded">已展开</string>
+    <string name="epub_cd_chapter_group_collapsed">已折叠</string>
+    <string name="epub_cd_download_chapter">下载 EPUB 章节</string>
+    <string name="epub_cd_internal_chapter">EPUB 内部章节 %d</string>
+    <string name="epub_cd_normal_chapter">在线章节</string>
+    <string name="epub_cd_loading_progress">加载进度：%d%%</string>
 </resources>

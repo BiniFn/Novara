@@ -119,11 +119,12 @@ class ReadButtonDelegate(
                 .manga(manga)
                 .branch(viewModel.selectedBranchValue)
 
-            // 对视频内容：传入 ReaderState，优先使用历史记录中的状态
+            // 对视频内容和EPUB内容：传入 ReaderState，优先使用历史记录中的状态
             runCatching {
                 val source = manga.source.unwrap()
+                val history = viewModel.historyInfo.value.history
+                
                 if (source is MangaParserSource && source.contentType == ContentType.VIDEO && !manga.chapters.isNullOrEmpty()) {
-                    val history = viewModel.historyInfo.value.history
                     val state = if (history != null) {
                         // 使用历史记录中的状态（包含正确的章节ID）
                         ReaderState(history)
@@ -133,6 +134,69 @@ class ReadButtonDelegate(
                         ReaderState(manga, preferredBranch)
                     }
                     intentBuilder.state(state)
+                } else if (history != null && !manga.chapters.isNullOrEmpty()) {
+                    // 对于EPUB章节，使用parentChapterId来精确定位
+                    val preferredBranch = viewModel.selectedBranchValue
+                    val chapters = manga.chapters?.filter { it.branch == preferredBranch } ?: manga.chapters
+                    
+                    // 尝试精确匹配章节ID
+                    var matchedChapter = chapters?.find { it.id == history.chapterId }
+                    
+                    // 如果没有精确匹配，检查是否是EPUB父章节ID（旧数据兼容）
+                    if (matchedChapter == null) {
+                        // 检查history.chapterId是否是父章节ID（旧数据）
+                        val potentialParentChapter = chapters?.find { it.id == history.chapterId }
+                        if (potentialParentChapter != null && potentialParentChapter.url.endsWith(".epub", ignoreCase = true)) {
+                            android.util.Log.d("ReadButtonDelegate", "Detected old history with parent chapter ID: ${history.chapterId}, skipping to avoid overwriting correct history")
+                            // 这是父章节ID（旧数据），不要打开阅读器，避免覆盖正确的历史记录
+                            // 用户需要手动选择章节重新开始阅读
+                            return@runCatching
+                        }
+                    }
+                    
+                    // 如果没有精确匹配，且有parentChapterId，使用它来查找内部章节
+                    if (matchedChapter == null && history.parentChapterId != null) {
+                        android.util.Log.d("ReadButtonDelegate", "Using parentChapterId for EPUB internal chapter lookup: parentChapterId=${history.parentChapterId}, chapterId=${history.chapterId}")
+                        
+                        // 找到父章节
+                        val parentChapter = chapters?.find { it.id == history.parentChapterId }
+                        if (parentChapter != null) {
+                            // 找到所有属于这个父章节的内部章节
+                            val internalChapters = chapters?.filter { chapter ->
+                                // 内部章节的URL包含父章节URL作为前缀
+                                chapter.url.startsWith(parentChapter.url) && chapter.url.contains("#chapter/")
+                            }
+                            
+                            // 在内部章节中查找匹配的章节ID
+                            matchedChapter = internalChapters?.find { it.id == history.chapterId }
+                            
+                            if (matchedChapter != null) {
+                                android.util.Log.d("ReadButtonDelegate", "Found EPUB internal chapter: chapterId=${matchedChapter.id}, url=${matchedChapter.url}")
+                            } else {
+                                android.util.Log.w("ReadButtonDelegate", "EPUB internal chapter not found: chapterId=${history.chapterId}, parentChapterId=${history.parentChapterId}")
+                            }
+                        }
+                    }
+                    
+                    // 如果还是没找到，尝试模糊匹配（向后兼容旧数据）
+                    if (matchedChapter == null) {
+                        android.util.Log.d("ReadButtonDelegate", "Falling back to fuzzy matching for chapterId=${history.chapterId}")
+                        matchedChapter = chapters
+                            ?.filter { chapter ->
+                                val diff = kotlin.math.abs(chapter.id - history.chapterId)
+                                diff in 1..1000000
+                            }
+                            ?.minByOrNull { chapter ->
+                                kotlin.math.abs(chapter.id - history.chapterId)
+                            }
+                    }
+                    
+                    // 如果找到匹配的章节，使用它创建state
+                    if (matchedChapter != null) {
+                        android.util.Log.d("ReadButtonDelegate", "Matched chapter: history.chapterId=${history.chapterId}, matched.id=${matchedChapter.id}")
+                        val correctedHistory = history.copy(chapterId = matchedChapter.id)
+                        intentBuilder.state(ReaderState(correctedHistory))
+                    }
                 }
             }.getOrElse { /* 忽略异常，保持默认行为 */ }
             if (isIncognitoMode) {
@@ -151,7 +215,15 @@ class ReadButtonDelegate(
 		// 根据内容类型选择合适的文案
 		val manga = viewModel.getMangaOrNull()
 		val source = manga?.source?.unwrap()
-		val contentType = (source as? MangaParserSource)?.contentType
+		
+		// Check if this is LocalEpubSource (NEW ARCHITECTURE)
+		val isLocalEpub = source is org.skepsun.kototoro.local.epub.LocalEpubSource
+		
+		val contentType = when {
+			isLocalEpub -> ContentType.NOVEL  // LocalEpubSource is always NOVEL
+			source is MangaParserSource -> source.contentType
+			else -> null
+		}
 		
 		val readText = when (contentType) {
 			ContentType.VIDEO -> R.string.play // 播放

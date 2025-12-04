@@ -61,10 +61,22 @@ class LocalEpubParser(private val cbzFile: File) {
      */
     suspend fun parseManga(): Manga? = withContext(Dispatchers.IO) {
         try {
+            android.util.Log.d("LocalEpubParser", "Parsing EPUB file: ${cbzFile.absolutePath}")
+            android.util.Log.d("LocalEpubParser", "File exists: ${cbzFile.exists()}, size: ${cbzFile.length()} bytes")
+            
             // 使用EpubReader解析EPUB
-            val epubReader = EpubReader()
-            val uri = android.net.Uri.fromFile(cbzFile)
-            val epubContent = epubReader.readEpub(uri) ?: return@withContext null
+            val epubReader = EpubReaderImpl()
+            val epubContent = epubReader.readEpub(cbzFile)
+            
+            if (epubContent == null) {
+                android.util.Log.e("LocalEpubParser", "Failed to read EPUB content from file")
+                return@withContext null
+            }
+            
+            android.util.Log.d("LocalEpubParser", "EPUB parsed successfully")
+            android.util.Log.d("LocalEpubParser", "Title: ${epubContent.title}")
+            android.util.Log.d("LocalEpubParser", "Author: ${epubContent.author}")
+            android.util.Log.d("LocalEpubParser", "Chapters: ${epubContent.chapters.size}")
             
             // 生成Manga对象
             val mangaId = cbzFile.absolutePath.longHashCode()
@@ -86,6 +98,8 @@ class LocalEpubParser(private val cbzFile: File) {
                     source = LocalMangaSource,
                 )
             }
+            
+            android.util.Log.d("LocalEpubParser", "Generated ${chapters.size} chapters")
             
             Manga(
                 id = mangaId,
@@ -112,6 +126,7 @@ class LocalEpubParser(private val cbzFile: File) {
             )
         } catch (e: Exception) {
             android.util.Log.e("LocalEpubParser", "Failed to parse EPUB", e)
+            e.printStackTrace()
             null
         }
     }
@@ -124,9 +139,8 @@ class LocalEpubParser(private val cbzFile: File) {
      */
     suspend fun getChapterContent(chapterIndex: Int): String? = withContext(Dispatchers.IO) {
         try {
-            val epubReader = EpubReader()
-            val uri = android.net.Uri.fromFile(cbzFile)
-            val epubContent = epubReader.readEpub(uri) ?: return@withContext null
+            val epubReader = EpubReaderImpl()
+            val epubContent = epubReader.readEpub(cbzFile) ?: return@withContext null
             
             epubContent.chapters.getOrNull(chapterIndex)?.content
         } catch (e: Exception) {

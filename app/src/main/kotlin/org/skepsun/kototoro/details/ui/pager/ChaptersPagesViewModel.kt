@@ -133,7 +133,8 @@ abstract class ChaptersPagesViewModel(
 			isChaptersInGridView,
 			isDownloadedOnly,
 		) { manga, currentChapterId, branch, news, bookmarks, grid, downloadedOnly ->
-			manga?.mapChapters(
+			// First get the base chapters
+			val baseChapters = manga?.mapChapters(
 				currentChapterId = currentChapterId,
 				newCount = news,
 				branch = branch,
@@ -141,12 +142,25 @@ abstract class ChaptersPagesViewModel(
 				isGrid = grid,
 				isDownloadedOnly = downloadedOnly,
 			).orEmpty()
+			
+			// Then expand EPUB chapters if this is a DetailsViewModel with EPUB support
+			// This will be overridden in DetailsViewModel to provide actual expansion
+			expandEpubChaptersIfNeeded(baseChapters)
 		},
 		isChaptersReversed,
 		chaptersQuery,
 	) { list, reversed, query ->
 		(if (reversed) list.asReversed() else list).filterSearch(query)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+	
+	/**
+	 * Expand EPUB chapters by loading mappings from database.
+	 * This is a hook that can be overridden by subclasses to provide EPUB expansion.
+	 * Default implementation returns chapters as-is.
+	 */
+	protected open suspend fun expandEpubChaptersIfNeeded(chapters: List<ChapterListItem>): List<ChapterListItem> {
+		return chapters
+	}
 
 	val quickFilter = combine(
 		mangaDetails,
