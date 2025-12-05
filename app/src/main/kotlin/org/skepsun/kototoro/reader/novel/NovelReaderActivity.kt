@@ -597,9 +597,9 @@ class NovelReaderActivity :
                 val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
                 
                 if (result.isSuccess) {
-                    val content = result.getOrNull()
-                    android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${content?.length}")
-                    return content
+                    val loadResult = result.getOrNull()
+                    android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${loadResult?.content?.length}")
+                    return loadResult?.content
                 } else {
                     val error = result.exceptionOrNull()
                     android.util.Log.e("NovelReaderActivity", "Failed to load EPUB content: ${error?.message}", error)
