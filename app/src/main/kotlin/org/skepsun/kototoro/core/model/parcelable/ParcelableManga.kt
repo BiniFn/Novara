@@ -15,11 +15,12 @@ import org.skepsun.kototoro.parsers.model.Manga
 data class ParcelableManga(
 	val manga: Manga,
 	private val withDescription: Boolean = true,
+	private val withChapters: Boolean = false,
 ) : Parcelable {
 
 	companion object : Parceler<ParcelableManga> {
 
-		override fun ParcelableManga.write(parcel: Parcel, flags: Int) = with(manga) {
+		override fun ParcelableManga.write(parcel: Parcel, flags: Int): Unit = with(manga) {
 			parcel.writeLong(id)
 			parcel.writeString(title)
 			parcel.writeStringSet(altTitles)
@@ -34,27 +35,78 @@ data class ParcelableManga(
 			parcel.writeSerializable(state)
 			parcel.writeStringSet(authors)
 			parcel.writeString(source.name)
+			// Write chapters if requested
+			val chaptersToWrite = if (withChapters) chapters else null
+			parcel.writeInt(chaptersToWrite?.size ?: -1)
+			chaptersToWrite?.forEach { chapter ->
+				parcel.writeLong(chapter.id)
+				parcel.writeString(chapter.title)
+				parcel.writeFloat(chapter.number)
+				parcel.writeInt(chapter.volume)
+				parcel.writeString(chapter.url)
+				parcel.writeString(chapter.scanlator)
+				parcel.writeLong(chapter.uploadDate)
+				parcel.writeString(chapter.branch)
+			}
 		}
 
-		override fun create(parcel: Parcel) = ParcelableManga(
-			Manga(
-				id = parcel.readLong(),
-				title = requireNotNull(parcel.readString()),
-				altTitles = parcel.readStringSet(),
-				url = requireNotNull(parcel.readString()),
-				publicUrl = requireNotNull(parcel.readString()),
-				rating = parcel.readFloat(),
-				contentRating = parcel.readSerializableCompat(),
-				coverUrl = parcel.readString(),
-				largeCoverUrl = parcel.readString(),
-				description = parcel.readString(),
-				tags = requireNotNull(parcel.readParcelableCompat<ParcelableMangaTags>()).tags,
-				state = parcel.readSerializableCompat(),
-				authors = parcel.readStringSet(),
-				chapters = null,
-				source = MangaSource(parcel.readString()),
-			),
-			withDescription = true,
-		)
+		override fun create(parcel: Parcel): ParcelableManga {
+			val id = parcel.readLong()
+			val title = requireNotNull(parcel.readString())
+			val altTitles = parcel.readStringSet()
+			val url = requireNotNull(parcel.readString())
+			val publicUrl = requireNotNull(parcel.readString())
+			val rating = parcel.readFloat()
+			val contentRating = parcel.readSerializableCompat<org.skepsun.kototoro.parsers.model.ContentRating>()
+			val coverUrl = parcel.readString()
+			val largeCoverUrl = parcel.readString()
+			val description = parcel.readString()
+			val tags = requireNotNull(parcel.readParcelableCompat<ParcelableMangaTags>()).tags
+			val state = parcel.readSerializableCompat<org.skepsun.kototoro.parsers.model.MangaState>()
+			val authors = parcel.readStringSet()
+			val sourceName = requireNotNull(parcel.readString())
+			
+			// Read chapters if present
+			val chaptersSize = parcel.readInt()
+			val chapters = if (chaptersSize >= 0) {
+				List(chaptersSize) {
+					org.skepsun.kototoro.parsers.model.MangaChapter(
+						id = parcel.readLong(),
+						title = parcel.readString(),
+						number = parcel.readFloat(),
+						volume = parcel.readInt(),
+						url = requireNotNull(parcel.readString()),
+						scanlator = parcel.readString(),
+						uploadDate = parcel.readLong(),
+						branch = parcel.readString(),
+						source = MangaSource(sourceName),
+					)
+				}
+			} else {
+				null
+			}
+			
+			return ParcelableManga(
+				Manga(
+					id = id,
+					title = title,
+					altTitles = altTitles,
+					url = url,
+					publicUrl = publicUrl,
+					rating = rating,
+					contentRating = contentRating,
+					coverUrl = coverUrl,
+					largeCoverUrl = largeCoverUrl,
+					description = description,
+					tags = tags,
+					state = state,
+					authors = authors,
+					chapters = chapters,
+					source = MangaSource(sourceName),
+				),
+				withDescription = true,
+				withChapters = chapters != null,
+			)
+		}
 	}
 }

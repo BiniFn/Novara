@@ -199,36 +199,52 @@ class AppRouter private constructor(
                     state = state,
                 )
             } else {
-                // 非直链：尝试通过仓库解析章节页面找到直链；失败再回退到内置浏览器
-                val owner = activity ?: fragment?.activity
-                if (owner is FragmentActivity) {
-                    owner.lifecycleScope.launch {
+                // 非直链：需要加载章节才能解析URL
+                // 如果章节未加载，先加载章节
+                if (manga.chapters.isNullOrEmpty()) {
+                    // 异步加载章节后再打开播放器
+                    val lifecycleOwner = (activity as? LifecycleOwner) ?: (fragment as? LifecycleOwner)
+                    lifecycleOwner?.lifecycleScope?.launch {
                         try {
                             val repo = mangaRepositoryFactory.create(manga.source)
                             val details = repo.getDetails(manga)
-                            val chapter = details.chapters?.firstOrNull()
-                            val pages = if (chapter != null) repo.getPages(chapter) else emptyList()
-                            var streamUrl: String? = null
-                            for (page in pages) {
-                                val link = repo.getPageUrl(page)
-                                val seg = link.toUriOrNull()?.lastPathSegment ?: link
-                                if (seg.endsWith(".m3u8", true) || seg.endsWith(".mp4", true)) {
-                                    streamUrl = link
-                                    break
-                                }
-                            }
-                            if (streamUrl != null) {
-                                openVideo(url = streamUrl, manga = manga, anchor = anchor)
-                            } else {
-                                openBrowser(url = url, source = manga.source, title = manga.title)
-                            }
-                        } catch (_: Throwable) {
-                            openBrowser(url = url, source = manga.source, title = manga.title)
+                            val mangaWithChapters = details.copy(chapters = details.chapters)
+                            
+                            openVideo(
+                                url = url,
+                                manga = mangaWithChapters,
+                                anchor = anchor,
+                                state = runCatching {
+                                    val chapters = mangaWithChapters.chapters
+                                    if (!chapters.isNullOrEmpty()) {
+                                        org.skepsun.kototoro.reader.ui.ReaderState(mangaWithChapters, null)
+                                    } else null
+                                }.getOrNull(),
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.e("AppRouter", "Failed to load chapters for video", e)
+                            // 兜底：仍然尝试打开，让VideoPlayerActivity处理错误
+                            openVideo(
+                                url = url,
+                                manga = manga,
+                                anchor = anchor,
+                                state = null,
+                            )
                         }
                     }
-                    return
                 } else {
-                    openBrowser(url = url, source = manga.source, title = manga.title)
+                    // 章节已加载，直接打开
+                    openVideo(
+                        url = url,
+                        manga = manga,
+                        anchor = anchor,
+                        state = runCatching {
+                            val chapters = manga.chapters
+                            if (!chapters.isNullOrEmpty()) {
+                                org.skepsun.kototoro.reader.ui.ReaderState(manga, null)
+                            } else null
+                        }.getOrNull(),
+                    )
                 }
             }
         } else {
@@ -267,8 +283,9 @@ class AppRouter private constructor(
                     val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
                         lastSegment.endsWith(".mp4", ignoreCase = true)
 
+                    val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                    
                     if (isDirectStream) {
-                        val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                         openVideo(
                             url = url,
                             manga = manga,
@@ -276,45 +293,42 @@ class AppRouter private constructor(
                             state = state,
                         )
                     } else {
-                        // Try resolve direct stream asynchronously using chapterId from ReaderState
-                        val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
-                        val owner = activity ?: fragment?.activity
-                        if (state?.chapterId != null && owner is FragmentActivity) {
-                            owner.lifecycleScope.launch {
+                        // 非直链：需要加载章节才能解析URL
+                        // 如果章节未加载，先加载章节
+                        if (manga.chapters.isNullOrEmpty()) {
+                            // 异步加载章节后再打开播放器
+                            val lifecycleOwner = (activity as? LifecycleOwner) ?: (fragment as? LifecycleOwner)
+                            lifecycleOwner?.lifecycleScope?.launch {
                                 try {
                                     val repo = mangaRepositoryFactory.create(manga.source)
                                     val details = repo.getDetails(manga)
-                                    // 查找目标章节
-                                    val chapter = details.chapters?.firstOrNull { it.id == state.chapterId }
-                                    // 加载页面列表
-                                    val pages = if (chapter != null) repo.getPages(chapter) else emptyList()
-                                    // 依次解析页面直链（避免在非挂起 lambda 内调用挂起函数）
-                                    var streamUrl: String? = null
-                                    for (page in pages) {
-                                        val link = repo.getPageUrl(page)
-                                        val seg = link.toUriOrNull()?.lastPathSegment ?: link
-                                        if (seg.endsWith(".m3u8", true) || seg.endsWith(".mp4", true)) {
-                                            streamUrl = link
-                                            break
-                                        }
-                                    }
-                                    if (streamUrl != null) {
-                                        openVideo(
-                                            url = streamUrl,
-                                            manga = manga,
-                                            anchor = anchor,
-                                            state = state,
-                                        )
-                                    } else {
-                                        openBrowser(url = url, source = manga.source, title = manga.title)
-                                    }
-                                } catch (_: Throwable) {
-                                    openBrowser(url = url, source = manga.source, title = manga.title)
+                                    val mangaWithChapters = details.copy(chapters = details.chapters)
+                                    
+                                    openVideo(
+                                        url = url,
+                                        manga = mangaWithChapters,
+                                        anchor = anchor,
+                                        state = state,
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("AppRouter", "Failed to load chapters for video", e)
+                                    // 兜底：仍然尝试打开，让VideoPlayerActivity处理错误
+                                    openVideo(
+                                        url = url,
+                                        manga = manga,
+                                        anchor = anchor,
+                                        state = state,
+                                    )
                                 }
                             }
-                            return
                         } else {
-                            openBrowser(url = url, source = manga.source, title = manga.title)
+                            // 章节已加载，直接打开
+                            openVideo(
+                                url = url,
+                                manga = manga,
+                                anchor = anchor,
+                                state = state,
+                            )
                         }
                     }
                     return
@@ -383,7 +397,7 @@ class AppRouter private constructor(
                 .putExtra(KEY_URL, url)
                 .putExtra(KEY_SOURCE, manga.source.name)
                 .putExtra(KEY_TITLE, manga.title)
-                .putExtra(KEY_MANGA, ParcelableManga(manga))
+                .putExtra(KEY_MANGA, ParcelableManga(manga, withChapters = !manga.chapters.isNullOrEmpty()))
                 .putExtra(ReaderIntent.EXTRA_STATE, state),
             anchor?.let { scaleUpActivityOptionsOf(it) },
         )

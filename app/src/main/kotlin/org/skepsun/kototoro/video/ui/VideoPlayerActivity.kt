@@ -65,9 +65,13 @@ import kotlin.math.abs
 import org.skepsun.kototoro.core.util.ext.menuView
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
+import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
+import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
 
 @AndroidEntryPoint
-class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>() {
+class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>(), ReaderNavigationCallback {
 
     @Inject
     @MangaHttpClient
@@ -85,6 +89,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private var readerState: ReaderState? = null
     // 待应用的历史定位百分比（在播放器 STATE_READY 时按时长换算并 seek）
     private var pendingInitialSeekPercent: Float? = null
+    // 标志：是否已经恢复过进度（避免重复恢复）
+    private var hasRestoredProgress: Boolean = false
 
     private val autoHideDelayMs = 3500
     private val hideUiRunnable = Runnable { setUiIsVisible(false) }
@@ -269,20 +275,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 读取传入的 ReaderState（可能来自阅读器路由，用于历史保存与初始定位）
         readerState = intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
 
-        // 标题：优先使用传入的 KEY_TITLE；其次使用 ParcelableManga.title；最后从 URL 推断
-        val titleFromIntent = intent.getStringExtra(AppRouter.KEY_TITLE).takeUnless { it.isNullOrBlank() }
-            ?: intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga?.title
-            ?: intent.getStringExtra(AppRouter.KEY_URL)?.let { deriveEpisodeTitle(it) }
-            ?: ""
-        supportActionBar?.title = titleFromIntent
-        // 同步到 Toolbar 本身，确保 SupportActionBar 不可用时也能显示
-        viewBinding.toolbar.title = titleFromIntent
-        // Subtitle: episode/chapter title derived from URL
-        intent.getStringExtra(AppRouter.KEY_URL)?.let { url ->
-            val episode = deriveEpisodeTitle(url)
-            supportActionBar?.subtitle = episode
-            viewBinding.toolbar.subtitle = episode
-        }
+        // 使用新的统一方法设置标题和副标题
+        updateTitleAndSubtitle()
 
         // Apply default orientation: portrait when foldable unfolded in portrait; else landscape
         observeFoldableStateForOrientation()
@@ -514,6 +508,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
 
         // Wire controller buttons: pages and settings
+        wireControllerButtons()
+
+        // 外部控制器初始由 Activity 管理显隐；不直接改动 DockedToolbar 的可见性
+    }
+    
+    private fun wireControllerButtons() {
         findViewById<View>(org.skepsun.kototoro.R.id.button_pages_thumbs)?.let { btn ->
             val parcelable = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)
             btn.isVisible = parcelable != null
@@ -528,8 +528,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 VideoSettingsSheet().show(fm, tag)
             }
         }
-
-        // 外部控制器初始由 Activity 管理显隐；不直接改动 DockedToolbar 的可见性
     }
 
     private fun observeFoldableStateForOrientation() {
@@ -548,6 +546,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun prepareAndPlay(url: String, source: ParsersMangaSource?) {
+        // Check if URL is a direct stream or needs resolution
+        val lastSegment = runCatching { Uri.parse(url).lastPathSegment }.getOrNull() ?: url
+        val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
+            lastSegment.endsWith(".mp4", ignoreCase = true)
+        
         // OkHttp DataSource with common headers support via X-Manga-Source
         val upstreamFactory = OkHttpDataSource.Factory(okHttp)
             .setDefaultRequestProperties(
@@ -558,7 +561,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val cacheDataSourceFactory = androidx.media3.datasource.cache.CacheDataSource.Factory()
             .setCache(videoCache.cache)
             .setUpstreamDataSourceFactory(upstreamFactory)
-            .setCacheWriteDataSinkFactory(null) // 使用默认的缓存写入
+            .setCacheWriteDataSinkFactory(androidx.media3.datasource.cache.CacheDataSink.Factory().setCache(videoCache.cache))
             .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         player = ExoPlayer.Builder(this)
@@ -579,23 +582,125 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     // 控制器常显，避免初始不可见以及进度不更新问题
                     ctl.setShowTimeoutMs(0)
                     ctl.show()
+                    // 绑定按钮事件
+                    wireControllerButtons()
                 }
-                val mediaItem = MediaItem.Builder()
-                    .setUri(url)
-                    .setMediaId(url)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(deriveEpisodeTitle(url))
-                            .build()
-                    )
-                    .build()
-                exo.setMediaItem(mediaItem)
-                updateTitleFromMediaItem(mediaItem)
-                updateSubtitleFromMediaItem(mediaItem)
+                
+                // Load only the current chapter - on-demand loading for better performance
+                val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
+                val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                
+                android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$url, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState")
+                
+                if (manga != null && !manga.chapters.isNullOrEmpty()) {
+                    // Load ONLY the current chapter for immediate playback
+                    lifecycleScope.launch {
+                        try {
+                            val repo = mangaRepositoryFactory.create(manga.source)
+                            val chapters = manga.chapters ?: emptyList()
+                            
+                            // Find the current chapter to play
+                            val currentChapter = if (currentState != null) {
+                                // 优先使用 state 中的 chapterId
+                                chapters.find { it.id == currentState.chapterId }
+                            } else {
+                                // 如果没有 state，尝试用 URL 匹配（可能不准确）
+                                // 注意：这里的 url 可能是 manga.publicUrl，不一定能匹配到 chapter.url
+                                chapters.find { it.url == url }
+                            } ?: chapters.firstOrNull()  // 兜底：使用第一个章节
+                            
+                            if (currentChapter != null) {
+                                android.util.Log.d("VideoPlayer", "Loading current chapter: ${currentChapter.name} (id=${currentChapter.id})")
+                                
+                                // Resolve current chapter's stream URL
+                                val streamUrl = runCatching {
+                                    android.util.Log.d("VideoPlayer", "Calling getPages for chapter: ${currentChapter.name}, url: ${currentChapter.url}")
+                                    val pages = repo.getPages(currentChapter)
+                                    android.util.Log.d("VideoPlayer", "getPages returned ${pages.size} pages")
+                                    pages.firstOrNull()?.let { page ->
+                                        android.util.Log.d("VideoPlayer", "Getting page URL for page: ${page.url}")
+                                        repo.getPageUrl(page)
+                                    }
+                                }.onFailure { e ->
+                                    android.util.Log.e("VideoPlayer", "Failed to get stream URL", e)
+                                }.getOrNull()
+                                
+                                if (streamUrl != null) {
+                                    // Play current chapter immediately
+                                    val mediaItem = MediaItem.Builder()
+                                        .setUri(streamUrl)
+                                        .setMediaId(currentChapter.id.toString())
+                                        .setMediaMetadata(
+                                            MediaMetadata.Builder()
+                                                .setTitle(currentChapter.name)
+                                                .build()
+                                        )
+                                        .build()
+                                    exo.setMediaItem(mediaItem)
+                                    
+                                    // Update ReaderState to reflect current chapter
+                                    readerState = ReaderState(currentChapter.id, 0, 0)
+                                    android.util.Log.d("VideoPlayer", "Playing chapter: ${currentChapter.name}")
+                                    
+                                    // Note: Other chapters will be loaded on-demand when user switches via onChapterSelected()
+                                } else {
+                                    android.util.Log.e("VideoPlayer", "Failed to resolve stream URL for current chapter")
+                                    Snackbar.make(
+                                        viewBinding.root,
+                                        org.skepsun.kototoro.R.string.error_occurred,
+                                        Snackbar.LENGTH_LONG
+                                    ).show()
+                                }
+                            } else {
+                                android.util.Log.e("VideoPlayer", "Current chapter not found")
+                                Snackbar.make(
+                                    viewBinding.root,
+                                    org.skepsun.kototoro.R.string.error_occurred,
+                                    Snackbar.LENGTH_LONG
+                                ).show()
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("VideoPlayer", "Failed to load video", e)
+                            Snackbar.make(
+                                viewBinding.root,
+                                org.skepsun.kototoro.R.string.error_occurred,
+                                Snackbar.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                } else if (isDirectStream) {
+                    // Direct stream URL, load immediately
+                    val mediaItem = MediaItem.Builder()
+                        .setUri(url)
+                        .setMediaId(url)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(deriveEpisodeTitle(url))
+                                .build()
+                        )
+                        .build()
+                    exo.setMediaItem(mediaItem)
+                } else {
+                    // Non-direct URL without manga info - cannot resolve
+                    android.util.Log.e("VideoPlayer", "Cannot resolve non-direct URL without manga info")
+                    Snackbar.make(
+                        viewBinding.root,
+                        org.skepsun.kototoro.R.string.error_occurred,
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
+                
+                updateTitleFromMediaItem(null)
+                updateSubtitleFromMediaItem(null)
                 exo.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_READY) {
-                            tryApplyInitialSeek(exo)
+                            // 只在首次准备好时恢复进度，避免用户手动 seek 后被覆盖
+                            if (!hasRestoredProgress) {
+                                restorePlaybackProgress(exo)
+                                tryApplyInitialSeek(exo)
+                                hasRestoredProgress = true
+                            }
                             // 播放器准备就绪后启动定期保存
                             viewBinding.root.removeCallbacks(progressSaveRunnable)
                             viewBinding.root.postDelayed(progressSaveRunnable, progressSaveIntervalMs)
@@ -613,12 +718,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     }
                 })
                 exo.prepare()
-                // 恢复上次播放进度（如有）
-                restorePlaybackProgress(exo)
+                // 异步加载历史进度百分比
                 lifecycleScope.launch {
                     restoreInitialSeekPercentFromHistory()
-                    // 若已就绪则立即应用，否则等待监听回调
-                    tryApplyInitialSeek(exo)
                 }
                 exo.play()
             }
@@ -634,8 +736,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     updatePlaybackMenu()
-                    updateTitleFromMediaItem(mediaItem)
-                    updateSubtitleFromMediaItem(mediaItem)
+                    // Use unified method for consistent title/subtitle updates
+                    updateTitleAndSubtitle()
+                    
+                    // Update ReaderState when media item changes (e.g., next/previous chapter)
+                    if (mediaItem != null && reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                        val chapterId = mediaItem.mediaId.toLongOrNull()
+                        if (chapterId != null) {
+                            readerState = ReaderState(chapterId, 0, 0)
+                            android.util.Log.d("VideoPlayer", "Media item transitioned to chapter $chapterId")
+                            // Save progress for new chapter
+                            saveHistoryProgressAsync()
+                        }
+                    }
                 }
 
                 override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
@@ -649,6 +762,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         rebuildToolbarMenuForOrientation()
         adjustToolbarForOrientation()
         updateStatusBarByToolbar()
+        
+        // Update title/subtitle after configuration change to ensure they persist
+        updateTitleAndSubtitle()
+        
+        // 屏幕旋转后重新绑定按钮事件（布局已通过 layout-port 自动切换）
+        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.post {
+            wireControllerButtons()
+        }
     }
 
     private fun toggleUiVisibility() {
@@ -727,14 +848,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun updateTitleFromMediaItem(mediaItem: MediaItem?) {
-        val titleText = mediaItem?.mediaMetadata?.title?.toString()
-            .takeUnless { it.isNullOrBlank() }
-            ?: intent.getStringExtra(AppRouter.KEY_TITLE).takeUnless { it.isNullOrBlank() }
-            ?: intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga?.title
-            ?: intent.getStringExtra(AppRouter.KEY_URL)?.let { deriveEpisodeTitle(it) }
-            ?: ""
-        supportActionBar?.title = titleText
-        viewBinding.toolbar.title = titleText
+        // Use unified title extraction method for consistency
+        val (title, _) = extractChapterInfo()
+        supportActionBar?.title = title
+        viewBinding.toolbar.title = title
     }
 
     private fun updatePlaybackMenu() {
@@ -822,19 +939,43 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }.getOrElse { url }
     }
 
-    private fun updateSubtitleFromMediaItem(mediaItem: MediaItem?) {
-        val title = mediaItem?.mediaMetadata?.title
-        if (!title.isNullOrEmpty()) {
-            val sub = title.toString()
-            supportActionBar?.subtitle = sub
-            viewBinding.toolbar.subtitle = sub
+    private fun extractChapterInfo(): Pair<String, String> {
+        // Extract manga and state from intent
+        val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
+        val state = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+        
+        // Extract title: prioritize manga.title, then KEY_TITLE, then URL-derived
+        val title = manga?.title
+            ?: intent.getStringExtra(AppRouter.KEY_TITLE).takeUnless { it.isNullOrBlank() }
+            ?: intent.getStringExtra(AppRouter.KEY_URL)?.let { deriveEpisodeTitle(it) }
+            ?: ""
+        
+        // Extract chapter name: prioritize chapter.name from manga.chapters, then URL-derived
+        val chapterName = if (manga != null && state != null) {
+            manga.chapters?.find { it.id == state.chapterId }?.name
+                ?: intent.getStringExtra(AppRouter.KEY_URL)?.let { deriveEpisodeTitle(it) }
+                ?: ""
         } else {
-            intent.getStringExtra(AppRouter.KEY_URL)?.let { url ->
-                val sub = deriveEpisodeTitle(url)
-                supportActionBar?.subtitle = sub
-                viewBinding.toolbar.subtitle = sub
-            }
+            intent.getStringExtra(AppRouter.KEY_URL)?.let { deriveEpisodeTitle(it) }
+                ?: ""
         }
+        
+        return Pair(title, chapterName)
+    }
+
+    private fun updateTitleAndSubtitle() {
+        val (title, subtitle) = extractChapterInfo()
+        supportActionBar?.title = title
+        supportActionBar?.subtitle = subtitle
+        viewBinding.toolbar.title = title
+        viewBinding.toolbar.subtitle = subtitle
+    }
+
+    private fun updateSubtitleFromMediaItem(mediaItem: MediaItem?) {
+        // Use unified subtitle extraction method for consistency
+        val (_, subtitle) = extractChapterInfo()
+        supportActionBar?.subtitle = subtitle
+        viewBinding.toolbar.subtitle = subtitle
     }
 
     fun showQualityDialog() {
@@ -932,8 +1073,25 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val history = runCatching { historyRepository.getOne(manga) }.getOrNull() ?: return
         android.util.Log.d("VideoPlayer", "Restore history: chapterId=${history.chapterId}, percent=${history.percent}")
         
+        // Get current chapter ID from ReaderState or intent
+        val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+        val currentChapterId = currentState?.chapterId
+        
+        android.util.Log.d("VideoPlayer", "Current chapter ID from intent/state: $currentChapterId")
+        
+        // Verify chapter ID matches current playing chapter
+        if (currentChapterId != null && currentChapterId != history.chapterId) {
+            android.util.Log.w("VideoPlayer", "Chapter mismatch: history has ${history.chapterId}, but playing ${currentChapterId}. Not restoring position.")
+            // Don't restore position when chapter doesn't match
+            return
+        }
+        
         val overall = history.percent
-        if (overall !in 0f..1f) return
+        if (overall !in 0f..1f) {
+            android.util.Log.w("VideoPlayer", "Invalid history percent: $overall")
+            return
+        }
+        
         val chapters = manga.chapters ?: run {
             // 无章节信息时无法拆分整体百分比，直接使用整体值（退化为单集）
             android.util.Log.d("VideoPlayer", "No chapters, using overall percent: $overall")
@@ -952,6 +1110,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val branchChapters = chapters.filter { it.branch == chapter.branch }
         val count = branchChapters.size
         if (count <= 0) {
+            android.util.Log.w("VideoPlayer", "No chapters in branch '${chapter.branch}'")
             pendingInitialSeekPercent = overall
             return
         }
@@ -988,18 +1147,34 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         android.util.Log.d("VideoPlayer", "Save progress: pos=$pos, dur=$dur, episodePercent=$episodePercent")
 
+        // Ensure ReaderState reflects current chapter before saving
         val state = readerState
-        android.util.Log.d("VideoPlayer", "ReaderState: chapterId=${state?.chapterId}, page=${state?.page}")
+        android.util.Log.d("VideoPlayer", "ReaderState before save: chapterId=${state?.chapterId}, page=${state?.page}")
+        
+        if (state == null) {
+            android.util.Log.w("VideoPlayer", "ReaderState is null, cannot save accurate chapter progress")
+        }
 
         fun computeSeriesPercent(m: org.skepsun.kototoro.parsers.model.Manga, s: ReaderState, ep: Float): Float {
-            val chapters = m.chapters ?: return ep
-            val curr = chapters.find { it.id == s.chapterId } ?: return ep
+            val chapters = m.chapters ?: run {
+                android.util.Log.w("VideoPlayer", "No chapters available for series percent calculation")
+                return ep
+            }
+            val curr = chapters.find { it.id == s.chapterId } ?: run {
+                android.util.Log.w("VideoPlayer", "Current chapter (id=${s.chapterId}) not found in chapters list")
+                return ep
+            }
             val branchChapters = chapters.filter { it.branch == curr.branch }
             val count = branchChapters.size
-            if (count <= 0) return ep
+            if (count <= 0) {
+                android.util.Log.w("VideoPlayer", "No chapters in branch '${curr.branch}'")
+                return ep
+            }
             val idx = branchChapters.indexOfFirst { it.id == curr.id }.coerceAtLeast(0)
             val ppc = 1f / count
-            return (ppc * idx + ppc * ep).coerceIn(0f, 1f)
+            val seriesPercent = (ppc * idx + ppc * ep).coerceIn(0f, 1f)
+            android.util.Log.d("VideoPlayer", "Series percent calculation: chapter=${curr.name}, idx=$idx, count=$count, episodePercent=$ep, seriesPercent=$seriesPercent")
+            return seriesPercent
         }
 
         // 其余部分需要加载详情以确保 chapters 非空
@@ -1008,19 +1183,32 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             val repo = mangaRepositoryFactory.create(mangaSeed.source)
             val manga = if (mangaSeed.chapters.isNullOrEmpty()) runCatching { repo.getDetails(mangaSeed) }.getOrDefault(mangaSeed) else mangaSeed
             // 若仍无章节信息（网络/源不可用），避免保存触发断言失败
-            if (manga.chapters.isNullOrEmpty()) return@launch
+            if (manga.chapters.isNullOrEmpty()) {
+                android.util.Log.w("VideoPlayer", "Cannot save history: manga has no chapters")
+                return@launch
+            }
 
             if (state != null) {
+                // Verify ReaderState chapter ID exists in manga chapters
+                val chapterExists = manga.chapters?.any { it.id == state.chapterId } == true
+                if (!chapterExists) {
+                    android.util.Log.e("VideoPlayer", "ReaderState chapter ID ${state.chapterId} does not exist in manga chapters!")
+                }
+                
                 // ReaderState 已提供：直接计算整体百分比并保存
                 val overall = computeSeriesPercent(manga, state, episodePercent)
+                android.util.Log.d("VideoPlayer", "Saving history with ReaderState: chapterId=${state.chapterId}, overall=$overall")
                 historyUpdateUseCase.invokeAsync(manga, state, overall)
             } else {
                 // 无 ReaderState：优先使用已有历史，否则用首章构造
                 val history = runCatching { historyRepository.getOne(manga) }.getOrNull()
                 val fallbackState = history?.let { ReaderState(it) } ?: runCatching { ReaderState(manga, null) }.getOrNull()
                 if (fallbackState != null) {
+                    android.util.Log.d("VideoPlayer", "Using fallback ReaderState: chapterId=${fallbackState.chapterId}")
                     val overall = computeSeriesPercent(manga, fallbackState, episodePercent)
                     historyUpdateUseCase.invokeAsync(manga, fallbackState, overall)
+                } else {
+                    android.util.Log.w("VideoPlayer", "Cannot create fallback ReaderState")
                 }
             }
         }
@@ -1065,5 +1253,77 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             bottom = 0,
         )
         return insets.consumeAll(type)
+    }
+
+    // ReaderNavigationCallback implementation
+    override fun onPageSelected(page: ReaderPage): Boolean {
+        // Video player doesn't support page-level navigation
+        return false
+    }
+
+    override fun onChapterSelected(chapter: MangaChapter): Boolean {
+        // Handle chapter selection from ChaptersPagesSheet
+        val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga 
+            ?: return false
+        
+        android.util.Log.d("VideoPlayer", "Chapter selected: ${chapter.name} (id=${chapter.id})")
+        
+        // Find the new chapter's video URL asynchronously
+        lifecycleScope.launch {
+            try {
+                val repo = mangaRepositoryFactory.create(manga.source)
+                val pages = repo.getPages(chapter)
+                val streamUrl = pages.firstOrNull()?.let { repo.getPageUrl(it) }
+                
+                if (streamUrl != null) {
+                    android.util.Log.d("VideoPlayer", "Stream URL resolved: $streamUrl")
+                    
+                    // Update ReaderState with new chapter
+                    readerState = ReaderState(chapter.id, 0, 0)
+                    
+                    // Update player with new URL
+                    player?.stop()
+                    val mediaItem = MediaItem.Builder()
+                        .setUri(streamUrl)
+                        .setMediaId(chapter.id.toString())
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(chapter.name)
+                                .build()
+                        )
+                        .build()
+                    player?.setMediaItem(mediaItem)
+                    player?.prepare()
+                    player?.play()
+                    
+                    // Update title/subtitle to reflect new chapter
+                    updateTitleAndSubtitle()
+                    
+                    // Save progress for new chapter
+                    saveHistoryProgressAsync()
+                } else {
+                    android.util.Log.w("VideoPlayer", "Failed to resolve stream URL for chapter ${chapter.id}")
+                    Snackbar.make(
+                        viewBinding.root,
+                        org.skepsun.kototoro.R.string.error_occurred,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("VideoPlayer", "Error loading chapter", e)
+                Snackbar.make(
+                    viewBinding.root,
+                    org.skepsun.kototoro.R.string.error_occurred,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
+        
+        return true // Indicate we handled the selection
+    }
+
+    override fun onBookmarkSelected(bookmark: Bookmark): Boolean {
+        // Video player doesn't support bookmarks
+        return false
     }
 }

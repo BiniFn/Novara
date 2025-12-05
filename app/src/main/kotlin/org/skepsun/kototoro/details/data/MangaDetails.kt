@@ -56,8 +56,10 @@ data class MangaDetails(
 
     private val mergedManga by lazy {
         if (localManga == null) {
-            // fast path
-            manga.withOverride(override)
+            // 对于非本地漫画，也需要包含 chapters 信息
+            manga.withOverride(override).copy(
+                chapters = allChapters,
+            )
         } else {
             manga.copy(
                 title = override?.title.ifNullOrEmpty { manga.title },
