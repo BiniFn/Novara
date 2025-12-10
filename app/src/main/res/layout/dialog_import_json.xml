@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content"
+	android:orientation="vertical"
+	android:paddingVertical="?dialogPreferredPadding">
+
+	<!-- File selection button -->
+	<Button
+		android:id="@+id/button_select_file"
+		style="@style/Widget.Material3.Button.OutlinedButton"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:text="@string/select_file"
+		app:icon="@drawable/ic_file_zip" />
+
+	<!-- Selected file name display -->
+	<TextView
+		android:id="@+id/textView_selected_file"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:layout_marginTop="@dimen/margin_small"
+		android:textAppearance="?attr/textAppearanceLabelSmall"
+		android:textColor="?android:textColorSecondary"
+		android:visibility="gone"
+		tools:text="legado_sources.json"
+		tools:visibility="visible" />
+
+	<!-- Divider with "OR" text -->
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:layout_marginVertical="@dimen/margin_normal"
+		android:gravity="center_vertical"
+		android:orientation="horizontal">
+
+		<View
+			android:layout_width="0dp"
+			android:layout_height="1dp"
+			android:layout_weight="1"
+			android:background="?android:attr/listDivider" />
+
+		<TextView
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginHorizontal="@dimen/margin_normal"
+			android:text="@string/or"
+			android:textAppearance="?attr/textAppearanceLabelMedium"
+			android:textColor="?android:textColorSecondary" />
+
+		<View
+			android:layout_width="0dp"
+			android:layout_height="1dp"
+			android:layout_weight="1"
+			android:background="?android:attr/listDivider" />
+
+	</LinearLayout>
+
+	<!-- JSON text input -->
+	<com.google.android.material.textfield.TextInputLayout
+		android:id="@+id/textInputLayout_json"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:hint="@string/paste_json_content"
+		app:counterEnabled="true"
+		app:counterMaxLength="1000000">
+
+		<com.google.android.material.textfield.TextInputEditText
+			android:id="@+id/editText_json"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:gravity="top|start"
+			android:inputType="textMultiLine"
+			android:maxLines="10"
+			android:minLines="4"
+			android:scrollbars="vertical" />
+
+	</com.google.android.material.textfield.TextInputLayout>
+
+	<!-- Source type selection -->
+	<com.google.android.material.textfield.TextInputLayout
+		android:id="@+id/textInputLayout_source_type"
+		style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:layout_marginTop="@dimen/margin_normal"
+		android:hint="@string/source_type">
+
+		<AutoCompleteTextView
+			android:id="@+id/autoComplete_source_type"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:inputType="none"
+			tools:text="Legado" />
+
+	</com.google.android.material.textfield.TextInputLayout>
+
+	<!-- Progress indicator -->
+	<com.google.android.material.progressindicator.LinearProgressIndicator
+		android:id="@+id/progressBar"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:layout_marginTop="@dimen/margin_normal"
+		android:indeterminate="true"
+		android:visibility="gone"
+		tools:visibility="visible" />
+
+	<!-- Status message -->
+	<TextView
+		android:id="@+id/textView_status"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:layout_marginTop="@dimen/margin_small"
+		android:textAppearance="?attr/textAppearanceLabelMedium"
+		android:visibility="gone"
+		tools:text="Successfully imported 5 sources"
+		tools:visibility="visible" />
+
+	<!-- Buttons -->
+	<LinearLayout
+		style="?buttonBarStyle"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="?dialogPreferredPadding"
+		android:layout_marginTop="@dimen/margin_normal"
+		android:gravity="end"
+		android:orientation="horizontal">
+
+		<Button
+			android:id="@+id/button_cancel"
+			style="?buttonBarButtonStyle"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="@android:string/cancel" />
+
+		<Button
+			android:id="@+id/button_import"
+			style="?buttonBarButtonStyle"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="@string/import_button" />
+
+	</LinearLayout>
+
+</LinearLayout>

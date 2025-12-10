@@ -1,0 +1,116 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/Users/sunchuxiong/.gradle/wrapper/dists/gradle-9.0.0-bin/d6wjpkvcgsg3oed0qlfss3wgl/gradle-9.0.0/lib/native-platform-0.22-milestone-28.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.0.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:hiltAggregateDepsDebug UP-TO-DATE
+> Task :app:hiltJavaCompileDebug UP-TO-DATE
+> Task :app:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :app:kspDebugUnitTestKotlin
+> Task :app:kspDebugUnitTestKotlin UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:transformDebugClassesWithAsm UP-TO-DATE
+> Task :app:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :app:processDebugUnitTestManifest UP-TO-DATE
+> Task :app:generateDebugUnitTestConfig UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+
+> Task :app:compileDebugUnitTestKotlin FAILED
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:6:16 Unresolved reference 'mockwebserver'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:7:16 Unresolved reference 'mockwebserver'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:13:51 Unresolved reference 'JsonSourceType'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:16:15 Unresolved reference 'test'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:17:15 Unresolved reference 'test'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:18:15 Unresolved reference 'test'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:33:35 Unresolved reference 'MockWebServer'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:39:16 Unresolved reference 'MockWebServer'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:40:14 Unresolved reference 'start'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:45:33 No value passed for parameter 'cache'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:50:14 Unresolved reference 'shutdown'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:76:14 Unresolved reference 'enqueue'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:76:22 Unresolved reference 'MockResponse'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:82:35 Unresolved reference 'url'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:97:11 Unresolved reference 'JsonSourceType'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:104:40 Too many arguments for 'constructor(entity: JsonSourceEntity): JsonMangaSource'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:105:48 Argument type mismatch: actual type is 'OkHttpClient', but 'LegadoHttpClient' was expected.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:111:3 Unresolved reference 'assertEquals'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:112:3 Unresolved reference 'assertEquals'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:113:3 Unresolved reference 'assertEquals'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:114:3 Unresolved reference 'assertTrue'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:115:3 Unresolved reference 'assertTrue'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:144:14 Unresolved reference 'enqueue'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:144:22 Unresolved reference 'MockResponse'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:150:35 Unresolved reference 'url'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:169:11 Unresolved reference 'JsonSourceType'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:176:40 Too many arguments for 'constructor(entity: JsonSourceEntity): JsonMangaSource'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:177:48 Argument type mismatch: actual type is 'OkHttpClient', but 'LegadoHttpClient' was expected.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:184:21 Unresolved reference 'url'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:185:27 Unresolved reference 'url'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:202:3 Unresolved reference 'assertNotNull'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:216:35 Unresolved reference 'url'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:223:11 Unresolved reference 'JsonSourceType'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:230:40 Too many arguments for 'constructor(entity: JsonSourceEntity): JsonMangaSource'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:231:48 Argument type mismatch: actual type is 'OkHttpClient', but 'LegadoHttpClient' was expected.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:237:3 Unresolved reference 'assertEquals'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:246:14 Unresolved reference 'shutdown'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:264:11 Unresolved reference 'JsonSourceType'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:271:40 Too many arguments for 'constructor(entity: JsonSourceEntity): JsonMangaSource'.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:272:48 Argument type mismatch: actual type is 'OkHttpClient', but 'LegadoHttpClient' was expected.
+e: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/app/src/test/kotlin/org/skepsun/kototoro/core/parser/dynamic/BasicJsonRepositoryIntegrationTest.kt:278:3 Unresolved reference 'assertEquals'.
+
+> Task :app:copyRoomSchemas NO-SOURCE
+
+[Incubating] Problems report is available at: file:///Users/sunchuxiong/kotatsu_demo/Kototoro/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugUnitTestKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.0.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 4m 38s
+34 actionable tasks: 1 executed, 33 up-to-date

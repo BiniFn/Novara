@@ -90,6 +90,15 @@ class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 		when (data) {
 			is ContentType -> viewModel.setContentType(data, !chip.isChecked)
 			is Boolean -> viewModel.setNewOnly(!chip.isChecked)
+			is SourceTypeFilter -> {
+				// Toggle source type filter
+				val newFilter = if (chip.isChecked) {
+					SourceTypeFilter.ALL
+				} else {
+					data
+				}
+				viewModel.setSourceType(newFilter)
+			}
 			else -> showLocalesMenu(chip)
 		}
 	}
@@ -119,7 +128,7 @@ class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 		hasNewSources: Boolean,
 		contentTypes: List<ContentType>,
 	) {
-		val chips = ArrayList<ChipModel>(contentTypes.size + 2)
+		val chips = ArrayList<ChipModel>(contentTypes.size + 4)
 		chips += ChipModel(
 			title = appliedFilter.locale?.toLocale().getDisplayName(this),
 			icon = R.drawable.ic_language,
@@ -133,6 +142,19 @@ class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 				data = true,
 			)
 		}
+		
+		// Add source type filter chips
+		chips += ChipModel(
+			title = getString(R.string.native_sources),
+			isChecked = appliedFilter.sourceType == SourceTypeFilter.NATIVE,
+			data = SourceTypeFilter.NATIVE,
+		)
+		chips += ChipModel(
+			title = getString(R.string.json_sources),
+			isChecked = appliedFilter.sourceType == SourceTypeFilter.JSON,
+			data = SourceTypeFilter.JSON,
+		)
+		
 		contentTypes.mapTo(chips) { type ->
 			ChipModel(
 				title = getString(type.titleResId),

@@ -24,6 +24,11 @@
 	<color name="common_yellow">#FBC02D</color>
 	<color name="nsfw_18">#FF8A65</color>
 	<color name="nsfw_16">#FFD54F</color>
+	
+	<!-- JSON Source colors -->
+	<color name="orange_100">#FFE0B2</color>
+	<color name="orange_500">#FF9800</color>
+	<color name="orange_900">#E65100</color>
 
 	<!-- Color schemes colors -->
 	<color name="background_miku">#F7FAF8</color>

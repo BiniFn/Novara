@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:id="@+id/scrollView"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content"
+	android:scrollbars="none"
+	android:fillViewport="false">
+	
+	<com.google.android.material.chip.ChipGroup
+		android:id="@+id/chipGroup"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:paddingStart="@dimen/list_spacing_normal"
+		android:paddingEnd="@dimen/list_spacing_normal"
+		android:paddingTop="@dimen/list_spacing_small"
+		android:paddingBottom="@dimen/list_spacing_small"
+		app:singleSelection="true"
+		app:selectionRequired="true"
+		app:chipSpacingHorizontal="@dimen/list_spacing_small" />
+	
+</HorizontalScrollView>

@@ -38,16 +38,28 @@ class AppBackupAgent : BackupAgent() {
 
 	override fun onFullBackup(data: FullBackupDataOutput) {
 		super.onFullBackup(data)
+		val db = MangaDatabase(context = applicationContext)
+		val jsonSourceManager = org.skepsun.kototoro.core.jsonsource.JsonSourceManager(
+			jsonSourceDao = db.getJsonSourceDao()
+		)
+		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
+		val sourceGroupManager = org.skepsun.kototoro.core.jsonsource.SourceGroupManager(
+			sourceTypeIdentifier = sourceTypeIdentifier,
+			jsonSourceManager = jsonSourceManager
+		)
 		val file = createBackupFile(
 			this,
 			BackupRepository(
-				database = MangaDatabase(context = applicationContext),
+				database = db,
 				settings = AppSettings(applicationContext),
 				tapGridSettings = TapGridSettings(applicationContext),
 				mangaSourcesRepository = MangaSourcesRepository(
 					context = applicationContext,
-					db = MangaDatabase(context = applicationContext),
+					db = db,
 					settings = AppSettings(applicationContext),
+					jsonSourceManager = jsonSourceManager,
+					sourceTypeIdentifier = sourceTypeIdentifier,
+					sourceGroupManager = sourceGroupManager,
 				),
 				savedFiltersRepository = SavedFiltersRepository(
 					context = applicationContext,
@@ -70,17 +82,29 @@ class AppBackupAgent : BackupAgent() {
 		mtime: Long
 	) {
 		if (destination?.name?.endsWith(".bk.zip") == true) {
+			val db = MangaDatabase(applicationContext)
+			val jsonSourceManager = org.skepsun.kototoro.core.jsonsource.JsonSourceManager(
+				jsonSourceDao = db.getJsonSourceDao()
+			)
+			val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
+			val sourceGroupManager = org.skepsun.kototoro.core.jsonsource.SourceGroupManager(
+				sourceTypeIdentifier = sourceTypeIdentifier,
+				jsonSourceManager = jsonSourceManager
+			)
 			restoreBackupFile(
 				data.fileDescriptor,
 				size,
 				BackupRepository(
-					database = MangaDatabase(applicationContext),
+					database = db,
 					settings = AppSettings(applicationContext),
 					tapGridSettings = TapGridSettings(applicationContext),
 					mangaSourcesRepository = MangaSourcesRepository(
 						context = applicationContext,
-						db = MangaDatabase(context = applicationContext),
+						db = db,
 						settings = AppSettings(applicationContext),
+						jsonSourceManager = jsonSourceManager,
+						sourceTypeIdentifier = sourceTypeIdentifier,
+						sourceGroupManager = sourceGroupManager,
 					),
 					savedFiltersRepository = SavedFiltersRepository(
 						context = applicationContext,

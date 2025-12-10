@@ -102,6 +102,12 @@ interface AppModule {
 
 		@Provides
 		@Singleton
+		fun provideJsonSourceDao(database: MangaDatabase): org.skepsun.kototoro.core.db.dao.JsonSourceDao {
+			return database.getJsonSourceDao()
+		}
+
+		@Provides
+		@Singleton
 		fun provideCoil(
 			@LocalizedAppContext context: Context,
 			@MangaHttpClient okHttpClientProvider: Provider<OkHttpClient>,

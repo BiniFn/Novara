@@ -28,8 +28,9 @@
 		tools:src="@tools:sample/backgrounds/scenic" />
 
 	<LinearLayout
-		android:layout_width="match_parent"
+		android:layout_width="0dp"
 		android:layout_height="wrap_content"
+		android:layout_weight="1"
 		android:layout_marginStart="16dp"
 		android:layout_marginEnd="@dimen/margin_small"
 		android:orientation="vertical">
@@ -56,5 +57,17 @@
 			tools:text="@tools:sample/lorem[2]" />
 
 	</LinearLayout>
+
+	<com.google.android.material.chip.Chip
+		android:id="@+id/chip_source_type"
+		style="@style/Widget.Material3.Chip.Assist"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_marginEnd="8dp"
+		android:textSize="11sp"
+		android:visibility="gone"
+		app:chipMinHeight="24dp"
+		tools:text="JSON"
+		tools:visibility="visible" />
 
 </LinearLayout>

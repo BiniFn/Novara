@@ -81,6 +81,15 @@ class ExploreFragment :
 			addItemDecoration(TypedListSpacingDecoration(context, false))
 			checkNotNull(sourceSelectionController).attachToRecyclerView(this)
 		}
+		
+		// Setup group tabs
+		binding.groupTabs.setOnTabSelectedListener { tab ->
+			viewModel.setSelectedGroupTab(tab)
+		}
+		
+		// Restore selected tab
+		binding.groupTabs.setSelectedTab(viewModel.getSelectedGroupTab())
+		
 		addMenuProvider(ExploreMenuProvider(router))
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))
@@ -90,11 +99,27 @@ class ExploreFragment :
 		viewModel.onShowSuggestionsTip.observeEvent(viewLifecycleOwner) {
 			showSuggestionsTip()
 		}
+		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
+			// Update tab selection if changed programmatically
+			if (binding.groupTabs.getSelectedTab() != tab) {
+				binding.groupTabs.setSelectedTab(tab)
+			}
+		}
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val barsInsets = insets.systemBarsInsets
 		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
+		
+		// Apply top inset to group tabs
+		viewBinding?.groupTabs?.setPadding(
+			/* left = */ 0,
+			/* top = */ barsInsets.top,
+			/* right = */ 0,
+			/* bottom = */ 0,
+		)
+		
+		// Apply side and bottom insets to recycler view
 		viewBinding?.recyclerView?.setPadding(
 			/* left = */ barsInsets.left + basePadding,
 			/* top = */ basePadding,

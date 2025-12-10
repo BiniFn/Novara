@@ -89,4 +89,51 @@
     <string name="epub_cd_internal_chapter">EPUB 内部章节 %d</string>
     <string name="epub_cd_normal_chapter">在线章节</string>
     <string name="epub_cd_loading_progress">加载进度：%d%%</string>
+    
+    <!-- JSON 源导入 -->
+    <string name="import_json_sources">导入 JSON 源</string>
+    <string name="import_json_sources_summary">导入 Legado 或 TVBox 源配置</string>
+    <string name="select_file">选择文件</string>
+    <string name="or">或</string>
+    <string name="paste_json_content">粘贴 JSON 内容</string>
+    <string name="source_type">源类型</string>
+    <string name="source_type_legado">Legado</string>
+    <string name="source_type_tvbox">TVBox</string>
+    <string name="import_button">导入</string>
+    <string name="importing_">正在导入…</string>
+    <string name="json_content_required">需要 JSON 内容</string>
+    <string name="file_loaded_successfully">文件加载成功</string>
+    <string name="error_loading_file">加载文件出错：%s</string>
+    <string name="import_error">导入错误：%s</string>
+    <plurals name="sources_imported_successfully">
+        <item quantity="other">成功导入 %d 个源</item>
+    </plurals>
+    
+    <!-- JSON 源管理 -->
+    <string name="json_sources">JSON 源</string>
+    <string name="json_sources_summary">管理已导入的 JSON 源</string>
+    <string name="import_json">导入 JSON</string>
+    <string name="test">测试</string>
+    <string name="source_deleted">源已删除</string>
+    
+    <!-- JSON 源错误 -->
+    <string name="error_invalid_json_format">JSON 格式错误，位置 %1$d：%2$s</string>
+    <string name="error_missing_required_field">缺少必需字段 \'%s\'</string>
+    <string name="error_invalid_rule_syntax">规则语法错误：%1$s（规则：\'%2$s\'）</string>
+    <string name="error_network_error">访问 \'%s\' 时发生网络错误</string>
+    <string name="error_database_error">执行 \'%s\' 时发生数据库错误</string>
+    <string name="error_duplicate_source_id">ID 为 \'%s\' 的源已存在</string>
+    <string name="error_json_parsing_failed">解析 JSON 配置失败</string>
+    <string name="error_source_validation_failed">源验证失败</string>
+    <string name="error_import_failed">导入失败</string>
+    <string name="error_no_valid_sources">JSON 中没有找到有效的源</string>
+    
+    <!-- 浏览分组标签 -->
+    <string name="all">全部</string>
+    <string name="manga">漫画</string>
+    <string name="novel">小说</string>
+    <string name="video">视频</string>
+    
+    <!-- 源筛选器 -->
+    <string name="native_sources">原生源</string>
 </resources>

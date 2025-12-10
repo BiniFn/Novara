@@ -210,6 +210,13 @@ dependencies {
 	implementation libs.okhttp.dnsoverhttps
 	implementation libs.okio
 	implementation libs.kotlinx.serialization.json
+	
+	// XPath and JSONPath support for rule engine
+	implementation libs.xsoup
+	implementation libs.jsonpath
+	
+	// Rhino JavaScript engine for Legado compatibility
+	implementation libs.rhino
 
 	implementation libs.adapterdelegates
 	implementation libs.adapterdelegates.viewbinding
@@ -254,6 +261,7 @@ dependencies {
 	testImplementation libs.kotest.property
 	testImplementation libs.kotest.runner.junit5
 	testImplementation libs.kotest.assertions.core
+	testImplementation 'io.mockk:mockk:1.13.13'
 
 	androidTestImplementation libs.androidx.runner
 	androidTestImplementation libs.androidx.rules

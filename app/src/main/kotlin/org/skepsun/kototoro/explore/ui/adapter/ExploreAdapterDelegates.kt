@@ -99,12 +99,30 @@ fun exploreSourceListItemAD(
 
 	AdapterDelegateClickListenerAdapter(this, listener).attach(itemView)
 	val iconPinned = ContextCompat.getDrawable(context, R.drawable.ic_pin_small)
+	val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 
 	bind {
 		binding.textViewTitle.text = item.source.getTitle(context)
 		binding.textViewTitle.drawableStart = if (item.source.isPinned) iconPinned else null
 		binding.textViewSubtitle.text = item.source.getSummary(context)
 		binding.imageViewIcon.setImageAsync(item.source)
+		
+		// Show source type chip for JSON sources
+		val sourceId = item.source.mangaSource.name
+		if (sourceTypeIdentifier.isJsonSource(sourceId)) {
+			binding.chipSourceType.visibility = View.VISIBLE
+			val sourceType = sourceTypeIdentifier.getSourceType(sourceId)
+			binding.chipSourceType.text = when (sourceType) {
+				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "JSON"
+				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
+				else -> "JSON"
+			}
+			// Set chip color for JSON sources (orange tint)
+			binding.chipSourceType.setChipBackgroundColorResource(R.color.orange_100)
+			binding.chipSourceType.setTextColor(ContextCompat.getColor(context, R.color.orange_900))
+		} else {
+			binding.chipSourceType.visibility = View.GONE
+		}
 	}
 }
 
@@ -123,20 +141,41 @@ fun exploreSourceGridItemAD(
 
 	AdapterDelegateClickListenerAdapter(this, listener).attach(itemView)
 	val iconPinned = ContextCompat.getDrawable(context, R.drawable.ic_pin_small)
+	val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 
 	bind {
 		val title = item.source.getTitle(context)
+		val summary = item.source.getSummary(context)
 		itemView.setTooltipCompat(
 			buildSpannedString {
 				bold {
 					append(title)
 				}
-				appendLine()
-				append(item.source.getSummary(context))
+				if (!summary.isNullOrEmpty()) {
+					appendLine()
+					append(summary)
+				}
 			},
 		)
 		binding.textViewTitle.text = title
 		binding.textViewTitle.drawableStart = if (item.source.isPinned) iconPinned else null
 		binding.imageViewIcon.setImageAsync(item.source)
+		
+		// Show source type chip for JSON sources
+		val sourceId = item.source.mangaSource.name
+		if (sourceTypeIdentifier.isJsonSource(sourceId)) {
+			binding.chipSourceType.visibility = View.VISIBLE
+			val sourceType = sourceTypeIdentifier.getSourceType(sourceId)
+			binding.chipSourceType.text = when (sourceType) {
+				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "JSON"
+				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
+				else -> "JSON"
+			}
+			// Set chip color for JSON sources (orange tint)
+			binding.chipSourceType.setChipBackgroundColorResource(R.color.orange_100)
+			binding.chipSourceType.setTextColor(ContextCompat.getColor(context, R.color.orange_900))
+		} else {
+			binding.chipSourceType.visibility = View.GONE
+		}
 	}
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -46,6 +47,9 @@ class MangaSourcesRepository @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	private val db: MangaDatabase,
 	private val settings: AppSettings,
+	private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
+	private val sourceTypeIdentifier: org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier,
+	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 ) {
 
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
@@ -67,11 +71,37 @@ class MangaSourcesRepository @Inject constructor(
 		return dao.findAll(!settings.isAllSourcesEnabled, order).toSources(settings.isNsfwContentDisabled, order)
 			.let { enabled ->
 				val external = getExternalSources()
-				val list = ArrayList<MangaSourceInfo>(enabled.size + external.size)
+				val jsonSources = getEnabledJsonSources()
+				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}")
+				val list = ArrayList<MangaSourceInfo>(enabled.size + external.size + jsonSources.size)
 				external.mapTo(list) { MangaSourceInfo(it, isEnabled = true, isPinned = true) }
+				jsonSources.mapTo(list) { 
+					android.util.Log.d("MangaSourcesRepository", "  Wrapping JSON source: ${it.name} (${it.javaClass.simpleName})")
+					MangaSourceInfo(it, isEnabled = true, isPinned = it.isPinned) 
+				}
 				list.addAll(enabled)
+				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: total=${list.size} sources")
 				list
 			}
+	}
+	
+	/**
+	 * Gets all enabled JSON sources as MangaSource instances.
+	 * 
+	 * @return List of enabled JSON sources wrapped as MangaSource
+	 */
+	private suspend fun getEnabledJsonSources(): List<org.skepsun.kototoro.core.jsonsource.JsonMangaSource> {
+		val jsonSources = jsonSourceManager.observeEnabledJsonSources()
+			.map { entities ->
+				android.util.Log.d("MangaSourcesRepository", "getEnabledJsonSources: found ${entities.size} enabled JSON sources")
+				entities.forEach { entity ->
+					android.util.Log.d("MangaSourcesRepository", "  JSON source: id=${entity.id}, name=${entity.name}, enabled=${entity.enabled}")
+				}
+				entities.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
+			}
+			.first()
+		android.util.Log.d("MangaSourcesRepository", "getEnabledJsonSources: returning ${jsonSources.size} JsonMangaSource instances")
+		return jsonSources
 	}
 
 	suspend fun getPinnedSources(): Set<MangaSource> {
@@ -109,21 +139,36 @@ class MangaSourcesRepository @Inject constructor(
 		query: String?,
 		locale: String?,
 		sortOrder: SourcesSortOrder?,
+		sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
 	): List<MangaParserSource> {
 		assimilateNewSources()
-		val entities = dao.findAll().toMutableList()
-		if (isDisabledOnly && !settings.isAllSourcesEnabled) {
-			entities.removeAll { it.isEnabled }
+		
+		// Filter by source type if specified
+		val shouldIncludeNative = sourceTypes == null || 
+			org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE in sourceTypes
+		val shouldIncludeJson = sourceTypes == null || 
+			sourceTypes.any { it != org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE }
+		
+		// Get native sources
+		val sources = if (shouldIncludeNative) {
+			val entities = dao.findAll().toMutableList()
+			if (isDisabledOnly && !settings.isAllSourcesEnabled) {
+				entities.removeAll { it.isEnabled }
+			}
+			if (isNewOnly) {
+				entities.retainAll { it.addedIn == BuildConfig.VERSION_CODE }
+			}
+			entities.toSources(
+				skipNsfwSources = settings.isNsfwContentDisabled,
+				sortOrder = sortOrder,
+			).run {
+				mapNotNullTo(ArrayList(size)) { it.mangaSource as? MangaParserSource }
+			}
+		} else {
+			ArrayList()
 		}
-		if (isNewOnly) {
-			entities.retainAll { it.addedIn == BuildConfig.VERSION_CODE }
-		}
-		val sources = entities.toSources(
-			skipNsfwSources = settings.isNsfwContentDisabled,
-			sortOrder = sortOrder,
-		).run {
-			mapNotNullTo(ArrayList(size)) { it.mangaSource as? MangaParserSource }
-		}
+		
+		// Apply filters to native sources
 		if (locale != null) {
 			sources.retainAll { it.locale == locale }
 		}
@@ -138,10 +183,118 @@ class MangaSourcesRepository @Inject constructor(
 				it.getTitle(context).contains(query, ignoreCase = true) || it.name.contains(query, ignoreCase = true)
 			}
 		}
+		
 		return sources
 	}
 
+	/**
+	 * Queries all sources (native and JSON) with filtering options.
+	 * 
+	 * @param isDisabledOnly If true, only return disabled sources
+	 * @param isNewOnly If true, only return newly added sources
+	 * @param excludeBroken If true, exclude broken sources
+	 * @param types Filter by content types (manga, novel, video)
+	 * @param query Search query to filter by name
+	 * @param locale Filter by locale
+	 * @param sortOrder Sort order for results
+	 * @param sourceTypes Filter by source types (NATIVE, JSON_LEGADO, JSON_TVBOX)
+	 * @return List of sources matching the filters
+	 */
+	suspend fun queryAllSources(
+		isDisabledOnly: Boolean = false,
+		isNewOnly: Boolean = false,
+		excludeBroken: Boolean = false,
+		types: Set<ContentType> = emptySet(),
+		query: String? = null,
+		locale: String? = null,
+		sortOrder: SourcesSortOrder? = null,
+		sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
+	): List<MangaSource> {
+		val result = mutableListOf<MangaSource>()
+		
+		// Add native sources if requested
+		val shouldIncludeNative = sourceTypes == null || 
+			org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE in sourceTypes
+		
+		if (shouldIncludeNative) {
+			val nativeSources = queryParserSources(
+				isDisabledOnly = isDisabledOnly,
+				isNewOnly = isNewOnly,
+				excludeBroken = excludeBroken,
+				types = types,
+				query = query,
+				locale = locale,
+				sortOrder = sortOrder,
+				sourceTypes = sourceTypes,
+			)
+			result.addAll(nativeSources)
+		}
+		
+		// Add JSON sources if requested
+		val shouldIncludeJson = sourceTypes == null || 
+			sourceTypes.any { it != org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE }
+		
+		if (shouldIncludeJson) {
+			val jsonSources = queryJsonSources(
+				isDisabledOnly = isDisabledOnly,
+				query = query,
+				sourceTypes = sourceTypes,
+			)
+			result.addAll(jsonSources)
+		}
+		
+		return result
+	}
+	
+	/**
+	 * Queries JSON sources with filtering options.
+	 * 
+	 * @param isDisabledOnly If true, only return disabled sources
+	 * @param query Search query to filter by name
+	 * @param sourceTypes Filter by JSON source types (JSON_LEGADO, JSON_TVBOX)
+	 * @return List of JSON sources matching the filters
+	 */
+	private suspend fun queryJsonSources(
+		isDisabledOnly: Boolean,
+		query: String?,
+		sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>?,
+	): List<org.skepsun.kototoro.core.jsonsource.JsonMangaSource> {
+		// Get all JSON sources
+		val allJsonSources = jsonSourceManager.observeAllJsonSources().first()
+		
+		// Filter by enabled/disabled
+		var filtered = if (isDisabledOnly) {
+			allJsonSources.filter { !it.enabled }
+		} else {
+			allJsonSources.filter { it.enabled }
+		}
+		
+		// Filter by source type
+		if (sourceTypes != null) {
+			filtered = filtered.filter { entity ->
+				val sourceType = sourceTypeIdentifier.getSourceType(entity.id)
+				sourceType in sourceTypes
+			}
+		}
+		
+		// Filter by query
+		if (!query.isNullOrEmpty()) {
+			filtered = filtered.filter { entity ->
+				entity.name.contains(query, ignoreCase = true) ||
+				entity.id.contains(query, ignoreCase = true)
+			}
+		}
+		
+		return filtered.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
+	}
+	
 	fun observeIsEnabled(source: MangaSource): Flow<Boolean> {
+		// Check if it's a JSON source
+		if (sourceTypeIdentifier.isJsonSource(source.name)) {
+			return jsonSourceManager.observeAllJsonSources().map { entities ->
+				entities.find { it.id == source.name }?.enabled ?: false
+			}
+		}
 		return dao.observeIsEnabled(source.name).onStart { assimilateNewSources() }
 	}
 
@@ -188,6 +341,25 @@ class MangaSourcesRepository @Inject constructor(
 			list.addAll(enabled)
 			list
 		}
+		.combine(observeJsonSources()) { sources, jsonSources ->
+			val list = ArrayList<MangaSourceInfo>(sources.size + jsonSources.size)
+			list.addAll(sources)
+			jsonSources.mapTo(list) { 
+				MangaSourceInfo(it, isEnabled = it.isEnabled, isPinned = it.isPinned) 
+			}
+			list
+		}
+	
+	/**
+	 * Observes all enabled JSON sources as MangaSource instances.
+	 * 
+	 * @return Flow emitting list of JSON sources wrapped as MangaSource
+	 */
+	private fun observeJsonSources(): Flow<List<org.skepsun.kototoro.core.jsonsource.JsonMangaSource>> {
+		return jsonSourceManager.observeEnabledJsonSources().map { entities ->
+			entities.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
+		}
+	}
 
 	fun observeAll(): Flow<List<Pair<MangaSource, Boolean>>> = dao.observeAll().map { entities ->
 		val result = ArrayList<Pair<MangaSource, Boolean>>(entities.size)
@@ -327,6 +499,81 @@ class MangaSourcesRepository @Inject constructor(
 		}
 	}
 
+	/**
+	 * Gets the source type label for a given source.
+	 * This is useful for displaying the source type in the UI.
+	 * 
+	 * @param source The manga source
+	 * @return A human-readable label for the source type
+	 */
+	fun getSourceTypeLabel(source: MangaSource): String {
+		return sourceTypeIdentifier.getSourceTypeLabel(source.name)
+	}
+	
+	/**
+	 * Observes sources grouped by content type.
+	 * 
+	 * @param contentGroup The content group to filter by
+	 * @return Flow emitting list of sources in the specified content group
+	 */
+	fun observeSourcesByContentGroup(
+		contentGroup: org.skepsun.kototoro.core.jsonsource.ContentGroup
+	): Flow<List<MangaSourceInfo>> {
+		return observeEnabledSources().map { sources ->
+			sources.filter { sourceInfo ->
+				sourceGroupManager.getContentGroup(sourceInfo.mangaSource) == contentGroup
+			}
+		}
+	}
+	
+	/**
+	 * Observes sources grouped by origin type.
+	 * 
+	 * @param originGroup The origin group to filter by
+	 * @return Flow emitting list of sources in the specified origin group
+	 */
+	fun observeSourcesByOriginGroup(
+		originGroup: org.skepsun.kototoro.core.jsonsource.OriginGroup
+	): Flow<List<MangaSourceInfo>> {
+		return observeEnabledSources().map { sources ->
+			sources.filter { sourceInfo ->
+				sourceGroupManager.getOriginGroup(sourceInfo.mangaSource) == originGroup
+			}
+		}
+	}
+	
+	/**
+	 * Observes counts of sources in each group.
+	 * 
+	 * @return Flow emitting map of SourceGroup to count
+	 */
+	fun observeGroupCounts(): Flow<Map<org.skepsun.kototoro.core.jsonsource.SourceGroup, Int>> {
+		return observeEnabledSources().map { sources ->
+			val mangaSources = sources.map { it.mangaSource }
+			sourceGroupManager.getGroupCounts(mangaSources)
+		}
+	}
+	
+	/**
+	 * Checks if a source is a JSON source.
+	 * 
+	 * @param source The manga source
+	 * @return true if the source is a JSON source
+	 */
+	fun isJsonSource(source: MangaSource): Boolean {
+		return sourceTypeIdentifier.isJsonSource(source.name)
+	}
+	
+	/**
+	 * Gets the source type for a given source.
+	 * 
+	 * @param source The manga source
+	 * @return The SourceType enum value
+	 */
+	fun getSourceType(source: MangaSource): org.skepsun.kototoro.core.jsonsource.SourceType {
+		return sourceTypeIdentifier.getSourceType(source.name)
+	}
+	
 	private fun observeExternalSources(): Flow<List<ExternalMangaSource>> {
 		return callbackFlow {
 			val receiver = object : BroadcastReceiver() {

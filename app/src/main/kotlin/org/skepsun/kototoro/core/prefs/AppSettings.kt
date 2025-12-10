@@ -703,6 +703,34 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		clear()
 		putAll(m)
 	}
+	
+	/**
+	 * Get the selected browse group tab ID
+	 */
+	fun getSelectedGroupTab(): String? {
+		return prefs.getString(KEY_SELECTED_GROUP_TAB, null)
+	}
+	
+	/**
+	 * Set the selected browse group tab ID
+	 */
+	fun setSelectedGroupTab(tabId: String) {
+		prefs.edit { putString(KEY_SELECTED_GROUP_TAB, tabId) }
+	}
+	
+	/**
+	 * Get the selected source filter ID
+	 */
+	fun getSelectedSourceFilter(): String? {
+		return prefs.getString(KEY_SELECTED_SOURCE_FILTER, null)
+	}
+	
+	/**
+	 * Set the selected source filter ID
+	 */
+	fun setSelectedSourceFilter(filterId: String) {
+		prefs.edit { putString(KEY_SELECTED_SOURCE_FILTER, filterId) }
+	}
 
 	private fun isBackgroundNetworkRestricted(): Boolean {
 		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -898,6 +926,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_DISCORD_RPC = "discord_rpc"
 		const val KEY_DISCORD_RPC_SKIP_NSFW = "discord_rpc_skip_nsfw"
 		const val KEY_DISCORD_TOKEN = "discord_token"
+		const val KEY_SELECTED_GROUP_TAB = "selected_group_tab"
+		const val KEY_SELECTED_SOURCE_FILTER = "selected_source_filter"
 
 		// keys for non-persistent preferences
 		const val KEY_APP_VERSION = "app_version"

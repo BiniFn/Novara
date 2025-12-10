@@ -40,4 +40,16 @@
 		tools:drawableStart="@drawable/ic_pin_small"
 		tools:text="@tools:sample/lorem[0]" />
 
+	<com.google.android.material.chip.Chip
+		android:id="@+id/chip_source_type"
+		style="@style/Widget.Material3.Chip.Assist"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="4dp"
+		android:textSize="10sp"
+		android:visibility="gone"
+		app:chipMinHeight="20dp"
+		tools:text="JSON"
+		tools:visibility="visible" />
+
 </LinearLayout>

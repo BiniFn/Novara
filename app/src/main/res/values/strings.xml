@@ -1000,4 +1000,52 @@
     <string name="epub_cd_internal_chapter">EPUB internal chapter %d</string>
     <string name="epub_cd_normal_chapter">Online chapter</string>
     <string name="epub_cd_loading_progress">Loading progress: %d%%</string>
+    
+    <!-- JSON Source Import -->
+    <string name="import_json_sources">Import JSON Sources</string>
+    <string name="import_json_sources_summary">Import Legado or TVBox source configurations</string>
+    <string name="select_file">Select File</string>
+    <string name="or">OR</string>
+    <string name="paste_json_content">Paste JSON content</string>
+    <string name="source_type">Source Type</string>
+    <string name="source_type_legado">Legado</string>
+    <string name="source_type_tvbox">TVBox</string>
+    <string name="import_button">Import</string>
+    <string name="importing_">Importing…</string>
+    <string name="json_content_required">JSON content is required</string>
+    <string name="file_loaded_successfully">File loaded successfully</string>
+    <string name="error_loading_file">Error loading file: %s</string>
+    <string name="import_error">Import error: %s</string>
+    <plurals name="sources_imported_successfully">
+        <item quantity="one">Successfully imported %d source</item>
+        <item quantity="other">Successfully imported %d sources</item>
+    </plurals>
+    
+    <!-- JSON Sources Management -->
+    <string name="json_sources">JSON Sources</string>
+    <string name="json_sources_summary">Manage imported JSON sources</string>
+    <string name="import_json">Import JSON</string>
+    <string name="test">Test</string>
+    <string name="source_deleted">Source deleted</string>
+    
+    <!-- JSON Source Errors -->
+    <string name="error_invalid_json_format">Invalid JSON format at position %1$d: %2$s</string>
+    <string name="error_missing_required_field">Required field \'%s\' is missing</string>
+    <string name="error_invalid_rule_syntax">Invalid rule syntax: %1$s (rule: \'%2$s\')</string>
+    <string name="error_network_error">Network error accessing \'%s\'</string>
+    <string name="error_database_error">Database error during \'%s\'</string>
+    <string name="error_duplicate_source_id">Source with ID \'%s\' already exists</string>
+    <string name="error_json_parsing_failed">Failed to parse JSON configuration</string>
+    <string name="error_source_validation_failed">Source validation failed</string>
+    <string name="error_import_failed">Import failed</string>
+    <string name="error_no_valid_sources">No valid sources found in JSON</string>
+    
+    <!-- Browse Group Tabs -->
+    <string name="all">All</string>
+    <string name="manga">Manga</string>
+    <string name="novel">Novel</string>
+    <string name="video">Video</string>
+    
+    <!-- Source Filters -->
+    <string name="native_sources">Native Sources</string>
 </resources>

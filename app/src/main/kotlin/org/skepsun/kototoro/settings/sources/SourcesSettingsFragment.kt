@@ -83,7 +83,17 @@ class SourcesSettingsFragment : BasePreferenceFragment(R.string.remote_sources),
 			true
 		}
 
+		"import_json_sources" -> {
+			showImportJsonDialog()
+			true
+		}
+
 		else -> super.onPreferenceTreeClick(preference)
+	}
+
+	private fun showImportJsonDialog() {
+		val dialog = org.skepsun.kototoro.settings.sources.jsonsource.ImportJsonDialogFragment.newInstance()
+		dialog.show(childFragmentManager, org.skepsun.kototoro.settings.sources.jsonsource.ImportJsonDialogFragment.TAG)
 	}
 
 	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {

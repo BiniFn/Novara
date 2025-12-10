@@ -42,6 +42,16 @@ fun MangaSource(name: String?): MangaSource {
 		val parts = name.substringAfter(':').splitTwoParts('/') ?: return UnknownMangaSource
 		return ExternalMangaSource(packageName = parts.first, authority = parts.second)
 	}
+	// Check if it's a JSON source (starts with JSON_ prefix)
+	if (name.startsWith("JSON_")) {
+		// This is a JSON source, but we can't create it here without database access
+		// Create a special UnknownMangaSource that preserves the original name
+		// This will be resolved by MangaRepository.Factory.create()
+		android.util.Log.d("MangaSource", "Detected JSON source name: $name, returning UnknownMangaSource with preserved name")
+		return object : MangaSource {
+			override val name: String = name
+		}
+	}
 	MangaParserSource.entries.forEach {
 		if (it.name == name) return it
 	}
@@ -90,6 +100,16 @@ fun MangaSource.getSummary(context: Context): String? = when (val source = unwra
 	}
 
 	is ExternalMangaSource -> context.getString(R.string.external_source)
+	
+	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
+		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
+		val sourceType = sourceTypeIdentifier.getSourceType(source.name)
+		when (sourceType) {
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado JSON Source"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox JSON Source"
+			else -> "JSON Source"
+		}
+	}
 
 	else -> null
 }
@@ -99,6 +119,7 @@ fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()
 	LocalMangaSource -> context.getString(R.string.local_storage)
 	TestMangaSource -> context.getString(R.string.test_parser)
 	is ExternalMangaSource -> source.resolveName(context)
+	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> source.displayName
 	else -> context.getString(R.string.unknown)
 }
 

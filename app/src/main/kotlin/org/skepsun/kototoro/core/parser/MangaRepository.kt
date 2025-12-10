@@ -60,14 +60,40 @@ interface MangaRepository {
 		private val loaderContext: MangaLoaderContext,
 		private val contentCache: MemoryContentCache,
 		private val mirrorSwitcher: MirrorSwitcher,
+		private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
+		private val ruleEngine: org.skepsun.kototoro.core.parser.rule.EnhancedRuleEngine,
+		private val legadoHttpClient: org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient,
 	) {
 
 		private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
 
 		@AnyThread
 		fun create(source: MangaSource): MangaRepository {
+			android.util.Log.d("MangaRepository", "create() called with source: ${source.javaClass.simpleName} - ${source.name}")
+			
+			// Check if this is a JSON source (by name prefix) that needs to be resolved
+			if (source.name.startsWith("JSON_") && source !is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
+				android.util.Log.d("MangaRepository", "Detected JSON source by name: ${source.name}, attempting to resolve from database")
+				// Try to load the JSON source from database
+				val jsonSource = kotlinx.coroutines.runBlocking {
+					jsonSourceManager.getById(source.name)
+				}
+				if (jsonSource != null) {
+					android.util.Log.d("MangaRepository", "Successfully resolved JSON source from database: ${jsonSource.name}")
+					// Create JsonMangaSource and recursively call create
+					val resolvedSource = org.skepsun.kototoro.core.jsonsource.JsonMangaSource(jsonSource)
+					return create(resolvedSource)
+				} else {
+					android.util.Log.w("MangaRepository", "JSON source not found in database: ${source.name}")
+					return EmptyMangaRepository(source)
+				}
+			}
+			
 			when (source) {
-				is MangaSourceInfo -> return create(source.mangaSource)
+				is MangaSourceInfo -> {
+					android.util.Log.d("MangaRepository", "Source is MangaSourceInfo, unwrapping to: ${source.mangaSource.javaClass.simpleName}")
+					return create(source.mangaSource)
+				}
 				LocalMangaSource -> return localMangaRepository
 				UnknownMangaSource -> return EmptyMangaRepository(source)
 			}
@@ -76,37 +102,63 @@ interface MangaRepository {
 				cache[source]?.get()?.let { return it }
 				val repository = createRepository(source)
 				if (repository != null) {
+					android.util.Log.d("MangaRepository", "Created repository: ${repository.javaClass.simpleName} for source: ${source.name}")
 					cache[source] = WeakReference(repository)
 					repository
 				} else {
+					android.util.Log.w("MangaRepository", "createRepository returned null for source: ${source.javaClass.simpleName} - ${source.name}, using EmptyMangaRepository")
 					EmptyMangaRepository(source)
 				}
 			}
 		}
 
-		private fun createRepository(source: MangaSource): MangaRepository? = when (source) {
-			is MangaParserSource -> ParserMangaRepository(
-				parser = loaderContext.newParserInstance(source),
-				cache = contentCache,
-				mirrorSwitcher = mirrorSwitcher,
-			)
+		private fun createRepository(source: MangaSource): MangaRepository? {
+			android.util.Log.d("MangaRepository", "createRepository() called with source: ${source.javaClass.simpleName} - ${source.name}")
+			return when (source) {
+				is MangaParserSource -> {
+					android.util.Log.d("MangaRepository", "Creating ParserMangaRepository for: ${source.name}")
+					ParserMangaRepository(
+						parser = loaderContext.newParserInstance(source),
+						cache = contentCache,
+						mirrorSwitcher = mirrorSwitcher,
+					)
+				}
 
-			TestMangaSource -> TestMangaRepository(
-				loaderContext = loaderContext,
-				cache = contentCache,
-			)
+				TestMangaSource -> {
+					android.util.Log.d("MangaRepository", "Creating TestMangaRepository")
+					TestMangaRepository(
+						loaderContext = loaderContext,
+						cache = contentCache,
+					)
+				}
 
-			is ExternalMangaSource -> if (source.isAvailable(context)) {
-				ExternalMangaRepository(
-					contentResolver = context.contentResolver,
-					source = source,
-					cache = contentCache,
-				)
-			} else {
-				EmptyMangaRepository(source)
+				is ExternalMangaSource -> if (source.isAvailable(context)) {
+					android.util.Log.d("MangaRepository", "Creating ExternalMangaRepository for: ${source.name}")
+					ExternalMangaRepository(
+						contentResolver = context.contentResolver,
+						source = source,
+						cache = contentCache,
+					)
+				} else {
+					android.util.Log.w("MangaRepository", "ExternalMangaSource not available: ${source.name}")
+					EmptyMangaRepository(source)
+				}
+				
+				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
+					android.util.Log.d("MangaRepository", "Creating BasicJsonRepository for JSON source: ${source.name}")
+					// Create repository for JSON source with full parsing capabilities
+					org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository(
+						source = source,
+						legadoHttpClient = legadoHttpClient,
+						ruleEngine = ruleEngine
+					)
+				}
+
+				else -> {
+					android.util.Log.w("MangaRepository", "No repository type matched for source: ${source.javaClass.simpleName} - ${source.name}")
+					null
+				}
 			}
-
-			else -> null
 		}
 	}
 }

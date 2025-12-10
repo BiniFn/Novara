@@ -4,6 +4,7 @@ import androidx.collection.LongSet
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 import org.skepsun.kototoro.core.model.MangaSourceInfo
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -25,7 +27,9 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.combine
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import org.skepsun.kototoro.explore.domain.ExploreRepository
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.ExploreButtons
+import org.skepsun.kototoro.explore.ui.model.SourceFilter
 import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
 import org.skepsun.kototoro.explore.ui.model.RecommendationsItem
 import org.skepsun.kototoro.list.ui.model.EmptyHint
@@ -46,6 +50,7 @@ class ExploreViewModel @Inject constructor(
 	private val exploreRepository: ExploreRepository,
 	private val sourcesRepository: MangaSourcesRepository,
 	private val shortcutManager: AppShortcutManager,
+	private val sourceGroupManager: SourceGroupManager,
 ) : BaseViewModel() {
 
 	val isGrid = settings.observeAsStateFlow(
@@ -69,14 +74,38 @@ class ExploreViewModel @Inject constructor(
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val onShowSuggestionsTip = MutableEventFlow<Unit>()
 	private val isRandomLoading = MutableStateFlow(false)
+	
+	/**
+	 * Currently selected browse group tab
+	 */
+	private val selectedGroupTab = MutableStateFlow<BrowseGroupTab>(BrowseGroupTab.All)
+	
+	/**
+	 * Observable selected group tab for UI
+	 */
+	val currentGroupTab: StateFlow<BrowseGroupTab> = selectedGroupTab
 
-	val content: StateFlow<List<ListModel>> = isLoading.flatMapLatest { loading ->
+	val content: StateFlow<List<ListModel>> = isLoading.flatMapLatest { loading: Boolean ->
 		if (loading) {
-			flowOf(getLoadingStateList())
+			flowOf<List<ListModel>>(getLoadingStateList())
 		} else {
 			createContentFlow()
 		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, getLoadingStateList())
+	
+	/**
+	 * Set the selected group tab and filter sources accordingly
+	 */
+	fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		selectedGroupTab.value = tab
+		// Save preference
+		settings.setSelectedGroupTab(tab.id)
+	}
+	
+	/**
+	 * Get the currently selected group tab
+	 */
+	fun getSelectedGroupTab(): BrowseGroupTab = selectedGroupTab.value
 
 	init {
 		launchJob(Dispatchers.Default) {
@@ -84,6 +113,10 @@ class ExploreViewModel @Inject constructor(
 				onShowSuggestionsTip.call(Unit)
 			}
 		}
+		
+		// Restore saved group tab preference
+		val savedTabId = settings.getSelectedGroupTab()
+		selectedGroupTab.value = BrowseGroupTab.fromId(savedTabId ?: BrowseGroupTab.All.id)
 	}
 
 	fun openRandom() {
@@ -139,15 +172,24 @@ class ExploreViewModel @Inject constructor(
 	}
 
 	private fun createContentFlow() = combine(
-		sourcesRepository.observeEnabledSources(),
-		getSuggestionFlow(),
-		isGrid,
-		isRandomLoading,
-		isAllSourcesEnabled,
-		sourcesRepository.observeHasNewSourcesForBadge(),
-	) { content, suggestions, grid, randomLoading, allSourcesEnabled, newSources ->
-		buildList(content, suggestions, grid, randomLoading, allSourcesEnabled, newSources)
-	}.withErrorHandling()
+			sourcesRepository.observeEnabledSources(),
+			getSuggestionFlow(),
+			isGrid,
+			isRandomLoading,
+			isAllSourcesEnabled,
+			sourcesRepository.observeHasNewSourcesForBadge(),
+			selectedGroupTab,
+		) { content, suggestions, grid, randomLoading, allSourcesEnabled, newSources, groupTab ->
+			buildList(
+				content,
+				suggestions,
+				grid,
+				randomLoading,
+				allSourcesEnabled,
+				newSources,
+				groupTab,
+			)
+		}.withErrorHandling()
 
 	private fun buildList(
 		sources: List<MangaSourceInfo>,
@@ -156,20 +198,24 @@ class ExploreViewModel @Inject constructor(
 		randomLoading: Boolean,
 		allSourcesEnabled: Boolean,
 		hasNewSources: Boolean,
+		groupTab: BrowseGroupTab,
 	): List<ListModel> {
-		val result = ArrayList<ListModel>(sources.size + 3)
+		// Apply group tab filtering
+		val filteredSources = applyGroupTabFilter(sources, groupTab)
+		
+		val result = ArrayList<ListModel>(filteredSources.size + 3)
 		result += ExploreButtons(randomLoading)
 		if (recommendation.isNotEmpty()) {
 			result += ListHeader(R.string.suggestions, R.string.more, R.id.nav_suggestions)
 			result += RecommendationsItem(recommendation.toRecommendationList())
 		}
-		if (sources.isNotEmpty()) {
+		if (filteredSources.isNotEmpty()) {
 			result += ListHeader(
 				textRes = R.string.remote_sources,
 				buttonTextRes = if (allSourcesEnabled) R.string.manage else R.string.catalog,
 				badge = if (!allSourcesEnabled && hasNewSources) "" else null,
 			)
-			sources.mapTo(result) { MangaSourceItem(it, isGrid) }
+			filteredSources.mapTo(result) { MangaSourceItem(it, isGrid) }
 		} else {
 			result += EmptyHint(
 				icon = R.drawable.ic_empty_common,
@@ -179,6 +225,44 @@ class ExploreViewModel @Inject constructor(
 			)
 		}
 		return result
+	}
+	
+	/**
+	 * Apply group tab filtering to sources
+	 * 
+	 * Filters sources based on the selected browse group tab:
+	 * - All: Show all sources
+	 * - Manga/Novel/Video: Filter by content type
+	 * - JsonSources: Filter by origin (Legado/TVBox JSON sources)
+	 * 
+	 * @param sources The complete list of sources to filter
+	 * @param groupTab The selected browse group tab
+	 * @return Filtered list of sources that match the tab criteria
+	 */
+	private fun applyGroupTabFilter(
+		sources: List<MangaSourceInfo>,
+		groupTab: BrowseGroupTab,
+	): List<MangaSourceInfo> {
+		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: total sources=${sources.size}, groupTab=$groupTab")
+		
+		val filtered = sources.filter { sourceInfo ->
+			val source = sourceInfo.mangaSource
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+			
+			// Apply group tab filter
+			val passes = groupTab.matchesContentGroup(contentGroup) && 
+				groupTab.matchesOriginGroup(originGroup)
+			
+			if (!passes) {
+				android.util.Log.v("ExploreViewModel", "  Filtered out: ${source.name} (contentGroup=$contentGroup, originGroup=$originGroup)")
+			}
+			
+			passes
+		}
+		
+		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: filtered sources=${filtered.size}")
+		return filtered
 	}
 
 	private fun getLoadingStateList() = listOf(
