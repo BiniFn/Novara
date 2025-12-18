@@ -54,6 +54,7 @@ data class SourceGroupInfo(
 				OriginGroup.NATIVE -> "原生源"
 				OriginGroup.LEGADO_JSON -> "Legado 源"
 				OriginGroup.TVBOX_JSON -> "TVBox 源"
+				OriginGroup.JS_JSON -> "JavaScript 源"
 				OriginGroup.EXTERNAL -> "外部源"
 			}
 		}

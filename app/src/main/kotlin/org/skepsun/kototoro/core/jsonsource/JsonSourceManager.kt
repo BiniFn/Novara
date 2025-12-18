@@ -6,6 +6,8 @@ import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.js.JSSourceParser
+import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,6 +28,8 @@ import javax.inject.Singleton
 @Singleton
 class JsonSourceManager @Inject constructor(
 	private val jsonSourceDao: JsonSourceDao,
+	private val legadoHttpClient: LegadoHttpClient? = null,
+	private val jsSourceParser: JSSourceParser? = null,
 ) {
 	
 	/**
@@ -48,6 +52,7 @@ class JsonSourceManager @Inject constructor(
 		private const val JSON_PREFIX = "JSON_"
 		private const val LEGADO_PREFIX = "JSON_LEGADO_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
+		private const val JS_PREFIX = "JSON_JS_"
 		
 		// Regex pattern to match valid identifier characters (alphanumeric and underscore)
 		private val VALID_CHAR_REGEX = Regex("[^A-Z0-9_]")
@@ -231,6 +236,73 @@ class JsonSourceManager @Inject constructor(
 	}
 	
 	/**
+	 * Validate a source by performing a simple search with keyword "我的".
+	 * Returns true if searchUrl exists and HTTP response looks non-empty.
+	 */
+	suspend fun validateSourceBySearch(sourceId: String, searchKey: String = "我的"): Boolean {
+		val client = legadoHttpClient ?: return false
+		val entity = getById(sourceId) ?: return false
+		val config = runCatching {
+			Json { ignoreUnknownKeys = true; isLenient = true }
+				.decodeFromString<org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource>(entity.config)
+		}.getOrNull() ?: return false
+		
+		val searchUrl = config.searchUrl
+		if (searchUrl.isNullOrBlank()) return false
+		
+		val page = 1
+		val encodedKey = java.net.URLEncoder.encode(searchKey, "UTF-8")
+		val finalUrl = searchUrl
+			.replace("{{key}}", encodedKey)
+			.replace("{key}", encodedKey)
+			.replace("{{page}}", page.toString())
+			.replace("{page}", page.toString())
+		
+		val headers = parseCustomHeaders(config.header)
+		return try {
+			val response = client.get(finalUrl, headers, source = null)
+			val body = response.body?.string().orEmpty()
+			val ok = response.isSuccessful && body.length > 500
+			response.close()
+			ok
+		} catch (e: Exception) {
+			false
+		}
+	}
+	
+	/**
+	 * Imports a single Venera-style JavaScript source.
+	 */
+	suspend fun importJsSource(jsContent: String): Result<Int> {
+		val parser = jsSourceParser ?: return Result.failure(IllegalStateException("JS parser unavailable"))
+		
+		return parser.parseMetadata(jsContent).mapCatching { meta ->
+			val base = meta.homepage?.takeIf { it.isNotBlank() } ?: meta.key
+			val sourceId = runCatching { generateSourceId(base, JsonSourceType.JS) }
+				.getOrElse { generateSourceIdFromName(meta.key, JsonSourceType.JS) }
+			
+			val timestamp = System.currentTimeMillis()
+			val entity = JsonSourceEntity(
+				id = sourceId,
+				name = meta.name,
+				type = JsonSourceType.JS,
+				config = jsContent,
+				enabled = true,
+				createdAt = timestamp,
+				updatedAt = timestamp,
+				lastUsedAt = 0,
+				isPinned = false,
+			)
+			
+			jsonSourceDao.insert(entity)
+			
+			runCatching { parser.saveSource(jsContent, "$sourceId.js") }
+			
+			1
+		}
+	}
+	
+	/**
 	 * Imports Legado JSON configuration with async processing.
 	 * 
 	 * This method:
@@ -247,7 +319,11 @@ class JsonSourceManager @Inject constructor(
 	 * @param jsonContent The JSON string containing Legado book sources
 	 * @return Result containing the number of successfully imported sources or error message
 	 */
-	suspend fun importLegadoJson(jsonContent: String): Result<Int> {
+	suspend fun importLegadoJson(
+		jsonContent: String,
+		skipUnreachable: Boolean = false,
+		skipNoExplore: Boolean = false
+	): Result<Int> {
 		val startTime = System.currentTimeMillis()
 		JsonSourceLogger.logImportStart("LEGADO", jsonContent.length)
 		
@@ -271,7 +347,7 @@ class JsonSourceManager @Inject constructor(
 				// Process sources sequentially for now
 				// TODO: Re-enable parallel processing once Kotlin coroutines API stabilizes
 				val results = sources.mapIndexed { index, source ->
-					processSource(index, source)
+					processSource(index, source, skipUnreachable, skipNoExplore)
 				}
 				
 				// Collect results
@@ -337,7 +413,9 @@ class JsonSourceManager @Inject constructor(
 	 */
 	private suspend fun processSource(
 		index: Int,
-		source: org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+		source: org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource,
+		skipUnreachable: Boolean,
+		skipNoExplore: Boolean
 	): SourceProcessResult {
 		return try {
 			// Validate the source
@@ -347,6 +425,21 @@ class JsonSourceManager @Inject constructor(
 				return SourceProcessResult.Error(
 					"Source ${index + 1} (${source.bookSourceName}): ${validation.errors.joinToString(", ")}"
 				)
+			}
+			
+			// Basic connectivity check: fetch homepage to ensure reachable HTML
+			if (skipUnreachable) {
+				val homeCheck = runCatching { verifyHomePageAccessible(source) }.getOrElse { throwable ->
+					return SourceProcessResult.Error("Source ${index + 1} (${source.bookSourceName}): homepage check failed - ${throwable.message}")
+				}
+				if (!homeCheck) {
+					return SourceProcessResult.Error("Source ${index + 1} (${source.bookSourceName}): homepage unreachable or empty, skipped")
+				}
+			}
+			
+			// Skip sources with no explore/list capability when requested
+			if (skipNoExplore && (source.ruleExplore == null || source.ruleExplore?.bookList.isNullOrBlank())) {
+				return SourceProcessResult.Error("Source ${index + 1} (${source.bookSourceName}): no explore rule, skipped by option")
 			}
 			
 			// Generate unique identifier using URL (following Legado's approach)
@@ -385,6 +478,43 @@ class JsonSourceManager @Inject constructor(
 	private sealed class SourceProcessResult {
 		data class Success(val entity: JsonSourceEntity) : SourceProcessResult()
 		data class Error(val message: String) : SourceProcessResult()
+	}
+	
+	/**
+	 * Quick reachability check for a source homepage.
+	 * Returns false if the request fails or HTML is too short/blank.
+	 */
+	private suspend fun verifyHomePageAccessible(source: org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource): Boolean {
+		val client = legadoHttpClient ?: return true
+		val url = source.bookSourceUrl.takeIf { it.isNotBlank() } ?: return true // allow empty URLs
+		
+		// Parse custom headers if provided
+		val headers = parseCustomHeaders(source.header)
+		
+		val response = client.get(url, headers, source = null)
+		val body = response.body?.string().orEmpty()
+		response.close()
+		
+		if (!response.isSuccessful) {
+			JsonSourceLogger.logWarning("Homepage check failed for ${source.bookSourceName}: HTTP ${response.code}")
+			return false
+		}
+		if (body.length < 500) {
+			JsonSourceLogger.logWarning("Homepage check failed for ${source.bookSourceName}: HTML too short (${body.length} bytes)")
+			return false
+		}
+		return true
+	}
+	
+	private fun parseCustomHeaders(headerStr: String?): Map<String, String> {
+		if (headerStr.isNullOrBlank()) return emptyMap()
+		return try {
+			val jsonStr = headerStr.replace("'", "\"")
+			Json { ignoreUnknownKeys = true }.decodeFromString<Map<String, String>>(jsonStr)
+		} catch (e: Exception) {
+			JsonSourceLogger.logWarning("Failed to parse custom headers: ${e.message}")
+			emptyMap()
+		}
 	}
 	
 	/**
@@ -467,6 +597,7 @@ class JsonSourceManager @Inject constructor(
 		val typePrefix = when (sourceType) {
 			JsonSourceType.LEGADO -> LEGADO_PREFIX
 			JsonSourceType.TVBOX -> TVBOX_PREFIX
+			JsonSourceType.JS -> JS_PREFIX
 		}
 		
 		// Generate a hash of the URL to create a unique, stable identifier
@@ -492,6 +623,7 @@ class JsonSourceManager @Inject constructor(
 		val typePrefix = when (sourceType) {
 			JsonSourceType.LEGADO -> LEGADO_PREFIX
 			JsonSourceType.TVBOX -> TVBOX_PREFIX
+			JsonSourceType.JS -> JS_PREFIX
 		}
 		return "$typePrefix$uuid"
 	}

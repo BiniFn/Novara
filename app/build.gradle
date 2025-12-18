@@ -217,6 +217,8 @@ dependencies {
 	
 	// Rhino JavaScript engine for Legado compatibility
 	implementation libs.rhino
+	// QuickJS library (Android packaged)
+	implementation libs.quickjsKt
 
 	implementation libs.adapterdelegates
 	implementation libs.adapterdelegates.viewbinding

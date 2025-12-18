@@ -305,11 +305,7 @@ class EpubReaderImpl(
                 
                 // Convert HTML content to readable text format (Requirement 2.4)
                 // 对于图片章节，保留图片标签
-                val textContent = if (isImageChapter) {
-                    htmlToTextWithImages(htmlContent)
-                } else {
-                    htmlToText(htmlContent)
-                }
+                val textContent = htmlToTextWithImages(htmlContent)
                 
                 chapters.add(
                     EpubChapter(
@@ -502,12 +498,11 @@ class EpubReaderImpl(
             .replace(Regex("<img[^>]*src=[\"']([^\"']+)[\"'][^>]*(?:alt=[\"']([^\"']*)[\"'])?[^>]*>", RegexOption.IGNORE_CASE)) { matchResult ->
                 val src = matchResult.groupValues[1]
                 val alt = matchResult.groupValues.getOrNull(2)
-                val filename = java.io.File(src).name
-                
                 // Create a more user-friendly placeholder
+                // 保留原始 src 以便后续相对路径解析
                 val displayText = when {
+                    !src.isNullOrBlank() -> src
                     !alt.isNullOrBlank() -> alt
-                    filename.isNotBlank() -> filename
                     else -> src
                 }
                 

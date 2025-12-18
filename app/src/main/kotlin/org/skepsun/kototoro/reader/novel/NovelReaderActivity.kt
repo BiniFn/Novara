@@ -594,17 +594,26 @@ class NovelReaderActivity :
                     epubChapterMappingDao = epubChapterMappingDao
                 )
                 
-                val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
-                
-                if (result.isSuccess) {
-                    val loadResult = result.getOrNull()
-                    android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${loadResult?.content?.length}")
-                    return loadResult?.content
-                } else {
-                    val error = result.exceptionOrNull()
-                    android.util.Log.e("NovelReaderActivity", "Failed to load EPUB content: ${error?.message}", error)
-                    return null
-                }
+                    val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
+                    
+                    if (result.isSuccess) {
+                        val loadResult = result.getOrNull()
+                        android.util.Log.d("NovelReaderActivity", "EPUB content loaded successfully, length: ${loadResult?.content?.length}")
+                        // 直接用带 href 的渲染，保证图片相对路径解析正确
+                        if (loadResult != null) {
+                            renderChapterWithEpubInfo(
+                                chapter = chapter,
+                                text = loadResult.content,
+                                epubFile = loadResult.epubFile,
+                                chapterHref = loadResult.chapterHref,
+                            )
+                        }
+                        return null
+                    } else {
+                        val error = result.exceptionOrNull()
+                        android.util.Log.e("NovelReaderActivity", "Failed to load EPUB content: ${error?.message}", error)
+                        return null
+                    }
             } else {
                 // 旧架构：使用EpubReader直接读取
                 android.util.Log.d("NovelReaderActivity", "Using EpubReader for legacy architecture")
@@ -683,7 +692,10 @@ class NovelReaderActivity :
                                     epubFileToSet = file
                                     // Use actual chapter href if available
                                     if (chapterPathToSet == null) {
-                                        chapterPathToSet = "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
+                                        // Try real href from cached EPUB
+                                        val cached = epubContentCache.get(epubFileToSet!!)
+                                        chapterPathToSet = cached?.chapters?.getOrNull(chapterIndex)?.href
+                                            ?: "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
                                     }
                                     android.util.Log.d("NovelReaderActivity", "Found EPUB file for epub:// URL: ${file.name}")
                                 }
@@ -707,7 +719,9 @@ class NovelReaderActivity :
                                     epubFileToSet = file
                                     // Use actual chapter href if available
                                     if (chapterPathToSet == null) {
-                                        chapterPathToSet = "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
+                                        val cached = epubContentCache.get(epubFileToSet!!)
+                                        chapterPathToSet = cached?.chapters?.getOrNull(chapterIndex)?.href
+                                            ?: "OEBPS/Text/chapter${mapping.chapterIndex}.xhtml"
                                     }
                                     android.util.Log.d("NovelReaderActivity", "Found EPUB file for #chapter/ URL: ${file.name}")
                                 }

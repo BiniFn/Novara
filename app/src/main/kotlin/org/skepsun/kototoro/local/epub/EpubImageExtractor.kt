@@ -28,18 +28,21 @@ class EpubImageExtractor(private val epubFile: File) {
      * @return 解析后的绝对路径（如 "OEBPS/Images/cover.jpg"）
      */
     fun resolveImagePath(chapterPath: String, imageSrc: String): String {
-        // 如果是绝对路径，直接返回
-        if (!imageSrc.startsWith(".")) {
-            return imageSrc.removePrefix("/")
+        // 远程 URL 直接返回
+        if (imageSrc.startsWith("http://") || imageSrc.startsWith("https://")) {
+            return imageSrc
         }
-        
-        // 获取章节所在目录
+
+        // 章节所在目录
         val chapterDir = File(chapterPath).parent ?: ""
-        
-        // 解析相对路径
-        val resolvedFile = File(chapterDir, imageSrc).normalize()
-        
-        // 返回规范化的路径
+
+        // 去掉 ./ 或 / 前缀，再按章节目录解析
+        val cleaned = imageSrc
+            .removePrefix("./")
+            .removePrefix("/")
+
+        val resolvedFile = File(chapterDir, cleaned).normalize()
+
         return resolvedFile.path.replace(File.separator, "/")
     }
     
@@ -63,6 +66,10 @@ class EpubImageExtractor(private val epubFile: File) {
                     imagePath.removePrefix("/"),
                     "OEBPS/$imagePath",
                     "OEBPS/${imagePath.removePrefix("/")}",
+                    "item/$imagePath",
+                    "item/${imagePath.removePrefix("/")}",
+                    "item/image/$imagePath",
+                    "item/image/${imagePath.removePrefix("/")}",
                 )
                 
                 for (path in possiblePaths) {
@@ -71,6 +78,17 @@ class EpubImageExtractor(private val epubFile: File) {
                         android.util.Log.d(TAG, "Found image at: $path")
                         return@use zip.getInputStream(entry).readBytes()
                     }
+                }
+
+                // fallback: 搜索同名文件（优先最短路径）
+                val filename = imagePath.substringAfterLast('/')
+                val candidates = zip.entries().toList()
+                    .filter { !it.isDirectory && it.name.substringAfterLast('/') == filename }
+                    .sortedBy { it.name.length }
+                val entry = candidates.firstOrNull()
+                if (entry != null) {
+                    android.util.Log.d(TAG, "Found image by filename fallback: ${entry.name}")
+                    return@use zip.getInputStream(entry).readBytes()
                 }
                 
                 android.util.Log.w(TAG, "Image not found in EPUB: $imagePath (tried: $possiblePaths)")

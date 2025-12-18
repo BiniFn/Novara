@@ -85,7 +85,7 @@
             android:layout_marginTop="4dp">
 
             <ImageButton
-                android:id="@id/exo_prev"
+                android:id="@+id/button_prev_chapter"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:background="@android:color/transparent"
@@ -114,7 +114,7 @@
                 android:tint="?attr/colorOnSurface" />
 
             <ImageButton
-                android:id="@id/exo_next"
+                android:id="@+id/button_next_chapter"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_marginStart="4dp"

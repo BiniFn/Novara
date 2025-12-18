@@ -56,6 +56,7 @@ class DynamicParserFactory @Inject constructor(
 			when (source.type) {
 				JsonSourceType.LEGADO -> createLegadoParser(source, context)
 				JsonSourceType.TVBOX -> null // TVBox not yet implemented
+				JsonSourceType.JS -> null // JS dynamic parser not implemented yet
 			} ?: throw IllegalStateException("Failed to create parser for source ${source.id}")
 		}
 	}

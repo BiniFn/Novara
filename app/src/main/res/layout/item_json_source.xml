@@ -34,6 +34,13 @@
 				android:textSize="24sp"
 				android:layout_marginEnd="12dp" />
 			
+			<!-- Selection checkbox -->
+			<CheckBox
+				android:id="@+id/checkbox_select"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginEnd="8dp" />
+			
 			<LinearLayout
 				android:layout_width="0dp"
 				android:layout_height="wrap_content"
@@ -68,6 +75,58 @@
 				android:layout_height="wrap_content"
 				tools:checked="true" />
 		
+		</LinearLayout>
+		
+		<!-- Badges -->
+		<LinearLayout
+			android:id="@+id/layout_badges"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="horizontal"
+			android:layout_marginTop="6dp"
+			android:gravity="start"
+			android:visibility="gone">
+			
+			<TextView
+				android:id="@+id/chip_search_only"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginEnd="8dp"
+				android:paddingHorizontal="8dp"
+				android:paddingVertical="4dp"
+				android:textAppearance="?attr/textAppearanceLabelSmall"
+				android:textColor="@android:color/black"
+				android:background="@drawable/bg_chip_warning"
+				android:visibility="gone"
+				tools:text="仅搜索"
+				tools:visibility="visible" />
+			
+			<TextView
+				android:id="@+id/chip_valid"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginEnd="8dp"
+				android:paddingHorizontal="8dp"
+				android:paddingVertical="4dp"
+				android:textAppearance="?attr/textAppearanceLabelSmall"
+				android:textColor="@android:color/white"
+				android:background="@drawable/bg_chip_success"
+				android:visibility="gone"
+				tools:text="有效"
+				tools:visibility="visible" />
+			
+			<TextView
+				android:id="@+id/chip_invalid"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:paddingHorizontal="8dp"
+				android:paddingVertical="4dp"
+				android:textAppearance="?attr/textAppearanceLabelSmall"
+				android:textColor="@android:color/white"
+				android:background="@drawable/bg_chip_error"
+				android:visibility="gone"
+				tools:text="无效"
+				tools:visibility="visible" />
 		</LinearLayout>
 		
 		<!-- URL -->

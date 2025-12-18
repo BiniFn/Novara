@@ -17,6 +17,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		private const val JSON_PREFIX = "JSON_"
 		private const val LEGADO_PREFIX = "JSON_LEGADO_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
+		private const val JS_PREFIX = "JSON_JS_"
 	}
 	
 	/**
@@ -39,6 +40,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		return when {
 			sourceId.startsWith(LEGADO_PREFIX) -> SourceType.JSON_LEGADO
 			sourceId.startsWith(TVBOX_PREFIX) -> SourceType.JSON_TVBOX
+			sourceId.startsWith(JS_PREFIX) -> SourceType.JSON_JS
 			sourceId.startsWith(JSON_PREFIX) -> SourceType.JSON_LEGADO // Default JSON type
 			sourceId.startsWith("LOCAL_") -> SourceType.NATIVE // Local sources are native
 			else -> SourceType.NATIVE
@@ -56,6 +58,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			SourceType.NATIVE -> "原生源"
 			SourceType.JSON_LEGADO -> "JSON 源 (Legado)"
 			SourceType.JSON_TVBOX -> "JSON 源 (TVBox)"
+			SourceType.JSON_JS -> "JavaScript 源"
 			SourceType.EXTERNAL -> "外部源"
 		}
 	}
@@ -70,6 +73,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		return when (getSourceType(sourceId)) {
 			SourceType.JSON_LEGADO -> JsonSourceType.LEGADO
 			SourceType.JSON_TVBOX -> JsonSourceType.TVBOX
+			SourceType.JSON_JS -> JsonSourceType.JS
 			else -> null
 		}
 	}
@@ -93,6 +97,11 @@ enum class SourceType {
 	 * JSON sources using TVBox format
 	 */
 	JSON_TVBOX,
+	
+	/**
+	 * Venera-style JavaScript source
+	 */
+	JSON_JS,
 	
 	/**
 	 * External sources (future use)

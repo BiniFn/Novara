@@ -15,7 +15,6 @@ import androidx.core.content.ContextCompat
 import coil3.ImageLoader
 import coil3.request.ImageRequest
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.runBlocking
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ErrorReporterReceiver
 import org.skepsun.kototoro.core.model.isNsfw
@@ -54,19 +53,24 @@ class ImportService : CoroutineIntentService() {
 		val uri = requireNotNull(intent.getStringExtra(DATA_URI)?.toUriOrNull()) { "No input uri" }
 		startForeground(this)
 		powerManager.withPartialWakeLock(TAG) {
-			val result = runCatchingCancellable {
-				importer.import(uri).manga
-			}
+			val result = runCatchingCancellable { importer.import(uri).map { it.manga } }
 			if (applicationContext.checkNotificationPermission(CHANNEL_ID)) {
-				val notification = buildNotification(startId, result)
-				notificationManager.notify(TAG, startId, notification)
+				result.onSuccess { mangas ->
+					mangas.forEachIndexed { index, manga ->
+						val notification = buildSuccessNotification(startId, manga, mangas.size)
+						notificationManager.notify(TAG, startId * 100 + index, notification)
+					}
+				}.onFailure { error ->
+					val notification = buildFailureNotification(startId, error)
+					notificationManager.notify(TAG, startId, notification)
+				}
 			}
 		}
 	}
 
 	override fun IntentJobContext.onError(error: Throwable) {
 		if (applicationContext.checkNotificationPermission(CHANNEL_ID)) {
-			val notification = runBlocking { buildNotification(startId, Result.failure(error)) }
+			val notification = buildFailureNotification(startId, error)
 			notificationManager.notify(TAG, startId, notification)
 		}
 	}
@@ -102,51 +106,62 @@ class ImportService : CoroutineIntentService() {
 		)
 	}
 
-	private suspend fun buildNotification(startId: Int, result: Result<Manga>): Notification {
+	private suspend fun buildSuccessNotification(startId: Int, manga: Manga, totalCount: Int): Notification {
 		val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
 			.setPriority(NotificationCompat.PRIORITY_DEFAULT)
 			.setDefaults(0)
 			.setSilent(true)
 			.setAutoCancel(true)
-		result.onSuccess { manga ->
-			notification.setLargeIcon(
-				coil.execute(
-					ImageRequest.Builder(applicationContext)
-						.data(manga.coverUrl)
-						.mangaSourceExtra(manga.source)
-						.build(),
-				).toBitmapOrNull(),
-			)
-			notification.setSubText(manga.title)
-			val intent = AppRouter.detailsIntent(applicationContext, manga)
-			notification.setContentIntent(
-				PendingIntentCompat.getActivity(
-					applicationContext,
-					manga.id.toInt(),
-					intent,
-					PendingIntent.FLAG_UPDATE_CURRENT,
-					false,
-				),
-			).setVisibility(
-				if (manga.isNsfw()) NotificationCompat.VISIBILITY_SECRET else NotificationCompat.VISIBILITY_PUBLIC,
-			)
-			notification.setContentTitle(applicationContext.getString(R.string.import_completed))
-				.setContentText(applicationContext.getString(R.string.import_completed_hint))
-				.setSmallIcon(R.drawable.ic_stat_done)
-			NotificationCompat.BigTextStyle(notification)
-				.bigText(applicationContext.getString(R.string.import_completed_hint))
-		}.onFailure { error ->
-			notification.setContentTitle(applicationContext.getString(R.string.error_occurred))
-				.setContentText(error.getDisplayMessage(applicationContext.resources))
-				.setSmallIcon(android.R.drawable.stat_notify_error)
-			ErrorReporterReceiver.getNotificationAction(
-				context = applicationContext,
-				e = error,
-				notificationId = startId,
-				notificationTag = TAG,
-			)?.let { action ->
-				notification.addAction(action)
-			}
+		notification.setLargeIcon(
+			coil.execute(
+				ImageRequest.Builder(applicationContext)
+					.data(manga.coverUrl)
+					.mangaSourceExtra(manga.source)
+					.build(),
+			).toBitmapOrNull(),
+		)
+		notification.setSubText(manga.title)
+		val intent = AppRouter.detailsIntent(applicationContext, manga)
+		notification.setContentIntent(
+			PendingIntentCompat.getActivity(
+				applicationContext,
+				(startId * 100 + manga.id.toInt()),
+				intent,
+				PendingIntent.FLAG_UPDATE_CURRENT,
+				false,
+			),
+		).setVisibility(
+			if (manga.isNsfw()) NotificationCompat.VISIBILITY_SECRET else NotificationCompat.VISIBILITY_PUBLIC,
+		)
+		val title = if (totalCount > 1) {
+			applicationContext.getString(R.string.import_completed_with_count, totalCount)
+		} else {
+			applicationContext.getString(R.string.import_completed)
+		}
+		notification.setContentTitle(title)
+			.setContentText(applicationContext.getString(R.string.import_completed_hint))
+			.setSmallIcon(R.drawable.ic_stat_done)
+		NotificationCompat.BigTextStyle(notification)
+			.bigText(applicationContext.getString(R.string.import_completed_hint))
+		return notification.build()
+	}
+
+	private fun buildFailureNotification(startId: Int, error: Throwable): Notification {
+		val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+			.setPriority(NotificationCompat.PRIORITY_DEFAULT)
+			.setDefaults(0)
+			.setSilent(true)
+			.setAutoCancel(true)
+		notification.setContentTitle(applicationContext.getString(R.string.error_occurred))
+			.setContentText(error.getDisplayMessage(applicationContext.resources))
+			.setSmallIcon(android.R.drawable.stat_notify_error)
+		ErrorReporterReceiver.getNotificationAction(
+			context = applicationContext,
+			e = error,
+			notificationId = startId,
+			notificationTag = TAG,
+		)?.let { action ->
+			notification.addAction(action)
 		}
 		return notification.build()
 	}

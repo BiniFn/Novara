@@ -31,7 +31,9 @@ import org.skepsun.kototoro.core.model.MangaSource
 import org.skepsun.kototoro.core.parser.EmptyMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository
 import org.skepsun.kototoro.core.parser.external.ExternalMangaRepository
+import org.skepsun.kototoro.core.parser.JsMangaRepository
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.fetch
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
@@ -63,10 +65,16 @@ class FaviconFetcher(
 				isSampled = false,
 				dataSource = DataSource.MEMORY,
 			)
+			
+			// JSON/Legado sources: use a neutral icon
+			is BasicJsonRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
 
 			is LocalMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
 
-			else -> throw IllegalArgumentException("Unsupported repo ${repo.javaClass.simpleName}")
+			// JS sources: fallback to neutral icon
+			is JsMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
+
+			else -> imageLoader.fetch(R.drawable.ic_storage, options)
 		}
 	}
 
@@ -192,4 +200,3 @@ class FaviconFetcher(
 
 	}
 }
-

@@ -8,4 +8,24 @@
 		android:title="@string/import_json"
 		app:showAsAction="ifRoom" />
 	
+	<item
+		android:id="@+id/action_enable_selected"
+		android:title="@string/enable_selected"
+		app:showAsAction="never" />
+	
+	<item
+		android:id="@+id/action_disable_selected"
+		android:title="@string/disable_selected"
+		app:showAsAction="never" />
+	
+	<item
+		android:id="@+id/action_delete_selected"
+		android:title="@string/delete_selected"
+		app:showAsAction="never" />
+	
+	<item
+		android:id="@+id/action_validate_selected"
+		android:title="@string/validate_selected"
+		app:showAsAction="never" />
+	
 </menu>

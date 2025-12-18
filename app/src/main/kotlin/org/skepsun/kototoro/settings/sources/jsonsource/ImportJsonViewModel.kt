@@ -28,6 +28,10 @@ class ImportJsonViewModel @Inject constructor(
 	private val jsonSourceManager: JsonSourceManager,
 ) : BaseViewModel() {
 	
+	// Import options (can be toggled from UI if needed)
+	var skipUnreachableSources: Boolean = false
+	var skipNoExploreSources: Boolean = false
+	
 	private val _uiState = MutableStateFlow<ImportUiState>(ImportUiState.Idle)
 	val uiState: StateFlow<ImportUiState> = _uiState.asStateFlow()
 	
@@ -71,11 +75,16 @@ class ImportJsonViewModel @Inject constructor(
 				
 				// Import based on source type
 				val result = when (sourceType) {
-					JsonSourceType.LEGADO -> jsonSourceManager.importLegadoJson(jsonContent)
+					JsonSourceType.LEGADO -> jsonSourceManager.importLegadoJson(
+						jsonContent,
+						skipUnreachable = skipUnreachableSources,
+						skipNoExplore = skipNoExploreSources
+					)
 					JsonSourceType.TVBOX -> {
 						// TVBox import not yet implemented
 						Result.failure(UnsupportedOperationException("TVBox import not yet implemented"))
 					}
+					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
 				}
 				
 				result.fold(

@@ -43,6 +43,8 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
         viewModel.isRandomLoading.observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
         viewModel.onOpenManga.observeEvent(viewLifecycleOwner) { router.openDetails(it) }
         viewModel.onSourceBroken.observeEvent(viewLifecycleOwner) { showSourceBrokenWarning() }
+        // 确保进入 JS 源时标题使用解析后的 displayName，而不是 JSON_JS_* 占位
+        activity?.title = viewModel.source.getTitle(requireContext())
         filterCoordinator.observe().distinctUntilChangedBy { it.listFilter.isEmpty() }
             .drop(1)
             .observe(viewLifecycleOwner) {

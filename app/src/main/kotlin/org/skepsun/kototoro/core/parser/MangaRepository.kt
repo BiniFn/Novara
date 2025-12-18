@@ -22,6 +22,7 @@ import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
 import java.lang.ref.WeakReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -145,14 +146,32 @@ interface MangaRepository {
 				}
 				
 				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
-					android.util.Log.d("MangaRepository", "Creating BasicJsonRepository for JSON source: ${source.name}")
-					// Create repository for JSON source with full parsing capabilities
-					org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository(
-						source = source,
-						legadoHttpClient = legadoHttpClient,
-						ruleEngine = ruleEngine
-					)
+					when (source.entity.type) {
+						org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
+							android.util.Log.d("MangaRepository", "Creating BasicJsonRepository for Legado JSON source: ${source.name}")
+							// Create BrowserLauncher for Cloudflare handling
+							// Wrap the shared cookie jar so BrowserLauncher can sync WebView cookies
+							val browserLauncher = org.skepsun.kototoro.core.javascript.BrowserLauncher(
+								context = context,
+								cookieJar = PersistentCookieJar(legadoHttpClient.getCookieJar())
+							)
+							org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository(
+								source = source,
+								legadoHttpClient = legadoHttpClient,
+								ruleEngine = ruleEngine,
+								browserLauncher = browserLauncher
+							)
+					}
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
+						android.util.Log.w("MangaRepository", "TVBox JSON source is video; no parser available in MangaRepository. Returning EmptyMangaRepository for ${source.name}")
+						EmptyMangaRepository(source)
+					}
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> {
+						android.util.Log.d("MangaRepository", "Creating JsMangaRepository for JS source: ${source.name}")
+						JsMangaRepository(source, loaderContext as MangaLoaderContextImpl)
+					}
 				}
+			}
 
 				else -> {
 					android.util.Log.w("MangaRepository", "No repository type matched for source: ${source.javaClass.simpleName} - ${source.name}")

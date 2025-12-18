@@ -10,10 +10,12 @@ import org.skepsun.kototoro.databinding.ItemCheckableNewBinding
 import org.skepsun.kototoro.filter.ui.model.TagCatalogItem
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
+import org.skepsun.kototoro.list.ui.adapter.listHeaderAD
 import org.skepsun.kototoro.list.ui.adapter.errorFooterAD
 import org.skepsun.kototoro.list.ui.adapter.errorStateListAD
 import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
 import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
+import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 
 class TagsCatalogAdapter(
@@ -21,11 +23,19 @@ class TagsCatalogAdapter(
 ) : BaseListAdapter<ListModel>(), FastScroller.SectionIndexer {
 
 	init {
+		addDelegate(ListItemType.HEADER, listHeaderAD(null))
 		addDelegate(ListItemType.FILTER_TAG, tagCatalogDelegate(listener))
 		addDelegate(ListItemType.STATE_LOADING, loadingStateAD())
 		addDelegate(ListItemType.FOOTER_LOADING, loadingFooterAD())
 		addDelegate(ListItemType.FOOTER_ERROR, errorFooterAD(null))
 		addDelegate(ListItemType.STATE_ERROR, errorStateListAD(null))
+	}
+
+	override fun getItemViewType(position: Int): Int {
+		return when (items[position]) {
+			is ListHeader -> ListItemType.HEADER.ordinal
+			else -> super.getItemViewType(position)
+		}
 	}
 
 	override fun getSectionText(context: Context, position: Int): CharSequence? {

@@ -28,6 +28,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.PlayerControlView
+import androidx.media3.ui.TimeBar
 import android.content.DialogInterface
 import android.view.ViewGroup
 import org.skepsun.kototoro.core.util.ext.consumeAll
@@ -91,6 +92,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private var pendingInitialSeekPercent: Float? = null
     // 标志：是否已经恢复过进度（避免重复恢复）
     private var hasRestoredProgress: Boolean = false
+    // 标志：用户是否正在拖动底部进度条（避免定时刷新抢占用户交互）
+    private var isUserScrubbing: Boolean = false
+    // 防止重复绑定 TimeBar listener（wireControllerButtons 会被多次调用）
+    private var isTimeBarListenerBound: Boolean = false
 
     private val autoHideDelayMs = 3500
     private val hideUiRunnable = Runnable { setUiIsVisible(false) }
@@ -514,6 +519,33 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
     
     private fun wireControllerButtons() {
+        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)
+
+        // 进度条可拖拽/点击快进快退：显式监听用户 scrub，避免定时刷新覆盖拖动状态
+        if (!isTimeBarListenerBound) {
+            ctl?.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.let { timeBar ->
+                val controlView = ctl
+                timeBar.addListener(object : TimeBar.OnScrubListener {
+                    override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                        isUserScrubbing = true
+                    }
+
+                    override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                        // 拖动时同步显示当前拖动位置，提升反馈一致性
+                        controlView?.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)?.text = formatTimeMs(position)
+                    }
+
+                    override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
+                        isUserScrubbing = false
+                        if (!canceled) {
+                            player?.takeIf { it.isCurrentMediaItemSeekable }?.seekTo(position)
+                        }
+                    }
+                })
+                isTimeBarListenerBound = true
+            }
+        }
+
         findViewById<View>(org.skepsun.kototoro.R.id.button_pages_thumbs)?.let { btn ->
             val parcelable = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)
             btn.isVisible = parcelable != null
@@ -528,6 +560,27 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 VideoSettingsSheet().show(fm, tag)
             }
         }
+
+        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_rew)?.setOnClickListener {
+            player?.let { p ->
+                val pos = (p.currentPosition - 10_000).coerceAtLeast(0)
+                p.seekTo(pos)
+            }
+        }
+        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_ffwd)?.setOnClickListener {
+            player?.let { p ->
+                val pos = (p.currentPosition + 10_000).coerceAtMost(p.duration.coerceAtLeast(0))
+                p.seekTo(pos)
+            }
+        }
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)?.setOnClickListener {
+            navigateChapter(-1)
+        }
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)?.setOnClickListener {
+            navigateChapter(1)
+        }
+
+        updateChapterNavButtons()
     }
 
     private fun observeFoldableStateForOrientation() {
@@ -640,6 +693,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                     
                                     // Update ReaderState to reflect current chapter
                                     readerState = ReaderState(currentChapter.id, 0, 0)
+                                    updateChapterNavButtons()
                                     android.util.Log.d("VideoPlayer", "Playing chapter: ${currentChapter.name}")
                                     
                                     // Note: Other chapters will be loaded on-demand when user switches via onChapterSelected()
@@ -893,6 +947,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     // 手动驱动底部控制条（DefaultTimeBar 与已播放时长文本）定时刷新
     private fun updateControllerProgress() {
         if (!isUiVisible) return
+        // 用户拖动时不要覆盖 timebar 的临时位置，否则会导致“拖不动/点不准”的体验
+        if (isUserScrubbing) return
         val ctl = findViewById<androidx.media3.ui.PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
         if (ctl.visibility != View.VISIBLE) return
 
@@ -1280,6 +1336,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     
                     // Update ReaderState with new chapter
                     readerState = ReaderState(chapter.id, 0, 0)
+                    updateChapterNavButtons()
                     
                     // Update player with new URL
                     player?.stop()
@@ -1320,6 +1377,45 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
         
         return true // Indicate we handled the selection
+    }
+
+    private fun updateChapterNavButtons() {
+        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
+        val prev = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)
+        val next = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)
+
+        val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
+        val chapters = manga?.chapters.orEmpty()
+        if (chapters.isEmpty()) {
+            prev?.isEnabled = false
+            prev?.alpha = 0.4f
+            next?.isEnabled = false
+            next?.alpha = 0.4f
+            return
+        }
+
+        val currentId = readerState?.chapterId ?: chapters.first().id
+        val currentIndex = chapters.indexOfFirst { it.id == currentId }.takeIf { it >= 0 } ?: 0
+        val hasPrev = currentIndex > 0
+        val hasNext = currentIndex < chapters.lastIndex
+
+        prev?.isEnabled = hasPrev
+        prev?.alpha = if (hasPrev) 1f else 0.4f
+        next?.isEnabled = hasNext
+        next?.alpha = if (hasNext) 1f else 0.4f
+    }
+
+    private fun navigateChapter(offset: Int) {
+        val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga ?: return
+        val chapters = manga.chapters ?: return
+        if (chapters.isEmpty()) return
+        val currentId = readerState?.chapterId ?: chapters.first().id
+        val currentIndex = chapters.indexOfFirst { it.id == currentId }
+        if (currentIndex == -1) return
+        val targetIndex = (currentIndex + offset).coerceIn(0, chapters.size - 1)
+        if (targetIndex == currentIndex) return
+        val targetChapter = chapters[targetIndex]
+        onChapterSelected(targetChapter)
     }
 
     override fun onBookmarkSelected(bookmark: Bookmark): Boolean {

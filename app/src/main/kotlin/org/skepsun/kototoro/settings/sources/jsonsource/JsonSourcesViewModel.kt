@@ -105,6 +105,8 @@ class JsonSourcesViewModel @Inject constructor(
 	
 	private val _testResult = MutableStateFlow<TestResult?>(null)
 	val testResult: StateFlow<TestResult?> = _testResult.asStateFlow()
+	private val _validationStates = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+	val validationStates: StateFlow<Map<String, Boolean?>> = _validationStates.asStateFlow()
 	
 	/**
 	 * Toggles the enabled state of a JSON source.
@@ -145,25 +147,44 @@ class JsonSourcesViewModel @Inject constructor(
 			_testResult.value = TestResult.Testing(sourceId)
 			
 			try {
-				// Get the source
-				val source = jsonSourceManager.getById(sourceId)
-				if (source == null) {
-					_testResult.value = TestResult.Error(sourceId, "Source not found")
-					return@launch
+				val ok = jsonSourceManager.validateSourceBySearch(sourceId, searchKey = "我的")
+				if (ok) {
+					_testResult.value = TestResult.Success(sourceId, "Search test passed")
+				} else {
+					_testResult.value = TestResult.Error(sourceId, "Search test failed")
 				}
-				
-				// TODO: Implement actual test logic
-				// For now, just simulate a test
-				kotlinx.coroutines.delay(1000)
-				
-				// Simulate success
-				_testResult.value = TestResult.Success(sourceId, "Test completed successfully")
+				val updated = _validationStates.value.toMutableMap()
+				updated[sourceId] = ok
+				_validationStates.value = updated
 			} catch (e: Exception) {
 				_testResult.value = TestResult.Error(
 					sourceId,
 					e.message ?: "Unknown error occurred"
 				)
 			}
+		}
+	}
+	
+	fun batchEnable(ids: List<String>, enabled: Boolean) {
+		launchJob(Dispatchers.Default) {
+			jsonSourceManager.toggleSourcesBatch(ids, enabled)
+		}
+	}
+	
+	fun batchDelete(ids: List<String>) {
+		launchJob(Dispatchers.Default) {
+			jsonSourceManager.deleteSourcesBatch(ids)
+		}
+	}
+	
+	fun batchValidate(ids: List<String>) {
+		launchJob(Dispatchers.Default) {
+			val updated = _validationStates.value.toMutableMap()
+			ids.forEach { id ->
+				val ok = jsonSourceManager.validateSourceBySearch(id, searchKey = "我的")
+				updated[id] = ok
+			}
+			_validationStates.value = updated
 		}
 	}
 	

@@ -65,6 +65,10 @@ fun sourceCatalogItemSourceAD(
 			// Set chip color for JSON sources (orange tint)
 			binding.chipSourceType.setChipBackgroundColorResource(R.color.orange_100)
 			binding.chipSourceType.setTextColor(ContextCompat.getColor(context, R.color.orange_900))
+			// 显示人类可读名称
+			if (item.source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
+				binding.textViewTitle.text = (item.source as org.skepsun.kototoro.core.jsonsource.JsonMangaSource).displayName.ifBlank { item.source.name }
+			}
 		} else {
 			binding.chipSourceType.visibility = android.view.View.GONE
 		}

@@ -2,6 +2,7 @@ package org.skepsun.kototoro.reader.domain
 
 import android.content.Context
 import android.graphics.Rect
+import android.util.Log
 import android.net.Uri
 import androidx.annotation.AnyThread
 import androidx.annotation.CheckResult
@@ -298,9 +299,14 @@ class PageLoader @Inject constructor(
 				if (isPrefetch) {
 					downloadSlowdownDispatcher.delay(page.source)
 				}
-				val request = createPageRequest(pageUrl, page.source)
-				imageProxyInterceptor.interceptPageRequest(request, okHttp).ensureSuccess().use { response ->
-					response.requireBody().withProgress(progress).use {
+				val request = createPageRequest(pageUrl, page)
+				val response = imageProxyInterceptor.interceptPageRequest(request, okHttp)
+				Log.d(
+					"JsPageResponse",
+					"resp code=${response.code} protocol=${response.protocol} redirected=${response.priorResponse != null} reqUrl=${response.request.url} prior=${response.priorResponse?.code}"
+				)
+				response.ensureSuccess().use { resp ->
+					resp.requireBody().withProgress(progress).use {
 						cache.set(pageUrl, it.source(), it.contentType()?.toMimeType())
 					}
 				}.toUri()
@@ -338,13 +344,39 @@ class PageLoader @Inject constructor(
 		private const val PREFETCH_LIMIT_DEFAULT = 6
 		private const val PREFETCH_MIN_RAM_MB = 80L
 
-		fun createPageRequest(pageUrl: String, mangaSource: MangaSource) = Request.Builder()
-			.url(pageUrl)
-			.get()
-			.header(CommonHeaders.ACCEPT, "image/webp,image/png;q=0.9,image/jpeg,*/*;q=0.8")
-			.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
-			.tag(MangaSource::class.java, mangaSource)
-			.build()
+		fun createPageRequest(pageUrl: String, page: MangaPage): Request {
+			val builder = Request.Builder()
+				.url(pageUrl)
+				.get()
+				.header(CommonHeaders.ACCEPT, "image/avif,image/webp,image/png;q=0.9,image/jpeg,*/*;q=0.8")
+				.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
+				.tag(MangaSource::class.java, page.source)
+			page.headers?.forEach { (k, v) -> builder.header(k, v) }
+			val lowerHeaders = page.headers?.keys?.associateBy { it.lowercase() } ?: emptyMap()
+			if (!lowerHeaders.containsKey("referer") &&
+				(pageUrl.contains("gold-usergeneratedcontent.net") || pageUrl.contains("hitomi.la"))
+			) {
+				builder.header("Referer", "https://hitomi.la/")
+			}
+			val request = builder.build()
+			Log.d(
+				"JsPageRequest",
+				"build request url=$pageUrl headers=${request.headers} source=${page.source.name}"
+			)
+			return request
+		}
+
+		// Backward-compatible helper; strongly prefer the MangaPage overload to carry headers.
+		fun createPageRequest(pageUrl: String, mangaSource: MangaSource, headers: Map<String, String>? = null): Request {
+			val builder = Request.Builder()
+				.url(pageUrl)
+				.get()
+				.header(CommonHeaders.ACCEPT, "image/avif,image/webp,image/png;q=0.9,image/jpeg,*/*;q=0.8")
+				.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
+				.tag(MangaSource::class.java, mangaSource)
+			headers?.forEach { (k, v) -> builder.header(k, v) }
+			return builder.build()
+		}
 
 
 		@Blocking

@@ -45,6 +45,7 @@ class JsonSourcesFragment :
 	private val viewModel by viewModels<JsonSourcesViewModel>()
 	private val importViewModel by viewModels<ImportJsonViewModel>()
 	private var adapter: GroupedJsonSourcesAdapter? = null
+	private val selectedIds = mutableSetOf<String>()
 	
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -67,6 +68,13 @@ class JsonSourcesFragment :
 		viewModel.groupedSources.observe(viewLifecycleOwner) { groupedList ->
 			val flatList = groupedList.toFlatList()
 			adapter?.submitList(flatList)
+			adapter?.selectedIds = selectedIds
+		}
+		
+		// Observe validation states to update badges
+		viewModel.validationStates.observe(viewLifecycleOwner) { states ->
+			adapter?.validationStates = states
+			adapter?.notifyDataSetChanged()
 		}
 		
 		// Observe test results
@@ -97,7 +105,7 @@ class JsonSourcesFragment :
 		val isTablet = !resources.getBoolean(R.bool.is_tablet)
 		v.setPaddingRelative(
 			if (isTablet) 0 else barsInsets.start(v),
-			0,
+			barsInsets.top, // avoid status bar overlap
 			if (isTablet) 0 else barsInsets.end(v),
 			barsInsets.bottom,
 		)
@@ -129,6 +137,14 @@ class JsonSourcesFragment :
 	override fun onDeleteSource(sourceId: String) {
 		viewModel.deleteSource(sourceId)
 		showSnackbar(getString(R.string.source_deleted))
+		selectedIds.remove(sourceId)
+		adapter?.selectedIds = selectedIds
+		adapter?.notifyDataSetChanged()
+	}
+	
+	override fun onSelectSource(sourceId: String, selected: Boolean) {
+		if (selected) selectedIds.add(sourceId) else selectedIds.remove(sourceId)
+		adapter?.selectedIds = selectedIds
 	}
 	
 	private fun showSnackbar(message: String) {
@@ -147,12 +163,56 @@ class JsonSourcesFragment :
 			menuInflater.inflate(R.menu.opt_json_sources, menu)
 		}
 		
-		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
-			R.id.action_import -> {
-				showImportDialog()
-				true
+		override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+			return when (menuItem.itemId) {
+				R.id.action_import -> {
+					showImportDialog()
+					true
+				}
+				R.id.action_enable_selected -> {
+					if (selectedIds.isEmpty()) {
+						showSnackbar(getString(R.string.batch_no_selection))
+						true
+					} else {
+						viewModel.batchEnable(selectedIds.toList(), true)
+						showSnackbar(getString(R.string.enable_selected))
+						true
+					}
+				}
+				R.id.action_disable_selected -> {
+					if (selectedIds.isEmpty()) {
+						showSnackbar(getString(R.string.batch_no_selection))
+						true
+					} else {
+						viewModel.batchEnable(selectedIds.toList(), false)
+						showSnackbar(getString(R.string.disable_selected))
+						true
+					}
+				}
+				R.id.action_delete_selected -> {
+					if (selectedIds.isEmpty()) {
+						showSnackbar(getString(R.string.batch_no_selection))
+						true
+					} else {
+						viewModel.batchDelete(selectedIds.toList())
+						selectedIds.clear()
+						adapter?.selectedIds = selectedIds
+						showSnackbar(getString(R.string.delete_selected))
+						true
+					}
+				}
+				R.id.action_validate_selected -> {
+					if (selectedIds.isEmpty()) {
+						showSnackbar(getString(R.string.batch_no_selection))
+						true
+					} else {
+						viewModel.batchValidate(selectedIds.toList())
+						showSnackbar(getString(R.string.validate_selected))
+						true
+					}
+				}
+				else -> false
 			}
-			else -> false
 		}
 	}
 }

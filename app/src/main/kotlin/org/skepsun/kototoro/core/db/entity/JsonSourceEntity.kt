@@ -32,5 +32,6 @@ data class JsonSourceEntity(
 
 enum class JsonSourceType {
 	LEGADO,
-	TVBOX
+	TVBOX,
+	JS
 }

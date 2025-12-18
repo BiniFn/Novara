@@ -11,7 +11,7 @@ import org.skepsun.kototoro.filter.ui.model.FilterProperty
 import org.skepsun.kototoro.parsers.model.MangaListFilter
 import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.util.toTitleCase
 import org.skepsun.kototoro.search.domain.MangaSearchRepository
 import javax.inject.Inject
@@ -47,20 +47,23 @@ class FilterHeaderProducer @Inject constructor(
         source: MangaSource,
         capabilities: MangaListFilterCapabilities,
         savedFilters: FilterProperty<PersistableFilter>,
-        tagsProperty: FilterProperty<MangaTag>,
+        tagsProperty: FilterProperty<UiTagGroup>,
         snapshot: MangaListFilter,
         limit: Int,
     ): List<ChipsView.ChipModel> {
         val result = ArrayDeque<ChipsView.ChipModel>(savedFilters.availableItems.size + limit + 3)
         if (snapshot.query.isNullOrEmpty() || capabilities.isSearchWithFiltersSupported) {
-            val selectedTags = tagsProperty.selectedItems.toMutableSet()
+            val selectedTags = snapshot.tags.toMutableSet()
+            // 扁平化选中分组
+            val groupedTags = tagsProperty.availableItems.flatMap { it.tags }
             var tags = if (selectedTags.isEmpty()) {
                 searchRepository.getTagsSuggestion("", limit, source)
             } else {
                 searchRepository.getTagsSuggestion(selectedTags).take(limit)
             }
             if (tags.size < limit) {
-                tags = tags + tagsProperty.availableItems.take(limit - tags.size)
+                val remaining = groupedTags.filterNot { tags.contains(it) || selectedTags.contains(it) }
+                tags = tags + remaining.take(limit - tags.size)
             }
             if (tags.isEmpty() && selectedTags.isEmpty()) {
                 return emptyList()
@@ -165,7 +168,7 @@ class FilterHeaderProducer @Inject constructor(
                 ),
             )
         }
-        val hasTags = result.any { it.data is MangaTag }
+        val hasTags = result.any { it.data is UiTagGroup || it.data is String }
         if (hasTags) {
             result.addFirst(moreTagsChip())
         }

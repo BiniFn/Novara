@@ -199,7 +199,7 @@
     <string name="speed">速度</string>
     <string name="show_on_shelf">在書架上顯示</string>
     <string name="comics_archive_import_description">您可以選擇一個或多個 .cbz 或 .zip 檔案，每個檔案將被認定為個別的漫畫。</string>
-    <string name="folder_with_images_import_description">您可以選擇一個圖片資料夾或壓縮檔。每個壓縮檔 (或子目錄) 將被認定為個別的章節。</string>
+    <string name="folder_with_images_import_description">您可以選擇一個圖片資料夾或壓縮檔。每個壓縮檔 (或子目錄) 將被認定為個別的章節；如果該資料夾下有多個子目錄，則每個子目錄都會被導入為獨立漫畫。</string>
     <string name="find_similar">尋找相似</string>
     <string name="server_address">伺服器位址</string>
     <string name="ignore_ssl_errors">忽略 SSL 錯誤</string>
@@ -659,7 +659,11 @@
     <string name="unstable_feature">不穩定的功能</string>
     <string name="downloads_background">背景下載</string>
     <string name="download_new_chapters">下載新的漫畫章節</string>
-    <string name="enable_all_sources">啟用所有漫畫來源</string>
-    <string name="all_sources_enabled">所有漫畫來源已啟用</string>
-    <string name="auto_double_foldable">摺疊設備自動雙頁</string>
+	<string name="enable_all_sources">啟用所有漫畫來源</string>
+	<string name="all_sources_enabled">所有漫畫來源已啟用</string>
+	<string name="auto_double_foldable">摺疊設備自動雙頁</string>
+	<string name="source_type">來源類型</string>
+	<string name="source_type_legado">Legado</string>
+	<string name="source_type_tvbox">TVBox</string>
+	<string name="source_type_js">JavaScript 源（Venera）</string>
 </resources>

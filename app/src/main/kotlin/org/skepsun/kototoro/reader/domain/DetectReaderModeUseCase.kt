@@ -81,7 +81,7 @@ class DetectReaderModeUseCase @Inject constructor(
 			}
 
 			else -> {
-				val request = PageLoader.createPageRequest(url, page.source)
+				val request = PageLoader.createPageRequest(url, page)
 				imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use {
 					runInterruptible(Dispatchers.IO) {
 						getBitmapSize(it.body?.byteStream())

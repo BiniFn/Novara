@@ -19,12 +19,14 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
 import org.skepsun.kototoro.filter.ui.model.TagCatalogItem
+import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorFooter
 import org.skepsun.kototoro.list.ui.model.toErrorState
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.list.ui.model.ListHeader
 
 @HiltViewModel(assistedFactory = TagsCatalogViewModel.Factory::class)
 class TagsCatalogViewModel @AssistedInject constructor(
@@ -35,22 +37,21 @@ class TagsCatalogViewModel @AssistedInject constructor(
 
 	val searchQuery = MutableStateFlow("")
 
-	private val filterProperty: StateFlow<FilterProperty<MangaTag>>
+	private val filterProperty: StateFlow<FilterProperty<UiTagGroup>>
 		get() = if (isExcluded) filter.tagsExcluded else filter.tags
 
 	@Suppress("RemoveExplicitTypeArguments")
 	private val tags: StateFlow<List<ListModel>> = combine(
-		filter.getAllTags(),
-		flow<Collection<MangaTag>> { emit(emptyList()); emit(mangaDataRepository.findTags(filter.mangaSource)) },
-		filterProperty.map { it.selectedItems },
-	) { available, cached, selected ->
-		buildList(available, cached, selected)
+        filter.getAllTagGroups(),
+        flow<Collection<MangaTag>> { emit(emptyList()); emit(mangaDataRepository.findTags(filter.mangaSource)) },
+        filterProperty,
+    ) { available, cached, property ->
+        val selected = property.selectedItems.flatMap { it.selected }.toSet()
+        buildList(available, cached, selected)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
 	val content = combine(tags, searchQuery) { raw, query ->
-		raw.filter { x ->
-			x !is TagCatalogItem || x.tag.title.contains(query, ignoreCase = true)
-		}
+		filterByQuery(raw, query)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, listOf(LoadingState))
 
 	fun handleTagClick(tag: MangaTag, isChecked: Boolean) {
@@ -62,15 +63,19 @@ class TagsCatalogViewModel @AssistedInject constructor(
 	}
 
 	private fun buildList(
-		available: Result<List<MangaTag>>,
-		cached: Collection<MangaTag>,
-		selected: Set<MangaTag>,
-	): List<ListModel> {
-		val capacity = (available.getOrNull()?.size ?: 1) + cached.size
-		val result = ArrayList<ListModel>(capacity)
-		val added = HashSet<String>(capacity)
-		available.getOrNull()?.forEach { tag ->
-			if (added.add(tag.title)) {
+        available: Result<List<UiTagGroup>>,
+        cached: Collection<MangaTag>,
+        selected: Set<MangaTag>,
+    ): List<ListModel> {
+		val locale = (filter.mangaSource as? MangaParserSource)?.locale
+		val comparator = TagTitleComparator(locale)
+		val result = ArrayList<ListModel>()
+
+		available.getOrNull()?.forEach { group ->
+			val tags = group.tags.sortedWith(comparator)
+			if (tags.isEmpty()) return@forEach
+			result.add(ListHeader(group.title))
+			tags.forEach { tag ->
 				result.add(
 					TagCatalogItem(
 						tag = tag,
@@ -79,20 +84,17 @@ class TagsCatalogViewModel @AssistedInject constructor(
 				)
 			}
 		}
-		cached.forEach { tag ->
-			if (added.add(tag.title)) {
-				result.add(
-					TagCatalogItem(
-						tag = tag,
-						isChecked = tag in selected,
-					),
-				)
+
+		if (result.isEmpty()) {
+			val extra = cached.sortedWith(comparator)
+			if (extra.isNotEmpty()) {
+				result.add(ListHeader("其他"))
+				extra.forEach { tag ->
+					result.add(TagCatalogItem(tag, tag in selected))
+				}
 			}
 		}
-		if (result.isNotEmpty()) {
-			val locale = (filter.mangaSource as? MangaParserSource)?.locale
-			result.sortWith(compareBy(TagTitleComparator(locale)) { (it as TagCatalogItem).tag })
-		}
+
 		available.exceptionOrNull()?.let { error ->
 			result.add(
 				if (result.isEmpty()) {
@@ -103,6 +105,34 @@ class TagsCatalogViewModel @AssistedInject constructor(
 			)
 		}
 		return result
+	}
+
+	private fun filterByQuery(list: List<ListModel>, query: String): List<ListModel> {
+		if (query.isBlank()) return list
+		val filtered = ArrayList<ListModel>(list.size)
+		var currentHeader: ListHeader? = null
+		var hasMatchInSection = false
+		list.forEach { item ->
+			when (item) {
+				is ListHeader -> {
+					if (hasMatchInSection) {
+						currentHeader?.let { filtered.add(it) }
+					}
+					currentHeader = item
+					hasMatchInSection = false
+				}
+				is TagCatalogItem -> {
+					if (item.tag.title.contains(query, ignoreCase = true) || item.isChecked) {
+						if (!hasMatchInSection) {
+							currentHeader?.let { filtered.add(it) }
+						}
+						filtered.add(item)
+						hasMatchInSection = true
+					}
+				}
+			}
+		}
+		return filtered
 	}
 
 	@AssistedFactory

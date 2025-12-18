@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.core.network
 
+import android.util.Log
 import dagger.Lazy
 import okhttp3.Headers
 import okhttp3.Interceptor
@@ -35,8 +36,7 @@ class CommonHeadersInterceptor @Inject constructor(
 			mangaRepositoryFactoryLazy.get().create(source) as? ParserMangaRepository
 		} else {
 			if (BuildConfig.DEBUG && source == null) {
-				IllegalArgumentException("Request without source tag: ${request.url}")
-					.printStackTrace()
+				Log.w("CommonHeadersInterceptor", "Request without source tag: ${request.url}")
 			}
 			null
 		}
@@ -51,6 +51,13 @@ class CommonHeadersInterceptor @Inject constructor(
 		if (headersBuilder[CommonHeaders.REFERER] == null && repository != null) {
 			val idn = IDN.toASCII(repository.domain)
 			headersBuilder.trySet(CommonHeaders.REFERER, "https://$idn/")
+		}
+		// Some CDNs (hitomi) require Referer even when repository is null (e.g., Coil thumbnail requests).
+		if (headersBuilder[CommonHeaders.REFERER] == null) {
+			val host = request.url.host
+			if (host.contains("gold-usergeneratedcontent.net") || host.contains("hitomi.la")) {
+				headersBuilder.trySet(CommonHeaders.REFERER, "https://hitomi.la/")
+			}
 		}
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
 		return repository?.interceptSafe(ProxyChain(chain, newRequest)) ?: chain.proceed(newRequest)

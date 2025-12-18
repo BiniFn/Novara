@@ -53,6 +53,25 @@ class MangaPageFetcher(
 		}
 		val repo = mangaRepositoryFactory.create(page.source)
 		val pageUrl = repo.getPageUrl(page)
+
+		// 支持 data URL：直接写入缓存并返回，避免走网络请求
+		if (pageUrl.startsWith("data:", ignoreCase = true)) {
+			val mime = pageUrl.substringAfter("data:", "").substringBefore(";").ifEmpty { null }
+			val base64 = pageUrl.substringAfter("base64,", "")
+			val bytes = runCatchingCancellable {
+				if (base64.isNotEmpty()) android.util.Base64.decode(base64, android.util.Base64.DEFAULT) else ByteArray(0)
+			}.getOrElse { ByteArray(0) }
+			if (bytes.isNotEmpty()) {
+				val buffer = okio.Buffer().write(bytes)
+				val file = pagesCache.set(pageUrl, buffer, mime?.toMimeTypeOrNull())
+				return SourceFetchResult(
+					source = ImageSource(file.toOkioPath(), options.fileSystem),
+					mimeType = mime,
+					dataSource = DataSource.MEMORY,
+				)
+			}
+		}
+
 		if (options.diskCachePolicy.readEnabled) {
 			pagesCache[pageUrl]?.let { file ->
 				return SourceFetchResult(
@@ -72,7 +91,7 @@ class MangaPageFetcher(
 	}
 
 	private suspend fun fetchPage(pageUrl: String): FetchResult {
-		val request = PageLoader.createPageRequest(pageUrl, page.source)
+		val request = PageLoader.createPageRequest(pageUrl, page)
 		return imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use { response ->
 			if (!response.isSuccessful) {
 				throw HttpException(response.toNetworkResponse())

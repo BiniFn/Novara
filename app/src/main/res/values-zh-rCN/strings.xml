@@ -365,7 +365,7 @@
     <string name="speed">速度</string>
     <string name="show_on_shelf">在收藏中显示</string>
     <string name="comics_archive_import_description">可选择一个或多个 CBZ 或 ZIP 文件，每个文件都将识别为一个单独的漫画。</string>
-    <string name="folder_with_images_import_description">可选择一个包含压缩包或图片的文件夹，每个压缩包 (或子文件夹) 都会被识别为一个章节。</string>
+    <string name="folder_with_images_import_description">可选择一个包含压缩包或图片的文件夹。每个压缩包 (或子文件夹) 会被识别为一个章节；如果该文件夹下包含多个子文件夹，则每个子文件夹都会被导入为单独的漫画。</string>
     <string name="find_similar">搜索相似漫画</string>
     <string name="web_view_unavailable">WebView不可用：检查是否已安装WebView</string>
     <string name="sync_host_description">可使用自建同步服务器或默认同步服务器，若不知道有何用处请不要自行修改。</string>
@@ -858,16 +858,20 @@
     <string name="chapters_load_failed">加载章节列表失败</string>
     <string name="manga_restricted_description">此漫画在当前图源无法阅读，尝试在别的图源中搜索此漫画或打开内置浏览器获取更多信息</string>
     <string name="telegram_integration">Telegram 集成</string>
-    <string name="test_parser">测试图源</string>
-    <string name="search_everywhere">在所有图源搜索</string>
-    <string name="additional_action_required">需要额外操作</string>
+	<string name="test_parser">测试图源</string>
+	<string name="search_everywhere">在所有图源搜索</string>
+	<string name="additional_action_required">需要额外操作</string>
     <string name="book_effect">护眼模式（蓝光过滤）</string>
     <string name="read_on_s">在 %s 查看</string>
     <string name="pull_to_prev_chapter">松开即可阅读上一章</string>
     <string name="pull_to_next_chapter">松开即可阅读下一章</string>
     <string name="pull_top_no_prev">到头了</string>
     <string name="pull_bottom_no_next">到底了</string>
-    <string name="enable_pull_gesture_title">启用推拉手势</string>
-    <string name="enable_pull_gesture_summary">条漫模式下使用推拉手势切换章节</string>
-    <string name="auto_double_foldable">折叠设备自动双页</string>
+	<string name="enable_pull_gesture_title">启用推拉手势</string>
+	<string name="enable_pull_gesture_summary">条漫模式下使用推拉手势切换章节</string>
+	<string name="auto_double_foldable">折叠设备自动双页</string>
+	<string name="source_type">来源类型</string>
+	<string name="source_type_legado">Legado</string>
+	<string name="source_type_tvbox">TVBox</string>
+	<string name="source_type_js">JavaScript 源（Venera）</string>
 </resources>

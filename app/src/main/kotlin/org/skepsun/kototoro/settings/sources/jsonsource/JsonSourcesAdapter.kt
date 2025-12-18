@@ -37,7 +37,7 @@ class JsonSourcesAdapter(
 	) : RecyclerView.ViewHolder(binding.root) {
 		
 		fun bind(source: JsonSourceEntity) {
-			binding.textViewName.text = source.name
+			binding.textViewName.text = source.name.ifBlank { source.id }
 			binding.textViewType.text = source.type.name
 			binding.textViewUrl.text = extractBaseUrl(source.config)
 			

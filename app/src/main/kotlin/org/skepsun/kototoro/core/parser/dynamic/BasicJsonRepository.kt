@@ -4,16 +4,18 @@ import android.util.Log
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
 import org.jsoup.Jsoup
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
-import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.model.jsonsource.SearchRule
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.rule.EnhancedRuleEngine
 import org.skepsun.kototoro.core.javascript.JavaScriptContext
 import org.skepsun.kototoro.core.javascript.BookInfo
 import org.skepsun.kototoro.core.javascript.ChapterInfo
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaChapter
@@ -26,6 +28,7 @@ import org.skepsun.kototoro.parsers.model.MangaState
 import org.skepsun.kototoro.parsers.model.MangaTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import java.net.URLEncoder
+import java.nio.charset.Charset
 import java.util.EnumSet
 
 /**
@@ -45,6 +48,7 @@ class BasicJsonRepository(
 	override val source: MangaSource,
 	private val legadoHttpClient: LegadoHttpClient,
 	private val ruleEngine: EnhancedRuleEngine,
+	private val browserLauncher: org.skepsun.kototoro.core.javascript.BrowserLauncher? = null,
 ) : MangaRepository {
 	
 	companion object {
@@ -79,6 +83,53 @@ class BasicJsonRepository(
 		} catch (e: Exception) {
 			Log.w(TAG, "Failed to parse custom headers: ${e.message}")
 			emptyMap()
+		}
+	}
+
+	/**
+	 * Build default request headers merged with custom headers from the source config
+	 */
+	private fun buildRequestHeaders(): Map<String, String> {
+		val headers = mutableMapOf(
+			"Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+			"Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8"
+		)
+		headers.putAll(customHeaders) // Custom headers override defaults
+		return headers
+	}
+	
+	/**
+	 * Execute GET with Cloudflare fallback (browser) if interceptor throws
+	 */
+	private suspend fun getWithCloudflareRetry(request: RequestConfig): okhttp3.Response? {
+		val headers = request.headers.ifEmpty { buildRequestHeaders() }
+		val url = request.url
+		return try {
+			if (request.method.equals("POST", ignoreCase = true)) {
+				legadoHttpClient.post(url, request.body, headers, source = source)
+			} else {
+				legadoHttpClient.get(url, headers, source = source)
+			}
+		} catch (e: CloudFlareProtectedException) {
+			Log.w(TAG, "Cloudflare protection detected for ${source.name}, launching browser")
+			if (browserLauncher != null) {
+				return try {
+					val result = browserLauncher.launchAndWait(url, "Cloudflare验证", source)
+					if (result.isNotBlank()) {
+						if (request.method.equals("POST", ignoreCase = true)) {
+							legadoHttpClient.post(url, request.body, headers, source = source)
+						} else {
+							legadoHttpClient.get(url, headers, source = source)
+						}
+					} else null
+				} catch (ex: Exception) {
+					Log.e(TAG, "Browser launch failed during Cloudflare retry", ex)
+					null
+				}
+			} else {
+				Log.e(TAG, "No browserLauncher available to handle Cloudflare")
+				null
+			}
 		}
 	}
 	
@@ -147,44 +198,46 @@ class BasicJsonRepository(
 				return emptyList()
 			}
 			
-			// Build the search/list URL
-			val url = buildListUrl(filter?.query, offset)
-			if (url.isBlank()) {
+			// Build the search/list request
+			val request = buildListRequest(filter?.query, offset, isSearching)
+			if (request.url.isBlank()) {
 				Log.w(TAG, "No ${if (isSearching) "search" else "explore"} URL configured for ${source.name}")
 				return emptyList()
 			}
 			
-			Log.d(TAG, "Fetching list from: $url (using ${if (isSearching) "ruleSearch" else "ruleExplore"})")
+			Log.d(TAG, "Fetching list from: ${request.url} (using ${if (isSearching) "ruleSearch" else "ruleExplore"})")
 			Log.d(TAG, "Using bookList rule: ${rule.bookList}")
 			
 			// Make HTTP request using LegadoHttpClient (handles User-Agent rotation and Cloudflare)
 			// Merge custom headers from source config with default headers
-			val headers = mutableMapOf(
-				"Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-				"Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8"
-			)
-			headers.putAll(customHeaders) // Custom headers override defaults
-			
-			val response = legadoHttpClient.get(url, headers, source = source)
+			val response = getWithCloudflareRetry(request)
+			if (response == null) {
+				Log.e(TAG, "Failed to fetch list after Cloudflare handling")
+				return emptyList()
+			}
+		
+		// Read response body first (even for error codes like 403/503)
+		// This allows us to detect Cloudflare verification pages
+		val html = readBodyWithCharset(response)
+		val httpCode = response.code
+		response.close()
+		
+		Log.d(TAG, "Received HTTP ${httpCode} response: ${html.length} bytes")
+		
+		// Check for common issues and handle them (including Cloudflare on 403/503)
+		val processedHtml = handleCommonIssues(html, request.url, rule, httpCode)
+		if (processedHtml.isEmpty()) {
+			// Only now treat it as an error if we couldn't handle it
 			if (!response.isSuccessful) {
-				Log.e(TAG, "HTTP request failed: ${response.code} ${response.message} for URL: $url")
-				return emptyList()
-			}
-			
-			val html = response.body?.string() ?: ""
-			response.close()
-			
-			Log.d(TAG, "Received HTML response: ${html.length} bytes")
-			
-			// Check for common issues and handle them
-			val processedHtml = handleCommonIssues(html, url, rule)
-			if (processedHtml.isEmpty()) {
+				Log.e(TAG, "HTTP request failed: ${httpCode} for URL: ${request.url} and couldn't handle the response")
+			} else {
 				Log.w(TAG, "HTML processing failed or returned empty content")
-				return emptyList()
 			}
+			return emptyList()
+		}
 			
 			// Parse HTML
-			val document = Jsoup.parse(processedHtml, url)
+			val document = Jsoup.parse(processedHtml, request.url)
 			
 			// Use rule engine to parse the list
 			// At this point we know rule is valid (checked by isValidRule), so these fields are non-null
@@ -214,8 +267,8 @@ class BasicJsonRepository(
 				page = (offset / 20) + 1,
 				source = config
 			)
-			searchContext.setVariable("baseUrl", url)
-			searchContext.setVariable("url", url)
+			searchContext.setVariable("baseUrl", request.url)
+			searchContext.setVariable("url", request.url)
 			
 			val items = ruleEngine.parseList(document, bookListRule, itemRules, searchContext)
 			Log.d(TAG, "Parsed ${items.size} items from list")
@@ -223,7 +276,19 @@ class BasicJsonRepository(
 			if (items.isEmpty()) {
 				Log.w(TAG, "No items found. HTML preview: ${processedHtml.take(500)}")
 				// Try alternative parsing strategies
-				return tryAlternativeParsing(document, url, rule, searchContext)
+				return tryAlternativeParsing(document, processedHtml, request.url, rule, searchContext)
+			}
+			
+			// Handle cases where parsed items are present but fields are empty (e.g., 铅笔小说)
+			val hasValid = items.any { !it["name"].isNullOrBlank() && !it["bookUrl"].isNullOrBlank() }
+			if (!hasValid) {
+				Log.w(TAG, "Parsed items missing required fields, attempting specialized fallback for ${rule.bookList}")
+				val moduleItems = parseModuleItems(document, request.url)
+				if (moduleItems.isNotEmpty()) {
+					return moduleItems
+				}
+				// If still empty, try alternative strategies
+				return tryAlternativeParsing(document, processedHtml, request.url, rule, searchContext)
 			}
 			
 			// Convert to Manga objects
@@ -236,8 +301,8 @@ class BasicJsonRepository(
 					return@mapNotNull null
 				}
 				
-				val absoluteUrl = resolveUrl(url, bookUrl)
-				val coverUrl = item["coverUrl"]?.let { resolveUrl(url, it) }
+				val absoluteUrl = resolveUrl(request.url, bookUrl)
+				val coverUrl = item["coverUrl"]?.let { resolveUrl(request.url, it) }
 				val author = item["author"]?.trim()
 				val intro = item["intro"]?.trim()
 				
@@ -280,121 +345,159 @@ class BasicJsonRepository(
 	 * Requirements: 16.2
 	 */
 	private fun buildListUrl(query: String?, offset: Int): String {
+		// Deprecated: replaced by buildListRequest
+		return buildListRequest(query, offset, !query.isNullOrBlank()).url
+	}
+
+	private data class RequestConfig(
+		val url: String,
+		val method: String = "GET",
+		val body: Map<String, String> = emptyMap(),
+		val headers: Map<String, String> = emptyMap()
+	)
+	
+	private fun buildListRequest(query: String?, offset: Int, isSearching: Boolean): RequestConfig {
 		val baseUrl = config.bookSourceUrl
+		val headers = buildRequestHeaders()
 		
 		// If there's a query, use searchUrl
 		if (!query.isNullOrBlank()) {
 			val searchUrl = config.searchUrl
 			if (!searchUrl.isNullOrBlank()) {
-				// Check if searchUrl contains JavaScript
+				// Handle @js searchUrl
 				if (searchUrl.startsWith("@js:") || searchUrl.contains("<js>")) {
-					// Create JavaScript context for search
 					val context = JavaScriptContext.forSearch(
 						key = query,
 						page = (offset / 20) + 1,
 						source = config
 					)
 					context.setVariable("baseUrl", baseUrl)
-					
-					// Execute JavaScript to generate URL
 					val jsResult = ruleEngine.parseField(
 						org.jsoup.Jsoup.parse("").body(),
 						searchUrl,
 						context
 					)
-					
 					if (jsResult.isNotBlank()) {
-						return jsResult
+						return RequestConfig(url = jsResult, method = "GET", headers = headers)
 					}
-					
 					Log.w(TAG, "JavaScript searchUrl returned empty result, falling back to template replacement")
 				}
 				
-				// Standard template replacement
+				// Handle Legado searchUrl with options: url,{'method':'POST','body':'...','charset':'gbk','headers':{...}}
+				val parts = searchUrl.split(",", limit = 2)
+				val urlPart = parts[0]
+				val optionsPart = parts.getOrNull(1)
+				
 				val encodedQuery = URLEncoder.encode(query, "UTF-8")
-				return searchUrl
+				val page = ((offset / 20) + 1).toString()
+				val finalUrl = urlPart
 					.replace("{{key}}", encodedQuery)
 					.replace("{key}", encodedQuery)
-					.replace("{{page}}", ((offset / 20) + 1).toString())
-					.replace("{page}", ((offset / 20) + 1).toString())
+					.replace("{{page}}", page)
+					.replace("{page}", page)
+					.let { if (it.startsWith("http")) it else resolveUrl(baseUrl, it) }
+				
+				if (optionsPart != null) {
+					val opts = parseOptionsString(optionsPart)
+					val method = opts.method.uppercase()
+					val mergedHeaders = headers + opts.headers
+					val bodyMap = opts.body?.let { parseBodyToMap(it) } ?: emptyMap()
+					return RequestConfig(
+						url = finalUrl,
+						method = method,
+						body = bodyMap,
+						headers = mergedHeaders
+					)
+				}
+				
+				return RequestConfig(url = finalUrl, method = "GET", headers = headers)
 			}
 		}
 		
 		// Otherwise use exploreUrl or base URL
 		val exploreUrl = config.exploreUrl
 		if (!exploreUrl.isNullOrBlank()) {
-			// Check if exploreUrl is a JSON array (explore page with categories)
 			if (exploreUrl.trim().startsWith("[")) {
-				Log.d(TAG, "exploreUrl is a JSON array (explore page), extracting first valid URL")
 				try {
-					// Parse the JSON array to extract URLs
 					val json = Json { ignoreUnknownKeys = true; isLenient = true }
 					val exploreItems = json.decodeFromString<List<ExploreItem>>(exploreUrl)
-					
-					// Find the first item with a non-empty URL
 					val firstValidUrl = exploreItems.firstOrNull { !it.url.isNullOrBlank() }?.url
 					if (firstValidUrl != null) {
-						val fullUrl = if (firstValidUrl.startsWith("http")) {
-							firstValidUrl
-						} else {
-							resolveUrl(baseUrl, firstValidUrl)
-						}
-						Log.d(TAG, "Using first valid explore URL: $fullUrl")
-						return fullUrl
-							.replace("{{page}}", ((offset / 20) + 1).toString())
-							.replace("{page}", ((offset / 20) + 1).toString())
-					} else {
-						Log.w(TAG, "No valid URLs found in explore array, using base URL")
-						return baseUrl
+						val fullUrl = if (firstValidUrl.startsWith("http")) firstValidUrl else resolveUrl(baseUrl, firstValidUrl)
+						return RequestConfig(
+							url = fullUrl.replace("{{page}}", ((offset / 20) + 1).toString())
+								.replace("{page}", ((offset / 20) + 1).toString()),
+							headers = headers
+						)
 					}
 				} catch (e: Exception) {
 					Log.e(TAG, "Failed to parse exploreUrl JSON array: ${e.message}")
-					return baseUrl
 				}
+				return RequestConfig(url = baseUrl, headers = headers)
 			} else if (exploreUrl.contains("::")) {
-				// Check if exploreUrl is a string with title::url format (newline separated)
-				Log.d(TAG, "exploreUrl is a title::url string format, extracting first valid URL")
-				try {
-					// Split by newlines and parse each line
-					val lines = exploreUrl.split("\n", "\r\n")
-					for (line in lines) {
-						Log.d(TAG, line.trim())
-					}
-					
-					// Find the first line with a valid URL (non-empty after ::)
-					val firstValidUrl = lines
-						.map { it.trim() }
-						.filter { it.contains("::") }
-						.map { it.substringAfter("::").trim() }
-						.firstOrNull { it.isNotBlank() }
-					
-					if (firstValidUrl != null) {
-						val fullUrl = if (firstValidUrl.startsWith("http")) {
-							firstValidUrl
-						} else {
-							resolveUrl(baseUrl, firstValidUrl)
-						}
-						Log.d(TAG, "Using first valid explore URL: $fullUrl")
-						return fullUrl
-							.replace("{{page}}", ((offset / 20) + 1).toString())
-							.replace("{page}", ((offset / 20) + 1).toString())
-					} else {
-						Log.w(TAG, "No valid URLs found in explore string, using base URL")
-						return baseUrl
-					}
-				} catch (e: Exception) {
-					Log.e(TAG, "Failed to parse exploreUrl string format: ${e.message}")
-					return baseUrl
+				val lines = exploreUrl.split("\n", "\r\n")
+				val firstValidUrl = lines
+					.map { it.trim() }
+					.filter { it.contains("::") }
+					.map { it.substringAfter("::").trim() }
+					.firstOrNull { it.isNotBlank() }
+				
+				if (firstValidUrl != null) {
+					val fullUrl = if (firstValidUrl.startsWith("http")) firstValidUrl else resolveUrl(baseUrl, firstValidUrl)
+					return RequestConfig(
+						url = fullUrl.replace("{{page}}", ((offset / 20) + 1).toString())
+							.replace("{page}", ((offset / 20) + 1).toString()),
+						headers = headers
+					)
 				}
+				return RequestConfig(url = baseUrl, headers = headers)
 			} else {
-				// Regular URL string
-				return exploreUrl
-					.replace("{{page}}", ((offset / 20) + 1).toString())
-					.replace("{page}", ((offset / 20) + 1).toString())
+				return RequestConfig(
+					url = exploreUrl.replace("{{page}}", ((offset / 20) + 1).toString())
+						.replace("{page}", ((offset / 20) + 1).toString()),
+					headers = headers
+				)
 			}
 		}
 		
-		return baseUrl
+		return RequestConfig(url = baseUrl, headers = headers)
+	}
+	
+	private data class ParsedOptions(
+		val method: String = "GET",
+		val body: String? = null,
+		val headers: Map<String, String> = emptyMap()
+	)
+	
+	private fun parseOptionsString(options: String): ParsedOptions {
+		val cleaned = options.trim().removePrefix(",")
+		// options typically looks like {'method':'POST','body':'searchkey={{key}}','headers':{...}}
+		val normalized = cleaned.replace("'", "\"")
+		return try {
+			val jsonElement = Json { ignoreUnknownKeys = true; isLenient = true }.parseToJsonElement(normalized)
+			val obj = jsonElement.jsonObject
+			val method = obj["method"]?.toString()?.trim('"') ?: "GET"
+			val body = obj["body"]?.toString()?.trim('"')
+			val headers = obj["headers"]?.let { element ->
+				runCatching {
+					Json { ignoreUnknownKeys = true; isLenient = true }
+						.decodeFromString<Map<String, String>>(element.toString())
+				}.getOrDefault(emptyMap())
+			} ?: emptyMap()
+			ParsedOptions(method = method, body = body, headers = headers)
+		} catch (e: Exception) {
+			ParsedOptions()
+		}
+	}
+	
+	private fun parseBodyToMap(body: String): Map<String, String> {
+		return body.split("&").mapNotNull {
+			if (!it.contains("=")) return@mapNotNull null
+			val parts = it.split("=", limit = 2)
+			val key = parts[0]
+			val value = parts.getOrNull(1) ?: ""
+			key to value
+		}.toMap()
 	}
 	
 	/**
@@ -437,10 +540,52 @@ class BasicJsonRepository(
 	 * - Empty or invalid responses
 	 * - Encoding issues
 	 */
-	private suspend fun handleCommonIssues(html: String, url: String, rule: SearchRule): String {
-		// Check for Cloudflare verification
+	private suspend fun handleCommonIssues(html: String, url: String, rule: SearchRule, httpCode: Int): String {
+		// Debug: comprehensive HTML inspection
+		Log.d(TAG, "HTML length: ${html.length} bytes")
+		
+		if (html.isNotEmpty()) {
+			// Show first 200 chars
+			val start = html.substring(0, minOf(200, html.length))
+			Log.d(TAG, "HTML start (200 chars): $start")
+			
+			// Show middle 200 chars
+			if (html.length > 400) {
+				val midPoint = html.length / 2
+				val middle = html.substring(midPoint - 100, minOf(midPoint + 100, html.length))
+				Log.d(TAG, "HTML middle (200 chars): $middle")
+			}
+			
+			// Show last 200 chars
+			if (html.length > 200) {
+				val end = html.substring(maxOf(0, html.length - 200))
+				Log.d(TAG, "HTML end (200 chars): $end")
+			}
+		}
+		
+		// Check for specific Cloudflare markers
+		val hasJustAMoment = html.contains("Just a moment", ignoreCase = true)
+		val hasCloudflare = html.contains("cloudflare", ignoreCase = true)
+		val hasCfChallenge = html.contains("cf-browser-verification", ignoreCase = true) || 
+		                     html.contains("cf-challenge-form", ignoreCase = true)
+		val hasDDoS = html.contains("DDoS protection by Cloudflare", ignoreCase = true)
+		
+		Log.d(TAG, "Cloudflare markers: justAMoment=$hasJustAMoment, cloudflare=$hasCloudflare, cfChallenge=$hasCfChallenge, ddos=$hasDDoS")
+		
+		// First, check for Cloudflare verification in content (regardless of HTTP code)
+		// This handles cases where server returns 200 but with Cloudflare challenge
 		if (isCloudflareVerification(html)) {
-			Log.w(TAG, "Detected Cloudflare verification page for ${source.name}")
+			Log.w(TAG, "Detected Cloudflare verification page (HTTP $httpCode) for ${source.name}")
+			return handleCloudflareVerification(html, url, rule)
+		}
+		
+		// For 403/503 responses with short content, also treat as potential Cloudflare
+		// even if traditional markers aren't present
+		val isPotentialCloudflare = (httpCode == 403 || httpCode == 503) && 
+			(html.isBlank() || html.length < 100)
+		
+		if (isPotentialCloudflare) {
+			Log.w(TAG, "Detected potential Cloudflare protection (HTTP $httpCode, short response) for ${source.name}")
 			return handleCloudflareVerification(html, url, rule)
 		}
 		
@@ -456,8 +601,9 @@ class BasicJsonRepository(
 			return ""
 		}
 		
-		// Check for common error pages
-		if (isErrorPage(html)) {
+		// Check for common error pages (skip for large 200 pages to avoid false positives)
+		val shouldCheckError = httpCode >= 400 || html.length < 4096
+		if (shouldCheckError && isErrorPage(html)) {
 			Log.w(TAG, "Detected error page for ${source.name}")
 			return ""
 		}
@@ -469,11 +615,22 @@ class BasicJsonRepository(
 	 * Check if the HTML contains Cloudflare verification
 	 */
 	private fun isCloudflareVerification(html: String): Boolean {
-		return html.contains("Just a moment...") ||
-			html.contains("cloudflare") ||
-			html.contains("cf-browser-verification") ||
-			html.contains("cf-challenge-form") ||
-			html.contains("DDoS protection by Cloudflare")
+		// Keep markers tight to avoid false positives on sites that simply use Cloudflare CDN assets
+		return html.contains("Just a moment", ignoreCase = true) ||
+			html.contains("Attention Required", ignoreCase = true) ||
+			html.contains("Please wait while we check your browser", ignoreCase = true) ||
+			html.contains("challenge-platform", ignoreCase = true) || // present in CF challenge pages
+			html.contains("Managed Challenge", ignoreCase = true) ||
+			html.contains("__cf_chl", ignoreCase = true) ||
+			html.contains("_cf_chl_opt", ignoreCase = true) ||
+			html.contains("cf_chl_", ignoreCase = true) ||
+			html.contains("cf-turnstile", ignoreCase = true) ||
+			html.contains("turnstile verification", ignoreCase = true) ||
+			html.contains("cf-challenge-form", ignoreCase = true) ||
+			html.contains("cf-browser-verification", ignoreCase = true) ||
+			html.contains("/cdn-cgi/challenge", ignoreCase = true) ||
+			html.contains("cf_clearance", ignoreCase = true) ||
+			html.contains("DDoS protection by Cloudflare", ignoreCase = true)
 	}
 	
 	/**
@@ -546,7 +703,38 @@ class BasicJsonRepository(
 			}
 		}
 		
-		// If no init script or it failed, log the issue and return empty
+		// If no init script or it failed, try using browser launcher as fallback
+		if (browserLauncher != null) {
+			Log.i(TAG, "No init script available, attempting automatic browser launch for Cloudflare bypass")
+			try {
+				// Launch browser and wait for user to complete verification
+				val result = browserLauncher.launchAndWait(url, "Cloudflare验证", source)
+				
+				// The browser launcher returns "browser_launched" on success
+				// After the browser is closed, cookies should be synced
+				if (result.isNotBlank()) {
+					Log.i(TAG, "Browser launched successfully for Cloudflare verification")
+					// Make the request again with the synced cookies
+					val response = legadoHttpClient.get(url, buildRequestHeaders(), source = source)
+					val newHtml = response.body?.string() ?: ""
+					val newCode = response.code
+					response.close()
+					
+					Log.d(TAG, "Re-request after browser: HTTP $newCode, length=${newHtml.length}")
+					
+					if (newHtml.isNotBlank() && !isCloudflareVerification(newHtml)) {
+						Log.i(TAG, "Successfully bypassed Cloudflare using browser")
+						return newHtml
+					}
+					
+					Log.w(TAG, "Cloudflare bypass via browser did not return valid content")
+				}
+			} catch (e: Exception) {
+				Log.e(TAG, "Failed to launch browser for Cloudflare handling", e)
+			}
+		}
+		
+		// If no init script or browser launcher, log the issue and return empty
 		Log.w(TAG, "Cannot handle Cloudflare verification automatically. User intervention may be required.")
 		Log.w(TAG, "Consider using the browser to manually complete verification for ${source.name}")
 		
@@ -597,6 +785,7 @@ class BasicJsonRepository(
 	 */
 	private fun tryAlternativeParsing(
 		document: org.jsoup.nodes.Document,
+		rawHtml: String,
 		url: String,
 		rule: SearchRule,
 		context: JavaScriptContext
@@ -689,8 +878,432 @@ class BasicJsonRepository(
 			}
 		}
 		
+		// Strategy 2: Specialized parser for 69书吧 newlistbox structure
+		val newListBoxItems = parseNewListBox(document, url)
+		if (newListBoxItems.isNotEmpty()) {
+			return newListBoxItems
+		}
+		
+		// Strategy 3: Fallback by scanning book detail links (e.g., /book/12345.htm)
+		val linkBasedItems = parseByBookLinks(document, url)
+		if (linkBasedItems.isNotEmpty()) {
+			Log.i(TAG, "Parsed ${linkBasedItems.size} items using book link fallback")
+			return linkBasedItems
+		}
+		
+		// Strategy 4: Regex fallback on raw HTML (handles script-rendered pages)
+		val regexItems = parseByBookLinksFromRaw(rawHtml, url)
+		if (regexItems.isNotEmpty()) {
+			Log.i(TAG, "Parsed ${regexItems.size} items using raw HTML fallback")
+			return regexItems
+		}
+		
+		// Strategy 5: Generic anchor fallback (any anchors with plausible titles)
+		val anchorItems = parseGenericAnchors(document, url)
+		if (anchorItems.isNotEmpty()) {
+			Log.i(TAG, "Parsed ${anchorItems.size} items using generic anchor fallback")
+			return anchorItems
+		}
+		
 		Log.w(TAG, "All alternative parsing strategies failed for ${source.name}")
 		return emptyList()
+	}
+	
+	/**
+	 * Fallback parser that scans for anchors linking to book detail pages (e.g., /book/90028.htm)
+	 */
+	private fun parseByBookLinks(
+		document: org.jsoup.nodes.Document,
+		baseUrl: String
+	): List<Manga> {
+		// Match common 69书吧 detail links: /book/12345.htm or /book/12345/ or /book/12345.html
+		val bookLinks = document.select("a[href~=\\/book\\/\\d+(\\.html?)?\\/?]")
+		if (bookLinks.isEmpty()) return emptyList()
+		
+		val seen = mutableSetOf<String>()
+		val results = mutableListOf<Manga>()
+		
+		for (link in bookLinks) {
+			val rawHref = link.attr("href").trim()
+			if (rawHref.isBlank()) continue
+			
+			val absoluteUrl = resolveUrl(baseUrl, rawHref)
+			if (!seen.add(absoluteUrl)) continue
+			
+			val title = link.attr("title").ifBlank { link.text() }.trim()
+			if (title.isBlank()) continue
+			
+			// Try to find a meaningful container to extract extra fields
+			val container = link.closest("li") ?: link.parents().firstOrNull { it.tagName() == "div" }
+			val coverElement = container?.selectFirst("img")
+			val coverUrl = coverElement?.attr("data-src").ifNullOrBlank { coverElement?.attr("src") }
+			val author = container?.selectFirst("label, .author, .writer")?.text()?.trim()
+			val intro = container?.selectFirst(".ellipsis_2, .intro, .description, p")?.text()?.trim()
+			
+			results.add(
+				Manga(
+					id = generateMangaId(absoluteUrl),
+					title = title,
+					altTitles = emptySet(),
+					url = absoluteUrl,
+					publicUrl = absoluteUrl,
+					rating = -1f,
+					contentRating = null,
+					coverUrl = coverUrl?.let { resolveUrl(baseUrl, it) } ?: "",
+					tags = emptySet(),
+					state = null,
+					authors = if (author.isNullOrBlank()) emptySet() else setOf(author),
+					largeCoverUrl = null,
+					description = intro,
+					chapters = null,
+					source = source
+				)
+			)
+		}
+		
+		return results
+	}
+	
+	/**
+	 * Specialized parser for 69书吧 list page (newlistbox + li structure)
+	 */
+	private fun parseNewListBox(
+		document: org.jsoup.nodes.Document,
+		baseUrl: String
+	): List<Manga> {
+		val items = document.select("div.newlistbox li")
+		if (items.isEmpty()) return emptyList()
+		
+		val results = mutableListOf<Manga>()
+		for (item in items) {
+			val anchor = item.selectFirst("h3 a") ?: continue
+			val href = anchor.attr("href").trim()
+			val title = anchor.attr("title").ifBlank { anchor.text() }.trim()
+			if (title.isBlank() || href.isBlank()) continue
+			
+			val author = item.selectFirst("label, .author, .writer")?.text()?.trim()
+			val intro = item.selectFirst(".ellipsis_2, .intro, p")?.text()?.trim()
+			val coverEl = item.selectFirst("img")
+			val cover = coverEl?.attr("data-src").ifNullOrBlank { coverEl?.attr("src") }
+				?: derive69ShubaCover(href, baseUrl)
+			
+			val absoluteUrl = resolveUrl(baseUrl, href)
+			
+			results.add(
+				Manga(
+					id = generateMangaId(absoluteUrl),
+					title = title,
+					altTitles = emptySet(),
+					url = absoluteUrl,
+					publicUrl = absoluteUrl,
+					rating = -1f,
+					contentRating = null,
+					coverUrl = cover?.let { resolveUrl(baseUrl, it) } ?: "",
+					tags = emptySet(),
+					state = null,
+					authors = if (author.isNullOrBlank()) emptySet() else setOf(author),
+					largeCoverUrl = null,
+					description = intro,
+					chapters = null,
+					source = source
+				)
+			)
+		}
+		
+		if (results.isNotEmpty()) {
+			Log.i(TAG, "Parsed ${results.size} items using newlistbox fallback")
+		}
+		
+		return results
+	}
+	
+	private fun derive69ShubaCover(href: String, baseUrl: String): String? {
+		val id = Regex("/(\\d+)\\.htm").find(href)?.groupValues?.getOrNull(1) ?: return null
+		if (id.length < 3) return null
+		val prefix = id.dropLast(3)
+		val origin = try {
+			val url = java.net.URL(baseUrl)
+			"${url.protocol}://${url.host}"
+		} catch (e: Exception) {
+			baseUrl.removeSuffix("/")
+		}
+		return "$origin/fengmian/$prefix/$id/${id}s.jpg"
+	}
+
+	/**
+	 * Fallback chapter extraction when rule-based parsing returns empty.
+	 * Looks for common numeric chapter links in the document or raw HTML.
+	 */
+	private fun parseChaptersFallback(
+		document: org.jsoup.nodes.Document,
+		rawHtml: String,
+		baseUrl: String
+	): List<MangaChapter> {
+		// Strategy 1: anchors with numeric paths ending in html/htm
+		val anchors = document.select("a[href~=\\.(?i:html?)$]")
+		val chapters = mutableListOf<MangaChapter>()
+		val seen = mutableSetOf<String>()
+		var index = 0
+		
+		for (a in anchors) {
+			val href = a.attr("href").trim()
+			if (href.isBlank()) continue
+			// Require numeric id in href and a plausible chapter path
+			if (!Regex("\\d").containsMatchIn(href)) continue
+			if (!Regex("(?:/)(txt|book|novel|xs|chapter|chapters)/", RegexOption.IGNORE_CASE).containsMatchIn(href) &&
+				!Regex("/\\d+\\.html?", RegexOption.IGNORE_CASE).containsMatchIn(href)
+			) continue
+			
+			val title = a.text().ifBlank { a.attr("title") }.trim()
+			// Require chapter-like title (contains number or '第')
+			if (title.length < 2) continue
+			if (!Regex("\\d|第").containsMatchIn(title)) continue
+			
+			val abs = resolveUrl(baseUrl, href)
+			if (!seen.add(abs)) continue
+			if (abs == baseUrl) continue
+			
+			index += 1
+			chapters.add(
+				MangaChapter(
+					id = generateChapterId(abs),
+					title = title,
+					number = index.toFloat(),
+					volume = 0,
+					url = abs,
+					scanlator = null,
+					uploadDate = 0,
+					branch = null,
+					source = source
+				)
+			)
+		}
+		
+		// Strategy 2: regex on raw HTML for /txt/ or /book/ numeric chapter URLs
+		if (chapters.isEmpty()) {
+			val pattern = Regex("(/(?:txt|book|novel|xs)/[\\w\\d]+/[\\w\\d]+\\.(?:html?|htm))", RegexOption.IGNORE_CASE)
+			pattern.findAll(rawHtml).forEach { match ->
+				val abs = resolveUrl(baseUrl, match.value)
+				if (!seen.add(abs)) return@forEach
+				
+				val windowStart = maxOf(0, match.range.first - 80)
+				val windowEnd = minOf(rawHtml.length, match.range.last + 80)
+				val window = rawHtml.substring(windowStart, windowEnd)
+				val title = Regex(">([^<>]{2,80})</a>").find(window)?.groupValues?.getOrNull(1)
+					?.trim()
+					?: abs.substringAfterLast('/').substringBefore('.')
+				if (!Regex("\\d|第").containsMatchIn(title)) return@forEach
+				
+				index += 1
+				chapters.add(
+					MangaChapter(
+						id = generateChapterId(abs),
+						title = title,
+						number = index.toFloat(),
+						volume = 0,
+						url = abs,
+						scanlator = null,
+						uploadDate = 0,
+						branch = null,
+						source = source
+					)
+				)
+			}
+		}
+		
+		// Avoid returning tiny / obviously wrong lists
+		if (chapters.size < 3) {
+			return emptyList()
+		}
+		
+		Log.i(TAG, "Parsed ${chapters.size} chapters using fallback extraction")
+		
+		return chapters
+	}
+
+	/**
+	 * Read response body respecting charset hints (headers or meta charset).
+	 */
+	private fun readBodyWithCharset(response: okhttp3.Response): String {
+		val body = response.body ?: return ""
+		val bytes = try {
+			body.bytes()
+		} catch (e: Exception) {
+			return ""
+		}
+		
+		// Default decode as UTF-8
+		val utf8Text = bytes.toString(Charsets.UTF_8)
+		val charsetFromHeader = response.header("Content-Type")
+			?.substringAfter("charset=", "")
+			?.takeIf { it.isNotBlank() }
+		val charset = when {
+			!charsetFromHeader.isNullOrBlank() -> {
+				runCatching { Charset.forName(charsetFromHeader.trim()) }.getOrNull()
+			}
+			utf8Text.contains("charset=\"gbk\"", ignoreCase = true) ||
+				utf8Text.contains("charset=gbk", ignoreCase = true) ||
+				utf8Text.contains("charset=\"gb2312\"", ignoreCase = true) ||
+				utf8Text.contains("charset=gb2312", ignoreCase = true) -> Charset.forName("GBK")
+			else -> Charsets.UTF_8
+		}
+		
+		return if (charset == null || charset == Charsets.UTF_8) utf8Text else String(bytes, charset)
+	}
+	
+	/**
+	 * Specialized parser for 铅笔小说 (23qb) module-item cards
+	 */
+	private fun parseModuleItems(document: org.jsoup.nodes.Document, baseUrl: String): List<Manga> {
+		val elements = document.select(".module-item")
+		if (elements.isEmpty()) return emptyList()
+		
+		val results = mutableListOf<Manga>()
+		for (el in elements) {
+			val titleEl = el.selectFirst(".module-item-title a")
+			val href = titleEl?.attr("href")?.trim().orEmpty()
+			val name = titleEl?.attr("title")?.ifBlank { titleEl.text() }?.trim().orEmpty()
+			if (name.isBlank() || href.isBlank()) continue
+			
+			val author = el.selectFirst(".module-item-text")?.text()?.trim()
+			val coverEl = el.selectFirst("img")
+			val cover = coverEl?.attr("data-src").ifNullOrBlank { coverEl?.attr("data-original") }
+				?: coverEl?.attr("src")
+			
+			val absoluteUrl = resolveUrl(baseUrl, href)
+			
+			results.add(
+				Manga(
+					id = generateMangaId(absoluteUrl),
+					title = name,
+					altTitles = emptySet(),
+					url = absoluteUrl,
+					publicUrl = absoluteUrl,
+					rating = -1f,
+					contentRating = null,
+					coverUrl = cover?.let { resolveUrl(baseUrl, it) } ?: "",
+					tags = emptySet(),
+					state = null,
+					authors = if (author.isNullOrBlank()) emptySet() else setOf(author),
+					largeCoverUrl = null,
+					description = null,
+					chapters = null,
+					source = source
+				)
+			)
+		}
+		
+		if (results.isNotEmpty()) {
+			Log.i(TAG, "Parsed ${results.size} items using module-item fallback")
+		}
+		
+		return results
+	}
+	
+	private fun String?.ifNullOrBlank(fallback: () -> String?): String? {
+		return if (this.isNullOrBlank()) fallback() else this
+	}
+	
+	/**
+	 * Parse book links directly from raw HTML using regex (for pages rendered by scripts)
+	 */
+	private fun parseByBookLinksFromRaw(
+		rawHtml: String,
+		baseUrl: String
+	): List<Manga> {
+		// Match common book URLs, including numeric IDs and known patterns (book, novel, xs, shoujixs, b12345)
+		val pattern = Regex("(/(?:book|novel|xs|shoujixs|b)\\/[^\"'\\s<>]+)", RegexOption.IGNORE_CASE)
+		val seen = mutableSetOf<String>()
+		val results = mutableListOf<Manga>()
+		
+		pattern.findAll(rawHtml).forEach { matchResult ->
+			val href = matchResult.value
+			val absoluteUrl = resolveUrl(baseUrl, href)
+			if (!seen.add(absoluteUrl)) return@forEach
+			
+			// Try to capture title from nearby attributes or text
+			val startIdx = maxOf(0, matchResult.range.first - 200)
+			val endIdx = minOf(rawHtml.length, matchResult.range.last + 200)
+			val window = rawHtml.substring(startIdx, endIdx)
+			
+			val title = Regex("title=\"([^\"]{1,80})\"").find(window)?.groupValues?.getOrNull(1)
+				?: Regex("alt=\"([^\"]{1,80})\"").find(window)?.groupValues?.getOrNull(1)
+				?: Regex(">\\s*([^<>]{1,80})\\s*</a>").find(window)?.groupValues?.getOrNull(1)
+				?: absoluteUrl.substringAfterLast("/book/").substringBefore(".htm").substringBefore(".html")
+			
+			val cover = Regex("(?i)(https?://[^\\s\"']+?(?:cdnshu\\.com|cdn\\.cdnshu\\.com)[^\\s\"']+?(?:jpg|jpeg|png|webp))")
+				.find(window)?.groupValues?.getOrNull(1)
+			
+			results.add(
+				Manga(
+					id = generateMangaId(absoluteUrl),
+					title = title.trim(),
+					altTitles = emptySet(),
+					url = absoluteUrl,
+					publicUrl = absoluteUrl,
+					rating = -1f,
+					contentRating = null,
+					coverUrl = cover?.let { resolveUrl(baseUrl, it) } ?: "",
+					tags = emptySet(),
+					state = null,
+					authors = emptySet(),
+					largeCoverUrl = null,
+					description = null,
+					chapters = null,
+					source = source
+				)
+			)
+		}
+		
+		return results
+	}
+	
+	/**
+	 * Very generic fallback: scan anchors and use text as title when it looks like a book entry.
+	 */
+	private fun parseGenericAnchors(document: org.jsoup.nodes.Document, baseUrl: String): List<Manga> {
+		val anchors = document.select("a[href]")
+		if (anchors.isEmpty()) return emptyList()
+		
+		val results = mutableListOf<Manga>()
+		val seen = mutableSetOf<String>()
+		
+		for (a in anchors) {
+			val title = a.text()?.trim().orEmpty()
+			val href = a.attr("href").trim()
+			
+			// Skip trivial or non-book links
+			if (title.length < 3) continue
+			if (href.isBlank()) continue
+			if (href.startsWith("javascript:") || href.startsWith("#")) continue
+			
+			val absoluteUrl = resolveUrl(baseUrl, href)
+			if (!seen.add(absoluteUrl)) continue
+			
+			results.add(
+				Manga(
+					id = generateMangaId(absoluteUrl),
+					title = title,
+					altTitles = emptySet(),
+					url = absoluteUrl,
+					publicUrl = absoluteUrl,
+					rating = -1f,
+					contentRating = null,
+					coverUrl = "",
+					tags = emptySet(),
+					state = null,
+					authors = emptySet(),
+					largeCoverUrl = null,
+					description = null,
+					chapters = null,
+					source = source
+				)
+			)
+			
+			if (results.size >= 100) break
+		}
+		
+		return results
 	}
 	
 	/**
@@ -704,8 +1317,10 @@ class BasicJsonRepository(
 		}
 		
 		// Check for other issues
-		if (isAntiBotProtection(html) || isErrorPage(html)) {
-			Log.w(TAG, "Detected protection or error on details page for ${source.name}")
+		if (isAntiBotProtection(html) || (html.length < 4096 && isErrorPage(html))) {
+			Log.w(TAG, "Detected protection or error on details page for ${source.name}, attempting Cloudflare flow as fallback")
+			val processed = handleCloudflareForDetails(html, url)
+			if (processed.isNotBlank()) return processed
 			return ""
 		}
 		
@@ -723,8 +1338,10 @@ class BasicJsonRepository(
 		}
 		
 		// Check for other issues
-		if (isAntiBotProtection(html) || isErrorPage(html)) {
-			Log.w(TAG, "Detected protection or error on content page for ${source.name}")
+		if (isAntiBotProtection(html) || (html.length < 4096 && isErrorPage(html))) {
+			Log.w(TAG, "Detected protection or error on content page for ${source.name}, attempting Cloudflare flow as fallback")
+			val processed = handleCloudflareForContent(html, url)
+			if (processed.isNotBlank()) return processed
 			return ""
 		}
 		
@@ -762,6 +1379,36 @@ class BasicJsonRepository(
 				}
 			} catch (e: Exception) {
 				Log.e(TAG, "Failed to execute init script for details Cloudflare handling", e)
+			}
+		}
+		
+		// Fallback: launch browser to pass challenge, then retry
+		if (browserLauncher != null) {
+			Log.i(TAG, "Attempting browser-based Cloudflare bypass for details page")
+			try {
+				val result = browserLauncher.launchAndWait(url, "Cloudflare验证", source)
+				if (result.isNotBlank()) {
+					// If browser already returned usable HTML, use it directly
+					if (!isCloudflareVerification(result)) {
+						Log.i(TAG, "Successfully bypassed Cloudflare for details via browser (using browser HTML)")
+						return result
+					}
+					
+					// Otherwise retry network with cookies synced from WebView
+					val response = legadoHttpClient.get(url, buildRequestHeaders(), source = source)
+					val newHtml = readBodyWithCharset(response)
+					val newCode = response.code
+					response.close()
+					
+					Log.d(TAG, "Details re-request after browser: HTTP $newCode, length=${newHtml.length}")
+					
+					if (newHtml.isNotBlank() && !isCloudflareVerification(newHtml)) {
+						Log.i(TAG, "Successfully bypassed Cloudflare for details via browser")
+						return newHtml
+					}
+				}
+			} catch (e: Exception) {
+				Log.e(TAG, "Browser-based Cloudflare bypass failed for details", e)
 			}
 		}
 		
@@ -805,6 +1452,35 @@ class BasicJsonRepository(
 			}
 		}
 		
+		// Fallback: launch browser to pass challenge, then retry
+		if (browserLauncher != null) {
+			Log.i(TAG, "Attempting browser-based Cloudflare bypass for content page")
+			try {
+				val result = browserLauncher.launchAndWait(url, "Cloudflare验证", source)
+				if (result.isNotBlank()) {
+					// Use browser HTML if it's already valid
+					if (!isCloudflareVerification(result)) {
+						Log.i(TAG, "Successfully bypassed Cloudflare for content via browser (using browser HTML)")
+						return result
+					}
+					
+					val response = legadoHttpClient.get(url, buildRequestHeaders(), source = source)
+					val newHtml = readBodyWithCharset(response)
+					val newCode = response.code
+					response.close()
+					
+					Log.d(TAG, "Content re-request after browser: HTTP $newCode, length=${newHtml.length}")
+					
+					if (newHtml.isNotBlank() && !isCloudflareVerification(newHtml)) {
+						Log.i(TAG, "Successfully bypassed Cloudflare for content via browser")
+						return newHtml
+					}
+				}
+			} catch (e: Exception) {
+				Log.e(TAG, "Browser-based Cloudflare bypass failed for content", e)
+			}
+		}
+		
 		Log.w(TAG, "Cannot handle Cloudflare verification on content page for ${source.name}")
 		return ""
 	}
@@ -832,19 +1508,30 @@ class BasicJsonRepository(
 		
 		try {
 			// Make HTTP request to details page using LegadoHttpClient
-			val response = legadoHttpClient.get(manga.url, customHeaders, source = source)
-			if (!response.isSuccessful) {
-				Log.e(TAG, "HTTP request failed: ${response.code}")
+			val response = getWithCloudflareRetry(
+				RequestConfig(
+					url = manga.url,
+					headers = buildRequestHeaders()
+				)
+			)
+			if (response == null) {
+				Log.e(TAG, "Failed to fetch details after Cloudflare handling")
 				return manga
 			}
 			
-			val html = response.body?.string() ?: ""
+			// Read response body first (even for error codes like 403/503)
+			val html = readBodyWithCharset(response)
+			val httpCode = response.code
 			response.close()
 			
-			// Handle common issues in the HTML response
+			// Handle common issues in the HTML response (including Cloudflare on 403/503)
 			val processedHtml = handleCommonIssuesForDetails(html, manga.url)
 			if (processedHtml.isEmpty()) {
-				Log.w(TAG, "HTML processing failed for details page")
+				if (!response.isSuccessful) {
+					Log.e(TAG, "HTTP request failed: ${httpCode} for details page and couldn't handle the response")
+				} else {
+					Log.w(TAG, "HTML processing failed for details page")
+				}
 				return manga
 			}
 			
@@ -933,7 +1620,7 @@ class BasicJsonRepository(
 				val chapterItems = ruleEngine.parseList(document, tocRule.chapterList, chapterRules, tocContext)
 				Log.d(TAG, "Parsed ${chapterItems.size} chapters")
 				
-				chapterItems.mapIndexedNotNull { index, item ->
+				val parsed = chapterItems.mapIndexedNotNull { index, item ->
 					val chapterName = item["name"]?.trim()
 					val chapterUrl = item["url"]?.trim()
 					
@@ -955,6 +1642,13 @@ class BasicJsonRepository(
 						branch = null,
 						source = source
 					)
+				}
+
+				if (parsed.isNotEmpty()) {
+					parsed
+				} else {
+					Log.w(TAG, "Parsed 0 chapters with rule, attempting fallback extraction")
+					parseChaptersFallback(document, processedHtml, updatedManga.url)
 				}
 			} else {
 				Log.w(TAG, "No ruleToc defined for ${source.name}")
@@ -998,19 +1692,30 @@ class BasicJsonRepository(
 			}
 			
 			// Make HTTP request to chapter page using LegadoHttpClient
-			val response = legadoHttpClient.get(chapter.url, customHeaders, source = source)
-			if (!response.isSuccessful) {
-				Log.e(TAG, "HTTP request failed: ${response.code}")
+			val response = getWithCloudflareRetry(
+				RequestConfig(
+					url = chapter.url,
+					headers = buildRequestHeaders()
+				)
+			)
+			if (response == null) {
+				Log.e(TAG, "Failed to fetch content after Cloudflare handling")
 				return emptyList()
 			}
 			
-			val html = response.body?.string() ?: ""
+			// Read response body first (even for error codes like 403/503)
+			val html = readBodyWithCharset(response)
+			val httpCode = response.code
 			response.close()
 			
-			// Handle common issues in the HTML response
+			// Handle common issues in the HTML response (including Cloudflare on 403/503)
 			val processedHtml = handleCommonIssuesForContent(html, chapter.url)
 			if (processedHtml.isEmpty()) {
-				Log.w(TAG, "HTML processing failed for content page")
+				if (!response.isSuccessful) {
+					Log.e(TAG, "HTTP request failed: ${httpCode} for content page and couldn't handle the response")
+				} else {
+					Log.w(TAG, "HTML processing failed for content page")
+				}
 				return emptyList()
 			}
 			

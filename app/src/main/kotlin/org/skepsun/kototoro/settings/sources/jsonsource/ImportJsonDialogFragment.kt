@@ -17,6 +17,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.ui.AlertDialogFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.DialogImportJsonBinding
@@ -76,6 +77,9 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		viewModel.selectedFileUri.observe(viewLifecycleOwner) { uri ->
 			binding.textViewSelectedFile.isVisible = uri != null
 			binding.textViewSelectedFile.text = uri?.lastPathSegment ?: ""
+			if (uri?.lastPathSegment?.endsWith(".js", ignoreCase = true) == true) {
+				binding.autoCompleteSourceType.setText(getString(R.string.source_type_js), false)
+			}
 		}
 		
 		// Clear status when user types
@@ -107,7 +111,8 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	private fun setupSourceTypeDropdown(binding: DialogImportJsonBinding) {
 		val sourceTypes = arrayOf(
 			getString(R.string.source_type_legado),
-			getString(R.string.source_type_tvbox)
+			getString(R.string.source_type_tvbox),
+			getString(R.string.source_type_js),
 		)
 		
 		val adapter = ArrayAdapter(
@@ -125,16 +130,16 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	/**
 	 * Opens the file picker to select a JSON file.
 	 */
-	private fun openFilePicker() {
-		val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-			addCategory(Intent.CATEGORY_OPENABLE)
-			type = "application/json"
-			// Also accept text files as some JSON files may have .txt extension
-			putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain"))
-		}
-		
-		filePickerLauncher.launch(intent)
-	}
+    private fun openFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // JSON or JS for dynamic sources
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/javascript", "text/javascript"))
+        }
+
+        filePickerLauncher.launch(intent)
+    }
 	
 	/**
 	 * Loads content from the selected file URI.
@@ -180,10 +185,16 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		binding.textInputLayoutJson.error = null
 		
 		// Determine source type from dropdown selection
-		val sourceType = when (binding.autoCompleteSourceType.text.toString()) {
-			getString(R.string.source_type_tvbox) -> JsonSourceType.TVBOX
+		val sourceType = when {
+			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_tvbox) -> JsonSourceType.TVBOX
+			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_js) -> JsonSourceType.JS
+			binding.textViewSelectedFile.text?.toString()?.endsWith(".js", ignoreCase = true) == true -> JsonSourceType.JS
 			else -> JsonSourceType.LEGADO
 		}
+		
+		// Apply import options
+		viewModel.skipUnreachableSources = binding.checkboxSkipUnreachable.isChecked
+		viewModel.skipNoExploreSources = binding.checkboxSkipNoExplore.isChecked
 		
 		// Trigger import
 		viewModel.importJson(jsonContent, sourceType)

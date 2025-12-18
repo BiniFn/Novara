@@ -68,25 +68,16 @@ class SourceGroupManager @Inject constructor(
 		return try {
 			when (source.entity.type) {
 				org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
-					// Parse Legado config to get bookSourceType
-					val config = kotlinx.serialization.json.Json {
-						ignoreUnknownKeys = true
-						isLenient = true
-					}.decodeFromString<org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource>(
-						source.entity.config
-					)
-					
-					// bookSourceType: 0=文字(novel), 1=音频(audio), 2=图片(manga)
-					when (config.bookSourceType) {
-						0 -> ContentGroup.NOVEL  // 文字
-						1 -> ContentGroup.OTHER  // 音频
-						2 -> ContentGroup.MANGA  // 图片
-						else -> ContentGroup.OTHER
-					}
+					// Per convention: all Legado JSON sources are treated as novel sources
+					ContentGroup.NOVEL
 				}
 				org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
 					// TVBox sources are typically video
 					ContentGroup.VIDEO
+				}
+				org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> {
+					// JS sources follow Venera comic model
+					ContentGroup.MANGA
 				}
 			}
 		} catch (e: Exception) {
@@ -107,6 +98,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.NATIVE -> OriginGroup.NATIVE
 			SourceType.JSON_LEGADO -> OriginGroup.LEGADO_JSON
 			SourceType.JSON_TVBOX -> OriginGroup.TVBOX_JSON
+			SourceType.JSON_JS -> OriginGroup.JS_JSON
 			SourceType.EXTERNAL -> OriginGroup.EXTERNAL
 		}
 	}
@@ -193,6 +185,11 @@ enum class OriginGroup {
 	 * JSON sources using TVBox format
 	 */
 	TVBOX_JSON,
+	
+	/**
+	 * JavaScript sources (Venera style)
+	 */
+	JS_JSON,
 	
 	/**
 	 * External sources

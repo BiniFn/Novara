@@ -55,6 +55,8 @@ kotest = "5.9.1"
 xsoup = "0.3.7"
 jsonpath = "2.9.0"
 rhino = "1.7.15"
+quickjsAndroid = "0.1.0"
+quickjsKt = "1.0.0-alpha13"
 
 [libraries]
 acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acra" }
@@ -132,6 +134,8 @@ kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.
 xsoup = { module = "us.codecraft:xsoup", version.ref = "xsoup" }
 jsonpath = { module = "com.jayway.jsonpath:json-path", version.ref = "jsonpath" }
 rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
+quickjsAndroid = { module = "com.github.seven332:quickjs-android", version.ref = "quickjsAndroid" }
+quickjsKt = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjsKt" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "gradle" }

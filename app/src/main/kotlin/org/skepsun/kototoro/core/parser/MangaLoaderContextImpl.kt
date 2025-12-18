@@ -2,6 +2,7 @@ package org.skepsun.kototoro.core.parser
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Base64
 import androidx.core.os.LocaleListCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -64,6 +65,13 @@ class MangaLoaderContextImpl @Inject constructor(
 		return Base64.decode(data, Base64.DEFAULT)
 	}
 
+	fun getSourcePreferences(sourceName: String): SharedPreferences {
+		return androidContext.getSharedPreferences(
+			sourceName.replace(java.io.File.separatorChar, '$'),
+			Context.MODE_PRIVATE,
+		)
+	}
+
 	override fun getPreferredLocales(): List<Locale> {
 		return LocaleListCompat.getAdjustedDefault().toList()
 	}
@@ -87,4 +95,8 @@ class MangaLoaderContextImpl @Inject constructor(
 	}
 
 	override fun createBitmap(width: Int, height: Int): Bitmap = BitmapWrapper.create(width, height)
+
+	fun loadAssetText(name: String): String {
+		return androidContext.assets.open(name).bufferedReader().use { it.readText() }
+	}
 }

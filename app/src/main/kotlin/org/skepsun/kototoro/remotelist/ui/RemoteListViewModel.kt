@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.parsers.model.MangaSource as ParserMangaSource
 import org.skepsun.kototoro.core.model.distinctById
 import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
@@ -63,12 +64,13 @@ open class RemoteListViewModel @Inject constructor(
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>
 ) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), FilterCoordinator.Owner {
 
-	val source = MangaSource(savedStateHandle[RemoteListFragment.ARG_SOURCE])
+	private val initialSource = MangaSource(savedStateHandle[RemoteListFragment.ARG_SOURCE])
 	val isRandomLoading = MutableStateFlow(false)
 	val onOpenManga = MutableEventFlow<Manga>()
     val onSourceBroken = MutableEventFlow<Unit>()
 
-	protected val repository = mangaRepositoryFactory.create(source)
+	protected val repository = mangaRepositoryFactory.create(initialSource)
+	val source: ParserMangaSource = repository.source
 	private val mangaList = MutableStateFlow<List<Manga>?>(null)
 	private val hasNextPage = MutableStateFlow(false)
 	private val listError = MutableStateFlow<Throwable?>(null)

@@ -168,14 +168,17 @@ class NovelReaderView @JvmOverloads constructor(
             val bitmap = loadImage(imageSpan.imagePath)
             if (bitmap != null) {
                 val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+                val targetWidth = min(imageSpan.width, bitmap.width.toFloat())
+                val targetHeight = targetWidth * bitmap.height / bitmap.width
+                val leftPos = (imageSpan.width - targetWidth) / 2f
                 val dstRect = RectF(
-                    0f,
+                    leftPos,
                     imageSpan.yPosition,
-                    imageSpan.width,
-                    imageSpan.yPosition + imageSpan.height
+                    leftPos + targetWidth,
+                    imageSpan.yPosition + targetHeight
                 )
                 canvas.drawBitmap(bitmap, srcRect, dstRect, imagePaint)
-                android.util.Log.d("NovelReaderView", "Drew image at y=${imageSpan.yPosition}, size=${imageSpan.width}x${imageSpan.height}")
+                android.util.Log.d("NovelReaderView", "Drew image at y=${imageSpan.yPosition}, size=${targetWidth}x${targetHeight}")
             } else {
                 // 绘制占位符（灰色矩形）
                 val placeholderPaint = Paint().apply {

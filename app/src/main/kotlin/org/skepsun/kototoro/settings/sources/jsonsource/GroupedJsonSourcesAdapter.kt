@@ -8,6 +8,7 @@ import android.view.animation.RotateAnimation
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroupInfo
@@ -25,6 +26,11 @@ import org.skepsun.kototoro.databinding.ItemSourceGroupHeaderBinding
 class GroupedJsonSourcesAdapter(
 	private val listener: GroupedSourceListener,
 ) : ListAdapter<GroupedSourceItem, RecyclerView.ViewHolder>(DiffCallback()) {
+	
+	// Validation state map: sourceId -> true/false
+	var validationStates: Map<String, Boolean?> = emptyMap()
+	// Selection state
+	var selectedIds: Set<String> = emptySet()
 	
 	companion object {
 		private const val VIEW_TYPE_HEADER = 0
@@ -63,7 +69,7 @@ class GroupedJsonSourcesAdapter(
 	override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 		when (val item = getItem(position)) {
 			is GroupedSourceItem.Header -> (holder as GroupHeaderViewHolder).bind(item)
-			is GroupedSourceItem.Source -> (holder as SourceViewHolder).bind(item)
+			is GroupedSourceItem.Source -> (holder as SourceViewHolder).bind(item, validationStates, selectedIds)
 		}
 	}
 	
@@ -103,30 +109,100 @@ class GroupedJsonSourcesAdapter(
 		private val listener: GroupedSourceListener,
 	) : RecyclerView.ViewHolder(binding.root) {
 		
-		fun bind(item: GroupedSourceItem.Source) {
+		fun bind(item: GroupedSourceItem.Source, validationStates: Map<String, Boolean?>, selectedIds: Set<String>) {
 			val sourceInfo = item.sourceInfo
 			
 			// Set icon based on content type
 			binding.textViewIcon.text = getContentTypeIcon(sourceInfo)
 			
 			// Set source name (use the name property from MangaSource)
-			binding.textViewName.text = sourceInfo.name
+			val mangaSource = sourceInfo.mangaSource
+			binding.textViewName.text = when (mangaSource) {
+				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> mangaSource.displayName.ifBlank { mangaSource.name }
+				else -> sourceInfo.name
+			}
 			
 			// Set type label with content type
 			val contentTypeLabel = getContentTypeLabel(sourceInfo)
 			val originTypeLabel = getOriginTypeLabel(sourceInfo.name)
 			binding.textViewType.text = "$contentTypeLabel · $originTypeLabel"
 			
-			// Set URL (for now, just show the source name)
-			binding.textViewUrl.text = sourceInfo.name
-			
-			// For now, we don't have enabled state for native sources
-			// Hide the switch for native sources
-			binding.switchEnabled.visibility = View.GONE
-			
-			// Hide test and delete buttons for native sources
-			binding.buttonTest.visibility = View.GONE
-			binding.buttonDelete.visibility = View.GONE
+			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
+				// Selection
+				binding.checkboxSelect.visibility = View.VISIBLE
+				binding.checkboxSelect.isChecked = selectedIds.contains(mangaSource.entity.id)
+				binding.checkboxSelect.setOnCheckedChangeListener { _, isChecked ->
+					listener.onSelectSource(mangaSource.entity.id, isChecked)
+				}
+				
+				// Parse config to extract base URL and explore rule status (Legado only)
+				val legado = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
+					runCatching {
+						kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
+							.decodeFromString<org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource>(mangaSource.entity.config)
+					}.getOrNull()
+				} else {
+					null
+				}
+				binding.textViewUrl.text = legado?.bookSourceUrl ?: mangaSource.entity.id
+				
+				// Enabled switch/buttons visible
+				binding.switchEnabled.visibility = View.VISIBLE
+				binding.switchEnabled.isChecked = sourceInfo.isEnabled
+				binding.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
+					listener.onToggleEnabled(mangaSource.entity.id, isChecked)
+				}
+				binding.buttonTest.visibility = View.VISIBLE
+				binding.buttonDelete.visibility = View.VISIBLE
+				binding.buttonTest.setOnClickListener { listener.onTestSource(mangaSource.entity.id) }
+				binding.buttonDelete.setOnClickListener { listener.onDeleteSource(mangaSource.entity.id) }
+				
+				// Badges
+				var badgesVisible = false
+				val hasExplore = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
+					!(legado?.ruleExplore?.bookList.isNullOrBlank())
+				} else {
+					true
+				}
+				if (!hasExplore) {
+					binding.chipSearchOnly.visibility = View.VISIBLE
+					binding.chipSearchOnly.text = binding.root.context.getString(R.string.badge_search_only)
+					badgesVisible = true
+				} else {
+					binding.chipSearchOnly.visibility = View.GONE
+				}
+				val valid = validationStates[mangaSource.entity.id]
+				when (valid) {
+					true -> {
+						binding.chipValid.visibility = View.VISIBLE
+						binding.chipValid.text = binding.root.context.getString(R.string.badge_valid)
+						binding.chipInvalid.visibility = View.GONE
+						badgesVisible = true
+					}
+					false -> {
+						binding.chipValid.visibility = View.GONE
+						binding.chipInvalid.visibility = View.VISIBLE
+						binding.chipInvalid.text = binding.root.context.getString(R.string.badge_invalid)
+						badgesVisible = true
+					}
+					else -> {
+						binding.chipValid.visibility = View.GONE
+						binding.chipInvalid.visibility = View.GONE
+					}
+				}
+				binding.layoutBadges.visibility = if (badgesVisible) View.VISIBLE else View.GONE
+			} else {
+				// Native sources: hide badges and controls
+				binding.textViewUrl.text = sourceInfo.name
+				binding.checkboxSelect.visibility = View.GONE
+				binding.switchEnabled.visibility = View.GONE
+				binding.buttonTest.visibility = View.GONE
+				binding.buttonDelete.visibility = View.GONE
+				binding.layoutBadges.visibility = View.GONE
+				binding.chipSearchOnly.visibility = View.GONE
+				binding.chipValid.visibility = View.GONE
+				binding.chipInvalid.visibility = View.GONE
+			}
 		}
 		
 		private fun getContentTypeLabel(sourceInfo: MangaSourceInfo): String {
@@ -234,6 +310,7 @@ class GroupedJsonSourcesAdapter(
 		fun onToggleEnabled(sourceId: String, enabled: Boolean)
 		fun onTestSource(sourceId: String)
 		fun onDeleteSource(sourceId: String)
+		fun onSelectSource(sourceId: String, selected: Boolean)
 	}
 }
 

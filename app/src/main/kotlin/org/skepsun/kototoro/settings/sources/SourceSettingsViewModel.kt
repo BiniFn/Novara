@@ -12,9 +12,12 @@ import org.skepsun.kototoro.core.model.MangaSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.JsMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.prefs.SourceSettings
+import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -24,6 +27,9 @@ import org.skepsun.kototoro.parsers.MangaParserAuthProvider
 import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.ParseException
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 @HiltViewModel
@@ -32,10 +38,12 @@ class SourceSettingsViewModel @Inject constructor(
 	mangaRepositoryFactory: MangaRepository.Factory,
 	private val cookieJar: MutableCookieJar,
 	private val mangaSourcesRepository: MangaSourcesRepository,
+	private val jsSourceParser: JSSourceParser,
 ) : BaseViewModel(), SharedPreferences.OnSharedPreferenceChangeListener {
 
-	val source = MangaSource(savedStateHandle.get<String>(AppRouter.KEY_SOURCE))
-	val repository = mangaRepositoryFactory.create(source)
+	private val initialSource = MangaSource(savedStateHandle.get<String>(AppRouter.KEY_SOURCE))
+	val repository = mangaRepositoryFactory.create(initialSource)
+	val source = repository.source
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val username = MutableStateFlow<String?>(null)
@@ -50,6 +58,23 @@ class SourceSettingsViewModel @Inject constructor(
 				browserUrl.value = "https://${repository.domain}"
 				repository.getConfig().subscribe(this)
 				loadUsername(repository.getAuthProvider())
+			}
+			is org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository -> {
+				val url = runCatching {
+					val json = Json { ignoreUnknownKeys = true; isLenient = true }
+					val config = json.decodeFromString<LegadoBookSource>(
+						(repository.source as JsonMangaSource).entity.config
+					)
+					config.bookSourceUrl.takeIf { it.isNotBlank() }
+				}.getOrNull()
+				browserUrl.value = url
+			}
+			is JsMangaRepository -> {
+				val url = runCatching {
+					val config = (repository.source as? JsonMangaSource)?.entity?.config ?: return@runCatching null
+					jsSourceParser.parseMetadata(config).getOrNull()?.homepage?.takeIf { it.isNotBlank() }
+				}.getOrNull()
+				browserUrl.value = url
 			}
 		}
 	}

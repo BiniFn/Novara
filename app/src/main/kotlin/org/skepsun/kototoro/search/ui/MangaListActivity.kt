@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -56,6 +57,7 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
 import kotlin.math.absoluteValue
 import com.google.android.material.R as materialR
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MangaListActivity :
@@ -65,6 +67,9 @@ class MangaListActivity :
     AppBarLayout.OnOffsetChangedListener {
 
     private var isFoldUnfolded = false
+    
+    @Inject
+    lateinit var mangaRepositoryFactory: org.skepsun.kototoro.core.parser.MangaRepository.Factory
 
 	override val appBar: AppBarLayout
 		get() = viewBinding.appbar
@@ -90,7 +95,16 @@ class MangaListActivity :
 			viewBinding.appbar.addOnOffsetChangedListener(this)
 		}
 		viewBinding.buttonOrder?.setOnClickListener(this)
+        // 注意：对于 JSON_* 源，这里拿到的是占位 MangaSource，需要通过 repository 解析真实名称
         title = source.getTitle(this)
+        lifecycleScope.launch(Dispatchers.Default) {
+            val resolvedTitle = runCatching {
+                mangaRepositoryFactory.create(source).source.getTitle(this@MangaListActivity)
+            }.getOrDefault(title.toString())
+            withContext(Dispatchers.Main) {
+                title = resolvedTitle
+            }
+        }
         initList(source, filter, sortOrder)
 
         observeFoldableState()

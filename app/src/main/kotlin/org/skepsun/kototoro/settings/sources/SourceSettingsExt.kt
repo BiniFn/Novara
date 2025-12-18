@@ -53,6 +53,21 @@ private fun PreferenceFragmentCompat.addPreferencesFromParserRepository(reposito
 				}
 			}
 
+			is ConfigKey.Text -> {
+				EditTextPreference(screen.context).apply {
+					summaryProvider = EditTextDefaultSummaryProvider(key.defaultValue)
+					setOnBindEditTextListener(
+						EditTextBindListener(
+							inputType = EditorInfo.TYPE_CLASS_TEXT,
+							hint = key.defaultValue,
+							validator = null,
+						),
+					)
+					title = key.title
+					setDialogTitle(key.title)
+				}
+			}
+
 			is ConfigKey.UserAgent -> {
 				AutoCompleteTextViewPreference(screen.context).apply {
 					entries = arrayOf(

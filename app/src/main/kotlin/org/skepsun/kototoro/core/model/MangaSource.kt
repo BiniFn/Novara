@@ -119,7 +119,7 @@ fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()
 	LocalMangaSource -> context.getString(R.string.local_storage)
 	TestMangaSource -> context.getString(R.string.test_parser)
 	is ExternalMangaSource -> source.resolveName(context)
-	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> source.displayName
+	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> source.displayName.ifBlank { source.name }
 	else -> context.getString(R.string.unknown)
 }
 

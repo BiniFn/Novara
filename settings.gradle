@@ -40,4 +40,3 @@ rootProject.name = "Kototoro"
 //         substitute module('com.github.skepsun:kototoro-parsers') using project(':')
 //     }
 // }
-

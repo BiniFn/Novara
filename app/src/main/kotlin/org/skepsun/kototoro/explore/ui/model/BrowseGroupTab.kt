@@ -33,7 +33,7 @@ sealed class BrowseGroupTab(
 	object Video : BrowseGroupTab(R.string.video, "video")
 	
 	/**
-	 * Show only JSON sources (Legado + TVBox)
+	 * Show only JSON sources (Legado / TVBox / JS)
 	 */
 	object JsonSources : BrowseGroupTab(R.string.json_sources, "json")
 	
@@ -78,7 +78,7 @@ sealed class BrowseGroupTab(
 	 */
 	fun matchesOriginGroup(group: OriginGroup): Boolean = when (this) {
 		All -> true
-		JsonSources -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON
+		JsonSources -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON
 		else -> true // Content-based tabs don't filter by origin
 	}
 }

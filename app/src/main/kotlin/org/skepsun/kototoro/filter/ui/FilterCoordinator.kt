@@ -37,6 +37,7 @@ import org.skepsun.kototoro.parsers.model.MangaListFilter
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.model.MangaTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.model.YEAR_MIN
@@ -86,43 +87,48 @@ class FilterCoordinator @Inject constructor(
         )
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
-    val tags: StateFlow<FilterProperty<MangaTag>> = combine(
-        getTopTags(TAGS_LIMIT),
+    val tags: StateFlow<FilterProperty<UiTagGroup>> = combine(
+        filterOptions.asFlow(),
         currentListFilter.distinctUntilChangedBy { it.tags },
-    ) { available, selected ->
-        available.fold(
-            onSuccess = {
+    ) { optionsRes, selected ->
+        optionsRes.fold(
+            onSuccess = { opts ->
+                val groups = opts.effectiveTagGroups.map { group ->
+                    val selectedInGroup = group.tags.intersect(selected.tags)
+                    UiTagGroup(group.title, group.tags, selectedInGroup)
+                }
                 FilterProperty(
-                    availableItems = it.addFirstDistinct(selected.tags),
-                    selectedItems = selected.tags,
+                    availableItems = groups,
+                    selectedItems = groups.filter { it.selected.isNotEmpty() }.toSet(),
                 )
             },
-            onFailure = {
-                FilterProperty.error(it)
-            },
+            onFailure = { FilterProperty.error(it) },
         )
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
-    val tagsExcluded: StateFlow<FilterProperty<MangaTag>> = if (capabilities.isTagsExclusionSupported) {
-        combine(
-            getBottomTags(TAGS_LIMIT),
-            currentListFilter.distinctUntilChangedBy { it.tagsExclude },
-        ) { available, selected ->
-            available.fold(
-                onSuccess = {
-                    FilterProperty(
-                        availableItems = it.addFirstDistinct(selected.tagsExclude),
-                        selectedItems = selected.tagsExclude,
-                    )
-                },
-                onFailure = {
-                    FilterProperty.error(it)
-                },
-            )
-        }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
-    } else {
-        MutableStateFlow(FilterProperty.EMPTY)
-    }
+    val tagsExcluded: StateFlow<FilterProperty<UiTagGroup>> =
+        if (capabilities.isTagsExclusionSupported) {
+            combine(
+                filterOptions.asFlow(),
+                currentListFilter.distinctUntilChangedBy { it.tagsExclude },
+            ) { optionsRes, selected ->
+                optionsRes.fold(
+                    onSuccess = { opts ->
+                        val groups = opts.effectiveTagGroups.map { group ->
+                            val selectedInGroup = group.tags.intersect(selected.tagsExclude)
+                            UiTagGroup(group.title, group.tags, selectedInGroup)
+                        }
+                        FilterProperty(
+                            availableItems = groups,
+                            selectedItems = groups.filter { it.selected.isNotEmpty() }.toSet(),
+                        )
+                    },
+                    onFailure = { FilterProperty.error(it) },
+                )
+            }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
+        } else {
+            MutableStateFlow(FilterProperty.EMPTY)
+        }
 
     val authors: StateFlow<FilterProperty<String>> = if (capabilities.isAuthorSearchSupported) {
         combine(
@@ -447,8 +453,15 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    fun getAllTags(): Flow<Result<List<MangaTag>>> = filterOptions.asFlow().map {
-        it.map { x -> x.availableTags.sortedWithSafe(TagTitleComparator(sourceLocale)) }
+    fun getAllTagGroups(): Flow<Result<List<UiTagGroup>>> = filterOptions.asFlow().map { opts ->
+        opts.map { x ->
+            x.effectiveTagGroups.map { group ->
+                UiTagGroup(
+                    title = group.title,
+                    tags = group.tags.sortedWithSafe(TagTitleComparator(sourceLocale)).toSet(),
+                )
+            }
+        }
     }
 
     private fun MangaListFilter.takeQueryIfSupported() = when {

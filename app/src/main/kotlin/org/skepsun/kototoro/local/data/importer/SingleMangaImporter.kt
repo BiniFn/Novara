@@ -33,14 +33,14 @@ class SingleMangaImporter @Inject constructor(
 
 	private val contentResolver = context.contentResolver
 
-	suspend fun import(uri: Uri): LocalManga {
-		val result = if (isDirectory(uri)) {
+	suspend fun import(uri: Uri): List<LocalManga> {
+		val results = if (isDirectory(uri)) {
 			importDirectory(uri)
 		} else {
-			importFile(uri)
+			listOf(importFile(uri))
 		}
-		localStorageChanges.emit(result)
-		return result
+		results.forEach { localStorageChanges.emit(it) }
+		return results
 	}
 
 	private suspend fun importFile(uri: Uri): LocalManga = withContext(Dispatchers.IO) {
@@ -60,16 +60,29 @@ class SingleMangaImporter @Inject constructor(
 		LocalMangaParser(dest).getManga(withDetails = false)
 	}
 
-	private suspend fun importDirectory(uri: Uri): LocalManga {
+	private suspend fun importDirectory(uri: Uri): List<LocalManga> {
 		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
 			"Provided uri $uri is not a tree"
 		}
-		val dest = File(getOutputDir(), root.requireName())
-		dest.mkdir()
-		for (docFile in root.listFiles()) {
-			docFile.copyTo(dest)
+		val childFiles = root.listFiles()
+		val subDirs = childFiles.filter { it.isDirectory }
+		val hasTopLevelZip = childFiles.any { it.isFile && hasZipExtension(it.name ?: "") }
+		return if (subDirs.size > 1 && !hasTopLevelZip) {
+			// Treat each sub-folder as an individual manga
+			subDirs.mapNotNull { folder ->
+				val dest = File(getOutputDir(), folder.requireName())
+				dest.mkdir()
+				folder.copyTo(dest)
+				runCatching { LocalMangaParser(dest).getManga(withDetails = false) }.getOrNull()
+			}
+		} else {
+			val dest = File(getOutputDir(), root.requireName())
+			dest.mkdir()
+			for (docFile in childFiles) {
+				docFile.copyTo(dest)
+			}
+			listOf(LocalMangaParser(dest).getManga(withDetails = false))
 		}
-		return LocalMangaParser(dest).getManga(withDetails = false)
 	}
 
 	private suspend fun DocumentFile.copyTo(destDir: File) {

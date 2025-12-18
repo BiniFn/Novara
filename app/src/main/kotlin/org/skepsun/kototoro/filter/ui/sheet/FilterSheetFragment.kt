@@ -10,13 +10,17 @@ import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
+import androidx.core.view.setPadding
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.core.content.ContextCompat
+import androidx.core.widget.TextViewCompat
 import com.google.android.material.chip.Chip
 import com.google.android.material.slider.RangeSlider
 import com.google.android.material.slider.Slider
@@ -50,13 +54,14 @@ import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
 import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.model.YEAR_UNKNOWN
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.toIntUp
 import java.util.Locale
 import java.util.TreeSet
+import com.google.android.material.R as materialR
 
 class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
     AdapterView.OnItemSelectedListener,
@@ -64,6 +69,13 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
     ChipsView.OnChipClickListener,
     ChipsView.OnChipLongClickListener,
     ChipsView.OnChipCloseClickListener {
+
+    private var includeTagsExpanded = false
+    private var excludeTagsExpanded = false
+    private var lastIncludeGroups: List<UiTagGroup> = emptyList()
+    private var lastIncludeSelected: Set<org.skepsun.kototoro.parsers.model.MangaTag> = emptySet()
+    private var lastExcludeGroups: List<UiTagGroup> = emptyList()
+    private var lastExcludeSelected: Set<org.skepsun.kototoro.parsers.model.MangaTag> = emptySet()
 
     override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetFilterBinding {
         return SheetFilterBinding.inflate(inflater, container, false)
@@ -112,10 +124,12 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         binding.sliderYear.addOnChangeListener(this::onSliderValueChange)
         binding.sliderYearsRange.addOnChangeListener(this::onRangeSliderValueChange)
         binding.layoutGenres.setOnMoreButtonClickListener {
-            router.showTagsCatalogSheet(excludeMode = false)
+            includeTagsExpanded = !includeTagsExpanded
+            rerenderInclude()
         }
         binding.layoutGenresExclude.setOnMoreButtonClickListener {
-            router.showTagsCatalogSheet(excludeMode = true)
+            excludeTagsExpanded = !excludeTagsExpanded
+            rerenderExclude()
         }
         combine(
             filter.observe().map { it.listFilter.isNotEmpty() }.distinctUntilChanged(),
@@ -205,10 +219,11 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         val filter = FilterCoordinator.require(this)
         when (data) {
             is MangaState -> filter.toggleState(data, !chip.isChecked)
-            is MangaTag -> if (chip.parentView?.id == R.id.chips_genresExclude) {
-                filter.toggleTagExclude(data, !chip.isChecked)
-            } else {
-                filter.toggleTag(data, !chip.isChecked)
+            is UiTagGroup -> {} // groups are not directly toggled
+            is org.skepsun.kototoro.parsers.model.MangaTag -> {
+                val parentTag = (chip.parentView?.parent as? View)?.tag
+                val isExclude = parentTag == GROUP_TAG_VIEW_EXCLUDE || chip.parentView?.id == R.id.chips_genresExclude
+                if (isExclude) filter.toggleTagExclude(data, !chip.isChecked) else filter.toggleTag(data, !chip.isChecked)
             }
 
             is ContentType -> filter.toggleContentType(data, !chip.isChecked)
@@ -241,6 +256,13 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
                 showSavedFilterMenu(chip, data)
             }
         }
+    }
+
+    companion object {
+        private const val GROUP_TAG_VIEW = "filter_tag_group"
+        private const val GROUP_TAG_VIEW_INCLUDE = "filter_tag_group_include"
+        private const val GROUP_TAG_VIEW_EXCLUDE = "filter_tag_group_exclude"
+        private const val TAGS_PREVIEW_LIMIT = 12
     }
 
     private fun onSortOrderChanged(value: FilterProperty<SortOrder>) {
@@ -300,37 +322,140 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         }
     }
 
-    private fun onTagsChanged(value: FilterProperty<MangaTag>) {
+    private fun onTagsChanged(value: FilterProperty<UiTagGroup>) {
         val b = viewBinding ?: return
-        b.layoutGenres.isGone = value.isEmptyAndSuccess()
         b.layoutGenres.setError(value.error?.getDisplayMessage(resources))
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { tag ->
-            ChipsView.ChipModel(
-                title = tag.title,
-                isChecked = tag in value.selectedItems,
-                data = tag,
-            )
-        }
-        b.chipsGenres.setChips(chips)
+        lastIncludeGroups = value.availableItems
+        lastIncludeSelected = value.selectedItems.flatMap { it.selected }.toSet()
+        renderGroupedTags(
+            container = b.layoutGenres,
+            placeholderChips = b.chipsGenres,
+            groups = lastIncludeGroups,
+            selected = lastIncludeSelected,
+            expanded = includeTagsExpanded,
+        )
     }
 
-    private fun onTagsExcludedChanged(value: FilterProperty<MangaTag>) {
+    private fun onTagsExcludedChanged(value: FilterProperty<UiTagGroup>) {
         val b = viewBinding ?: return
-        b.layoutGenresExclude.isGone = value.isEmpty()
-        if (value.isEmpty()) {
+        b.layoutGenresExclude.setError(value.error?.getDisplayMessage(resources))
+        lastExcludeGroups = value.availableItems
+        lastExcludeSelected = value.selectedItems.flatMap { it.selected }.toSet()
+        renderGroupedTags(
+            container = b.layoutGenresExclude,
+            placeholderChips = b.chipsGenresExclude,
+            groups = lastExcludeGroups,
+            selected = lastExcludeSelected,
+            expanded = excludeTagsExpanded,
+        )
+    }
+
+    private fun rerenderInclude() {
+        val b = viewBinding ?: return
+        renderGroupedTags(
+            container = b.layoutGenres,
+            placeholderChips = b.chipsGenres,
+            groups = lastIncludeGroups,
+            selected = lastIncludeSelected,
+            expanded = includeTagsExpanded,
+        )
+    }
+
+    private fun rerenderExclude() {
+        val b = viewBinding ?: return
+        renderGroupedTags(
+            container = b.layoutGenresExclude,
+            placeholderChips = b.chipsGenresExclude,
+            groups = lastExcludeGroups,
+            selected = lastExcludeSelected,
+            expanded = excludeTagsExpanded,
+        )
+    }
+
+    private fun renderGroupedTags(
+        container: ViewGroup,
+        placeholderChips: ChipsView,
+        groups: List<UiTagGroup>,
+        selected: Set<org.skepsun.kototoro.parsers.model.MangaTag>,
+        expanded: Boolean,
+    ) {
+        val limit = TAGS_PREVIEW_LIMIT
+        // 清理旧的分组子视图
+        for (i in container.childCount - 1 downTo 0) {
+            val child = container.getChildAt(i)
+            val tag = child.tag
+            if (tag == GROUP_TAG_VIEW || tag == GROUP_TAG_VIEW_INCLUDE || tag == GROUP_TAG_VIEW_EXCLUDE) {
+                container.removeViewAt(i)
+            }
+        }
+        if (groups.all { it.tags.isEmpty() }) {
+            container.isGone = true
             return
+        } else {
+            container.isGone = false
         }
-        val chips = value.availableItems.map { tag ->
-            ChipsView.ChipModel(
-                title = tag.title,
-                isChecked = tag in value.selectedItems,
-                data = tag,
-            )
+        val flatGroup = groups.singleOrNull()
+        val useFlat = flatGroup != null && flatGroup.title.equals("Tags", ignoreCase = true)
+        if (useFlat) {
+            val tagsList = flatGroup.tags.toList()
+            val shown = if (expanded || tagsList.size <= limit) tagsList else tagsList.take(limit)
+            val chips = shown.map { tag ->
+                ChipsView.ChipModel(
+                    title = tag.title,
+                    isChecked = tag in selected,
+                    data = tag,
+                )
+            }
+            placeholderChips.isGone = chips.isEmpty()
+            placeholderChips.setChips(chips)
+            placeholderChips.onChipClickListener = this
+            placeholderChips.onChipLongClickListener = this
+            placeholderChips.onChipCloseClickListener = this
+            return
+        } else {
+            placeholderChips.isGone = true
         }
-        b.chipsGenresExclude.setChips(chips)
+        val marginH = resources.getDimensionPixelOffset(R.dimen.margin_small)
+        val marginTop = resources.getDimensionPixelOffset(R.dimen.margin_small)
+        val chipStyle = R.style.Widget_Kototoro_Chip_Filter
+        val titleColor = ContextCompat.getColor(container.context, android.R.color.secondary_text_dark)
+        val isExcludeContainer = container.id == R.id.layout_genresExclude
+        groups.forEach { group ->
+            if (group.tags.isEmpty()) return@forEach
+            val tags = if (expanded || group.tags.size <= limit) group.tags else group.tags.take(limit)
+            if (tags.isEmpty()) return@forEach
+            val title = TextView(container.context).apply {
+                tag = GROUP_TAG_VIEW
+                id = View.generateViewId()
+                text = group.title
+                TextViewCompat.setTextAppearance(this, materialR.style.TextAppearance_Material3_LabelLarge)
+                setTextColor(titleColor)
+                setPadding(marginH, marginTop, marginH, 0)
+            }
+            val chipsView = ChipsView(container.context).apply {
+                tag = if (isExcludeContainer) GROUP_TAG_VIEW_EXCLUDE else GROUP_TAG_VIEW_INCLUDE
+                id = View.generateViewId()
+                layoutParams = ViewGroup.MarginLayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    leftMargin = marginH
+                    rightMargin = marginH
+                    topMargin = marginTop / 2
+                }
+                val chips = tags.map { tag ->
+                    ChipsView.ChipModel(
+                        title = tag.title,
+                        isChecked = tag in selected,
+                        data = tag,
+                    )
+                }
+                setChips(chips)
+                onChipClickListener = this@FilterSheetFragment
+            }
+            container.addView(title)
+            container.addView(chipsView)
+        }
     }
 
     private fun onAuthorsChanged(value: FilterProperty<String>) {

@@ -44,6 +44,9 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 				?.takeIf { DomainValidator.isValidDomain(it) }
 				?: key.defaultValue
 
+			is ConfigKey.Text -> prefs.getString(key.key, key.defaultValue)
+				?: key.defaultValue
+
 			is ConfigKey.ShowSuspiciousContent -> prefs.getBoolean(key.key, key.defaultValue)
 			is ConfigKey.SplitByTranslations -> prefs.getBoolean(key.key, key.defaultValue)
 			is ConfigKey.PreferredImageServer -> prefs.getString(key.key, key.defaultValue)?.nullIfEmpty()
@@ -57,6 +60,7 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 			is ConfigKey.UserAgent -> putString(key.key, (value as String?)?.sanitizeHeaderValue())
 			is ConfigKey.SplitByTranslations -> putBoolean(key.key, value as Boolean)
 			is ConfigKey.PreferredImageServer -> putString(key.key, value as String? ?: "")
+			is ConfigKey.Text -> putString(key.key, value as String?)
 		}
 	}
 

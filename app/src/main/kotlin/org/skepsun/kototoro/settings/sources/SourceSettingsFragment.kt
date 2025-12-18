@@ -4,18 +4,24 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.EditTextPreference
 import androidx.preference.EditTextPreferenceDialogFragmentCompat
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.SwitchPreferenceCompat
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.parser.EmptyMangaRepository
+import org.skepsun.kototoro.core.parser.JsMangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.SourceSettings
@@ -29,6 +35,7 @@ import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
 import org.skepsun.kototoro.settings.utils.EditTextBindListener
 import org.skepsun.kototoro.settings.utils.PasswordSummaryProvider
 import java.io.File
+import java.util.regex.Pattern
 
 @AndroidEntryPoint
 class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenceChangeListener {
@@ -71,6 +78,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
+		tryAddJsPreferences()
 		viewModel.isAuthorized.filterNotNull().observe(viewLifecycleOwner) { isAuthorized ->
 			findPreference<Preference>(KEY_AUTH)?.isEnabled = !isAuthorized
 			findPreference<Preference>(KEY_AUTH_STATUS)?.summary = if (isAuthorized) {
@@ -254,6 +262,86 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			title = getString(R.string.sign_in)
 			setPersistent(false)
 			preferenceScreen.addPreference(this)
+		}
+	}
+
+	private fun tryAddJsPreferences() {
+		val repo = viewModel.repository as? JsMangaRepository ?: return
+		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+			val schema = runCatching { repo.fetchSettingsSchema() }.getOrDefault(emptyList())
+			if (schema.isEmpty()) return@launch
+			withContext(Dispatchers.Main) {
+				var order = 600
+				schema.forEach { item ->
+					when (item.type.lowercase()) {
+						"select" -> {
+							val pref = ListPreference(requireContext()).apply {
+								key = "js_${item.key}"
+								title = item.title
+								isIconSpaceReserved = false
+								entries = item.options.map { it.text }.toTypedArray()
+								entryValues = item.options.map { it.value }.toTypedArray()
+								val current = repo.getJsSettingValue(item.key) as? String
+									?: item.defaultValue
+									?: item.options.firstOrNull()?.value
+								value = current
+								order = order++
+								summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
+								setOnPreferenceChangeListener { _, newValue ->
+									repo.saveJsSettingValue(item.key, newValue as? String)
+									true
+								}
+							}
+							preferenceScreen.addPreference(pref)
+						}
+						"callback" -> {
+							val pref = Preference(requireContext()).apply {
+								key = "js_${item.key}"
+								title = item.title
+								summary = item.buttonText
+								isIconSpaceReserved = false
+								order = order++
+								setOnPreferenceClickListener {
+									viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+										repo.executeSettingCallback(item.key)
+									}
+									true
+								}
+							}
+							preferenceScreen.addPreference(pref)
+						}
+						else -> {
+							val pref = EditTextPreference(requireContext()).apply {
+								key = "js_${item.key}"
+								title = item.title
+								isIconSpaceReserved = false
+								order = order++
+								summary = ""
+								val current = repo.getJsSettingValue(item.key) as? String
+									?: item.defaultValue
+								text = current
+								val pattern = item.validator?.takeIf { it.isNotBlank() }?.let { Pattern.compile(it) }
+								setOnBindEditTextListener(
+									EditTextBindListener(
+										inputType = android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT,
+										hint = item.defaultValue,
+										validator = null,
+									),
+								)
+								setOnPreferenceChangeListener { _, newValue ->
+									val str = newValue as? String ?: ""
+									if (pattern != null && !pattern.matcher(str).matches()) {
+										return@setOnPreferenceChangeListener false
+									}
+									repo.saveJsSettingValue(item.key, str)
+									true
+								}
+							}
+							preferenceScreen.addPreference(pref)
+						}
+					}
+				}
+			}
 		}
 	}
 }
