@@ -26,6 +26,7 @@
     <string name="reader_mode_hint">所选模式仅应用于当前漫画</string>
     <string name="captcha_required">需要通过人机验证</string>
     <string name="captcha_solve">开始验证</string>
+    <string name="cookies_saved">Cookies 已保存</string>
     <string name="today">今天</string>
     <string name="clear_cookies">清除 Cookies</string>
     <string name="new_sources_text">发现了新的可用图源</string>
@@ -176,6 +177,8 @@
     <string name="check_for_new_chapters">章节检查更新</string>
     <string name="reverse">倒序</string>
     <string name="sign_in">登录</string>
+    <string name="auth_title">账户登录</string>
+    <string name="login_with_browser">网页登录</string>
     <string name="auth_required">登录后可查看此内容</string>
     <string name="default_s">默认值：%s</string>
     <string name="next">下一步</string>
@@ -874,4 +877,13 @@
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
 	<string name="source_type_js">JavaScript 源（Venera）</string>
+
+    <!-- 播放设置 -->
+    <string name="playback_settings">播放</string>
+    <string name="video_decoder_mode">视频解码方式</string>
+    <string name="video_decoder_hardware">硬件解码</string>
+    <string name="video_decoder_software">软件解码</string>
+    <string name="video_background">播放背景</string>
+    <string name="video_cache_size">缓存大小 (MB)</string>
+    <string name="video_cache_size_summary">%1$d MB</string>
 </resources>

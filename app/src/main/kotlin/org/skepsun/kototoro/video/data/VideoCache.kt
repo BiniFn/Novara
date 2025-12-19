@@ -7,6 +7,7 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import org.skepsun.kototoro.core.prefs.AppSettings
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,19 +21,26 @@ import javax.inject.Singleton
 @Singleton
 class VideoCache @Inject constructor(
 	@ApplicationContext private val context: Context,
+	private val settings: AppSettings,
 ) {
 
 	companion object {
-		// 缓存大小限制：1GB（增加缓存容量）
-		private const val CACHE_SIZE = 1024L * 1024 * 1024
+		private const val MIN_CACHE_MB = 256
+		private const val MAX_CACHE_MB = 4096
 	}
+
+	private val cacheSizeBytes: Long
+		get() {
+			val mb = settings.videoCacheSizeMb.coerceIn(MIN_CACHE_MB, MAX_CACHE_MB)
+			return mb * 1024L * 1024L
+		}
 
 	val cache: Cache by lazy {
 		// 优先使用getExternalFilesDir，不容易被系统清理
 		val cacheDir = context.getExternalFilesDir("video_cache")
 			?: File(context.filesDir, "video_cache") // 降级到内部存储
 		val databaseProvider = StandaloneDatabaseProvider(context)
-		val evictor = LeastRecentlyUsedCacheEvictor(CACHE_SIZE)
+		val evictor = LeastRecentlyUsedCacheEvictor(cacheSizeBytes)
 		
 		SimpleCache(cacheDir, evictor, databaseProvider)
 	}

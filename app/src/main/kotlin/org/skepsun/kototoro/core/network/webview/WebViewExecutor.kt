@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
@@ -29,6 +30,9 @@ import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Cookie
+import java.util.concurrent.TimeUnit
 
 @Singleton
 class WebViewExecutor @Inject constructor(
@@ -121,6 +125,69 @@ class WebViewExecutor @Inject constructor(
 	private fun MangaSource.getUserAgent(): String? {
 		val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserMangaRepository
 		return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
+	}
+
+	suspend fun loginAndCheck(
+		loginUrl: String,
+		checkStatus: suspend (url: String, title: String) -> Boolean,
+		onSuccess: (() -> Unit)? = null,
+		cookiesDomain: String? = null,
+		timeoutMs: Long = TimeUnit.SECONDS.toMillis(20),
+	): Boolean = mutex.withLock {
+		return runCatching {
+			withContext(Dispatchers.Main.immediate) {
+				val webView = obtainWebView()
+				try {
+					val result = withTimeout(timeoutMs) {
+						suspendCancellableCoroutine<Boolean> { cont ->
+							webView.webViewClient = object : WebViewClient() {
+								override fun onPageFinished(view: WebView?, url: String?) {
+									val currentUrl = url ?: ""
+									val title = view?.title ?: ""
+									kotlinx.coroutines.CoroutineScope(cont.context).launch {
+										val ok = runCatching { checkStatus(currentUrl, title) }.getOrDefault(false)
+										if (ok && cont.isActive) {
+											cont.resume(true)
+										}
+									}
+								}
+							}
+							webView.loadUrl(loginUrl)
+						}
+					}
+					if (!result) return@withContext false
+					val domain = cookiesDomain ?: loginUrl.toHttpUrlOrNull()?.host ?: return@withContext true
+					// 同步 WebView Cookie 到应用 CookieJar
+					cookieJar.removeCookies(loginUrl.toHttpUrlOrNull() ?: return@withContext true) { true }
+					android.webkit.CookieManager.getInstance().getCookie(loginUrl)?.let { raw ->
+						val httpUrl = "https://$domain".toHttpUrlOrNull() ?: return@let
+						raw.split(";").map { it.trim() }.forEach { line ->
+							val parts = line.split("=", limit = 2)
+							if (parts.size == 2) {
+								val name = parts[0]
+								val value = parts[1]
+								val c = runCatching {
+									Cookie.Builder()
+										.hostOnlyDomain(httpUrl.host)
+										.path("/")
+										.name(name)
+										.value(value)
+										.secure()
+										.build()
+								}.getOrNull()
+								if (c != null) {
+									cookieJar.saveFromResponse(httpUrl, listOf(c))
+								}
+							}
+						}
+					}
+					onSuccess?.invoke()
+					true
+				} finally {
+					webView.reset()
+				}
+			}
+		}.getOrDefault(false)
 	}
 
 	@MainThread

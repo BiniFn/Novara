@@ -6,6 +6,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.HttpUrl
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.MangaSource
@@ -31,6 +33,11 @@ import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
+import org.skepsun.kototoro.core.util.ext.EventFlow
+import okhttp3.Cookie
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import org.skepsun.kototoro.core.network.webview.WebViewExecutor
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class SourceSettingsViewModel @Inject constructor(
@@ -39,6 +46,7 @@ class SourceSettingsViewModel @Inject constructor(
 	private val cookieJar: MutableCookieJar,
 	private val mangaSourcesRepository: MangaSourcesRepository,
 	private val jsSourceParser: JSSourceParser,
+	private val webViewExecutor: WebViewExecutor,
 ) : BaseViewModel(), SharedPreferences.OnSharedPreferenceChangeListener {
 
 	private val initialSource = MangaSource(savedStateHandle.get<String>(AppRouter.KEY_SOURCE))
@@ -50,6 +58,13 @@ class SourceSettingsViewModel @Inject constructor(
 	val isAuthorized = MutableStateFlow<Boolean?>(null)
 	val browserUrl = MutableStateFlow<String?>(null)
 	val isEnabled = mangaSourcesRepository.observeIsEnabled(source)
+	private val _jsAccountMeta = MutableStateFlow<JsMangaRepository.JsAccountMeta?>(null)
+	val jsAccountMeta: StateFlow<JsMangaRepository.JsAccountMeta?> = _jsAccountMeta.asStateFlow()
+	private val _jsLoginState = MutableEventFlow<Boolean>()
+	val jsLoginState: EventFlow<Boolean> = _jsLoginState
+	private val _jsWebLoginState = MutableEventFlow<Boolean>()
+	val jsWebLoginState: EventFlow<Boolean> = _jsWebLoginState
+	private var jsWebLoginJob: Job? = null
 	private var usernameLoadJob: Job? = null
 
 	init {
@@ -75,6 +90,7 @@ class SourceSettingsViewModel @Inject constructor(
 					jsSourceParser.parseMetadata(config).getOrNull()?.homepage?.takeIf { it.isNotBlank() }
 				}.getOrNull()
 				browserUrl.value = url
+				loadJsAccountMeta(repository)
 			}
 		}
 	}
@@ -86,6 +102,85 @@ class SourceSettingsViewModel @Inject constructor(
 			}
 		}
 		super.onCleared()
+	}
+
+	private fun loadJsAccountMeta(repo: JsMangaRepository) {
+		launchLoadingJob(Dispatchers.Default) {
+			runCatching { repo.getJsAccountMeta() }
+				.onSuccess { _jsAccountMeta.value = it }
+		}
+	}
+
+	fun loginJs(username: String, password: String) {
+		val repo = repository as? JsMangaRepository ?: return
+		launchLoadingJob(Dispatchers.IO) {
+			val ok = runCatching { repo.jsLogin(username, password) }.getOrDefault(false)
+			_jsLoginState.call(ok)
+			if (ok && repository is CachingMangaRepository) {
+				(repository as CachingMangaRepository).invalidateCache()
+			}
+		}
+	}
+
+	fun logoutJs() {
+		val repo = repository as? JsMangaRepository ?: return
+		launchLoadingJob(Dispatchers.IO) {
+			val ok = runCatching { repo.jsLogout() }.getOrDefault(false)
+			_jsLoginState.call(!ok)
+			browserUrl.value?.toHttpUrlOrNull()?.let { cookieJar.removeCookies(it) { true } }
+			if (repository is CachingMangaRepository) {
+				(repository as CachingMangaRepository).invalidateCache()
+			}
+		}
+	}
+
+	fun setJsCookies(values: Map<String, String>): Boolean {
+		val targetUrl = browserUrl.value ?: return false
+		val httpUrl = targetUrl.toHttpUrlOrNull() ?: return false
+		val cookies = values.mapNotNull { (name, value) ->
+			if (name.isBlank() || value.isBlank()) return@mapNotNull null
+			runCatching {
+				Cookie.Builder()
+					.hostOnlyDomain(httpUrl.host)
+					.path("/")
+					.name(name.trim())
+					.value(value)
+					.apply { if (httpUrl.isHttps) secure() }
+					.build()
+			}.getOrNull()
+		}
+		if (cookies.isEmpty()) return false
+		cookieJar.removeCookies(httpUrl) { true }
+		cookieJar.saveFromResponse(httpUrl, cookies)
+		return true
+	}
+
+	suspend fun loginJsWithWebview(): Boolean {
+		jsWebLoginJob?.cancel()
+		val repo = repository as? JsMangaRepository ?: return false
+		val meta = jsAccountMeta.value ?: repo.getJsAccountMeta() ?: return false
+		val loginUrl = meta.webLoginUrl ?: return false
+		jsWebLoginJob = launchLoadingJob(Dispatchers.IO) {
+			val ok = runCatching {
+				webViewExecutor.loginAndCheck(
+					loginUrl = loginUrl,
+					checkStatus = { urlNow, titleNow ->
+						repo.jsCheckWebLogin(urlNow, titleNow)
+					},
+					onSuccess = {
+						kotlinx.coroutines.runBlocking {
+							runCatching { repo.jsNotifyWebLoginSuccess() }.getOrDefault(false)
+						}
+					},
+					cookiesDomain = null,
+				)
+			}.getOrDefault(false)
+			_jsWebLoginState.call(ok)
+			if (ok && repository is CachingMangaRepository) {
+				(repository as CachingMangaRepository).invalidateCache()
+			}
+		}
+		return true
 	}
 
 	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {

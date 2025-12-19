@@ -21,6 +21,12 @@
         android:title="@string/reader_settings" />
 
     <PreferenceScreen
+        android:fragment="org.skepsun.kototoro.settings.PlaybackSettingsFragment"
+        android:icon="@drawable/ic_play"
+        android:key="playback"
+        android:title="@string/playback_settings" />
+
+    <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.StorageAndNetworkSettingsFragment"
         android:icon="@drawable/ic_usage"
         android:key="network"

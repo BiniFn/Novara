@@ -28,6 +28,7 @@ class RootSettingsFragment : BasePreferenceFragment(0) {
 		addPreferencesFromResource(R.xml.pref_root_debug)
 		bindPreferenceSummary("appearance", R.string.theme, R.string.list_mode, R.string.language)
 		bindPreferenceSummary("reader", R.string.read_mode, R.string.scale_mode, R.string.switch_pages)
+		bindPreferenceSummary("playback", R.string.video_decoder_mode, R.string.video_cache_size)
 		bindPreferenceSummary("network", R.string.storage_usage, R.string.proxy, R.string.prefetch_content)
 		bindPreferenceSummary("userdata", R.string.create_or_restore_backup, R.string.periodic_backups)
 		bindPreferenceSummary("downloads", R.string.manga_save_location, R.string.downloads_wifi_only)

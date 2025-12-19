@@ -15,6 +15,7 @@ import org.skepsun.kototoro.settings.AppearanceSettingsFragment
 import org.skepsun.kototoro.settings.DownloadsSettingsFragment
 import org.skepsun.kototoro.settings.ProxySettingsFragment
 import org.skepsun.kototoro.settings.ReaderSettingsFragment
+import org.skepsun.kototoro.settings.PlaybackSettingsFragment
 import org.skepsun.kototoro.settings.ServicesSettingsFragment
 import org.skepsun.kototoro.settings.StorageAndNetworkSettingsFragment
 import org.skepsun.kototoro.settings.SuggestionsSettingsFragment
@@ -34,10 +35,11 @@ class SettingsSearchHelper @Inject constructor(
 
     fun inflatePreferences(): List<SettingsItem> {
         val preferenceManager = PreferenceManager(context)
-        val result = ArrayList<SettingsItem>()
-        preferenceManager.inflateTo(result, R.xml.pref_appearance, emptyList(), AppearanceSettingsFragment::class.java)
-        preferenceManager.inflateTo(result, R.xml.pref_sources, emptyList(), SourcesSettingsFragment::class.java)
-        preferenceManager.inflateTo(result, R.xml.pref_reader, emptyList(), ReaderSettingsFragment::class.java)
+		val result = ArrayList<SettingsItem>()
+		preferenceManager.inflateTo(result, R.xml.pref_appearance, emptyList(), AppearanceSettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_playback, emptyList(), PlaybackSettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_sources, emptyList(), SourcesSettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_reader, emptyList(), ReaderSettingsFragment::class.java)
         preferenceManager.inflateTo(
             result,
             R.xml.pref_network_storage,

@@ -26,6 +26,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.TimeBar
@@ -70,6 +71,8 @@ import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 import org.skepsun.kototoro.parsers.model.MangaChapter
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.VideoDecoderMode
 
 @AndroidEntryPoint
 class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>(), ReaderNavigationCallback {
@@ -80,6 +83,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     @Inject
     lateinit var videoCache: org.skepsun.kototoro.video.data.VideoCache
+
+    @Inject
+    lateinit var appSettings: AppSettings
 
     private var player: ExoPlayer? = null
     private var isUiVisible: Boolean = false
@@ -273,6 +279,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.toolbarProgress.bringToFront()
         // 确保工具栏整体位于其他层级之上，避免被 PlayerView 或控制层遮挡
         viewBinding.toolbar.bringToFront()
+        applyPlaybackBackground()
 
         // 记录初始工具栏高度，用于按方向动态调整高度
         originalToolbarHeightPx = viewBinding.toolbar.layoutParams.height
@@ -520,10 +527,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     
     private fun wireControllerButtons() {
         val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)
+        ctl?.bringToFront()
 
         // 进度条可拖拽/点击快进快退：显式监听用户 scrub，避免定时刷新覆盖拖动状态
         if (!isTimeBarListenerBound) {
             ctl?.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.let { timeBar ->
+                timeBar.isClickable = true
+                timeBar.isFocusable = true
+                timeBar.isFocusableInTouchMode = true
+                // 避免父级的点击/手势拦截 TimeBar 的拖动事件
+                timeBar.setOnTouchListener { v, ev ->
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                    false
+                }
                 val controlView = ctl
                 timeBar.addListener(object : TimeBar.OnScrubListener {
                     override fun onScrubStart(timeBar: TimeBar, position: Long) {
@@ -617,7 +633,17 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             .setCacheWriteDataSinkFactory(androidx.media3.datasource.cache.CacheDataSink.Factory().setCache(videoCache.cache))
             .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-        player = ExoPlayer.Builder(this)
+        val renderersFactory = DefaultRenderersFactory(this).apply {
+            setEnableDecoderFallback(true)
+            val mode = if (appSettings.videoDecoderMode == VideoDecoderMode.SOFTWARE) {
+                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+            } else {
+                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+            }
+            setExtensionRendererMode(mode)
+        }
+
+        player = ExoPlayer.Builder(this, renderersFactory)
             .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
             .build()
             .also { exo ->
@@ -970,6 +996,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 更新时间条进度
         runCatching {
             val timeBar = ctl.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)
+            val seekable = p.isCurrentMediaItemSeekable && duration > 0
+            timeBar?.isEnabled = seekable
+            timeBar?.isClickable = seekable
             if (duration > 0) {
                 timeBar?.setDuration(duration)
                 timeBar?.setBufferedPosition(buffered)
@@ -985,6 +1014,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         WindowInsetsControllerCompat(window, viewBinding.root).setAppearanceLightStatusBars(isLight)
         // 遮罩视图背景颜色与工具栏保持一致
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.setBackgroundColor(color)
+    }
+
+    private fun applyPlaybackBackground() {
+        val drawable = appSettings.videoBackground.resolve(this)
+        viewBinding.root.background = drawable
+        viewBinding.playerView.background = drawable
     }
 
     private fun deriveEpisodeTitle(url: String): String {

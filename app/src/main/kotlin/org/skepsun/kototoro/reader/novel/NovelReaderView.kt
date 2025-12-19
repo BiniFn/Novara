@@ -571,18 +571,20 @@ class NovelReaderView @JvmOverloads constructor(
             
             if (hasImages) {
                 val placeholderPattern = Regex("""\[IMAGE_PLACEHOLDER_(\d+)\]""")
+                val displayBuilder = StringBuilder()
+                var lastIndex = 0
                 placeholderPattern.findAll(pageText).forEach { match ->
                     val imageIndex = match.groupValues[1].toInt()
                     if (imageIndex < imagePaths.size) {
                         val imagePath = imagePaths[imageIndex]
                         
-                        // 计算图片在页面中的位置
-                        // 找到占位符在页面文本中的位置
-                        val placeholderPos = match.range.first
-                        
-                        // 创建临时布局来计算Y坐标（使用移除占位符前的文本）
-                        val textBeforePlaceholder = pageText.substring(0, placeholderPos)
-                        val tempLayout = createLayout(textBeforePlaceholder, pageWidth)
+                        // 先追加占位符前的文本，便于后续计算位置信息
+                        val before = pageText.substring(lastIndex, match.range.first)
+                        displayBuilder.append(before)
+                        lastIndex = match.range.last + 1
+
+                        // 创建临时布局来计算Y坐标（基于当前已写入的显示文本）
+                        val tempLayout = createLayout(displayBuilder.toString(), pageWidth)
                         val yPosition = if (tempLayout.lineCount > 0) {
                             tempLayout.getLineBottom(tempLayout.lineCount - 1).toFloat()
                         } else {
@@ -593,6 +595,11 @@ class NovelReaderView @JvmOverloads constructor(
                         val imageWidth = pageWidth.toFloat()
                         // 预设高度（实际应该根据图片真实尺寸计算，这里先用固定比例）
                         val imageHeight = imageWidth * 0.75f  // 4:3 比例
+
+                        // 为图片留出行高空间，避免覆盖文字
+                        val lineHeight = textPaint.fontSpacing
+                        val spacerLines = max(1, kotlin.math.ceil(imageHeight / lineHeight).toInt())
+                        repeat(spacerLines) { displayBuilder.append("\n") }
                         
                         pageImages.add(
                             ImageSpan(
@@ -606,9 +613,11 @@ class NovelReaderView @JvmOverloads constructor(
                         android.util.Log.d("NovelReaderView", "Added image to page: $imagePath at y=$yPosition")
                     }
                 }
-                
-                // 从显示文本中移除所有占位符
-                displayText = pageText.replace(placeholderPattern, "")
+                // 追加剩余文本
+                if (lastIndex < pageText.length) {
+                    displayBuilder.append(pageText.substring(lastIndex))
+                }
+                displayText = displayBuilder.toString()
             }
             
             // 为这一页创建布局（使用移除占位符后的文本）

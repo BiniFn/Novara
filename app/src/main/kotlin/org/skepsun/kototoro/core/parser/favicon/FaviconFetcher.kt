@@ -45,6 +45,7 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import javax.inject.Inject
 import coil3.Uri as CoilUri
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 
 class FaviconFetcher(
 	private val uri: Uri,
@@ -71,8 +72,13 @@ class FaviconFetcher(
 
 			is LocalMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
 
-			// JS sources: fallback to neutral icon
-			is JsMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
+			// JS sources: try to derive favicon from config; fallback to neutral
+			is JsMangaRepository -> {
+				val guessed = guessFaviconUrl((repo.source as? JsonMangaSource)?.entity?.config)
+				guessed?.let { url ->
+					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
+				} ?: imageLoader.fetch(R.drawable.ic_storage, options)
+			}
 
 			else -> imageLoader.fetch(R.drawable.ic_storage, options)
 		}
@@ -182,6 +188,39 @@ class FaviconFetcher(
 	private companion object {
 
 		const val FALLBACK_SIZE = 9999 // largest icon
+
+		private fun guessFaviconUrl(config: String?): String? {
+			if (config.isNullOrBlank()) return null
+			val urlRegex = Regex("https?://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+")
+			val keyRegex = Regex(
+				"\"(?:homepage|homePage|root|baseUrl|base_url|defaultBaseUrl|apiUrl|api_base|baseURL)\"\\s*:\\s*\"(https?://[^\"]+)\"",
+				RegexOption.IGNORE_CASE
+			)
+			val candidates = mutableListOf<String>()
+			keyRegex.findAll(config).forEach { m -> candidates.add(m.groupValues.getOrNull(1).orEmpty()) }
+			urlRegex.findAll(config).forEach { m -> candidates.add(m.value) }
+			val site = candidates.firstOrNull { isLikelySiteUrl(it) } ?: return null
+			val uri = Uri.parse(site)
+			if (uri.scheme.isNullOrBlank() || uri.host.isNullOrBlank()) return null
+			return "${uri.scheme}://${uri.host}/favicon.ico"
+		}
+
+		private fun isLikelySiteUrl(url: String?): Boolean {
+			if (url.isNullOrBlank()) return false
+			if (!url.startsWith("http://") && !url.startsWith("https://")) return false
+			if (url.endsWith(".js", true)) return false
+			val lowered = url.lowercase()
+			val blacklist = listOf(
+				"venera-configs",
+				"raw.githubusercontent.com",
+				"git.nyne.dev",
+				"gitlab",
+				"/raw/",
+				"/blob/",
+			)
+			if (blacklist.any { lowered.contains(it) }) return false
+			return Uri.parse(url).host?.isNotBlank() == true
+		}
 
 		private fun throwNSEE(lastError: Exception?): Nothing {
 			if (lastError != null) {

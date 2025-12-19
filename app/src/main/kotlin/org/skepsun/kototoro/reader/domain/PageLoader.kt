@@ -134,6 +134,8 @@ class PageLoader @Inject constructor(
 	}
 
 	suspend fun loadPreview(page: MangaPage): ImageSource? {
+		// JS/JSON 源缺少通用 Referer，预览请求容易带不上头导致 400，直接跳过
+		if (page.source.name.startsWith("JSON_")) return null
 		val preview = page.preview
 		if (preview.isNullOrEmpty()) {
 			return null
@@ -351,6 +353,8 @@ class PageLoader @Inject constructor(
 				.header(CommonHeaders.ACCEPT, "image/avif,image/webp,image/png;q=0.9,image/jpeg,*/*;q=0.8")
 				.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
 				.tag(MangaSource::class.java, page.source)
+				// 传递 source 名称，便于下游拦截器获知来源
+				.header(CommonHeaders.MANGA_SOURCE, page.source.name)
 			page.headers?.forEach { (k, v) -> builder.header(k, v) }
 			val lowerHeaders = page.headers?.keys?.associateBy { it.lowercase() } ?: emptyMap()
 			if (!lowerHeaders.containsKey("referer") &&
@@ -373,6 +377,8 @@ class PageLoader @Inject constructor(
 				.get()
 				.header(CommonHeaders.ACCEPT, "image/avif,image/webp,image/png;q=0.9,image/jpeg,*/*;q=0.8")
 				.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
+				// 传递来源，便于下游拦截器注入默认 UA/Referer
+				.header(CommonHeaders.MANGA_SOURCE, mangaSource.name)
 				.tag(MangaSource::class.java, mangaSource)
 			headers?.forEach { (k, v) -> builder.header(k, v) }
 			return builder.build()

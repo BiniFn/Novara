@@ -44,13 +44,7 @@ class MangaPageFetcher(
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
-		if (!page.preview.isNullOrEmpty()) {
-			runCatchingCancellable {
-				imageLoader.fetch(checkNotNull(page.preview), options)
-			}.onSuccess {
-				return it
-			}
-		}
+		// 预览图不携带 headers 会导致拦截器无法注入来源，避免在有 headers 时走无头请求
 		val repo = mangaRepositoryFactory.create(page.source)
 		val pageUrl = repo.getPageUrl(page)
 

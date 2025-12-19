@@ -4,6 +4,7 @@ import android.util.Log
 import com.dokar.quickjs.QuickJs
 import kotlinx.coroutines.Dispatchers
 import com.dokar.quickjs.binding.FunctionBinding
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -18,6 +19,8 @@ import kotlinx.serialization.json.longOrNull
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Cookie
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -592,6 +595,22 @@ class JsMangaRepository(
 		val validator: String? = null,
 		val buttonText: String? = null,
 	)
+
+	@Serializable
+	data class JsAccountMeta(
+		val hasLogin: Boolean = false,
+		val hasWebLogin: Boolean = false,
+		val webLoginUrl: String? = null,
+		val cookieFields: List<String> = emptyList(),
+		val registerUrl: String? = null,
+	)
+
+	private fun getJsSourceContent(): Pair<String, String?>? {
+		val jsSource = (source as? JsonMangaSource)?.entity ?: return null
+		val jsContent = jsSource.config
+		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
+		return jsContent to preferredClass
+	}
 	private data class MangaListResult(
 		val items: List<Manga>,
 		val nextToken: String?,
@@ -611,6 +630,42 @@ class JsMangaRepository(
 		val chapterId = parts[1].trim()
 		if (mangaId.isBlank() || chapterId.isBlank()) return null
 		return ParsedChapterUrl(mangaId, chapterId)
+	}
+
+	private fun normalizeHeaders(headers: Map<String, String>?, pageUrl: String): Map<String, String>? {
+		if (headers.isNullOrEmpty()) return null
+		val lower = headers.keys.associateBy { it.lowercase() }
+		val hasOrigin = lower.containsKey("origin")
+		if (!hasOrigin) {
+			val refererKey = lower["referer"]
+			val referer = refererKey?.let { headers[it] }
+			if (!referer.isNullOrBlank()) {
+				runCatching {
+					val uri = java.net.URI(referer)
+					val origin = "${uri.scheme}://${uri.host}"
+					val newHeaders = headers.toMutableMap()
+					newHeaders.putIfAbsent("Origin", origin)
+					return newHeaders
+				}
+			}
+		}
+		return headers
+	}
+
+	private fun normalizePageUrl(url: String, headers: Map<String, String>?): String? {
+		if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url
+		val referer = headers?.entries?.firstOrNull { it.key.equals("referer", true) }?.value
+		if (!referer.isNullOrBlank()) {
+			return runCatching {
+				java.net.URI(referer).resolve(url).toString()
+			}.getOrNull()
+		}
+		return null
+	}
+
+	private fun isValidHttpUrl(url: String?): Boolean {
+		if (url.isNullOrBlank()) return false
+		return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")
 	}
 
 	private suspend fun executeDetail(id: String): JsDetailResult? {
@@ -737,12 +792,13 @@ class JsMangaRepository(
 				)
 			val title = result["title"]?.jsonPrimitive?.contentOrNull ?: ""
 			val updateTime = result["updateTime"]?.jsonPrimitive?.contentOrNull
+			val tagsObj = result["tags"] as? JsonObject
 			val description = result["description"]?.jsonPrimitive?.contentOrNull
+				?: tagsObj?.get("简介")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 				?: updateTime?.takeIf { it.isNotBlank() }
 			val cover = result["cover"]?.jsonPrimitive?.contentOrNull
 			val url = result["url"]?.jsonPrimitive?.contentOrNull
 			val authors = (result["authors"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toSet().orEmpty()
-			val tagsObj = result["tags"] as? JsonObject
 			val tags = mutableSetOf<MangaTag>()
 			tagsObj?.forEach { (k, v) ->
 				if (v is JsonArray) {
@@ -851,21 +907,75 @@ class JsMangaRepository(
 				        defaultHeaders = __source.headers;
 				      }
 				    } catch(e) { /* ignore */ }
-				    const normalized = urls.map(function(u){
-				      const strUrl = String(u);
+				    const b64ToBytes = (b64) => {
+				      try {
+				        if (typeof atob === 'function') {
+				          const bin = atob(b64);
+				          const arr = new Uint8Array(bin.length);
+				          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+				          return arr;
+				        }
+				      } catch(_) {}
+				      return new Uint8Array(0);
+				    };
+				    const toBytes = (val) => {
+				      if (!val) return new Uint8Array(0);
+				      if (val instanceof ArrayBuffer) return new Uint8Array(val);
+				      if (ArrayBuffer.isView(val) && val.buffer instanceof ArrayBuffer) return new Uint8Array(val.buffer, val.byteOffset || 0, val.byteLength || val.buffer.byteLength);
+				      if (typeof val === 'string') return b64ToBytes(val);
+				      if (val.__type === 'bytes_base64' && val.data) return b64ToBytes(val.data);
+				      if (val.data instanceof ArrayBuffer) return new Uint8Array(val.data);
+				      return new Uint8Array(0);
+				    };
+				    const normalized = await Promise.all(urls.map(async function(u){
+				      const baseCfg = (u && typeof u === 'object') ? u : null;
+				      let finalUrl = baseCfg && baseCfg.url ? String(baseCfg.url) : String(u);
+				      let finalHeaders = (baseCfg && baseCfg.headers) ? baseCfg.headers : null;
+				      let onResp = (baseCfg && typeof baseCfg.onResponse === 'function') ? baseCfg.onResponse : null;
+				      let mime = baseCfg && baseCfg.mimeType ? String(baseCfg.mimeType) : null;
+				      // 先执行 onImageLoad，允许 JS 再次覆盖 url/headers/onResponse
 				      if (__source && __source.comic && typeof __source.comic.onImageLoad === 'function') {
 				        try {
-				          const cfg = __source.comic.onImageLoad(strUrl, ${id.jsonStringLiteral()}, ${epId?.jsonStringLiteral() ?: "null"});
+				          const cfgRaw = __source.comic.onImageLoad(finalUrl, ${id.jsonStringLiteral()}, ${epId?.jsonStringLiteral() ?: "null"});
+				          const cfg = (cfgRaw && typeof cfgRaw.then === 'function') ? await cfgRaw : cfgRaw;
 				          if (cfg && typeof cfg === 'object') {
-				            const finalUrl = cfg.url ? String(cfg.url) : strUrl;
-				            configs.push({url: finalUrl, headers: cfg.headers || {}});
-				            return finalUrl;
+				            if (cfg.url) finalUrl = String(cfg.url);
+				            if (cfg.headers) finalHeaders = cfg.headers;
+				            if (typeof cfg.onResponse === 'function') onResp = cfg.onResponse;
+				            if (cfg.mimeType) mime = String(cfg.mimeType);
 				          }
 				        } catch(e) { /* ignore and fallback */ }
 				      }
-				      configs.push({url: strUrl, headers: defaultHeaders || {}});
-				      return strUrl;
-				    });
+				      // 如果提供了 onResponse，则主动请求字节并转换为 data URL
+				      if (typeof onResp === 'function') {
+				        try {
+				          const resp = await __native_sendMessage(JSON.stringify({
+				            method: "http",
+				            url: finalUrl,
+				            http_method: "GET",
+				            bytes: true,
+				            headers: finalHeaders || defaultHeaders || {},
+				          }));
+				          const parsed = JSON.parse(resp || "{}");
+				          if (parsed && parsed.body) {
+				            const rawBytes = toBytes(parsed.body);
+				            const decrypted = onResp(rawBytes.length > 0 ? rawBytes : parsed.body);
+				            const bytes = toBytes(decrypted);
+				            if (bytes.length > 0) {
+				              let binary = "";
+				              for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+				              const b64 = btoa(binary);
+				              const finalMime = mime || "image/jpeg";
+				              finalUrl = "data:" + finalMime + ";base64," + b64;
+				              finalHeaders = {};
+				            }
+				          }
+				        } catch(e) { /* ignore decryption errors, fallback to original URL */ }
+				      }
+				      finalHeaders = finalHeaders || defaultHeaders || {};
+				      configs.push({url: finalUrl, headers: finalHeaders});
+				      return finalUrl;
+				    }));
 				    __pages_result = {images: normalized, configs: configs};
 				  } catch(e){
 				    __pages_result = {error: (e && (e.stack || e.message || e.toString())) ? (e.stack || e.message || e.toString()) : String(e)};
@@ -897,6 +1007,12 @@ class JsMangaRepository(
 				Log.w("JsMangaRepository", "pages error=$it for ${source.name}")
 				return emptyList()
 			}
+			if (Log.isLoggable("JsMangaRepository", Log.DEBUG)) {
+				Log.d(
+					"JsMangaRepository",
+					"pages raw images=${result["images"]} configs=${result["configs"]} source=${source.name}"
+				)
+			}
 			val images = result["images"] as? JsonArray ?: return emptyList()
 			val configsArr = result["configs"] as? JsonArray
 			Log.d(
@@ -905,17 +1021,22 @@ class JsMangaRepository(
 			)
 			val configs = configsArr?.mapNotNull { elem ->
 				val obj = elem as? JsonObject ?: return@mapNotNull null
-				val url = obj["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-				val headersObj = obj["headers"] as? JsonObject
-				val headers = headersObj?.mapNotNull { (k, v) ->
-					val hv = v.jsonPrimitive.contentOrNull ?: return@mapNotNull null
-					k to hv
-				}?.toMap()
-				PageEntry(url, headers?.takeIf { it.isNotEmpty() })
-			}.orEmpty()
+					val rawUrl = obj["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+					val headersObj = obj["headers"] as? JsonObject
+					val headers = headersObj?.mapNotNull { (k, v) ->
+						val hv = v.jsonPrimitive.contentOrNull ?: return@mapNotNull null
+						k to hv
+					}?.toMap()
+					val normalizedHeaders = normalizeHeaders(headers, rawUrl)
+					val finalUrl = normalizePageUrl(rawUrl, normalizedHeaders ?: headers) ?: rawUrl
+					if (!isValidHttpUrl(finalUrl)) return@mapNotNull null
+					PageEntry(finalUrl, normalizedHeaders)
+				}.orEmpty()
 			val list = if (configs.isNotEmpty()) configs else images.mapNotNull { value ->
-				val url = value.jsonPrimitive.contentOrNull ?: return@mapNotNull null
-				PageEntry(url, null)
+				val rawUrl = value.jsonPrimitive.contentOrNull ?: return@mapNotNull null
+				val finalUrl = normalizePageUrl(rawUrl, null) ?: rawUrl
+				if (!isValidHttpUrl(finalUrl)) return@mapNotNull null
+				PageEntry(finalUrl, null)
 			}
 			if (list.isNotEmpty()) {
 				Log.d(
@@ -1049,6 +1170,24 @@ class JsMangaRepository(
 				return@FunctionBinding toSafeJson(mapOf("error" to (e.message ?: e.toString())))
 			}
 		})
+	}
+
+	fun saveJsCookies(url: String, cookies: Map<String, String>) {
+		val httpUrl = url.toHttpUrlOrNull() ?: return
+		val list = cookies.mapNotNull { (name, value) ->
+			if (name.isBlank() || value.isBlank()) return@mapNotNull null
+			Cookie.Builder()
+				.hostOnlyDomain(httpUrl.host)
+				.path("/")
+				.name(name.trim())
+				.value(value)
+				.apply { if (httpUrl.isHttps) secure() }
+				.build()
+		}
+		if (list.isNotEmpty()) {
+			mangaLoaderContext.cookieJar.removeCookies(httpUrl) { true }
+			mangaLoaderContext.cookieJar.saveFromResponse(httpUrl, list)
+		}
 	}
 
 	private fun toSafeJson(value: Any?): String {
@@ -1527,6 +1666,147 @@ class JsMangaRepository(
 			})();
 		""".trimIndent()
 		qjs.evaluate<Any?>(detector, "<instantiate>")
+	}
+
+	suspend fun getJsAccountMeta(): JsAccountMeta? {
+		val (jsContent, preferredClass) = getJsSourceContent() ?: return null
+		val quickJs = createQuickJs()
+		return quickJs.use { qjs ->
+			registerSendMessage(qjs)
+			qjs.evaluate<Any?>(runtimeBootstrap, "<bootstrap>")
+			qjs.evaluate<Any?>(jsContent, "<js-source>")
+			instantiateSource(qjs, preferredClass)
+			val metaJson = qjs.evaluate<String?>(
+				"""
+				(() => {
+				  const meta = {hasLogin:false, hasWebLogin:false, webLoginUrl:null, cookieFields:[], registerUrl:null};
+				  if (!__source || !__source.account) return JSON.stringify(meta);
+				  const acc = __source.account;
+				  meta.hasLogin = typeof acc.login === 'function';
+				  if (acc.loginWithWebview && typeof acc.loginWithWebview.url === 'string') {
+				    meta.hasWebLogin = true;
+				    meta.webLoginUrl = acc.loginWithWebview.url;
+				  }
+				  if (acc.loginWithCookies && Array.isArray(acc.loginWithCookies.fields)) {
+				    meta.cookieFields = acc.loginWithCookies.fields.map(String);
+				  }
+				  if (acc.registerWebsite) meta.registerUrl = String(acc.registerWebsite);
+				  return JSON.stringify(meta);
+				})()
+				""".trimIndent()
+			)
+			metaJson?.let {
+				runCatching { jsonConverter.decodeFromString<JsAccountMeta>(it) }.getOrNull()
+			}
+		}
+	}
+
+	suspend fun jsLogin(username: String, password: String): Boolean {
+		val (jsContent, preferredClass) = getJsSourceContent() ?: return false
+		val quickJs = createQuickJs()
+		return quickJs.use { qjs ->
+			registerSendMessage(qjs)
+			qjs.evaluate<Any?>(runtimeBootstrap, "<bootstrap>")
+			qjs.evaluate<Any?>(jsContent, "<js-source>")
+			instantiateSource(qjs, preferredClass)
+			initializeSettingsDefaults(qjs)
+			val res = qjs.evaluate<Any?>(
+				"""
+				(async () => {
+				  if (!__source || !__source.account || typeof __source.account.login !== 'function') return false;
+				  const r = await __source.account.login(${username.jsonStringLiteral()}, ${password.jsonStringLiteral()});
+				  return r === undefined ? true : !!r;
+				})()
+				""".trimIndent(),
+				"<js-login>",
+			)
+			(res as? Boolean) ?: false
+		}
+	}
+
+	suspend fun jsLogout(): Boolean {
+		val (jsContent, preferredClass) = getJsSourceContent() ?: return false
+		val quickJs = createQuickJs()
+		return quickJs.use { qjs ->
+			registerSendMessage(qjs)
+			qjs.evaluate<Any?>(runtimeBootstrap, "<bootstrap>")
+			qjs.evaluate<Any?>(jsContent, "<js-source>")
+			instantiateSource(qjs, preferredClass)
+			val res = qjs.evaluate<Any?>(
+				"""
+				(async () => {
+				  if (!__source || !__source.account || typeof __source.account.logout !== 'function') return false;
+				  const r = await __source.account.logout();
+				  return r === undefined ? true : !!r;
+				})()
+				""".trimIndent(),
+				"<js-logout>",
+			)
+			(res as? Boolean) ?: false
+		}
+	}
+
+	suspend fun jsLoginWithWebview(onStatus: (url: String, title: String) -> Boolean): Boolean {
+		val (jsContent, preferredClass) = getJsSourceContent() ?: return false
+		val quickJs = createQuickJs()
+		return quickJs.use { qjs ->
+			registerSendMessage(qjs)
+			qjs.evaluate<Any?>(runtimeBootstrap, "<bootstrap>")
+			qjs.evaluate<Any?>(jsContent, "<js-source>")
+			instantiateSource(qjs, preferredClass)
+			initializeSettingsDefaults(qjs)
+			val hasWeb = qjs.evaluate<Boolean>(
+				"(() => !!(__source && __source.account && __source.account.loginWithWebview && __source.account.loginWithWebview.url))()",
+				"<js-web-meta>",
+			) ?: false
+			if (!hasWeb) return@use false
+			val url = qjs.evaluate<String?>("(() => __source.account.loginWithWebview.url)||null", "<js-web-url>") ?: return@use false
+			onStatus(url, "")
+		}
+	}
+
+	suspend fun jsCheckWebLogin(currentUrl: String?, title: String?): Boolean {
+		val (jsContent, preferredClass) = getJsSourceContent() ?: return false
+		val quickJs = createQuickJs()
+		return quickJs.use { qjs ->
+			registerSendMessage(qjs)
+			qjs.evaluate<Any?>(runtimeBootstrap, "<bootstrap>")
+			qjs.evaluate<Any?>(jsContent, "<js-source>")
+			instantiateSource(qjs, preferredClass)
+			initializeSettingsDefaults(qjs)
+			val script = """
+				(async () => {
+				  if (!__source || !__source.account || !__source.account.loginWithWebview) return false;
+				  const checker = __source.account.loginWithWebview.checkStatus;
+				  if (typeof checker !== 'function') return false;
+				  const r = checker(${(currentUrl ?: "").jsonStringLiteral()}, ${(title ?: "").jsonStringLiteral()});
+				  return r && typeof r.then === 'function' ? !!(await r) : !!r;
+				})()
+			""".trimIndent()
+			qjs.evaluate<Boolean>(script, "<js-web-check>") ?: false
+		}
+	}
+
+	suspend fun jsNotifyWebLoginSuccess(): Boolean {
+		val (jsContent, preferredClass) = getJsSourceContent() ?: return false
+		val quickJs = createQuickJs()
+		return quickJs.use { qjs ->
+			registerSendMessage(qjs)
+			qjs.evaluate<Any?>(runtimeBootstrap, "<bootstrap>")
+			qjs.evaluate<Any?>(jsContent, "<js-source>")
+			instantiateSource(qjs, preferredClass)
+			initializeSettingsDefaults(qjs)
+			val script = """
+				(async () => {
+				  if (!__source || !__source.account || !__source.account.loginWithWebview) return false;
+				  const cb = __source.account.loginWithWebview.onLoginSuccess;
+				  if (typeof cb !== 'function') return true;
+				  const r = cb();
+				  return r && typeof r.then === 'function' ? !!(await r) : (r === undefined ? true : !!r);
+				})()
+			""".trimIndent()
+			qjs.evaluate<Boolean>(script, "<js-web-success>") ?: true
+		}
 	}
 
 	private suspend fun initializeSettingsDefaults(qjs: QuickJs) {

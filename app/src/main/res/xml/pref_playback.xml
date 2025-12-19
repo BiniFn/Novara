@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:title="@string/playback_settings">
+
+	<ListPreference
+		android:entries="@array/video_decoder_modes"
+		android:key="video_decoder_mode"
+		android:title="@string/video_decoder_mode"
+		app:useSimpleSummaryProvider="true" />
+
+	<ListPreference
+		android:entries="@array/reader_backgrounds"
+		android:key="video_background"
+		android:title="@string/video_background"
+		app:useSimpleSummaryProvider="true" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="video_cache_mb"
+		android:title="@string/video_cache_size"
+		android:valueFrom="256"
+		android:valueTo="4096"
+		android:stepSize="128"
+		app:defaultValue="1024"
+		app:allowDividerAbove="true" />
+
+</PreferenceScreen>

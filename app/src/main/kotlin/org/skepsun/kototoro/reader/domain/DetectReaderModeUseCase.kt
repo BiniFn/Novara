@@ -24,6 +24,8 @@ import java.io.InputStream
 import java.util.zip.ZipFile
 import javax.inject.Inject
 import kotlin.math.roundToInt
+import android.util.Base64
+import java.io.ByteArrayInputStream
 
 class DetectReaderModeUseCase @Inject constructor(
 	private val dataRepository: MangaDataRepository,
@@ -59,36 +61,45 @@ class DetectReaderModeUseCase @Inject constructor(
 	 * @return ReaderMode.WEBTOON if page is wide
 	 */
 	private suspend fun guessMangaIsWebtoon(repository: MangaRepository, pages: List<MangaPage>): Boolean {
+		if (pages.isEmpty()) return false
 		val pageIndex = (pages.size * 0.3).roundToInt()
-		val page = requireNotNull(pages.getOrNull(pageIndex)) { "No pages" }
-		val url = repository.getPageUrl(page)
+		val page = pages.getOrNull(pageIndex) ?: return false
+		val url = runCatching { repository.getPageUrl(page) }.getOrNull() ?: return false
 		val uri = url.toUri()
 
-		val size = when {
-			uri.isZipUri() -> runInterruptible(Dispatchers.IO) {
-				ZipFile(uri.schemeSpecificPart).use { zip ->
-					val entry = zip.getEntry(uri.fragment)
-					zip.getInputStream(entry).use {
+		val size = runCatching {
+			when {
+				url.startsWith("data:", ignoreCase = true) -> {
+					val base64 = url.substringAfter("base64,", "")
+					val bytes = runCatching { Base64.decode(base64, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
+					if (bytes.isEmpty()) return@runCatching null
+					ByteArrayInputStream(bytes).use { getBitmapSize(it) }
+				}
+				uri.isZipUri() -> runInterruptible(Dispatchers.IO) {
+					ZipFile(uri.schemeSpecificPart).use { zip ->
+						val entry = zip.getEntry(uri.fragment)
+						zip.getInputStream(entry).use {
+							getBitmapSize(it)
+						}
+					}
+				}
+
+				uri.isFileUri() -> runInterruptible(Dispatchers.IO) {
+					uri.toFile().inputStream().use {
 						getBitmapSize(it)
 					}
 				}
-			}
 
-			uri.isFileUri() -> runInterruptible(Dispatchers.IO) {
-				uri.toFile().inputStream().use {
-					getBitmapSize(it)
-				}
-			}
-
-			else -> {
-				val request = PageLoader.createPageRequest(url, page)
-				imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use {
-					runInterruptible(Dispatchers.IO) {
-						getBitmapSize(it.body?.byteStream())
+				else -> {
+					val request = PageLoader.createPageRequest(url, page)
+					imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use {
+						runInterruptible(Dispatchers.IO) {
+							getBitmapSize(it.body?.byteStream())
+						}
 					}
 				}
 			}
-		}
+		}.getOrNull() ?: return false
 		return size.width * MIN_WEBTOON_RATIO < size.height
 	}
 

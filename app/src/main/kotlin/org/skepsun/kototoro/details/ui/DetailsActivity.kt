@@ -48,6 +48,8 @@ import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.UnknownMangaSource
 import org.skepsun.kototoro.core.model.getSummary
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.core.nav.router
@@ -133,6 +135,9 @@ class DetailsActivity :
 
 	@Inject
 	lateinit var settings: AppSettings
+
+	@Inject
+	lateinit var jsonSourceManager: JsonSourceManager
 
 	private val viewModel: DetailsViewModel by viewModels()
 	private lateinit var menuProvider: DetailsMenuProvider
@@ -458,9 +463,22 @@ class DetailsActivity :
 				textViewSource.isVisible = false
 				textViewSourceLabel.isVisible = false
 			} else {
-				textViewSource.textAndVisible = manga.source.getTitle(this@DetailsActivity)
+				val initialTitle = manga.source.getTitle(this@DetailsActivity)
+				textViewSource.textAndVisible = initialTitle
 				textViewSource.setTooltipCompat(manga.source.getSummary(this@DetailsActivity))
 				textViewSourceLabel.isVisible = textViewSource.isVisible == true
+				if ((initialTitle == getString(R.string.unknown) || manga.source.name.startsWith("JSON_")) &&
+					manga.source !is JsonMangaSource
+				) {
+					// 某些场景 seed.source 仍是裸 ID，这里兜底同步显示数据库中的显示名
+					lifecycleScope.launch {
+						jsonSourceManager.getById(manga.source.name)?.name?.takeIf { it.isNotBlank() }?.let { displayName ->
+							textViewSource.textAndVisible = displayName
+							textViewSource.setTooltipCompat(displayName)
+							textViewSourceLabel.isVisible = textViewSource.isVisible == true
+						}
+					}
+				}
 			}
 			val faviconPlaceholderFactory = FaviconDrawable.Factory(R.style.FaviconDrawable_Chip)
 			ImageRequest.Builder(this@DetailsActivity)

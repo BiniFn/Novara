@@ -32,6 +32,7 @@ import org.skepsun.kototoro.core.util.ext.takeIfReadable
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.domain.ListSortOrder
+import org.skepsun.kototoro.core.prefs.VideoDecoderMode
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.find
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
@@ -215,6 +216,18 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 
 	val readerBackground: ReaderBackground
 		get() = prefs.getEnumValue(KEY_READER_BACKGROUND, ReaderBackground.DEFAULT)
+
+	var videoDecoderMode: VideoDecoderMode
+		get() = prefs.getEnumValue(KEY_VIDEO_DECODER_MODE, VideoDecoderMode.HARDWARE)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_DECODER_MODE, value) }
+
+	var videoBackground: ReaderBackground
+		get() = prefs.getEnumValue(KEY_VIDEO_BACKGROUND, ReaderBackground.DEFAULT)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_BACKGROUND, value) }
+
+	var videoCacheSizeMb: Int
+		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
 
 	val defaultReaderMode: ReaderMode
 		get() = prefs.getEnumValue(KEY_READER_MODE, ReaderMode.STANDARD)
@@ -839,6 +852,9 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_READER_BAR_TRANSPARENT = "reader_bar_transparent"
 		const val KEY_READER_CHAPTER_TOAST = "reader_chapter_toast"
 		const val KEY_READER_BACKGROUND = "reader_background"
+		const val KEY_VIDEO_DECODER_MODE = "video_decoder_mode"
+		const val KEY_VIDEO_BACKGROUND = "video_background"
+		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"
 		const val KEY_READER_SCREEN_ON = "reader_screen_on"
 		const val KEY_SHORTCUTS = "dynamic_shortcuts"
 		const val KEY_READER_TAP_ACTIONS = "reader_tap_actions"
