@@ -69,6 +69,7 @@ import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordRpc
 import org.skepsun.kototoro.stats.domain.StatsCollector
+import java.util.concurrent.atomic.AtomicBoolean
 import java.time.Instant
 import javax.inject.Inject
 
@@ -125,6 +126,9 @@ class ReaderViewModel @Inject constructor(
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
     val content = MutableStateFlow(ReaderContent(emptyList(), null))
+
+    // 避免切换章节/模式后首次 onCurrentPageChanged 触发边界加载，将其忽略一次
+    private val skipBoundaryLoadOnce = AtomicBoolean(false)
 
     val pageAnimation = settings.observeAsStateFlow(
         scope = viewModelScope + Dispatchers.Default,
@@ -266,6 +270,10 @@ class ReaderViewModel @Inject constructor(
         return chaptersLoader.getPages(chapterId)
     }
 
+    fun skipBoundaryLoadNext() {
+        skipBoundaryLoadOnce.set(true)
+    }
+
     fun saveCurrentPage(
         pageSaveHelper: PageSaveHelper
     ) {
@@ -327,6 +335,7 @@ class ReaderViewModel @Inject constructor(
                 page = if (delta == 0) prevState.page else 0,
                 scroll = if (delta == 0) prevState.scroll else 0,
             )
+            skipBoundaryLoadOnce.set(true)
             content.value = ReaderContent(chaptersLoader.snapshot(), newState)
             saveCurrentState(newState)
         }
@@ -350,6 +359,9 @@ class ReaderViewModel @Inject constructor(
             }
             notifyStateChanged()
             if (pages.isEmpty() || loadingJob?.isActive == true) {
+                return@launchJob
+            }
+            if (skipBoundaryLoadOnce.getAndSet(false)) {
                 return@launchJob
             }
             ensureActive()
@@ -448,6 +460,7 @@ class ReaderViewModel @Inject constructor(
                             }
                         }
                         notifyStateChanged()
+                        skipBoundaryLoadOnce.set(true)
                         content.value = ReaderContent(chaptersLoader.snapshot(), readingState.value)
                     }
             } catch (e: CancellationException) {

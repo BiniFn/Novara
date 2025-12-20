@@ -56,6 +56,7 @@ class ReaderActionsView @JvmOverloads constructor(
 	}
 	private var isSliderChanged = false
 	private var isSliderTracking = false
+	private var pageLabelFormatter: ((Int, Int) -> String)? = null
 
 	var isSliderEnabled: Boolean
 		get() = binding.slider.isEnabled
@@ -182,6 +183,11 @@ class ReaderActionsView @JvmOverloads constructor(
 		
 		binding.slider.valueTo = safeMax
 		binding.slider.setValueRounded(safeValue)
+	}
+
+	fun setPageLabel(current: Int, total: Int) {
+		pageLabelFormatter = { c, t -> "$c/$t" }
+		binding.slider.setLabelFormatter { pageLabelFormatter?.invoke(current, total) ?: it.toInt().toString() }
 	}
 
 	fun setSliderReversed(reversed: Boolean) {

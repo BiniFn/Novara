@@ -25,6 +25,8 @@ abstract class BaseReaderFragment<B : ViewBinding> : BaseFragment<B>(), ZoomCont
 		readerAdapter = onCreateAdapter()
 
 		viewModel.content.observe(viewLifecycleOwner) {
+			// 避免刚恢复列表时立即触发前/后章节自动加载
+			viewModel.skipBoundaryLoadNext()
 			// Determine which state to use for restoring position:
 			// - content.state: explicitly set state (e.g., after mode switch or chapter change)
 			// - getCurrentState(): current reading position saved in SavedStateHandle
@@ -41,9 +43,15 @@ abstract class BaseReaderFragment<B : ViewBinding> : BaseFragment<B>(), ZoomCont
 					&& currentState != null
 					&& it.pages.any { page -> page.chapterId == currentState.chapterId } -> currentState
 
-				// Otherwise, use content.state (normal flow, mode switch, chapter change)
-				else -> it.state
-			}
+				// 当已有列表且 content.state 为空（例如预加载上下章节），如果当前进度仍存在于新页列表，则继续使用当前进度
+				it.state == null
+					&& readerAdapter?.hasItems == true
+					&& currentState != null
+					&& it.pages.any { page -> page.chapterId == currentState.chapterId && page.index == currentState.page } -> currentState
+
+			// Otherwise, use content.state (normal flow, mode switch, chapter change)
+			else -> it.state
+		}
 			onPagesChanged(it.pages, pendingState)
 		}
 	}

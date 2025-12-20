@@ -90,6 +90,7 @@ class NovelReaderActivity :
     private var currentChapterIndex: Int = 0
     private var isUiVisible: Boolean = false
     private var currentPageIndex: Int = 0
+    private var desiredProgressRatio: Float? = null
 
     override val readerMode: ReaderMode?
         get() = ReaderMode.STANDARD
@@ -142,8 +143,11 @@ class NovelReaderActivity :
         }
 
         viewBinding.readerView.onPageChangeListener = { page, total ->
-            updateProgress(page, total)
-            updateFooter(page, total)
+            // 显示用页码按双页 spread 计数，实际进度用字符比例
+            val displayPage = viewBinding.readerView.getDisplayPageIndex()
+            val displayTotal = viewBinding.readerView.getDisplayPageCount()
+            updateProgress(displayPage, displayTotal)
+            updateFooter(displayPage, displayTotal)
         }
         
         // 使用手势区域处理
@@ -265,12 +269,7 @@ class NovelReaderActivity :
         lifecycleScope.launch {
             try {
                 val currentPage = viewBinding.readerView.getCurrentPage()
-                val totalPages = viewBinding.readerView.getTotalPages()
-                val percent = if (totalPages > 0) {
-                    currentPage.toFloat() / totalPages
-                } else {
-                    0f
-                }
+                val percent = getCurrentProgressRatio()
                 
                 // 检查是否已存在书签
                 val existingBookmark = bookmarksRepository.observeBookmark(
@@ -393,7 +392,8 @@ class NovelReaderActivity :
             // Requirement 7.6: If chapter ID is not found, fallback to first chapter
             if (targetIndex >= 0) {
                 currentChapterIndex = targetIndex
-                // Restore page position from history if available
+                // Restore page position/ratio from history if available
+                desiredProgressRatio = history?.percent?.takeIf { it > 0f }
                 currentPageIndex = history?.page ?: state?.page ?: 0
                 android.util.Log.d("NovelReaderActivity", "✅ Restored to chapter index $targetIndex (ID: ${chapters[targetIndex].id}), page $currentPageIndex")
                 android.util.Log.d("NovelReaderActivity", "   Chapter title: ${chapters[targetIndex].title}")
@@ -750,12 +750,14 @@ class NovelReaderActivity :
                     // Then set content
                     val savedPageIndex = currentPageIndex
                     val needsPageRestore = savedPageIndex != 0
-                    
+                    val initialRatio = desiredProgressRatio
+
                     viewBinding.readerView.setContent(
                         content = contentToDisplay,
                         resetPage = true,
                         suppressNotification = needsPageRestore,
-                        initialPageIndex = savedPageIndex
+                        initialPageIndex = savedPageIndex,
+                        initialProgressRatio = initialRatio
                     )
                     
                     android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
@@ -767,6 +769,7 @@ class NovelReaderActivity :
                     }
                     
                     currentPageIndex = 0
+                    desiredProgressRatio = null
                     updateNavigationButtons()
                     
                     viewBinding.readerView.post {
@@ -1201,8 +1204,14 @@ class NovelReaderActivity :
     }
 
     private fun updateProgress(page: Int, total: Int) {
-        viewBinding.actionsView.setSliderValue(page, total - 1)
+        val ratio = getCurrentProgressRatio()
+        val sliderValue = if (total > 1) {
+            (ratio * (total - 1)).toInt().coerceIn(0, total - 1)
+        } else 0
+        viewBinding.actionsView.setSliderValue(sliderValue, total - 1)
         viewBinding.actionsView.isSliderEnabled = total > 1
+        // 页码显示使用当前分页（单页或双页 spread）
+        viewBinding.actionsView.setPageLabel(page + 1, total)
     }
 
     private fun updateNavigationButtons() {
@@ -1304,20 +1313,28 @@ class NovelReaderActivity :
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // 保存当前页码
-        val savedPageIndex = viewBinding.readerView.getCurrentPage()
-        android.util.Log.d("NovelReaderActivity", "Configuration changed, saving page: $savedPageIndex")
-        
+        // 保存当前进度（按字符比例），用于横竖屏/单双页切换后的恢复
+        val ratio = viewBinding.readerView.getProgressRatio()
+        val currentStart = viewBinding.readerView.getCurrentCharOffset()
+        val currentEnd = viewBinding.readerView.getCurrentPageEndOffset()
+        val wasDual = viewBinding.readerView.isDualPage()
+
         updateDualPageMode()
-        
-        // 等待重新分页完成后恢复页码
-        // 使用 postDelayed 确保分页已经完成
-        viewBinding.readerView.postDelayed({
-            if (savedPageIndex > 0 && savedPageIndex < viewBinding.readerView.getTotalPages()) {
-                android.util.Log.d("NovelReaderActivity", "Restoring page: $savedPageIndex")
-                viewBinding.readerView.goToPage(savedPageIndex)
+
+        val nowDual = viewBinding.readerView.isDualPage()
+        // 若从单页->双页，保证旧页首字符出现；双页->单页，保证旧页尾字符出现
+        if (wasDual != nowDual) {
+            if (!wasDual && nowDual) {
+                viewBinding.readerView.setPendingOffset(currentStart, biasToEnd = false)
+            } else if (wasDual && !nowDual) {
+                viewBinding.readerView.setPendingOffset((currentEnd - 1).coerceAtLeast(0), biasToEnd = true)
+            } else {
+                viewBinding.readerView.setPendingProgressRatio(ratio)
             }
-        }, 100)
+        } else {
+            viewBinding.readerView.setPendingProgressRatio(ratio)
+        }
+        android.util.Log.d("NovelReaderActivity", "Configuration changed, saved ratio: $ratio, start=$currentStart, end=$currentEnd, wasDual=$wasDual, nowDual=$nowDual")
     }
 
     companion object {
@@ -1393,10 +1410,14 @@ class NovelReaderActivity :
     private fun updateFooter(page: Int, total: Int) {
         val chapter = chapters.getOrNull(currentChapterIndex)
         viewBinding.textFooterChapter.text = chapter?.title ?: getString(R.string.unnamed_chapter)
-        viewBinding.textFooterProgress.text = "${page + 1}/$total"
-        
-        // 更新历史记录
-        updateHistory(page, total)
+        val ratio = getCurrentProgressRatio()
+        // 页脚显示当前分页页码，同时追加百分比以体现真实进度
+        viewBinding.textFooterProgress.text = "${page + 1}/$total (${(ratio * 100).toInt()}%)"
+
+        // 更新历史记录使用实际页数（单页计数）
+        val actualPage = viewBinding.readerView.getCurrentPage()
+        val actualTotal = viewBinding.readerView.getTotalPages()
+        updateHistory(actualPage, actualTotal)
     }
 
     /**
@@ -1425,8 +1446,8 @@ class NovelReaderActivity :
                     return@launch
                 }
                 
-                // 计算当前章节在所有章节中的进度
-                val chapterProgress = if (total > 0) page.toFloat() / total else 0f
+                // 计算当前章节在所有章节中的进度（使用字符偏移更精确，兼容单/双页）
+                val chapterProgress = getCurrentProgressRatio()
                 
                 // 计算总体阅读进度
                 // 进度 = (已读完章节数 + 当前章节进度) / 总章节数
@@ -1438,9 +1459,7 @@ class NovelReaderActivity :
                 
                 android.util.Log.d("NovelReaderActivity", "Updating history: chapter=$currentChapterIndex/${chapters.size}, page=$page/$total, progress=$totalProgress")
                 
-                // 创建 ReaderState
-                // 注意：对于EPUB，我们直接保存当前内部章节的ID和页码
-                // 阅读器会通过fallback逻辑从历史记录中恢复
+                // 创建 ReaderState（仍沿用页码字段，历史恢复时会重新分页）
                 val readerState = org.skepsun.kototoro.reader.ui.ReaderState(
                     chapterId = chapter.id,
                     page = page,
@@ -1455,6 +1474,16 @@ class NovelReaderActivity :
                 android.util.Log.e("NovelReaderActivity", "Failed to update history", e)
             }
         }
+    }
+
+    /**
+     * 基于字符偏移的精确进度（0f-1f）
+     */
+    private fun getCurrentProgressRatio(): Float {
+        val totalChars = viewBinding.readerView.getChapterLength()
+        if (totalChars <= 0) return 0f
+        val offset = viewBinding.readerView.getCurrentCharOffset().coerceIn(0, totalChars)
+        return (offset.toFloat() / totalChars).coerceIn(0f, 1f)
     }
 
     /**

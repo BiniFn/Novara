@@ -55,10 +55,13 @@ class NovelReaderView @JvmOverloads constructor(
     private var chapterContent: String = ""
     private var pages: List<PageInfo> = emptyList()
     private var currentPageIndex: Int = 0
-    private var isDualPage: Boolean = false
-    private var footerHeight: Int = 0  // 页脚高度，用于计算可用空间
-    private var suppressPageChangeNotification: Boolean = false  // 抑制页面变化通知
-    private var pendingPageIndex: Int = -1  // 待设置的页码（-1 表示最后一页，-2 表示无）
+	private var isDualPage: Boolean = false
+	private var footerHeight: Int = 0  // 页脚高度，用于计算可用空间
+	private var suppressPageChangeNotification: Boolean = false  // 抑制页面变化通知
+	private var pendingPageIndex: Int = -1  // 待设置的页码（-1 表示最后一页，-2 表示无）
+	private var pendingProgressRatio: Float? = null // 通过比例定位时的待设置进度
+	private var pendingTargetOffset: Int? = null
+	private var pendingBiasToEnd: Boolean = false
     
     // Image support
     private var epubFile: File? = null  // 当前EPUB文件，用于提取图片
@@ -223,10 +226,11 @@ class NovelReaderView @JvmOverloads constructor(
      * 设置章节内容
      */
     fun setContent(
-        content: String, 
-        resetPage: Boolean = true, 
+        content: String,
+        resetPage: Boolean = true,
         suppressNotification: Boolean = false,
-        initialPageIndex: Int = 0
+        initialPageIndex: Int = 0,
+        initialProgressRatio: Float? = null,
     ) {
         try {
             android.util.Log.d("NovelReaderView", "setContent called, content length: ${content.length}, resetPage: $resetPage, suppressNotification: $suppressNotification, initialPageIndex: $initialPageIndex")
@@ -238,9 +242,15 @@ class NovelReaderView @JvmOverloads constructor(
             // 设置待处理的页码
             if (resetPage) {
                 pendingPageIndex = initialPageIndex
+                pendingProgressRatio = initialProgressRatio
+                pendingTargetOffset = initialProgressRatio?.let { (chapterContent.length * it).toInt() }
+                pendingBiasToEnd = false
                 currentPageIndex = 0  // 临时设置为 0，避免 repaginate 时使用旧值
             } else {
                 pendingPageIndex = -2  // 不改变页码
+                pendingProgressRatio = null
+                pendingTargetOffset = null
+                pendingBiasToEnd = false
             }
             
             // 确保在 View 已经测量后再分页
@@ -342,6 +352,82 @@ class NovelReaderView @JvmOverloads constructor(
     fun getTotalPages(): Int = pages.size
 
     /**
+     * 获取当前页起始字符偏移
+     */
+    fun getCurrentCharOffset(): Int = pages.getOrNull(currentPageIndex)?.startOffset ?: 0
+
+    /**
+     * 获取当前章节总字符数
+     */
+    fun getChapterLength(): Int = chapterContent.length
+    fun getCurrentPageEndOffset(): Int = pages.getOrNull(currentPageIndex)?.endOffset ?: chapterContent.length
+    fun isDualPage(): Boolean = isDualPage
+
+    /**
+     * 当前章节进度（0f-1f），基于字符偏移
+     */
+    fun getProgressRatio(): Float {
+        val total = chapterContent.length
+        if (total == 0) return 0f
+        return (getCurrentCharOffset().toFloat() / total).coerceIn(0f, 1f)
+    }
+
+    /**
+     * 用于展示/滑块的页索引（双页时按 spread 计）
+     */
+    fun getDisplayPageIndex(): Int = if (isDualPage) currentPageIndex / 2 else currentPageIndex
+
+    /**
+     * 用于展示/滑块的总页数（双页时按 spread 计）
+     */
+    fun getDisplayPageCount(): Int = if (isDualPage) {
+        (pages.size + 1) / 2
+    } else {
+        pages.size
+    }
+
+    /**
+     * 设置按比例定位的待恢复进度
+     */
+    fun setPendingProgressRatio(ratio: Float) {
+        pendingProgressRatio = ratio.coerceIn(0f, 1f)
+        pendingTargetOffset = (chapterContent.length * pendingProgressRatio!!).toInt()
+        pendingBiasToEnd = false
+    }
+
+    fun setPendingOffset(offset: Int, biasToEnd: Boolean) {
+        pendingTargetOffset = offset
+        pendingBiasToEnd = biasToEnd
+        pendingProgressRatio = null
+    }
+
+    private fun findClosestPageForOffset(offset: Int, biasToEnd: Boolean): Int {
+        if (pages.isEmpty()) return 0
+        val clamped = offset.coerceIn(0, chapterContent.length)
+        // 先尝试精确命中
+        val exact = pages.indexOfFirst { clamped in it.startOffset until it.endOffset }
+        if (exact != -1) {
+            if (!biasToEnd) return exact
+            var idx = exact
+            while (idx + 1 < pages.size && clamped >= pages[idx + 1].startOffset) {
+                idx++
+            }
+            return idx
+        }
+        // 否则选择 startOffset 最接近的页
+        var bestIndex = 0
+        var bestDiff = Int.MAX_VALUE
+        pages.forEachIndexed { index, page ->
+            val diff = kotlin.math.abs(page.startOffset - clamped)
+            if (diff < bestDiff) {
+                bestDiff = diff
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
+    /**
      * 获取当前页面的文本内容
      */
     fun getCurrentPageText(): String {
@@ -363,23 +449,7 @@ class NovelReaderView @JvmOverloads constructor(
         }
 
         // 保存当前阅读位置（使用字符位置比例）
-        val savedCharPosition = if (pages.isNotEmpty() && currentPageIndex in pages.indices) {
-            // 获取当前页的第一个字符在章节中的位置
-            val currentPageText = pages[currentPageIndex].text
-            if (currentPageText.isNotEmpty()) {
-                // 找到当前页文本在章节中的起始位置
-                val searchText = currentPageText.trim().take(50)
-                if (searchText.isNotEmpty()) {
-                    chapterContent.indexOf(searchText).coerceAtLeast(0)
-                } else {
-                    0
-                }
-            } else {
-                0
-            }
-        } else {
-            0
-        }
+        val savedCharPosition = pages.getOrNull(currentPageIndex)?.startOffset ?: 0
         
         // 计算阅读进度比例（0.0 到 1.0）
         val savedProgressRatio = if (chapterContent.isNotEmpty()) {
@@ -413,46 +483,39 @@ class NovelReaderView @JvmOverloads constructor(
         
         pages = paginateText(chapterContent, pageWidth, pageHeight)
         
-        // 处理待设置的页码
+        // 处理待设置的页码/偏移
         when {
             pendingPageIndex == -1 -> {
-                // -1 表示最后一页
                 currentPageIndex = max(0, pages.size - 1)
                 android.util.Log.d("NovelReaderView", "Set to last page: $currentPageIndex")
-                pendingPageIndex = -2  // 重置
+                pendingPageIndex = -2
+            }
+            pendingTargetOffset != null || pendingProgressRatio != null -> {
+                val offset = pendingTargetOffset
+                    ?: ((chapterContent.length * (pendingProgressRatio!!.coerceIn(0f, 1f))).toInt())
+                val targetPage = findClosestPageForOffset(offset, pendingBiasToEnd)
+                currentPageIndex = targetPage
+                pendingTargetOffset = null
+                pendingProgressRatio = null
+                pendingBiasToEnd = false
+                android.util.Log.d("NovelReaderView", "Set to offset page: $currentPageIndex (offset=$offset)")
             }
             pendingPageIndex >= 0 -> {
-                // 设置为指定页码
                 currentPageIndex = pendingPageIndex.coerceIn(0, max(0, pages.size - 1))
                 android.util.Log.d("NovelReaderView", "Set to pending page: $currentPageIndex")
-                pendingPageIndex = -2  // 重置
+                pendingPageIndex = -2
             }
-            savedProgressRatio > 0f && pages.isNotEmpty() -> {
-                // 根据保存的进度比例恢复阅读位置
-                val targetCharPosition = (chapterContent.length * savedProgressRatio).toInt()
-                
-                // 找到包含该字符位置的页面
-                var targetPage = 0
-                var accumulatedChars = 0
-                
-                for (i in pages.indices) {
-                    val pageText = pages[i].text
-                    val pageLength = pageText.length
-                    
-                    if (accumulatedChars + pageLength >= targetCharPosition) {
-                        targetPage = i
-                        break
-                    }
-                    
-                    accumulatedChars += pageLength
-                    targetPage = i
+            (savedCharPosition > 0 || savedProgressRatio > 0f) && pages.isNotEmpty() -> {
+                val targetCharPosition = if (savedCharPosition > 0) {
+                    savedCharPosition.coerceAtMost(chapterContent.length)
+                } else {
+                    (chapterContent.length * savedProgressRatio).toInt()
                 }
-                
+                val targetPage = findClosestPageForOffset(targetCharPosition, false)
                 currentPageIndex = targetPage
                 android.util.Log.d("NovelReaderView", "Restored to page: $currentPageIndex (target char: $targetCharPosition, ratio: $savedProgressRatio)")
             }
             else -> {
-                // 确保当前页在有效范围内
                 if (currentPageIndex >= pages.size) {
                     currentPageIndex = max(0, pages.size - 1)
                 }
@@ -499,7 +562,7 @@ class NovelReaderView @JvmOverloads constructor(
      */
     private fun paginateText(text: String, pageWidth: Int, pageHeight: Int): List<PageInfo> {
         if (text.isBlank()) {
-            return listOf(PageInfo("内容为空", null, emptyList()))
+            return listOf(PageInfo("内容为空", null, 0, 0, emptyList()))
         }
         
         android.util.Log.d("NovelReaderView", "Starting pagination: pageWidth=$pageWidth, pageHeight=$pageHeight, textLength=${text.length}")
@@ -519,7 +582,7 @@ class NovelReaderView @JvmOverloads constructor(
             createLayout(processedText, pageWidth)
         } catch (e: Exception) {
             android.util.Log.e("NovelReaderView", "Failed to create full layout", e)
-            return listOf(PageInfo("布局创建失败", null, emptyList()))
+            return listOf(PageInfo("布局创建失败", null, 0, 0, emptyList()))
         }
         
         val totalLines = fullLayout.lineCount
@@ -623,7 +686,7 @@ class NovelReaderView @JvmOverloads constructor(
             // 为这一页创建布局（使用移除占位符后的文本）
             try {
                 val pageLayout = createLayout(displayText, pageWidth)
-                result.add(PageInfo(displayText, pageLayout, pageImages))
+                result.add(PageInfo(displayText, pageLayout, startOffset, endOffset, pageImages))
                 pageCount++
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderView", "Failed to create page layout for page $pageCount", e)
@@ -640,10 +703,10 @@ class NovelReaderView @JvmOverloads constructor(
             android.util.Log.w("NovelReaderView", "No pages created, using fallback")
             try {
                 val fallbackText = processedText.take(500)
-                listOf(PageInfo(fallbackText, createLayout(fallbackText, pageWidth), emptyList()))
+                listOf(PageInfo(fallbackText, createLayout(fallbackText, pageWidth), 0, fallbackText.length, emptyList()))
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderView", "Failed to create fallback page", e)
-                listOf(PageInfo("加载失败", null, emptyList()))
+                listOf(PageInfo("加载失败", null, 0, 0, emptyList()))
             }
         }
     }
@@ -737,6 +800,8 @@ class NovelReaderView @JvmOverloads constructor(
     private data class PageInfo(
         val text: String,
         val layout: StaticLayout?,
+        val startOffset: Int,
+        val endOffset: Int,
         val images: List<ImageSpan> = emptyList(),  // 页面中的图片
     )
     
