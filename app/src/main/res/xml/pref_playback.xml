@@ -25,4 +25,12 @@
 		app:defaultValue="1024"
 		app:allowDividerAbove="true" />
 
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="video_controls_alpha"
+		android:title="@string/video_controls_alpha"
+		android:valueFrom="30"
+		android:valueTo="100"
+		android:stepSize="1"
+		app:defaultValue="90" />
+
 </PreferenceScreen>

@@ -40,7 +40,7 @@ fun String.transliterate(skipMissing: Boolean): String {
 }
 
 fun String.toFileNameSafe(): String = this.transliterate(false)
-	.replace(Regex("[^a-z0-9_\\-]", arraySetOf(RegexOption.IGNORE_CASE)), " ")
+	.replace(Regex("[^a-z0-9_\\-\u4e00-\u9fa5]", arraySetOf(RegexOption.IGNORE_CASE)), " ")
 	.replace(Regex("\\s+"), "_")
 
 fun CharSequence.sanitize(): CharSequence {

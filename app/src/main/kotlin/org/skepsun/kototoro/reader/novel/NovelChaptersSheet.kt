@@ -142,18 +142,38 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
 
         private fun buildItemList(): List<Item> {
             val result = mutableListOf<Item>()
-            var currentBranch: String? = null
+            
+            // 按照 branch (卷名) 分组
+            // null or blank branch treat as "Default" group
+            val grouped = chapters.groupBy { it.branch ?: "" }
+            
+            // 对分组的 Key (卷名) 进行排序
+            // 使用中文校对器进行自然排序
+            val collator = java.text.Collator.getInstance(java.util.Locale.CHINESE)
+            val sortedKeys = grouped.keys.sortedWith(Comparator { o1, o2 ->
+                if (o1.isEmpty()) -1 else if (o2.isEmpty()) 1 else collator.compare(o1, o2)
+            })
 
-            chapters.forEachIndexed { index, chapter ->
-                val branch = chapter.branch
+            // 重新构建 flattened list
+            sortedKeys.forEach { branch ->
+                val groupChapters = grouped[branch] ?: return@forEach
                 
-                // 如果分组变化，添加分组标题
-                if (branch != currentBranch && !branch.isNullOrBlank()) {
+                // 如果分组名不为空，添加Header
+                if (branch.isNotEmpty()) {
                     result.add(Item.Header(branch))
-                    currentBranch = branch
                 }
                 
-                result.add(Item.Chapter(chapter, index))
+                // 添加该分组下的章节，同时保留这一章在原始列表中的 index
+                groupChapters.forEach { chapter ->
+                    // 必须找到它在原始 list 这里的 index，因为 callback 需要 originalIndex
+                    // 但这里 iterate 的是 grouped value，它保存了原始引用
+                    // 我们需要 original index。
+                    // 效率较低的做法：chapters.indexOf(chapter)
+                    // 更好的做法：Group 之前先把 (Chapter, Index) 绑定
+                    
+                    val originalIndex = chapters.indexOf(chapter) // 只要 chapter 是引用一致的且 unique
+                    result.add(Item.Chapter(chapter, originalIndex))
+                }
             }
             
             return result

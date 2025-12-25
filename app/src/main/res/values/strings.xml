@@ -515,6 +515,7 @@
     <string name="video_background">Playback background</string>
     <string name="video_cache_size">Cache size (MB)</string>
     <string name="video_cache_size_summary">%1$d MB</string>
+    <string name="video_controls_alpha">Controls opacity (%)</string>
     <string name="state_abandoned">Dropped</string>
     <string name="enhanced_colors_summary">Reduces banding, but may impact performance</string>
     <string name="enhanced_colors">32-bit color mode</string>
@@ -539,6 +540,9 @@
     <string name="lock_screen_rotation">Lock screen rotation</string>
     <string name="content_type_manga">Manga</string>
     <string name="content_type_hentai">Hentai</string>
+    <string name="content_type_hentai_manga">成人漫画</string>
+    <string name="content_type_hentai_novel">成人小说</string>
+    <string name="content_type_hentai_video">成人视频</string>
     <string name="content_type_comics">Comics</string>
     <string name="content_type_other">Other</string>
     <string name="content_type_video">Video</string>
@@ -627,6 +631,7 @@
     <string name="remove_from_history">Remove from history</string>
     <string name="location">Location</string>
     <string name="preferred_download_format">Preferred download format</string>
+    <string name="chapter_download_delay">Chapter download delay</string>
     <string name="automatic">Automatic</string>
     <string name="single_cbz_file">Single CBZ file</string>
     <string name="multiple_cbz_files">Multiple CBZ files</string>
@@ -861,7 +866,27 @@
     <string name="error_details">Error details</string>
     <string name="error_disclaimer_manga">Try to open manga in a web browser to ensure it is available on its source.</string>
     <string name="error_disclaimer_app_outdated">It looks like your version of Kototoro is out of date. Please install the latest version to get all available fixes.</string>
-    <string name="error_disclaimer_report">You can submit a bug report to the developers. This will help us investigate and fix the issue.</string>
+    <string name="error_disclaimer_report">You can send an error report to developers, this will help us locate and fix the error</string>
+
+    <string name="enable_source_manga">Enable manga source</string>
+    <string name="enable_source_novel">Enable novel source</string>
+    <string name="enable_source_video">Enable video source</string>
+
+    <string name="domain_manga">Manga source domain</string>
+    <string name="domain_novel">Novel source domain</string>
+    <string name="domain_video">Video source domain</string>
+
+    <string name="save_manga_manga">Download manga</string>
+    <string name="save_manga_novel">Download novel</string>
+    <string name="save_manga_video">Download video</string>
+
+    <string name="download_option_whole_manga_manga">Whole manga</string>
+    <string name="download_option_whole_manga_novel">Whole novel</string>
+    <string name="download_option_whole_manga_video">Whole video</string>
+
+    <string name="recommendation_manga">recommended manga</string>
+    <string name="recommendation_novel">recommended novels</string>
+    <string name="recommendation_video">recommended videos</string>
     <string name="link_to_manga_on_s">Link to manga on %s</string>
     <string name="link_to_manga_in_app">Link to manga in Kototoro</string>
     <string name="clear_browser_data">Clear browser data</string>

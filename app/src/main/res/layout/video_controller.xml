@@ -20,7 +20,7 @@
         android:layout_gravity="bottom"
         android:minHeight="?actionBarSize"
         android:fitsSystemWindows="false"
-        android:background="?colorSurfaceContainer"
+        android:background="?attr/colorSurfaceContainerHigh"
         android:clipToPadding="false"
         android:theme="@style/ThemeOverlay.Kototoro">
 
@@ -140,9 +140,15 @@
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_pages_thumbs"
                     style="?materialIconButtonStyle"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
                     android:layout_gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
                     android:contentDescription="@string/pages"
                     app:icon="@drawable/ic_grid" />
             </FrameLayout>
@@ -154,9 +160,15 @@
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_options"
                     style="?materialIconButtonStyle"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
                     android:layout_gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
                     android:contentDescription="@string/options"
                     app:icon="@drawable/ic_settings" />
             </FrameLayout>

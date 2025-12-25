@@ -193,12 +193,20 @@
             android:text="全屏模式（隐藏状态栏）"
             android:layout_marginTop="8dp" />
 
-        <!-- 显示页脚 -->
+        <!-- 显示阅读状态 -->
         <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switchShowFooter"
+            android:id="@+id/switchShowReadingStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="显示页脚（进度和章节名）"
+            android:text="显示阅读状态"
+            android:layout_marginTop="8dp" />
+
+        <!-- 透明阅读状态栏 -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchReadingStatusTransparent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="透明阅读状态栏"
             android:layout_marginTop="8dp" />
 
         <!-- 按钮 -->

@@ -17,6 +17,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getSaveTitleResId
+import org.skepsun.kototoro.core.model.getWholeWorkOptionResId
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.DownloadFormat
@@ -32,6 +35,8 @@ import org.skepsun.kototoro.core.util.ext.parentView
 import org.skepsun.kototoro.core.util.ext.showOrHide
 import org.skepsun.kototoro.databinding.DialogDownloadBinding
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.settings.storage.DirectoryModel
 
@@ -45,13 +50,17 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		DialogDownloadBinding.inflate(inflater, container, false)
 
 	override fun onBuildDialog(builder: MaterialAlertDialogBuilder): MaterialAlertDialogBuilder {
+		val contentType = (viewModel.manga.firstOrNull()?.source?.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
 		return super.onBuildDialog(builder)
-			.setTitle(R.string.save_manga)
+			.setTitle(contentType.getSaveTitleResId())
 			.setCancelable(true)
 	}
 
 	override fun onViewBindingCreated(binding: DialogDownloadBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
+		val contentType = (viewModel.manga.firstOrNull()?.source?.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
+		binding.optionWholeManga.title = getString(contentType.getWholeWorkOptionResId())
+
 		optionViews = arrayOf(
 			binding.optionWholeManga,
 			binding.optionWholeBranch,
@@ -75,6 +84,21 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		viewModel.availableDestinations.observe(viewLifecycleOwner, this::onDestinationsChanged)
 		viewModel.chaptersSelectOptions.observe(viewLifecycleOwner, this::onChapterSelectOptionsChanged)
 		viewModel.isOptionsLoading.observe(viewLifecycleOwner, binding.progressBar::showOrHide)
+
+		// Setup delay slider
+		binding.sliderDelay.value = viewModel.getChapterDownloadDelay().toFloat()
+		updateDelayValueText(binding, viewModel.getChapterDownloadDelay())
+		binding.sliderDelay.addOnChangeListener { _, value, fromUser ->
+			if (fromUser) {
+				val seconds = value.toInt()
+				viewModel.setChapterDownloadDelay(seconds)
+				updateDelayValueText(binding, seconds)
+			}
+		}
+	}
+
+	private fun updateDelayValueText(binding: DialogDownloadBinding, seconds: Int) {
+		binding.textViewDelayValue.text = "${seconds}s"
 	}
 
 	override fun onViewStateRestored(savedInstanceState: Bundle?) {
@@ -239,6 +263,8 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		textViewFormat.isVisible = isVisible
 		cardDestination.isVisible = isVisible
 		textViewDestination.isVisible = isVisible
+		textViewDelay.isVisible = isVisible
+		layoutDelay.isVisible = isVisible
 	}
 
 	private fun setCheckedOption(id: Int) {

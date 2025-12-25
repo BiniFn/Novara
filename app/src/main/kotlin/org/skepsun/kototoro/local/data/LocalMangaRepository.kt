@@ -132,7 +132,7 @@ class LocalMangaRepository @Inject constructor(
 			// For saved manga, always re-parse from disk to get fresh chapter data
 			// This ensures we get updated chapters after EPUB download/extraction
 			// Bypass localMangaIndex cache by using LocalMangaParser.find directly
-			val parser = LocalMangaParser.find(storageManager.getReadableDirs(), manga)
+			val parser = LocalMangaParser.find(storageManager.getAllReadableDirs(), manga)
 			if (parser != null) {
 				// Parse directly from disk to get fresh data
 				parser.getManga(withDetails = true).manga
@@ -208,7 +208,7 @@ class LocalMangaRepository @Inject constructor(
 			return@runCatchingCancellable cached
 		}
 		// fast path
-		LocalMangaParser.find(storageManager.getReadableDirs(), remoteManga)?.let {
+		LocalMangaParser.find(storageManager.getAllReadableDirs(), remoteManga)?.let {
 			return it.getManga(withDetails)
 		}
 		// slow path
@@ -255,7 +255,7 @@ class LocalMangaRepository @Inject constructor(
 		if (lock.isNotEmpty()) {
 			return false
 		}
-		val dirs = storageManager.getWriteableDirs()
+		val dirs = storageManager.getAllWriteableDirs()
 		runInterruptible(Dispatchers.IO) {
 			val filter = TempFileFilter()
 			dirs.forEach { dir ->
@@ -289,10 +289,12 @@ class LocalMangaRepository @Inject constructor(
 
 	private suspend fun getRawList(): ArrayList<LocalManga> = getRawListAsFlow().toCollection(ArrayList())
 
-	private suspend fun getAllFiles() = storageManager.getReadableDirs()
+	private suspend fun getAllFiles() = storageManager.getAllReadableDirs()
 		.asSequence()
 		.flatMap { dir ->
-			dir.withChildren { children -> children.filterNot { it.isHidden || it.shouldSkip() }.toList() }
+			dir.withChildren { children -> 
+				children.filterNot { it.isHidden || it.shouldSkip() }.toList() 
+			}
 		}
 
 	private fun Collection<LocalManga>.unwrap(): List<Manga> = map { it.manga }

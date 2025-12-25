@@ -9,8 +9,12 @@ import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.NovelCache
+import org.skepsun.kototoro.core.util.ext.toMimeType
 import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.util.ext.URI_SCHEME_ZIP
+import org.skepsun.kototoro.core.util.ext.toMimeType
 import java.io.File
+import java.util.zip.ZipFile
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,26 +44,53 @@ class NovelContentLoader @Inject constructor(
         repository: MangaRepository,
         chapter: MangaChapter,
     ): String = withContext(Dispatchers.IO) {
+        loadChapterContentInternal(repository, chapter, forceRefresh = false)
+    }
+
+    /**
+     * 强制重新拉取（忽略缓存），用于之前缓存了错误提示时的手动刷新
+     */
+    suspend fun refreshChapterContent(
+        repository: MangaRepository,
+        chapter: MangaChapter,
+    ): String = withContext(Dispatchers.IO) {
+        loadChapterContentInternal(repository, chapter, forceRefresh = true)
+    }
+
+    private suspend fun loadChapterContentInternal(
+        repository: MangaRepository,
+        chapter: MangaChapter,
+        forceRefresh: Boolean,
+    ): String {
+        // 本地 CBZ/ZIP 小说章节：通过 pages 读取 HTML
+        loadLocalHtmlViaPages(repository, chapter)?.let { return it }
+
         // Check if this is an EPUB chapter (NEW ARCHITECTURE)
         if (org.skepsun.kototoro.local.epub.LocalEpubSource.isEpubUrl(chapter.url)) {
             android.util.Log.d("NovelContentLoader", "Loading EPUB chapter: ${chapter.url}")
-            return@withContext loadEpubChapterContent(chapter)
+            return loadEpubChapterContent(chapter)
         }
         
         // 生成缓存key：使用章节ID作为唯一标识
         val cacheKey = generateCacheKey(chapter)
-        android.util.Log.d("NovelContentLoader", "Loading chapter: id=${chapter.id}, name=${chapter.name}, cacheKey=$cacheKey")
+        android.util.Log.d("NovelContentLoader", "Loading chapter: id=${chapter.id}, title=${chapter.title}, cacheKey=$cacheKey")
         
-        // 1. 尝试从缓存读取
-        cache.get(cacheKey)?.let { cachedFile ->
-            android.util.Log.d("NovelContentLoader", "Cache hit for $cacheKey, file size: ${cachedFile.length()}")
-            val content = readTextFromFile(cachedFile)
-            android.util.Log.d("NovelContentLoader", "Loaded from cache, content length: ${content.length}")
-            return@withContext content
+        if (!forceRefresh) {
+            // 1. 尝试从缓存读取
+            cache.get(cacheKey)?.let { cachedFile ->
+                android.util.Log.d("NovelContentLoader", "Cache hit for $cacheKey, file size: ${cachedFile.length()}")
+                val content = readTextFromFile(cachedFile)
+                android.util.Log.d("NovelContentLoader", "Loaded from cache, content length: ${content.length}")
+                if (!isErrorContent(content)) {
+                    return content
+                } else {
+                    android.util.Log.w("NovelContentLoader", "Cached content looks like error/placeholder, reloading from network")
+                }
+            }
         }
-        
+
         android.util.Log.d("NovelContentLoader", "Cache miss for $cacheKey, loading from network")
-        
+
         // 2. 从网络加载
         val pages = repository.getPages(chapter)
         val html = pages.firstOrNull()?.url?.let(::decodeChapterHtml) ?: ""
@@ -68,14 +99,308 @@ class NovelContentLoader @Inject constructor(
         android.util.Log.d("NovelContentLoader", "Loaded from network, content length: ${plainText.length}")
         
         // 3. 保存到缓存
-        if (plainText.isNotBlank()) {
+        if (plainText.isNotBlank() && !isErrorContent(plainText)) {
             saveToCache(cacheKey, plainText)
             android.util.Log.d("NovelContentLoader", "Saved to cache: $cacheKey")
         } else {
             android.util.Log.w("NovelContentLoader", "Content is blank, not caching")
         }
         
-        plainText
+        return plainText
+    }
+
+    private fun loadLocalHtmlChapter(chapter: MangaChapter): String {
+        return try {
+            val uri = java.net.URI(chapter.url)
+            val file = java.io.File(uri)
+            if (!file.exists()) {
+                android.util.Log.w("NovelContentLoader", "Local chapter file not found: ${chapter.url}")
+                "本地章节文件不存在：${chapter.url}"
+            } else {
+                val html = readTextFromFile(file)
+                val baseDir = file.parentFile
+                val rewritten = if (baseDir != null) {
+                    rewriteLocalImageSrc(html, baseDir)
+                } else html
+                htmlToPlainText(rewritten)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NovelContentLoader", "Failed to load local chapter ${chapter.url}", e)
+            "加载本地章节失败：${e.message}"
+        }
+    }
+
+	private suspend fun loadLocalHtmlViaPages(
+		repository: MangaRepository,
+		chapter: MangaChapter,
+	): String? {
+		return runCatching {
+			val pages = repository.getPages(chapter)
+			android.util.Log.d(
+				"NovelContentLoader",
+				"loadLocalHtmlViaPages: chapterId=${chapter.id}, pages=${pages.size}, first=${pages.firstOrNull()?.url}",
+			)
+			if (pages.isEmpty()) return null
+			
+			// 如果第一页是图片，说明这是插图章节，生成合成HTML显示所有图片
+			val firstUrl = pages.first().url
+			if (firstUrl.isImageName()) {
+				android.util.Log.d("NovelContentLoader", "Detected image-only chapter, generating synthetic HTML")
+				val syntheticHtml = pages.joinToString("\n") { p -> 
+					// 使用 fragment (entry name) 或者完整 URL
+					val entryName = java.net.URI(p.url).fragment?.removePrefix("/") ?: p.url
+					"<img src=\"$entryName\">" 
+				}
+				// 即使是合成HTML也经过转换，确保渲染器能正确处理占位符
+				return htmlToPlainText(syntheticHtml)
+			}
+
+			val page = pages.first()
+			val uri = java.net.URI(page.url)
+			val html = readLocalHtmlFromUri(uri) ?: return null
+			val rewritten = rewriteLocalImageSrc(html, uri)
+			htmlToPlainText(rewritten)
+        }.getOrNull()
+    }
+
+    private fun readLocalHtmlFromUri(uri: java.net.URI): String? {
+		return runCatching {
+			when {
+				uri.scheme.equals("file", ignoreCase = true) -> {
+					val file = File(uri.path) // Use path to avoid fragment issues
+					if (file.exists()) file.readText() else null
+				}
+
+				uri.scheme.equals("data", ignoreCase = true) -> {
+					val data = uri.schemeSpecificPart
+					val comma = data.indexOf(',')
+					if (comma <= 0) return null
+					val meta = data.substring(0, comma)
+					val contentPart = data.substring(comma + 1)
+					val isBase64 = meta.contains(";base64", ignoreCase = true)
+					if (isBase64) {
+						String(android.util.Base64.decode(contentPart, android.util.Base64.DEFAULT))
+					} else {
+						java.net.URLDecoder.decode(contentPart, "UTF-8")
+					}
+				}
+
+				uri.scheme.equals(URI_SCHEME_ZIP, ignoreCase = true) ||
+					uri.scheme.equals("zip", ignoreCase = true) ||
+					uri.scheme.equals("cbz", ignoreCase = true) -> {
+					val zipPath = uri.schemeSpecificPart.substringBefore('#').removePrefix("///").let { 
+						if (it.startsWith("/")) it else "/$it" 
+					}
+					val entryPath = uri.fragment?.removePrefix("/") ?: return null
+					ZipFile(zipPath).use { zip ->
+						val entry = zip.getEntry(entryPath) ?: return null
+						zip.getInputStream(entry).bufferedReader().use { it.readText() }
+					}
+				}
+
+				else -> null
+			}
+		}.getOrNull()
+    }
+
+    private fun rewriteLocalImageSrc(html: String, uri: java.net.URI): String {
+        return when {
+            uri.scheme.equals("file", ignoreCase = true) -> {
+                val file = File(uri)
+                val base = file.parentFile
+                if (base != null) rewriteLocalImageSrc(html, base) else html
+            }
+
+			uri.scheme.equals(URI_SCHEME_ZIP, ignoreCase = true) ||
+				uri.scheme.equals("zip", ignoreCase = true) ||
+				uri.scheme.equals("cbz", ignoreCase = true) -> {
+				val zipPath = uri.schemeSpecificPart
+				val base = uri.fragment.orEmpty().substringBeforeLast("/", "")
+				val nameToEntry = HashMap<String, String>()
+				val chapterImages = HashMap<String, String>()
+				val imageEntries = runCatching {
+					ZipFile(zipPath).use { zip ->
+						// 1) 读取 index.json 映射。针对 MULTIPLE_CBZ，索引文件在 ZIP 同级目录下
+						val zipFile = File(zipPath)
+						val indexContent = zip.getEntry("index.json")?.let { entry ->
+							zip.getInputStream(entry).bufferedReader().use { it.readText() }
+						} ?: File(zipFile.parentFile, "index.json").takeIf { it.exists() }?.readText()
+
+						indexContent?.let { json ->
+							val rootObj = org.json.JSONObject(json)
+							val chaptersObj = rootObj.optJSONObject("chapters")
+							val zipName = zipFile.name
+							val htmlInside = uri.fragment?.removePrefix("/")
+
+							val matched = chaptersObj?.keys()?.asSequence()?.any { id ->
+								val chapterObj = chaptersObj.optJSONObject(id) ?: return@any false
+								val fileName = chapterObj.optString("file")
+								// 匹配逻辑：
+								// 1. 如果 filename 匹配 ZIP 文件名（MULTIPLE_CBZ）
+								// 2. 或者 filename 匹配内部 HTML（旧逻辑或 SINGLE_CBZ 兜底）
+								if (fileName != zipName && fileName != htmlInside) return@any false
+
+								chapterObj.optJSONArray("images")?.let { arr ->
+									for (i in 0 until arr.length()) {
+										val o = arr.optJSONObject(i) ?: continue
+										val remote = o.optString("remote")
+										val local = o.optString("local")
+										if (remote.isNotBlank() && local.isNotBlank()) {
+											chapterImages.putIfAbsent(remote, local)
+										}
+									}
+								}
+								true
+							} ?: false
+
+							android.util.Log.d(
+								"NovelContentLoader",
+								"index.json hit: zip=$zipName, html=$htmlInside, matched=$matched, images=${chapterImages.size}",
+							)
+
+							if (!matched) {
+								chaptersObj?.keys()?.forEach { id ->
+									val chapterObj = chaptersObj.optJSONObject(id) ?: return@forEach
+									chapterObj.optJSONArray("images")?.let { arr ->
+										for (i in 0 until arr.length()) {
+											val o = arr.optJSONObject(i) ?: continue
+											val remote = o.optString("remote")
+											val local = o.optString("local")
+											if (remote.isNotBlank() && local.isNotBlank()) {
+												chapterImages.putIfAbsent(remote, local)
+											}
+										}
+									}
+								}
+							}
+						}
+
+						// 2) 枚举图片 entries，按文件名建立映射并记录顺序
+						val acc = mutableListOf<String>()
+						val iter = zip.entries().asIterator()
+						while (iter.hasNext()) {
+							val entry = iter.next()
+							if (!entry.isDirectory && entry.name.isImageName()) {
+								acc.add(entry.name)
+								val name = entry.name.substringAfterLast('/')
+								nameToEntry.putIfAbsent(name, entry.name)
+							}
+						}
+						android.util.Log.d(
+							"NovelContentLoader",
+							"zip entries collected: images=${acc.size}, nameToEntry=${nameToEntry.size}",
+						)
+						acc.sorted()
+					}
+				}.getOrDefault(emptyList())
+				var fallbackIndex = 0
+				runCatching {
+					val doc = org.jsoup.Jsoup.parse(html)
+					doc.select("img").forEach { img ->
+                        val src = (img.attr("data-src").ifBlank { img.attr("src") }).trim()
+                        if (src.isBlank()) return@forEach
+                        // 先用 index.json 中记录的映射
+                        var entryPath: String? = chapterImages[src]
+						if (entryPath != null) {
+							android.util.Log.d("NovelContentLoader", "image map hit: $src -> $entryPath")
+						}
+                        if (src.startsWith("http", true) || src.startsWith("file", true)) {
+                            val key = src.substringAfterLast('/')
+                            entryPath = entryPath ?: nameToEntry[key]
+							if (entryPath != null) {
+								android.util.Log.d("NovelContentLoader", "image name hit: $src -> $entryPath")
+							}
+                        } else {
+                            entryPath = entryPath ?: normalizeZipPath(base, src)?.takeIf { it in imageEntries }
+							if (entryPath != null) {
+								android.util.Log.d("NovelContentLoader", "image relative hit: $src -> $entryPath")
+							}
+                        }
+                        if (entryPath == null && fallbackIndex < imageEntries.size) {
+                            entryPath = imageEntries[fallbackIndex++]
+							android.util.Log.d("NovelContentLoader", "image fallback: $src -> $entryPath")
+                        }
+						if (entryPath == null) {
+							android.util.Log.w("NovelContentLoader", "image unresolved, keep remote: $src")
+						}
+                        if (entryPath != null) {
+							val absolute = "$URI_SCHEME_ZIP://$zipPath#$entryPath"
+							img.attr("src", absolute)
+							img.removeAttr("data-src")
+						}
+					}
+					doc.outerHtml()
+				}.getOrDefault(html)
+			}
+
+			else -> html
+		}
+	}
+
+	private fun String.isImageName(): Boolean {
+		val ext = substringAfterLast('.', missingDelimiterValue = "").lowercase()
+		return ext in setOf("jpg", "jpeg", "png", "webp", "gif", "avif", "bmp")
+	}
+
+    private fun normalizeZipPath(base: String, src: String): String {
+        val clean = src.removePrefix("./").removePrefix("/")
+        return if (base.isBlank()) clean else "$base/$clean"
+    }
+
+    private fun rewriteLocalImageSrc(html: String, baseDir: java.io.File): String {
+        val imagesMap = try {
+            val indexContent = File(baseDir, "index.json").takeIf { it.exists() }?.readText()
+                ?: File(baseDir.parentFile, "index.json").takeIf { it.exists() }?.readText()
+            
+            if (indexContent != null) {
+                val json = org.json.JSONObject(indexContent)
+                val chaptersObj = json.optJSONObject("chapters")
+                val map = HashMap<String, String>()
+                chaptersObj?.keys()?.forEach { id ->
+                    val chapterObj = chaptersObj.optJSONObject(id)
+                    chapterObj?.optJSONArray("images")?.let { arr ->
+                        for (i in 0 until arr.length()) {
+                            val o = arr.optJSONObject(i) ?: continue
+                            val remote = o.optString("remote")
+                            val local = o.optString("local")
+                            if (remote.isNotBlank() && local.isNotBlank()) {
+                                map[remote] = local
+                            }
+                        }
+                    }
+                }
+                map
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+
+        return runCatching {
+            val doc = org.jsoup.Jsoup.parse(html)
+            doc.select("img").forEach { img ->
+                val src = (img.attr("data-src").ifBlank { img.attr("src") }).trim()
+                if (src.isBlank()) return@forEach
+                
+                // 优先使用索引映射
+                val localPath = imagesMap[src]
+                val file = if (localPath != null) {
+                    java.io.File(baseDir, localPath)
+                } else {
+                    java.io.File(baseDir, src)
+                }
+                
+                if (file.exists()) {
+                    val abs = file.toURI().toString()
+                    img.attr("src", abs)
+                    img.removeAttr("data-src")
+                } else if (!src.startsWith("http", ignoreCase = true)) {
+                    // 如果不是远程，也不是已知文件，尝试补全为本地 URI
+                    val abs = file.toURI().toString()
+                    img.attr("src", abs)
+                }
+            }
+            doc.outerHtml()
+        }.getOrDefault(html)
     }
     
     /**
@@ -209,18 +534,43 @@ class NovelContentLoader @Inject constructor(
      * 将HTML转换为纯文本
      */
     private fun htmlToPlainText(html: String): String {
+        val imgRe = Regex("(?i)<img[^>]+src=['\"]([^'\"]+)['\"][^>]*>")
         return html
             .replace(Regex("<script[^>]*>.*?</script>", RegexOption.DOT_MATCHES_ALL), "")
             .replace(Regex("<style[^>]*>.*?</style>", RegexOption.DOT_MATCHES_ALL), "")
+            // <img> => 插图占位，保证前后有换行
+            .replace(imgRe) { m ->
+                val src = m.groupValues.getOrNull(1).orEmpty()
+                if (src.isNotBlank()) "\n📷 [图片: $src]\n" else ""
+            }
+            // 段落/换行处理
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</p>"), "\n")
+            .replace(Regex("(?i)<p[^>]*>"), "")
+            // 其他标签移除
             .replace(Regex("<[^>]+>"), "")
             .replace("&nbsp;", " ")
             .replace("&lt;", "<")
             .replace("&gt;", ">")
             .replace("&amp;", "&")
             .replace("&quot;", "\"")
-            .trim()
             .lines()
-            .filter { it.isNotBlank() }
-            .joinToString("\n\n")
+            .map { it.trimEnd() }
+            // 修正：不再过滤空行，因为图片占位需要依靠空行
+            .joinToString("\n")
+    }
+
+    /**
+     * 判断缓存内容是否为错误/占位信息（需要重载）
+     */
+    private fun isErrorContent(content: String): Boolean {
+        if (content.isBlank()) return true
+        val lower = content.lowercase()
+        // 降低文字长度限制，避免误判插图章节（可能只有 10 几个字）
+        return (content.length < 5 && !content.contains("📷")) ||
+            lower.contains("加载失败") ||
+            lower.contains("需要先登录") ||
+            lower.contains("authorization required") ||
+            (lower.contains("error") && content.length < 200)
     }
 }

@@ -20,7 +20,7 @@
         android:id="@+id/status_bar_scrim"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:background="?colorSurfaceContainerHigh"
+        android:background="?attr/colorSurfaceContainerHigh"
         android:visibility="gone"
         android:elevation="4dp"
         android:clickable="false"
@@ -31,7 +31,7 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?colorSurfaceContainerHigh"
+        android:background="?attr/colorPrimary"
         android:elevation="8dp"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
@@ -44,8 +44,8 @@
         app:layout_scrollFlags="scroll|enterAlways"
         app:popupTheme="@style/ThemeOverlay.Kototoro"
         app:titleTextAppearance="?textAppearanceTitleSmall"
-        app:titleTextColor="?attr/colorOnSurface"
-        app:subtitleTextColor="?attr/colorOnSurfaceVariant">
+        app:titleTextColor="?attr/colorOnPrimary"
+        app:subtitleTextColor="?attr/colorOnPrimaryContainer">
 
         <!-- 顶部工具栏内的短进度条，用于显示播放进度 -->
         <com.google.android.material.progressindicator.LinearProgressIndicator

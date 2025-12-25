@@ -121,7 +121,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		get() = prefs.getBoolean(KEY_TAGS_WARNINGS, true)
 
 	var isNsfwContentDisabled: Boolean
-		get() = prefs.getBoolean(KEY_DISABLE_NSFW, false)
+		get() = prefs.getBoolean(KEY_DISABLE_NSFW, true)
 		set(value) = prefs.edit { putBoolean(KEY_DISABLE_NSFW, value) }
 
 	var appLocales: LocaleListCompat
@@ -228,6 +228,11 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 	var videoCacheSizeMb: Int
 		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
+
+	@get:FloatRange(0.3, 1.0)
+	var videoControlsAlpha: Float
+		get() = prefs.getInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
+		set(@FloatRange(0.3, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_CONTROLS_ALPHA, (value * 100).toInt()) }
 
 	val defaultReaderMode: ReaderMode
 		get() = prefs.getEnumValue(KEY_READER_MODE, ReaderMode.STANDARD)
@@ -394,6 +399,10 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 
 	val preferredDownloadFormat: DownloadFormat
 		get() = prefs.getEnumValue(KEY_DOWNLOADS_FORMAT, DownloadFormat.AUTOMATIC)
+
+	var downloadChapterDelay: Int
+		get() = prefs.getInt(KEY_DOWNLOADS_CHAPTER_DELAY, 0).coerceIn(0, 10)
+		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_CHAPTER_DELAY, value.coerceIn(0, 10)) }
 
 	var isSuggestionsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_SUGGESTIONS, false)
@@ -841,6 +850,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_KITSU = "kitsu"
 		const val KEY_DOWNLOADS_METERED_NETWORK = "downloads_metered_network"
 		const val KEY_DOWNLOADS_FORMAT = "downloads_format"
+		const val KEY_DOWNLOADS_CHAPTER_DELAY = "downloads_chapter_delay"
 		const val KEY_ALL_FAVOURITES_VISIBLE = "all_favourites_visible"
 		const val KEY_DOH = "doh"
 		const val KEY_EXIT_CONFIRM = "exit_confirm"
@@ -855,6 +865,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_VIDEO_DECODER_MODE = "video_decoder_mode"
 		const val KEY_VIDEO_BACKGROUND = "video_background"
 		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"
+		const val KEY_VIDEO_CONTROLS_ALPHA = "video_controls_alpha"
 		const val KEY_READER_SCREEN_ON = "reader_screen_on"
 		const val KEY_SHORTCUTS = "dynamic_shortcuts"
 		const val KEY_READER_TAP_ACTIONS = "reader_tap_actions"

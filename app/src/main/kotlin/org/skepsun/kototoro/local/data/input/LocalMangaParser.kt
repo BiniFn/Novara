@@ -64,16 +64,16 @@ class LocalMangaParser(private val uri: Uri) {
 				val coverEntry: Path? = index.getCoverEntry()?.let { rootPath / it }?.takeIf {
 					fileSystem.exists(it)
 				}
-				// 获取隐藏的章节ID列表
-				val hiddenChapterIds = index.getHiddenChapterIds()
-				
-				mangaInfo.copy(
-					source = LocalMangaSource,
-					url = rootFile.toUri().toString(),
-					coverUrl = coverEntry?.let {
-						uri.child(it, resolve = true).toString()
-					} ?: fileSystem.findFirstImageUri(rootPath)?.toString(),
-					largeCoverUrl = null,
+					// 获取隐藏的章节ID列表
+					val hiddenChapterIds = index.getHiddenChapterIds()
+					
+					mangaInfo.copy(
+						source = LocalMangaSource,
+						url = rootFile.toUri().toString(),
+						coverUrl = coverEntry?.let {
+							uri.child(it, resolve = true).toString()
+						} ?: fileSystem.findFirstImageUri(rootPath)?.toString(),
+						largeCoverUrl = null,
 					chapters = if (withDetails) {
 						mangaInfo.chapters?.mapNotNull { c ->
 							// 过滤掉隐藏的章节
@@ -81,20 +81,30 @@ class LocalMangaParser(private val uri: Uri) {
 								return@mapNotNull null
 							}
 							
-							val path = index.getChapterFileName(c.id)?.toPath()
-							if (path != null && !fileSystem.exists(rootPath / path)) {
+							val fileName = index.getChapterFileName(c.id)
+							val path = fileName?.toPath()
+							if (path == null || !fileSystem.exists(rootPath / path)) {
+								// 关键：如果没有文件，不应作为本地章节返回
 								null
 							} else {
 								c.copy(
-									url = path?.let {
-										uri.child(it, resolve = false).toString()
-									} ?: uri.toString(),
+									url = uri.child(path, resolve = false).toString(),
 									source = LocalMangaSource,
 								)
 							}
 						}
 					} else {
-						null
+						// 如果不需要详情，也按索引过滤出实际存在的章节，并统一来源和URL
+						mangaInfo.chapters?.mapNotNull { c ->
+							val fileName = index.getChapterFileName(c.id)
+							val path = fileName?.toPath()
+							if (path != null && fileSystem.exists(rootPath / path)) {
+								c.copy(
+									url = uri.child(path, resolve = false).toString(),
+									source = LocalMangaSource
+								)
+							} else null
+						}
 					},
 				)
 			} else {
@@ -167,7 +177,7 @@ class LocalMangaParser(private val uri: Uri) {
 				val pattern = index.getChapterNamesPattern(chapter)
 				entries.filter { x -> x.name.substringBefore('.').matches(pattern) }
 			} else {
-				entries.filter { x -> x.isImage() && x.parent == rootPath }
+				entries.filter { x -> (x.isImage() || x.name.endsWith(".html", ignoreCase = true) || x.name.endsWith(".xhtml", ignoreCase = true)) && x.parent == rootPath }
 			}.toListSorted(compareBy(AlphanumComparator()) { x -> x.toString() })
 				.map { x ->
 					val entryUri = chapterUri.child(x, resolve = true).toString()
@@ -175,7 +185,7 @@ class LocalMangaParser(private val uri: Uri) {
 						id = entryUri.longHashCode(),
 						url = entryUri,
 						preview = null,
-						source = LocalMangaSource,
+						source = chapter.source ?: LocalMangaSource,
 					)
 				}
 		}
@@ -265,9 +275,13 @@ class LocalMangaParser(private val uri: Uri) {
 
 		suspend fun find(roots: Iterable<File>, manga: Manga): LocalMangaParser? = channelFlow {
 			val fileName = manga.title.toFileNameSafe()
+			val idFileName = "${manga.id}_$fileName"
 			for (root in roots) {
 				launch {
-					val parser = getOrNull(File(root, fileName)) ?: getOrNull(File(root, "$fileName.cbz"))
+					val parser = getOrNull(File(root, fileName)) 
+						?: getOrNull(File(root, "$fileName.cbz"))
+						?: getOrNull(File(root, idFileName))
+						?: getOrNull(File(root, "$idFileName.cbz"))
 					val info = runCatchingCancellable { parser?.getMangaInfo() }.getOrNull()
 					if (info?.id == manga.id) {
 						send(parser)

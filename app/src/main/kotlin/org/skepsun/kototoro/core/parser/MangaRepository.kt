@@ -18,6 +18,7 @@ import org.skepsun.kototoro.parsers.model.MangaChapter
 import org.skepsun.kototoro.parsers.model.MangaListFilter
 import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
+import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
@@ -47,6 +48,12 @@ interface MangaRepository {
 
 	suspend fun getFilterOptions(): MangaListFilterOptions
 
+	/**
+	 * 可选：返回小说章节的完整 HTML 与图片资源信息，用于离线下载。
+	 * 默认实现返回 null（未实现）。
+	 */
+	suspend fun getChapterContent(chapter: MangaChapter): NovelChapterContent? = null
+
 	suspend fun getRelated(seed: Manga): List<Manga>
 
 	suspend fun find(manga: Manga): Manga? {
@@ -58,6 +65,7 @@ interface MangaRepository {
 	class Factory @Inject constructor(
 		@ApplicationContext private val context: Context,
 		private val localMangaRepository: LocalMangaRepository,
+		private val localNovelRepository: org.skepsun.kototoro.local.novel.LocalNovelRepository,
 		private val loaderContext: MangaLoaderContext,
 		private val contentCache: MemoryContentCache,
 		private val mirrorSwitcher: MirrorSwitcher,
@@ -96,6 +104,7 @@ interface MangaRepository {
 					return create(source.mangaSource)
 				}
 				LocalMangaSource -> return localMangaRepository
+				org.skepsun.kototoro.core.model.LocalNovelSource -> return localNovelRepository
 				UnknownMangaSource -> return EmptyMangaRepository(source)
 			}
 			cache[source]?.get()?.let { return it }

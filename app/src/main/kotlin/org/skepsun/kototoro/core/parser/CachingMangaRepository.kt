@@ -74,6 +74,8 @@ abstract class CachingMangaRepository(
 
 	protected abstract suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage>
 
+	override suspend fun getChapterContent(chapter: MangaChapter): org.skepsun.kototoro.parsers.model.NovelChapterContent? = null
+
 	private suspend fun <T> asyncSafe(block: suspend CoroutineScope.() -> T): SafeDeferred<T> {
 		var dispatcher = currentCoroutineContext()[CoroutineDispatcher.Key]
 		if (dispatcher == null || dispatcher is MainCoroutineDispatcher) {

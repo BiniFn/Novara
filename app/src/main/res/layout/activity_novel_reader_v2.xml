@@ -16,56 +16,6 @@
         android:focusable="true"
         android:background="?attr/colorSurface" />
 
-    <!-- 页脚：显示阅读进度和章节名 -->
-    <LinearLayout
-        android:id="@+id/footerBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:orientation="vertical"
-        android:background="?attr/colorSurface"
-        android:elevation="2dp"
-        android:visibility="visible">
-
-        <!-- 分割线 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?attr/colorOutlineVariant" />
-
-        <!-- 内容 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="8dp"
-            android:gravity="center_vertical">
-
-            <!-- 章节名 -->
-            <TextView
-                android:id="@+id/textFooterChapter"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:singleLine="true"
-                android:ellipsize="end"
-                tools:text="第一章 开始" />
-
-            <!-- 进度 -->
-            <TextView
-                android:id="@+id/textFooterProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:layout_marginStart="8dp"
-                tools:text="1/10" />
-
-        </LinearLayout>
-
-    </LinearLayout>
 
     <!-- 信息栏（复用漫画阅读器） -->
     <org.skepsun.kototoro.reader.ui.ReaderInfoBarView

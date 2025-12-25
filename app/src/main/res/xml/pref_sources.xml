@@ -46,7 +46,7 @@
         android:title="@string/import_json_sources" />
 
     <SwitchPreferenceCompat
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:key="no_nsfw"
         android:summary="@string/disable_nsfw_summary"
         android:title="@string/disable_nsfw" />

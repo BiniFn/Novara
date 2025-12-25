@@ -26,8 +26,8 @@ class LocalMangaDirOutput(
 	manga: Manga,
 ) : LocalMangaOutput(rootFile) {
 
-	private val chaptersOutput = HashMap<MangaChapter, ZipOutput>()
-	private val index = MangaIndex(File(rootFile, ENTRY_NAME_INDEX).takeIfReadable()?.readText())
+	val chaptersOutput = HashMap<MangaChapter, ZipOutput>()
+	val index = MangaIndex(File(rootFile, ENTRY_NAME_INDEX).takeIfReadable()?.readText())
 	private val mutex = Mutex()
 
 	init {
@@ -47,6 +47,10 @@ class LocalMangaDirOutput(
 			}
 		}
 		runInterruptible(Dispatchers.IO) {
+			// Ensure rootFile directory exists
+			if (!rootFile.exists()) {
+				rootFile.mkdirs()
+			}
 			file.copyTo(File(rootFile, name), overwrite = true)
 		}
 		index.setCoverEntry(name)
@@ -56,6 +60,10 @@ class LocalMangaDirOutput(
 	override suspend fun addPage(chapter: IndexedValue<MangaChapter>, file: File, pageNumber: Int, type: MimeType?) =
 		mutex.withLock {
 			val output = chaptersOutput.getOrPut(chapter.value) {
+				// Ensure rootFile directory exists before creating chapter CBZ
+				if (!rootFile.exists()) {
+					rootFile.mkdirs()
+				}
 				ZipOutput(File(rootFile, chapterFileName(chapter) + SUFFIX_TMP))
 			}
 			val name = buildString {
@@ -68,7 +76,13 @@ class LocalMangaDirOutput(
 			runInterruptible(Dispatchers.IO) {
 				output.put(name, file)
 			}
-			index.addChapter(chapter, chapterFileName(chapter))
+			index.addChapter(chapter, chapterFileName(chapter), null)
+		}
+
+	override suspend fun putChapterImages(chapterId: Long, remoteImages: Map<String, String>) =
+		mutex.withLock {
+			index.putChapterImages(chapterId, remoteImages)
+			flushIndex()
 		}
 
 	override suspend fun flushChapter(chapter: MangaChapter): Boolean = mutex.withLock {

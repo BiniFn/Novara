@@ -80,6 +80,12 @@ class ParserMangaRepository(
 		}
 	}
 
+	override suspend fun getChapterContent(chapter: MangaChapter): org.skepsun.kototoro.parsers.model.NovelChapterContent? {
+		return runCatching {
+			withMirrors { parser.getChapterContent(chapter) ?: throw IllegalStateException("Chapter content is null") }
+		}.getOrNull()
+	}
+
 	override suspend fun getFilterOptions(): MangaListFilterOptions = filterOptionsLazy.get()
 
 	suspend fun getFavicons(): Favicons = withMirrors {

@@ -34,10 +34,11 @@ class EpubStorageManager @Inject constructor(
     
     /**
      * 获取指定manga的EPUB目录
+     * @param create 是否在目录不存在时创建它
      */
-    fun getEpubDir(mangaId: Long): File {
+    fun getEpubDir(mangaId: Long, create: Boolean = false): File {
         return File(epubRootDir, mangaId.toString()).also {
-            if (!it.exists()) {
+            if (create && !it.exists()) {
                 it.mkdirs()
                 android.util.Log.d("EpubStorageManager", "Created EPUB directory for manga $mangaId: ${it.absolutePath}")
             }
@@ -66,7 +67,7 @@ class EpubStorageManager @Inject constructor(
      * @return 保存后的文件
      */
     suspend fun saveEpubFile(mangaId: Long, inputStream: InputStream): File = withContext(Dispatchers.IO) {
-        val epubDir = getEpubDir(mangaId)
+        val epubDir = getEpubDir(mangaId, create = true)
         val epubFile = File(epubDir, "book.epub")
         
         android.util.Log.d("EpubStorageManager", "Saving EPUB file to: ${epubFile.absolutePath}")
@@ -95,7 +96,7 @@ class EpubStorageManager @Inject constructor(
      * @param chapterId 章节ID（用于区分同一manga的多个EPUB文件）
      */
     suspend fun saveEpubFile(mangaId: Long, sourceFile: File, chapterId: Long? = null): File = withContext(Dispatchers.IO) {
-        val epubDir = getEpubDir(mangaId)
+        val epubDir = getEpubDir(mangaId, create = true)
         
         // 如果提供了chapterId，使用它来生成唯一的文件名
         // 否则使用默认的 book.epub（向后兼容）

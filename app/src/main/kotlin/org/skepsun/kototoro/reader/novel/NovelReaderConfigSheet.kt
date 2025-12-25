@@ -55,7 +55,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.sliderMargin.value = settings.marginHorizontal.toFloat()
         binding.switchDualPage.isChecked = settings.enableDualPage
         binding.switchFullscreen.isChecked = settings.enableFullscreen
-        binding.switchShowFooter.isChecked = settings.showFooter
+        binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
+        binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
 
         // 初始化值显示
         updateValueDisplays()
@@ -67,7 +68,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.sliderMargin.addOnChangeListener(this)
         binding.switchDualPage.setOnCheckedChangeListener(this)
         binding.switchFullscreen.setOnCheckedChangeListener(this)
-        binding.switchShowFooter.setOnCheckedChangeListener(this)
+        binding.switchShowReadingStatus.setOnCheckedChangeListener(this)
+        binding.switchReadingStatusTransparent.setOnCheckedChangeListener(this)
         binding.buttonBookmark.setOnClickListener(this)
         binding.buttonReset.setOnClickListener(this)
         binding.buttonClose.setOnClickListener(this)
@@ -109,8 +111,12 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
                 settings = settings.copy(enableFullscreen = isChecked)
                 applySettings()
             }
-            org.skepsun.kototoro.R.id.switchShowFooter -> {
-                settings = settings.copy(showFooter = isChecked)
+            org.skepsun.kototoro.R.id.switchShowReadingStatus -> {
+                settings = settings.copy(showReadingStatus = isChecked)
+                applySettings()
+            }
+            org.skepsun.kototoro.R.id.switchReadingStatusTransparent -> {
+                settings = settings.copy(isReadingStatusTransparent = isChecked)
                 applySettings()
             }
         }
@@ -159,7 +165,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.sliderMargin.value = settings.marginHorizontal.toFloat()
         binding.switchDualPage.isChecked = settings.enableDualPage
         binding.switchFullscreen.isChecked = settings.enableFullscreen
-        binding.switchShowFooter.isChecked = settings.showFooter
+        binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
+        binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
 
         updateValueDisplays()
         applySettings()

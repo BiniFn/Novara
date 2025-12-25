@@ -135,7 +135,7 @@ class MangaSearchRepository @Inject constructor(
 		val skipNsfw = settings.isNsfwContentDisabled
 		val sources = sourcesRepository.allMangaSources
 			.filter { x ->
-				(x.contentType != ContentType.HENTAI || !skipNsfw) && x.title.contains(query, ignoreCase = true)
+				(x.contentType != ContentType.HENTAI_MANGA || !skipNsfw) && x.title.contains(query, ignoreCase = true)
 			}
 		return if (limit == 0) {
 			sources

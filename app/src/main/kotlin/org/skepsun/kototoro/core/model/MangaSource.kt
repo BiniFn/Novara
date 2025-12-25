@@ -24,6 +24,10 @@ data object LocalMangaSource : MangaSource {
 	override val name = "LOCAL"
 }
 
+data object LocalNovelSource : MangaSource {
+	override val name = "LOCAL_NOVEL"
+}
+
 data object UnknownMangaSource : MangaSource {
 	override val name = "UNKNOWN"
 }
@@ -34,9 +38,10 @@ data object TestMangaSource : MangaSource {
 
 fun MangaSource(name: String?): MangaSource {
 	when (name ?: return UnknownMangaSource) {
-		UnknownMangaSource.name -> return UnknownMangaSource
-		LocalMangaSource.name -> return LocalMangaSource
-		TestMangaSource.name -> return TestMangaSource
+	UnknownMangaSource.name -> return UnknownMangaSource
+	LocalMangaSource.name -> return LocalMangaSource
+	LocalNovelSource.name -> return LocalNovelSource
+	TestMangaSource.name -> return TestMangaSource
 	}
 	if (name.startsWith("content:")) {
 		val parts = name.substringAfter(':').splitTwoParts('/') ?: return UnknownMangaSource
@@ -62,7 +67,11 @@ fun Collection<String>.toMangaSources() = map(::MangaSource)
 
 fun MangaSource.isNsfw(): Boolean = when (this) {
 	is MangaSourceInfo -> mangaSource.isNsfw()
-	is MangaParserSource -> contentType == ContentType.HENTAI
+	is MangaParserSource -> contentType in setOf(
+		ContentType.HENTAI_MANGA,
+		ContentType.HENTAI_NOVEL,
+		ContentType.HENTAI_VIDEO,
+	)
 	else -> false
 }
 
@@ -70,7 +79,9 @@ fun MangaSource.isNsfw(): Boolean = when (this) {
 val ContentType.titleResId
 	get() = when (this) {
 		ContentType.MANGA -> R.string.content_type_manga
-		ContentType.HENTAI -> R.string.content_type_hentai
+		ContentType.HENTAI_MANGA -> R.string.content_type_hentai_manga
+		ContentType.HENTAI_NOVEL -> R.string.content_type_hentai_novel
+		ContentType.HENTAI_VIDEO -> R.string.content_type_hentai_video
 		ContentType.COMICS -> R.string.content_type_comics
 		ContentType.VIDEO -> R.string.content_type_video
 		ContentType.OTHER -> R.string.content_type_other
@@ -83,6 +94,36 @@ val ContentType.titleResId
 		ContentType.ARTIST_CG -> R.string.content_type_artist_cg
 		ContentType.GAME_CG -> R.string.content_type_game_cg
 	}
+
+fun ContentType.getEnableSourceTitleResId(): Int = when (this) {
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.enable_source_novel
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.enable_source_video
+	else -> R.string.enable_source_manga
+}
+
+fun ContentType.getDomainTitleResId(): Int = when (this) {
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.domain_novel
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.domain_video
+	else -> R.string.domain_manga
+}
+
+fun ContentType.getSaveTitleResId(): Int = when (this) {
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.save_manga_novel
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.save_manga_video
+	else -> R.string.save_manga_manga
+}
+
+fun ContentType.getWholeWorkOptionResId(): Int = when (this) {
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.download_option_whole_manga_novel
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.download_option_whole_manga_video
+	else -> R.string.download_option_whole_manga_manga
+}
+
+fun ContentType.getRecommendationTermResId(): Int = when (this) {
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.recommendation_novel
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.recommendation_video
+	else -> R.string.recommendation_manga
+}
 
 tailrec fun MangaSource.unwrap(): MangaSource = if (this is MangaSourceInfo) {
 	mangaSource.unwrap()
@@ -117,6 +158,7 @@ fun MangaSource.getSummary(context: Context): String? = when (val source = unwra
 fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()) {
 	is MangaParserSource -> source.title
 	LocalMangaSource -> context.getString(R.string.local_storage)
+	LocalNovelSource -> "本地小说"
 	TestMangaSource -> context.getString(R.string.test_parser)
 	is ExternalMangaSource -> source.resolveName(context)
 	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> source.displayName.ifBlank { source.name }

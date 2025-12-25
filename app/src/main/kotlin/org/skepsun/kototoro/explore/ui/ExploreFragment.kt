@@ -2,6 +2,7 @@ package org.skepsun.kototoro.explore.ui
 
 import android.content.DialogInterface
 import android.content.Intent
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +56,7 @@ class ExploreFragment :
 	private val viewModel by viewModels<ExploreViewModel>()
 	private var exploreAdapter: ExploreAdapter? = null
 	private var sourceSelectionController: ListSelectionController? = null
+	private var groupTabsInitialPadding: Rect? = null
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -110,14 +112,25 @@ class ExploreFragment :
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val barsInsets = insets.systemBarsInsets
 		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
+		val groupTabs = viewBinding?.groupTabs
+		if (groupTabsInitialPadding == null && groupTabs != null) {
+			groupTabsInitialPadding = Rect(
+				groupTabs.paddingLeft,
+				groupTabs.paddingTop,
+				groupTabs.paddingRight,
+				groupTabs.paddingBottom,
+			)
+		}
 		
-		// Apply top inset to group tabs
-		viewBinding?.groupTabs?.setPadding(
-			/* left = */ 0,
-			/* top = */ barsInsets.top,
-			/* right = */ 0,
-			/* bottom = */ 0,
-		)
+		// Keep original vertical spacing; only extend horizontal padding for insets
+		groupTabsInitialPadding?.let { padding ->
+			groupTabs?.setPadding(
+				/* left = */ padding.left + barsInsets.left,
+				/* top = */ padding.top,
+				/* right = */ padding.right + barsInsets.right,
+				/* bottom = */ padding.bottom,
+			)
+		}
 		
 		// Apply side and bottom insets to recycler view
 		viewBinding?.recyclerView?.setPadding(

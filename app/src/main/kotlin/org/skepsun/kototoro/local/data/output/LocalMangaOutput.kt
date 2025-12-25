@@ -24,6 +24,8 @@ sealed class LocalMangaOutput(
 	abstract suspend fun addCover(file: File, type: MimeType?)
 
 	abstract suspend fun addPage(chapter: IndexedValue<MangaChapter>, file: File, pageNumber: Int, type: MimeType?)
+	
+	abstract suspend fun putChapterImages(chapterId: Long, remoteImages: Map<String, String>)
 
 	abstract suspend fun flushChapter(chapter: MangaChapter): Boolean
 

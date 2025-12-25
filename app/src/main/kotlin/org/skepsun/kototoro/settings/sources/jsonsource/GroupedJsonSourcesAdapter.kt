@@ -213,7 +213,7 @@ class GroupedJsonSourcesAdapter(
 					org.skepsun.kototoro.parsers.model.ContentType.MANGA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHWA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHUA,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI,
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_MANGA,
 					org.skepsun.kototoro.parsers.model.ContentType.COMICS,
 					org.skepsun.kototoro.parsers.model.ContentType.ONE_SHOT,
 					org.skepsun.kototoro.parsers.model.ContentType.DOUJINSHI,
@@ -221,8 +221,10 @@ class GroupedJsonSourcesAdapter(
 					org.skepsun.kototoro.parsers.model.ContentType.ARTIST_CG,
 					org.skepsun.kototoro.parsers.model.ContentType.GAME_CG -> "漫画"
 					
-					org.skepsun.kototoro.parsers.model.ContentType.NOVEL -> "小说"
-					org.skepsun.kototoro.parsers.model.ContentType.VIDEO -> "视频"
+					org.skepsun.kototoro.parsers.model.ContentType.NOVEL,
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> "小说"
+					org.skepsun.kototoro.parsers.model.ContentType.VIDEO,
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> "视频"
 					org.skepsun.kototoro.parsers.model.ContentType.OTHER -> "其他"
 				}
 			}
@@ -246,7 +248,7 @@ class GroupedJsonSourcesAdapter(
 					org.skepsun.kototoro.parsers.model.ContentType.MANGA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHWA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHUA,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI,
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_MANGA,
 					org.skepsun.kototoro.parsers.model.ContentType.COMICS,
 					org.skepsun.kototoro.parsers.model.ContentType.ONE_SHOT,
 					org.skepsun.kototoro.parsers.model.ContentType.DOUJINSHI,
@@ -254,8 +256,10 @@ class GroupedJsonSourcesAdapter(
 					org.skepsun.kototoro.parsers.model.ContentType.ARTIST_CG,
 					org.skepsun.kototoro.parsers.model.ContentType.GAME_CG -> "📚"
 					
-					org.skepsun.kototoro.parsers.model.ContentType.NOVEL -> "📖"
-					org.skepsun.kototoro.parsers.model.ContentType.VIDEO -> "🎬"
+					org.skepsun.kototoro.parsers.model.ContentType.NOVEL,
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> "📖"
+					org.skepsun.kototoro.parsers.model.ContentType.VIDEO,
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> "🎬"
 					org.skepsun.kototoro.parsers.model.ContentType.OTHER -> "📄"
 				}
 			}

@@ -22,6 +22,7 @@ import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
@@ -37,6 +38,7 @@ import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.databinding.ActivityNovelReaderV2Binding
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.reader.ui.ReaderControlDelegate
 import javax.inject.Inject
 
@@ -81,8 +83,12 @@ class NovelReaderActivity :
     @Inject
     lateinit var epubContentCache: org.skepsun.kototoro.local.epub.EpubContentCache
 
+    @Inject
+    lateinit var localMangaRepository: org.skepsun.kototoro.local.data.LocalMangaRepository
+
     private lateinit var manga: Manga
     private lateinit var repository: MangaRepository
+    private var originalManga: Manga? = null  // Store original for online fallback
     private lateinit var readerSettings: NovelReaderSettings
     private lateinit var epubInternalChapterLoader: EpubInternalChapterLoader
 
@@ -113,8 +119,62 @@ class NovelReaderActivity :
             return
         }
 
-        manga = mangaSeed
+        // Save original manga for online fallback（若当前是本地 URI，尝试从 index.json 恢复对应的远端信息以获得原始 URL）
+        val isMangaSeedLocalUrl = mangaSeed.url.let { it.startsWith("file://") || it.startsWith("zip://") || it.startsWith("cbz://") || it.startsWith("local://") }
+        val maybeRemote = runCatching {
+            runBlocking {
+                if (isMangaSeedLocalUrl) localMangaRepository.getRemoteManga(mangaSeed) else null
+            }
+        }.getOrNull()
+        originalManga = maybeRemote ?: mangaSeed
+        
+        val local = runCatching {
+            runBlocking {
+                localMangaRepository.findSavedManga(mangaSeed, withDetails = true)
+            }
+        }.getOrNull()
+        manga = local?.manga ?: mangaSeed
+        
+        // 如果是从历史记录进入（可能 URL 是 local 但 source 已修正）或者来源是 Unknown，
+        // 尝试修正为原始来源以支持在线跳转，并确保有远程 URL 可用
+        if ((manga.source.name.startsWith("LOCAL") || manga.source == org.skepsun.kototoro.core.model.UnknownMangaSource) 
+            && originalManga != null) {
+            manga = manga.copy(source = originalManga!!.source, url = originalManga!!.url)
+            android.util.Log.d("NovelReaderActivity", "Fixed manga source to ${manga.source.name} and URL to ${manga.url}")
+        }
+        if (local != null && (manga.chapters.isNullOrEmpty())) {
+            // 某些情况下索引未带章节，兜底从本地解析一遍
+            runCatching {
+                manga = runBlocking { localMangaRepository.getDetails(manga) }
+                android.util.Log.d(
+                    "NovelReaderActivity",
+                    "Refetched local details, chapters=${manga.chapters?.size ?: 0}",
+                )
+            }.onFailure {
+                android.util.Log.w("NovelReaderActivity", "Failed to refetch local details", it)
+            }
+            // 再次兜底：直接用 LocalMangaParser 解析目录/CBZ
+            if (manga.chapters.isNullOrEmpty()) {
+                runCatching {
+                    val parser = org.skepsun.kototoro.local.data.input.LocalMangaParser.getOrNull(
+                        java.io.File(java.net.URI(manga.url))
+                    )
+                    if (parser != null) {
+                        manga = runBlocking { parser.getManga(withDetails = true).manga }
+                        android.util.Log.d(
+                            "NovelReaderActivity",
+                            "Parsed chapters via LocalMangaParser fallback, count=${manga.chapters?.size ?: 0}",
+                        )
+                    }
+                }.onFailure {
+                    android.util.Log.w("NovelReaderActivity", "Fallback parse failed", it)
+                }
+            }
+        }
         repository = mangaRepositoryFactory.create(manga.source)
+        if (local != null) {
+            android.util.Log.d("NovelReaderActivity", "Using local manga for reading: ${manga.title}")
+        }
         epubInternalChapterLoader = EpubInternalChapterLoader(
             context = this,
             epubFileManager = epubFileManager,
@@ -136,6 +196,7 @@ class NovelReaderActivity :
         viewBinding.toolbar.subtitle = getString(R.string.loading_)
 
         viewBinding.actionsView.listener = this
+        setupImageHeaders()
 
         // 设置章节列表按钮点击事件
         viewBinding.actionsView.findViewById<View>(R.id.button_pages_thumbs)?.setOnClickListener {
@@ -147,7 +208,7 @@ class NovelReaderActivity :
             val displayPage = viewBinding.readerView.getDisplayPageIndex()
             val displayTotal = viewBinding.readerView.getDisplayPageCount()
             updateProgress(displayPage, displayTotal)
-            updateFooter(displayPage, displayTotal)
+            updateReadingStatus(displayPage, displayTotal)
         }
         
         // 使用手势区域处理
@@ -160,10 +221,22 @@ class NovelReaderActivity :
             switchChapterBy(delta)
         }
 
+        // 修正：动态更新 readerView 的 headerHeight，考虑 paddingTop 已经避开了状态栏
+        viewBinding.infoBar.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+            if (viewBinding.infoBar.isVisible) {
+                val totalH = bottom - top
+                // infoBar 已经包含了针对状态栏的 padding，而 readerView 也已经设置了对应的 paddingTop
+                // 所以这里只传递“额外”占用的高度
+                viewBinding.readerView.setHeaderHeight(maxOf(0, totalH - viewBinding.readerView.paddingTop))
+            } else {
+                viewBinding.readerView.setHeaderHeight(0)
+            }
+        }
+
         viewBinding.readerView.updateSettings(readerSettings)
         updateDualPageMode()
         updateFullscreenMode()
-        updateFooterVisibility()
+        updateReadingStatusVisibility()
 
         // 初始状态：显示工具栏
         isUiVisible = true
@@ -171,6 +244,19 @@ class NovelReaderActivity :
         viewBinding.toolbarDocked.isVisible = true
 
         loadChapters()
+    }
+
+    private fun setupImageHeaders() {
+        viewBinding.readerView.imageHeadersProvider = when (manga.source) {
+            MangaParserSource.BILINOVEL -> { _ ->
+                mapOf(
+                    "Referer" to "https://www.bilinovel.com/",
+                    "Origin" to "https://www.bilinovel.com",
+                    "Accept-Encoding" to "identity",
+                )
+            }
+            else -> null
+        }
     }
 
     override fun getParentActivityIntent(): Intent? {
@@ -186,8 +272,6 @@ class NovelReaderActivity :
             leftMargin = systemBars.left
         }
 
-        // 修复：使用 toolbarDocked 而不是 actionsView 来设置 margin
-        // 因为 actionsView 是 toolbarDocked 的子视图
         viewBinding.toolbarDocked.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             bottomMargin = systemBars.bottom
             rightMargin = systemBars.right
@@ -196,20 +280,22 @@ class NovelReaderActivity :
 
         viewBinding.infoBar.updatePadding(top = systemBars.top)
 
-        // 给 readerView 添加 padding，避免内容显示在状态栏下方
-        // 始终添加顶部 padding，因为即使在全屏模式下，状态栏也会在 UI 显示时出现
+        // 核心修复：保持 readerView 的 padding 稳定，避免在 UI 切换时发生“压缩”
+        // 只避开系统栏（状态栏和导航栏），而不避开随 UI 浮动的工具栏
         viewBinding.readerView.updatePadding(
             top = systemBars.top,
             left = systemBars.left,
             right = systemBars.right,
-            bottom = 0  // 底部由页脚处理
+            bottom = systemBars.bottom
         )
 
+        // innerInsets 用于给 CoordinatorLayout 子视图的行为提供信息（如果使用了 appbar_scrolling_view_behavior）
+        // 这里手动设置以告知顶栏和底栏避开的空间
         val innerInsets = Insets.of(
             systemBars.left,
             if (viewBinding.appbarTop.isVisible) viewBinding.appbarTop.height else systemBars.top,
             systemBars.right,
-            viewBinding.toolbarDocked.takeIf { it.isVisible }?.height ?: systemBars.bottom,
+            if (viewBinding.toolbarDocked.isVisible) viewBinding.toolbarDocked.height else systemBars.bottom,
         )
 
         return WindowInsetsCompat.Builder(insets)
@@ -399,9 +485,52 @@ class NovelReaderActivity :
                 android.util.Log.d("NovelReaderActivity", "   Chapter title: ${chapters[targetIndex].title}")
                 android.util.Log.d("NovelReaderActivity", "   Chapter URL: ${chapters[targetIndex].url.takeLast(50)}")
             } else {
-                android.util.Log.w("NovelReaderActivity", "❌ Chapter ID $targetChapterId not found, falling back to first chapter")
-                currentChapterIndex = 0
-                currentPageIndex = 0
+                android.util.Log.w("NovelReaderActivity", "❌ Chapter ID $targetChapterId not found in local chapters")
+                
+                // Try to find the chapter in original manga (online source)
+                var onlineChapter = originalManga?.chapters?.find { it.id == targetChapterId }
+                if (onlineChapter == null && originalManga != null) {
+                    // 若原始信息没有完整目录，尝试拉取远端详情
+                    runCatching {
+                        val onlineRepo = mangaRepositoryFactory.create(originalManga!!.source)
+                        val details = runBlocking { onlineRepo.getDetails(originalManga!!) }
+                        originalManga = details
+                        onlineChapter = details.chapters?.find { it.id == targetChapterId }
+                    }.onFailure {
+                        android.util.Log.w("NovelReaderActivity", "Failed to fetch online details for missing chapter", it)
+                    }
+                }
+                if (onlineChapter != null) {
+                    // Found in online source - add it to chapters list and switch repository
+                    android.util.Log.d("NovelReaderActivity", "✅ Found chapter in online source: ${onlineChapter.title}")
+                    
+                    // Create a new repository for online source
+                    repository = mangaRepositoryFactory.create(originalManga!!.source)
+                    
+                    // Add the online chapter to our list temporarily
+                    chapters = chapters + onlineChapter
+                    currentChapterIndex = chapters.size - 1
+                    currentPageIndex = 0
+                    
+                    android.widget.Toast.makeText(
+                        this@NovelReaderActivity,
+                        "正在从网络加载未下载的章节",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    android.util.Log.w("NovelReaderActivity", "Chapter not found in online source either, falling back to first chapter")
+                    currentChapterIndex = 0
+                    currentPageIndex = 0
+                    
+                    // Show toast to inform user that the chapter is not found
+                    if (state != null && state.chapterId != 0L) {
+                        android.widget.Toast.makeText(
+                            this@NovelReaderActivity,
+                            "该章节尚未下载，请先下载后再阅读",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }
         } else {
             // No saved state, start from first chapter
@@ -427,7 +556,13 @@ class NovelReaderActivity :
                 val details = if (manga.isLocal || manga.chapters.isNullOrEmpty()) {
                     android.util.Log.d("NovelReaderActivity", "Loading chapters from repository (local=${manga.isLocal}, empty=${manga.chapters.isNullOrEmpty()})...")
                     val startTime = System.currentTimeMillis()
-                    val result = repository.getDetails(manga)
+                    // 核心修复：如果是远程解析器，优先使用带有原始远程 URL 的 originalManga 获取详情，避免 SSL 错误
+                    val result = if (repository !is org.skepsun.kototoro.local.novel.LocalNovelRepository && originalManga != null) {
+                        android.util.Log.d("NovelReaderActivity", "Using originalManga for remote details fetch: ${originalManga!!.url}")
+                        repository.getDetails(originalManga!!)
+                    } else {
+                        repository.getDetails(manga)
+                    }
                     val elapsed = System.currentTimeMillis() - startTime
                     android.util.Log.d("NovelReaderActivity", "✅ Loaded from repository in ${elapsed}ms, got ${result.chapters?.size ?: 0} chapters")
                     result
@@ -435,14 +570,52 @@ class NovelReaderActivity :
                     android.util.Log.d("NovelReaderActivity", "✅ Using chapters from manga object (${manga.chapters?.size} chapters) - SKIPPED NETWORK")
                     manga
                 }
+
+                // 如果本地启动且 originalManga 还没有目录，尝试拉取远端目录用于占位（历史入口常见）
+                if (manga.isLocal && originalManga?.chapters.isNullOrEmpty() && originalManga != null) {
+                    runCatching {
+                        val onlineRepo = mangaRepositoryFactory.create(originalManga!!.source)
+                        val remoteDetails = runBlocking { onlineRepo.getDetails(originalManga!!) }
+                        originalManga = remoteDetails
+                        android.util.Log.d(
+                            "NovelReaderActivity",
+                            "Fetched remote details for originalManga, chapters=${remoteDetails.chapters?.size ?: 0}",
+                        )
+                    }.onFailure {
+                        android.util.Log.w("NovelReaderActivity", "Failed to fetch remote details for originalManga", it)
+                    }
+                }
                 
+                // 若当前是本地且有原始远端目录，合并远端目录与本地章节，保留未下载章节的占位
                 var originalChapters = details.chapters.orEmpty()
+                if (manga.isLocal && originalManga?.chapters != null) {
+                    val remoteChapters = originalManga?.chapters.orEmpty()
+                    val localById = originalChapters.associateBy { it.id }
+                    val merged = remoteChapters.map { localById[it.id] ?: it }.toMutableList()
+                    // 添加仅本地存在的章节（例如本地缓存的特殊章节）
+                    val remoteIds = remoteChapters.map { it.id }.toSet()
+                    originalChapters.filterNot { it.id in remoteIds }.forEach { merged.add(it) }
+                    originalChapters = merged
+                    android.util.Log.d(
+                        "NovelReaderActivity",
+                        "Merged remote chapters (${remoteChapters.size}) with local overrides (${localById.size}), result=${originalChapters.size}",
+                    )
+                }
                 android.util.Log.d("NovelReaderActivity", "Original chapters count: ${originalChapters.size}")
                 
-                // 展开EPUB章节
-                android.util.Log.d("NovelReaderActivity", "Expanding EPUB chapters...")
-                chapters = expandEpubChapters(originalChapters)
-                android.util.Log.d("NovelReaderActivity", "After expansion: ${chapters.size} chapters")
+                // 本地 CBZ/ZIP 或无 EPUB 迹象时直接使用原章节，避免错误展开
+                val hasLikelyEpub = !manga.isLocal && originalChapters.any {
+                    val url = it.url.lowercase()
+                    url.contains(".epub") || url.contains("epub://")
+                }
+                if (hasLikelyEpub) {
+                    android.util.Log.d("NovelReaderActivity", "Expanding EPUB chapters...")
+                    chapters = expandEpubChapters(originalChapters)
+                    android.util.Log.d("NovelReaderActivity", "After expansion: ${chapters.size} chapters")
+                } else {
+                    android.util.Log.d("NovelReaderActivity", "Skip EPUB expansion (local or no epub hints)")
+                    chapters = originalChapters
+                }
                 
                 // Restore reading progress (Requirements 7.5, 7.6)
                 // Priority: Intent parameters > History > First chapter
@@ -511,7 +684,14 @@ class NovelReaderActivity :
                     return@launch
                 }
                 
-                val pages = repository.getPages(chapter)
+                // Use chapter's source to get correct repository (local or online)
+                // This allows seamless switching between downloaded and online chapters
+                val chapterRepo = mangaRepositoryFactory.create(chapter.source)
+                val isLocalChapter = chapter.source is org.skepsun.kototoro.core.model.LocalNovelSource || 
+                                    chapter.source is org.skepsun.kototoro.core.model.LocalMangaSource
+                android.util.Log.d("NovelReaderActivity", "Using repository for source: ${chapter.source}, isLocal: $isLocalChapter")
+                
+                val pages = chapterRepo.getPages(chapter)
                 
                 android.util.Log.d("NovelReaderActivity", "Got ${pages.size} pages, first page preview: ${pages.firstOrNull()?.preview}, url: ${pages.firstOrNull()?.url?.take(100)}")
                 
@@ -554,8 +734,8 @@ class NovelReaderActivity :
                 }
                 
                 android.util.Log.d("NovelReaderActivity", "Processing as regular chapter with cache")
-                // 使用缓存加载器加载章节内容
-                val plainText = novelContentLoader.loadChapterContent(repository, chapter)
+                // 使用缓存加载器加载章节内容 - use per-chapter repository
+                val plainText = novelContentLoader.loadChapterContent(chapterRepo, chapter)
                 
                 android.util.Log.d("NovelReaderActivity", "Plain text length: ${plainText.length}")
                 
@@ -860,7 +1040,9 @@ class NovelReaderActivity :
                             }
                         }
                     }
-                    
+
+                    // 本地小说 CBZ/ZIP 不再走 EPUB 通道，避免误判
+
                     // 在主线程上设置EPUB信息并渲染内容
                     withContext(Dispatchers.Main) {
                         try {
@@ -1098,6 +1280,12 @@ class NovelReaderActivity :
      * 2. 使用数据库映射的章节ID，确保与详情页一致
      */
     private suspend fun expandEpubChapters(originalChapters: List<MangaChapter>): List<MangaChapter> {
+        // 本地 CBZ 小说直接返回，避免误判为 EPUB
+        if (manga.isLocal) {
+            android.util.Log.d("NovelReaderActivity", "expandEpubChapters: manga is local, skip expansion")
+            return originalChapters
+        }
+
         val expandedChapters = mutableListOf<MangaChapter>()
         
         android.util.Log.d("NovelReaderActivity", "expandEpubChapters: Processing ${originalChapters.size} chapters")
@@ -1106,9 +1294,8 @@ class NovelReaderActivity :
             try {
                 // 快速检查：如果URL不像EPUB文件，直接跳过
                 // EPUB文件通常以.epub结尾，或者URL中包含epub关键字
-                val isLikelyEpub = chapter.url.contains(".epub", ignoreCase = true) || 
-                                   chapter.url.contains("epub", ignoreCase = true) ||
-                                   chapter.url.contains(".cbz", ignoreCase = true)
+                val isLikelyEpub = chapter.url.contains(".epub", ignoreCase = true) ||
+                    chapter.url.contains("epub", ignoreCase = true)
                 
                 if (!isLikelyEpub) {
                     // 不像EPUB文件，直接添加，跳过网络请求
@@ -1233,10 +1420,10 @@ class NovelReaderActivity :
             isUiVisible = visible
             viewBinding.appbarTop.isVisible = visible
             viewBinding.toolbarDocked.isVisible = visible
-            viewBinding.infoBar.isGone = true // 小说阅读器暂时不显示 infoBar
             
-            // 工具栏显示时隐藏页脚，避免重叠
-            viewBinding.footerBar.isVisible = !visible && readerSettings.showFooter
+            // 只有在工具栏隐藏、全屏模式且开启了阅读状态显示时，才显示 infoBar
+            viewBinding.infoBar.isGone = visible || !readerSettings.showReadingStatus
+            viewBinding.infoBar.isTimeVisible = readerSettings.enableFullscreen
             
             // 根据全屏设置和 UI 可见性控制系统 UI
             // 如果不是全屏模式，总是显示状态栏
@@ -1244,8 +1431,8 @@ class NovelReaderActivity :
             val shouldShowSystemUi = !readerSettings.enableFullscreen || visible
             systemUiController.setSystemUiVisible(shouldShowSystemUi)
             
-            // 更新状态栏颜色
-            updateStatusBarColor()
+            // 更新系统栏颜色
+            updateSystemBarsColors()
             
             viewBinding.root.requestApplyInsets()
         }
@@ -1405,15 +1592,22 @@ class NovelReaderActivity :
     }
 
     /**
-     * 更新页脚
+     * 更新阅读状态信息栏
      */
-    private fun updateFooter(page: Int, total: Int) {
-        val chapter = chapters.getOrNull(currentChapterIndex)
-        viewBinding.textFooterChapter.text = chapter?.title ?: getString(R.string.unnamed_chapter)
-        val ratio = getCurrentProgressRatio()
-        // 页脚显示当前分页页码，同时追加百分比以体现真实进度
-        viewBinding.textFooterProgress.text = "${page + 1}/$total (${(ratio * 100).toInt()}%)"
-
+    private fun updateReadingStatus(page: Int, total: Int) {
+        val chapter = chapters.getOrNull(currentChapterIndex) ?: return
+        val uiState = org.skepsun.kototoro.reader.ui.pager.ReaderUiState(
+            mangaName = manga.title,
+            chapter = chapter,
+            chapterIndex = currentChapterIndex,
+            chaptersTotal = chapters.size,
+            currentPage = page,
+            totalPages = total,
+            percent = getCurrentProgressRatio(),
+            incognito = false // TODO: 获取无痕模式状态
+        )
+        viewBinding.infoBar.update(uiState)
+        
         // 更新历史记录使用实际页数（单页计数）
         val actualPage = viewBinding.readerView.getCurrentPage()
         val actualTotal = viewBinding.readerView.getTotalPages()
@@ -1428,17 +1622,34 @@ class NovelReaderActivity :
         
         lifecycleScope.launch {
             try {
-                // 确保 manga 有章节信息
-                val mangaWithChapters = if (manga.chapters.isNullOrEmpty()) {
+                // 确保保存历史时包含完整目录：优先使用当前内存中的章节（已合并本地/远端），并修正来源
+                val fixedSource = originalManga?.source ?: manga.source
+                val fixedUrl = originalManga?.url ?: manga.url
+                val baseManga = if (chapters.isNotEmpty()) {
+                    manga.copy(chapters = chapters, source = fixedSource, url = fixedUrl)
+                } else if (manga.chapters.isNullOrEmpty()) {
                     try {
-                        repository.getDetails(manga)
+                        repository.getDetails(manga).copy(source = fixedSource, url = fixedUrl)
                     } catch (e: Exception) {
                         android.util.Log.e("NovelReaderActivity", "Failed to get manga details for history", e)
-                        manga
+                        manga.copy(source = fixedSource, url = fixedUrl)
                     }
                 } else {
-                    manga
+                    manga.copy(source = fixedSource, url = fixedUrl)
                 }
+
+                // 合并远端目录与当前章节（避免历史保存时只有已下载章节）
+                val mergedForHistory = if (baseManga.isLocal && originalManga?.chapters != null) {
+                    val remoteChapters = originalManga?.chapters.orEmpty()
+                    val localById = baseManga.chapters.orEmpty().associateBy { it.id }
+                    val merged = remoteChapters.map { localById[it.id] ?: it }.toMutableList()
+                    val remoteIds = remoteChapters.map { it.id }.toSet()
+                    baseManga.chapters.orEmpty().filterNot { it.id in remoteIds }.forEach { merged.add(it) }
+                    baseManga.copy(chapters = merged, source = originalManga!!.source)
+                } else {
+                    baseManga
+                }
+                val mangaWithChapters = mergedForHistory
                 
                 // 如果仍然没有章节信息，不保存历史
                 if (mangaWithChapters.chapters.isNullOrEmpty()) {
@@ -1487,35 +1698,56 @@ class NovelReaderActivity :
     }
 
     /**
-     * 更新页脚可见性
+     * 更新阅读状态可见性
      */
-    private fun updateFooterVisibility() {
-        viewBinding.footerBar.isVisible = readerSettings.showFooter
+    private fun updateReadingStatusVisibility() {
+        viewBinding.infoBar.isGone = isUiVisible || !readerSettings.showReadingStatus
+        // 更新阅读状态背景可见性
+        viewBinding.infoBar.drawBackground = !readerSettings.isReadingStatusTransparent
         
-        // 测量页脚高度并通知 ReaderView
-        viewBinding.footerBar.post {
-            val footerHeight = if (readerSettings.showFooter) {
-                viewBinding.footerBar.height
-            } else {
-                0
-            }
-            viewBinding.readerView.setFooterHeight(footerHeight)
-        }
+        // 当 infoBar 可见性变化时，其 layout 监听器会更新 readerView 的 headerHeight
+        // 当 isUiVisible 变化时，requestApplyInsets 会更新 readerView 的 padding
+        
+        // 刷新一次阅读状态
+        val displayPage = viewBinding.readerView.getDisplayPageIndex()
+        val displayTotal = viewBinding.readerView.getDisplayPageCount()
+        updateReadingStatus(displayPage, displayTotal)
     }
 
     /**
-     * 更新状态栏颜色
+     * 更新状态栏和底部导航栏颜色
      */
-    private fun updateStatusBarColor() {
-        // 在非全屏模式下，给状态栏添加背景色，避免内容透过状态栏显示
+    private fun updateSystemBarsColors() {
+        val typedValue = android.util.TypedValue()
+        
+        // 状态栏
         if (!readerSettings.enableFullscreen) {
-            // 使用主题的 colorSurface 作为状态栏背景
-            val typedValue = android.util.TypedValue()
+            // 在非全屏模式下，给状态栏添加背景色，避免内容透过状态栏显示
             theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
             window.statusBarColor = typedValue.data
         } else {
             // 全屏模式下保持透明
             window.statusBarColor = android.graphics.Color.TRANSPARENT
+        }
+
+        // 导航栏
+        if (isUiVisible) {
+            // 当底栏工具栏可见时，导航栏颜色应与其一致
+            theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+            val navColor = typedValue.data
+            window.navigationBarColor = navColor
+            
+            // 确保系统栏对比度正确（深色/浅色模式）
+            val isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightNavigationBars = !isDark
+            }
+            
+            // 确保导航栏背景生效
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        } else {
+            // 否则保持透明（沉浸式）
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
         }
     }
 
@@ -1527,8 +1759,8 @@ class NovelReaderActivity :
         val shouldShowSystemUi = !readerSettings.enableFullscreen || isUiVisible
         systemUiController.setSystemUiVisible(shouldShowSystemUi)
         
-        // 更新状态栏颜色
-        updateStatusBarColor()
+        // 更新系统栏颜色
+        updateSystemBarsColors()
         
         // 重新应用 insets
         viewBinding.root.requestApplyInsets()
@@ -1545,7 +1777,7 @@ class NovelReaderActivity :
                     viewBinding.readerView.updateSettings(settings)
                     updateDualPageMode()
                     updateFullscreenMode()
-                    updateFooterVisibility()
+                    updateReadingStatusVisibility()
                 } catch (e: Exception) {
                     android.util.Log.e("NovelReaderActivity", "Failed to update settings", e)
                     showError("更新设置失败: ${e.message}")

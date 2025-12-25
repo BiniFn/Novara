@@ -11,6 +11,8 @@ import org.skepsun.kototoro.core.parser.EmptyMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.network.UserAgents
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.settings.utils.AutoCompleteTextViewPreference
@@ -18,6 +20,8 @@ import org.skepsun.kototoro.settings.utils.EditTextBindListener
 import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
 import org.skepsun.kototoro.settings.utils.validation.DomainValidator
 import org.skepsun.kototoro.settings.utils.validation.HeaderValidator
+import org.skepsun.kototoro.core.model.getDomainTitleResId
+import org.skepsun.kototoro.core.model.unwrap
 
 fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: MangaRepository) = when (repository) {
 	is ParserMangaRepository -> addPreferencesFromParserRepository(repository)
@@ -48,8 +52,10 @@ private fun PreferenceFragmentCompat.addPreferencesFromParserRepository(reposito
 							validator = DomainValidator(),
 						),
 					)
-					setTitle(R.string.domain)
-					setDialogTitle(R.string.domain)
+					val contentType = (repository.source.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
+					val domainTitleResId = contentType.getDomainTitleResId()
+					setTitle(domainTitleResId)
+					setDialogTitle(domainTitleResId)
 				}
 			}
 

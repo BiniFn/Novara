@@ -267,7 +267,9 @@ class SuggestionsWorker @AssistedInject constructor(
 	): List<Manga> = runCatchingCancellable {
 		val repository = mangaRepositoryFactory.create(source)
 		val availableOrders = repository.sortOrders
-		val order = preferredSortOrders.first { it in availableOrders }
+		val order = preferredSortOrders.firstOrNull { it in availableOrders }
+			?: availableOrders.firstOrNull()
+			?: SortOrder.UPDATED
 		val availableTags = repository.getFilterOptions().availableTags
 		val tag = tags.firstNotNullOfOrNull { title ->
 			availableTags.find { x -> x !in blacklist && x.title.almostEquals(title, TAG_EQ_THRESHOLD) }

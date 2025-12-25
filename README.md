@@ -61,6 +61,30 @@ cd Kototoro
 ./gradlew assembleDebug
 ```
 
+## 开发新源
+```bash
+git clone https://github.com/skepsun/Kototoro.git
+git clone https://github.com/skepsun/kototoro-parsers.git
+# 1. 在Kototoro/settings.gradle最后取消注释下面这段，开启使用本地解析器仓库：
+# includeBuild('../kototoro-parsers') {
+#   dependencySubstitution {
+#       // 将远程坐标 com.github.skepsun:kototoro-parsers 替换为本地项目
+#       substitute module('com.github.skepsun:kototoro-parsers') using project(':')
+#   }
+# }
+
+# 2. 在kototoro-parsers/src/main/java/com/github/skepsun/kototoro/parsers/site中添加新源
+# 基于html解析的参考wnacg.kt
+# 基于api解析的参考picacg.kt
+# 分组标签参考jmcomic.kt
+
+# 3. 构建并安装Debug版本 （手机开启开发者模式-开启usb调试，连接至电脑）
+./gradlew installDebug
+
+# 4. 调试bug，使用adb logcat抓取日志（再使用你的大模型来分析和修复）
+```
+
+
 ## 🎮 使用指南
 
 ### 📱 折叠屏使用

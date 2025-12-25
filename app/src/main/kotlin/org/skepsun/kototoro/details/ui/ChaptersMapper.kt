@@ -34,52 +34,8 @@ fun MangaDetails.mapChapters(
 	isGrid: Boolean,
 	isDownloadedOnly: Boolean,
 ): List<ChapterListItem> {
-	android.util.Log.d("ChaptersMapper", "=== mapChapters START ===")
-	android.util.Log.d("ChaptersMapper", "Input branch: $branch")
-	android.util.Log.d("ChaptersMapper", "Available branches: ${chapters.keys}")
-	android.util.Log.d("ChaptersMapper", "Total chapters in all branches: ${allChapters.size}")
-	
-	// Get all chapters (including EPUB internal chapters)
-	// Note: EPUB internal chapters have URLs like "file:///.../file.epub#chapter/N" or "epub://..."
-	// These should NOT be filtered out - they are the actual readable chapters
-	val allRemoteChapters = chapters[branch].orEmpty()
-	val allLocalChapters = local?.manga?.getChapters(branch).orEmpty()
-	
-	android.util.Log.d("ChaptersMapper", "allRemoteChapters: ${allRemoteChapters.size}")
-	android.util.Log.d("ChaptersMapper", "allLocalChapters: ${allLocalChapters.size}")
-	
-	// Check if we have EPUB internal chapters (expanded chapters with #chapter/ in URL or epub:// protocol)
-	val hasEpubInternalChapters = allRemoteChapters.any { it.url.contains("#chapter/") || it.url.startsWith("epub://") } ||
-		allLocalChapters.any { it.url.contains("#chapter/") || it.url.startsWith("epub://") }
-	
-	android.util.Log.d("ChaptersMapper", "hasEpubInternalChapters: $hasEpubInternalChapters")
-	
-	// IMPORTANT: DetailsLoadUseCase already handles EPUB expansion
-	// Downloaded EPUBs are expanded to internal chapters (epub://...)
-	// Undownloaded EPUBs are kept as download links (.epub URLs)
-	// So we should NOT filter out any chapters here!
-	val remoteChapters = allRemoteChapters.filter { chapter ->
-		// Only filter out legacy .cbz files
-		!chapter.url.endsWith(".cbz", ignoreCase = true)
-	}
-	
-	val localChapters = allLocalChapters.filter { chapter ->
-		// Only filter out legacy .cbz files
-		!chapter.url.endsWith(".cbz", ignoreCase = true)
-	}
-
-	
-	android.util.Log.d("ChaptersMapper", "After filtering:")
-	android.util.Log.d("ChaptersMapper", "  remoteChapters: ${remoteChapters.size}")
-	android.util.Log.d("ChaptersMapper", "  localChapters: ${localChapters.size}")
-	
-	// Log first few chapters for debugging
-	remoteChapters.take(3).forEachIndexed { i, ch ->
-		android.util.Log.d("ChaptersMapper", "  remote[$i]: id=${ch.id}, title=${ch.name}, url=${ch.url}")
-	}
-	localChapters.take(3).forEachIndexed { i, ch ->
-		android.util.Log.d("ChaptersMapper", "  local[$i]: id=${ch.id}, title=${ch.name}, url=${ch.url}")
-	}
+	val remoteChapters = chapters[branch].orEmpty()
+	val localChapters = local?.manga?.getChapters(branch).orEmpty()
 	
 	if (remoteChapters.isEmpty() && localChapters.isEmpty()) {
 		return emptyList()
@@ -92,8 +48,6 @@ fun MangaDetails.mapChapters(
 	}
 	val result = ArrayList<ChapterListItem>(ids.size)
 	
-	// Build maps for both ID and URL matching
-	// For EPUB internal chapters, URL matching is more reliable than ID matching
 	val localMapById = if (localChapters.isNotEmpty()) {
 		localChapters.associateByTo(LinkedHashMap(localChapters.size)) { it.id }
 	} else {
@@ -105,17 +59,13 @@ fun MangaDetails.mapChapters(
 		null
 	}
 	
-	// Find the current chapter's number for isUnread calculation
 	val currentChapterNumber = remoteChapters.find { it.id == currentChapterId }?.number
 	
 	if (!isDownloadedOnly || local?.manga?.chapters == null) {
 		for ((index, chapter) in remoteChapters.withIndex()) {
-			// Try to find matching local chapter by ID first, then by URL
-			// URL matching is important for EPUB internal chapters which may have different IDs
 			val localById = localMapById?.remove(chapter.id)
-			val localByUrl = if (localById == null && chapter.url.contains("#chapter/")) {
+			val localByUrl = if (localById == null) {
 				localMapByUrl?.remove(chapter.url)?.also {
-					// Also remove from ID map to avoid duplication
 					localMapById?.remove(it.id)
 				}
 			} else {
@@ -123,12 +73,10 @@ fun MangaDetails.mapChapters(
 			}
 			val local = localById ?: localByUrl
 			
-			// isUnread: chapters with number > current chapter number are unread
-			// If current chapter not found, all chapters are unread
 			val isUnread = if (currentChapterNumber != null) {
 				chapter.number > currentChapterNumber
 			} else {
-				true  // Current chapter not in list, all chapters are unread
+				true
 			}
 			
 			result += (local ?: chapter).toListItem(
@@ -142,10 +90,7 @@ fun MangaDetails.mapChapters(
 		}
 	}
 	if (!localMapById.isNullOrEmpty()) {
-		android.util.Log.d("ChaptersMapper", "Adding ${localMapById.size} local-only chapters")
 		for (chapter in localMapById.values) {
-			android.util.Log.d("ChaptersMapper", "  local-only: id=${chapter.id}, title=${chapter.name}, url=${chapter.url.takeLast(30)}")
-			// Local-only chapters are always considered unread
 			result += chapter.toListItem(
 				isCurrent = chapter.id == currentChapterId,
 				isUnread = true,
@@ -157,7 +102,6 @@ fun MangaDetails.mapChapters(
 		}
 	}
 	
-	android.util.Log.d("ChaptersMapper", "=== mapChapters END: ${result.size} total chapters ===")
 	return result
 }
 

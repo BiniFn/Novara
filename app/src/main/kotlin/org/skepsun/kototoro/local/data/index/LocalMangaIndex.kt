@@ -12,6 +12,7 @@ import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.input.LocalMangaParser
+import org.skepsun.kototoro.local.novel.LocalNovelRepository
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
@@ -25,31 +26,36 @@ class LocalMangaIndex @Inject constructor(
 	private val db: MangaDatabase,
 	@ApplicationContext context: Context,
 	private val localMangaRepositoryProvider: Provider<LocalMangaRepository>,
+	private val localNovelRepositoryProvider: Provider<LocalNovelRepository>,
 ) : FlowCollector<LocalManga?> {
 
-	private val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-	private val mutex = Mutex()
+private val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+private val mutex = Mutex()
 
-	private var currentVersion: Int
-		get() = prefs.getInt(KEY_VERSION, 0)
-		set(value) = prefs.edit { putInt(KEY_VERSION, value) }
+private var currentVersion: Int
+	get() = prefs.getInt(KEY_VERSION, 0)
+	set(value) = prefs.edit { putInt(KEY_VERSION, value) }
 
-	override suspend fun emit(value: LocalManga?) {
-		if (value != null) {
-			put(value)
-		}
+override suspend fun emit(value: LocalManga?) {
+	if (value != null) {
+		put(value)
 	}
+}
 
-	suspend fun update() = mutex.withLock {
-		db.withTransaction {
-			val dao = db.getLocalMangaIndexDao()
-			dao.clear()
-			localMangaRepositoryProvider.get()
-				.getRawListAsFlow()
-				.collect { upsert(it) }
-		}
-		currentVersion = VERSION
+suspend fun update() = mutex.withLock {
+	db.withTransaction {
+		val dao = db.getLocalMangaIndexDao()
+		dao.clear()
+		localMangaRepositoryProvider.get()
+			.getRawListAsFlow()
+			.collect { upsert(it) }
+		// novels
+		localNovelRepositoryProvider.get()
+			.getAllLocalNovels()
+			.forEach { upsert(it) }
 	}
+	currentVersion = VERSION
+}
 
 	suspend fun updateIfRequired() {
 		if (isUpdateRequired()) {
@@ -66,12 +72,17 @@ class LocalMangaIndex @Inject constructor(
 		if (path == null) {
 			return null
 		}
-		return runCatchingCancellable {
-			LocalMangaParser(File(path)).getManga(withDetails)
-		}.onFailure {
-			it.printStackTraceDebug()
-		}.getOrNull()
-	}
+	return runCatchingCancellable {
+		val dir = File(path)
+		val novel = localNovelRepositoryProvider.get().getLocalNovel(dir, withDetails)
+		if (novel != null) {
+			return@runCatchingCancellable novel
+		}
+		LocalMangaParser(dir).getManga(withDetails)
+	}.onFailure {
+		it.printStackTraceDebug()
+	}.getOrNull()
+}
 
 	suspend operator fun contains(mangaId: Long): Boolean {
 		return db.getLocalMangaIndexDao().findPath(mangaId) != null
@@ -112,6 +123,6 @@ class LocalMangaIndex @Inject constructor(
 
 		private const val PREF_NAME = "_local_index"
 		private const val KEY_VERSION = "ver"
-		private const val VERSION = 1
+		private const val VERSION = 3
 	}
 }

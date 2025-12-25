@@ -24,6 +24,7 @@ import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaSource
 import java.util.EnumSet
@@ -150,11 +151,11 @@ class SourcesCatalogViewModel @Inject constructor(
 
 	@WorkerThread
 	private fun getContentTypes(isNsfwDisabled: Boolean): List<ContentType> {
-		val result = repository.allMangaSources.mapSortedByCount { it.contentType }
-		return if (isNsfwDisabled) {
-			result.filterNot { it == ContentType.HENTAI }
+		val sources = if (isNsfwDisabled) {
+			repository.allMangaSources.filterNot { it.isNsfw() }
 		} else {
-			result
+			repository.allMangaSources
 		}
+		return sources.mapSortedByCount { it.contentType }
 	}
 }

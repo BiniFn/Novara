@@ -197,6 +197,47 @@
 
 			</com.google.android.material.card.MaterialCardView>
 
+			<TextView
+				android:id="@+id/textView_delay"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="@dimen/margin_normal"
+				android:paddingHorizontal="@dimen/margin_normal"
+				android:text="@string/chapter_download_delay"
+				android:textAppearance="?textAppearanceTitleSmall"
+				android:visibility="gone"
+				tools:visibility="visible" />
+
+			<LinearLayout
+				android:id="@+id/layout_delay"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginHorizontal="16dp"
+				android:layout_marginTop="@dimen/margin_small"
+				android:orientation="horizontal"
+				android:gravity="center_vertical"
+				android:visibility="gone"
+				tools:visibility="visible">
+
+				<com.google.android.material.slider.Slider
+					android:id="@+id/slider_delay"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					android:valueFrom="0"
+					android:valueTo="10"
+					android:stepSize="1" />
+
+				<TextView
+					android:id="@+id/textView_delay_value"
+					android:layout_width="48dp"
+					android:layout_height="wrap_content"
+					android:gravity="center"
+					android:textAppearance="?textAppearanceBody2"
+					tools:text="0s" />
+
+			</LinearLayout>
+
 		</LinearLayout>
 
 	</ScrollView>

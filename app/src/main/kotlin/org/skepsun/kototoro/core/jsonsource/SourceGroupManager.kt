@@ -39,7 +39,7 @@ class SourceGroupManager @Inject constructor(
 				ContentType.MANGA,
 				ContentType.MANHWA,
 				ContentType.MANHUA,
-				ContentType.HENTAI,
+				ContentType.HENTAI_MANGA,
 				ContentType.COMICS,
 				ContentType.ONE_SHOT,
 				ContentType.DOUJINSHI,
@@ -47,9 +47,11 @@ class SourceGroupManager @Inject constructor(
 				ContentType.ARTIST_CG,
 				ContentType.GAME_CG -> ContentGroup.MANGA
 				
-				ContentType.NOVEL -> ContentGroup.NOVEL
+				ContentType.NOVEL,
+				ContentType.HENTAI_NOVEL -> ContentGroup.NOVEL
 				
-				ContentType.VIDEO -> ContentGroup.VIDEO
+				ContentType.VIDEO,
+				ContentType.HENTAI_VIDEO -> ContentGroup.VIDEO
 				
 				ContentType.OTHER -> ContentGroup.OTHER
 			}

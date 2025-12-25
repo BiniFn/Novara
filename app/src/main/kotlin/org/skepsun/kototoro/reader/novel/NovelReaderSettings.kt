@@ -18,7 +18,8 @@ data class NovelReaderSettings(
     val textDirection: TextDirection = TextDirection.LTR,
     val enableDualPage: Boolean = true,
     val enableFullscreen: Boolean = false,  // 默认不全屏，显示状态栏
-    val showFooter: Boolean = true,  // 显示页脚（进度和章节名）
+    val showReadingStatus: Boolean = true,  // 显示阅读状态（之前是 showFooter）
+    val isReadingStatusTransparent: Boolean = false, // 透明阅读状态栏
 ) {
 
     fun save(context: Context) {
@@ -32,7 +33,8 @@ data class NovelReaderSettings(
             putString(KEY_TEXT_DIRECTION, textDirection.name)
             putBoolean(KEY_DUAL_PAGE, enableDualPage)
             putBoolean(KEY_FULLSCREEN, enableFullscreen)
-            putBoolean(KEY_SHOW_FOOTER, showFooter)
+            putBoolean(KEY_SHOW_READING_STATUS, showReadingStatus)
+            putBoolean(KEY_READING_STATUS_TRANSPARENT, isReadingStatusTransparent)
         }
     }
 
@@ -47,7 +49,8 @@ data class NovelReaderSettings(
         private const val KEY_TEXT_DIRECTION = "text_direction"
         private const val KEY_DUAL_PAGE = "dual_page"
         private const val KEY_FULLSCREEN = "fullscreen"
-        private const val KEY_SHOW_FOOTER = "show_footer"
+        private const val KEY_SHOW_READING_STATUS = "show_reading_status"
+        private const val KEY_READING_STATUS_TRANSPARENT = "reading_status_transparent"
 
         fun load(context: Context): NovelReaderSettings {
             val prefs = getPrefs(context)
@@ -65,7 +68,8 @@ data class NovelReaderSettings(
                 }.getOrDefault(TextDirection.LTR),
                 enableDualPage = prefs.getBoolean(KEY_DUAL_PAGE, true),
                 enableFullscreen = prefs.getBoolean(KEY_FULLSCREEN, false),
-                showFooter = prefs.getBoolean(KEY_SHOW_FOOTER, true),
+                showReadingStatus = prefs.getBoolean(KEY_SHOW_READING_STATUS, true),
+                isReadingStatusTransparent = prefs.getBoolean(KEY_READING_STATUS_TRANSPARENT, false),
             )
         }
 

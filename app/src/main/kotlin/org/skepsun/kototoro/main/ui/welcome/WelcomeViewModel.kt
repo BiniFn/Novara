@@ -53,7 +53,21 @@ class WelcomeViewModel @Inject constructor(
 
 	init {
 		updateJob = launchJob(Dispatchers.Default) {
-			val contentTypes = allSources.mapSortedByCount { it.contentType }
+			// Map adult content types to their base types for display
+			val contentTypes = allSources
+				.map { source ->
+					when (source.contentType) {
+						ContentType.HENTAI_MANGA -> ContentType.MANGA
+						ContentType.HENTAI_NOVEL -> ContentType.NOVEL
+						ContentType.HENTAI_VIDEO -> ContentType.VIDEO
+						else -> source.contentType
+					}
+				}
+				.groupingBy { it }
+				.eachCount()
+				.toList()
+				.sortedByDescending { it.second }
+				.map { it.first }
 			types.value = types.value.copy(
 				availableItems = contentTypes,
 				isLoading = false,
@@ -108,9 +122,18 @@ class WelcomeViewModel @Inject constructor(
 
 	private suspend fun commit() {
 		val languages = locales.value.selectedItems.mapToSet { it.language }
-		val types = types.value.selectedItems
+		val selectedTypes = types.value.selectedItems
+		// Expand selected types to include adult variants
+		val expandedTypes = selectedTypes.flatMapTo(HashSet()) { type ->
+			when (type) {
+				ContentType.MANGA -> listOf(ContentType.MANGA, ContentType.HENTAI_MANGA)
+				ContentType.NOVEL -> listOf(ContentType.NOVEL, ContentType.HENTAI_NOVEL)
+				ContentType.VIDEO -> listOf(ContentType.VIDEO, ContentType.HENTAI_VIDEO)
+				else -> listOf(type)
+			}
+		}
 		val enabledSources = allSources.filterTo(EnumSet.noneOf(MangaParserSource::class.java)) { x ->
-			x.contentType in types && x.locale in languages
+			x.contentType in expandedTypes && x.locale in languages
 		}
 		repository.setSourcesEnabledExclusive(enabledSources)
 	}

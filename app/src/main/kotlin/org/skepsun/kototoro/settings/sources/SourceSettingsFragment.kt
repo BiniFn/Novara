@@ -19,7 +19,10 @@ import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.settings.utils.EditTextBindListener
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.model.getEnableSourceTitleResId
+import org.skepsun.kototoro.core.model.getRecommendationTermResId
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.parser.EmptyMangaRepository
@@ -32,7 +35,8 @@ import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.withArgs
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
 import org.skepsun.kototoro.settings.utils.PasswordSummaryProvider
 import java.io.File
@@ -58,9 +62,14 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		addPreferencesFromRepository(viewModel.repository)
 		val isValidSource = viewModel.repository !is EmptyMangaRepository
 
+		val contentType = (viewModel.source.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
 		findPreference<SwitchPreferenceCompat>(KEY_ENABLE)?.run {
 			isVisible = isValidSource && !settings.isAllSourcesEnabled
 			onPreferenceChangeListener = this@SourceSettingsFragment
+			setTitle(contentType.getEnableSourceTitleResId())
+		}
+		findPreference<SwitchPreferenceCompat>("no_captcha")?.run {
+			summary = getString(R.string.disable_captcha_notifications_summary, getString(contentType.getRecommendationTermResId()))
 		}
         // 显示 Web 登录入口：当解析器支持“网页登录”但不支持“凭证登录”时才显示
         findPreference<Preference>(KEY_AUTH)?.run {
@@ -353,7 +362,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		private const val KEY_JS_COOKIE_SUBMIT = "js_cookie_submit"
 		private const val KEY_JS_WEB_LOGIN = "js_web_login"
 
-		fun newInstance(source: MangaSource) = SourceSettingsFragment().withArgs(1) {
+		fun newInstance(source: org.skepsun.kototoro.parsers.model.MangaSource) = SourceSettingsFragment().withArgs(1) {
 			putString(AppRouter.KEY_SOURCE, source.name)
 		}
 	}

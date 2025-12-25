@@ -59,9 +59,9 @@ class ExternalMangaRepository(
 		contentSource.getPages(chapter)
 	}
 
-	override suspend fun getPageUrl(page: MangaPage): String = runInterruptible(Dispatchers.IO) {
-		contentSource.getPageUrl(page.url)
-	}
+override suspend fun getPageUrl(page: MangaPage): String = runInterruptible(Dispatchers.IO) {
+	contentSource.getPageUrl(page.url)
+}
 
 	override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> = emptyList() // TODO
 }

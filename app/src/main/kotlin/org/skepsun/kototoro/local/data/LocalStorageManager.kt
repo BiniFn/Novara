@@ -32,6 +32,7 @@ import java.io.File
 import javax.inject.Inject
 
 private const val DIR_NAME = "manga"
+private const val DIR_NAME_NOVEL = "novel"
 private const val NOMEDIA = ".nomedia"
 private const val CACHE_DISK_PERCENTAGE = 0.02
 private const val CACHE_SIZE_MIN: Long = 10 * 1024 * 1024 // 10MB
@@ -87,6 +88,31 @@ class LocalStorageManager @Inject constructor(
 	suspend fun getDefaultWriteableDir(): File? = runInterruptible(Dispatchers.IO) {
 		val preferredDir = settings.mangaStorageDir?.takeIfWriteable()
 		preferredDir ?: getFallbackStorageDir()?.takeIfWriteable()
+	}
+
+	suspend fun getAllReadableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
+		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs())
+			.filter { it.isReadable() }
+	}
+
+	suspend fun getAllWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
+		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs())
+			.filter { it.isWriteable() }
+	}
+
+	suspend fun getNovelReadableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
+		getAvailableNovelStorageDirs()
+			.filter { it.isReadable() }
+	}
+
+	suspend fun getNovelWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
+		getAvailableNovelStorageDirs()
+			.filter { it.isWriteable() }
+	}
+
+	suspend fun getDefaultNovelWriteableDir(): File? = runInterruptible(Dispatchers.IO) {
+		// Currently no setting for novel storage, use internal root as priority or first external
+		getFallbackNovelStorageDir()?.takeIfWriteable()
 	}
 
 	suspend fun getApplicationStorageDirs(): Set<File> = runInterruptible(Dispatchers.IO) {
@@ -152,6 +178,30 @@ class LocalStorageManager @Inject constructor(
 		context.getExternalFilesDirs(DIR_NAME).filterNotNullTo(result)
 		result.retainAll { it.exists() || it.mkdirs() }
 		return result
+	}
+
+	@WorkerThread
+	private fun getAvailableNovelStorageDirs(): MutableSet<File> {
+		val result = LinkedHashSet<File>()
+		result += File(context.filesDir, DIR_NAME_NOVEL)
+		context.getExternalFilesDirs(DIR_NAME_NOVEL).filterNotNullTo(result)
+		result.retainAll { it.exists() || it.mkdirs() }
+		return result
+	}
+
+	/**
+	 * 返回小说下载根目录（files/novel）
+	 */
+	@WorkerThread
+	fun getNovelRoot(): File? {
+		return File(context.filesDir, DIR_NAME_NOVEL).takeIf { it.exists() || it.mkdirs() }
+	}
+
+	@WorkerThread
+	private fun getFallbackNovelStorageDir(): File? {
+		return context.getExternalFilesDir(DIR_NAME_NOVEL) ?: File(context.filesDir, DIR_NAME_NOVEL).takeIf {
+			it.exists() || it.mkdirs()
+		}
 	}
 
 	@WorkerThread

@@ -35,5 +35,11 @@ class PlaybackSettingsFragment : BasePreferenceFragment(R.string.playback_settin
 				getString(R.string.video_cache_size_summary, valueMb)
 			}
 		}
+
+		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_CONTROLS_ALPHA)?.run {
+			summaryProvider = Preference.SummaryProvider<SliderPreference> { pref ->
+				"${pref.value.toInt()}%"
+			}
+		}
 	}
 }

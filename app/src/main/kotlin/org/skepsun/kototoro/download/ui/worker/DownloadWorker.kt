@@ -76,6 +76,7 @@ import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.core.util.ext.withTicker
 import org.skepsun.kototoro.core.util.ext.writeAllCancellable
 import org.skepsun.kototoro.core.util.progress.RealtimeEtaEstimator
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.download.domain.DownloadProgress
 import org.skepsun.kototoro.download.domain.DownloadState
 import org.skepsun.kototoro.local.data.LocalMangaRepository
@@ -91,15 +92,22 @@ import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.NovelChapterContent
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.requireBody
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.jsoup.Jsoup
 import java.io.File
+import java.net.URLDecoder
 import java.util.UUID
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
@@ -121,6 +129,7 @@ class DownloadWorker @AssistedInject constructor(
 	notificationFactoryFactory: DownloadNotificationFactory.Factory,
 	private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
+	private val localStorageManager: org.skepsun.kototoro.local.data.LocalStorageManager,
 ) : CoroutineWorker(appContext, params) {
 
 	private val task = DownloadTask(params.inputData)
@@ -200,7 +209,7 @@ class DownloadWorker @AssistedInject constructor(
 				PausingReceiver.createIntentFilter(id),
 				ContextCompat.RECEIVER_NOT_EXPORTED,
 			)
-			val destination = localMangaRepository.getOutputDir(manga, task.destination)
+			var destination = localMangaRepository.getOutputDir(manga, task.destination)
 			checkNotNull(destination) { applicationContext.getString(R.string.cannot_find_available_storage) }
 			var output: LocalMangaOutput? = null
 			try {
@@ -210,6 +219,11 @@ class DownloadWorker @AssistedInject constructor(
 				}
 				val repo = mangaRepositoryFactory.create(manga.source)
 				val mangaDetails = if (manga.chapters.isNullOrEmpty() || manga.description.isNullOrEmpty()) repo.getDetails(manga) else manga
+				val parserSource = mangaDetails.source.unwrap() as? MangaParserSource
+				val isNovel = when (parserSource?.contentType) {
+					ContentType.NOVEL, ContentType.HENTAI_NOVEL -> true
+					else -> false
+				} || mangaDetails.source.name.uppercase() in setOf("BILINOVEL", "LKNOVEL_US", "LIGHTNOVEL_WIKI", "NOVELIA", "WENKU8", "BIQUGE")
 				
 				// 检测是否包含EPUB章节
 				val hasEpubChapters = runCatchingCancellable {
@@ -228,7 +242,12 @@ class DownloadWorker @AssistedInject constructor(
 				} else {
 					task.format ?: settings.preferredDownloadFormat
 				}
-				
+
+				if (isNovel && !hasEpubChapters) {
+					// 尝试获取小说专用的输出目录
+					destination = localStorageManager.getDefaultNovelWriteableDir() ?: localStorageManager.getNovelWriteableDirs().firstOrNull() ?: destination
+				}
+
 				output = LocalMangaOutput.getOrCreate(
 					root = destination,
 					manga = mangaDetails,
@@ -241,164 +260,25 @@ class DownloadWorker @AssistedInject constructor(
 						file.deleteAwait()
 					}
 				}
-				val chapters = getChapters(mangaDetails, task)
-				for ((chapterIndex, chapter) in chapters.withIndex()) {
-					checkIsPaused()
-					
-					// 先获取页面信息，判断是否为EPUB
-					val pages = runFailsafe {
-						repo.getPages(chapter.value)
-					} ?: continue
-					
-					// 调试日志
-					println("DownloadWorker: Chapter ${chapter.index}: ${chapter.value.title}")
-					println("DownloadWorker: Pages count: ${pages.size}")
-					if (pages.isNotEmpty()) {
-						println("DownloadWorker: First page preview: ${pages[0].preview}")
-						println("DownloadWorker: First page url: ${pages[0].url}")
-					}
-					
-					// 检查是否为EPUB章节
-					val isEpubChapter = pages.size == 1 && pages[0].preview == "EPUB"
-					
-					// 对于EPUB章节，即使已下载也要重新下载（替换旧章节）
-					// 对于普通章节，如果已下载则跳过
-					if (!isEpubChapter && chaptersToSkip.remove(chapter.value.id)) {
-						println("DownloadWorker: Skipping already downloaded chapter")
-						publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
-						continue
-					}
-					
-					if (isEpubChapter) {
-						println("DownloadWorker: EPUB detected! Using NEW ARCHITECTURE")
-						android.util.Log.i("DownloadWorker", "EPUB chapter detected, using new LocalEpubSource architecture")
-						
-						// 从跳过列表中移除（如果存在），确保会被处理
-						chaptersToSkip.remove(chapter.value.id)
-						
-						// 使用新架构：下载到独立的epub文件夹
-						val result = runFailsafe {
-							downloadEpubToStorage(
-								manga = mangaDetails,
-								chapter = chapter,
-								epubUrl = pages[0].url,
-								destination = destination,
-								repo = repo,
-							)
-							true
-						}
-						if (result == true) {
-							publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
-							android.util.Log.i("DownloadWorker", "EPUB downloaded successfully to epub storage")
-							
-							// 触发章节解析和保存到数据库
-							runCatchingCancellable {
-								// 获取刚保存的EPUB文件路径
-								val epubDir = epubStorageManager.getEpubDir(mangaDetails.id)
-								val epubFileName = "chapter_${chapter.value.id}.epub"
-								val epubFile = File(epubDir, epubFileName)
-								
-								if (!epubFile.exists()) {
-									android.util.Log.e("DownloadWorker", "EPUB file not found: ${epubFile.absolutePath}")
-									return@runCatchingCancellable
-								}
-								
-								// 解析EPUB文件
-								val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
-								val epubContent = parser.parseManga()
-								
-								if (epubContent == null) {
-									android.util.Log.e("DownloadWorker", "Failed to parse EPUB file")
-									return@runCatchingCancellable
-								}
-								
-								android.util.Log.d("DownloadWorker", "Parsed ${epubContent.chapters?.size} chapters from EPUB")
-								
-								// 保存章节映射到数据库
-								val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
-								for ((index, epubChapter) in epubContent.chapters.orEmpty().withIndex()) {
-									// 生成内部章节ID：使用parentChapterId + index的组合
-									val internalChapterId = chapter.value.id + (index * 1000000L) + 1
-									
-									val mapping = org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity(
-										internalChapterId = internalChapterId,
-										parentChapterId = chapter.value.id,
-										epubFilePath = epubFile.absolutePath,
-										epubFileName = chapter.value.title ?: epubFileName, // 使用章节标题作为显示名称
-										chapterIndex = index,
-										chapterTitle = epubChapter.title ?: "Chapter ${index + 1}",
-									)
-									epubChapterMappingDao.insert(mapping)
-								}
-								
-								android.util.Log.i("DownloadWorker", "EPUB chapters parsed and saved to database: ${epubContent.chapters?.size} chapters")
-								android.util.Log.i("DownloadWorker", "EPUB file saved at: ${epubFile.absolutePath}")
-							}.onFailure { e ->
-								android.util.Log.e("DownloadWorker", "Failed to parse EPUB chapters", e)
-								e.printStackTrace()
-							}
-						}
-						continue
-					} else {
-						println("DownloadWorker: Not EPUB, using normal download")
-					}
-					
-					val pageCounter = AtomicInteger(0)
-					channelFlow {
-						val semaphore = Semaphore(MAX_PAGES_PARALLELISM)
-						for ((pageIndex, page) in pages.withIndex()) {
-							checkIsPaused()
-							launch {
-								semaphore.withPermit {
-									runFailsafe {
-										val url = repo.getPageUrl(page)
-										val file = cache[url]
-											?: downloadFile(url, destination, repo.source)
-										output.addPage(
-											chapter = chapter,
-											file = file,
-											pageNumber = pageIndex,
-											type = getMediaType(url, file),
-										)
-										if (file.extension == "tmp") {
-											file.deleteAwait()
-										}
-									}
-									send(pageIndex)
-								}
-							}
-						}
-					}.map {
-						DownloadProgress(
-							totalChapters = chapters.size,
-							currentChapter = chapterIndex,
-							totalPages = pages.size,
-							currentPage = pageCounter.getAndIncrement(),
-						)
-					}.withTicker(2L, TimeUnit.SECONDS).collect { progress ->
-						publishState(
-							currentState.copy(
-								totalChapters = progress.totalChapters,
-								currentChapter = progress.currentChapter,
-								totalPages = progress.totalPages,
-								currentPage = progress.currentPage,
-								isIndeterminate = false,
-								eta = etaEstimator.getEta(),
-								isStuck = etaEstimator.isStuck(),
-							),
-						)
-					}
-					if (output.flushChapter(chapter.value)) {
-						runCatchingCancellable {
-							localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
-						}.onFailure(Throwable::printStackTraceDebug)
-					}
-					publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
+				if (isNovel && !hasEpubChapters) {
+					downloadNovelChapters(mangaDetails, task, repo, destination, output, chaptersToSkip)
+					output.mergeWithExisting()
+					output.finish()
+					val localManga = LocalMangaParser(output.rootFile).getManga(withDetails = true)
+					// 刷新缓存，确保 UI 能识别到本地 icon
+					localMangaRepository.findSavedManga(mangaDetails)
+					android.util.Log.d("DownloadWorker", "Novel download completed, emitting localStorageChanges for ${output.rootFile}")
+					localStorageChanges.emit(localManga)
+					publishState(currentState.copy(localManga = localManga, eta = -1L, isStuck = false))
+					return@withLock
 				}
+				processStandardChapters(mangaDetails, task, repo, destination, chaptersToSkip, output)
 				publishState(currentState.copy(isIndeterminate = true, eta = -1L, isStuck = false))
 				output.mergeWithExisting()
 				output.finish()
-				val localManga = LocalMangaParser(output.rootFile).getManga(withDetails = false)
+				val localManga = LocalMangaParser(output.rootFile).getManga(withDetails = true)
+				// 刷新缓存
+				localMangaRepository.findSavedManga(mangaDetails)
 				localStorageChanges.emit(localManga)
 				publishState(currentState.copy(localManga = localManga, eta = -1L, isStuck = false))
 			} catch (e: Exception) {
@@ -416,11 +296,178 @@ class DownloadWorker @AssistedInject constructor(
 					applicationContext.unregisterReceiver(pausingReceiver)
 					output?.closeQuietly()
 					output?.cleanup()
-					destination.listFiles(TempFileFilter())?.forEach {
-						it.deleteAwait()
+					val tempFiles = destination.listFiles(TempFileFilter())
+					if (tempFiles != null) {
+						for (file in tempFiles) {
+							runCatchingCancellable { file.deleteAwait() }
+						}
 					}
 				}
 			}
+		}
+	}
+
+	private suspend fun processStandardChapters(
+		mangaDetails: Manga,
+		task: DownloadTask,
+		repo: MangaRepository,
+		destination: File,
+		chaptersToSkip: MutableSet<Long>,
+		output: LocalMangaOutput,
+	) {
+		val chapters = getChapters(mangaDetails, task)
+		for ((chapterIndex, chapter) in chapters.withIndex()) {
+			checkIsPaused()
+
+			val pages = runFailsafe {
+				repo.getPages(chapter.value)
+			} ?: continue
+
+			println("DownloadWorker: Chapter ${chapter.index}: ${chapter.value.title}")
+			println("DownloadWorker: Pages count: ${pages.size}")
+			if (pages.isNotEmpty()) {
+				println("DownloadWorker: First page preview: ${pages[0].preview}")
+				println("DownloadWorker: First page url: ${pages[0].url}")
+			}
+
+			val isEpubChapter = pages.size == 1 && pages[0].preview == "EPUB"
+			if (!isEpubChapter && chaptersToSkip.remove(chapter.value.id)) {
+				println("DownloadWorker: Skipping already downloaded chapter")
+				publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
+				continue
+			}
+
+			if (isEpubChapter) {
+				println("DownloadWorker: EPUB detected! Using NEW ARCHITECTURE")
+				android.util.Log.i("DownloadWorker", "EPUB chapter detected, using new LocalEpubSource architecture")
+				chaptersToSkip.remove(chapter.value.id)
+
+				// Publish initial progress for EPUB download
+				publishState(currentState.copy(
+					totalChapters = chapters.size,
+					currentChapter = chapterIndex,
+					totalPages = 1,
+					currentPage = 0,
+					isIndeterminate = false
+				))
+
+				val result = runFailsafe {
+					downloadEpubToStorage(
+						manga = mangaDetails,
+						chapter = chapter,
+						epubUrl = pages[0].url,
+						destination = destination,
+						repo = repo,
+					)
+					true
+				}
+				if (result == true) {
+					publishState(currentState.copy(
+						downloadedChapters = currentState.downloadedChapters + 1,
+						currentChapter = chapterIndex + 1,
+						currentPage = 1
+					))
+					android.util.Log.i("DownloadWorker", "EPUB downloaded successfully to epub storage")
+
+					runCatchingCancellable {
+						val epubDir = epubStorageManager.getEpubDir(mangaDetails.id)
+						val epubFileName = "chapter_${chapter.value.id}.epub"
+						val epubFile = File(epubDir, epubFileName)
+
+						if (!epubFile.exists()) {
+							android.util.Log.e("DownloadWorker", "EPUB file not found: ${epubFile.absolutePath}")
+							return@runCatchingCancellable
+						}
+
+						val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
+						val epubContent = parser.parseManga() ?: run {
+							android.util.Log.e("DownloadWorker", "Failed to parse EPUB file")
+							return@runCatchingCancellable
+						}
+
+						android.util.Log.d("DownloadWorker", "Parsed ${epubContent.chapters?.size} chapters from EPUB")
+
+						val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
+						for ((index, epubChapter) in epubContent.chapters.orEmpty().withIndex()) {
+							val internalChapterId = chapter.value.id + (index * 1000000L) + 1
+
+							val mapping = org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity(
+								internalChapterId = internalChapterId,
+								parentChapterId = chapter.value.id,
+								epubFilePath = epubFile.absolutePath,
+								epubFileName = chapter.value.title ?: epubFileName,
+								chapterIndex = index,
+								chapterTitle = epubChapter.title ?: "Chapter ${index + 1}",
+							)
+							epubChapterMappingDao.insert(mapping)
+						}
+
+						android.util.Log.i("DownloadWorker", "EPUB chapters parsed and saved to database: ${epubContent.chapters?.size} chapters")
+						android.util.Log.i("DownloadWorker", "EPUB file saved at: ${epubFile.absolutePath}")
+						
+						// Notify UI about the new local chapters
+						localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+					}.onFailure { e ->
+						android.util.Log.e("DownloadWorker", "Failed to parse EPUB chapters", e)
+						e.printStackTrace()
+					}
+				}
+				continue
+			} else {
+				println("DownloadWorker: Not EPUB, using normal download")
+			}
+
+			val pageCounter = AtomicInteger(0)
+			channelFlow {
+				val semaphore = Semaphore(MAX_PAGES_PARALLELISM)
+				for ((pageIndex, page) in pages.withIndex()) {
+					checkIsPaused()
+					launch {
+						semaphore.withPermit {
+							runFailsafe {
+								val url = repo.getPageUrl(page)
+								val file = cache[url]
+									?: downloadFile(url, destination, repo.source)
+								output.addPage(
+									chapter = chapter,
+									file = file,
+									pageNumber = pageIndex,
+									type = getMediaType(url, file),
+								)
+								if (file.extension == "tmp") {
+									file.deleteAwait()
+								}
+							}
+							send(pageIndex)
+						}
+					}
+				}
+			}.map {
+				DownloadProgress(
+					totalChapters = chapters.size,
+					currentChapter = chapterIndex,
+					totalPages = pages.size,
+					currentPage = pageCounter.getAndIncrement(),
+				)
+			}.withTicker(2L, TimeUnit.SECONDS).collect { progress ->
+				publishState(
+					currentState.copy(
+						totalChapters = progress.totalChapters,
+						currentChapter = progress.currentChapter,
+						totalPages = progress.totalPages,
+						currentPage = progress.currentPage,
+						isIndeterminate = false,
+						eta = etaEstimator.getEta(),
+						isStuck = etaEstimator.isStuck(),
+					),
+				)
+			}
+			if (output.flushChapter(chapter.value)) {
+				runCatchingCancellable {
+					localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+				}.onFailure(Throwable::printStackTraceDebug)
+			}
+			publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
 		}
 	}
 
@@ -489,12 +536,238 @@ class DownloadWorker @AssistedInject constructor(
 		MimeTypes.getMimeTypeFromUrl(url)
 	}
 
+	/**
+	 * 小说章节下载：复用漫画的输出格式（单本/多本 CBZ），章节内写入 HTML + 插图。
+	 */
+	private suspend fun downloadNovelChapters(
+		manga: Manga,
+		task: DownloadTask,
+		repo: MangaRepository,
+		destination: File,
+		output: LocalMangaOutput,
+		chaptersToSkip: MutableSet<Long>,
+	) {
+			val chapters = getChapters(manga, task)
+
+		for ((chapterIndex, chapter) in chapters.withIndex()) {
+			checkIsPaused()
+			if (chaptersToSkip.remove(chapter.value.id)) {
+				publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
+				continue
+			}
+
+			val content = runFailsafe { repo.getChapterContent(chapter.value) }
+				?: runFailsafe { decodeDataPage(repo.getPages(chapter.value).firstOrNull()) }
+				?: run {
+					android.util.Log.w("DownloadWorker", "downloadNovelChapters: skip chapter ${chapter.value.title} (no content)")
+					continue
+				}
+
+			val imageHeaderMap = LinkedHashMap<String, Map<String, String>>()
+			content.images.forEach { imageHeaderMap[it.url] = it.headers }
+			runCatching {
+				val parsed = Jsoup.parse(content.html)
+				parsed.select("img").forEach { img ->
+					val src = img.attr("data-src").ifBlank { img.attr("src") }.trim()
+					if (src.isNotBlank() && !src.startsWith("data:", true)) {
+						imageHeaderMap.putIfAbsent(src, emptyMap())
+					}
+				}
+			}
+
+			val nameMap = LinkedHashMap<String, ImageDownload>()
+			var pageNumber = 1
+			imageHeaderMap.entries.forEach { entry ->
+				val originalUrl = entry.key
+				if (originalUrl.startsWith("data:", ignoreCase = true) || originalUrl.startsWith("file:", ignoreCase = true)) {
+					return@forEach
+				}
+				val ext = MimeTypes.getNormalizedExtension(originalUrl.substringAfterLast('/').substringBefore('?'))?.ifBlank { "jpg" } ?: "jpg"
+				val name = buildPageName(chapter, pageNumber, ext)
+				nameMap[originalUrl] = ImageDownload(
+					url = originalUrl,
+					headers = entry.value,
+					name = name,
+					pageNumber = pageNumber,
+					mime = MimeTypes.getMimeTypeFromExtension(ext),
+				)
+				pageNumber++
+			}
+
+				val rewrittenHtml = rewriteHtmlWithCustomNames(content.html, nameMap.mapValues { it.value.name })
+				val htmlFile = destination.createTempFile("html").apply {
+					writeText(rewrittenHtml)
+				}
+				val htmlName = buildPageName(chapter, 0, "html")
+				output.addPage(
+					chapter = chapter,
+					file = htmlFile,
+					pageNumber = 0,
+					type = "text/html".toMimeTypeOrNull(),
+				)
+
+			val totalImages = nameMap.size
+			val normalizedTotal = 100
+			
+			// 初始章节进度：设为 1% 以显示已开始
+			publishState(currentState.copy(
+				totalChapters = chapters.size,
+				currentChapter = chapterIndex,
+				totalPages = normalizedTotal,
+				currentPage = 1,
+				isIndeterminate = false,
+				eta = etaEstimator.getEta(),
+				isStuck = etaEstimator.isStuck(),
+			))
+
+			nameMap.values.forEachIndexed { imageIndex, download ->
+				val headers = download.headers.toMutableMap()
+				if (headers.none { it.key.equals("referer", ignoreCase = true) }) {
+					headers["Referer"] = deriveReferer(download.url, manga)
+				}
+				runCatching {
+					val file = downloadFile(
+						download.url,
+						destination,
+						repo.source,
+						headers = headers,
+					)
+					val type = download.mime ?: getMediaType(download.url, file)
+					output.addPage(
+						chapter = chapter,
+						file = file,
+						pageNumber = download.pageNumber,
+						type = type,
+					)
+					if (file.extension == "tmp") file.deleteAwait()
+					
+					// 归一化当前进度
+					val imageProgress = ((imageIndex + 1).toFloat() / totalImages * normalizedTotal).toInt().coerceIn(1, normalizedTotal)
+					publishState(currentState.copy(
+						totalChapters = chapters.size,
+						currentChapter = chapterIndex,
+						totalPages = normalizedTotal,
+						currentPage = imageProgress,
+						eta = etaEstimator.getEta(),
+						isStuck = etaEstimator.isStuck(),
+					))
+				}.onFailure {
+					android.util.Log.w("DownloadWorker", "downloadNovelChapters: image download failed ${it.message}")
+				}
+			}
+
+			val mapping = nameMap.mapValues { it.value.name }
+			output.putChapterImages(chapter.value.id, mapping)
+			if (output.flushChapter(chapter.value)) {
+				runCatchingCancellable {
+					localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+				}.onFailure(Throwable::printStackTraceDebug)
+			}
+
+			publishState(currentState.copy(
+				downloadedChapters = currentState.downloadedChapters + 1,
+				currentChapter = chapterIndex + 1,
+				currentPage = 0
+			))
+
+			// Apply delay between chapters if configured (to avoid rate limiting)
+			val delaySeconds = settings.downloadChapterDelay
+			if (delaySeconds > 0 && chapterIndex < chapters.size - 1) {
+				// Only delay if not the last chapter
+				kotlinx.coroutines.delay(delaySeconds * 1000L)
+			}
+		}
+	}
+
+	private fun buildPageName(chapter: IndexedValue<MangaChapter>, pageNumber: Int, ext: String): String {
+		val branchHash = chapter.value.branch?.hashCode() ?: 0
+		return buildString {
+			append(PAGE_NAME_PATTERN.format(branchHash, chapter.index + 1, pageNumber))
+			if (ext.isNotBlank()) {
+				append('.')
+				append(ext)
+			}
+		}
+	}
+
+	private fun rewriteHtmlWithCustomNames(html: String, nameMap: Map<String, String>): String {
+		if (nameMap.isEmpty()) return html
+		return runCatching {
+			val doc = Jsoup.parse(html)
+			doc.select("img").forEach { img ->
+				val src = (img.attr("data-src").ifBlank { img.attr("src") }).trim()
+				val local = nameMap[src]
+				if (local != null) {
+					img.attr("src", local)
+					img.attr("referrerpolicy", "no-referrer")
+				}
+			}
+			doc.outerHtml()
+		}.getOrDefault(html)
+	}
+
+	private data class ImageDownload(
+		val url: String,
+		val headers: Map<String, String>,
+		val name: String,
+		val pageNumber: Int,
+		val mime: MimeType?,
+	)
+
+	private fun decodeDataPage(page: MangaPage?): NovelChapterContent? {
+		if (page == null) return null
+		val url = page.url
+		if (!url.startsWith("data:", ignoreCase = true)) return null
+		val data = url.removePrefix("data:")
+		val commaIndex = data.indexOf(',')
+		if (commaIndex <= 0) return null
+		val meta = data.substring(0, commaIndex)
+		val contentPart = data.substring(commaIndex + 1)
+		val isBase64 = meta.contains(";base64", ignoreCase = true)
+		val html = if (isBase64) {
+			String(Base64.getDecoder().decode(contentPart), Charsets.UTF_8)
+		} else {
+			URLDecoder.decode(contentPart, "UTF-8")
+		}
+		return NovelChapterContent(html = html, images = emptyList())
+	}
+
+	private fun deriveReferer(url: String, manga: Manga): String {
+		return runCatching {
+			val uri = java.net.URI(url)
+			val scheme = if (uri.scheme.isNullOrBlank()) "https" else uri.scheme
+			val host = uri.host ?: return@runCatching manga.publicUrl
+			"$scheme://$host/"
+		}.getOrElse { manga.publicUrl }
+	}
+
 	private suspend fun downloadFile(
 		url: String,
 		destination: File,
 		source: MangaSource,
 		useProxy: Boolean = true,
+		headers: Map<String, String> = emptyMap(),
 	): File {
+		if (url.startsWith("data:", ignoreCase = true)) {
+			val data = url.removePrefix("data:")
+			val commaIndex = data.indexOf(',')
+			require(commaIndex >= 0) { "Invalid data URL: missing comma separator" }
+			val meta = data.substring(0, commaIndex)
+			val contentPart = data.substring(commaIndex + 1)
+			val isBase64 = meta.contains(";base64", ignoreCase = true)
+			val mimeType = meta.substringBefore(';').takeIf { it.isNotBlank() }?.toMimeTypeOrNull()
+			val ext = MimeTypes.getExtension(mimeType)
+			val bytes = if (isBase64) {
+				Base64.getDecoder().decode(contentPart)
+			} else {
+				URLDecoder.decode(contentPart, "UTF-8").toByteArray(Charsets.UTF_8)
+			}
+			val file = destination.createTempFile(ext)
+			file.sink(append = false).buffer().use { sink ->
+				sink.write(bytes)
+			}
+			return file
+		}
 		if (url.startsWith("content:", ignoreCase = true) || url.startsWith("file:", ignoreCase = true)) {
 			val uri = url.toUri()
 			val cr = applicationContext.contentResolver
@@ -514,7 +787,9 @@ class DownloadWorker @AssistedInject constructor(
 			}
 			return file
 		}
-		val request = PageLoader.createPageRequest(url, source)
+		val requestBuilder = PageLoader.createPageRequest(url, source).newBuilder()
+		headers.forEach { (k, v) -> requestBuilder.header(k, v) }
+		val request = requestBuilder.build()
 		slowdownDispatcher.delay(source)
 		val response = if (useProxy) {
 			imageProxyInterceptor.interceptPageRequest(request, okHttp)
@@ -526,12 +801,13 @@ class DownloadWorker @AssistedInject constructor(
 			.use { response ->
 				var file: File? = null
 				try {
-					response.requireBody().use { body ->
+					val body = response.body ?: error("Response body is null")
+					body.use {
 						file = destination.createTempFile(
 							ext = MimeTypes.getExtension(body.contentType()?.toMimeType())
 						)
-						file.sink(append = false).buffer().use {
-							it.writeAllCancellable(body.source())
+						file.sink(append = false).buffer().use { sink ->
+							sink.writeAllCancellable(body.source())
 						}
 					}
 				} catch (e: Exception) {
@@ -542,17 +818,23 @@ class DownloadWorker @AssistedInject constructor(
 			}
 	}
 
-	private fun File.createTempFile(ext: String?) = File(
-		this,
-		buildString {
-			append(UUID.randomUUID().toString())
-			if (!ext.isNullOrEmpty()) {
-				append('.')
-				append(ext)
-			}
-			append(".tmp")
-		},
-	)
+	private fun File.createTempFile(ext: String?): File {
+		// Ensure parent directory exists
+		if (!exists()) {
+			mkdirs()
+		}
+		return File(
+			this,
+			buildString {
+				append(UUID.randomUUID().toString())
+				if (!ext.isNullOrEmpty()) {
+					append('.')
+					append(ext)
+				}
+				append(".tmp")
+			},
+		)
+	}
 
 	/**
 	 * 下载EPUB章节
@@ -992,10 +1274,11 @@ class DownloadWorker @AssistedInject constructor(
 	private companion object {
 
 		const val MAX_FAILSAFE_ATTEMPTS = 2
-		const val MAX_PAGES_PARALLELISM = 4
+		const val MAX_PAGES_PARALLELISM = 2
 		const val DOWNLOAD_ERROR_DELAY = 2_000L
 		const val MAX_RETRY_DELAY = 7_200_000L // 2 hours
 		const val TAG = "download"
+		private const val PAGE_NAME_PATTERN = "%08d_%04d%04d"
 	}
 
 	@AssistedFactory

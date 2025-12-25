@@ -124,7 +124,7 @@ fun Manga.getPreferredBranch(history: MangaHistory?): String? {
 }
 
 val Manga.isLocal: Boolean
-	get() = source == LocalMangaSource
+	get() = source == LocalMangaSource || source == LocalNovelSource
 
 val Manga.isBroken: Boolean
 	get() = source == UnknownMangaSource

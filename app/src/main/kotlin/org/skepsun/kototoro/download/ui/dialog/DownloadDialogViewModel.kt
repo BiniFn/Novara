@@ -129,6 +129,12 @@ class DownloadDialogViewModel @Inject constructor(
 		)
 	}
 
+	fun getChapterDownloadDelay(): Int = settings.downloadChapterDelay
+
+	fun setChapterDownloadDelay(seconds: Int) {
+		settings.downloadChapterDelay = seconds
+	}
+
 	private fun defaultDestination() = DirectoryModel(
 		title = null,
 		titleRes = R.string.system_default,

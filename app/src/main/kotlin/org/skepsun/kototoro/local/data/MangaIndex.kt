@@ -103,9 +103,14 @@ class MangaIndex(source: String?) {
 
 	fun getCoverEntry(): String? = json.getStringOrNull(KEY_COVER_ENTRY)
 
-	fun addChapter(chapter: IndexedValue<MangaChapter>, filename: String?) {
+	fun addChapter(
+		chapter: IndexedValue<MangaChapter>,
+		filename: String?,
+		remoteImages: Map<String, String>? = null,
+	) {
 		val chapters = json.getJSONObject(KEY_CHAPTERS)
-		if (!chapters.has(chapter.value.id.toString())) {
+		val chapterIdStr = chapter.value.id.toString()
+		if (!chapters.has(chapterIdStr)) {
 			val jo = JSONObject()
 			jo.put(KEY_NUMBER, chapter.value.number)
 			jo.put(KEY_VOLUME, chapter.value.volume)
@@ -116,8 +121,49 @@ class MangaIndex(source: String?) {
 			jo.put(KEY_BRANCH, chapter.value.branch)
 			jo.put(KEY_ENTRIES, "%08d_%04d\\d{4}".format(chapter.value.branch.hashCode(), chapter.index + 1))
 			jo.put(KEY_FILE, filename)
-			chapters.put(chapter.value.id.toString(), jo)
+			putImagesInternal(jo, remoteImages)
+			chapters.put(chapterIdStr, jo)
+		} else if (!filename.isNullOrBlank()) {
+			val jo = chapters.getJSONObject(chapterIdStr)
+			if (jo.optString(KEY_FILE).isNullOrBlank()) {
+				jo.put(KEY_FILE, filename)
+			}
 		}
+	}
+
+	fun putChapterImages(chapterId: Long, remoteImages: Map<String, String>) {
+		val chapters = json.optJSONObject(KEY_CHAPTERS) ?: return
+		val jo = chapters.optJSONObject(chapterId.toString()) ?: return
+		putImagesInternal(jo, remoteImages)
+	}
+
+	private fun putImagesInternal(jo: JSONObject, remoteImages: Map<String, String>?) {
+		remoteImages?.takeIf { it.isNotEmpty() }?.let { map ->
+			val arr = JSONArray()
+			for ((remote, local) in map) {
+				arr.put(JSONObject().apply {
+					put("remote", remote)
+					put("local", local)
+				})
+			}
+			jo.put("images", arr)
+		}
+	}
+
+	fun getChapterImages(chapterId: Long): Map<String, String> {
+		val chapters = json.optJSONObject(KEY_CHAPTERS) ?: return emptyMap()
+		val jo = chapters.optJSONObject(chapterId.toString()) ?: return emptyMap()
+		val arr = jo.optJSONArray("images") ?: return emptyMap()
+		val result = LinkedHashMap<String, String>(arr.length())
+		for (i in 0 until arr.length()) {
+			val o = arr.optJSONObject(i) ?: continue
+			val remote = o.optString("remote")
+			val local = o.optString("local")
+			if (remote.isNotBlank() && local.isNotBlank()) {
+				result[remote] = local
+			}
+		}
+		return result
 	}
 
 	fun removeChapter(id: Long): Boolean {

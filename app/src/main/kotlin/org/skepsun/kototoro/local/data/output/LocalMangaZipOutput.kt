@@ -23,8 +23,8 @@ class LocalMangaZipOutput(
 	manga: Manga,
 ) : LocalMangaOutput(rootFile) {
 
-	private val output = ZipOutput(File(rootFile.path + ".tmp"))
-	private val index = MangaIndex(null)
+	val output = ZipOutput(File(rootFile.path + ".tmp"))
+	val index = MangaIndex(null)
 	private val mutex = Mutex()
 
 	init {
@@ -67,7 +67,12 @@ class LocalMangaZipOutput(
 			runInterruptible(Dispatchers.IO) {
 				output.put(name, file)
 			}
-			index.addChapter(chapter, null)
+			index.addChapter(chapter, null, null)
+		}
+
+	override suspend fun putChapterImages(chapterId: Long, remoteImages: Map<String, String>) =
+		mutex.withLock {
+			index.putChapterImages(chapterId, remoteImages)
 		}
 
 	override suspend fun flushChapter(chapter: MangaChapter): Boolean = false

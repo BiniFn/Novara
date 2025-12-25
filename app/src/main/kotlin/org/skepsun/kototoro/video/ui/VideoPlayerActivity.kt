@@ -122,12 +122,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
     // 定期保存播放进度（每5秒）
     private val progressSaveIntervalMs = 5000L
-    private val progressSaveRunnable = object : Runnable {
+	private val progressSaveRunnable = object : Runnable {
         override fun run() {
             savePlaybackProgress()
             viewBinding.root.postDelayed(this, progressSaveIntervalMs)
         }
     }
+	// 自动连播标记，防止重复触发
+	private var autoNextTriggered: Boolean = false
     // 长按持续快进/快退配置与状态
     private val longSeekIntervalMs = 200
     private val longSeekStepMs = 2000
@@ -181,13 +183,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private val hideLeftRunnable = Runnable { overlaySeekLeft.visibility = View.GONE }
     private val hideRightRunnable = Runnable { overlaySeekRight.visibility = View.GONE }
     private val hideCenterRunnable = Runnable { overlayPlayPause.visibility = View.GONE }
-    private fun showOverlayLeft(text: String, durationMs: Long = 800) {
+    private fun showOverlayLeft(text: String, durationMs: Long = 1200) {
         overlaySeekLeft.text = text
         overlaySeekLeft.visibility = View.VISIBLE
         overlayHandler.removeCallbacks(hideLeftRunnable)
         overlayHandler.postDelayed(hideLeftRunnable, durationMs)
     }
-    private fun showOverlayRight(text: String, durationMs: Long = 800) {
+    private fun showOverlayRight(text: String, durationMs: Long = 1200) {
         overlaySeekRight.text = text
         overlaySeekRight.visibility = View.VISIBLE
         overlayHandler.removeCallbacks(hideRightRunnable)
@@ -379,6 +381,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 首次进入默认显示 UI（标题与底栏控件），之后按超时自动隐藏
         setUiIsVisible(true)
         updateStatusBarByToolbar()
+		applyControlsAlpha()
 
         // 绑定手势提示浮层视图
         overlaySeekLeft = findViewById(org.skepsun.kototoro.R.id.overlay_seek_left)
@@ -501,8 +504,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         stopLongSeek()
                         verticalAdjustMode = 0
-                        overlayHandler.post(hideLeftRunnable)
-                        overlayHandler.post(hideRightRunnable)
+                        overlayHandler.removeCallbacks(hideLeftRunnable)
+                        overlayHandler.removeCallbacks(hideRightRunnable)
+                        overlayHandler.postDelayed(hideLeftRunnable, 1000)
+                        overlayHandler.postDelayed(hideRightRunnable, 1000)
                     }
                 }
                 true
@@ -515,7 +520,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // 同步系统导航栏颜色为底栏背景色，实现与小白条区域的视觉合并
         runCatching {
-            val navColor = MaterialColors.getColor(viewBinding.root, com.google.android.material.R.attr.colorSurfaceContainer)
+            val navColor = MaterialColors.getColor(viewBinding.root, com.google.android.material.R.attr.colorSurfaceContainerHigh)
             window.navigationBarColor = navColor
         }
 
@@ -814,7 +819,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     updatePlaybackMenu()
                 }
 
+				override fun onPlaybackStateChanged(playbackState: Int) {
+					if (playbackState == Player.STATE_ENDED) {
+						maybeAutoPlayNext()
+					}
+				}
+
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+					autoNextTriggered = false
                     updatePlaybackMenu()
                     // Use unified method for consistent title/subtitle updates
                     updateTitleAndSubtitle()
@@ -842,6 +854,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         rebuildToolbarMenuForOrientation()
         adjustToolbarForOrientation()
         updateStatusBarByToolbar()
+		applyControlsAlpha()
         
         // Update title/subtitle after configuration change to ensure they persist
         updateTitleAndSubtitle()
@@ -854,6 +867,29 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun toggleUiVisibility() {
         setUiIsVisible(!isUiVisible)
+    }
+
+    private fun applyControlsAlpha() {
+        val alpha = appSettings.videoControlsAlpha
+        // 恢复使用 SurfaceContainer 系统色，避免主题色过于鲜艳
+        val base = MaterialColors.getColor(viewBinding.root, com.google.android.material.R.attr.colorSurfaceContainerHigh)
+        val colored = ColorUtils.setAlphaComponent(base, (alpha.coerceIn(0.3f, 1.0f) * 255).toInt())
+
+        viewBinding.toolbar.alpha = alpha
+        viewBinding.toolbar.setBackgroundColor(colored)
+
+        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
+            ctl.alpha = alpha
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)?.setBackgroundColor(colored)
+        }
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.apply {
+            this.alpha = alpha
+            setBackgroundColor(colored)
+        }
+        window.statusBarColor = colored
+        window.navigationBarColor = colored
+        val isLight = ColorUtils.calculateLuminance(colored) > 0.5
+        WindowInsetsControllerCompat(window, viewBinding.root).setAppearanceLightStatusBars(isLight)
     }
 
     private fun setUiIsVisible(visible: Boolean) {
@@ -1008,12 +1044,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun updateStatusBarByToolbar() {
-        val color = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorSurfaceContainerHigh)
-        // 更新状态栏图标明暗以匹配遮罩背景颜色
+        val base = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorSurfaceContainerHigh)
+        val alpha = (appSettings.videoControlsAlpha.coerceIn(0.3f, 1.0f) * 255).toInt()
+        val color = ColorUtils.setAlphaComponent(base, alpha)
         val isLight = ColorUtils.calculateLuminance(color) > 0.5
         WindowInsetsControllerCompat(window, viewBinding.root).setAppearanceLightStatusBars(isLight)
-        // 遮罩视图背景颜色与工具栏保持一致
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.setBackgroundColor(color)
+        window.statusBarColor = color
+        window.navigationBarColor = color
     }
 
     private fun applyPlaybackBackground() {
@@ -1452,6 +1490,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val targetChapter = chapters[targetIndex]
         onChapterSelected(targetChapter)
     }
+
+	private fun maybeAutoPlayNext() {
+		if (autoNextTriggered) return
+		val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga ?: return
+		val chapters = manga.chapters ?: return
+		if (chapters.isEmpty()) return
+		val currentId = readerState?.chapterId ?: chapters.first().id
+		val currentIndex = chapters.indexOfFirst { it.id == currentId }.takeIf { it >= 0 } ?: return
+		if (currentIndex < chapters.lastIndex) {
+			autoNextTriggered = true
+			navigateChapter(+1)
+		}
+	}
 
     override fun onBookmarkSelected(bookmark: Bookmark): Boolean {
         // Video player doesn't support bookmarks
