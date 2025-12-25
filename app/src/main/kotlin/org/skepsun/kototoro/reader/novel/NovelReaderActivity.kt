@@ -1649,7 +1649,15 @@ class NovelReaderActivity :
                 } else {
                     baseManga
                 }
-                val mangaWithChapters = mergedForHistory
+                val mangaWithChapters = if (originalManga != null) {
+                    originalManga!!.copy(
+                        chapters = mergedForHistory.chapters,
+                        source = originalManga!!.source,
+                        url = originalManga!!.url,
+                    )
+                } else {
+                    mergedForHistory
+                }
                 
                 // 如果仍然没有章节信息，不保存历史
                 if (mangaWithChapters.chapters.isNullOrEmpty()) {
