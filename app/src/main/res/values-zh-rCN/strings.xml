@@ -177,6 +177,7 @@
     <string name="check_for_new_chapters">章节检查更新</string>
     <string name="reverse">倒序</string>
     <string name="sign_in">登录</string>
+    <string name="sign_in_in_settings">在设置中登录</string>
     <string name="auth_title">账户登录</string>
     <string name="login_with_browser">网页登录</string>
     <string name="auth_required">登录后可查看此内容</string>
@@ -235,6 +236,18 @@
     <string name="edit">编辑</string>
     <string name="edit_category">编辑分类</string>
     <string name="empty_favourite_categories">暂无分类</string>
+    <string name="import_favourites">导入站点收藏</string>
+    <string name="import_favourites_title">选择来源导入收藏</string>
+    <string name="import_favourites_no_available">暂无已登录的可导入站点</string>
+    <string name="import_favourites_progress">正在从 %1$s 导入…</string>
+    <string name="import_favourites_done">导入完成</string>
+    <string name="import_favourites_auth_expired">登录状态已失效，需要重新登录</string>
+    <string name="import_favourites_none_selected">未选择站点</string>
+    <string name="sync_favourites">同步站点收藏</string>
+    <string name="sync_favourites_title">选择来源进行同步</string>
+    <string name="sync_favourites_warning">此操作会覆盖远程收藏，请保证您已经导入过站点收藏。</string>
+    <string name="sync_favourites_done">同步完成</string>
+    <string name="sync_favourites_none_selected">未选择站点</string>
     <string name="bookmark_add">添加书签</string>
     <string name="bookmark_remove">删除书签</string>
     <string name="bookmarks">书签</string>
@@ -783,6 +796,7 @@
     <string name="reader_info_bar_transparent">透明阅读状态栏</string>
     <string name="restoring_backup">正在恢复备份</string>
     <string name="backup_restored_background">将在后台恢复备份</string>
+    <string name="restore_auth_restart_hint">登录凭据已恢复，请重启应用生效</string>
     <string name="pages_slider">页面切换滑动条</string>
     <string name="screen_rotation_locked">屏幕方向已锁定</string>
     <string name="screen_rotation_unlocked">屏幕方向已解锁</string>

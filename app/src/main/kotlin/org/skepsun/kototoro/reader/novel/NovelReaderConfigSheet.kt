@@ -57,6 +57,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchFullscreen.isChecked = settings.enableFullscreen
         binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
+        binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
 
         // 初始化值显示
         updateValueDisplays()
@@ -70,6 +71,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchFullscreen.setOnCheckedChangeListener(this)
         binding.switchShowReadingStatus.setOnCheckedChangeListener(this)
         binding.switchReadingStatusTransparent.setOnCheckedChangeListener(this)
+        binding.switchParagraphIndent.setOnCheckedChangeListener(this)
         binding.buttonBookmark.setOnClickListener(this)
         binding.buttonReset.setOnClickListener(this)
         binding.buttonClose.setOnClickListener(this)
@@ -117,6 +119,10 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
             }
             org.skepsun.kototoro.R.id.switchReadingStatusTransparent -> {
                 settings = settings.copy(isReadingStatusTransparent = isChecked)
+                applySettings()
+            }
+            org.skepsun.kototoro.R.id.switchParagraphIndent -> {
+                settings = settings.copy(enableParagraphIndent = isChecked)
                 applySettings()
             }
         }
@@ -167,6 +173,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchFullscreen.isChecked = settings.enableFullscreen
         binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
+        binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
 
         updateValueDisplays()
         applySettings()

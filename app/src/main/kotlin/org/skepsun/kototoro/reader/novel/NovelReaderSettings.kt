@@ -20,6 +20,7 @@ data class NovelReaderSettings(
     val enableFullscreen: Boolean = false,  // 默认不全屏，显示状态栏
     val showReadingStatus: Boolean = true,  // 显示阅读状态（之前是 showFooter）
     val isReadingStatusTransparent: Boolean = false, // 透明阅读状态栏
+    val enableParagraphIndent: Boolean = true, // 段首缩进两个全角空格
 ) {
 
     fun save(context: Context) {
@@ -35,6 +36,7 @@ data class NovelReaderSettings(
             putBoolean(KEY_FULLSCREEN, enableFullscreen)
             putBoolean(KEY_SHOW_READING_STATUS, showReadingStatus)
             putBoolean(KEY_READING_STATUS_TRANSPARENT, isReadingStatusTransparent)
+            putBoolean(KEY_PARAGRAPH_INDENT, enableParagraphIndent)
         }
     }
 
@@ -51,6 +53,7 @@ data class NovelReaderSettings(
         private const val KEY_FULLSCREEN = "fullscreen"
         private const val KEY_SHOW_READING_STATUS = "show_reading_status"
         private const val KEY_READING_STATUS_TRANSPARENT = "reading_status_transparent"
+        private const val KEY_PARAGRAPH_INDENT = "paragraph_indent"
 
         fun load(context: Context): NovelReaderSettings {
             val prefs = getPrefs(context)
@@ -70,6 +73,7 @@ data class NovelReaderSettings(
                 enableFullscreen = prefs.getBoolean(KEY_FULLSCREEN, false),
                 showReadingStatus = prefs.getBoolean(KEY_SHOW_READING_STATUS, true),
                 isReadingStatusTransparent = prefs.getBoolean(KEY_READING_STATUS_TRANSPARENT, false),
+                enableParagraphIndent = prefs.getBoolean(KEY_PARAGRAPH_INDENT, true),
             )
         }
 

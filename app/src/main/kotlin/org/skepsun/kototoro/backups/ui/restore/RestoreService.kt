@@ -66,6 +66,15 @@ class RestoreService : BaseBackupRestoreService() {
 			}
 			progressUpdateJob?.cancelAndJoin()
 			showResultNotification(source, result)
+			if (sections.contains(BackupSection.AUTH)) {
+				withContext(Dispatchers.Main) {
+					Toast.makeText(
+						this@RestoreService,
+						R.string.restore_auth_restart_hint,
+						Toast.LENGTH_LONG,
+					).show()
+				}
+			}
 		}
 	}
 

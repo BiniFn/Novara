@@ -114,18 +114,25 @@ fun List<ChapterListItem>.withVolumeHeaders(context: Context): MutableList<ListM
 		return withEpubVolumeGroups(context)
 	} else {
 		// 普通章节：使用原有的volume分组逻辑
-		var prevVolume = 0
+		var prevVolume = -1 // Start with -1 to ensure first volume always gets a header
+		var prevCustomHeader: String? = null
 		val result = ArrayList<ListModel>((size * 1.4).toInt())
 		for (item in this) {
 			val chapter = item.chapter
-			if (chapter.volume != prevVolume) {
-				val text = if (chapter.volume == 0) {
+			val customHeader = chapter.scanlator?.takeIf { it.isNotBlank() }
+			
+			// Show a header if the volume index changed OR if we have a new unique custom string header
+			if (chapter.volume != prevVolume || (customHeader != null && customHeader != prevCustomHeader)) {
+				val text = if (customHeader != null) {
+					customHeader
+				} else if (chapter.volume <= 0) {
 					context.getString(R.string.volume_unknown)
 				} else {
 					context.getString(R.string.volume_, chapter.volume)
 				}
 				result.add(ListHeader(text))
 				prevVolume = chapter.volume
+				prevCustomHeader = customHeader
 			}
 			result.add(item)
 		}

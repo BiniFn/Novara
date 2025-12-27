@@ -140,16 +140,48 @@ class FavouritesListViewModel @Inject constructor(
 	}
 
 	private suspend fun List<Manga>.mapList(mode: ListMode, filters: Set<ListFilterOption>): List<ListModel> {
-		if (isEmpty()) {
-			return if (filters.isEmpty()) {
-				listOf(getEmptyState(hasFilters = false))
-			} else {
-				listOfNotNull(quickFilter.filterItem(filters), getEmptyState(hasFilters = true))
+		val hideAdult = settings.isNsfwContentDisabled
+		val adultItems = filter { it.isNsfw }
+		val visibleItems = if (hideAdult) filterNot { it.isNsfw } else this
+
+		if (visibleItems.isEmpty()) {
+			val models = mutableListOf<ListModel>()
+			quickFilter.filterItem(filters)?.let(models::add)
+			if (hideAdult && adultItems.isNotEmpty()) {
+				models.add(
+					org.skepsun.kototoro.list.ui.model.InfoModel(
+						key = "hidden_nsfw_favourites",
+						title = R.string.favourites_hidden_adult_title,
+						text = R.string.favourites_hidden_adult_subtitle,
+						icon = org.skepsun.kototoro.R.drawable.ic_eye_off,
+					)
+				)
 			}
+			models.add(
+				if (filters.isEmpty()) {
+					getEmptyState(hasFilters = false)
+				} else {
+					getEmptyState(hasFilters = true)
+				}
+			)
+			return models
 		}
-		val result = ArrayList<ListModel>(size + 1)
+
+		val result = ArrayList<ListModel>(visibleItems.size + 3)
 		quickFilter.filterItem(filters)?.let(result::add)
-		mangaListMapper.toListModelList(result, this, mode, MangaListMapper.NO_FAVORITE)
+
+		val safeItems = visibleItems.filterNot { it.isNsfw }
+		if (safeItems.isNotEmpty()) {
+			result.add(org.skepsun.kototoro.list.ui.model.ListHeader(R.string.favourites_group_general))
+			mangaListMapper.toListModelList(result, safeItems, mode, MangaListMapper.NO_FAVORITE)
+		}
+
+		val shownAdultItems = if (hideAdult) emptyList() else visibleItems.filter { it.isNsfw }
+		if (shownAdultItems.isNotEmpty()) {
+			result.add(org.skepsun.kototoro.list.ui.model.ListHeader(R.string.favourites_group_adult))
+			mangaListMapper.toListModelList(result, shownAdultItems, mode, MangaListMapper.NO_FAVORITE)
+		}
+
 		return result
 	}
 

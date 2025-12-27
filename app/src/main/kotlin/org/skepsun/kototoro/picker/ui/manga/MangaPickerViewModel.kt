@@ -26,7 +26,7 @@ import org.skepsun.kototoro.local.domain.model.LocalManga
 
 @HiltViewModel
 class MangaPickerViewModel @Inject constructor(
-	private val settings: AppSettings,
+	settings: AppSettings,
 	mangaDataRepository: MangaDataRepository,
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,

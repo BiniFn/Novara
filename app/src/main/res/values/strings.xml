@@ -114,6 +114,10 @@
     <string name="done">Done</string>
     <string name="all_favourites">All favorites</string>
     <string name="favourites_category_empty">Empty category</string>
+    <string name="favourites_group_general">Favorites</string>
+    <string name="favourites_group_adult">Adult favorites</string>
+    <string name="favourites_hidden_adult_title">Adult favorites are hidden</string>
+    <string name="favourites_hidden_adult_subtitle">Disable "Hide adult content" in settings to show them</string>
     <string name="read_later">Read later</string>
     <string name="updates">Updates</string>
     <string name="text_feed_holder">New chapters of what you are reading are shown here</string>
@@ -174,6 +178,7 @@
     <string name="reverse">Reverse</string>
     <string name="chapters_grid_view">Grid view</string>
     <string name="sign_in">Sign in</string>
+    <string name="sign_in_in_settings">Sign in in settings</string>
     <string name="auth_title">Authentication</string>
     <string name="login_with_browser">Log in with browser</string>
     <string name="auth_required">Sign in to view this content</string>
@@ -524,6 +529,18 @@
     <string name="list_options">List options</string>
     <string name="by_relevance">Relevance</string>
     <string name="categories">Categories</string>
+    <string name="import_favourites">Import site favourites</string>
+    <string name="import_favourites_title">Select sources to import</string>
+    <string name="import_favourites_no_available">No logged-in sources available</string>
+    <string name="import_favourites_progress">Importing from %1$s…</string>
+    <string name="import_favourites_done">Import finished</string>
+    <string name="import_favourites_auth_expired">Login status has expired, please re-login</string>
+    <string name="import_favourites_none_selected">No source selected</string>
+    <string name="sync_favourites">Sync site favourites</string>
+    <string name="sync_favourites_title">Select sources to sync</string>
+    <string name="sync_favourites_warning">This will overwrite remote favourites. Make sure you have imported site favourites before syncing.</string>
+    <string name="sync_favourites_done">Sync completed</string>
+    <string name="sync_favourites_none_selected">No source selected</string>
     <string name="online_variant">Online variant</string>
     <string name="periodic_backups">Periodic backups</string>
     <string name="backup_frequency">Backup creation frequency</string>
@@ -848,6 +865,7 @@
     <string name="reader_info_bar_transparent">Transparent reader information bar</string>
     <string name="backup_restored_background">The backup will be restored in the background</string>
     <string name="restoring_backup">Restoring backup</string>
+    <string name="restore_auth_restart_hint">Login credentials restored. Please restart the app to apply.</string>
     <string name="reader_controls_in_bottom_bar">Reader controls in bottom bar</string>
     <string name="chapters_and_pages">Chapters and pages</string>
     <string name="pages_slider">Page switch slider</string>

@@ -1,8 +1,11 @@
 package org.skepsun.kototoro.backups.data
 
+import android.content.Context
+import android.webkit.CookieManager
 import androidx.collection.ArrayMap
 import androidx.room.withTransaction
 import dagger.Reusable
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.asFlow
@@ -39,8 +42,10 @@ import org.skepsun.kototoro.filter.data.PersistableFilter
 import org.skepsun.kototoro.filter.data.SavedFiltersRepository
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.data.TapGridSettings
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.Base64
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -48,12 +53,15 @@ import javax.inject.Inject
 
 @Reusable
 class BackupRepository @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val database: MangaDatabase,
     private val settings: AppSettings,
     private val tapGridSettings: TapGridSettings,
     private val mangaSourcesRepository: MangaSourcesRepository,
     private val savedFiltersRepository: SavedFiltersRepository,
 ) {
+
+    private fun logAuth(msg: String) = runCatching { println("[BackupAuth] $msg") }
 
     private val json = Json {
         allowSpecialFloatingPointValues = true
@@ -140,6 +148,11 @@ class BackupRepository @Inject constructor(
                         serializer = serializer(),
                     )
                 }
+
+                BackupSection.AUTH -> output.writeString(
+                    section = BackupSection.AUTH,
+                    data = dumpAuth(),
+                )
             }
             progress?.emit(commonProgress)
             commonProgress++
@@ -206,6 +219,11 @@ class BackupRepository @Inject constructor(
                         .restoreWithoutTransaction {
                             savedFiltersRepository.save(it)
                         }
+
+                    BackupSection.AUTH -> input.readMap().let {
+                        restoreAuth(it)
+                        CompositeResult.success()
+                    }
 
                     null -> CompositeResult.EMPTY // skip unknown entries
                 }
@@ -286,6 +304,84 @@ class BackupRepository @Inject constructor(
 
     private fun dumpReaderGridSettings(): String {
         return JSONObject(tapGridSettings.getAllValues()).toString()
+    }
+
+    private fun dumpAuth(): String {
+        val root = JSONObject()
+        // 1) SharedPreferences cookies（PreferencesCookieJar）
+        val prefs = appContext.getSharedPreferences("cookies", Context.MODE_PRIVATE)
+        val prefsObj = JSONObject(prefs.all as Map<*, *>)
+        root.put("cookies_prefs", prefsObj)
+
+        // 2) WebView/AndroidCookieJar cookie DB（app_webview/Cookies*）
+        runCatching { CookieManager.getInstance().flush() }
+        val webviewDir = File(appContext.dataDir, "app_webview")
+        val webviewMap = JSONObject()
+        val keepPrefixes = arrayOf("Cookies", "Cookies-", "Cookies.", "Web Data", "Local Storage")
+        webviewDir
+            .takeIf { it.exists() }
+            ?.walkTopDown()
+            ?.filter { file ->
+                file.isFile && keepPrefixes.any { prefix -> file.name.startsWith(prefix) }
+            }
+            ?.forEach { f ->
+                val rel = f.relativeTo(webviewDir).path
+                runCatching {
+                    val b64 = Base64.getEncoder().encodeToString(f.readBytes())
+                    webviewMap.put(rel, b64)
+                }
+            }
+        root.put("webview_cookies", webviewMap)
+        logAuth(
+            "dump prefs=${prefsObj.length()} entries, webview_files=${webviewMap.length()}," +
+                " webview_names=${webviewMap.keys().asSequence().joinToString()}"
+        )
+        return root.toString()
+    }
+
+    private fun restoreAuth(map: Map<String, Any?>) {
+        // 1) restore prefs cookies
+        (map["cookies_prefs"] as? JSONObject)?.let { jo ->
+            val prefs = appContext.getSharedPreferences("cookies", Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            editor.clear()
+            val keys = jo.keys()
+            var count = 0
+            while (keys.hasNext()) {
+                val k = keys.next()
+                when (val v = jo.get(k)) {
+                    is String -> editor.putString(k, v)
+                    is Boolean -> editor.putBoolean(k, v)
+                    is Int -> editor.putInt(k, v)
+                    is Long -> editor.putLong(k, v)
+                    is Double -> editor.putFloat(k, v.toFloat())
+                }
+                count++
+            }
+            editor.apply()
+            logAuth("restore prefs cookies count=$count")
+        }
+
+        // 2) restore WebView cookie DB files
+        (map["webview_cookies"] as? JSONObject)?.let { jo ->
+            val webviewDir = File(appContext.dataDir, "app_webview")
+            webviewDir.mkdirs()
+            val keys = jo.keys()
+            var restored = 0
+            while (keys.hasNext()) {
+                val relPath = keys.next()
+                val b64 = jo.optString(relPath, null) ?: continue
+                runCatching {
+                    val data = Base64.getDecoder().decode(b64)
+                    val outFile = File(webviewDir, relPath)
+                    outFile.parentFile?.mkdirs()
+                    outFile.writeBytes(data)
+                    restored++
+                }
+            }
+            logAuth("restore webview cookie files count=$restored")
+            runCatching { CookieManager.getInstance().flush() }
+        }
     }
 
     private suspend fun MangaDatabase.upsertManga(manga: MangaBackup) {

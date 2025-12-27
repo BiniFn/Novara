@@ -28,7 +28,7 @@ import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalManga
 
 abstract class MangaListViewModel(
-	private val settings: AppSettings,
+	protected val settings: AppSettings,
 	private val mangaDataRepository: MangaDataRepository,
 	@param:LocalStorageChanges private val localStorageChanges: SharedFlow<LocalManga?>,
 ) : BaseViewModel() {

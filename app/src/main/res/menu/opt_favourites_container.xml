@@ -8,4 +8,16 @@
 		android:title="@string/favourites_categories"
 		android:titleCondensed="@string/categories" />
 
+	<item
+		android:id="@+id/action_import_favourites"
+		android:orderInCategory="56"
+		android:title="@string/import_favourites"
+		android:titleCondensed="@string/import_favourites" />
+
+	<item
+		android:id="@+id/action_sync_favourites"
+		android:orderInCategory="60"
+		android:title="@string/sync_favourites"
+		android:titleCondensed="@string/sync_favourites" />
+
 </menu>

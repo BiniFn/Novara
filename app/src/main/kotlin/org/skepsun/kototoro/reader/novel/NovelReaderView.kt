@@ -632,7 +632,8 @@ class NovelReaderView @JvmOverloads constructor(
         // 应用段落间距：若间距为 0，则保持原始换行；否则规范换行后再扩展空行
         val normalized = processedText.replace(Regex("\\n{3,}"), "\n\n")
         val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
-        return Pair(spacedText, imagePaths)
+        val indented = applyParagraphIndent(spacedText)
+        return Pair(indented, imagePaths)
     }
 
     private fun applyParagraphSpacing(text: String): String {
@@ -647,6 +648,25 @@ class NovelReaderView @JvmOverloads constructor(
         val spacer = "\n".repeat(extraLines)
         // 使用正则分割，避免空行累加导致无限空行
         return text.split(Regex("\\n+")).joinToString(separator = "\n$spacer")
+    }
+
+    private fun applyParagraphIndent(text: String): String {
+        if (!settings.enableParagraphIndent) return text
+        val indent = "　　" // 两个全角空格
+        val sb = StringBuilder(text.length + 16)
+        text.split("\n").forEachIndexed { idx, line ->
+            if (idx > 0) sb.append('\n')
+            if (line.isBlank()) {
+                sb.append(line)
+            } else {
+                if (line.startsWith(indent)) {
+                    sb.append(line)
+                } else {
+                    sb.append(indent).append(line.trimStart())
+                }
+            }
+        }
+        return sb.toString()
     }
     
     /**

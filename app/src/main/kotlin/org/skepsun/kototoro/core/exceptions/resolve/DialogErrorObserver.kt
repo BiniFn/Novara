@@ -29,7 +29,7 @@ class DialogErrorObserver(
 			.setNegativeButton(R.string.close, listener)
 			.setOnCancelListener(listener)
 		if (canResolve(value)) {
-			dialogBuilder.setPositiveButton(ExceptionResolver.getResolveStringId(value), listener)
+			dialogBuilder.setPositiveButton(getResolveStringId(value), listener)
 		} else if (value is ParseException) {
 			val router = router()
 			if (router != null && value.isSerializable()) {

@@ -3,7 +3,10 @@ package org.skepsun.kototoro.core.parser
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
+import android.widget.Toast
 import androidx.core.os.LocaleListCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withTimeout
@@ -63,6 +66,17 @@ class MangaLoaderContextImpl @Inject constructor(
 
 	override fun decodeBase64(data: String): ByteArray {
 		return Base64.decode(data, Base64.DEFAULT)
+	}
+
+	override fun showToast(message: String, isLong: Boolean) {
+		val duration = if (isLong) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+		if (Looper.myLooper() == Looper.getMainLooper()) {
+			Toast.makeText(androidContext, message, duration).show()
+		} else {
+			Handler(Looper.getMainLooper()).post {
+				Toast.makeText(androidContext, message, duration).show()
+			}
+		}
 	}
 
 	fun getSourcePreferences(sourceName: String): SharedPreferences {

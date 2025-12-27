@@ -41,7 +41,7 @@ class LocalListViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	mangaRepositoryFactory: MangaRepository.Factory,
 	filterCoordinator: FilterCoordinator,
-	private val settings: AppSettings,
+	settings: AppSettings,
 	mangaListMapper: MangaListMapper,
 	private val deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
 	exploreRepository: ExploreRepository,

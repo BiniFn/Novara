@@ -2,6 +2,7 @@ package org.skepsun.kototoro.favourites.ui.categories.select
 
 import androidx.collection.MutableLongObjectMap
 import androidx.collection.MutableLongSet
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.google.android.material.checkbox.MaterialCheckBox
@@ -17,10 +18,12 @@ import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.ids
 import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.favourites.ui.categories.select.model.MangaCategoryItem
 import org.skepsun.kototoro.list.ui.model.EmptyState
@@ -33,6 +36,7 @@ class FavoriteDialogViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	private val favouritesRepository: FavouritesRepository,
 	settings: AppSettings,
+	@LocalizedAppContext private val context: Context,
 ) : BaseViewModel() {
 
 	val manga = savedStateHandle.require<List<ParcelableManga>>(AppRouter.KEY_MANGA_LIST).map {
@@ -53,10 +57,27 @@ class FavoriteDialogViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			if (isChecked) {
 				favouritesRepository.addToCategory(categoryId, manga)
+				autoAssignSourceCategory(categoryId, manga)
 			} else {
 				favouritesRepository.removeFromCategory(categoryId, manga.ids())
 			}
 			refreshTrigger.value = Any()
+		}
+	}
+
+	private suspend fun autoAssignSourceCategory(primaryCategoryId: Long, mangas: List<org.skepsun.kototoro.parsers.model.Manga>) {
+		for (m in mangas) {
+			val title = m.source.getTitle(context)
+			val target = favouritesRepository.findCategoryByTitle(title)
+				?: favouritesRepository.createCategory(
+					title = title,
+					sortOrder = org.skepsun.kototoro.list.domain.ListSortOrder.NEWEST,
+					isTrackerEnabled = false,
+					isVisibleOnShelf = true,
+				)
+			if (target.id != primaryCategoryId) {
+				favouritesRepository.addToCategory(target.id, listOf(m))
+			}
 		}
 	}
 

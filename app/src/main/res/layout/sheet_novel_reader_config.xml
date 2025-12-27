@@ -177,6 +177,14 @@
             android:stepSize="4"
             android:value="24" />
 
+        <!-- 段首缩进 -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchParagraphIndent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="段首缩进（两个全角空格）"
+            android:layout_marginTop="16dp" />
+
         <!-- 双页模式 -->
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchDualPage"

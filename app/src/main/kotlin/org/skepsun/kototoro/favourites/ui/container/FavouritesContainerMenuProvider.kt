@@ -9,6 +9,8 @@ import org.skepsun.kototoro.core.nav.AppRouter
 
 class FavouritesContainerMenuProvider(
 	private val router: AppRouter,
+	private val onImportRequested: () -> Unit,
+	private val onSyncRequested: () -> Unit,
 ) : MenuProvider {
 
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -20,6 +22,8 @@ class FavouritesContainerMenuProvider(
 			R.id.action_manage -> {
 				router.openFavoriteCategories()
 			}
+			R.id.action_import_favourites -> onImportRequested()
+			R.id.action_sync_favourites -> onSyncRequested()
 
 			else -> return false
 		}

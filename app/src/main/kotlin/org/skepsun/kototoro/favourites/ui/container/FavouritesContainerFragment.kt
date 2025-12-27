@@ -11,9 +11,12 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayoutMediator
 import dagger.hilt.android.AndroidEntryPoint
+import android.widget.Toast
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseFragment
@@ -29,6 +32,7 @@ import org.skepsun.kototoro.core.util.ext.setTabsEnabled
 import org.skepsun.kototoro.core.util.ext.setTextAndVisible
 import org.skepsun.kototoro.databinding.FragmentFavouritesContainerBinding
 import org.skepsun.kototoro.databinding.ItemEmptyStateBinding
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBinding>(),
@@ -62,8 +66,17 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		actionModeDelegate.addListener(this)
 		viewModel.categories.observe(viewLifecycleOwner, pagerAdapter)
 		viewModel.isEmpty.observe(viewLifecycleOwner, ::onEmptyStateChanged)
-		addMenuProvider(FavouritesContainerMenuProvider(router))
+		addMenuProvider(FavouritesContainerMenuProvider(router, { showImportDialog() }, { showSyncDialog() }))
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.pager))
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewModel.importMessages.collect { event ->
+				event?.consume { msg ->
+					if (msg.isNotBlank()) {
+						Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+					}
+				}
+			}
+		}
 	}
 
 	override fun onDestroyView() {
@@ -114,5 +127,63 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		return childFragmentManager.findCurrentPagerFragment(
 			viewBinding?.pager ?: return null,
 		)
+	}
+
+	private fun showImportDialog() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			val candidates = viewModel.loadImportCandidates()
+			if (candidates.isEmpty()) {
+				Toast.makeText(requireContext(), R.string.import_favourites_no_available, Toast.LENGTH_SHORT).show()
+				return@launch
+			}
+			val titles = candidates.map { it.title }.toTypedArray()
+			val checked = BooleanArray(titles.size) { true }
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.import_favourites_title)
+				.setMultiChoiceItems(titles, checked) { _, which, isChecked ->
+					checked[which] = isChecked
+				}
+				.setNegativeButton(android.R.string.cancel, null)
+				.setPositiveButton(R.string.import_favourites) { _, _ ->
+					val selected = candidates.indices
+						.filter { checked[it] }
+						.map { candidates[it] }
+					viewModel.importFavorites(selected)
+				}
+				.show()
+		}
+	}
+
+	private fun showSyncDialog() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			val candidates = viewModel.loadSyncCandidates()
+			if (candidates.isEmpty()) {
+				Toast.makeText(requireContext(), R.string.import_favourites_no_available, Toast.LENGTH_SHORT).show()
+				return@launch
+			}
+			val titles = candidates.map { it.title }.toTypedArray()
+			val checked = BooleanArray(titles.size) { true }
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.sync_favourites_title)
+				.setMultiChoiceItems(titles, checked) { _, which, isChecked ->
+					checked[which] = isChecked
+				}
+				.setNegativeButton(android.R.string.cancel, null)
+				.setPositiveButton(R.string.sync_favourites) { _, _ ->
+					val selected = candidates.indices
+						.filter { checked[it] }
+						.map { candidates[it] }
+					if (selected.isEmpty()) return@setPositiveButton
+					MaterialAlertDialogBuilder(requireContext())
+						.setTitle(R.string.sync_favourites_title)
+						.setMessage(R.string.sync_favourites_warning)
+						.setNegativeButton(android.R.string.cancel, null)
+						.setPositiveButton(R.string.sync_favourites) { _, _ ->
+							viewModel.syncFavorites(selected)
+						}
+						.show()
+				}
+				.show()
+		}
 	}
 }

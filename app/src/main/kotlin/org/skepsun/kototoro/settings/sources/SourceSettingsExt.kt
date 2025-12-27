@@ -102,6 +102,13 @@ private fun PreferenceFragmentCompat.addPreferencesFromParserRepository(reposito
 				}
 			}
 
+			is ConfigKey.Toggle -> {
+				SwitchPreferenceCompat(screen.context).apply {
+					setDefaultValue(key.defaultValue)
+					title = key.title
+				}
+			}
+
 			is ConfigKey.SplitByTranslations -> {
 				SwitchPreferenceCompat(screen.context).apply {
 					setDefaultValue(key.defaultValue)

@@ -30,7 +30,7 @@ class SnackbarErrorObserver(
 			is BottomSheetOwner -> snackbar.anchorView = activity.bottomSheet
 		}
 		if (canResolve(value)) {
-			snackbar.setAction(ExceptionResolver.getResolveStringId(value)) {
+			snackbar.setAction(getResolveStringId(value)) {
 				resolve(value)
 			}
 		} else if (value is ParseException) {

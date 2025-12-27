@@ -34,6 +34,10 @@ import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerAuthRequiredException
 import org.skepsun.kototoro.scrobbling.common.ui.ScrobblerAuthHelper
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
+import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
+import org.skepsun.kototoro.parsers.model.MangaParserSource
 import java.security.cert.CertPathValidatorException
 import javax.inject.Inject
 import javax.inject.Provider
@@ -45,6 +49,7 @@ import kotlin.coroutines.suspendCoroutine
 class ExceptionResolver private constructor(
     private val host: Host,
     private val settings: AppSettings,
+    private val mangaRepositoryFactory: MangaRepository.Factory,
     private val scrobblerAuthHelperProvider: Provider<ScrobblerAuthHelper>,
 ) {
     private val continuations = MutableScatterMap<String, Continuation<Boolean>>(1)
@@ -128,9 +133,31 @@ class ExceptionResolver private constructor(
         cloudflareContract.launch(e)
     }
 
-    private suspend fun resolveAuthException(source: MangaSource): Boolean = suspendCoroutine { cont ->
-        continuations[SourceAuthActivity.TAG] = cont
-        sourceAuthContract.launch(source)
+    private suspend fun resolveAuthException(source: MangaSource): Boolean {
+        if (isCredentialBased(source)) {
+            host.router.openSourceSettings(source)
+            return false
+        }
+        return suspendCoroutine { cont ->
+            continuations[SourceAuthActivity.TAG] = cont
+            sourceAuthContract.launch(source)
+        }
+    }
+
+    private fun isCredentialBased(source: MangaSource): Boolean {
+        if (source !is MangaParserSource) return false
+        val repo = mangaRepositoryFactory.create(source)
+        if (repo is ParserMangaRepository) {
+            return repo.getAuthProvider() is MangaParserCredentialsAuthProvider
+        }
+        return false
+    }
+
+    fun getResolveStringId(e: Throwable): Int {
+        if (e is AuthRequiredException && isCredentialBased(e.source)) {
+            return R.string.sign_in_in_settings
+        }
+        return Companion.getResolveStringId(e)
     }
 
     private fun openInBrowser(url: String) {
@@ -165,18 +192,21 @@ class ExceptionResolver private constructor(
 
     class Factory @Inject constructor(
         private val settings: AppSettings,
+        private val mangaRepositoryFactory: MangaRepository.Factory,
         private val scrobblerAuthHelperProvider: Provider<ScrobblerAuthHelper>,
     ) {
 
         fun create(fragment: Fragment) = ExceptionResolver(
             host = Host.FragmentHost(fragment),
             settings = settings,
+            mangaRepositoryFactory = mangaRepositoryFactory,
             scrobblerAuthHelperProvider = scrobblerAuthHelperProvider,
         )
 
         fun create(activity: FragmentActivity) = ExceptionResolver(
             host = Host.ActivityHost(activity),
             settings = settings,
+            mangaRepositoryFactory = mangaRepositoryFactory,
             scrobblerAuthHelperProvider = scrobblerAuthHelperProvider,
         )
     }

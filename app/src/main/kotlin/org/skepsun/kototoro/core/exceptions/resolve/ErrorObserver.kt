@@ -19,9 +19,13 @@ import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 abstract class ErrorObserver(
 	protected val host: View,
 	protected val fragment: Fragment?,
-	private val resolver: ExceptionResolver?,
+	protected val resolver: ExceptionResolver?,
 	private val onResolved: Consumer<Boolean>?,
 ) : FlowCollector<Throwable> {
+
+	protected fun getResolveStringId(error: Throwable): Int {
+		return resolver?.getResolveStringId(error) ?: ExceptionResolver.getResolveStringId(error)
+	}
 
 	protected open val activity = host.context.findActivity()
 

@@ -9,6 +9,8 @@ import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.exceptions.ProxyConfigException
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.parsers.MangaParser
+import org.skepsun.kototoro.parsers.FavoritesProvider
+import org.skepsun.kototoro.parsers.FavoritesSyncProvider
 import org.skepsun.kototoro.parsers.MangaParserAuthProvider
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
@@ -101,6 +103,51 @@ class ParserMangaRepository(
 	fun getAuthProvider(): MangaParserAuthProvider? = parser.authorizationProvider
 
 	fun getRequestHeaders() = parser.getRequestHeaders()
+
+	fun favoritesProvider(): FavoritesProvider? =
+		resolveFavoritesProvider(parser)
+
+	fun favoritesSyncProvider(): FavoritesSyncProvider? =
+		resolveFavoritesSyncProvider(parser)
+
+	private fun allFields(clazz: Class<*>): Sequence<java.lang.reflect.Field> = sequence {
+		var current: Class<*>? = clazz
+		while (current != null && current != Any::class.java) {
+			current.declaredFields.forEach { yield(it) }
+			current = current.superclass
+		}
+	}
+
+	private fun resolveFavoritesProvider(p: MangaParser, visited: MutableSet<Any> = mutableSetOf()): FavoritesProvider? {
+		if (p in visited) return null
+		visited += p
+		if (p is FavoritesProvider) return p
+		// 尝试通过反射抓取包装器中的字段
+		for (field in allFields(p.javaClass)) {
+			field.isAccessible = true
+			val value = runCatching { field.get(p) }.getOrNull() ?: continue
+			if (value is FavoritesProvider) return value
+			if (value is MangaParser) {
+				resolveFavoritesProvider(value, visited)?.let { return it }
+			}
+		}
+		return null
+	}
+
+	private fun resolveFavoritesSyncProvider(p: MangaParser, visited: MutableSet<Any> = mutableSetOf()): FavoritesSyncProvider? {
+		if (p in visited) return null
+		visited += p
+		if (p is FavoritesSyncProvider) return p
+		for (field in allFields(p.javaClass)) {
+			field.isAccessible = true
+			val value = runCatching { field.get(p) }.getOrNull() ?: continue
+			if (value is FavoritesSyncProvider) return value
+			if (value is MangaParser) {
+				resolveFavoritesSyncProvider(value, visited)?.let { return it }
+			}
+		}
+		return null
+	}
 
 	fun getConfigKeys(): List<ConfigKey<*>> = ArrayList<ConfigKey<*>>().also {
 		parser.onCreateConfig(it)

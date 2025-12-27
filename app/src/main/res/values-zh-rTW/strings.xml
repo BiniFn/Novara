@@ -149,6 +149,7 @@
     <string name="check_for_new_chapters">檢查新的章節</string>
     <string name="reverse">撤銷</string>
     <string name="sign_in">登錄</string>
+    <string name="sign_in_in_settings">在設定中登錄</string>
     <string name="default_s">預設: %s</string>
     <string name="next">下一頁</string>
     <string name="confirm">確認</string>

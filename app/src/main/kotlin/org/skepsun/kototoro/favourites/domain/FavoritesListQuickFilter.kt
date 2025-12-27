@@ -7,6 +7,7 @@ import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.core.model.isNsfw
 
 class FavoritesListQuickFilter @AssistedInject constructor(
 	@Assisted private val categoryId: Long,
@@ -25,9 +26,10 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 			add(ListFilterOption.Macro.NEW_CHAPTERS)
 		}
 		add(ListFilterOption.Macro.COMPLETED)
-		repository.findPopularSources(categoryId, 3).mapTo(this) {
-			ListFilterOption.Source(it)
-		}
+		val hideNsfw = settings.isNsfwContentDisabled
+		repository.findPopularSources(categoryId, 3)
+			.filterNot { hideNsfw && it.isNsfw() }
+			.mapTo(this) { ListFilterOption.Source(it) }
 	}
 
 	@AssistedFactory

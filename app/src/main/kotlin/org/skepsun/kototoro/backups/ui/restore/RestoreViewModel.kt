@@ -62,13 +62,14 @@ class RestoreViewModel @Inject constructor(
 			}
 		}
 		availableEntries.value = BackupSection.entries.mapNotNull { entry ->
-			if (entry == BackupSection.INDEX || entry !in sections) {
+			if (entry == BackupSection.INDEX) {
 				return@mapNotNull null
 			}
+			val present = entry in sections
 			BackupSectionModel(
 				section = entry,
-				isChecked = true,
-				isEnabled = true,
+				isChecked = present,
+				isEnabled = present,
 			)
 		}
 	}

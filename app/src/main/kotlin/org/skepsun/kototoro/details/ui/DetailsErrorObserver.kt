@@ -32,7 +32,7 @@ class DetailsErrorObserver(
 		}
 		when {
 			canResolve(value) -> {
-				snackbar.setAction(ExceptionResolver.getResolveStringId(value)) {
+				snackbar.setAction(getResolveStringId(value)) {
 					resolve(value)
 				}
 			}
