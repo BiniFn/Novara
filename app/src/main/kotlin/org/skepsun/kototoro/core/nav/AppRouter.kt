@@ -170,7 +170,7 @@ class AppRouter private constructor(
 
 	fun openReader(manga: Manga, anchor: View? = null) {
 		val source = manga.source.unwrap()
-        if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
+        if (source is MangaParserSource && (source.contentType == ContentType.NOVEL || source.contentType == ContentType.HENTAI_NOVEL)) {
             startActivity(
                 Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
                     .putExtra(KEY_MANGA, ParcelableManga(manga)),
@@ -178,7 +178,7 @@ class AppRouter private constructor(
             )
             return
         }
-        if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
+        if (source is MangaParserSource && (source.contentType == ContentType.VIDEO || source.contentType == ContentType.HENTAI_VIDEO)) {
             val url = manga.publicUrl
             val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
             val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
@@ -265,7 +265,7 @@ class AppRouter private constructor(
 			val manga = parcelable?.manga
 			if (manga != null) {
 				val source = manga.source.unwrap()
-                if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
+                if (source is MangaParserSource && (source.contentType == ContentType.NOVEL || source.contentType == ContentType.HENTAI_NOVEL)) {
                     // 获取ReaderState并传递给NovelReaderActivity
                     val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                     val novelIntent = Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
@@ -277,7 +277,7 @@ class AppRouter private constructor(
                     startActivity(novelIntent, anchor?.let { scaleUpActivityOptionsOf(it) })
                     return
                 }
-				if (source is MangaParserSource && source.contentType == ContentType.VIDEO) {
+				if (source is MangaParserSource && (source.contentType == ContentType.VIDEO || source.contentType == ContentType.HENTAI_VIDEO)) {
                     val url = manga.publicUrl
                     val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
                     val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||

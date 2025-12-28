@@ -124,7 +124,7 @@ class ReadButtonDelegate(
                 val source = manga.source.unwrap()
                 val history = viewModel.historyInfo.value.history
                 
-                if (source is MangaParserSource && source.contentType == ContentType.VIDEO && !manga.chapters.isNullOrEmpty()) {
+                if (source is MangaParserSource && (source.contentType == ContentType.VIDEO || source.contentType == ContentType.HENTAI_VIDEO) && !manga.chapters.isNullOrEmpty()) {
                     val state = if (history != null) {
                         // 使用历史记录中的状态（包含正确的章节ID）
                         ReaderState(history)
@@ -226,13 +226,13 @@ class ReadButtonDelegate(
 		}
 		
 		val readText = when (contentType) {
-			ContentType.VIDEO -> R.string.play // 播放
-			ContentType.NOVEL -> R.string.read // 阅读
+			ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.play // 播放
+			ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.read // 阅读
 			else -> R.string.read // 默认：阅读
 		}
 		
 		val continueText = when (contentType) {
-			ContentType.VIDEO -> R.string._continue_play // 继续播放
+			ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string._continue_play // 继续播放
 			else -> R.string._continue // 继续
 		}
 		

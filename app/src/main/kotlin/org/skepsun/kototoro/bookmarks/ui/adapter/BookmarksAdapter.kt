@@ -36,8 +36,8 @@ class BookmarksAdapter(
 		val item = items?.getOrNull(position)
 		return when {
 			item is Bookmark -> {
-				val source = item.manga.source.unwrap()
-				if (source is MangaParserSource && source.contentType == ContentType.NOVEL) {
+			val source = item.manga.source.unwrap()
+				if (source is MangaParserSource && (source.contentType == ContentType.NOVEL || source.contentType == ContentType.HENTAI_NOVEL)) {
 					ListItemType.NOVEL_BOOKMARK.ordinal
 				} else {
 					ListItemType.PAGE_THUMB.ordinal

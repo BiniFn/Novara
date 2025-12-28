@@ -75,10 +75,11 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 			else -> null
 		}
 		val contentType = (manga?.source as? org.skepsun.kototoro.parsers.model.MangaParserSource)?.contentType
-		val isNovel = contentType == org.skepsun.kototoro.parsers.model.ContentType.NOVEL
-		val isVideo = contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO
+		val isNovel = contentType == org.skepsun.kototoro.parsers.model.ContentType.NOVEL || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL
+		val isVideo = contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
 		val isPagesTabEnabled = settings.isPagesTabEnabled && !isNovel && !isVideo
 		val isBookmarksTabEnabled = !isVideo // 视频不需要书签功能
+
 		
 		val adapter = ChaptersPagesAdapter(this, isPagesTabEnabled, isBookmarksTabEnabled)
 		// 调整默认标签，确保不超出可用标签范围
