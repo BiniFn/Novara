@@ -140,6 +140,7 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
                 binding.buttonSave.isEnabled = it
             }
         binding.buttonSave.setOnClickListener(this)
+        binding.buttonReset.setOnClickListener(this)
         binding.buttonDone.setOnClickListener(this)
     }
 
@@ -167,6 +168,7 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         when (v.id) {
             R.id.button_done -> dismiss()
             R.id.button_save -> onSaveFilterClick("")
+            R.id.button_reset -> FilterCoordinator.require(this).reset()
         }
     }
 

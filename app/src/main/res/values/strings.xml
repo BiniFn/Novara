@@ -541,6 +541,9 @@
     <string name="sync_favourites_warning">This will overwrite remote favourites. Make sure you have imported site favourites before syncing.</string>
     <string name="sync_favourites_done">Sync completed</string>
     <string name="sync_favourites_none_selected">No source selected</string>
+    <string name="sync_favourites_progress">Syncing %1$s…</string>
+    <string name="sync_favourites_source_done">Synced %1$s</string>
+    <string name="sync_favourites_skip_no_category">Skip %1$s (no local category)</string>
     <string name="online_variant">Online variant</string>
     <string name="periodic_backups">Periodic backups</string>
     <string name="backup_frequency">Backup creation frequency</string>

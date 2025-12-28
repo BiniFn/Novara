@@ -61,7 +61,7 @@ class FavouritesListViewModel @Inject constructor(
 	val categoryId: Long = savedStateHandle[AppRouter.KEY_ID] ?: NO_ID
 	private val quickFilter = quickFilterFactory.create(categoryId)
 	private val refreshTrigger = MutableStateFlow(Any())
-	private val limit = MutableStateFlow(PAGE_SIZE)
+	private val limit = MutableStateFlow(if (categoryId == NO_ID) Int.MAX_VALUE else PAGE_SIZE)
 	private val isPaginationReady = AtomicBoolean(false)
 
 	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
@@ -167,21 +167,9 @@ class FavouritesListViewModel @Inject constructor(
 			return models
 		}
 
-		val result = ArrayList<ListModel>(visibleItems.size + 3)
+		val result = ArrayList<ListModel>(visibleItems.size + 1)
 		quickFilter.filterItem(filters)?.let(result::add)
-
-		val safeItems = visibleItems.filterNot { it.isNsfw }
-		if (safeItems.isNotEmpty()) {
-			result.add(org.skepsun.kototoro.list.ui.model.ListHeader(R.string.favourites_group_general))
-			mangaListMapper.toListModelList(result, safeItems, mode, MangaListMapper.NO_FAVORITE)
-		}
-
-		val shownAdultItems = if (hideAdult) emptyList() else visibleItems.filter { it.isNsfw }
-		if (shownAdultItems.isNotEmpty()) {
-			result.add(org.skepsun.kototoro.list.ui.model.ListHeader(R.string.favourites_group_adult))
-			mangaListMapper.toListModelList(result, shownAdultItems, mode, MangaListMapper.NO_FAVORITE)
-		}
-
+		mangaListMapper.toListModelList(result, visibleItems, mode, MangaListMapper.NO_FAVORITE)
 		return result
 	}
 

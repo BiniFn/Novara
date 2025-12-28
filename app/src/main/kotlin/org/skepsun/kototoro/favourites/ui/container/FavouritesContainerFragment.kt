@@ -77,6 +77,15 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 				}
 			}
 		}
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewModel.syncMessages.collect { event ->
+				event?.consume { msg ->
+					if (msg.isNotBlank()) {
+						Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+					}
+				}
+			}
+		}
 	}
 
 	override fun onDestroyView() {

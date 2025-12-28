@@ -248,6 +248,9 @@
     <string name="sync_favourites_warning">此操作会覆盖远程收藏，请保证您已经导入过站点收藏。</string>
     <string name="sync_favourites_done">同步完成</string>
     <string name="sync_favourites_none_selected">未选择站点</string>
+    <string name="sync_favourites_progress">正在同步 %1$s…</string>
+    <string name="sync_favourites_source_done">已同步 %1$s</string>
+    <string name="sync_favourites_skip_no_category">跳过 %1$s（无本地分组）</string>
     <string name="bookmark_add">添加书签</string>
     <string name="bookmark_remove">删除书签</string>
     <string name="bookmarks">书签</string>
@@ -509,8 +512,8 @@
     <string name="sources_catalog">内容源目录</string>
 <string name="source_enabled">内容源已启用</string>
     <string name="content_type_hentai">成人</string>
-    <string name="no_manga_sources_found">未搜索到可用图源</string>
-    <string name="no_manga_sources_catalog_text">此页面暂无可用图源，或可能已添加所有可用图源。
+    <string name="no_manga_sources_found">未搜索到可用源</string>
+    <string name="no_manga_sources_catalog_text">此页面暂无可用源，或可能已添加所有可用源。
 \n敬请期待后续更新</string>
     <string name="welcome_text">请选择需要启用的内容源，可之后在设置中更改</string>
     <string name="sync_auth">网络同步</string>

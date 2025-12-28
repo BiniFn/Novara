@@ -219,6 +219,7 @@ val importMessages = MutableEventFlow<String>()
 		}
 		launchLoadingJob(Dispatchers.IO) {
 			for (item in sources) {
+				syncMessages.call(appContext.getString(R.string.sync_favourites_progress, item.title))
 				logSync("sync start source=${item.source.name}")
 				val repository = mangaRepositoryFactory.create(item.source) as? ParserMangaRepository ?: continue
 				val syncProvider = repository.favoritesSyncProvider() ?: continue
@@ -226,6 +227,7 @@ val importMessages = MutableEventFlow<String>()
 				val category = favouritesRepository.findCategoryByTitle(item.title)
 				if (category == null) {
 					logSync("sync skip source=${item.source.name} no local category")
+					syncMessages.call(appContext.getString(R.string.sync_favourites_skip_no_category, item.title))
 					continue
 				}
 				val local = favouritesRepository.getManga(category.id)
@@ -247,6 +249,7 @@ val importMessages = MutableEventFlow<String>()
 				logSync("sync source=${item.source.name} local=${localMerged.size} remote=${remote.size} add=${toAdd.size} remove=${toRemove.size}")
 				toAdd.forEach { runCatching { syncProvider.addFavorite(it) }.onFailure { logSync("sync add fail ${item.source.name}") } }
 				toRemove.forEach { runCatching { syncProvider.removeFavorite(it) }.onFailure { logSync("sync remove fail ${item.source.name}") } }
+				syncMessages.call(appContext.getString(R.string.sync_favourites_source_done, item.title))
 			}
 			syncMessages.call(appContext.getString(R.string.sync_favourites_done))
 			logSync("sync done")

@@ -22,6 +22,10 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 
 	override suspend fun getAvailableFilterOptions(): List<ListFilterOption> = buildList {
 		add(ListFilterOption.Downloaded)
+		if (!settings.isNsfwContentDisabled) {
+			add(ListFilterOption.SFW)          // 全年龄
+			add(ListFilterOption.Macro.NSFW)   // R18
+		}
 		if (settings.isTrackerEnabled) {
 			add(ListFilterOption.Macro.NEW_CHAPTERS)
 		}
