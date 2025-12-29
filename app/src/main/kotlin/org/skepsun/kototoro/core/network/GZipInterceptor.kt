@@ -12,7 +12,10 @@ class GZipInterceptor : Interceptor {
 	override fun intercept(chain: Interceptor.Chain): Response = try {
 		val request = chain.request()
 		val skipGZip = request.tag(GZipOptions::class.java)?.skip == true
-		if (request.body is MultipartBody || request.header(CONTENT_ENCODING) != null || skipGZip) {
+		val body = request.body
+		// 只对有请求体的请求添加 Content-Encoding，GET 请求没有请求体不应该添加
+		val hasBody = body != null && body.contentLength() != 0L
+		if (request.body is MultipartBody || request.header(CONTENT_ENCODING) != null || skipGZip || !hasBody) {
 			chain.proceed(request)
 		} else {
 			val newRequest = request.newBuilder()
