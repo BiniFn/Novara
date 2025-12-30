@@ -1002,8 +1002,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val hours = (totalSec / 3600)
         val minutes = ((totalSec % 3600) / 60)
         val seconds = (totalSec % 60)
-        return if (hours > 0) String.format("%d:%02d:%02d", hours, minutes, seconds)
-        else String.format("%d:%02d", minutes, seconds)
+        return if (hours > 0) String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        else String.format("%02d:%02d", minutes, seconds)
     }
 
     // 手动驱动底部控制条（DefaultTimeBar 与已播放时长文本）定时刷新
