@@ -75,7 +75,14 @@
                 style="?materialIconButtonStyle"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
                 android:contentDescription="@string/pages"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
                 app:icon="@drawable/ic_grid" />
 
             <com.google.android.material.button.MaterialButton
@@ -83,7 +90,14 @@
                 style="?materialIconButtonStyle"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
                 android:contentDescription="@string/options"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
                 app:icon="@drawable/ic_settings" />
         </LinearLayout>
 

@@ -521,6 +521,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 同步系统导航栏颜色为底栏背景色，实现与小白条区域的视觉合并
         runCatching {
             val navColor = MaterialColors.getColor(viewBinding.root, com.google.android.material.R.attr.colorSurfaceContainerHigh)
+            @Suppress("DEPRECATION")
             window.navigationBarColor = navColor
         }
 
@@ -553,7 +554,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
                     override fun onScrubMove(timeBar: TimeBar, position: Long) {
                         // 拖动时同步显示当前拖动位置，提升反馈一致性
-                        controlView?.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)?.text = formatTimeMs(position)
+                        val showHours = (player?.duration ?: 0L) >= 3600_000L
+                        controlView?.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)?.text = formatTimeMs(position, forceHours = showHours)
                     }
 
                     override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
@@ -694,11 +696,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             } ?: chapters.firstOrNull()  // 兜底：使用第一个章节
                             
                             if (currentChapter != null) {
-                                android.util.Log.d("VideoPlayer", "Loading current chapter: ${currentChapter.name} (id=${currentChapter.id})")
+                                android.util.Log.d("VideoPlayer", "Loading current chapter: ${currentChapter.title} (id=${currentChapter.id})")
                                 
                                 // Resolve current chapter's stream URL
                                 val streamUrl = runCatching {
-                                    android.util.Log.d("VideoPlayer", "Calling getPages for chapter: ${currentChapter.name}, url: ${currentChapter.url}")
+                                    android.util.Log.d("VideoPlayer", "Calling getPages for chapter: ${currentChapter.title}, url: ${currentChapter.url}")
                                     val pages = repo.getPages(currentChapter)
                                     android.util.Log.d("VideoPlayer", "getPages returned ${pages.size} pages")
                                     pages.firstOrNull()?.let { page ->
@@ -716,7 +718,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                         .setMediaId(currentChapter.id.toString())
                                         .setMediaMetadata(
                                             MediaMetadata.Builder()
-                                                .setTitle(currentChapter.name)
+                                                .setTitle(currentChapter.title)
                                                 .build()
                                         )
                                         .build()
@@ -725,7 +727,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                     // Update ReaderState to reflect current chapter
                                     readerState = ReaderState(currentChapter.id, 0, 0)
                                     updateChapterNavButtons()
-                                    android.util.Log.d("VideoPlayer", "Playing chapter: ${currentChapter.name}")
+                                    android.util.Log.d("VideoPlayer", "Playing chapter: ${currentChapter.title}")
                                     
                                     // Note: Other chapters will be loaded on-demand when user switches via onChapterSelected()
                                 } else {
@@ -886,7 +888,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             this.alpha = alpha
             setBackgroundColor(colored)
         }
+        @Suppress("DEPRECATION")
         window.statusBarColor = colored
+        @Suppress("DEPRECATION")
         window.navigationBarColor = colored
         val isLight = ColorUtils.calculateLuminance(colored) > 0.5
         WindowInsetsControllerCompat(window, viewBinding.root).setAppearanceLightStatusBars(isLight)
@@ -997,12 +1001,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     // 简单时间格式化（mm:ss 或 hh:mm:ss）
-    private fun formatTimeMs(ms: Long): String {
+    // forceHours: 当总时长包含小时时，强制显示小时位保持格式一致
+    private fun formatTimeMs(ms: Long, forceHours: Boolean = false): String {
         val totalSec = (ms / 1000).coerceAtLeast(0)
         val hours = (totalSec / 3600)
         val minutes = ((totalSec % 3600) / 60)
         val seconds = (totalSec % 60)
-        return if (hours > 0) String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        return if (hours > 0 || forceHours) String.format("%02d:%02d:%02d", hours, minutes, seconds)
         else String.format("%02d:%02d", minutes, seconds)
     }
 
@@ -1019,11 +1024,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val position = p.currentPosition
         val buffered = p.bufferedPosition
 
+        // 判断是否需要显示小时位（总时长超过 1 小时）
+        val showHours = duration >= 3600_000L
+
         // 更新文本：当前播放位置 + 总时长
         runCatching {
             val posTv = ctl.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)
             val durTv = ctl.findViewById<TextView>(androidx.media3.ui.R.id.exo_duration)
-            posTv?.text = formatTimeMs(position)
+            posTv?.text = formatTimeMs(position, forceHours = showHours)
             if (duration > 0) {
                 durTv?.text = formatTimeMs(duration)
             }
@@ -1050,7 +1058,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val isLight = ColorUtils.calculateLuminance(color) > 0.5
         WindowInsetsControllerCompat(window, viewBinding.root).setAppearanceLightStatusBars(isLight)
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.setBackgroundColor(color)
+        @Suppress("DEPRECATION")
         window.statusBarColor = color
+        @Suppress("DEPRECATION")
         window.navigationBarColor = color
     }
 
@@ -1081,7 +1091,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         
         // Extract chapter name: prioritize chapter.name from manga.chapters, then URL-derived
         val chapterName = if (manga != null && state != null) {
-            manga.chapters?.find { it.id == state.chapterId }?.name
+            manga.chapters?.find { it.id == state.chapterId }?.title
                 ?: intent.getStringExtra(AppRouter.KEY_URL)?.let { deriveEpisodeTitle(it) }
                 ?: ""
         } else {
@@ -1234,7 +1244,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             return
         }
         
-        android.util.Log.d("VideoPlayer", "Found chapter: ${chapter.name} (id=${chapter.id})")
+        android.util.Log.d("VideoPlayer", "Found chapter: ${chapter.title} (id=${chapter.id})")
         
         val branchChapters = chapters.filter { it.branch == chapter.branch }
         val count = branchChapters.size
@@ -1302,7 +1312,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             val idx = branchChapters.indexOfFirst { it.id == curr.id }.coerceAtLeast(0)
             val ppc = 1f / count
             val seriesPercent = (ppc * idx + ppc * ep).coerceIn(0f, 1f)
-            android.util.Log.d("VideoPlayer", "Series percent calculation: chapter=${curr.name}, idx=$idx, count=$count, episodePercent=$ep, seriesPercent=$seriesPercent")
+            android.util.Log.d("VideoPlayer", "Series percent calculation: chapter=${curr.title}, idx=$idx, count=$count, episodePercent=$ep, seriesPercent=$seriesPercent")
             return seriesPercent
         }
 
@@ -1363,18 +1373,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             leftMargin = bars.left
             rightMargin = bars.right
         }
-        // 将 DockedToolbar 与系统导航栏视觉合并：为其设置左右/底部边距
+        // 将 DockedToolbar 与系统导航栏视觉合并：为其设置左右边距和底部边距
         findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             leftMargin = bars.left
             rightMargin = bars.right
-            bottomMargin = 0
+            bottomMargin = bars.bottom  // 添加底部边距，避免与导航栏重合
         }
-        // 为 DockedToolbar 追加底部内边距，使内容不被导航白条遮挡，同时背景延伸至底部实现视觉合并
-        findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)?.updatePadding(
-            left = bars.left,
-            right = bars.right,
-            bottom = bars.bottom,
-        )
         // PlayerView 内容保持与左右系统栏对齐，底部不再额外内边距，避免与 DockedToolbar 重叠留白
         findViewById<View>(org.skepsun.kototoro.R.id.player_view).updatePadding(
             left = bars.left,
@@ -1395,7 +1399,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga 
             ?: return false
         
-        android.util.Log.d("VideoPlayer", "Chapter selected: ${chapter.name} (id=${chapter.id})")
+        android.util.Log.d("VideoPlayer", "Chapter selected: ${chapter.title} (id=${chapter.id})")
         
         // Find the new chapter's video URL asynchronously
         lifecycleScope.launch {
@@ -1418,7 +1422,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         .setMediaId(chapter.id.toString())
                         .setMediaMetadata(
                             MediaMetadata.Builder()
-                                .setTitle(chapter.name)
+                                .setTitle(chapter.title)
                                 .build()
                         )
                         .build()
