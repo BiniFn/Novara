@@ -392,6 +392,10 @@
     <string name="settings_apply_restart_required">Please restart the application to apply these changes</string>
     <string name="comics_archive_import_description">You can select one or more .cbz or .zip files, each file will be recognized as a separate manga.</string>
     <string name="folder_with_images_import_description">Select a directory with archives or images. Each archive (or subdirectory) is a chapter; if the folder has multiple subfolders, each will be imported as a separate comic.</string>
+    <string name="folder_single_manga">Folder (single manga)</string>
+    <string name="folder_single_manga_import_description">Select a folder containing one manga. Subdirectories will be treated as chapters.</string>
+    <string name="folder_multiple_manga">Folder (multiple manga)</string>
+    <string name="folder_multiple_manga_import_description">Select a folder containing multiple manga. Each subdirectory will be imported as a separate manga.</string>
     <string name="speed">Speed</string>
     <string name="show_on_shelf">Show on the Shelf</string>
     <string name="sync_auth_hint">You can sign in into an existing account or create a new one</string>

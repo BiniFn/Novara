@@ -15,6 +15,7 @@ import org.skepsun.kototoro.core.ui.AlertDialogFragment
 import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.databinding.DialogImportBinding
 import org.skepsun.kototoro.local.data.LocalStorageManager
+import org.skepsun.kototoro.local.data.importer.ImportMode
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -24,10 +25,13 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 	lateinit var storageManager: LocalStorageManager
 
 	private val importFileCall = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {
-		startImport(it)
+		startImportFiles(it)
 	}
-	private val importDirCall = OpenDocumentTreeHelper(this) {
-		startImport(listOfNotNull(it))
+	private val importDirSingleCall = OpenDocumentTreeHelper(this) {
+		startImportDirectory(it, ImportMode.SINGLE_MANGA)
+	}
+	private val importDirMultipleCall = OpenDocumentTreeHelper(this) {
+		startImportDirectory(it, ImportMode.MULTIPLE_MANGA)
 	}
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): DialogImportBinding {
@@ -43,14 +47,16 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 
 	override fun onViewBindingCreated(binding: DialogImportBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		binding.buttonDir.setOnClickListener(this)
 		binding.buttonFile.setOnClickListener(this)
+		binding.buttonDirSingle.setOnClickListener(this)
+		binding.buttonDirMultiple.setOnClickListener(this)
 	}
 
 	override fun onClick(v: View) {
 		val res = when (v.id) {
 			R.id.button_file -> importFileCall.tryLaunch(arrayOf("*/*"))
-			R.id.button_dir -> importDirCall.tryLaunch(null)
+			R.id.button_dir_single -> importDirSingleCall.tryLaunch(null)
+			R.id.button_dir_multiple -> importDirMultipleCall.tryLaunch(null)
 			else -> true
 		}
 		if (!res) {
@@ -58,7 +64,7 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 		}
 	}
 
-	private fun startImport(uris: Collection<Uri>) {
+	private fun startImportFiles(uris: Collection<Uri>) {
 		if (uris.isEmpty()) {
 			return
 		}
@@ -67,6 +73,21 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 		}
 		val ctx = requireContext()
 		val msg = if (ImportService.start(ctx, uris)) {
+			R.string.import_will_start_soon
+		} else {
+			R.string.error_occurred
+		}
+		Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+		dismiss()
+	}
+
+	private fun startImportDirectory(uri: Uri?, mode: ImportMode) {
+		if (uri == null) {
+			return
+		}
+		storageManager.takePermissions(uri)
+		val ctx = requireContext()
+		val msg = if (ImportService.start(ctx, uri, mode)) {
 			R.string.import_will_start_soon
 		} else {
 			R.string.error_occurred

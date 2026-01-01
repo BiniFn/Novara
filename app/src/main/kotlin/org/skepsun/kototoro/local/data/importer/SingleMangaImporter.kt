@@ -24,6 +24,16 @@ import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 
+/**
+ * Import mode for directory import
+ */
+enum class ImportMode {
+	/** Import a single manga - the folder itself is the manga, subdirectories are chapters */
+	SINGLE_MANGA,
+	/** Import multiple manga - each subdirectory is a separate manga */
+	MULTIPLE_MANGA
+}
+
 @Reusable
 class SingleMangaImporter @Inject constructor(
 	@ApplicationContext private val context: Context,
@@ -33,9 +43,29 @@ class SingleMangaImporter @Inject constructor(
 
 	private val contentResolver = context.contentResolver
 
+	/**
+	 * Import files (CBZ/ZIP archives)
+	 */
 	suspend fun import(uri: Uri): List<LocalManga> {
 		val results = if (isDirectory(uri)) {
-			importDirectory(uri)
+			// For file import, auto-detect (for backward compatibility)
+			importDirectoryAuto(uri)
+		} else {
+			listOf(importFile(uri))
+		}
+		results.forEach { localStorageChanges.emit(it) }
+		return results
+	}
+
+	/**
+	 * Import directory with specified mode
+	 */
+	suspend fun import(uri: Uri, mode: ImportMode): List<LocalManga> {
+		val results = if (isDirectory(uri)) {
+			when (mode) {
+				ImportMode.SINGLE_MANGA -> importDirectorySingle(uri)
+				ImportMode.MULTIPLE_MANGA -> importDirectoryMultiple(uri)
+			}
 		} else {
 			listOf(importFile(uri))
 		}
@@ -60,29 +90,72 @@ class SingleMangaImporter @Inject constructor(
 		LocalMangaParser(dest).getManga(withDetails = false)
 	}
 
-	private suspend fun importDirectory(uri: Uri): List<LocalManga> {
+	/**
+	 * Auto-detect import mode (for backward compatibility with file import)
+	 */
+	private suspend fun importDirectoryAuto(uri: Uri): List<LocalManga> {
+		// Default to single manga mode for auto-detect
+		return importDirectorySingle(uri)
+	}
+
+	/**
+	 * Import as single manga - the selected folder is one manga, subdirectories are chapters
+	 */
+	private suspend fun importDirectorySingle(uri: Uri): List<LocalManga> {
+		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
+			"Provided uri $uri is not a tree"
+		}
+		val childFiles = root.listFiles()
+		val dest = File(getOutputDir(), root.requireName())
+		dest.mkdir()
+		for (docFile in childFiles) {
+			docFile.copyTo(dest)
+		}
+		return listOf(LocalMangaParser(dest).getManga(withDetails = false))
+	}
+
+	/**
+	 * Import as multiple manga - each subdirectory is a separate manga
+	 */
+	private suspend fun importDirectoryMultiple(uri: Uri): List<LocalManga> {
 		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
 			"Provided uri $uri is not a tree"
 		}
 		val childFiles = root.listFiles()
 		val subDirs = childFiles.filter { it.isDirectory }
-		val hasTopLevelZip = childFiles.any { it.isFile && hasZipExtension(it.name ?: "") }
-		return if (subDirs.size > 1 && !hasTopLevelZip) {
-			// Treat each sub-folder as an individual manga
-			subDirs.mapNotNull { folder ->
-				val dest = File(getOutputDir(), folder.requireName())
-				dest.mkdir()
-				folder.copyTo(dest)
-				runCatching { LocalMangaParser(dest).getManga(withDetails = false) }.getOrNull()
-			}
-		} else {
-			val dest = File(getOutputDir(), root.requireName())
+		val zipFiles = childFiles.filter { it.isFile && hasZipExtension(it.name ?: "") }
+		
+		val results = mutableListOf<LocalManga>()
+		
+		// Import each subdirectory as a separate manga
+		for (folder in subDirs) {
+			val dest = File(getOutputDir(), folder.requireName())
 			dest.mkdir()
-			for (docFile in childFiles) {
+			// Copy folder contents directly to dest (not the folder itself)
+			// to avoid double-nesting like "漫画1/漫画1/图片.webp"
+			for (docFile in folder.listFiles()) {
 				docFile.copyTo(dest)
 			}
-			listOf(LocalMangaParser(dest).getManga(withDetails = false))
+			runCatching { LocalMangaParser(dest).getManga(withDetails = false) }
+				.getOrNull()
+				?.let { results.add(it) }
 		}
+		
+		// Also import any zip files at the top level
+		for (zipFile in zipFiles) {
+			val name = zipFile.name ?: continue
+			val dest = File(getOutputDir(), name)
+			zipFile.source().use { input ->
+				dest.sink().buffer().use { output ->
+					output.writeAllCancellable(input)
+				}
+			}
+			runCatching { LocalMangaParser(dest).getManga(withDetails = false) }
+				.getOrNull()
+				?.let { results.add(it) }
+		}
+		
+		return results
 	}
 
 	private suspend fun DocumentFile.copyTo(destDir: File) {

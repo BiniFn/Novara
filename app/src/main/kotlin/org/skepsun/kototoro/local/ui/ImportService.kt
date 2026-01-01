@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
+import org.skepsun.kototoro.local.data.importer.ImportMode
 import org.skepsun.kototoro.local.data.importer.SingleMangaImporter
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -51,9 +52,18 @@ class ImportService : CoroutineIntentService() {
 
 	override suspend fun IntentJobContext.processIntent(intent: Intent) {
 		val uri = requireNotNull(intent.getStringExtra(DATA_URI)?.toUriOrNull()) { "No input uri" }
+		val importModeOrdinal = intent.getIntExtra(DATA_IMPORT_MODE, -1)
+		val importMode = if (importModeOrdinal >= 0) ImportMode.entries.getOrNull(importModeOrdinal) else null
+		
 		startForeground(this)
 		powerManager.withPartialWakeLock(TAG) {
-			val result = runCatchingCancellable { importer.import(uri).map { it.manga } }
+			val result = runCatchingCancellable {
+				if (importMode != null) {
+					importer.import(uri, importMode).map { it.manga }
+				} else {
+					importer.import(uri).map { it.manga }
+				}
+			}
 			if (applicationContext.checkNotificationPermission(CHANNEL_ID)) {
 				result.onSuccess { mangas ->
 					mangas.forEachIndexed { index, manga ->
@@ -169,10 +179,14 @@ class ImportService : CoroutineIntentService() {
 	companion object {
 
 		private const val DATA_URI = "uri"
+		private const val DATA_IMPORT_MODE = "import_mode"
 		private const val TAG = "import"
 		private const val CHANNEL_ID = "importing"
 		private const val FOREGROUND_NOTIFICATION_ID = 37
 
+		/**
+		 * Start import for files (CBZ/ZIP archives)
+		 */
 		fun start(context: Context, uris: Collection<Uri>): Boolean = try {
 			require(uris.isNotEmpty())
 			for (uri in uris) {
@@ -180,6 +194,20 @@ class ImportService : CoroutineIntentService() {
 				intent.putExtra(DATA_URI, uri.toString())
 				ContextCompat.startForegroundService(context, intent)
 			}
+			true
+		} catch (e: Exception) {
+			e.printStackTraceDebug()
+			false
+		}
+
+		/**
+		 * Start import for directory with specified mode
+		 */
+		fun start(context: Context, uri: Uri, mode: ImportMode): Boolean = try {
+			val intent = Intent(context, ImportService::class.java)
+			intent.putExtra(DATA_URI, uri.toString())
+			intent.putExtra(DATA_IMPORT_MODE, mode.ordinal)
+			ContextCompat.startForegroundService(context, intent)
 			true
 		} catch (e: Exception) {
 			e.printStackTraceDebug()

@@ -21,7 +21,7 @@
 		app:title="@string/comics_archive" />
 
 	<org.skepsun.kototoro.core.ui.widgets.TwoLinesItemView
-		android:id="@+id/button_dir"
+		android:id="@+id/button_dir_single"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:drawablePadding="?android:listPreferredItemPaddingStart"
@@ -29,7 +29,19 @@
 		android:paddingStart="?android:listPreferredItemPaddingStart"
 		android:paddingEnd="?android:listPreferredItemPaddingEnd"
 		app:icon="@drawable/ic_folder_file"
-		app:subtitle="@string/folder_with_images_import_description"
-		app:title="@string/folder_with_images" />
+		app:subtitle="@string/folder_single_manga_import_description"
+		app:title="@string/folder_single_manga" />
+
+	<org.skepsun.kototoro.core.ui.widgets.TwoLinesItemView
+		android:id="@+id/button_dir_multiple"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:drawablePadding="?android:listPreferredItemPaddingStart"
+		android:minHeight="?android:listPreferredItemHeightSmall"
+		android:paddingStart="?android:listPreferredItemPaddingStart"
+		android:paddingEnd="?android:listPreferredItemPaddingEnd"
+		app:icon="@drawable/ic_folder_file"
+		app:subtitle="@string/folder_multiple_manga_import_description"
+		app:title="@string/folder_multiple_manga" />
 
 </LinearLayout>
