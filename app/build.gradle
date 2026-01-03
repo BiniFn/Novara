@@ -252,6 +252,10 @@ dependencies {
 	implementation libs.acra.dialog
 
 	implementation libs.conscrypt.android
+	
+	// Mihon extension compatibility
+	implementation 'uy.kohesive.injekt:injekt-core:1.16.1'
+	implementation 'io.reactivex:rxjava:1.3.8'
 
 	debugImplementation libs.leakcanary.android
 	nightlyImplementation libs.leakcanary.android

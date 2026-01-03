@@ -223,9 +223,14 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
             is MangaState -> filter.toggleState(data, !chip.isChecked)
             is UiTagGroup -> {} // groups are not directly toggled
             is org.skepsun.kototoro.parsers.model.MangaTag -> {
-                val parentTag = (chip.parentView?.parent as? View)?.tag
-                val isExclude = parentTag == GROUP_TAG_VIEW_EXCLUDE || chip.parentView?.id == R.id.chips_genresExclude
-                if (isExclude) filter.toggleTagExclude(data, !chip.isChecked) else filter.toggleTag(data, !chip.isChecked)
+                // Check if this is a text input tag (Mihon Filter.Text)
+                if (filter.isTextInputTag(data)) {
+                    showTextInputDialog(filter, data)
+                } else {
+                    val parentTag = (chip.parentView?.parent as? View)?.tag
+                    val isExclude = parentTag == GROUP_TAG_VIEW_EXCLUDE || chip.parentView?.id == R.id.chips_genresExclude
+                    if (isExclude) filter.toggleTagExclude(data, !chip.isChecked) else filter.toggleTag(data, !chip.isChecked)
+                }
             }
 
             is ContentType -> filter.toggleContentType(data, !chip.isChecked)
@@ -239,6 +244,29 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
             }
             null -> router.showTagsCatalogSheet(excludeMode = chip.parentView?.id == R.id.chips_genresExclude)
         }
+    }
+    
+    private fun showTextInputDialog(filter: FilterCoordinator, tag: org.skepsun.kototoro.parsers.model.MangaTag) {
+        val currentValue = filter.getTextInputValue(tag) ?: ""
+        val label = filter.getTextInputLabel(tag)
+        
+        buildAlertDialog(context ?: return) {
+            val input = setEditText(
+                inputType = EditorInfo.TYPE_CLASS_TEXT,
+                singleLine = true,
+            )
+            input.hint = label
+            input.setText(currentValue)
+            setTitle(label)
+            setPositiveButton(android.R.string.ok) { _, _ ->
+                val value = input.text?.toString()?.trim() ?: ""
+                filter.setTextInputValue(tag, value)
+            }
+            setNegativeButton(android.R.string.cancel, null)
+            setNeutralButton(R.string.clear) { _, _ ->
+                filter.setTextInputValue(tag, "")
+            }
+        }.show()
     }
 
     override fun onChipLongClick(chip: Chip, data: Any?): Boolean {

@@ -45,6 +45,13 @@
         android:summary="@string/import_json_sources_summary"
         android:title="@string/import_json_sources" />
 
+    <PreferenceScreen
+        android:fragment="org.skepsun.kototoro.settings.sources.mihon.MihonExtensionsFragment"
+        android:key="mihon_extensions"
+        android:persistent="false"
+        android:summary="@string/mihon_extensions_summary"
+        android:title="@string/mihon_extensions" />
+
     <SwitchPreferenceCompat
         android:defaultValue="true"
         android:key="no_nsfw"

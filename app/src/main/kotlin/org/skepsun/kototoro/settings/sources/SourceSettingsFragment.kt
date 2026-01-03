@@ -39,9 +39,11 @@ import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
 import org.skepsun.kototoro.settings.utils.PasswordSummaryProvider
+import android.widget.Toast
+import eu.kanade.tachiyomi.source.ConfigurableSource
+import org.skepsun.kototoro.mihon.MihonMangaRepository
 import java.io.File
 import java.util.regex.Pattern
-import android.widget.Toast
 
 @AndroidEntryPoint
 class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenceChangeListener {
@@ -57,7 +59,13 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 	}
 
 	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		preferenceManager.sharedPreferencesName = viewModel.source.name.replace(File.separatorChar, '$')
+		val repo = viewModel.repository
+		if (repo is MihonMangaRepository) {
+			preferenceManager.sharedPreferencesName = "source_${repo.mihonSource.id}"
+		} else {
+			preferenceManager.sharedPreferencesName = viewModel.source.name.replace(File.separatorChar, '$')
+		}
+		
 		addPreferencesFromResource(R.xml.pref_source)
 		addPreferencesFromRepository(viewModel.repository)
 		val isValidSource = viewModel.repository !is EmptyMangaRepository
@@ -73,8 +81,8 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		}
         // 显示 Web 登录入口：当解析器支持“网页登录”但不支持“凭证登录”时才显示
         findPreference<Preference>(KEY_AUTH)?.run {
-            val repo = (viewModel.repository as? ParserMangaRepository)
-            val authProvider = repo?.getAuthProvider()
+            val parserRepo = (viewModel.repository as? ParserMangaRepository)
+            val authProvider = parserRepo?.getAuthProvider()
             val credentialsProvider = authProvider as? MangaParserCredentialsAuthProvider
             isVisible = authProvider != null && credentialsProvider == null
         }
@@ -90,6 +98,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
 		tryAddJsPreferences()
+		tryAddMihonPreferences()
 		viewLifecycleOwner.lifecycleScope.launchWhenStarted {
 			viewModel.jsAccountMeta.collect { meta ->
 				if (meta != null) {
@@ -342,6 +351,17 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			fun newInstance(key: String) = DomainDialogFragment().withArgs(1) {
 				putString(ARG_KEY, key)
 			}
+		}
+	}
+
+	private fun tryAddMihonPreferences() {
+		val repo = viewModel.repository as? MihonMangaRepository ?: return
+		val mihonSource = repo.mihonSource as? ConfigurableSource ?: return
+		val screen = preferenceScreen ?: return
+		try {
+			mihonSource.setupPreferenceScreen(screen)
+		} catch (e: Throwable) {
+			android.util.Log.e("SourceSettingsFragment", "Failed to setup Mihon preferences", e)
 		}
 	}
 

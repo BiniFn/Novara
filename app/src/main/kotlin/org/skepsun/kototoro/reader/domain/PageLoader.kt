@@ -34,6 +34,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okio.source
 import okio.use
 import org.jetbrains.annotations.Blocking
 import org.skepsun.kototoro.core.LocalizedAppContext
@@ -62,6 +63,7 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.ramAvailable
 import org.skepsun.kototoro.core.util.ext.toMimeType
+import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.core.util.ext.use
 import org.skepsun.kototoro.core.util.ext.withProgress
 import org.skepsun.kototoro.core.util.progress.ProgressDeferred
@@ -297,11 +299,30 @@ class PageLoader @Inject constructor(
 			}
 
 			uri.isFileUri() -> uri
+			uri.scheme == "data" -> {
+				val dataUrl = pageUrl
+				val commaIndex = dataUrl.indexOf(',')
+				if (commaIndex == -1) error("Invalid data URL: $dataUrl")
+				
+				val header = dataUrl.substring(0, commaIndex)
+				val data = dataUrl.substring(commaIndex + 1)
+				val isBase64 = header.contains(";base64")
+				val contentType = header.substringAfter("data:").substringBefore(";")
+				
+				val bytes = if (isBase64) {
+					android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+				} else {
+					java.net.URLDecoder.decode(data, "UTF-8").toByteArray()
+				}
+				
+				cache.set(pageUrl, bytes.inputStream().source(), contentType.toMimeTypeOrNull()).toUri()
+			}
 			else -> {
 				if (isPrefetch) {
 					downloadSlowdownDispatcher.delay(page.source)
 				}
-				val request = createPageRequest(pageUrl, page)
+				val repo = getRepository(page.source)
+				val request = repo.createPageRequest(pageUrl, page)
 				val response = imageProxyInterceptor.interceptPageRequest(request, okHttp)
 				Log.d(
 					"JsPageResponse",

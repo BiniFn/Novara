@@ -16,7 +16,7 @@ fun scrobblingMangaAD(
 	AdapterDelegateClickListenerAdapter(this, clickListener).attach(itemView)
 
 	bind {
-		binding.imageViewCover.setImageAsync(item.coverUrl, null)
+		binding.imageViewCover.setImageAsync(item.coverUrl)
 		binding.textViewTitle.text = item.title
 		binding.ratingBar.rating = item.rating * binding.ratingBar.numStars
 	}

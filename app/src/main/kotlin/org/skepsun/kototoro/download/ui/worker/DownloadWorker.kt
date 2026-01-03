@@ -255,7 +255,7 @@ class DownloadWorker @AssistedInject constructor(
 				)
 				val coverUrl = mangaDetails.largeCoverUrl.ifNullOrEmpty { mangaDetails.coverUrl }
 				if (!coverUrl.isNullOrEmpty()) {
-					downloadFile(coverUrl, destination, repo.source).let { file ->
+					downloadFile(repo, coverUrl, destination, isCover = true).let { file ->
 						output.addCover(file, getMediaType(coverUrl, file))
 						file.deleteAwait()
 					}
@@ -427,7 +427,7 @@ class DownloadWorker @AssistedInject constructor(
 							runFailsafe {
 								val url = repo.getPageUrl(page)
 								val file = cache[url]
-									?: downloadFile(url, destination, repo.source)
+									?: downloadFile(repo, url, destination, page = page)
 								output.addPage(
 									chapter = chapter,
 									file = file,
@@ -627,9 +627,9 @@ class DownloadWorker @AssistedInject constructor(
 				}
 				runCatching {
 					val file = downloadFile(
-						download.url,
-						destination,
-						repo.source,
+						repo = repo,
+						url = download.url,
+						destination = destination,
 						headers = headers,
 					)
 					val type = download.mime ?: getMediaType(download.url, file)
@@ -742,11 +742,13 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun downloadFile(
+		repo: MangaRepository,
 		url: String,
 		destination: File,
-		source: MangaSource,
 		useProxy: Boolean = true,
 		headers: Map<String, String> = emptyMap(),
+		page: MangaPage? = null,
+		isCover: Boolean = false,
 	): File {
 		if (url.startsWith("data:", ignoreCase = true)) {
 			val data = url.removePrefix("data:")
@@ -787,14 +789,22 @@ class DownloadWorker @AssistedInject constructor(
 			}
 			return file
 		}
-		val requestBuilder = PageLoader.createPageRequest(url, source).newBuilder()
+
+		val request = when {
+			page != null -> repo.createPageRequest(url, page)
+			isCover -> repo.createCoverRequest(url)
+			else -> org.skepsun.kototoro.reader.domain.PageLoader.createPageRequest(url, repo.source)
+		}
+
+		val requestBuilder = request.newBuilder()
 		headers.forEach { (k, v) -> requestBuilder.header(k, v) }
-		val request = requestBuilder.build()
-		slowdownDispatcher.delay(source)
+		val finalRequest = requestBuilder.build()
+
+		slowdownDispatcher.delay(repo.source)
 		val response = if (useProxy) {
-			imageProxyInterceptor.interceptPageRequest(request, okHttp)
+			imageProxyInterceptor.interceptPageRequest(finalRequest, okHttp)
 		} else {
-			okHttp.newCall(request).await()
+			okHttp.newCall(finalRequest).await()
 		}
 		return response
 			.ensureSuccess()
@@ -865,7 +875,7 @@ class DownloadWorker @AssistedInject constructor(
 		// 下载EPUB文件到临时位置
 		val tempFile = try {
 			println("DownloadWorker.downloadEpubChapter: Calling downloadFile...")
-			val file = downloadFile(epubUrl, destination, repo.source, useProxy = false)
+			val file = downloadFile(repo, epubUrl, destination, useProxy = false)
 			println("DownloadWorker.downloadEpubChapter: Downloaded to ${file.absolutePath}, size=${file.length()} bytes")
 			file
 		} catch (e: Exception) {
@@ -1030,7 +1040,7 @@ class DownloadWorker @AssistedInject constructor(
 		// IMPORTANT: useProxy = true to ensure cookies are sent for authentication
 		val tempFile = try {
 			android.util.Log.d("DownloadWorker", "downloadEpubToStorage: Downloading file with authentication...")
-			downloadFile(epubUrl, destination, repo.source, useProxy = true)
+			downloadFile(repo, epubUrl, destination, useProxy = true)
 		} catch (e: Exception) {
 			android.util.Log.e("DownloadWorker", "downloadEpubToStorage: Download failed", e)
 			throw e
@@ -1273,7 +1283,7 @@ class DownloadWorker @AssistedInject constructor(
 
 	private companion object {
 
-		const val MAX_FAILSAFE_ATTEMPTS = 2
+		const val MAX_FAILSAFE_ATTEMPTS = 5
 		const val MAX_PAGES_PARALLELISM = 2
 		const val DOWNLOAD_ERROR_DELAY = 2_000L
 		const val MAX_RETRY_DELAY = 7_200_000L // 2 hours

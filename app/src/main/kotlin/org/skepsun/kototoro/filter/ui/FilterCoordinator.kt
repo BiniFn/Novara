@@ -13,8 +13,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -22,7 +25,6 @@ import kotlinx.coroutines.plus
 import org.skepsun.kototoro.core.model.MangaSource
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.util.LocaleComparator
-import org.skepsun.kototoro.core.util.ext.asFlow
 import org.skepsun.kototoro.core.util.ext.lifecycleScope
 import org.skepsun.kototoro.core.util.ext.sortedByOrdinal
 import org.skepsun.kototoro.core.util.ext.sortedWithSafe
@@ -34,6 +36,7 @@ import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
 import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.MangaState
@@ -43,7 +46,7 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.model.YEAR_MIN
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
-import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
 import org.skepsun.kototoro.search.domain.MangaSearchRepository
 import java.util.Calendar
@@ -67,7 +70,12 @@ class FilterCoordinator @Inject constructor(
     private val currentSortOrder = MutableStateFlow(repository.defaultSortOrder)
 
     private val availableSortOrders = repository.sortOrders
-    private val filterOptions = suspendLazy { repository.getFilterOptions() }
+    private val filterRefreshTrigger = MutableStateFlow(0)
+    private val filterOptions: Flow<Result<MangaListFilterOptions>> = filterRefreshTrigger.flatMapLatest {
+        flow {
+            emit(runCatchingCancellable { repository.getFilterOptions() })
+        }
+    }.shareIn(coroutineScope, SharingStarted.Lazily, replay = 1)
 
     val capabilities = repository.filterCapabilities
 
@@ -88,7 +96,7 @@ class FilterCoordinator @Inject constructor(
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
     val tags: StateFlow<FilterProperty<UiTagGroup>> = combine(
-        filterOptions.asFlow(),
+        filterOptions,
         currentListFilter.distinctUntilChangedBy { it.tags },
     ) { optionsRes, selected ->
         optionsRes.fold(
@@ -109,7 +117,7 @@ class FilterCoordinator @Inject constructor(
     val tagsExcluded: StateFlow<FilterProperty<UiTagGroup>> =
         if (capabilities.isTagsExclusionSupported) {
             combine(
-                filterOptions.asFlow(),
+                filterOptions,
                 currentListFilter.distinctUntilChangedBy { it.tagsExclude },
             ) { optionsRes, selected ->
                 optionsRes.fold(
@@ -145,7 +153,7 @@ class FilterCoordinator @Inject constructor(
     }
 
     val states: StateFlow<FilterProperty<MangaState>> = combine(
-        filterOptions.asFlow(),
+        filterOptions,
         currentListFilter.distinctUntilChangedBy { it.states },
     ) { available, selected ->
         available.fold(
@@ -162,7 +170,7 @@ class FilterCoordinator @Inject constructor(
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
     val contentRating: StateFlow<FilterProperty<ContentRating>> = combine(
-        filterOptions.asFlow(),
+        filterOptions,
         currentListFilter.distinctUntilChangedBy { it.contentRating },
     ) { available, selected ->
         available.fold(
@@ -179,7 +187,7 @@ class FilterCoordinator @Inject constructor(
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
     val contentTypes: StateFlow<FilterProperty<ContentType>> = combine(
-        filterOptions.asFlow(),
+        filterOptions,
         currentListFilter.distinctUntilChangedBy { it.types },
     ) { available, selected ->
         available.fold(
@@ -196,7 +204,7 @@ class FilterCoordinator @Inject constructor(
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
     val demographics: StateFlow<FilterProperty<Demographic>> = combine(
-        filterOptions.asFlow(),
+        filterOptions,
         currentListFilter.distinctUntilChangedBy { it.demographics },
     ) { available, selected ->
         available.fold(
@@ -213,7 +221,7 @@ class FilterCoordinator @Inject constructor(
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
 
     val locale: StateFlow<FilterProperty<Locale?>> = combine(
-        filterOptions.asFlow(),
+        filterOptions,
         currentListFilter.distinctUntilChangedBy { it.locale },
     ) { available, selected ->
         available.fold(
@@ -231,7 +239,7 @@ class FilterCoordinator @Inject constructor(
 
     val originalLocale: StateFlow<FilterProperty<Locale?>> = if (capabilities.isOriginalLocaleSupported) {
         combine(
-            filterOptions.asFlow(),
+            filterOptions,
             currentListFilter.distinctUntilChangedBy { it.originalLocale },
         ) { available, selected ->
             available.fold(
@@ -286,6 +294,11 @@ class FilterCoordinator @Inject constructor(
 
     fun reset() {
         currentListFilter.value = MangaListFilter.EMPTY
+        refreshFilters()
+    }
+
+    fun refreshFilters() {
+        filterRefreshTrigger.value++
     }
 
     fun snapshot() = Snapshot(
@@ -423,6 +436,60 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
+    /**
+     * Check if a tag represents a text input field (Mihon Filter.Text).
+     * Text input tags have keys starting with "text:" prefix.
+     */
+    fun isTextInputTag(tag: MangaTag): Boolean {
+        return tag.key.startsWith("text:")
+    }
+    
+    /**
+     * Get the display name for a text input tag (without the emoji prefix).
+     */
+    fun getTextInputLabel(tag: MangaTag): String {
+        return tag.title.removePrefix("📝 ")
+    }
+    
+    /**
+     * Get the current value for a text input tag, if any.
+     */
+    fun getTextInputValue(tag: MangaTag): String? {
+        val baseKey = tag.key
+        return currentListFilter.value.tags
+            .find { it.key.startsWith(baseKey) && it.key.contains("=") }
+            ?.key?.substringAfter("=")
+    }
+    
+    /**
+     * Set the value for a text input filter.
+     * Creates a new tag with the value appended to the key (format: key=value).
+     */
+    fun setTextInputValue(originalTag: MangaTag, value: String) {
+        currentListFilter.update { oldValue ->
+            // Remove any existing tag with the same base key
+            val baseKey = originalTag.key
+            val filteredTags = oldValue.tags.filter { !it.key.startsWith(baseKey) }.toSet()
+            
+            // Add new tag with value if not empty
+            val newTags = if (value.isNotBlank()) {
+                val tagWithValue = MangaTag(
+                    title = "${originalTag.title.removePrefix("📝 ")}: $value",
+                    key = "$baseKey=$value",
+                    source = originalTag.source
+                )
+                filteredTags + tagWithValue
+            } else {
+                filteredTags
+            }
+            
+            oldValue.copy(
+                tags = newTags,
+                query = oldValue.takeQueryIfSupported(),
+            )
+        }
+    }
+
     fun toggleTag(value: MangaTag, isSelected: Boolean) {
         currentListFilter.update { oldValue ->
             val newTags = if (capabilities.isMultipleTagsSupported) {
@@ -453,8 +520,8 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    fun getAllTagGroups(): Flow<Result<List<UiTagGroup>>> = filterOptions.asFlow().map { opts ->
-        opts.map { x ->
+    fun getAllTagGroups(): Flow<Result<List<UiTagGroup>>> = filterOptions.map { opts ->
+        opts.map { x: MangaListFilterOptions ->
             x.effectiveTagGroups.map { group ->
                 UiTagGroup(
                     title = group.title,
@@ -473,8 +540,8 @@ class FilterCoordinator @Inject constructor(
 
     private fun getTopTags(limit: Int): Flow<Result<List<MangaTag>>> = combine(
         flow { emit(searchRepository.getTopTags(repository.source, limit)) },
-        filterOptions.asFlow(),
-    ) { suggested, options ->
+        filterOptions,
+    ) { suggested: List<MangaTag>, options: Result<MangaListFilterOptions> ->
         val all = options.getOrNull()?.availableTags.orEmpty()
         val result = ArrayList<MangaTag>(limit)
         result.addAll(suggested.take(limit))
@@ -482,9 +549,9 @@ class FilterCoordinator @Inject constructor(
             result.addAll(all.shuffled().take(limit - result.size))
         }
         if (result.isNotEmpty()) {
-            Result.success(result)
+            Result.success(result.toList())
         } else {
-            options.map { result }
+            options.map { emptyList<MangaTag>() }
         }
     }.catch {
         emit(Result.failure(it))
@@ -492,8 +559,8 @@ class FilterCoordinator @Inject constructor(
 
     private fun getBottomTags(limit: Int): Flow<Result<List<MangaTag>>> = combine(
         flow { emit(searchRepository.getRareTags(repository.source, limit)) },
-        filterOptions.asFlow(),
-    ) { suggested, options ->
+        filterOptions,
+    ) { suggested: List<MangaTag>, options: Result<MangaListFilterOptions> ->
         val all = options.getOrNull()?.availableTags.orEmpty()
         val result = ArrayList<MangaTag>(limit)
         result.addAll(suggested.take(limit))
@@ -501,9 +568,9 @@ class FilterCoordinator @Inject constructor(
             result.addAll(all.shuffled().take(limit - result.size))
         }
         if (result.isNotEmpty()) {
-            Result.success(result)
+            Result.success(result.toList())
         } else {
-            options.map { result }
+            options.map { emptyList<MangaTag>() }
         }
     }.catch {
         emit(Result.failure(it))

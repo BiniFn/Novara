@@ -18,6 +18,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		private const val LEGADO_PREFIX = "JSON_LEGADO_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
 		private const val JS_PREFIX = "JSON_JS_"
+		private const val MIHON_PREFIX = "MIHON_"
 	}
 	
 	/**
@@ -38,6 +39,7 @@ class SourceTypeIdentifier @Inject constructor() {
 	 */
 	fun getSourceType(sourceId: String): SourceType {
 		return when {
+			sourceId.startsWith(MIHON_PREFIX) -> SourceType.MIHON
 			sourceId.startsWith(LEGADO_PREFIX) -> SourceType.JSON_LEGADO
 			sourceId.startsWith(TVBOX_PREFIX) -> SourceType.JSON_TVBOX
 			sourceId.startsWith(JS_PREFIX) -> SourceType.JSON_JS
@@ -60,6 +62,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			SourceType.JSON_TVBOX -> "JSON 源 (TVBox)"
 			SourceType.JSON_JS -> "JavaScript 源"
 			SourceType.EXTERNAL -> "外部源"
+			SourceType.MIHON -> "Mihon 扩展"
 		}
 	}
 	
@@ -106,5 +109,10 @@ enum class SourceType {
 	/**
 	 * External sources (future use)
 	 */
-	EXTERNAL
+	EXTERNAL,
+	
+	/**
+	 * Mihon extension sources
+	 */
+	MIHON
 }

@@ -146,4 +146,17 @@
     <string name="video_cache_size">缓存大小 (MB)</string>
     <string name="video_cache_size_summary">%1$d MB</string>
     <string name="video_controls_alpha">控件不透明度 (%)</string>
+    
+    <!-- Mihon 扩展源 -->
+    <string name="mihon_sources">Mihon</string>
+    <string name="mihon_extensions">Mihon 扩展</string>
+    <string name="mihon_extensions_summary">管理 Mihon 扩展源</string>
+    <string name="no_mihon_extensions">未安装 Mihon 扩展</string>
+    <string name="no_mihon_extensions_text">从 Keiyoushi 仓库安装 Mihon 扩展 APK 以添加源</string>
+    <string name="mihon_extension_count">已加载 %d 个扩展</string>
+    <string name="mihon_source_count">%d 个可用源</string>
+    <string name="loading_mihon_extensions">正在加载 Mihon 扩展…</string>
+    <plurals name="source_count">
+        <item quantity="other">%d 个源</item>
+    </plurals>
 </resources>

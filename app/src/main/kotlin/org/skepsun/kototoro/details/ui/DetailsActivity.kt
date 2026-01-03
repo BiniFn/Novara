@@ -545,6 +545,7 @@ class DetailsActivity :
 	}
 
 	private fun loadCover(imageUrl: String?) {
+		android.util.Log.d("DetailsActivity", "loadCover: $imageUrl")
 		viewBinding.imageViewCover.setImageAsync(imageUrl, viewModel.getMangaOrNull())
 	}
 

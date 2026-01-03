@@ -11,10 +11,16 @@ class CurlLoggingInterceptor(
 	private val curlOptions: String? = null
 ) : Interceptor {
 
-	private val escapeRegex = Regex("([\\[\\]\"])")
+	private val escapeRegex = Regex("""([\[\]"])""")
 
-	override fun intercept(chain: Interceptor.Chain): Response = chain.proceed(chain.request()).also {
-		logRequest(it.networkResponse?.request ?: it.request)
+	override fun intercept(chain: Interceptor.Chain): Response {
+		val response = chain.proceed(chain.request())
+		logRequest(response.networkResponse?.request ?: response.request)
+		
+		// Log response for debugging (especially for login failures)
+		logResponse(response)
+		
+		return response
 	}
 
 	private fun logRequest(request: Request) {
@@ -31,7 +37,7 @@ class CurlLoggingInterceptor(
 			if (name.equals(ACCEPT_ENCODING, ignoreCase = true) && value.equals("gzip", ignoreCase = true)) {
 				isCompressed = true
 			}
-			curlCmd.append(" -H \"").append(name).append(": ").append(value.escape()).append('\"')
+			curlCmd.append(" -H \"").append(name).append(": ").append(value.escape()).append('"')
 		}
 
 		val body = request.body
@@ -50,6 +56,22 @@ class CurlLoggingInterceptor(
 
 		log("---cURL (" + request.url + ")")
 		log(curlCmd.toString())
+	}
+	
+	private fun logResponse(response: Response) {
+		val url = response.request.url.toString()
+		
+		// Only log detailed response for specific URLs (login, auth, etc.) to avoid too much noise
+		if (url.contains("sign-in") || url.contains("login") || url.contains("auth") || !response.isSuccessful) {
+			try {
+				val responseBody = response.peekBody(Long.MAX_VALUE)
+				val bodyString = responseBody.string()
+				log("---Response (${response.code}) for: $url")
+				log("Response body: ${bodyString.take(500)}")
+			} catch (e: Exception) {
+				log("Failed to log response body: ${e.message}")
+			}
+		}
 	}
 
 	private fun String.escape() = replace(escapeRegex) { match ->

@@ -12,6 +12,9 @@ import org.skepsun.kototoro.core.model.UnknownMangaSource
 import org.skepsun.kototoro.core.parser.external.ExternalMangaRepository
 import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
 import org.skepsun.kototoro.local.data.LocalMangaRepository
+import org.skepsun.kototoro.mihon.MihonExtensionManager
+import org.skepsun.kototoro.mihon.MihonMangaRepository
+import org.skepsun.kototoro.mihon.model.MihonMangaSource
 import org.skepsun.kototoro.parsers.MangaLoaderContext
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaChapter
@@ -54,6 +57,30 @@ interface MangaRepository {
 	 */
 	suspend fun getChapterContent(chapter: MangaChapter): NovelChapterContent? = null
 
+	/**
+	 * Create an OkHttp Request for a specific page.
+	 * Default implementation uses PageLoader.createPageRequest with global settings.
+	 */
+	fun createPageRequest(pageUrl: String, page: MangaPage): okhttp3.Request {
+		return org.skepsun.kototoro.reader.domain.PageLoader.createPageRequest(pageUrl, page)
+	}
+
+	/**
+	 * Create an OkHttp Request for a cover image.
+	 */
+	fun createCoverRequest(imageUrl: String): okhttp3.Request {
+		return org.skepsun.kototoro.reader.domain.PageLoader.createPageRequest(imageUrl, source)
+	}
+
+	/**
+	 * Returns the request headers for this source (generic headers like UA/Referer).
+	 */
+	fun getRequestHeaders(): Map<String, String> = emptyMap()
+
+	fun isSlowdownEnabled(): Boolean {
+		return source != LocalMangaSource && source != TestMangaSource && source != org.skepsun.kototoro.core.model.LocalNovelSource
+	}
+
 	suspend fun getRelated(seed: Manga): List<Manga>
 
 	suspend fun find(manga: Manga): Manga? {
@@ -72,6 +99,7 @@ interface MangaRepository {
 		private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
 		private val ruleEngine: org.skepsun.kototoro.core.parser.rule.EnhancedRuleEngine,
 		private val legadoHttpClient: org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient,
+		private val mihonExtensionManager: MihonExtensionManager,
 	) {
 
 		private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
@@ -95,6 +123,15 @@ interface MangaRepository {
 				} else {
 					android.util.Log.w("MangaRepository", "JSON source not found in database: ${source.name}")
 					return EmptyMangaRepository(source)
+				}
+			}
+			
+			// Check if this is a Mihon source (by name prefix) that needs to be resolved
+			if (source.name.startsWith("MIHON_") && source !is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
+				// Don't log on every request to avoid flickering and log spam
+				val mihonSource = mihonExtensionManager.getMihonMangaSourceByName(source.name)
+				if (mihonSource != null) {
+					return create(mihonSource)
 				}
 			}
 			
@@ -152,6 +189,14 @@ interface MangaRepository {
 				} else {
 					android.util.Log.w("MangaRepository", "ExternalMangaSource not available: ${source.name}")
 					EmptyMangaRepository(source)
+				}
+				
+				is MihonMangaSource -> {
+					android.util.Log.d("MangaRepository", "Creating MihonMangaRepository for: ${source.displayName}")
+					MihonMangaRepository(
+						source = source,
+						cache = contentCache,
+					)
 				}
 				
 				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {

@@ -68,6 +68,9 @@ open class BaseApp : Application(), Configuration.Provider {
 	@LocalStorageChanges
 	lateinit var localStorageChanges: MutableSharedFlow<LocalManga?>
 
+	@Inject
+	lateinit var mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager
+
 	override val workManagerConfiguration: Configuration
 		get() = Configuration.Builder()
 			.setWorkerFactory(workerFactory)
@@ -94,6 +97,7 @@ open class BaseApp : Application(), Configuration.Provider {
 			localStorageChanges.collect(localMangaIndexProvider.get())
 		}
 		workScheduleManager.init()
+		mihonExtensionManager.initialize()
 	}
 
 	override fun attachBaseContext(base: Context) {

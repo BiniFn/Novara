@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.LocaleComparator
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.mapSortedByCount
 import org.skepsun.kototoro.core.util.ext.sortedWithSafe
 import org.skepsun.kototoro.core.util.ext.toList
@@ -25,6 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class WelcomeViewModel @Inject constructor(
 	private val repository: MangaSourcesRepository,
+	private val settings: AppSettings,
 	@LocalizedAppContext context: Context,
 ) : BaseViewModel() {
 
@@ -136,5 +138,6 @@ class WelcomeViewModel @Inject constructor(
 			x.contentType in expandedTypes && x.locale in languages
 		}
 		repository.setSourcesEnabledExclusive(enabledSources)
+		settings.contentLanguages = languages
 	}
 }

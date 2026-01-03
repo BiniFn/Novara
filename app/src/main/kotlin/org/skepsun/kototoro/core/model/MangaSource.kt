@@ -49,13 +49,13 @@ fun MangaSource(name: String?): MangaSource {
 	}
 	// Check if it's a JSON source (starts with JSON_ prefix)
 	if (name.startsWith("JSON_")) {
-		// This is a JSON source, but we can't create it here without database access
-		// Create a special UnknownMangaSource that preserves the original name
-		// This will be resolved by MangaRepository.Factory.create()
-		android.util.Log.d("MangaSource", "Detected JSON source name: $name, returning UnknownMangaSource with preserved name")
-		return object : MangaSource {
-			override val name: String = name
-		}
+		android.util.Log.d("MangaSource", "Detected JSON source name: $name, returning stable MangaSource")
+		return AnonymousMangaSource(name)
+	}
+	// Check if it's a Mihon source (starts with MIHON_ prefix)
+	if (name.startsWith("MIHON_")) {
+		android.util.Log.d("MangaSource", "Detected Mihon source name: $name, returning stable MangaSource")
+		return AnonymousMangaSource(name)
 	}
 	MangaParserSource.entries.forEach {
 		if (it.name == name) return it
@@ -72,6 +72,7 @@ fun MangaSource.isNsfw(): Boolean = when (this) {
 		ContentType.HENTAI_NOVEL,
 		ContentType.HENTAI_VIDEO,
 	)
+	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> isNsfw
 	else -> false
 }
 
@@ -152,6 +153,13 @@ fun MangaSource.getSummary(context: Context): String? = when (val source = unwra
 		}
 	}
 
+	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> {
+		val contentType = if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
+		val type = context.getString(contentType.titleResId)
+		val locale = source.language.toLocale().getDisplayName(context)
+		context.getString(R.string.source_summary_pattern, type, locale)
+	}
+
 	else -> null
 }
 
@@ -162,7 +170,17 @@ fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()
 	TestMangaSource -> context.getString(R.string.test_parser)
 	is ExternalMangaSource -> source.resolveName(context)
 	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> source.displayName.ifBlank { source.name }
-	else -> context.getString(R.string.unknown)
+	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
+	else -> {
+		// Try to handle anonymous wrappers for JSON or Mihon sources
+		if (source.name.startsWith("MIHON_")) {
+			"Loading Mihon source..."
+		} else if (source.name.startsWith("JSON_")) {
+			"Loading JSON source..."
+		} else {
+			context.getString(R.string.unknown)
+		}
+	}
 }
 
 fun SpannableStringBuilder.appendIcon(textView: TextView, @DrawableRes resId: Int): SpannableStringBuilder {
@@ -176,4 +194,16 @@ fun SpannableStringBuilder.appendIcon(textView: TextView, @DrawableRes resId: In
 		ImageSpan.ALIGN_BOTTOM
 	}
 	return inSpans(ImageSpan(icon, alignment)) { append(' ') }
+}
+
+private class AnonymousMangaSource(override val name: String) : MangaSource {
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is MangaSource) return false
+		return name == other.name
+	}
+
+	override fun hashCode(): Int = name.hashCode()
+	
+	override fun toString(): String = "AnonymousMangaSource(name=$name)"
 }

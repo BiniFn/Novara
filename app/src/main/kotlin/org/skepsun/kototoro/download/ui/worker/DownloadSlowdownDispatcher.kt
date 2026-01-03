@@ -17,7 +17,7 @@ class DownloadSlowdownDispatcher @Inject constructor(
 	private val defaultDelay = 1_600L
 
 	suspend fun delay(source: MangaSource) {
-		val repo = mangaRepositoryFactory.create(source) as? ParserMangaRepository ?: return
+		val repo = mangaRepositoryFactory.create(source)
 		if (!repo.isSlowdownEnabled()) {
 			return
 		}

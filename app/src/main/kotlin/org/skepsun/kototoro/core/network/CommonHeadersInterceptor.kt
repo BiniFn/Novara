@@ -32,26 +32,27 @@ class CommonHeadersInterceptor @Inject constructor(
 		val request = chain.request()
 		val source = request.tag(MangaSource::class.java)
 			?: request.headers[CommonHeaders.MANGA_SOURCE]?.let { MangaSource(it) }
-		val repository = if (source is MangaParserSource) {
-			mangaRepositoryFactoryLazy.get().create(source) as? ParserMangaRepository
+		val repository = if (source != null) {
+			mangaRepositoryFactoryLazy.get().create(source)
 		} else {
-			if (BuildConfig.DEBUG && source == null) {
-				Log.w("CommonHeadersInterceptor", "Request without source tag: ${request.url}")
-			}
 			null
 		}
 		val headersBuilder = request.headers.newBuilder()
 			.removeAll(CommonHeaders.MANGA_SOURCE)
-		repository?.getRequestHeaders()?.let {
-			headersBuilder.mergeWith(it, replaceExisting = false)
+		repository?.getRequestHeaders()?.forEach { (name, value) ->
+			if (headersBuilder[name] == null) {
+				headersBuilder[name] = value
+			}
 		}
 		if (headersBuilder[CommonHeaders.USER_AGENT] == null) {
 			headersBuilder[CommonHeaders.USER_AGENT] = mangaLoaderContextLazy.get().getDefaultUserAgent()
 		}
-		if (headersBuilder[CommonHeaders.REFERER] == null && repository != null) {
+		val finalSource = repository?.source ?: source
+		if (headersBuilder[CommonHeaders.REFERER] == null && repository is ParserMangaRepository) {
 			val idn = IDN.toASCII(repository.domain)
 			headersBuilder.trySet(CommonHeaders.REFERER, "https://$idn/")
 		}
+		
 		// Some CDNs (hitomi) require Referer even when repository is null (e.g., Coil thumbnail requests).
 		if (headersBuilder[CommonHeaders.REFERER] == null) {
 			val host = request.url.host
@@ -60,7 +61,14 @@ class CommonHeadersInterceptor @Inject constructor(
 			}
 		}
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
-		return repository?.interceptSafe(ProxyChain(chain, newRequest)) ?: chain.proceed(newRequest)
+		val response = (repository as? Interceptor)?.interceptSafe(ProxyChain(chain, newRequest)) ?: chain.proceed(newRequest)
+		
+		// Log response for debugging blocked images
+		if (!response.isSuccessful) {
+			android.util.Log.w("CommonHeadersInterceptor", "Request failed: ${response.code} for ${request.url}")
+		}
+		
+		return response
 	}
 
 	private fun Headers.Builder.trySet(name: String, value: String) = try {

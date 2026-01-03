@@ -48,6 +48,11 @@ class MangaPageFetcher(
 		val repo = mangaRepositoryFactory.create(page.source)
 		val pageUrl = repo.getPageUrl(page)
 
+		if (pageUrl.isBlank()) {
+			android.util.Log.e("MangaPageFetcher", "Obtained empty page URL for source: ${page.source.name}")
+			return null
+		}
+
 		// 支持 data URL：直接写入缓存并返回，避免走网络请求
 		if (pageUrl.startsWith("data:", ignoreCase = true)) {
 			val mime = pageUrl.substringAfter("data:", "").substringBefore(";").ifEmpty { null }
@@ -85,7 +90,8 @@ class MangaPageFetcher(
 	}
 
 	private suspend fun fetchPage(pageUrl: String): FetchResult {
-		val request = PageLoader.createPageRequest(pageUrl, page)
+		val repo = mangaRepositoryFactory.create(page.source)
+		val request = repo.createPageRequest(pageUrl, page)
 		return imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use { response ->
 			if (!response.isSuccessful) {
 				throw HttpException(response.toNetworkResponse())

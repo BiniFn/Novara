@@ -61,6 +61,19 @@ class AppBackupAgent : BackupAgent() {
 					jsonSourceManager = jsonSourceManager,
 					sourceTypeIdentifier = sourceTypeIdentifier,
 					sourceGroupManager = sourceGroupManager,
+					mihonExtensionManager = org.skepsun.kototoro.mihon.MihonExtensionManager(
+						context = applicationContext,
+						loader = org.skepsun.kototoro.mihon.MihonExtensionLoader(
+							applicationContext = applicationContext,
+							injektBridge = dagger.Lazy {
+								org.skepsun.kototoro.mihon.compat.KotoInjektBridge(
+									context = applicationContext,
+									httpClient = okhttp3.OkHttpClient(),
+									cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
+								)
+							},
+						),
+					),
 				),
 				savedFiltersRepository = SavedFiltersRepository(
 					context = applicationContext,
@@ -107,6 +120,19 @@ class AppBackupAgent : BackupAgent() {
 						jsonSourceManager = jsonSourceManager,
 						sourceTypeIdentifier = sourceTypeIdentifier,
 						sourceGroupManager = sourceGroupManager,
+						mihonExtensionManager = org.skepsun.kototoro.mihon.MihonExtensionManager(
+							context = applicationContext,
+							loader = org.skepsun.kototoro.mihon.MihonExtensionLoader(
+								applicationContext = applicationContext,
+								injektBridge = dagger.Lazy {
+									org.skepsun.kototoro.mihon.compat.KotoInjektBridge(
+										context = applicationContext,
+										httpClient = okhttp3.OkHttpClient(),
+										cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
+									)
+								},
+							),
+						),
 					),
 					savedFiltersRepository = SavedFiltersRepository(
 						context = applicationContext,

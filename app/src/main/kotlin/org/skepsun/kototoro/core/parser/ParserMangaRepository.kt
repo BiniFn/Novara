@@ -101,8 +101,19 @@ class ParserMangaRepository(
 	}
 
 	fun getAuthProvider(): MangaParserAuthProvider? = parser.authorizationProvider
+    
+	override fun getRequestHeaders(): Map<String, String> {
+		val headers = parser.getRequestHeaders()
+		val map = mutableMapOf<String, String>()
+		for (i in 0 until headers.size) {
+			map[headers.name(i)] = headers.value(i)
+		}
+		return map
+	}
 
-	fun getRequestHeaders() = parser.getRequestHeaders()
+	override fun createPageRequest(pageUrl: String, page: MangaPage): okhttp3.Request {
+		return org.skepsun.kototoro.reader.domain.PageLoader.createPageRequest(pageUrl, page)
+	}
 
 	fun favoritesProvider(): FavoritesProvider? =
 		resolveFavoritesProvider(parser)
@@ -157,7 +168,7 @@ class ParserMangaRepository(
 		return parser.configKeyDomain.presetValues.toList()
 	}
 
-	fun isSlowdownEnabled(): Boolean {
+	override fun isSlowdownEnabled(): Boolean {
 		return getConfig().isSlowdownEnabled
 	}
 

@@ -1120,4 +1120,19 @@
     
     <!-- Source Filters -->
     <string name="native_sources">Native Sources</string>
+    
+    <!-- Mihon Extension Sources -->
+    <string name="mihon_sources">Mihon</string>
+    <string name="mihon_extensions">Mihon Extensions</string>
+    <string name="mihon_extensions_summary">Manage Mihon extension sources</string>
+    <string name="no_mihon_extensions">No Mihon extensions installed</string>
+    <string name="no_mihon_extensions_text">Install Mihon extension APKs from the Keiyoushi repository to add sources</string>
+    <string name="mihon_extension_count">%d extension(s) loaded</string>
+    <string name="mihon_source_count">%d source(s) available</string>
+    <string name="loading_mihon_extensions">Loading Mihon extensions…</string>
+    <string name="mihon_extension_error">Failed to load extension: %s</string>
+    <plurals name="source_count">
+        <item quantity="one">%d source</item>
+        <item quantity="other">%d sources</item>
+    </plurals>
 </resources>

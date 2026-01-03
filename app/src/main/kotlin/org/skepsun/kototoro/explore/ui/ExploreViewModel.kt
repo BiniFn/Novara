@@ -262,6 +262,9 @@ class ExploreViewModel @Inject constructor(
 		}
 		
 		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: filtered sources=${filtered.size}")
+		if (filtered.isEmpty() && sources.isNotEmpty()) {
+			android.util.Log.w("ExploreViewModel", "All sources were filtered out by tab! tab=$groupTab")
+		}
 		return filtered
 	}
 

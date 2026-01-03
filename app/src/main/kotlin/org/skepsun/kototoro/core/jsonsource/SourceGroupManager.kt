@@ -57,6 +57,11 @@ class SourceGroupManager @Inject constructor(
 			}
 		}
 		
+		// For Mihon sources, most are manga
+		if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
+			return ContentGroup.MANGA
+		}
+		
 		return ContentGroup.OTHER
 	}
 	
@@ -102,6 +107,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.JSON_TVBOX -> OriginGroup.TVBOX_JSON
 			SourceType.JSON_JS -> OriginGroup.JS_JSON
 			SourceType.EXTERNAL -> OriginGroup.EXTERNAL
+			SourceType.MIHON -> OriginGroup.MIHON
 		}
 	}
 	
@@ -196,7 +202,12 @@ enum class OriginGroup {
 	/**
 	 * External sources
 	 */
-	EXTERNAL
+	EXTERNAL,
+	
+	/**
+	 * Mihon extension sources
+	 */
+	MIHON
 }
 
 /**

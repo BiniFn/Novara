@@ -37,6 +37,11 @@ sealed class BrowseGroupTab(
 	 */
 	object JsonSources : BrowseGroupTab(R.string.json_sources, "json")
 	
+	/**
+	 * Show only Mihon extension sources
+	 */
+	object MihonSources : BrowseGroupTab(R.string.mihon_sources, "mihon")
+	
 	companion object {
 		/**
 		 * Get all available tabs in order
@@ -47,6 +52,7 @@ sealed class BrowseGroupTab(
 			Novel,
 			Video,
 			JsonSources,
+			MihonSources,
 		)
 		
 		/**
@@ -58,6 +64,7 @@ sealed class BrowseGroupTab(
 			"novel" -> Novel
 			"video" -> Video
 			"json" -> JsonSources
+			"mihon" -> MihonSources
 			else -> All
 		}
 	}
@@ -71,6 +78,7 @@ sealed class BrowseGroupTab(
 		Novel -> group == ContentGroup.NOVEL
 		Video -> group == ContentGroup.VIDEO
 		JsonSources -> true // JSON sources accept all content types, filtered by origin only
+		MihonSources -> true // Mihon sources accept all content types
 	}
 	
 	/**
@@ -79,6 +87,8 @@ sealed class BrowseGroupTab(
 	fun matchesOriginGroup(group: OriginGroup): Boolean = when (this) {
 		All -> true
 		JsonSources -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON
+		MihonSources -> group == OriginGroup.MIHON
 		else -> true // Content-based tabs don't filter by origin
 	}
 }
+

@@ -55,6 +55,7 @@ class LocalStorageCache(
 	}
 
 	suspend operator fun get(url: String): File? = withContext(Dispatchers.IO) {
+		if (url.isBlank()) return@withContext null
 		val cache = lruCache.get()
 		runInterruptible {
 			cache.get(url)?.takeIfReadable()
@@ -62,6 +63,7 @@ class LocalStorageCache(
 	}
 
 	suspend operator fun set(url: String, source: Source, mimeType: MimeType?): File = withContext(Dispatchers.IO) {
+		if (url.isBlank()) throw IllegalArgumentException("Cannot cache file with empty URL")
 		val file = createBufferFile(url, mimeType)
 		try {
 			val bytes = file.sink(append = false).buffer().use {
@@ -80,6 +82,7 @@ class LocalStorageCache(
 	}
 
 	suspend operator fun set(url: String, bitmap: Bitmap): File = withContext(Dispatchers.IO) {
+		if (url.isBlank()) throw IllegalArgumentException("Cannot cache bitmap with empty URL")
 		val file = createBufferFile(url, MimeType("image/png"))
 		try {
 			bitmap.compressToPNG(file)

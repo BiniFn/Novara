@@ -66,11 +66,26 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 	}
 
 	override suspend fun onPagesChanged(pages: List<ReaderPage>, pendingState: ReaderState?) = coroutineScope {
+		val rv = viewBinding?.recyclerView
+		val lm = rv?.layoutManager as? LinearLayoutManager
+
+		// 预加载时（pendingState == null 且已有数据）：保存当前精确滚动位置
+		val savedPosition: Int
+		val savedOffset: Int
+		if (pendingState == null && readerAdapter?.hasItems == true && lm != null) {
+			savedPosition = lm.findFirstVisibleItemPosition()
+			val firstVisibleChild = lm.findViewByPosition(savedPosition)
+			savedOffset = firstVisibleChild?.left ?: 0
+		} else {
+			savedPosition = RecyclerView.NO_POSITION
+			savedOffset = 0
+		}
+
 		val items = launch {
 			requireAdapter().setItems(pages)
 			yield()
-			viewBinding?.recyclerView?.let { rv ->
-				recyclerLifecycleDispatcher?.invalidate(rv)
+			viewBinding?.recyclerView?.let { recyclerView ->
+				recyclerLifecycleDispatcher?.invalidate(recyclerView)
 			}
 		}
 		if (pendingState != null) {
@@ -88,6 +103,11 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 			}
 		} else {
 			items.join()
+			// 预加载完成后：恢复到之前保存的精确位置
+			if (savedPosition != RecyclerView.NO_POSITION) {
+				(viewBinding?.recyclerView?.layoutManager as? LinearLayoutManager)
+					?.scrollToPositionWithOffset(savedPosition, savedOffset)
+			}
 		}
 	}
 

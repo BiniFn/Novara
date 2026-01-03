@@ -50,6 +50,7 @@ class MangaSourcesRepository @Inject constructor(
 	private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
 	private val sourceTypeIdentifier: org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier,
 	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	private val mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager,
 ) {
 
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
@@ -72,17 +73,67 @@ class MangaSourcesRepository @Inject constructor(
 			.let { enabled ->
 				val external = getExternalSources()
 				val jsonSources = getEnabledJsonSources()
-				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}")
-				val list = ArrayList<MangaSourceInfo>(enabled.size + external.size + jsonSources.size)
+				val mihonSources = getEnabledMihonSources()
+				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}, mihon=${mihonSources.size}")
+				val list = ArrayList<MangaSourceInfo>(enabled.size + external.size + jsonSources.size + mihonSources.size)
 				external.mapTo(list) { MangaSourceInfo(it, isEnabled = true, isPinned = true) }
 				jsonSources.mapTo(list) { 
 					android.util.Log.d("MangaSourcesRepository", "  Wrapping JSON source: ${it.name} (${it.javaClass.simpleName})")
 					MangaSourceInfo(it, isEnabled = true, isPinned = it.isPinned) 
 				}
+				mihonSources.mapTo(list) {
+					android.util.Log.d("MangaSourcesRepository", "  Wrapping Mihon source: ${it.displayName}")
+					MangaSourceInfo(it, isEnabled = true, isPinned = false)
+				}
 				list.addAll(enabled)
 				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: total=${list.size} sources")
 				list
 			}
+	}
+	
+	/**
+	 * Gets all enabled Mihon sources as MihonMangaSource instances.
+	 * Filters sources based on user's app locale - only sources matching user's language are shown.
+	 * 
+	 * @return List of enabled Mihon sources
+	 */
+	private fun getEnabledMihonSources(): List<org.skepsun.kototoro.mihon.model.MihonMangaSource> {
+		val allSources = mihonExtensionManager.getMihonMangaSources()
+		
+		// Get user's preferred content languages (from onboarding)
+		val userLanguages = settings.contentLanguages
+		val isNsfwDisabled = settings.isNsfwContentDisabled
+		
+		android.util.Log.d("MangaSourcesRepository", "User content languages for Mihon sources: $userLanguages, NSFW disabled: $isNsfwDisabled")
+		
+		// Map empty string (Various Languages in Kototoro native) to "all" (Mihon)
+		val isMultiLangEnabled = userLanguages.contains("")
+		
+		// Filter sources:
+		// - "all" language sources are shown only if user enabled multi-language
+		// - Other sources must match user's language preference (handles variants like zh-Hans)
+		// - NSFW sources are hidden if isNsfwDisabled is true
+		return allSources.filter { source ->
+			// Check NSFW first
+			if (isNsfwDisabled && source.isNsfw) {
+				return@filter false
+			}
+
+			val mihonLang = source.language.lowercase()
+			if (mihonLang == "all") {
+				isMultiLangEnabled
+			} else {
+				userLanguages.any { userLang ->
+					userLang.isNotEmpty() && (mihonLang == userLang || mihonLang.startsWith("$userLang-"))
+				}
+			}
+		}.also { filtered ->
+			android.util.Log.d("MangaSourcesRepository", "Mihon sources: ${allSources.size} total, ${filtered.size} after filters. userLanguages=$userLanguages, isNsfwDisabled=$isNsfwDisabled")
+			if (filtered.size < allSources.size) {
+				val filteredOut = allSources.filter { it !in filtered }
+				android.util.Log.d("MangaSourcesRepository", "Filtered out Mihon sources (example): ${filteredOut.take(5).joinToString { "${it.displayName} (${it.language}, NSFW=${it.isNsfw})" }}")
+			}
+		}
 	}
 	
 	/**
@@ -243,6 +294,17 @@ class MangaSourcesRepository @Inject constructor(
 			result.addAll(jsonSources)
 		}
 		
+		// Add Mihon sources if requested
+		val shouldIncludeMihon = sourceTypes == null || 
+			org.skepsun.kototoro.core.jsonsource.SourceType.MIHON in sourceTypes
+		
+		if (shouldIncludeMihon) {
+			val mihonSources = getEnabledMihonSources().filter { source ->
+				query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true)
+			}
+			result.addAll(mihonSources)
+		}
+		
 		return result
 	}
 	
@@ -329,9 +391,27 @@ class MangaSourcesRepository @Inject constructor(
 		observeIsNsfwDisabled(),
 		observeAllEnabled(),
 		observeSortOrder(),
-	) { skipNsfw, allEnabled, order ->
-		dao.observeAll(!allEnabled, order).map {
-			it.toSources(skipNsfw, order)
+		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages }
+	) { skipNsfw, allEnabled, order, contentLanguages ->
+		dao.observeAll(!allEnabled, order).map { entities ->
+			// Map entities to sources and filter by NSFW and language
+			entities.toSources(skipNsfw, order).filter { info ->
+				val source = info.mangaSource
+				if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
+					// Apply language filter to Mihon sources in the list
+					val isMultiLangEnabled = contentLanguages.contains("")
+					val mihonLang = source.language.lowercase()
+					if (mihonLang == "all") {
+						isMultiLangEnabled
+					} else {
+						contentLanguages.any { userLang ->
+							userLang.isNotEmpty() && (mihonLang == userLang || mihonLang.startsWith("$userLang-"))
+						}
+					}
+				} else {
+					true // Native sources are already enabled/disabled based on language
+				}
+			}
 		}
 	}.flattenLatest()
 		.onStart { assimilateNewSources() }
@@ -344,8 +424,26 @@ class MangaSourcesRepository @Inject constructor(
 		.combine(observeJsonSources()) { sources, jsonSources ->
 			val list = ArrayList<MangaSourceInfo>(sources.size + jsonSources.size)
 			list.addAll(sources)
-			jsonSources.mapTo(list) { 
-				MangaSourceInfo(it, isEnabled = it.isEnabled, isPinned = it.isPinned) 
+			
+			// Only add JSON sources that aren't already in the list
+			val existingNames = sources.mapToSet { it.mangaSource.name }
+			jsonSources.forEach { jsonSource ->
+				if (jsonSource.name !in existingNames) {
+					list.add(MangaSourceInfo(jsonSource, isEnabled = jsonSource.isEnabled, isPinned = jsonSource.isPinned))
+				}
+			}
+			list
+		}
+		.combine(observeMihonSources()) { sources, mihonSources ->
+			val list = ArrayList<MangaSourceInfo>(sources.size + mihonSources.size)
+			list.addAll(sources)
+			
+			// Only add Mihon sources that aren't already in the list (already pinned/recently used)
+			val existingNames = sources.mapToSet { it.mangaSource.name }
+			mihonSources.forEach { mihonSource ->
+				if (mihonSource.name !in existingNames) {
+					list.add(MangaSourceInfo(mihonSource, isEnabled = true, isPinned = false))
+				}
 			}
 			list
 		}
@@ -356,8 +454,27 @@ class MangaSourcesRepository @Inject constructor(
 	 * @return Flow emitting list of JSON sources wrapped as MangaSource
 	 */
 	private fun observeJsonSources(): Flow<List<org.skepsun.kototoro.core.jsonsource.JsonMangaSource>> {
-		return jsonSourceManager.observeEnabledJsonSources().map { entities ->
+		return combine(
+			jsonSourceManager.observeEnabledJsonSources(),
+			observeIsNsfwDisabled()
+		) { entities, skipNsfw ->
 			entities.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
+				.filter { source -> !skipNsfw || !source.isNsfw() }
+		}
+	}
+	
+	/**
+	 * Observes all Mihon sources.
+	 * 
+	 * @return Flow emitting list of Mihon sources
+	 */
+	private fun observeMihonSources(): Flow<List<org.skepsun.kototoro.mihon.model.MihonMangaSource>> {
+		return combine(
+			mihonExtensionManager.installedExtensions,
+			observeIsNsfwDisabled(),
+			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages }
+		) { _, _, _ ->
+			getEnabledMihonSources()
 		}
 	}
 
@@ -623,7 +740,12 @@ class MangaSourcesRepository @Inject constructor(
 			if (skipNsfwSources && source.isNsfw()) {
 				continue
 			}
-			if (source in allMangaSources) {
+			// Allow native sources, Mihon sources, and JSON sources
+			val isKnownSource = source in allMangaSources || 
+								source is org.skepsun.kototoro.mihon.model.MihonMangaSource ||
+								source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+								
+			if (isKnownSource) {
 				result.add(
 					MangaSourceInfo(
 						mangaSource = source,
@@ -651,5 +773,27 @@ class MangaSourcesRepository @Inject constructor(
 		isAllSourcesEnabled
 	}
 
-	private fun String.toMangaSourceOrNull(): MangaParserSource? = MangaParserSource.entries.find { it.name == this }
+	private fun String.toMangaSourceOrNull(): MangaSource? {
+		// Try native sources first
+		MangaParserSource.entries.find { it.name == this }?.let { return it }
+		
+		// Try Mihon sources
+		if (startsWith("MIHON_")) {
+			mihonExtensionManager.getMihonMangaSources().find { it.name == this }?.let { return it }
+		}
+		
+		// Try JSON sources
+		if (startsWith("JSON_")) {
+			// This is a bit expensive but necessary for pinning/top sources to work correctly
+			val jsonSources = kotlinx.coroutines.runBlocking { 
+				jsonSourceManager.observeEnabledJsonSources().first().map {
+					org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it)
+				}
+			}
+			jsonSources.find { it.name == this }?.let { return it }
+		}
+		
+		// Fallback to anonymous wrapper
+		return org.skepsun.kototoro.core.model.MangaSource(this)
+	}
 }
