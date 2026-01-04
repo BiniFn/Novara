@@ -153,6 +153,10 @@ class MihonMangaRepository(
         }
         
         val totalChapters = rawChapters.size
+        android.util.Log.d("MihonMangaRepository", "rawChapters count: $totalChapters, source: ${source.name}")
+        rawChapters.take(15).forEachIndexed { idx, ch ->
+            android.util.Log.d("MihonMangaRepository", "  raw[$idx]: ${ch.name}")
+        }
         // 采用最直观的策略：直接反转原始列表（假设原始是“最新在前”），并依次分配虚拟编号。
         // 这能确保 Page 1 对应 1.0，Page 15 对应 15.0，解决排序识别反向的问题。
         val chapters = rawChapters.asReversed()

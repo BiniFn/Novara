@@ -39,25 +39,110 @@
 # Mihon / Tachiyomi Extension Support
 # Extensions are separate APKs that depend on these classes in the host app.
 # If they are stripped or renamed, extensions will fail to load or crash.
+
+# Keep attributes needed for reflection and serialization
+-keepattributes Signature
+-keepattributes Annotation
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations
+-keepattributes RuntimeVisibleParameterAnnotations
+
+# Tachiyomi / Mihon API classes - keep everything including constructors
 -keep class eu.kanade.tachiyomi.** { *; }
 -keep interface eu.kanade.tachiyomi.** { *; }
+-keepclassmembers class eu.kanade.tachiyomi.** {
+    public <init>(...);
+    public protected *;
+}
+
+# Injekt dependency injection (used by extensions via injectLazy)
 -keep class uy.kohesive.injekt.** { *; }
 -keep interface uy.kohesive.injekt.** { *; }
+-keepclassmembers class uy.kohesive.injekt.** {
+    public <init>(...);
+    public protected *;
+}
+
+# RxJava (used by legacy extension API)
 -keep class rx.** { *; }
 -keep interface rx.** { *; }
+-dontwarn rx.**
 
 # OkHttp and Okio are used by extensions
 -keep class okhttp3.** { *; }
 -keep interface okhttp3.** { *; }
+-keepclassmembers class okhttp3.** {
+    public <init>(...);
+}
 -keep class okio.** { *; }
 -keep interface okio.** { *; }
-
-# Keep the Mihon bridge and model classes
--keep class org.skepsun.kototoro.mihon.** { *; }
-
-# Common dependencies used by extensions
--keep class org.jsoup.** { *; }
--keep class com.google.gson.** { *; }
 -dontwarn okio.**
 -dontwarn okhttp3.**
--dontwarn rx.**
+
+# Keep the Mihon bridge and model classes - preserve constructors for reflection
+-keep class org.skepsun.kototoro.mihon.** { *; }
+-keepclassmembers class org.skepsun.kototoro.mihon.** {
+    public <init>(...);
+    public protected *;
+}
+-keep class org.skepsun.kototoro.mihon.util.ChildFirstPathClassLoader { *; }
+-keep class org.skepsun.kototoro.mihon.compat.** { *; }
+
+# Jsoup (used by ParsedHttpSource)
+-keep class org.jsoup.** { *; }
+-keepclassmembers class org.jsoup.** {
+    public <init>(...);
+}
+
+# Gson (some extensions may use it)
+-keep class com.google.gson.** { *; }
+
+# kotlinx.serialization (used by some extensions)
+-keep class kotlinx.serialization.** { *; }
+-keepclassmembers class kotlinx.serialization.** { *; }
+-keepclasseswithmembers class * {
+    @kotlinx.serialization.Serializable <methods>;
+}
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    *** Companion;
+}
+-keepclassmembers class **$$serializer {
+    *** INSTANCE;
+}
+
+# Dalvik ClassLoader (used by ChildFirstPathClassLoader)
+-keep class dalvik.system.** { *; }
+-dontwarn dalvik.system.**
+
+# Application class (Injekt injects Application instances)
+-keep class android.app.Application { *; }
+-keepclassmembers class * extends android.app.Application {
+    public <init>(...);
+}
+
+# SharedPreferences (ConfigurableSource uses it)
+-keep class android.content.SharedPreferences { *; }
+-keep interface android.content.SharedPreferences$** { *; }
+
+# Kotlin stdlib - essential classes needed by Mihon extensions
+# Extensions use kotlin.Lazy, kotlin.LazyKt, etc. for lazy initialization
+-keep class kotlin.** { *; }
+-keep interface kotlin.** { *; }
+-dontwarn kotlin.**
+
+# Specifically keep LazyKt and related classes
+-keep class kotlin.LazyKt { *; }
+-keep class kotlin.LazyKt__LazyJVMKt { *; }
+-keep class kotlin.LazyKt__LazyKt { *; }
+-keep class kotlin.SynchronizedLazyImpl { *; }
+-keep class kotlin.UnsafeLazyImpl { *; }
+
+# Kotlin reflection (some extensions may use it)
+-keep class kotlin.reflect.** { *; }
+-dontwarn kotlin.reflect.**
+
+# Kotlin coroutines (used by extensions-lib 1.5+)
+-keep class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
+

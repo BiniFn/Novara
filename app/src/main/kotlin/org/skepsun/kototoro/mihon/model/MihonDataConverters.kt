@@ -120,15 +120,15 @@ fun Manga.toMihonManga(): SManga {
         }
     }
     
-    // Ensure relative URL starts with / if it's not empty and not absolute
-    if (cleanUrl.isNotEmpty() && !cleanUrl.startsWith("/") && !cleanUrl.startsWith("http")) {
-        cleanUrl = "/$cleanUrl"
-    }
-    
     // If URL still doesn't look absolute, log warning
     if (!cleanUrl.matches(Regex("^https?://.*")) && !cleanUrl.startsWith("/")) {
         android.util.Log.w("MihonDataConverters", "URL may be invalid after cleanup: '$cleanUrl' (original: '$url')")
     }
+    
+    // NOTE: Do NOT add a leading slash to non-absolute URLs.
+    // Some extensions (e.g., zaimanhua) use pure IDs like "84652" which are then
+    // internally combined with their API path. Adding a slash would cause
+    // double-slash issues like "detail//84652" instead of "detail/84652".
     
     android.util.Log.d("MihonDataConverters", "toMihonManga: original='$url' cleaned='$cleanUrl'")
     

@@ -55,6 +55,30 @@ class KotoNetworkHelper(
             builder.addNetworkInterceptor(interceptor)
         }
         
+        // Add debug logging interceptor for Mihon extensions
+        builder.addInterceptor { chain ->
+            val request = chain.request()
+            android.util.Log.d("MihonNetwork", "Request: ${request.method} ${request.url}")
+            
+            val response = chain.proceed(request)
+            
+            // Log response info
+            val responseCode = response.code
+            val contentType = response.header("Content-Type")
+            android.util.Log.d("MihonNetwork", "Response: $responseCode, Content-Type: $contentType, URL: ${request.url}")
+            
+            // If response is not successful, log the first 200 chars of body for debugging
+            if (!response.isSuccessful) {
+                val source = response.body.source()
+                source.request(200)
+                val buffer = source.buffer.clone()
+                val preview = buffer.readUtf8(minOf(200, buffer.size))
+                android.util.Log.w("MihonNetwork", "Non-successful response ($responseCode) preview: $preview")
+            }
+            
+            response
+        }
+        
         builder.build()
     }
     
