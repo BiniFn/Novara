@@ -1,34 +1,35 @@
-# Kototoro — Manga/Video/Novel Reader
+# Kototoro - Manga/Novel/Video Reader
 
 ![App Icon](metadata/en-US/icon.png)
 
-Kototoro is an unofficial fork of Kotatsu focused on delivering a great manga, video, and novel reading experience, with enhanced support for Chinese-language sites while retaining full reader functionality.
-[![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) [![中文](https://img.shields.io/badge/语言-中文-blue)](README.md) ![version](https://img.shields.io/badge/version-0.2.2-blue)
+[![Chinese](https://img.shields.io/badge/Language-Chinese-blue)](README.md) [![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) ![version](https://img.shields.io/badge/version-0.2.2-blue)
+
+## 📖 Project Introduction
+
+**Kototoro** is an unofficial fork project based on **Kotatsu**, focused on providing a better manga, novel, and video reading/playing experience for Chinese users.
 
 ### 🚀 Recent Updates (v0.2.2)
 1. **Mihon Extension Support**: Full support for Mihon extensions, significantly expanding the available manga sources.
-2. **Manga Source Management**: Implemented a comprehensive manga source management system with network requests, UI components, and source import capabilities.
-3. **Local Manga Import**: Improved the logic for importing local manga.
+2. **Manga Source Management System**: Implemented a comprehensive manga source management system, including network requests, UI components, and source import functions.
+3. **Local Manga Import**: Refined the logic for importing local manga.
 4. **Performance & Stability**:
-    - Refined double-page mode indexing logic.
-    - Enhanced ProGuard rules for better Release build stability.
+    - Improved double-page mode indexing logic.
+    - Enhanced ProGuard obfuscation rules to increase Release version stability.
     - Fixed potential issues in URL conversion logic.
 5. **CI/CD Optimization**: Automatic Release changelog generation and support for manual-triggered releases.
 
 ### 🎯 Key Features
 
 #### 🌟 Core Features
-- ✅ **Chinese Site Support** - Optimized for Chinese manga/novel websites
-- ✅ **Full Kotatsu Feature Set** - Complete manga reader functionality
-- 🎬 **Video Site Support** - Built-in video player with quality selection
-- 📚 **Novel Reading Support** - Support for online novels and EPUB downloads
-- 📱 **Foldable Device Support** - Perfect adaptation for foldable devices with split-screen display
-- ☁️ **WebDAV Auto Sync** - Automatic backup and sync across devices with smart merge
-
-
-#### Known Issues
-- Video playback and progress saving are unstable
-- EPUB novels can be downloaded and read, but chapter navigation and progress saving have issues
+- ✅ **Chinese Site Optimization** - Deep optimization for Chinese manga, video, and novel sites.
+- ✅ **Versatile Reader** - Inherits all excellent manga reading functions from Kotatsu.
+- ✅ **Video Playback** - Supports online video streaming with features like quality switching and screen rotation lock.
+- ✅ **Enhanced Novel Reading** - Supports seamless switching between online/local novel reading, image display, illustrated chapters, and EPUB downloads.
+- ✅ **Download Management** - Supports custom download delays (to avoid rate limits), making the download process more stable.
+- ✅ **Foldable Device Adaptation** - Perfectly adapted for foldable devices, supporting dual-page mode and adaptive layouts.
+- ✅ **WebDAV Sync** - Automatic cross-device backup/restore of favorites, history, groups, login credentials, and more.
+- ✅ **Site Favorite Import and Sync** - Support for importing favorites from logged-in sites to local, or syncing local favorites back to the site.
+- ✅ **Mihon Extension Support** - Full support for Mihon extensions, significantly expanding the available manga sources.
 
 ## Screenshots
 <div align="center">
@@ -42,69 +43,81 @@ Kototoro is an unofficial fork of Kotatsu focused on delivering a great manga, v
     <img src="./metadata/en-US/images/tabletScreenshots/8.jpg" alt="WebDAV setting view" width="300"/>
 </div>
 
-## Tech Stack
+## 🎮 Usage Guide
+
+### 🧩 Mihon Extensions Guide
+
+Kototoro now supports the Mihon (formerly Tachiyomi) extension system. You can add and use more manga sources by following these steps:
+
+1. **Install and Configure Mihon**:
+   - Install the official [Mihon](https://mihon.app/) application.
+   - Add extension repositories in Mihon (e.g., [Keiyoushi](https://keiyoushi.github.io/extensions/)).
+   - Download and install the manga source extensions you need in Mihon.
+2. **Use in Kototoro**:
+   - Open Kototoro and tap "Browse" in the bottom navigation.
+   - Switch to the "Mihon" tab. The app will automatically detect installed Mihon extensions on your device.
+   - You can browse and use these sources directly from here.
+3. **Force Refresh Detection**:
+   - If newly installed extensions don't appear, go to "Settings" → "Content Source" → "Mihon Extensions".
+   - Pull down to refresh the page and force a re-detection of installed extensions.
+
+> [!NOTE]
+> Kototoro achieves compatibility by detecting Mihon extension APKs installed on your system. Please ensure the extensions are correctly installed on your device.
+
+### ☁️ WebDAV Sync
+
+1. **Configure WebDAV** - Set up your WebDAV server in "Settings → Backup & Restore".
+2. **Auto Backup** - Reading progress, favorites, and history automatically sync to the cloud.
+3. **Multi-Device Sync** - Seamlessly sync reading state across different devices.
+4. **Smart Merge** - Timestamp-based intelligent merging to avoid data conflicts.
+
+### 📥 Site Favorite Import/Sync
+
+Support for importing favorites from logged-in sites to local, or syncing local favorites back to the site.
+
+#### Supported Sites
+
+| Site | Import Favorites | Sync Favorites | Remarks |
+| :--- | :---: | :---: | :--- |
+| CopyManga | ✅ | ✅ | Login required |
+| Zaimanhua | ✅ | ✅ | Login required |
+| Komiic | ✅ | ✅ | Login required |
+| Baozi Manga | ✅ | ✅ | Login required |
+| Manhuagui | ✅ | ✅ | Login required |
+| Hentai Manga | ✅ | ✅ | Login required |
+| Pica Manga | ✅ | ✅ | Login required |
+
+#### How to Use
+
+1. **Import Favorites**
+   - Go to "Favorites" page → Click top-right menu → Select "Import from Site"
+   - Select a logged-in site and click import
+   - Imported favorites will automatically create corresponding site groups (e.g., "CopyManga")
+
+2. **Sync Favorites**
+   - Go to "Favorites" page → Click top-right menu → Select "Sync to Site"
+   - Select the target site to push local favorites to the site
+
+3. **Auto Grouping**
+   - Favorites imported from sites will automatically be placed into groups named after the site.
+   - If a group with the same name already exists, it will merge automatically without creating duplicates.
+   - Manually added favorites will also be categorized automatically based on their source.
+
+
+## 🛠️ Tech Stack
 
 - **Kotlin** - Primary development language
 - **Android Jetpack** - Modern Android development architecture
 - **Kotatsu Parser** - Manga/novel parser framework
 - **WebDAV** - Cloud sync protocol
-- **Trae** - AI IDE for development assistance
+- **AI IDEs** - AI IDE assisted development
 
-## Installation
+## 📦 Installation
 
-### Option 1: Download APK
-
-Grab the latest APK from the [Releases](https://github.com/skepsun/kototoro/releases) page.
-
-### Option 2: Build from Source
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/skepsun/Kototoro.git
-cd Kototoro
-
-# 2. Build Debug version
-./gradlew assembleDebug
-```
-
-## Usage
-
-### Foldable devices
-
-- Split-view reading (list and content side by side)
-- Adaptive layout for different form factors
-
-### WebDAV Sync
-
-1. **Configure WebDAV** - Set up your WebDAV server in "Settings → Backup & Restore"
-2. **Auto Backup** - Reading progress, favorites, and history automatically sync to cloud
-3. **Multi-Device Sync** - Seamlessly sync reading state across different devices
-4. **Smart Merge** - Timestamp-based intelligent merging to avoid data conflicts
-
-### Video playback
-
-1. On supported video sources, tap “Play” on the detail screen to open the built-in player.
-2. Use the top-right “Orientation” action to toggle or lock screen rotation (landscape by default).
-3. Use the “Quality” action to switch between available tracks when provided by the source.
-4. If a direct stream cannot be resolved, Kototoro opens the original page in the in-app browser.
-
-### Novel Reading
-
-1. **Online Reading** - Read online novels in the built-in reader
-2. **EPUB Download** - Download and read EPUB format e-books
-3. **Reading Settings** - Customize font size, line spacing, background color, etc.
-4. **Chapter Navigation** - Quick jump to specific chapters
-
-### Check for Updates
-
-1. Go to "Settings → About → Version"
-2. Tap on the version number to check for updates
-3. If a new version is available, update details and download link will be shown
-
-**Note**: If you build the app with your own signature, you need to update the certificate SHA256 to use the update check feature. See [APP_UPDATE_FIX.md](../APP_UPDATE_FIX.md)
+Download the latest APK file from the [Releases page](https://github.com/skepsun/kototoro/releases).
 
 
-## Development
+## 🔧 Development
 
 ### Requirements
 
@@ -116,11 +129,15 @@ cd Kototoro
 ### Project Structure
 
 ```
-Kototoro/
-├── app/                    # Main application module
-├── kototoro-parsers/       # Parser module
-├── .github/workflows/      # CI/CD configuration
-└── metadata/              # App metadata
+kototoro_demo/                    # Development directory
+├── Kototoro/                    # Main application repository
+│   ├── app/                     # Main application module
+│   ├── gradle/                  # Gradle configuration
+│   ├── .github/workflows/       # CI/CD configuration
+│   └── metadata/                # App metadata (screenshots, etc.)
+│
+└── kototoro-parsers/            # Parser repository (independent)
+    └── src/main/kotlin/.../site/  # Parsers for each site
 ```
 
 ### Contributing
@@ -133,46 +150,22 @@ Issues and pull requests are welcome!
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## License
+## 📝 License
 
-This project follows the license of Kotatsu. See [LICENSE](LICENSE).
+This project is based on the license of **Kotatsu**. See the [LICENSE](LICENSE) file for details.
 
-## Acknowledgements
+## 🤝 Acknowledgements
 
-- **Kotatsu Team** - Original manga reader and parser framework
-- **Venera Team** - Feature-rich open-source reader with excellent Chinese parsers
-- **All Contributors** - Thanks to everyone who has contributed to this project
+- **[Kotatsu](https://github.com/KotatsuApp/Kotatsu)** - Original project developers, providing the manga reader and parser framework.
+- **[Venera](https://github.com/venera-app/venera)** - Another excellent and powerful open-source manga reader project, providing great Chinese parser code.
+- **[Light Novel Yuedu Source](https://github.com/ZWolken/Light-Novel-Yuedu-Source)** - Provided reference code for some light novel sources.
+- **Large Language Models** - claude, gemini, gpt.
 
-## Contact
+## 📞 Contact
 
-- GitHub Issues: https://github.com/skepsun/kototoro/issues
-- Email: chuxiongsun@gmail.com
-
-## 🗺️ Roadmap
-
-- [ ] Improve EPUB reader functionality (save reading progress)
-- [ ] Add more Chinese manga/novel site support
-- [ ] Optimize video playback experience
-- [ ] Improve WebDAV sync mechanism
-### 🧩 Mihon Extensions Guide
-
-Kototoro now supports the Mihon (formerly Tachiyomi) extension system. You can add and use more manga sources by following these steps:
-
-1. **Install and Configure Mihon**:
-   - Install the official [Mihon](https://mihon.app/) app.
-   - Add extension repositories in Mihon (e.g., [Keiyoushi](https://keiyoushi.github.io/extensions/)).
-   - Download and install the manga source extensions you need within Mihon.
-2. **Use in Kototoro**:
-   - Open Kototoro and tap "Browse" in the bottom navigation.
-   - Switch to the "Mihon" tab. The app will automatically detect installed Mihon extensions on your device.
-   - You can browse and use these sources directly from here.
-3. **Force Refresh Detection**:
-   - If newly installed extensions don't appear, go to "Settings" → "Content Source" → "Mihon Extensions".
-   - Pull down to refresh the page and force a re-detection of installed extensions.
-
-> [!NOTE]
-> Kototoro achieves compatibility by detecting Mihon extension APKs installed on your system. Please ensure they are correctly installed on your device.
+- **GitHub Issues**: [Issue Feedback](https://github.com/skepsun/kototoro/issues)
+- **Email**: chuxiongsun@gmail.com
 
 ---
 
-⭐ If you find this project helpful, please give it a star!
+⭐ If you find this project helpful, please give us a star!
