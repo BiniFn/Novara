@@ -158,6 +158,7 @@ kototoro_demo/                    # 开发目录
 ## 🤝 致谢
 
 - **[Kotatsu](https://github.com/KotatsuApp/Kotatsu)** - 原始项目的开发者，提供漫画阅读器和解析器框架
+- **[Mihon](https://github.com/mihonapp/mihon)** - 优秀的开源漫画阅读器，本项目集成了其插件系统
 - **[Venera](https://github.com/venera-app/venera)** - 另一个优秀的功能强大的开源漫画阅读器项目，并提供优秀的中文解析器代码
 - **[阅读轻小说源](https://github.com/ZWolken/Light-Novel-Yuedu-Source)** - 提供了一部分轻小说源的参考代码
 - **大模型** - claude、gemini、gpt

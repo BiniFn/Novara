@@ -157,6 +157,7 @@ This project is based on the license of **Kotatsu**. See the [LICENSE](LICENSE) 
 ## 🤝 Acknowledgements
 
 - **[Kotatsu](https://github.com/KotatsuApp/Kotatsu)** - Original project developers, providing the manga reader and parser framework.
+- **[Mihon](https://github.com/mihonapp/mihon)** - Excellent open-source manga reader; this project integrates its extension system.
 - **[Venera](https://github.com/venera-app/venera)** - Another excellent and powerful open-source manga reader project, providing great Chinese parser code.
 - **[Light Novel Yuedu Source](https://github.com/ZWolken/Light-Novel-Yuedu-Source)** - Provided reference code for some light novel sources.
 - **Large Language Models** - claude, gemini, gpt.
