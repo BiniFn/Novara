@@ -238,9 +238,15 @@ class MihonExtensionLoader @Inject constructor(
             ?: return MihonLoadResult.Error(pkgName, "No version name")
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
         
-        // Extract library version from version name (e.g., "1.5.2" -> 1.5)
-        val libVersion = versionName.substringBeforeLast('.').toDoubleOrNull()
-            ?: return MihonLoadResult.Error(pkgName, "Invalid lib version: $versionName")
+        // Extract library version from version name (e.g., "1.5.2" -> 1.5 or "1.5" -> 1.5)
+        val libVersion = try {
+            versionName.split('.').let { parts ->
+                if (parts.size >= 2) "${parts[0]}.${parts[1]}".toDouble()
+                else parts[0].toDouble()
+            }
+        } catch (e: Exception) {
+            return MihonLoadResult.Error(pkgName, "Invalid lib version format: $versionName")
+        }
         
         // Check library version compatibility
         if (libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {

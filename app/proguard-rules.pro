@@ -35,3 +35,29 @@
 -keep class org.mozilla.classfile.** { *; }
 -dontwarn org.mozilla.javascript.**
 -dontwarn org.mozilla.classfile.**
+
+# Mihon / Tachiyomi Extension Support
+# Extensions are separate APKs that depend on these classes in the host app.
+# If they are stripped or renamed, extensions will fail to load or crash.
+-keep class eu.kanade.tachiyomi.** { *; }
+-keep interface eu.kanade.tachiyomi.** { *; }
+-keep class uy.kohesive.injekt.** { *; }
+-keep interface uy.kohesive.injekt.** { *; }
+-keep class rx.** { *; }
+-keep interface rx.** { *; }
+
+# OkHttp and Okio are used by extensions
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep interface okio.** { *; }
+
+# Keep the Mihon bridge and model classes
+-keep class org.skepsun.kototoro.mihon.** { *; }
+
+# Common dependencies used by extensions
+-keep class org.jsoup.** { *; }
+-keep class com.google.gson.** { *; }
+-dontwarn okio.**
+-dontwarn okhttp3.**
+-dontwarn rx.**
