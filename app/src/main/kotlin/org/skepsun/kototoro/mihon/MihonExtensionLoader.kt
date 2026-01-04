@@ -43,8 +43,8 @@ class MihonExtensionLoader @Inject constructor(
         private const val METADATA_NSFW = "tachiyomi.extension.nsfw"
         
         // Supported library version range
-        const val LIB_VERSION_MIN = 1.4
-        const val LIB_VERSION_MAX = 1.5
+        const val LIB_VERSION_MIN = 1.2
+        const val LIB_VERSION_MAX = 1.9
         
         // Package flags for querying extension info
         @Suppress("DEPRECATION")
@@ -69,9 +69,16 @@ class MihonExtensionLoader @Inject constructor(
         
         // Get all installed packages
         val installedPkgs = getInstalledPackages(pkgManager)
+        android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
         
         // Filter to only extension packages
-        val extPkgs = installedPkgs.filter { isPackageAnExtension(it) }
+        val extPkgs = installedPkgs.filter { pkg ->
+            val isExt = isPackageAnExtension(pkg)
+            if (pkg.packageName.contains("coomer", ignoreCase = true)) {
+                android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
+            }
+            isExt
+        }
         
         if (extPkgs.isEmpty()) {
             android.util.Log.d(TAG, "No Mihon extensions found")
@@ -156,28 +163,36 @@ class MihonExtensionLoader @Inject constructor(
         // Method 1: Check for explicit feature declaration
         val hasFeature = pkgInfo.reqFeatures?.any { it.name == EXTENSION_FEATURE } == true
         
-        // Method 2: Check for package naming convention
-        val hasPackageName = pkgName.startsWith("eu.kanade.tachiyomi.extension.") ||
-                            pkgName.startsWith("org.keiyoushi.tachiyomi.extension.")
+        // Method 2: Check for package naming convention (optional but helps)
+        val hasPackageName = pkgName.contains(".extension") || 
+                            pkgName.startsWith("eu.kanade.tachiyomi.") ||
+                            pkgName.startsWith("org.keiyoushi.")
         
         // Method 3: Check for metadata in application info
         val hasMetaData = pkgInfo.applicationInfo?.metaData?.containsKey(METADATA_SOURCE_CLASS) == true ||
                          pkgInfo.applicationInfo?.metaData?.containsKey(METADATA_SOURCE_FACTORY) == true
         
+        // Mihon strictly checks for the feature, but we can be more inclusive
         val isExtension = hasFeature || (hasPackageName && hasMetaData)
         
-        // Enhanced logging for debugging
-        if (pkgName.contains("manhua", ignoreCase = true) || pkgName.contains("tachiyomi", ignoreCase = true)) {
-            android.util.Log.d(TAG, "Checking package: $pkgName")
-            android.util.Log.d(TAG, "  - Has feature '$EXTENSION_FEATURE': $hasFeature")
-            android.util.Log.d(TAG, "  - Has valid package name: $hasPackageName")
-            android.util.Log.d(TAG, "  - Has metadata: $hasMetaData")
-            val metaData = pkgInfo.applicationInfo?.metaData
-            if (metaData != null) {
-                val keys = metaData.keySet()
-                android.util.Log.d(TAG, "  - Metadata keys: ${keys.joinToString(", ")}")
+        // Enhanced logging for debugging - LOG ALL POTENTIAL MATCHES
+        val lowercasePkg = pkgName.lowercase()
+        if (lowercasePkg.contains("coomer") || 
+            lowercasePkg.contains("keiyoushi") ||
+            lowercasePkg.contains("tachiyomi") ||
+            lowercasePkg.contains("mihon") ||
+            isExtension) {
+            android.util.Log.d(TAG, "[SCAN] Package: $pkgName")
+            android.util.Log.d(TAG, "  - isExtension: $isExtension (feature=$hasFeature, name=$hasPackageName, meta=$hasMetaData)")
+            
+            if (lowercasePkg.contains("coomer")) {
+                val metaData = pkgInfo.applicationInfo?.metaData
+                val keys = metaData?.keySet()?.joinToString(", ") ?: "null"
+                android.util.Log.d(TAG, "  - $pkgName Metadata Keys: $keys")
+                
+                val features = pkgInfo.reqFeatures?.map { it.name }?.joinToString(", ") ?: "null"
+                android.util.Log.d(TAG, "  - $pkgName Features: $features")
             }
-            android.util.Log.d(TAG, "  - Is recognized as extension: $isExtension")
         }
         
         if (isExtension) {
@@ -238,15 +253,16 @@ class MihonExtensionLoader @Inject constructor(
             ?: return MihonLoadResult.Error(pkgName, "No version name")
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
         
-        // Extract library version from version name (e.g., "1.5.2" -> 1.5 or "1.5" -> 1.5)
-        val libVersion = try {
-            versionName.split('.').let { parts ->
-                if (parts.size >= 2) "${parts[0]}.${parts[1]}".toDouble()
-                else parts[0].toDouble()
+        // Extract library version - match Mihon's logic (substringBeforeLast)
+        val libVersion = versionName.substringBeforeLast('.').toDoubleOrNull()
+            ?: try {
+                versionName.split('.').let { parts ->
+                    if (parts.size >= 2) "${parts[0]}.${parts[1]}".toDouble()
+                    else parts[0].toDouble()
+                }
+            } catch (e: Exception) {
+                return MihonLoadResult.Error(pkgName, "Invalid lib version format: $versionName")
             }
-        } catch (e: Exception) {
-            return MihonLoadResult.Error(pkgName, "Invalid lib version format: $versionName")
-        }
         
         // Check library version compatibility
         if (libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {

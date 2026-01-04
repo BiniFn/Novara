@@ -207,6 +207,7 @@ dependencies {
 
 	implementation libs.okhttp
 	implementation libs.okhttp.tls
+	implementation libs.okhttp.brotli
 	implementation libs.okhttp.dnsoverhttps
 	implementation libs.okio
 	implementation libs.kotlinx.serialization.json
@@ -239,8 +240,7 @@ dependencies {
 	implementation libs.kizzyrpc
 
 	// EPUB support for Novelia Wenku
-	//noinspection UseTomlInstead
-	implementation 'com.github.ag2s20150909:EpubLib:0.0.1'
+	implementation libs.epublib
 
 	// Media3 for video playback
 	implementation libs.androidx.media3.exoplayer
@@ -254,8 +254,8 @@ dependencies {
 	implementation libs.conscrypt.android
 	
 	// Mihon extension compatibility
-	implementation 'uy.kohesive.injekt:injekt-core:1.16.1'
-	implementation 'io.reactivex:rxjava:1.3.8'
+	implementation libs.injekt.core
+	implementation libs.rxjava
 
 	debugImplementation libs.leakcanary.android
 	nightlyImplementation libs.leakcanary.android
@@ -267,7 +267,7 @@ dependencies {
 	testImplementation libs.kotest.property
 	testImplementation libs.kotest.runner.junit5
 	testImplementation libs.kotest.assertions.core
-	testImplementation 'io.mockk:mockk:1.13.13'
+	testImplementation libs.mockk
 
 	androidTestImplementation libs.androidx.runner
 	androidTestImplementation libs.androidx.rules
