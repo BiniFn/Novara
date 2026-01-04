@@ -2,11 +2,18 @@
 
 ![App Icon](metadata/en-US/icon.png)
 
-[![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) [![中文](https://img.shields.io/badge/语言-中文-blue)](README.md)
-
-## Overview
-
 Kototoro is an unofficial fork of Kotatsu focused on delivering a great manga, video, and novel reading experience, with enhanced support for Chinese-language sites while retaining full reader functionality.
+[![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) [![中文](https://img.shields.io/badge/语言-中文-blue)](README.md) ![version](https://img.shields.io/badge/version-0.2.2-blue)
+
+### 🚀 Recent Updates (v0.2.2)
+1. **Mihon Extension Support**: Full support for Mihon extensions, significantly expanding the available manga sources.
+2. **Manga Source Management**: Implemented a comprehensive manga source management system with network requests, UI components, and source import capabilities.
+3. **Local Manga Import**: Improved the logic for importing local manga.
+4. **Performance & Stability**:
+    - Refined double-page mode indexing logic.
+    - Enhanced ProGuard rules for better Release build stability.
+    - Fixed potential issues in URL conversion logic.
+5. **CI/CD Optimization**: Automatic Release changelog generation and support for manual-triggered releases.
 
 ### 🎯 Key Features
 
@@ -147,6 +154,24 @@ This project follows the license of Kotatsu. See [LICENSE](LICENSE).
 - [ ] Add more Chinese manga/novel site support
 - [ ] Optimize video playback experience
 - [ ] Improve WebDAV sync mechanism
+### 🧩 Mihon Extensions Guide
+
+Kototoro now supports the Mihon (formerly Tachiyomi) extension system. You can add and use more manga sources by following these steps:
+
+1. **Install and Configure Mihon**:
+   - Install the official [Mihon](https://mihon.app/) app.
+   - Add extension repositories in Mihon (e.g., [Keiyoushi](https://keiyoushi.github.io/extensions/)).
+   - Download and install the manga source extensions you need within Mihon.
+2. **Use in Kototoro**:
+   - Open Kototoro and tap "Browse" in the bottom navigation.
+   - Switch to the "Mihon" tab. The app will automatically detect installed Mihon extensions on your device.
+   - You can browse and use these sources directly from here.
+3. **Force Refresh Detection**:
+   - If newly installed extensions don't appear, go to "Settings" → "Content Source" → "Mihon Extensions".
+   - Pull down to refresh the page and force a re-detection of installed extensions.
+
+> [!NOTE]
+> Kototoro achieves compatibility by detecting Mihon extension APKs installed on your system. Please ensure they are correctly installed on your device.
 
 ---
 

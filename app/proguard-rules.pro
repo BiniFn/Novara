@@ -146,3 +146,16 @@
 -keep class kotlinx.coroutines.** { *; }
 -dontwarn kotlinx.coroutines.**
 
+# AndroidX Preference (ConfigurableSource uses it to setup settings screen)
+-keep class androidx.preference.** { *; }
+-keep interface androidx.preference.** { *; }
+-keepclassmembers class androidx.preference.** {
+    public <init>(...);
+    public protected *;
+}
+
+# RxJava 2/3 (used by newer extension APIs)
+-keep class io.reactivex.** { *; }
+-keep interface io.reactivex.** { *; }
+-dontwarn io.reactivex.**
+

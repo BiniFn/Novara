@@ -15,6 +15,31 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
+        fetch-depth: 0
+    
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        CURRENT_TAG=${{ github.ref_name }}
+        # Find the most recent tag before the current one
+        # If this is the first tag, PREVIOUS_TAG will be empty
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 --exclude="$CURRENT_TAG" 2>/dev/null || echo "")
+        
+        echo "Current Tag: $CURRENT_TAG"
+        echo "Previous Tag: $PREVIOUS_TAG"
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          echo "No previous tag found. Getting all logs."
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+        else
+          echo "Getting logs between $PREVIOUS_TAG and $CURRENT_TAG"
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG..$CURRENT_TAG" --no-merges)
+        fi
+        
+        # Escape for GITHUB_OUTPUT
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
     
     - name: Set up JDK
       uses: actions/setup-java@v4
@@ -96,7 +121,7 @@ jobs:
           3. 如果是首次安装，需要允许安装未知来源应用
           
           ### Changelog
-          请查看提交历史了解详细更新内容
+          ${{ steps.changelog.outputs.changelog }}
         draft: false
         prerelease: false
       env:
