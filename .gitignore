@@ -34,3 +34,4 @@ keystore
 release.keystore
 app/keystore/
 *.sh
+*.log
