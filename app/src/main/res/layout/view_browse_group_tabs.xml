@@ -13,8 +13,8 @@
 		android:layout_height="wrap_content"
 		android:paddingStart="@dimen/list_spacing_normal"
 		android:paddingEnd="@dimen/list_spacing_normal"
-		android:paddingTop="@dimen/list_spacing_small"
-		android:paddingBottom="@dimen/list_spacing_small"
+		android:paddingTop="2dp"
+		android:paddingBottom="2dp"
 		app:singleSelection="true"
 		app:selectionRequired="true"
 		app:chipSpacingHorizontal="@dimen/list_spacing_small" />

@@ -34,11 +34,10 @@ import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.util.SpanSizeResolver
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
-import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.findAppCompatDelegate
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
-import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.databinding.FragmentExploreBinding
 import org.skepsun.kototoro.explore.ui.adapter.ExploreAdapter
 import org.skepsun.kototoro.explore.ui.adapter.ExploreListEventListener
@@ -131,7 +130,7 @@ class ExploreFragment :
 	private fun setupSourceTagChips(binding: FragmentExploreBinding) {
 		val chipGroup = binding.chipGroupAdultFilter
 		chipGroup.removeAllViews()
-		chipGroup.isSingleSelection = false
+		chipGroup.isSingleSelection = true
 		chipGroup.isSelectionRequired = false
 		
 		// Colors tuned for better contrast and feedback
@@ -167,20 +166,23 @@ class ExploreFragment :
 				isChecked = tag in viewModel.currentSourceTags.value
 				
 				// Compact visuals
-				chipMinHeight = 14f
+				val density = resources.displayMetrics.density
+				chipMinHeight = 28 * density
 				minHeight = 0
-				textSize = 9f
-				chipStartPadding = 4f
-				chipEndPadding = 4f
+				setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
+				chipStartPadding = 4 * density
+				chipEndPadding = 4 * density
 				setEnsureMinTouchTargetSize(false) // allow height < 48dp
 				
-				chipStrokeWidth = 1f
+				chipStrokeWidth = 1 * density
 				chipStrokeColor = strokeColors
 				chipBackgroundColor = bgColors
 				setTextColor(textColors)
 			}
 			chipGroup.addView(chip)
 		}
+		
+		chipGroup.chipSpacingVertical = 0
 		
 		chipGroup.setOnCheckedStateChangeListener { group, checkedIds ->
 			val selectedTags = checkedIds.mapNotNull { id ->
@@ -199,7 +201,7 @@ class ExploreFragment :
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val barsInsets = insets.systemBarsInsets
+		val barsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
 		val groupTabs = viewBinding?.groupTabs
 		if (groupTabsInitialPadding == null && groupTabs != null) {
@@ -228,7 +230,7 @@ class ExploreFragment :
 			/* right = */ barsInsets.right + basePadding,
 			/* bottom = */ barsInsets.bottom + basePadding,
 		)
-		return insets.consumeAllSystemBarsInsets()
+		return insets.consumeAll(WindowInsetsCompat.Type.systemBars())
 	}
 
 	override fun onDestroyView() {

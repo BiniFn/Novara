@@ -36,7 +36,7 @@
 -dontwarn org.mozilla.javascript.**
 -dontwarn org.mozilla.classfile.**
 
-# Mihon / Tachiyomi Extension Support
+# Mihon / Aniyomi Extension Support
 # Extensions are separate APKs that depend on these classes in the host app.
 # If they are stripped or renamed, extensions will fail to load or crash.
 
@@ -80,7 +80,7 @@
 -dontwarn okio.**
 -dontwarn okhttp3.**
 
-# Keep the Mihon bridge and model classes - preserve constructors for reflection
+# Keep the Mihon / Aniyomi bridge and model classes - preserve constructors for reflection
 -keep class org.skepsun.kototoro.mihon.** { *; }
 -keepclassmembers class org.skepsun.kototoro.mihon.** {
     public <init>(...);
@@ -88,6 +88,14 @@
 }
 -keep class org.skepsun.kototoro.mihon.util.ChildFirstPathClassLoader { *; }
 -keep class org.skepsun.kototoro.mihon.compat.** { *; }
+
+-keep class org.skepsun.kototoro.aniyomi.** { *; }
+-keepclassmembers class org.skepsun.kototoro.aniyomi.** {
+    public <init>(...);
+    public protected *;
+}
+-keep class org.skepsun.kototoro.aniyomi.util.ChildFirstPathClassLoader { *; }
+-keep class org.skepsun.kototoro.aniyomi.compat.** { *; }
 
 # Jsoup (used by ParsedHttpSource)
 -keep class org.jsoup.** { *; }

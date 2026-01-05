@@ -2,21 +2,20 @@
 
 ![应用图标](metadata/en-US/icon.png)
 
-[![中文](https://img.shields.io/badge/语言-中文-blue)](README.md) [![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) ![version](https://img.shields.io/badge/version-0.2.2-blue)
+[![中文](https://img.shields.io/badge/语言-中文-blue)](README.md) [![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) ![version](https://img.shields.io/badge/version-0.2.5-blue)
 
 ## 📖 项目简介
 
 **Kototoro** 是一个基于 **Kotatsu** 的非官方分支项目，专注于为中国用户提供更好的漫画、小说和视频阅读播放体验。
 
-### 🚀 最近更新 (v0.2.2)
-1. **Mihon 扩展支持**：完整支持 Mihon 扩展插件，极大地扩展了漫画源。
+### 🚀 最近更新 (v0.2.5)
+1. **Mihon / Aniyomi 扩展支持**：完整支持 Mihon (漫画) 和 Aniyomi (动漫/视频) 扩展插件，极大地扩展了内容源。
 2. **漫画源管理系统**：实现了完善的漫画源管理系统，包含网络请求、UI 组件及源导入功能。
-3. **本地漫画导入**：完善了本地漫画的导入逻辑。
-4. **性能与稳定性**：
-    - 改进了双页模式的索引逻辑。
+3. **性能与稳定性**：
+    - 改进了视频播放器的兼容性，自动移除导致 400 错误的请求头。
+    - 优化了探索页面的 UI 布局，标签栏更加紧凑美观。
     - 增强了 ProGuard 混淆规则，提高 Release 版本的稳定性。
-    - 修复了 URL 转换逻辑中的潜在问题。
-5. **CI/CD 优化**：自动生成 Release 更新日志，支持手动触发发布。
+4. **CI/CD 优化**：自动生成 Release 更新日志，支持手动触发发布。
 
 ### 🎯 主要特性
 
@@ -29,7 +28,7 @@
 - ✅ **折叠屏适配** - 完美适配折叠屏设备，支持双页模式与自适应布局
 - ✅ **WebDAV 同步** - 跨设备自动备份/恢复收藏、历史、分组、登录凭据等数据
 - ✅ **站点收藏导入和同步** - 支持从已登录的站点导入收藏到本地，或将本地收藏同步到站点
-- ✅ **Mihon 扩展支持** - 完整支持 Mihon 扩展插件，极大地扩展了漫画源。
+- ✅ **Mihon / Aniyomi 扩展支持** - 完整支持 Mihon 和 Aniyomi 扩展插件，极大地扩展了内容源。
 
 ## 应用截图
 <div align="center">
@@ -45,24 +44,24 @@
 
 ## 🎮 使用指南
 
-### 🧩 Mihon 扩展插件指南
+### 🧩 Mihon / Aniyomi 扩展插件指南
 
-Kototoro 现已支持 Mihon (原 Tachiyomi) 的扩展插件系统，您可以按以下步骤添加并使用更多漫画源：
+Kototoro 现已支持 Mihon (原 Tachiyomi) 和 Aniyomi 的扩展插件系统，您可以按以下步骤添加并使用更多内容源：
 
-1. **安装并配置 Mihon**：
-   - 安装 [Mihon](https://mihon.app/) 官方应用。
-   - 在 Mihon 中添加扩展插件仓库（如 [Keiyoushi](https://keiyoushi.github.io/extensions/)）。
-   - 在 Mihon 中下载并安装您需要的漫画源插件。
+1. **安装并配置相关应用**：
+   - 安装 [Mihon](https://mihon.app/) (用于漫画) 或 [Aniyomi](https://aniyomi.org/) (用于动漫/视频) 官方应用。
+   - 在对应应用中添加扩展插件仓库（如 Mihon 的 [Keiyoushi](https://keiyoushi.github.io/extensions/)）。
+   - 下载并安装您需要的源插件。
 2. **在 Kototoro 中使用**：
    - 打开 Kototoro，点击底部导航栏的 "浏览"。
-   - 切换到 "Mihon" 标签页，应用会自动检测手机中已安装的 Mihon 插件。
+   - 切换到 "Mihon" 或 "Aniyomi" 标签页，应用会自动检测手机中已安装的插件。
    - 您可以直接在此浏览并使用这些插件源。
 3. **强制刷新检测**：
-   - 如果新安装的插件没有出现，可以进入 "设置" → "内容源" → "Mihon 扩展"。
+   - 如果新安装的插件没有出现，可以进入 "设置" → "内容源" → "Mihon / Aniyomi 扩展"。
    - 在此页面下拉刷新，强制系统重新检测已安装的插件。
 
 > [!NOTE]
-> Kototoro 通过检测系统中安装的 Mihon 插件 APK 来实现兼容，因此请确保插件已正确安装在您的设备上。
+> Kototoro 通过检测系统中安装的插件 APK 来实现兼容，因此请确保插件已正确安装在您的设备上。
 
 ### ☁️ WebDAV同步
 

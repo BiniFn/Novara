@@ -225,9 +225,6 @@ class AniyomiAnimeRepository(
         for (i in 0 until headers.size) {
             map[headers.name(i)] = headers.value(i)
         }
-        if (map["Referer"] == null) {
-            map["Referer"] = httpSource.baseUrl
-        }
         return map
     }
 }

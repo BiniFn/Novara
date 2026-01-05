@@ -292,25 +292,15 @@ class ExploreViewModel @Inject constructor(
 			val originGroup = sourceGroupManager.getOriginGroup(source)
 			
 			// Apply group tab and secondary tag filters.
-			// Rule: group tab filter AND (adult tag if selected) AND (any selected origin tag).
 			val groupMatches = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
-			val hasAdultTag = SourceTag.ADULT in sourceTags
-			val originTags = sourceTags.filter { it != SourceTag.ADULT }.toSet()
-
-			val adultMatches = if (hasAdultTag) {
-				SourceTag.ADULT.matches(contentGroup, originGroup)
-			} else {
-				true
-			}
-
-			val originMatches = if (originTags.isEmpty()) {
+			
+			val originMatches = if (sourceTags.isEmpty()) {
 				true
 			} else {
-				originTags.any { it.matches(contentGroup, originGroup) }
+				sourceTags.any { it.matches(contentGroup, originGroup) }
 			}
 
-			val tagsMatch = adultMatches && originMatches
-			val passes = groupMatches && tagsMatch
+			val passes = groupMatches && originMatches
 			
 			if (!passes) {
 				android.util.Log.v("ExploreViewModel", "  Filtered out: ${source.name} (contentGroup=$contentGroup, originGroup=$originGroup)")

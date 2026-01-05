@@ -292,10 +292,6 @@ class MihonMangaRepository(
         for (i in 0 until headers.size) {
             map[headers.name(i)] = headers.value(i)
         }
-        // Ensure Referer is present for sources that don't define it in headersBuilder
-        if (map["Referer"] == null) {
-            map["Referer"] = httpSource.baseUrl
-        }
         return map
     }
     

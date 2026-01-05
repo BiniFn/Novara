@@ -78,6 +78,14 @@ class BrowseGroupTabsView @JvmOverloads constructor(
 			text = context.getString(tab.titleRes)
 			tag = tab
 			isCheckable = true
+			
+			// Compact visuals
+			val density = resources.displayMetrics.density
+			chipMinHeight = 28 * density
+			minHeight = 0
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+			setEnsureMinTouchTargetSize(false)
+			
 			setChipBackgroundColorResource(R.color.selector_chip_background)
 			setTextColor(context.getColorStateList(R.color.selector_chip_text))
 		}

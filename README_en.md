@@ -2,21 +2,20 @@
 
 ![App Icon](metadata/en-US/icon.png)
 
-[![Chinese](https://img.shields.io/badge/Language-Chinese-blue)](README.md) [![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) ![version](https://img.shields.io/badge/version-0.2.2-blue)
+[![Chinese](https://img.shields.io/badge/Language-Chinese-blue)](README.md) [![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) ![version](https://img.shields.io/badge/version-0.2.5-blue)
 
 ## 📖 Project Introduction
 
 **Kototoro** is an unofficial fork project based on **Kotatsu**, focused on providing a better manga, novel, and video reading/playing experience for Chinese users.
 
-### 🚀 Recent Updates (v0.2.2)
-1. **Mihon Extension Support**: Full support for Mihon extensions, significantly expanding the available manga sources.
+### 🚀 Recent Updates (v0.2.5)
+1. **Mihon / Aniyomi Extension Support**: Full support for Mihon (manga) and Aniyomi (anime/video) extensions, significantly expanding the available content sources.
 2. **Manga Source Management System**: Implemented a comprehensive manga source management system, including network requests, UI components, and source import functions.
-3. **Local Manga Import**: Refined the logic for importing local manga.
-4. **Performance & Stability**:
-    - Improved double-page mode indexing logic.
+3. **Performance & Stability**:
+    - Improved video player compatibility by automatically removing request headers that cause 400 errors.
+    - Optimized Explore page UI layout with a more compact and elegant tab bar.
     - Enhanced ProGuard obfuscation rules to increase Release version stability.
-    - Fixed potential issues in URL conversion logic.
-5. **CI/CD Optimization**: Automatic Release changelog generation and support for manual-triggered releases.
+4. **CI/CD Optimization**: Automatic Release changelog generation and support for manual-triggered releases.
 
 ### 🎯 Key Features
 
@@ -29,7 +28,7 @@
 - ✅ **Foldable Device Adaptation** - Perfectly adapted for foldable devices, supporting dual-page mode and adaptive layouts.
 - ✅ **WebDAV Sync** - Automatic cross-device backup/restore of favorites, history, groups, login credentials, and more.
 - ✅ **Site Favorite Import and Sync** - Support for importing favorites from logged-in sites to local, or syncing local favorites back to the site.
-- ✅ **Mihon Extension Support** - Full support for Mihon extensions, significantly expanding the available manga sources.
+- ✅ **Mihon / Aniyomi Extension Support** - Full support for Mihon and Aniyomi extensions, significantly expanding the available content sources.
 
 ## Screenshots
 <div align="center">
@@ -45,24 +44,24 @@
 
 ## 🎮 Usage Guide
 
-### 🧩 Mihon Extensions Guide
+### 🧩 Mihon / Aniyomi Extensions Guide
 
-Kototoro now supports the Mihon (formerly Tachiyomi) extension system. You can add and use more manga sources by following these steps:
+Kototoro now supports both Mihon (formerly Tachiyomi) and Aniyomi extension systems. You can add and use more content sources by following these steps:
 
-1. **Install and Configure Mihon**:
-   - Install the official [Mihon](https://mihon.app/) application.
-   - Add extension repositories in Mihon (e.g., [Keiyoushi](https://keiyoushi.github.io/extensions/)).
-   - Download and install the manga source extensions you need in Mihon.
+1. **Install and Configure Apps**:
+   - Install the official [Mihon](https://mihon.app/) (for manga) or [Aniyomi](https://aniyomi.org/) (for anime/video) application.
+   - Add extension repositories in the respective app (e.g., Mihon's [Keiyoushi](https://keiyoushi.github.io/extensions/)).
+   - Download and install the source extensions you need.
 2. **Use in Kototoro**:
    - Open Kototoro and tap "Browse" in the bottom navigation.
-   - Switch to the "Mihon" tab. The app will automatically detect installed Mihon extensions on your device.
+   - Switch to the "Mihon" or "Aniyomi" tab. The app will automatically detect installed extensions on your device.
    - You can browse and use these sources directly from here.
 3. **Force Refresh Detection**:
-   - If newly installed extensions don't appear, go to "Settings" → "Content Source" → "Mihon Extensions".
+   - If newly installed extensions don't appear, go to "Settings" → "Content Source" → "Mihon / Aniyomi Extensions".
    - Pull down to refresh the page and force a re-detection of installed extensions.
 
 > [!NOTE]
-> Kototoro achieves compatibility by detecting Mihon extension APKs installed on your system. Please ensure the extensions are correctly installed on your device.
+> Kototoro achieves compatibility by detecting extension APKs installed on your system. Please ensure the extensions are correctly installed on your device.
 
 ### ☁️ WebDAV Sync
 

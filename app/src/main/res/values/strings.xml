@@ -1144,4 +1144,5 @@
         <item quantity="one">%d source</item>
         <item quantity="other">%d sources</item>
     </plurals>
+    <string name="built_in_sources">Built-in</string>
 </resources>

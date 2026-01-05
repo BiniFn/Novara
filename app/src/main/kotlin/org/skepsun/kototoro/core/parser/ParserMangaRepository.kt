@@ -101,12 +101,16 @@ class ParserMangaRepository(
 	}
 
 	fun getAuthProvider(): MangaParserAuthProvider? = parser.authorizationProvider
-    
+
 	override fun getRequestHeaders(): Map<String, String> {
 		val headers = parser.getRequestHeaders()
 		val map = mutableMapOf<String, String>()
 		for (i in 0 until headers.size) {
 			map[headers.name(i)] = headers.value(i)
+		}
+		if (map["Referer"] == null) {
+			val idn = java.net.IDN.toASCII(parser.domain)
+			map["Referer"] = "https://$idn/"
 		}
 		return map
 	}

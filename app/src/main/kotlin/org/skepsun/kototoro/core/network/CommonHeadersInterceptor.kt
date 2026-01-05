@@ -39,6 +39,13 @@ class CommonHeadersInterceptor @Inject constructor(
 		}
 		val headersBuilder = request.headers.newBuilder()
 			.removeAll(CommonHeaders.MANGA_SOURCE)
+			.removeAll(CommonHeaders.ICY_METADATA)
+
+		// Remove headers that should be handled by OkHttp's internal logic to avoid 400 Bad Request
+		headersBuilder.removeAll("Host")
+		headersBuilder.removeAll("Connection")
+		headersBuilder.removeAll("Content-Length")
+
 		repository?.getRequestHeaders()?.forEach { (name, value) ->
 			if (headersBuilder[name] == null) {
 				headersBuilder[name] = value
@@ -48,18 +55,7 @@ class CommonHeadersInterceptor @Inject constructor(
 			headersBuilder[CommonHeaders.USER_AGENT] = mangaLoaderContextLazy.get().getDefaultUserAgent()
 		}
 		val finalSource = repository?.source ?: source
-		if (headersBuilder[CommonHeaders.REFERER] == null && repository is ParserMangaRepository) {
-			val idn = IDN.toASCII(repository.domain)
-			headersBuilder.trySet(CommonHeaders.REFERER, "https://$idn/")
-		}
 		
-		// Some CDNs (hitomi) require Referer even when repository is null (e.g., Coil thumbnail requests).
-		if (headersBuilder[CommonHeaders.REFERER] == null) {
-			val host = request.url.host
-			if (host.contains("gold-usergeneratedcontent.net") || host.contains("hitomi.la")) {
-				headersBuilder.trySet(CommonHeaders.REFERER, "https://hitomi.la/")
-			}
-		}
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
 		val response = (repository as? Interceptor)?.interceptSafe(ProxyChain(chain, newRequest)) ?: chain.proceed(newRequest)
 		
