@@ -62,6 +62,8 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		val repo = viewModel.repository
 		if (repo is MihonMangaRepository) {
 			preferenceManager.sharedPreferencesName = "source_${repo.mihonSource.id}"
+		} else if (repo is org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository) {
+			preferenceManager.sharedPreferencesName = "source_${repo.aniyomiSource.id}"
 		} else {
 			preferenceManager.sharedPreferencesName = viewModel.source.name.replace(File.separatorChar, '$')
 		}
@@ -99,6 +101,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		super.onViewCreated(view, savedInstanceState)
 		tryAddJsPreferences()
 		tryAddMihonPreferences()
+		tryAddAniyomiPreferences()
 		viewLifecycleOwner.lifecycleScope.launchWhenStarted {
 			viewModel.jsAccountMeta.collect { meta ->
 				if (meta != null) {
@@ -362,6 +365,17 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			mihonSource.setupPreferenceScreen(screen)
 		} catch (e: Throwable) {
 			android.util.Log.e("SourceSettingsFragment", "Failed to setup Mihon preferences", e)
+		}
+	}
+
+	private fun tryAddAniyomiPreferences() {
+		val repo = viewModel.repository as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return
+		val aniyomiSource = repo.aniyomiSource as? eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource ?: return
+		val screen = preferenceScreen ?: return
+		try {
+			aniyomiSource.setupPreferenceScreen(screen)
+		} catch (e: Throwable) {
+			android.util.Log.e("SourceSettingsFragment", "Failed to setup Aniyomi preferences", e)
 		}
 	}
 

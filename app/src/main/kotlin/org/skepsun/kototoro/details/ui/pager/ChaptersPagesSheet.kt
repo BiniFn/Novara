@@ -34,6 +34,8 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.recyclerView
 import org.skepsun.kototoro.core.util.ext.smoothScrollToTop
+import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.databinding.SheetChaptersPagesBinding
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.ReadButtonDelegate
@@ -68,15 +70,24 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		
 		// 对于小说和视频类型，禁用页面（缩略图）和书签标签
 		// 支持从DetailsViewModel或VideoChaptersViewModel获取内容类型
-		val manga = when (viewModel) {
-			is DetailsViewModel -> (viewModel as DetailsViewModel).manga.value
+		// 优先从ViewModel获取，如果为null则从Activity的Intent中获取
+		val source = when (viewModel) {
+			is DetailsViewModel -> (viewModel as DetailsViewModel).manga.value?.source
 			is org.skepsun.kototoro.video.ui.VideoChaptersViewModel -> 
-				(viewModel as org.skepsun.kototoro.video.ui.VideoChaptersViewModel).mangaDetails.value?.toManga()
+				(viewModel as org.skepsun.kototoro.video.ui.VideoChaptersViewModel).mangaDetails.value?.toManga()?.source
 			else -> null
+		} ?: run {
+			// 从Activity的Intent中获取Manga，这在Fragment Arguments为空时作为备用方案
+			val intent = activity?.intent
+			intent?.getParcelableExtra<org.skepsun.kototoro.core.model.parcelable.ParcelableManga>(AppRouter.KEY_MANGA)?.manga?.source
 		}
-		val contentType = (manga?.source as? org.skepsun.kototoro.parsers.model.MangaParserSource)?.contentType
+		
+		android.util.Log.d("ChaptersPagesSheet", "Source: $source, type: ${source?.javaClass?.simpleName}")
+		val contentType = source?.getContentType()
+		android.util.Log.d("ChaptersPagesSheet", "ContentType: $contentType")
 		val isNovel = contentType == org.skepsun.kototoro.parsers.model.ContentType.NOVEL || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL
 		val isVideo = contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
+		android.util.Log.d("ChaptersPagesSheet", "isNovel: $isNovel, isVideo: $isVideo")
 		val isPagesTabEnabled = settings.isPagesTabEnabled && !isNovel && !isVideo
 		val isBookmarksTabEnabled = !isVideo // 视频不需要书签功能
 

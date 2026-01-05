@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.util.ext.combine
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import org.skepsun.kototoro.explore.domain.ExploreRepository
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.explore.ui.model.ExploreButtons
 import org.skepsun.kototoro.explore.ui.model.SourceFilter
 import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
@@ -85,6 +86,30 @@ class ExploreViewModel @Inject constructor(
 	 */
 	val currentGroupTab: StateFlow<BrowseGroupTab> = selectedGroupTab
 
+	/**
+	 * Currently selected source tags (multi-select, AND logic)
+	 */
+	private val selectedSourceTags = MutableStateFlow<Set<SourceTag>>(emptySet())
+
+	/**
+	 * Observable selected source tags for UI
+	 */
+	val currentSourceTags: StateFlow<Set<SourceTag>> = selectedSourceTags
+
+	/**
+	 * Available tabs based on NSFW setting
+	 */
+	val availableTabs: StateFlow<List<BrowseGroupTab>> = settings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.IO,
+		key = AppSettings.KEY_DISABLE_NSFW,
+		valueProducer = { BrowseGroupTab.getAvailableTabs(!isNsfwContentDisabled) },
+	)
+
+	/**
+	 * Whether the secondary filter bar should be visible
+	 */
+	val isSourceFilterVisible: StateFlow<Boolean> = MutableStateFlow(true)
+
 	val content: StateFlow<List<ListModel>> = isLoading.flatMapLatest { loading: Boolean ->
 		if (loading) {
 			flowOf<List<ListModel>>(getLoadingStateList())
@@ -100,6 +125,14 @@ class ExploreViewModel @Inject constructor(
 		selectedGroupTab.value = tab
 		// Save preference
 		settings.setSelectedGroupTab(tab.id)
+	}
+
+	/**
+	 * Set selected source tags (multi-select)
+	 */
+	fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		selectedSourceTags.value = tags
+		settings.setSelectedSourceTags(tags.map { it.id }.toSet())
 	}
 	
 	/**
@@ -117,6 +150,10 @@ class ExploreViewModel @Inject constructor(
 		// Restore saved group tab preference
 		val savedTabId = settings.getSelectedGroupTab()
 		selectedGroupTab.value = BrowseGroupTab.fromId(savedTabId ?: BrowseGroupTab.All.id)
+
+		// Restore saved source tag preferences
+		val savedTags = settings.getSelectedSourceTags()
+		selectedSourceTags.value = SourceTag.fromIds(savedTags)
 	}
 
 	fun openRandom() {
@@ -171,7 +208,7 @@ class ExploreViewModel @Inject constructor(
 		}
 	}
 
-	private fun createContentFlow() = combine(
+	private fun createContentFlow() = kotlinx.coroutines.flow.combine(
 			sourcesRepository.observeEnabledSources(),
 			getSuggestionFlow(),
 			isGrid,
@@ -179,15 +216,18 @@ class ExploreViewModel @Inject constructor(
 			isAllSourcesEnabled,
 			sourcesRepository.observeHasNewSourcesForBadge(),
 			selectedGroupTab,
-		) { content, suggestions, grid, randomLoading, allSourcesEnabled, newSources, groupTab ->
+			selectedSourceTags,
+		) { values: Array<Any?> ->
+			@Suppress("UNCHECKED_CAST")
 			buildList(
-				content,
-				suggestions,
-				grid,
-				randomLoading,
-				allSourcesEnabled,
-				newSources,
-				groupTab,
+				values[0] as List<MangaSourceInfo>,
+				values[1] as List<Manga>,
+				values[2] as Boolean,
+				values[3] as Boolean,
+				values[4] as Boolean,
+				values[5] as Boolean,
+				values[6] as BrowseGroupTab,
+				values[7] as Set<SourceTag>,
 			)
 		}.withErrorHandling()
 
@@ -199,9 +239,10 @@ class ExploreViewModel @Inject constructor(
 		allSourcesEnabled: Boolean,
 		hasNewSources: Boolean,
 		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
 	): List<ListModel> {
 		// Apply group tab filtering
-		val filteredSources = applyGroupTabFilter(sources, groupTab)
+		val filteredSources = applyGroupTabFilter(sources, groupTab, sourceTags)
 		
 		val result = ArrayList<ListModel>(filteredSources.size + 3)
 		result += ExploreButtons(randomLoading)
@@ -233,7 +274,6 @@ class ExploreViewModel @Inject constructor(
 	 * Filters sources based on the selected browse group tab:
 	 * - All: Show all sources
 	 * - Manga/Novel/Video: Filter by content type
-	 * - JsonSources: Filter by origin (Legado/TVBox JSON sources)
 	 * 
 	 * @param sources The complete list of sources to filter
 	 * @param groupTab The selected browse group tab
@@ -242,17 +282,35 @@ class ExploreViewModel @Inject constructor(
 	private fun applyGroupTabFilter(
 		sources: List<MangaSourceInfo>,
 		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
 	): List<MangaSourceInfo> {
-		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: total sources=${sources.size}, groupTab=$groupTab")
+		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: total sources=${sources.size}, groupTab=$groupTab, sourceTags=$sourceTags")
 		
 		val filtered = sources.filter { sourceInfo ->
 			val source = sourceInfo.mangaSource
 			val contentGroup = sourceGroupManager.getContentGroup(source)
 			val originGroup = sourceGroupManager.getOriginGroup(source)
 			
-			// Apply group tab filter
-			val passes = groupTab.matchesContentGroup(contentGroup) && 
-				groupTab.matchesOriginGroup(originGroup)
+			// Apply group tab and secondary tag filters.
+			// Rule: group tab filter AND (adult tag if selected) AND (any selected origin tag).
+			val groupMatches = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
+			val hasAdultTag = SourceTag.ADULT in sourceTags
+			val originTags = sourceTags.filter { it != SourceTag.ADULT }.toSet()
+
+			val adultMatches = if (hasAdultTag) {
+				SourceTag.ADULT.matches(contentGroup, originGroup)
+			} else {
+				true
+			}
+
+			val originMatches = if (originTags.isEmpty()) {
+				true
+			} else {
+				originTags.any { it.matches(contentGroup, originGroup) }
+			}
+
+			val tagsMatch = adultMatches && originMatches
+			val passes = groupMatches && tagsMatch
 			
 			if (!passes) {
 				android.util.Log.v("ExploreViewModel", "  Filtered out: ${source.name} (contentGroup=$contentGroup, originGroup=$originGroup)")

@@ -74,6 +74,21 @@ class AppBackupAgent : BackupAgent() {
 							},
 						),
 					),
+					aniyomiExtensionManager = org.skepsun.kototoro.aniyomi.AniyomiExtensionManager(
+						context = applicationContext,
+						loader = org.skepsun.kototoro.aniyomi.AniyomiExtensionLoader(
+							applicationContext = applicationContext,
+							injektBridge = dagger.Lazy {
+								org.skepsun.kototoro.aniyomi.compat.KotoAniyomiInjektBridge(
+									mihonInjektBridge = org.skepsun.kototoro.mihon.compat.KotoInjektBridge(
+										context = applicationContext,
+										httpClient = okhttp3.OkHttpClient(),
+										cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
+									)
+								)
+							}
+						)
+					),
 				),
 				savedFiltersRepository = SavedFiltersRepository(
 					context = applicationContext,
@@ -132,6 +147,21 @@ class AppBackupAgent : BackupAgent() {
 									)
 								},
 							),
+						),
+						aniyomiExtensionManager = org.skepsun.kototoro.aniyomi.AniyomiExtensionManager(
+							context = applicationContext,
+							loader = org.skepsun.kototoro.aniyomi.AniyomiExtensionLoader(
+								applicationContext = applicationContext,
+								injektBridge = dagger.Lazy {
+									org.skepsun.kototoro.aniyomi.compat.KotoAniyomiInjektBridge(
+										mihonInjektBridge = org.skepsun.kototoro.mihon.compat.KotoInjektBridge(
+											context = applicationContext,
+											httpClient = okhttp3.OkHttpClient(),
+											cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
+										)
+									)
+								}
+							)
 						),
 					),
 					savedFiltersRepository = SavedFiltersRepository(

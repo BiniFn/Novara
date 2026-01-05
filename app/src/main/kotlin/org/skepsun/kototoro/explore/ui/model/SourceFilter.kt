@@ -74,9 +74,9 @@ sealed class SourceFilter(
 	 */
 	fun matchesContentGroup(group: ContentGroup): Boolean = when (this) {
 		All, Native, JsonOnly -> true
-		MangaOnly -> group == ContentGroup.MANGA
-		NovelOnly -> group == ContentGroup.NOVEL
-		VideoOnly -> group == ContentGroup.VIDEO
+		MangaOnly -> group == ContentGroup.MANGA || group == ContentGroup.HENTAI_MANGA
+		NovelOnly -> group == ContentGroup.NOVEL || group == ContentGroup.HENTAI_NOVEL
+		VideoOnly -> group == ContentGroup.VIDEO || group == ContentGroup.HENTAI_VIDEO
 	}
 	
 	/**

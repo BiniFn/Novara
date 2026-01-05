@@ -760,7 +760,7 @@
     <string name="invalid_proxy_configuration">Invalid proxy configuration</string>
     <string name="show_quick_filters">Show quick filters</string>
     <string name="show_quick_filters_summary">Provides the ability to filter manga lists by certain parameters</string>
-    <string name="sfw">SFW</string>
+    <string name="sfw">All Ages</string>
     <string name="skip_all">Skip all</string>
     <string name="stuck">Stuck</string>
     <string name="not_in_favorites">Not in favorites</string>
@@ -1114,6 +1114,7 @@
     
     <!-- Browse Group Tabs -->
     <string name="all">All</string>
+    <string name="adult">Adult</string>
     <string name="manga">Manga</string>
     <string name="novel">Novel</string>
     <string name="video">Video</string>
@@ -1138,6 +1139,7 @@
     <string name="no_aniyomi_extensions_text">Install Aniyomi extensions to watch anime online</string>
     <string name="loading_mihon_extensions">Loading Mihon extensions…</string>
     <string name="mihon_extension_error">Failed to load extension: %s</string>
+    <string name="eighteen_plus">18+</string>
     <plurals name="source_count">
         <item quantity="one">%d source</item>
         <item quantity="other">%d sources</item>

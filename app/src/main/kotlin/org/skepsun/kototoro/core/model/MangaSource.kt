@@ -57,6 +57,11 @@ fun MangaSource(name: String?): MangaSource {
 		android.util.Log.d("MangaSource", "Detected Mihon source name: $name, returning stable MangaSource")
 		return AnonymousMangaSource(name)
 	}
+	// Check if it's an Aniyomi source (starts with ANIYOMI_ prefix)
+	if (name.startsWith("ANIYOMI_")) {
+		android.util.Log.d("MangaSource", "Detected Aniyomi source name: $name, returning stable MangaSource")
+		return AnonymousMangaSource(name)
+	}
 	MangaParserSource.entries.forEach {
 		if (it.name == name) return it
 	}
@@ -73,6 +78,7 @@ fun MangaSource.isNsfw(): Boolean = when (this) {
 		ContentType.HENTAI_VIDEO,
 	)
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> isNsfw
+	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> isNsfw
 	else -> false
 }
 
@@ -134,10 +140,36 @@ tailrec fun MangaSource.unwrap(): MangaSource = if (this is MangaSourceInfo) {
 
 fun MangaSource.getLocale(): Locale? = (unwrap() as? MangaParserSource)?.locale?.toLocaleOrNull()
 
+fun MangaSource.getContentType(): ContentType = when (val source = unwrap()) {
+	is MangaParserSource -> source.contentType
+	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
+	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> if (source.isNsfw) ContentType.HENTAI_VIDEO else ContentType.VIDEO
+	else -> {
+		// Fallback for serialized sources that lost their type info (e.g., through Parcelable)
+		// Detect by name prefix
+		val sourceName = source.name
+		when {
+			sourceName.startsWith("ANIYOMI_") -> ContentType.VIDEO  // Aniyomi sources are always video
+			sourceName.startsWith("JSON_TVBOX_") -> ContentType.VIDEO
+			sourceName.startsWith("JSON_LEGADO_") -> ContentType.NOVEL
+			else -> ContentType.MANGA
+		}
+	}
+}
+
 fun MangaSource.getSummary(context: Context): String? = when (val source = unwrap()) {
-	is MangaParserSource -> {
-		val type = context.getString(source.contentType.titleResId)
-		val locale = source.locale.toLocale().getDisplayName(context)
+	is MangaParserSource,
+	is org.skepsun.kototoro.mihon.model.MihonMangaSource,
+	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> {
+		val contentType = getContentType()
+		val type = context.getString(contentType.titleResId)
+		val lang = when (source) {
+			is MangaParserSource -> source.locale.toLocale()
+			is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.language.toLocale()
+			is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.language.toLocale()
+			else -> Locale.getDefault()
+		}
+		val locale = lang.getDisplayName(context)
 		context.getString(R.string.source_summary_pattern, type, locale)
 	}
 
@@ -153,13 +185,6 @@ fun MangaSource.getSummary(context: Context): String? = when (val source = unwra
 		}
 	}
 
-	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> {
-		val contentType = if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
-		val type = context.getString(contentType.titleResId)
-		val locale = source.language.toLocale().getDisplayName(context)
-		context.getString(R.string.source_summary_pattern, type, locale)
-	}
-
 	else -> null
 }
 
@@ -171,12 +196,15 @@ fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()
 	is ExternalMangaSource -> source.resolveName(context)
 	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> source.displayName.ifBlank { source.name }
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
+	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.displayName
 	else -> {
-		// Try to handle anonymous wrappers for JSON or Mihon sources
+		// Try to handle anonymous wrappers for JSON, Mihon, or Aniyomi sources
 		if (source.name.startsWith("MIHON_")) {
 			"Loading Mihon source..."
 		} else if (source.name.startsWith("JSON_")) {
 			"Loading JSON source..."
+		} else if (source.name.startsWith("ANIYOMI_")) {
+			"Loading Aniyomi source..."
 		} else {
 			context.getString(R.string.unknown)
 		}

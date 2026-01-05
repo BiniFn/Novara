@@ -17,6 +17,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getSaveTitleResId
 import org.skepsun.kototoro.core.model.getWholeWorkOptionResId
 import org.skepsun.kototoro.core.model.unwrap
@@ -50,7 +51,7 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		DialogDownloadBinding.inflate(inflater, container, false)
 
 	override fun onBuildDialog(builder: MaterialAlertDialogBuilder): MaterialAlertDialogBuilder {
-		val contentType = (viewModel.manga.firstOrNull()?.source?.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
+		val contentType = viewModel.manga.firstOrNull()?.source?.getContentType() ?: ContentType.MANGA
 		return super.onBuildDialog(builder)
 			.setTitle(contentType.getSaveTitleResId())
 			.setCancelable(true)
@@ -58,7 +59,7 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 
 	override fun onViewBindingCreated(binding: DialogDownloadBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		val contentType = (viewModel.manga.firstOrNull()?.source?.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
+		val contentType = viewModel.manga.firstOrNull()?.source?.getContentType() ?: ContentType.MANGA
 		binding.optionWholeManga.title = getString(contentType.getWholeWorkOptionResId())
 
 		optionViews = arrayOf(

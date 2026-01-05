@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.core.jsonsource
 
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
@@ -28,73 +29,52 @@ class SourceGroupManager @Inject constructor(
 	 * @return The ContentGroup enum value
 	 */
 	fun getContentGroup(source: MangaSource): ContentGroup {
-		// For JSON sources, parse the config to determine content type
-		if (source is JsonMangaSource) {
-			return getContentGroupFromJsonSource(source)
-		}
+		val isNsfw = source.isNsfw()
 		
-		// For native sources, check the ContentType
+		// Priority 1: Check native MangaParserSource content type
 		if (source is MangaParserSource) {
 			return when (source.contentType) {
-				ContentType.MANGA,
-				ContentType.MANHWA,
-				ContentType.MANHUA,
-				ContentType.HENTAI_MANGA,
-				ContentType.COMICS,
-				ContentType.ONE_SHOT,
-				ContentType.DOUJINSHI,
-				ContentType.IMAGE_SET,
-				ContentType.ARTIST_CG,
-				ContentType.GAME_CG -> ContentGroup.MANGA
-				
-				ContentType.NOVEL,
-				ContentType.HENTAI_NOVEL -> ContentGroup.NOVEL
-				
-				ContentType.VIDEO,
-				ContentType.HENTAI_VIDEO -> ContentGroup.VIDEO
-				
-				ContentType.OTHER -> ContentGroup.OTHER
+				ContentType.NOVEL, ContentType.HENTAI_NOVEL -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+				ContentType.VIDEO, ContentType.HENTAI_VIDEO -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+				else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 			}
 		}
 		
-		// For Mihon sources, most are manga
+		// Priority 2: Check for known source wrappers
 		if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
-			return ContentGroup.MANGA
+			return if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 		}
 		
-		// For Aniyomi sources, all are video
 		if (source is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource) {
-			return ContentGroup.VIDEO
+			return if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 		}
 		
-		return ContentGroup.OTHER
-	}
-	
-	/**
-	 * Gets the content group from a JSON source by parsing its configuration.
-	 * 
-	 * @param source The JSON manga source
-	 * @return The ContentGroup enum value
-	 */
-	private fun getContentGroupFromJsonSource(source: JsonMangaSource): ContentGroup {
-		return try {
-			when (source.entity.type) {
-				org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
-					// Per convention: all Legado JSON sources are treated as novel sources
-					ContentGroup.NOVEL
+		if (source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
+			return try {
+				when (source.entity.type) {
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
+						if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+					}
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
+						if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+					}
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> {
+						if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+					}
 				}
-				org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
-					// TVBox sources are typically video
-					ContentGroup.VIDEO
-				}
-				org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> {
-					// JS sources follow Venera comic model
-					ContentGroup.MANGA
-				}
+			} catch (e: Exception) {
+				android.util.Log.e("SourceGroupManager", "Failed to parse JSON source config for ${source.name}", e)
+				if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 			}
-		} catch (e: Exception) {
-			android.util.Log.e("SourceGroupManager", "Failed to parse JSON source config for ${source.name}", e)
-			ContentGroup.OTHER
+		}
+
+		// Priority 3: Prefix-based fallback for anonymous sources
+		val name = source.name
+		return when {
+			name.startsWith("ANIYOMI_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+			name.startsWith("JSON_TVBOX_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+			name.startsWith("JSON_LEGADO_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+			else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 		}
 	}
 	
@@ -174,6 +154,21 @@ enum class ContentGroup {
 	 * Video content
 	 */
 	VIDEO,
+
+	/**
+	 * Hentai manga
+	 */
+	HENTAI_MANGA,
+
+	/**
+	 * Hentai novel
+	 */
+	HENTAI_NOVEL,
+
+	/**
+	 * Hentai video
+	 */
+	HENTAI_VIDEO,
 	
 	/**
 	 * Other or unclassified content

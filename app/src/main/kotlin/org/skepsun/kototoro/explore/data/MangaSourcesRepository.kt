@@ -51,6 +51,7 @@ class MangaSourcesRepository @Inject constructor(
 	private val sourceTypeIdentifier: org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier,
 	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 	private val mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager,
+	private val aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager,
 ) {
 
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
@@ -75,8 +76,9 @@ class MangaSourcesRepository @Inject constructor(
 				val external = getExternalSources()
 				val jsonSources = getEnabledJsonSources()
 				val mihonSources = getEnabledMihonSources()
-				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}, mihon=${mihonSources.size}")
-				val list = ArrayList<MangaSourceInfo>(enabled.size + external.size + jsonSources.size + mihonSources.size)
+				val aniyomiSources = getEnabledAniyomiSources()
+				android.util.Log.d("MangaSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}, mihon=${mihonSources.size}, aniyomi=${aniyomiSources.size}")
+				val list = ArrayList<MangaSourceInfo>(enabled.size + external.size + jsonSources.size + mihonSources.size + aniyomiSources.size)
 				external.mapTo(list) { MangaSourceInfo(it, isEnabled = true, isPinned = true) }
 				jsonSources.mapTo(list) { 
 					android.util.Log.d("MangaSourcesRepository", "  Wrapping JSON source: ${it.name} (${it.javaClass.simpleName})")
@@ -84,6 +86,10 @@ class MangaSourcesRepository @Inject constructor(
 				}
 				mihonSources.mapTo(list) {
 					android.util.Log.d("MangaSourcesRepository", "  Wrapping Mihon source: ${it.displayName}")
+					MangaSourceInfo(it, isEnabled = true, isPinned = false)
+				}
+				aniyomiSources.mapTo(list) {
+					android.util.Log.d("MangaSourcesRepository", "  Wrapping Aniyomi source: ${it.displayName}")
 					MangaSourceInfo(it, isEnabled = true, isPinned = false)
 				}
 				list.addAll(enabled)
@@ -133,6 +139,38 @@ class MangaSourcesRepository @Inject constructor(
 			if (filtered.size < allSources.size) {
 				val filteredOut = allSources.filter { it !in filtered }
 				android.util.Log.d("MangaSourcesRepository", "Filtered out Mihon sources (example): ${filteredOut.take(5).joinToString { "${it.displayName} (${it.language}, NSFW=${it.isNsfw})" }}")
+			}
+		}
+	}
+	
+	/**
+	 * Gets all enabled Aniyomi sources as AniyomiAnimeSource instances.
+	 */
+	private fun getEnabledAniyomiSources(): List<org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource> {
+		val allSources = aniyomiExtensionManager.installedExtensions.value.flatMap { ext ->
+			ext.catalogueSources.map { catalogueSource ->
+				org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource(
+					animeCatalogueSource = catalogueSource,
+					pkgName = ext.pkgName,
+					isNsfw = ext.isNsfw
+				)
+			}
+		}
+		
+		val userLanguages = settings.contentLanguages
+		val isNsfwDisabled = settings.isNsfwContentDisabled
+		val isMultiLangEnabled = userLanguages.contains("")
+		
+		return allSources.filter { source ->
+			if (isNsfwDisabled && source.isNsfw) return@filter false
+			
+			val lang = source.language.lowercase()
+			if (lang == "all") {
+				isMultiLangEnabled
+			} else {
+				userLanguages.any { userLang ->
+					userLang.isNotEmpty() && (lang == userLang || lang.startsWith("$userLang-"))
+				}
 			}
 		}
 	}
@@ -305,6 +343,17 @@ class MangaSourcesRepository @Inject constructor(
 			}
 			result.addAll(mihonSources)
 		}
+
+		// Add Aniyomi sources if requested
+		val shouldIncludeAniyomi = sourceTypes == null || 
+			org.skepsun.kototoro.core.jsonsource.SourceType.ANIYOMI in sourceTypes
+		
+		if (shouldIncludeAniyomi) {
+			val aniyomiSources = getEnabledAniyomiSources().filter { source ->
+				query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true)
+			}
+			result.addAll(aniyomiSources)
+		}
 		
 		return result
 	}
@@ -448,6 +497,31 @@ class MangaSourcesRepository @Inject constructor(
 			}
 			list
 		}
+		.combine(observeAniyomiSources()) { sources, aniyomiSources ->
+			val list = ArrayList<MangaSourceInfo>(sources.size + aniyomiSources.size)
+			list.addAll(sources)
+			
+			val existingNames = sources.mapToSet { it.mangaSource.name }
+			aniyomiSources.forEach { aniyomiSource ->
+				if (aniyomiSource.name !in existingNames) {
+					list.add(MangaSourceInfo(aniyomiSource, isEnabled = true, isPinned = false))
+				}
+			}
+			list
+		}
+	
+	/**
+	 * Observes all Aniyomi sources.
+	 */
+	private fun observeAniyomiSources(): Flow<List<org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource>> {
+		return combine(
+			aniyomiExtensionManager.installedExtensions,
+			observeIsNsfwDisabled(),
+			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages }
+		) { _, _, _ ->
+			getEnabledAniyomiSources()
+		}
+	}
 	
 	/**
 	 * Observes all enabled JSON sources as MangaSource instances.
@@ -781,6 +855,19 @@ class MangaSourcesRepository @Inject constructor(
 		// Try Mihon sources
 		if (startsWith("MIHON_")) {
 			mihonExtensionManager.getMihonMangaSources().find { it.name == this }?.let { return it }
+		}
+		
+		// Try Aniyomi sources
+		if (startsWith("ANIYOMI_")) {
+			aniyomiExtensionManager.installedExtensions.value.flatMap { ext ->
+				ext.catalogueSources.map { catalogueSource ->
+					org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource(
+						animeCatalogueSource = catalogueSource,
+						pkgName = ext.pkgName,
+						isNsfw = ext.isNsfw
+					)
+				}
+			}.find { it.name == this }?.let { return it }
 		}
 		
 		// Try JSON sources

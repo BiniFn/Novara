@@ -678,9 +678,24 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
                 val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                 
-                android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$url, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState")
+                android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$url, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState, isDirectStream=$isDirectStream")
                 
-                if (manga != null && !manga.chapters.isNullOrEmpty()) {
+                // IMPORTANT: Check isDirectStream FIRST to avoid infinite recursion
+                // When prepareAndPlay is called with a resolved stream URL (mp4), skip chapter loading
+                if (isDirectStream) {
+                    // Direct stream URL, load immediately
+                    android.util.Log.d("VideoPlayer", "Playing direct stream: $url")
+                    val mediaItem = MediaItem.Builder()
+                        .setUri(url)
+                        .setMediaId(url)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(deriveEpisodeTitle(url))
+                                .build()
+                        )
+                        .build()
+                    exo.setMediaItem(mediaItem)
+                } else if (manga != null && !manga.chapters.isNullOrEmpty()) {
                     // Load ONLY the current chapter for immediate playback
                     lifecycleScope.launch {
                         try {
@@ -753,18 +768,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             ).show()
                         }
                     }
-                } else if (isDirectStream) {
-                    // Direct stream URL, load immediately
-                    val mediaItem = MediaItem.Builder()
-                        .setUri(url)
-                        .setMediaId(url)
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(deriveEpisodeTitle(url))
-                                .build()
-                        )
-                        .build()
-                    exo.setMediaItem(mediaItem)
                 } else {
                     // Non-direct URL without manga info - cannot resolve
                     android.util.Log.e("VideoPlayer", "Cannot resolve non-direct URL without manga info")

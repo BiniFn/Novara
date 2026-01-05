@@ -75,6 +75,8 @@ class FaviconFetcher(
 
 			is MihonMangaRepository -> fetchMihonIcon(repo)
 
+			is org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository -> fetchAniyomiIcon(repo)
+
 			// JS sources: try to derive favicon from config; fallback to neutral
 			is JsMangaRepository -> {
 				val guessed = guessFaviconUrl((repo.source as? JsonMangaSource)?.entity?.config)
@@ -88,6 +90,27 @@ class FaviconFetcher(
 	}
 
     private suspend fun fetchMihonIcon(repository: MihonMangaRepository): FetchResult {
+        val pm = options.context.packageManager
+        val pkgName = repository.source.pkgName
+        val icon = runInterruptible {
+            try {
+                pm.getApplicationIcon(pkgName)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return if (icon != null) {
+            ImageFetchResult(
+                image = icon.nonAdaptive().asImage(),
+                isSampled = false,
+                dataSource = DataSource.DISK,
+            )
+        } else {
+            imageLoader.fetch(R.drawable.ic_storage, options)!!
+        }
+    }
+
+    private suspend fun fetchAniyomiIcon(repository: org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository): FetchResult {
         val pm = options.context.packageManager
         val pkgName = repository.source.pkgName
         val icon = runInterruptible {

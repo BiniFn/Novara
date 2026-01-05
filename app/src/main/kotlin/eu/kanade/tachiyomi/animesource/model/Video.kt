@@ -72,6 +72,16 @@ data class Video(
         this.videoPageUrl = url
     }
 
+    // TODO(1.6): Remove after ext lib bump
+    @Suppress("UNUSED_PARAMETER")
+    constructor(
+        url: String,
+        quality: String,
+        videoUrl: String?,
+        uri: android.net.Uri? = null,
+        headers: Headers? = null,
+    ) : this(url, quality, videoUrl, headers)
+
     @Transient
     @Volatile
     var status: State = State.QUEUE

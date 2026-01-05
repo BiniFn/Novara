@@ -48,6 +48,9 @@ data class SourceGroupInfo(
 				ContentGroup.MANGA -> "漫画源"
 				ContentGroup.NOVEL -> "小说源"
 				ContentGroup.VIDEO -> "视频源"
+				ContentGroup.HENTAI_MANGA -> "成人漫画源"
+				ContentGroup.HENTAI_NOVEL -> "成人小说源"
+				ContentGroup.HENTAI_VIDEO -> "成人视频源"
 				ContentGroup.OTHER -> "其他源"
 			}
 			is SourceGroup.Origin -> when (group.type) {

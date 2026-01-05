@@ -758,6 +758,36 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		prefs.edit { putString(KEY_SELECTED_SOURCE_FILTER, filterId) }
 	}
 
+	/**
+	 * Get the selected source tags (comma-separated) for browse page
+	 */
+	fun getSelectedSourceTags(): Set<String> {
+		val raw = prefs.getString(KEY_SELECTED_SOURCE_TAGS, null) ?: return emptySet()
+		return raw.split(",").mapNotNull { it.trim().takeIf { part -> part.isNotEmpty() } }.toSet()
+	}
+
+	/**
+	 * Set the selected source tags for browse page
+	 */
+	fun setSelectedSourceTags(tags: Set<String>) {
+		val value = tags.joinToString(separator = ",")
+		prefs.edit { putString(KEY_SELECTED_SOURCE_TAGS, value) }
+	}
+	
+	/**
+	 * Get the selected adult filter ID for browse page
+	 */
+	fun getSelectedAdultFilter(): String? {
+		return prefs.getString(KEY_SELECTED_ADULT_FILTER, null)
+	}
+	
+	/**
+	 * Set the selected adult filter ID for browse page
+	 */
+	fun setSelectedAdultFilter(filterId: String) {
+		prefs.edit { putString(KEY_SELECTED_ADULT_FILTER, filterId) }
+	}
+
 	private fun isBackgroundNetworkRestricted(): Boolean {
 		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
 			connectivityManager.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
@@ -960,6 +990,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_DISCORD_TOKEN = "discord_token"
 		const val KEY_SELECTED_GROUP_TAB = "selected_group_tab"
 		const val KEY_SELECTED_SOURCE_FILTER = "selected_source_filter"
+		const val KEY_SELECTED_SOURCE_TAGS = "selected_source_tags"
+		const val KEY_SELECTED_ADULT_FILTER = "selected_adult_filter"
 
 		// keys for non-persistent preferences
 		const val KEY_APP_VERSION = "app_version"

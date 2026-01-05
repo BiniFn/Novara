@@ -47,6 +47,10 @@
         <intent>
             <action android:name="tachiyomi.extension.ACTION" />
         </intent>
+        <!-- For Aniyomi extensions -->
+        <intent>
+            <action android:name="tachiyomi.animeextension.ACTION" />
+        </intent>
 	</queries>
 
 	<application

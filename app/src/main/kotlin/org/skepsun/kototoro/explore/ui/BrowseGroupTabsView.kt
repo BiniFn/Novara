@@ -24,11 +24,27 @@ class BrowseGroupTabsView @JvmOverloads constructor(
 	
 	private val binding: ViewBrowseGroupTabsBinding
 	private var onTabSelectedListener: ((BrowseGroupTab) -> Unit)? = null
-	private val tabs = BrowseGroupTab.getAllTabs()
+	private var tabs = BrowseGroupTab.getAllTabs()
 	
 	init {
 		binding = ViewBrowseGroupTabsBinding.inflate(LayoutInflater.from(context), this, true)
 		setupTabs()
+	}
+	
+	/**
+	 * Set the available tabs for this view.
+	 */
+	fun setTabs(newTabs: List<BrowseGroupTab>) {
+		if (tabs == newTabs) return
+		
+		val currentSelection = getSelectedTab()
+		tabs = newTabs
+		setupTabs()
+		
+		// Try to restore selection or select "All"
+		if (!setSelectedTab(currentSelection)) {
+			setSelectedTab(BrowseGroupTab.All)
+		}
 	}
 	
 	private fun setupTabs() {
@@ -89,13 +105,14 @@ class BrowseGroupTabsView @JvmOverloads constructor(
 	/**
 	 * Set the selected tab programmatically.
 	 */
-	fun setSelectedTab(tab: BrowseGroupTab) {
+	fun setSelectedTab(tab: BrowseGroupTab): Boolean {
 		for (i in 0 until binding.chipGroup.childCount) {
 			val chip = binding.chipGroup.getChildAt(i) as? Chip
 			if (chip?.tag == tab) {
 				chip.isChecked = true
-				break
+				return true
 			}
 		}
+		return false
 	}
 }

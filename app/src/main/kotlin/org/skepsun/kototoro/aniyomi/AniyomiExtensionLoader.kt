@@ -222,6 +222,13 @@ class AniyomiExtensionLoader @Inject constructor(
         val lang = extractLanguage(pkgName)
         
         val classLoader = try {
+            val apkFile = java.io.File(appInfo.sourceDir)
+            android.util.Log.i(TAG, "Loading extension $pkgName from ${appInfo.sourceDir} (exists=${apkFile.exists()}, readable=${apkFile.canRead()}, size=${apkFile.length()})")
+            
+            if (!apkFile.exists() || !apkFile.canRead()) {
+                android.util.Log.e(TAG, "Extension APK file is missing or not readable!")
+            }
+
             ChildFirstPathClassLoader(
                 appInfo.sourceDir,
                 appInfo.nativeLibraryDir,

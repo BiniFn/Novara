@@ -19,6 +19,8 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
+import android.content.res.ColorStateList
+import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.LocalMangaSource
@@ -41,6 +43,7 @@ import org.skepsun.kototoro.databinding.FragmentExploreBinding
 import org.skepsun.kototoro.explore.ui.adapter.ExploreAdapter
 import org.skepsun.kototoro.explore.ui.adapter.ExploreListEventListener
 import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.parsers.model.Manga
@@ -106,6 +109,92 @@ class ExploreFragment :
 			if (binding.groupTabs.getSelectedTab() != tab) {
 				binding.groupTabs.setSelectedTab(tab)
 			}
+		}
+		viewModel.availableTabs.observe(viewLifecycleOwner) { tabs ->
+			binding.groupTabs.setTabs(tabs)
+		}
+		
+		// Setup source tag chips (multi-select)
+		setupSourceTagChips(binding)
+		
+		// Observe tag filter visibility
+		viewModel.isSourceFilterVisible.observe(viewLifecycleOwner) { isVisible ->
+			binding.adultFilterScrollView.visibility = if (isVisible) View.VISIBLE else View.GONE
+		}
+		
+		// Observe selected tags
+		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
+			updateSourceTagChipsSelection(binding, tags)
+		}
+	}
+
+	private fun setupSourceTagChips(binding: FragmentExploreBinding) {
+		val chipGroup = binding.chipGroupAdultFilter
+		chipGroup.removeAllViews()
+		chipGroup.isSingleSelection = false
+		chipGroup.isSelectionRequired = false
+		
+		// Colors tuned for better contrast and feedback
+		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
+		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
+		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0)
+		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
+		val strokeUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOutline, 0)
+			val strokeChecked = MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0)
+
+		val stateChecked = intArrayOf(android.R.attr.state_checked)
+		val stateDefault = intArrayOf(-android.R.attr.state_checked)
+
+		val bgColors = ColorStateList(
+			arrayOf(stateChecked, stateDefault),
+			intArrayOf(bgChecked, bgUnchecked),
+		)
+		val textColors = ColorStateList(
+			arrayOf(stateChecked, stateDefault),
+			intArrayOf(textChecked, textUnchecked),
+		)
+		val strokeColors = ColorStateList(
+			arrayOf(stateChecked, stateDefault),
+			intArrayOf(strokeChecked, strokeUnchecked),
+		)
+
+		SourceTag.entries.forEach { tag ->
+			val chip = com.google.android.material.chip.Chip(requireContext()).apply {
+				id = View.generateViewId()
+				text = getString(tag.titleRes)
+				this.tag = tag
+				isCheckable = true
+				isChecked = tag in viewModel.currentSourceTags.value
+				
+				// Compact visuals
+				chipMinHeight = 14f
+				minHeight = 0
+				textSize = 9f
+				chipStartPadding = 4f
+				chipEndPadding = 4f
+				setEnsureMinTouchTargetSize(false) // allow height < 48dp
+				
+				chipStrokeWidth = 1f
+				chipStrokeColor = strokeColors
+				chipBackgroundColor = bgColors
+				setTextColor(textColors)
+			}
+			chipGroup.addView(chip)
+		}
+		
+		chipGroup.setOnCheckedStateChangeListener { group, checkedIds ->
+			val selectedTags = checkedIds.mapNotNull { id ->
+				group.findViewById<com.google.android.material.chip.Chip>(id)?.tag as? SourceTag
+			}.toSet()
+			viewModel.setSelectedSourceTags(selectedTags)
+		}
+	}
+	
+	private fun updateSourceTagChipsSelection(binding: FragmentExploreBinding, tags: Set<SourceTag>) {
+		val chipGroup = binding.chipGroupAdultFilter
+		for (i in 0 until chipGroup.childCount) {
+			val chip = chipGroup.getChildAt(i) as? com.google.android.material.chip.Chip
+			chip?.isChecked = chip?.tag in tags
 		}
 	}
 

@@ -35,6 +35,7 @@ import org.skepsun.kototoro.core.image.CoilMemoryCacheKey
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.MangaSourceInfo
 import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isBroken
@@ -170,7 +171,8 @@ class AppRouter private constructor(
 
 	fun openReader(manga: Manga, anchor: View? = null) {
 		val source = manga.source.unwrap()
-        if (source is MangaParserSource && (source.contentType == ContentType.NOVEL || source.contentType == ContentType.HENTAI_NOVEL)) {
+        val contentType = source.getContentType()
+        if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
             startActivity(
                 Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
                     .putExtra(KEY_MANGA, ParcelableManga(manga)),
@@ -178,7 +180,7 @@ class AppRouter private constructor(
             )
             return
         }
-        if (source is MangaParserSource && (source.contentType == ContentType.VIDEO || source.contentType == ContentType.HENTAI_VIDEO)) {
+        if (contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) {
             val url = manga.publicUrl
             val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
             val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
@@ -264,10 +266,20 @@ class AppRouter private constructor(
 			val parcelable = activityIntent.getParcelableExtraCompat<ParcelableManga>(KEY_MANGA)
 			val manga = parcelable?.manga
 			if (manga != null) {
-				val source = manga.source.unwrap()
-                if (source is MangaParserSource && (source.contentType == ContentType.NOVEL || source.contentType == ContentType.HENTAI_NOVEL)) {
-                    // 获取ReaderState并传递给NovelReaderActivity
-                    val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                // 对视频内容和EPUB内容：传入 ReaderState，优先使用历史记录中的状态
+                val source = manga.source.unwrap()
+                val history = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                
+                val contentType = source.getContentType()
+                
+                if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
+                    val state = if (history != null) {
+                        // 使用历史记录中的状态（包含正确的章节ID）
+                        history
+                    } else {
+                        // 否则使用Intent中携带的状态
+                        activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                    }
                     val novelIntent = Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
                         .putExtra(KEY_MANGA, ParcelableManga(manga))
                     // 传递ReaderState
@@ -277,7 +289,7 @@ class AppRouter private constructor(
                     startActivity(novelIntent, anchor?.let { scaleUpActivityOptionsOf(it) })
                     return
                 }
-				if (source is MangaParserSource && (source.contentType == ContentType.VIDEO || source.contentType == ContentType.HENTAI_VIDEO)) {
+				if (contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) {
                     val url = manga.publicUrl
                     val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
                     val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||

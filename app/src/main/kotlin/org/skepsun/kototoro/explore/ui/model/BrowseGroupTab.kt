@@ -32,21 +32,6 @@ sealed class BrowseGroupTab(
 	 */
 	object Video : BrowseGroupTab(R.string.video, "video")
 	
-	/**
-	 * Show only JSON sources (Legado / TVBox / JS)
-	 */
-	object JsonSources : BrowseGroupTab(R.string.json_sources, "json")
-	
-	/**
-	 * Show only Mihon extension sources
-	 */
-	object MihonSources : BrowseGroupTab(R.string.mihon_sources, "mihon")
-
-	/**
-	 * Show only Aniyomi extension sources
-	 */
-	object AniyomiSources : BrowseGroupTab(R.string.aniyomi_sources, "aniyomi")
-	
 	companion object {
 		/**
 		 * Get all available tabs in order
@@ -56,9 +41,6 @@ sealed class BrowseGroupTab(
 			Manga,
 			Novel,
 			Video,
-			JsonSources,
-			MihonSources,
-			AniyomiSources,
 		)
 		
 		/**
@@ -69,10 +51,16 @@ sealed class BrowseGroupTab(
 			"manga" -> Manga
 			"novel" -> Novel
 			"video" -> Video
-			"json" -> JsonSources
-			"mihon" -> MihonSources
-			"aniyomi" -> AniyomiSources
+			// Legacy IDs now fall back to All
+			"json", "mihon", "aniyomi" -> All
 			else -> All
+		}
+
+		/**
+		 * Get available tabs based on NSFW setting
+		 */
+		fun getAvailableTabs(isNsfwEnabled: Boolean): List<BrowseGroupTab> {
+			return getAllTabs()
 		}
 	}
 	
@@ -81,12 +69,9 @@ sealed class BrowseGroupTab(
 	 */
 	fun matchesContentGroup(group: ContentGroup): Boolean = when (this) {
 		All -> true
-		Manga -> group == ContentGroup.MANGA
-		Novel -> group == ContentGroup.NOVEL
-		Video -> group == ContentGroup.VIDEO
-		JsonSources -> true // JSON sources accept all content types, filtered by origin only
-		MihonSources -> true // Mihon sources accept all content types
-		AniyomiSources -> true // Aniyomi sources are all video anyway
+		Manga -> group == ContentGroup.MANGA || group == ContentGroup.HENTAI_MANGA
+		Novel -> group == ContentGroup.NOVEL || group == ContentGroup.HENTAI_NOVEL
+		Video -> group == ContentGroup.VIDEO || group == ContentGroup.HENTAI_VIDEO
 	}
 	
 	/**
@@ -94,10 +79,6 @@ sealed class BrowseGroupTab(
 	 */
 	fun matchesOriginGroup(group: OriginGroup): Boolean = when (this) {
 		All -> true
-		JsonSources -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON
-		MihonSources -> group == OriginGroup.MIHON
-		AniyomiSources -> group == OriginGroup.ANIYOMI
 		else -> true // Content-based tabs don't filter by origin
 	}
 }
-

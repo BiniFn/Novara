@@ -71,6 +71,9 @@ open class BaseApp : Application(), Configuration.Provider {
 	@Inject
 	lateinit var mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager
 
+	@Inject
+	lateinit var aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
+
 	override val workManagerConfiguration: Configuration
 		get() = Configuration.Builder()
 			.setWorkerFactory(workerFactory)
@@ -98,6 +101,7 @@ open class BaseApp : Application(), Configuration.Provider {
 		}
 		workScheduleManager.init()
 		mihonExtensionManager.initialize()
+		aniyomiExtensionManager.initialize()
 	}
 
 	override fun attachBaseContext(base: Context) {

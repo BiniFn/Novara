@@ -31,6 +31,7 @@ import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.getContentType
 
 class ReadButtonDelegate(
 	private val splitButton: MaterialSplitButton,
@@ -124,7 +125,9 @@ class ReadButtonDelegate(
                 val source = manga.source.unwrap()
                 val history = viewModel.historyInfo.value.history
                 
-                if (source is MangaParserSource && (source.contentType == ContentType.VIDEO || source.contentType == ContentType.HENTAI_VIDEO) && !manga.chapters.isNullOrEmpty()) {
+                val contentType = source.getContentType()
+                
+                if ((contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) && !manga.chapters.isNullOrEmpty()) {
                     val state = if (history != null) {
                         // 使用历史记录中的状态（包含正确的章节ID）
                         ReaderState(history)
@@ -221,7 +224,7 @@ class ReadButtonDelegate(
 		
 		val contentType = when {
 			isLocalEpub -> ContentType.NOVEL  // LocalEpubSource is always NOVEL
-			source is MangaParserSource -> source.contentType
+			source != null -> source.getContentType()
 			else -> null
 		}
 		

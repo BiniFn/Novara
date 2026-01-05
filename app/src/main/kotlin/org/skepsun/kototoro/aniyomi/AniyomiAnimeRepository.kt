@@ -92,8 +92,37 @@ class AniyomiAnimeRepository(
     override suspend fun getDetailsImpl(manga: Manga): Manga = withContext(Dispatchers.IO) {
         val sAnime = manga.toAniyomiAnime()
         
-        val details = aniyomiSource.getAnimeDetails(sAnime)
-        val rawEpisodes = aniyomiSource.getEpisodeList(sAnime)
+        val details = try {
+            aniyomiSource.getAnimeDetails(sAnime)
+        } catch (e: Exception) {
+            val ioException = when {
+                e is java.io.IOException -> e
+                e.cause is java.io.IOException -> e.cause as java.io.IOException
+                else -> null
+            }
+            if (ioException != null) {
+                kotlinx.coroutines.delay(500)
+                aniyomiSource.getAnimeDetails(sAnime)
+            } else {
+                throw e
+            }
+        }
+
+        val rawEpisodes = try {
+            aniyomiSource.getEpisodeList(sAnime)
+        } catch (e: Exception) {
+            val ioException = when {
+                e is java.io.IOException -> e
+                e.cause is java.io.IOException -> e.cause as java.io.IOException
+                else -> null
+            }
+            if (ioException != null) {
+                kotlinx.coroutines.delay(500)
+                aniyomiSource.getEpisodeList(sAnime)
+            } else {
+                throw e
+            }
+        }
         
         // Reverse and assign numbers if missing, like in MihonMangaRepository
         val chapters = rawEpisodes.asReversed()
@@ -108,11 +137,16 @@ class AniyomiAnimeRepository(
             .sortedBy { it.number }
         
         details.url = sAnime.url
-        if (details.title.isNullOrBlank()) {
+        
+        // Title fallback
+        val detailsTitle = try { details.title } catch (e: Exception) { "" }
+        if (detailsTitle.isNullOrBlank()) {
             details.title = sAnime.title
         }
         
-        if (details.thumbnail_url.isNullOrBlank() || details.thumbnail_url == details.url) {
+        // Thumbnail fallback
+        val detailsThumb = try { details.thumbnail_url } catch (e: Exception) { null }
+        if (detailsThumb.isNullOrBlank() || detailsThumb == details.url) {
             if (!sAnime.thumbnail_url.isNullOrBlank()) {
                 details.thumbnail_url = sAnime.thumbnail_url
             }
@@ -128,10 +162,30 @@ class AniyomiAnimeRepository(
     }
     
     override suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
+        android.util.Log.d("AniyomiRepo", "getPagesImpl called for chapter: ${chapter.title} (${chapter.url})")
         val sEpisode = chapter.toAniyomiEpisode()
-        val videos = aniyomiSource.getVideoList(sEpisode)
+        val videos = try {
+            android.util.Log.d("AniyomiRepo", "Calling getVideoList...")
+            val result = aniyomiSource.getVideoList(sEpisode)
+            android.util.Log.d("AniyomiRepo", "getVideoList returned ${result.size} videos")
+            result
+        } catch (e: Exception) {
+            android.util.Log.e("AniyomiRepo", "getVideoList failed: ${e.message}", e)
+            val ioException = when {
+                e is java.io.IOException -> e
+                e.cause is java.io.IOException -> e.cause as java.io.IOException
+                else -> null
+            }
+            if (ioException != null) {
+                kotlinx.coroutines.delay(500)
+                aniyomiSource.getVideoList(sEpisode)
+            } else {
+                throw e
+            }
+        }
         
         videos.mapIndexed { index, video ->
+            android.util.Log.d("AniyomiRepo", "Video $index: url=${video.videoUrl}, quality=${video.videoTitle}")
             video.toKotoPage(source, sEpisode, index)
         }
     }
