@@ -621,7 +621,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
-    private fun prepareAndPlay(url: String, source: ParsersMangaSource?) {
+    private fun prepareAndPlay(url: String, source: ParsersMangaSource?, headers: Map<String, String>? = null) {
         // Check if URL is a direct stream or needs resolution
         val lastSegment = runCatching { Uri.parse(url).lastPathSegment }.getOrNull() ?: url
         val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
@@ -630,7 +630,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // OkHttp DataSource with common headers support via X-Manga-Source
         val upstreamFactory = OkHttpDataSource.Factory(okHttp)
             .setDefaultRequestProperties(
-                mapOf(CommonHeaders.MANGA_SOURCE to (source?.name ?: ""))
+                mutableMapOf(CommonHeaders.MANGA_SOURCE to (source?.name ?: "")).apply {
+                    headers?.let { putAll(it) }
+                }
             )
 
         // 使用缓存数据源，支持视频缓存和断点续播
@@ -698,31 +700,27 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             if (currentChapter != null) {
                                 android.util.Log.d("VideoPlayer", "Loading current chapter: ${currentChapter.title} (id=${currentChapter.id})")
                                 
-                                // Resolve current chapter's stream URL
-                                val streamUrl = runCatching {
+                                // Resolve current chapter's stream URL and headers
+                                val streamResult = runCatching {
                                     android.util.Log.d("VideoPlayer", "Calling getPages for chapter: ${currentChapter.title}, url: ${currentChapter.url}")
                                     val pages = repo.getPages(currentChapter)
                                     android.util.Log.d("VideoPlayer", "getPages returned ${pages.size} pages")
-                                    pages.firstOrNull()?.let { page ->
+                                    val page = pages.firstOrNull()
+                                    if (page != null) {
                                         android.util.Log.d("VideoPlayer", "Getting page URL for page: ${page.url}")
-                                        repo.getPageUrl(page)
-                                    }
+                                        repo.getPageUrl(page) to page.headers
+                                    } else null
                                 }.onFailure { e ->
                                     android.util.Log.e("VideoPlayer", "Failed to get stream URL", e)
                                 }.getOrNull()
                                 
+                                val streamUrl = streamResult?.first
+                                val streamHeaders = streamResult?.second
+                                
                                 if (streamUrl != null) {
-                                    // Play current chapter immediately
-                                    val mediaItem = MediaItem.Builder()
-                                        .setUri(streamUrl)
-                                        .setMediaId(currentChapter.id.toString())
-                                        .setMediaMetadata(
-                                            MediaMetadata.Builder()
-                                                .setTitle(currentChapter.title)
-                                                .build()
-                                        )
-                                        .build()
-                                    exo.setMediaItem(mediaItem)
+                                    // Release existing player if any and start over with new headers
+                                    player?.release()
+                                    prepareAndPlay(streamUrl, manga.source, streamHeaders)
                                     
                                     // Update ReaderState to reflect current chapter
                                     readerState = ReaderState(currentChapter.id, 0, 0)
@@ -1406,7 +1404,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             try {
                 val repo = mangaRepositoryFactory.create(manga.source)
                 val pages = repo.getPages(chapter)
-                val streamUrl = pages.firstOrNull()?.let { repo.getPageUrl(it) }
+                val page = pages.firstOrNull()
+                val streamUrl = page?.let { repo.getPageUrl(it) }
+                val streamHeaders = page?.headers
                 
                 if (streamUrl != null) {
                     android.util.Log.d("VideoPlayer", "Stream URL resolved: $streamUrl")
@@ -1416,19 +1416,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     updateChapterNavButtons()
                     
                     // Update player with new URL
-                    player?.stop()
-                    val mediaItem = MediaItem.Builder()
-                        .setUri(streamUrl)
-                        .setMediaId(chapter.id.toString())
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(chapter.title)
-                                .build()
-                        )
-                        .build()
-                    player?.setMediaItem(mediaItem)
-                    player?.prepare()
-                    player?.play()
+                    player?.release()
+                    prepareAndPlay(streamUrl, manga.source, streamHeaders)
                     
                     // Update title/subtitle to reflect new chapter
                     updateTitleAndSubtitle()

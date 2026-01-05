@@ -52,6 +52,13 @@
         android:summary="@string/mihon_extensions_summary"
         android:title="@string/mihon_extensions" />
 
+    <PreferenceScreen
+        android:fragment="org.skepsun.kototoro.settings.sources.aniyomi.AniyomiExtensionsFragment"
+        android:key="aniyomi_extensions"
+        android:persistent="false"
+        android:summary="@string/aniyomi_extensions_summary"
+        android:title="@string/aniyomi_extensions" />
+
     <SwitchPreferenceCompat
         android:defaultValue="true"
         android:key="no_nsfw"

@@ -41,6 +41,11 @@ sealed class BrowseGroupTab(
 	 * Show only Mihon extension sources
 	 */
 	object MihonSources : BrowseGroupTab(R.string.mihon_sources, "mihon")
+
+	/**
+	 * Show only Aniyomi extension sources
+	 */
+	object AniyomiSources : BrowseGroupTab(R.string.aniyomi_sources, "aniyomi")
 	
 	companion object {
 		/**
@@ -53,6 +58,7 @@ sealed class BrowseGroupTab(
 			Video,
 			JsonSources,
 			MihonSources,
+			AniyomiSources,
 		)
 		
 		/**
@@ -65,6 +71,7 @@ sealed class BrowseGroupTab(
 			"video" -> Video
 			"json" -> JsonSources
 			"mihon" -> MihonSources
+			"aniyomi" -> AniyomiSources
 			else -> All
 		}
 	}
@@ -79,6 +86,7 @@ sealed class BrowseGroupTab(
 		Video -> group == ContentGroup.VIDEO
 		JsonSources -> true // JSON sources accept all content types, filtered by origin only
 		MihonSources -> true // Mihon sources accept all content types
+		AniyomiSources -> true // Aniyomi sources are all video anyway
 	}
 	
 	/**
@@ -88,6 +96,7 @@ sealed class BrowseGroupTab(
 		All -> true
 		JsonSources -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON
 		MihonSources -> group == OriginGroup.MIHON
+		AniyomiSources -> group == OriginGroup.ANIYOMI
 		else -> true // Content-based tabs don't filter by origin
 	}
 }

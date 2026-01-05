@@ -1,0 +1,53 @@
+package org.skepsun.kototoro.aniyomi.util
+
+import dalvik.system.PathClassLoader
+
+/**
+ * A ClassLoader that loads classes from its own path before delegating to its parent.
+ * 
+ * This is necessary for Aniyomi extensions because they may bundle different versions
+ * of libraries than Kototoro uses, and we need to isolate them.
+ */
+class ChildFirstPathClassLoader(
+    dexPath: String,
+    librarySearchPath: String?,
+    parent: ClassLoader,
+) : PathClassLoader(dexPath, librarySearchPath, parent) {
+
+    /**
+     * List of packages that should always be loaded from the parent ClassLoader.
+     * These are core Android/Kotlin classes and Aniyomi API classes that must be shared.
+     */
+    private val parentPackages = setOf(
+        "java.",
+        "javax.",
+        "kotlin.",
+        "kotlinx.",
+        "android.",
+        "androidx.",
+        "org.json.",
+        "org.jsoup.",
+        "okhttp3.",
+        "okio.",
+        "rx.",
+        "eu.kanade.tachiyomi.animesource.",
+        "eu.kanade.tachiyomi.network.",
+        "eu.kanade.tachiyomi.util.",
+        "uy.kohesive.injekt.",
+    )
+
+    override fun loadClass(name: String, resolve: Boolean): Class<*> {
+        // Check if we should delegate to parent immediately
+        if (parentPackages.any { name.startsWith(it) }) {
+            return parent.loadClass(name)
+        }
+
+        // Try to find the class in our own path first
+        return try {
+            findLoadedClass(name) ?: findClass(name)
+        } catch (e: ClassNotFoundException) {
+            // Fall back to parent ClassLoader
+            parent.loadClass(name)
+        }
+    }
+}

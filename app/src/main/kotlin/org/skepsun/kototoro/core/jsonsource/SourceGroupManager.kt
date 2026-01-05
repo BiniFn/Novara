@@ -62,6 +62,11 @@ class SourceGroupManager @Inject constructor(
 			return ContentGroup.MANGA
 		}
 		
+		// For Aniyomi sources, all are video
+		if (source is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource) {
+			return ContentGroup.VIDEO
+		}
+		
 		return ContentGroup.OTHER
 	}
 	
@@ -108,6 +113,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.JSON_JS -> OriginGroup.JS_JSON
 			SourceType.EXTERNAL -> OriginGroup.EXTERNAL
 			SourceType.MIHON -> OriginGroup.MIHON
+			SourceType.ANIYOMI -> OriginGroup.ANIYOMI
 		}
 	}
 	
@@ -207,7 +213,12 @@ enum class OriginGroup {
 	/**
 	 * Mihon extension sources
 	 */
-	MIHON
+	MIHON,
+	
+	/**
+	 * Aniyomi extension sources
+	 */
+	ANIYOMI
 }
 
 /**

@@ -57,6 +57,7 @@ data class SourceGroupInfo(
 				OriginGroup.JS_JSON -> "JavaScript 源"
 				OriginGroup.EXTERNAL -> "外部源"
 				OriginGroup.MIHON -> "Mihon 扩展"
+				OriginGroup.ANIYOMI -> "Aniyomi 扩展"
 			}
 		}
 	}

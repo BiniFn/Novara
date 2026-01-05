@@ -100,6 +100,7 @@ interface MangaRepository {
 		private val ruleEngine: org.skepsun.kototoro.core.parser.rule.EnhancedRuleEngine,
 		private val legadoHttpClient: org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient,
 		private val mihonExtensionManager: MihonExtensionManager,
+		private val aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager,
 	) {
 
 		private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
@@ -132,6 +133,14 @@ interface MangaRepository {
 				val mihonSource = mihonExtensionManager.getMihonMangaSourceByName(source.name)
 				if (mihonSource != null) {
 					return create(mihonSource)
+				}
+			}
+
+			// Check if this is an Aniyomi source (by name prefix) that needs to be resolved
+			if (source.name.startsWith("ANIYOMI_") && source !is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource) {
+				val aniyomiSource = aniyomiExtensionManager.getAniyomiAnimeSourceByName(source.name)
+				if (aniyomiSource != null) {
+					return create(aniyomiSource)
 				}
 			}
 			
@@ -194,6 +203,14 @@ interface MangaRepository {
 				is MihonMangaSource -> {
 					android.util.Log.d("MangaRepository", "Creating MihonMangaRepository for: ${source.displayName}")
 					MihonMangaRepository(
+						source = source,
+						cache = contentCache,
+					)
+				}
+
+				is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> {
+					android.util.Log.d("MangaRepository", "Creating AniyomiAnimeRepository for: ${source.displayName}")
+					org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository(
 						source = source,
 						cache = contentCache,
 					)
