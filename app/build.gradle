@@ -211,7 +211,8 @@ dependencies {
 	implementation libs.okhttp.dnsoverhttps
 	implementation libs.okio
 	implementation libs.kotlinx.serialization.json
-	
+	implementation libs.kotlinx.serialization.json.okio
+
 	// XPath and JSONPath support for rule engine
 	implementation libs.xsoup
 	implementation libs.jsonpath

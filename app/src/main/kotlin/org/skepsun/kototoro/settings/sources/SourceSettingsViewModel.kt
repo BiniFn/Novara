@@ -92,6 +92,14 @@ class SourceSettingsViewModel @Inject constructor(
 				browserUrl.value = url
 				loadJsAccountMeta(repository)
 			}
+			is org.skepsun.kototoro.mihon.MihonMangaRepository -> {
+				val httpSource = (repository.source.catalogueSource as? eu.kanade.tachiyomi.source.online.HttpSource)
+				browserUrl.value = httpSource?.baseUrl
+			}
+			is org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository -> {
+				val httpSource = repository.aniyomiSource as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
+				browserUrl.value = httpSource?.baseUrl
+			}
 		}
 	}
 
