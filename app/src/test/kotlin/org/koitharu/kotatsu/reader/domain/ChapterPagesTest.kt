@@ -71,6 +71,7 @@ class ChapterPagesTest {
 		id = Random.nextLong(),
 		url = "http://localhost",
 		preview = null,
+		headers = null,
 		chapterId = chapterId,
 		index = Random.nextInt(),
 		source = TestMangaSource,

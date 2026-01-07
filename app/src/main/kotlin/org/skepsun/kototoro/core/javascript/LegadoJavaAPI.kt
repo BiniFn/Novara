@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.util.Base64
+import java.util.Base64
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.runBlocking
@@ -152,7 +152,7 @@ class LegadoJavaAPI(
      * @return Base64 编码后的字符串
      */
     fun base64Encode(str: String): String {
-        return Base64.encodeToString(str.toByteArray(), Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(str.toByteArray())
     }
     
     /**
@@ -162,7 +162,7 @@ class LegadoJavaAPI(
      * @return 解码后的字符串
      */
     fun base64Decode(str: String): String {
-        return String(Base64.decode(str, Base64.DEFAULT))
+        return String(Base64.getDecoder().decode(str))
     }
     
     /**

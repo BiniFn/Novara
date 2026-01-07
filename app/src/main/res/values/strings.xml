@@ -1082,6 +1082,10 @@
 	<string name="delete_selected">删除选中源</string>
 	<string name="validate_selected">校验选中源</string>
 	<string name="batch_no_selection">请先选择源</string>
+    <string name="import_from_url">From Online URL</string>
+    <string name="enter_source_url">Enter source URL</string>
+    <string name="fetching_content">Fetching content…</string>
+    <string name="error_fetching_url">Error fetching content: %s</string>
     <string name="import_button">Import</string>
     <string name="importing_">Importing…</string>
     <string name="json_content_required">JSON content is required</string>

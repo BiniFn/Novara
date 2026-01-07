@@ -129,6 +129,7 @@ open class RemoteListViewModel @Inject constructor(
 	}
 
 	override fun onRefresh() {
+		loadingJob?.cancel()
 		loadList(filterCoordinator.snapshot(), append = false)
 	}
 

@@ -24,6 +24,17 @@
 			android:text="@string/select_file"
 			app:icon="@drawable/ic_file_zip" />
 
+		<!-- URL import button -->
+		<Button
+			android:id="@+id/button_import_url"
+			style="@style/Widget.Material3.Button.OutlinedButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginHorizontal="?dialogPreferredPadding"
+			android:layout_marginTop="@dimen/margin_small"
+			android:text="@string/import_from_url"
+			app:icon="@drawable/ic_web" />
+
 		<!-- Selected file name display -->
 		<TextView
 			android:id="@+id/textView_selected_file"

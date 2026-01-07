@@ -8,36 +8,48 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class LegadoBookSource(
-	val bookSourceName: String,
-	val bookSourceUrl: String,
-	val bookSourceType: Int = 0,       // 0=文字, 1=音频, 2=图片
-	val bookSourceGroup: String? = null,
-	val enabled: Boolean = true,
-	val searchUrl: String? = null,
-	val exploreUrl: String? = null,
-	val header: String? = null,        // 请求头配置（JSON格式字符串）
-	val ruleExplore: SearchRule? = null,  // 浏览规则（与搜索规则格式相同）
-	val ruleSearch: SearchRule? = null,
-	val ruleBookInfo: BookInfoRule? = null,
-	val ruleToc: TocRule? = null,
-	val ruleContent: ContentRule? = null,
+    val bookSourceName: String,
+    val bookSourceUrl: String,
+    val bookSourceType: Int = 0,       // 0=文字, 1=音频, 2=图片
+    val bookSourceGroup: String? = null,
+    val enabled: Boolean = true,
+    val searchUrl: String? = null,
+    val exploreUrl: String? = null,
+    val header: String? = null,        // 请求头配置（JSON格式字符串）
+    val loginUrl: String? = null,      // 登录地址
+    val loginUi: String? = null,       // 登录UI
+    val loginCheckJs: String? = null,   // 登录检测js
+    val jsLib: String? = null,         // js库
+    val enabledCookieJar: Boolean? = true, // 启用cookieJar
+    val concurrentRate: String? = null, // 并发率
+    val bookSourceComment: String? = null, // 注释
+    val variableComment: String? = null, // 自定义变量说明
+    val respondTime: Long = 180000L,    // 响应时间
+    val weight: Int = 0,               // 权重
+    val ruleExplore: SearchRule? = null,  // 浏览规则
+    val ruleSearch: SearchRule? = null,
+    val ruleBookInfo: BookInfoRule? = null,
+    val ruleToc: TocRule? = null,
+    val ruleContent: ContentRule? = null,
 )
 
 /**
  * Search rule for parsing search results
- * Note: All fields are nullable to support sources with incomplete configurations
  */
 @Serializable
 data class SearchRule(
-	val bookList: String? = null,      // 列表选择器
-	val name: String? = null,          // 名称规则
-	val author: String? = null,        // 作者规则
-	val coverUrl: String? = null,      // 封面规则
-	val bookUrl: String? = null,       // 链接规则
-	val intro: String? = null,         // 简介规则
-	val lastChapter: String? = null,   // 最新章节规则
-	val kind: String? = null,          // 分类规则
-	val init: String? = null,          // 初始化脚本
+    val bookList: String? = null,      // 列表选择器
+    val name: String? = null,          // 名称规则
+    val author: String? = null,        // 作者规则
+    val coverUrl: String? = null,      // 封面规则
+    val bookUrl: String? = null,       // 链接规则
+    val intro: String? = null,         // 简介规则
+    val lastChapter: String? = null,   // 最新章节规则
+    val updateTime: String? = null,    // 更新时间规则
+    val kind: String? = null,          // 分类规则
+    val wordCount: String? = null,     // 字数规则
+    val checkKeyWord: String? = null,  // 校验关键字
+    val init: String? = null,          // 初始化脚本
 )
 
 /**
@@ -45,13 +57,18 @@ data class SearchRule(
  */
 @Serializable
 data class BookInfoRule(
-	val name: String? = null,
-	val author: String? = null,
-	val coverUrl: String? = null,
-	val intro: String? = null,
-	val kind: String? = null,          // 分类/标签
-	val lastChapter: String? = null,
-	val init: String? = null,          // 初始化脚本
+    val name: String? = null,
+    val author: String? = null,
+    val coverUrl: String? = null,
+    val intro: String? = null,
+    val kind: String? = null,          // 分类/标签
+    val lastChapter: String? = null,
+    val updateTime: String? = null,    // 更新时间
+    val wordCount: String? = null,     // 字数
+    val tocUrl: String? = null,        // 目录页链接规则
+    val init: String? = null,          // 初始化脚本
+    val canReName: String? = null,
+    val downloadUrls: String? = null
 )
 
 /**
@@ -59,9 +76,16 @@ data class BookInfoRule(
  */
 @Serializable
 data class TocRule(
-	val chapterList: String,           // 章节列表选择器
-	val chapterName: String,           // 章节名称规则
-	val chapterUrl: String,            // 章节链接规则
+    val chapterList: String? = null,    // 章节列表选择器
+    val chapterName: String? = null,    // 章节名称规则
+    val chapterUrl: String? = null,     // 章节链接规则
+    val nextTocUrl: String? = null,     // 下一页目录
+    val isVolume: String? = null,       // 卷标识
+    val isVip: String? = null,          // VIP 标识
+    val isPay: String? = null,          // 付费标识
+    val updateTime: String? = null,     // 更新时间
+    val preUpdateJs: String? = null,    // 刷新前JS
+    val formatJs: String? = null        // 格式化JS
 )
 
 /**
@@ -69,6 +93,12 @@ data class TocRule(
  */
 @Serializable
 data class ContentRule(
-	val content: String,               // 内容规则
-	val init: String? = null,          // 初始化脚本
+    val content: String? = null,       // 内容规则
+    val title: String? = null,         // 正文页内标题修正
+    val nextContentUrl: String? = null,// 正文分页
+    val webJs: String? = null,         // 网页JS
+    val sourceRegex: String? = null,   // 资源正则
+    val replaceRegex: String? = null,  // 正文替换
+    val imageStyle: String? = null,    // 图片样式
+    val payAction: String? = null      // 支付操作
 )

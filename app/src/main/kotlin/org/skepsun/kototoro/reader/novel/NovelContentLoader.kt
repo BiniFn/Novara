@@ -11,6 +11,7 @@ import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.NovelCache
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.core.util.ext.URI_SCHEME_ZIP
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import java.io.File
@@ -43,8 +44,17 @@ class NovelContentLoader @Inject constructor(
     suspend fun loadChapterContent(
         repository: MangaRepository,
         chapter: MangaChapter,
+        pages: List<MangaPage>? = null,
     ): String = withContext(Dispatchers.IO) {
-        loadChapterContentInternal(repository, chapter, forceRefresh = false)
+        loadChapterContentInternal(repository, chapter, pages, forceRefresh = false)
+    }
+
+    /**
+     * 检查章节是否已缓存
+     */
+    suspend fun isCached(chapter: MangaChapter): Boolean {
+        val cacheKey = generateCacheKey(chapter)
+        return cache.get(cacheKey)?.let { !isErrorContent(readTextFromFile(it)) } ?: false
     }
 
     /**
@@ -54,56 +64,67 @@ class NovelContentLoader @Inject constructor(
         repository: MangaRepository,
         chapter: MangaChapter,
     ): String = withContext(Dispatchers.IO) {
-        loadChapterContentInternal(repository, chapter, forceRefresh = true)
+        loadChapterContentInternal(repository, chapter, null, forceRefresh = true)
     }
 
     private suspend fun loadChapterContentInternal(
         repository: MangaRepository,
         chapter: MangaChapter,
+        prefetchedPages: List<MangaPage>?,
         forceRefresh: Boolean,
     ): String {
-        // 本地 CBZ/ZIP 小说章节：通过 pages 读取 HTML
-        loadLocalHtmlViaPages(repository, chapter)?.let { return it }
+        android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal START: id=${chapter.id}, prefetched=${prefetchedPages != null}, force=$forceRefresh")
+        
+        // 0. 本地 CBZ/ZIP 小说章节：通过 pages 读取 HTML
+        val localHtml = loadLocalHtmlViaPages(repository, chapter, prefetchedPages)
+        if (localHtml != null) {
+            android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Loaded via local pages logic. Length=${localHtml.length}")
+            return localHtml
+        }
 
         // Check if this is an EPUB chapter (NEW ARCHITECTURE)
         if (org.skepsun.kototoro.local.epub.LocalEpubSource.isEpubUrl(chapter.url)) {
-            android.util.Log.d("NovelContentLoader", "Loading EPUB chapter: ${chapter.url}")
+            android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Loading EPUB chapter: ${chapter.url}")
             return loadEpubChapterContent(chapter)
         }
         
-        // 生成缓存key：使用章节ID作为唯一标识
         val cacheKey = generateCacheKey(chapter)
-        android.util.Log.d("NovelContentLoader", "Loading chapter: id=${chapter.id}, title=${chapter.title}, cacheKey=$cacheKey")
-        
         if (!forceRefresh) {
             // 1. 尝试从缓存读取
             cache.get(cacheKey)?.let { cachedFile ->
-                android.util.Log.d("NovelContentLoader", "Cache hit for $cacheKey, file size: ${cachedFile.length()}")
                 val content = readTextFromFile(cachedFile)
-                android.util.Log.d("NovelContentLoader", "Loaded from cache, content length: ${content.length}")
                 if (!isErrorContent(content)) {
+                    android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: CACHE HIT for $cacheKey, length=${content.length}")
                     return content
                 } else {
-                    android.util.Log.w("NovelContentLoader", "Cached content looks like error/placeholder, reloading from network")
+                    android.util.Log.w("NovelContentLoader", ">>> loadChapterContentInternal: Cached content looks like error/placeholder, skipping cache")
                 }
             }
         }
 
-        android.util.Log.d("NovelContentLoader", "Cache miss for $cacheKey, loading from network")
+        android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: CACHE MISS or FORCE, loading from network")
 
         // 2. 从网络加载
-        val pages = repository.getPages(chapter)
-        val html = pages.firstOrNull()?.url?.let(::decodeChapterHtml) ?: ""
+        val pages = if (prefetchedPages != null) {
+            android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Using prefetched pages (${prefetchedPages.size})")
+            prefetchedPages
+        } else {
+            android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Fetching pages from repository...")
+            repository.getPages(chapter)
+        }
+        
+        val firstUrl = pages.firstOrNull()?.url
+        android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: First page URL=${firstUrl?.take(100)}")
+        
+        val html = if (firstUrl != null) decodeChapterHtml(firstUrl) else ""
         val plainText = htmlToPlainText(html)
         
-        android.util.Log.d("NovelContentLoader", "Loaded from network, content length: ${plainText.length}")
+        android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Content parsed from network. Length=${plainText.length}")
         
         // 3. 保存到缓存
         if (plainText.isNotBlank() && !isErrorContent(plainText)) {
             saveToCache(cacheKey, plainText)
-            android.util.Log.d("NovelContentLoader", "Saved to cache: $cacheKey")
-        } else {
-            android.util.Log.w("NovelContentLoader", "Content is blank, not caching")
+            android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Saved to cache: $cacheKey")
         }
         
         return plainText
@@ -133,12 +154,13 @@ class NovelContentLoader @Inject constructor(
 	private suspend fun loadLocalHtmlViaPages(
 		repository: MangaRepository,
 		chapter: MangaChapter,
+		prefetchedPages: List<MangaPage>?,
 	): String? {
 		return runCatching {
-			val pages = repository.getPages(chapter)
+			val pages = prefetchedPages ?: repository.getPages(chapter)
 			android.util.Log.d(
 				"NovelContentLoader",
-				"loadLocalHtmlViaPages: chapterId=${chapter.id}, pages=${pages.size}, first=${pages.firstOrNull()?.url}",
+				"loadLocalHtmlViaPages: id=${chapter.id}, prefetched=${prefetchedPages != null}, pages=${pages.size}",
 			)
 			if (pages.isEmpty()) return null
 			

@@ -99,6 +99,7 @@ interface MangaRepository {
 		private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
 		private val ruleEngine: org.skepsun.kototoro.core.parser.rule.EnhancedRuleEngine,
 		private val legadoHttpClient: org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient,
+		private val jsEngine: org.skepsun.kototoro.core.javascript.JavaScriptEngine,
 		private val mihonExtensionManager: MihonExtensionManager,
 		private val aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager,
 	) {
@@ -219,17 +220,17 @@ interface MangaRepository {
 				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
 					when (source.entity.type) {
 						org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
-							android.util.Log.d("MangaRepository", "Creating BasicJsonRepository for Legado JSON source: ${source.name}")
+							android.util.Log.d("MangaRepository", "Creating LegadoRepository for JSON source: ${source.name}")
 							// Create BrowserLauncher for Cloudflare handling
 							// Wrap the shared cookie jar so BrowserLauncher can sync WebView cookies
 							val browserLauncher = org.skepsun.kototoro.core.javascript.BrowserLauncher(
 								context = context,
 								cookieJar = PersistentCookieJar(legadoHttpClient.getCookieJar())
 							)
-							org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository(
+							org.skepsun.kototoro.core.parser.legado.LegadoRepository(
 								source = source,
-								legadoHttpClient = legadoHttpClient,
-								ruleEngine = ruleEngine,
+								httpClient = legadoHttpClient,
+								jsEngine = jsEngine,
 								browserLauncher = browserLauncher
 							)
 					}

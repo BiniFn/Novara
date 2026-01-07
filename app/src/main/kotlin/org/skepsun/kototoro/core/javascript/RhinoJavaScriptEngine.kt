@@ -94,7 +94,7 @@ class RhinoJavaScriptEngine(
                 }
                 
                 // 执行脚本
-                val evalResult = ctx.evaluateString(currentScope, script, "script", 1, null)
+                val evalResult = ctx.evaluateString(currentScope, wrapScript(script), "script", 1, null)
                 
                 // 返回脚本的评估结果
                 // 如果评估结果是 undefined，则检查其他可能的返回值
@@ -256,5 +256,24 @@ class RhinoJavaScriptEngine(
     
     companion object {
         private const val TAG = "RhinoJavaScriptEngine"
+
+        /**
+         * 将 Legado 规则中的裸 JS 片段包装为可执行表达式。
+         * 1) 去掉 @js:/<js> 标签
+         * 2) 包装成 IIFE，返回 c/result/最后表达式，减少分号/换行导致的解析问题。
+         */
+        fun wrapScript(raw: String): String {
+            var script = raw.trim()
+            if (script.startsWith("@js:", ignoreCase = true)) {
+                script = script.removePrefix("@js:").trim()
+            }
+            if (script.startsWith("<js>", ignoreCase = true)) {
+                script = script.removePrefix("<js>").trim()
+            }
+            if (script.endsWith("</js>", ignoreCase = true)) {
+                script = script.removeSuffix("</js>").trim()
+            }
+            return "(function(){\n$script\nreturn (typeof c!=='undefined'?c:(typeof result!=='undefined'?result:null));\n})();"
+        }
     }
 }

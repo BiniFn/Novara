@@ -74,6 +74,9 @@ android {
 		buildConfig true
 	}
 	packagingOptions {
+		jniLibs {
+			useLegacyPackaging = true
+		}
 		resources {
 			excludes += [
 				'META-INF/README.md',
@@ -89,6 +92,8 @@ android {
 	sourceSets {
 		androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
 		main.java.srcDirs += 'src/main/kotlin/'
+		test.java.srcDirs += 'src/test/kotlin/'
+		androidTest.java.srcDirs += 'src/androidTest/kotlin/'
 	}
 	compileOptions {
 		coreLibraryDesugaringEnabled true
@@ -271,6 +276,7 @@ dependencies {
 	testImplementation libs.kotest.runner.junit5
 	testImplementation libs.kotest.assertions.core
 	testImplementation libs.mockk
+	testImplementation libs.okhttp.mockwebserver
 
 	androidTestImplementation libs.androidx.runner
 	androidTestImplementation libs.androidx.rules

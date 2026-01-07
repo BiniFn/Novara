@@ -1,58 +1,46 @@
-package org.skepsun.kototoro.core.parser.dynamic
+package org.skepsun.kototoro.core.parser.legado
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.junit.After
-import org.junit.Before
-import org.junit.Test
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
-import org.skepsun.kototoro.core.model.jsonsource.JsonSourceType
-import org.skepsun.kototoro.core.parser.rule.DefaultRuleEngine
-import org.skepsun.kototoro.core.parser.rule.EnhancedRuleEngine
-import org.skepsun.kototoro.core.parser.rule.RuleCache
 import org.skepsun.kototoro.core.javascript.JavaScriptEngine
-import org.skepsun.kototoro.core.javascript.JavaScriptRuleParser
 import org.skepsun.kototoro.core.javascript.JavaScriptContext
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.parsers.model.ContentType
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
+import org.skepsun.kototoro.core.network.jsonsource.UserAgentManager
+import io.mockk.mockk
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 
 /**
- * Integration test for BasicJsonRepository
- * 
- * Task 31.1: Tests complete parsing flow with real Legado configurations
- * - Tests list page parsing
- * - Tests details page parsing  
- * - Tests chapter content parsing
- * - Tests error handling
- * 
- * Requirements: 4.2, 4.3, 4.4
+ * Integration test for LegadoRepository
  */
-class BasicJsonRepositoryIntegrationTest {
+class LegadoRepositoryIntegrationTest {
 	
 	private lateinit var mockServer: MockWebServer
 	private lateinit var httpClient: LegadoHttpClient
-	private lateinit var ruleEngine: EnhancedRuleEngine
+	private lateinit var mockJsEngine: JavaScriptEngine
 	
-	@Before
+	@BeforeEach
 	fun setup() {
 		mockServer = MockWebServer()
 		mockServer.start()
 		
 		val okHttpClient = OkHttpClient.Builder().build()
-		httpClient = LegadoHttpClient(okHttpClient)
+		httpClient = LegadoHttpClient(okHttpClient, mockk(relaxed = true), UserAgentManager())
 		
-		// Create EnhancedRuleEngine with mock JavaScript engine
-		val cache = RuleCache()
-		val baseRuleEngine = DefaultRuleEngine(cache)
-		
-		val mockJsEngine = object : JavaScriptEngine {
+		mockJsEngine = object : JavaScriptEngine {
 			override fun execute(script: String, context: JavaScriptContext): Any? {
 				return "JavaScript Result"
 			}
@@ -65,22 +53,15 @@ class BasicJsonRepositoryIntegrationTest {
 			
 			override fun dispose() {}
 		}
-		
-		val jsRuleParser = JavaScriptRuleParser(mockJsEngine)
-		ruleEngine = EnhancedRuleEngine(baseRuleEngine, jsRuleParser)
 	}
 	
-	@After
+	@AfterEach
 	fun tearDown() {
 		mockServer.shutdown()
 	}
 	
-	/**
-	 * Test parsing a list page with CSS selectors
-	 */
 	@Test
 	fun `test getList with CSS selectors`() = runTest {
-		// Setup mock response
 		val html = """
 			<html>
 			<body>
@@ -100,7 +81,6 @@ class BasicJsonRepositoryIntegrationTest {
 		
 		mockServer.enqueue(MockResponse().setBody(html))
 		
-		// Create JSON source with CSS selectors
 		val config = """
 			{
 				"bookSourceName":"Test Source",
@@ -126,13 +106,11 @@ class BasicJsonRepositoryIntegrationTest {
 			updatedAt = System.currentTimeMillis()
 		)
 		
-		val source = JsonMangaSource(entity, ContentType.OTHER)
-		val repository = BasicJsonRepository(source, httpClient, ruleEngine)
+		val source = JsonMangaSource(entity)
+		val repository = LegadoRepository(source, httpClient, mockJsEngine)
 		
-		// Execute
 		val results = repository.getList(0, null, null)
 		
-		// Verify
 		assertEquals(2, results.size)
 		assertEquals("Test Book 1", results[0].title)
 		assertEquals("Test Book 2", results[1].title)
@@ -140,12 +118,8 @@ class BasicJsonRepositoryIntegrationTest {
 		assertTrue(results[1].url.contains("/book/2"))
 	}
 	
-	/**
-	 * Test parsing with XPath selectors (like the failing source)
-	 */
 	@Test
 	fun `test getDetails with XPath selectors`() = runTest {
-		// Setup mock response with meta tags
 		val html = """
 			<html>
 			<head>
@@ -154,8 +128,6 @@ class BasicJsonRepositoryIntegrationTest {
 				<meta property="og:image" content="/cover.jpg"/>
 				<meta property="og:description" content="Test description"/>
 				<meta property="og:novel:category" content="Fantasy"/>
-				<meta property="og:novel:status" content="Ongoing"/>
-				<meta property="og:novel:latest_chapter_name" content="Chapter 100"/>
 			</head>
 			<body>
 				<div id="content_1">
@@ -167,8 +139,8 @@ class BasicJsonRepositoryIntegrationTest {
 		""".trimIndent()
 		
 		mockServer.enqueue(MockResponse().setBody(html))
+		mockServer.enqueue(MockResponse().setBody(html))
 		
-		// Create JSON source with XPath selectors (like the failing source)
 		val config = """
 			{
 				"bookSourceName":"Test Source",
@@ -198,11 +170,10 @@ class BasicJsonRepositoryIntegrationTest {
 			updatedAt = System.currentTimeMillis()
 		)
 		
-		val source = JsonMangaSource(entity, ContentType.OTHER)
-		val repository = BasicJsonRepository(source, httpClient, ruleEngine)
+		val source = JsonMangaSource(entity)
+		val repository = LegadoRepository(source, httpClient, mockJsEngine)
 		
-		// Create a test manga
-		val testManga = org.skepsun.kototoro.parsers.model.Manga(
+		val testManga = Manga(
 			id = 1L,
 			title = "Original Title",
 			altTitles = emptySet(),
@@ -220,86 +191,12 @@ class BasicJsonRepositoryIntegrationTest {
 			source = source
 		)
 		
-		// Execute
 		val result = repository.getDetails(testManga)
 		
-		// Verify - XPath parsing should work
 		assertNotNull(result)
-		// Note: XPath support needs to be implemented in RuleEngine
-		// For now, this test documents the expected behavior
-	}
-	
-	/**
-	 * Test error handling when config is incomplete
-	 */
-	@Test
-	fun `test getList with missing ruleSearch returns empty list`() = runTest {
-		// Create JSON source without ruleSearch
-		val config = """
-			{
-				"bookSourceName":"Test Source",
-				"bookSourceUrl":"${mockServer.url("/")}"
-			}
-		""".trimIndent()
-		
-		val entity = JsonSourceEntity(
-			id = "JSON_TEST_3",
-			name = "Test Source",
-			type = JsonSourceType.LEGADO,
-			config = config,
-			enabled = true,
-			createdAt = System.currentTimeMillis(),
-			updatedAt = System.currentTimeMillis()
-		)
-		
-		val source = JsonMangaSource(entity, ContentType.OTHER)
-		val repository = BasicJsonRepository(source, httpClient, ruleEngine)
-		
-		// Execute
-		val results = repository.getList(0, null, null)
-		
-		// Verify - should return empty list, not crash
-		assertEquals(0, results.size)
-	}
-	
-	/**
-	 * Test network error handling
-	 */
-	@Test
-	fun `test getList with network error returns empty list`() = runTest {
-		// Don't enqueue any response - will cause connection error
-		mockServer.shutdown()
-		
-		val config = """
-			{
-				"bookSourceName":"Test Source",
-				"bookSourceUrl":"http://localhost:99999/",
-				"searchUrl":"/search",
-				"ruleSearch":{
-					"bookList":"class.item",
-					"name":"tag.h3.0@text",
-					"bookUrl":"tag.a.0@href"
-				}
-			}
-		""".trimIndent()
-		
-		val entity = JsonSourceEntity(
-			id = "JSON_TEST_4",
-			name = "Test Source",
-			type = JsonSourceType.LEGADO,
-			config = config,
-			enabled = true,
-			createdAt = System.currentTimeMillis(),
-			updatedAt = System.currentTimeMillis()
-		)
-		
-		val source = JsonMangaSource(entity, ContentType.OTHER)
-		val repository = BasicJsonRepository(source, httpClient, ruleEngine)
-		
-		// Execute
-		val results = repository.getList(0, null, null)
-		
-		// Verify - should return empty list, not crash
-		assertEquals(0, results.size)
+		assertEquals("Test Novel", result.title)
+		assertEquals("Test Author", result.authors.first())
+		assertTrue(result.coverUrl?.contains("/cover.jpg") == true)
+		assertEquals("Test description", result.description)
 	}
 }

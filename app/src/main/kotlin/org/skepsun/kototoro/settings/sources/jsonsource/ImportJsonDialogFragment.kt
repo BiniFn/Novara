@@ -67,8 +67,23 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		
 		// Set up button listeners
 		binding.buttonSelectFile.setOnClickListener(this)
+		binding.buttonImportUrl.setOnClickListener(this)
 		binding.buttonCancel.setOnClickListener(this)
 		binding.buttonImport.setOnClickListener(this)
+		
+		// Observe fetched content from URL
+		viewModel.fetchedContent.observe(viewLifecycleOwner) { content ->
+			if (content != null) {
+				binding.editTextJson.setText(content)
+				viewModel.clearFetchedContent()
+				
+				Toast.makeText(
+					requireContext(),
+					R.string.file_loaded_successfully,
+					Toast.LENGTH_SHORT
+				).show()
+			}
+		}
 		
 		// Observe UI state changes
 		viewModel.uiState.observe(viewLifecycleOwner, this::onUiStateChanged)
@@ -100,6 +115,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	override fun onClick(v: View) {
 		when (v.id) {
 			R.id.button_select_file -> openFilePicker()
+			R.id.button_import_url -> showUrlInputDialog()
 			R.id.button_cancel -> dismiss()
 			R.id.button_import -> performImport()
 		}
@@ -125,6 +141,40 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		
 		// Set default selection to Legado
 		binding.autoCompleteSourceType.setText(sourceTypes[0], false)
+	}
+	
+	/**
+	 * Shows a dialog to input a URL for fetching JSON content.
+	 */
+	private fun showUrlInputDialog() {
+		val input = com.google.android.material.textfield.TextInputEditText(requireContext()).apply {
+			hint = "https://example.com/source.json"
+			inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+		}
+		
+		val container = android.widget.FrameLayout(requireContext()).apply {
+			val params = android.widget.FrameLayout.LayoutParams(
+				android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+				android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+			)
+			val margin = resources.getDimensionPixelSize(R.dimen.margin_normal)
+			params.setMargins(margin, margin / 2, margin, 0)
+			input.layoutParams = params
+			addView(input)
+		}
+		
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(R.string.import_from_url)
+			.setMessage(R.string.enter_source_url)
+			.setView(container)
+			.setPositiveButton(R.string._import) { _, _ ->
+				val url = input.text?.toString() ?: ""
+				if (url.isNotBlank()) {
+					viewModel.fetchFromUrl(url)
+				}
+			}
+			.setNegativeButton(android.R.string.cancel, null)
+			.show()
 	}
 	
 	/**

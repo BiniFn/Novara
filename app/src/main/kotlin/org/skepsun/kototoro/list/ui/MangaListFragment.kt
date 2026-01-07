@@ -132,8 +132,18 @@ abstract class MangaListFragment :
 		viewModel.gridScale.observe(viewLifecycleOwner, ::onGridScaleChanged)
 		viewModel.isLoading.observe(viewLifecycleOwner, ::onLoadingStateChanged)
 		viewModel.content.observe(viewLifecycleOwner, ::onListChanged)
-		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))
+		// Pass exceptionResolver and onResolved callback so CF errors can be resolved and retried
+		viewModel.onError.observeEvent(
+			viewLifecycleOwner, 
+			SnackbarErrorObserver(
+				host = binding.recyclerView, 
+				fragment = this,
+				resolver = exceptionResolver,
+				onResolved = { resolved -> if (resolved) viewModel.onRetry() }
+			)
+		)
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.recyclerView))
+
 		
 		observeFoldableState()
 	}

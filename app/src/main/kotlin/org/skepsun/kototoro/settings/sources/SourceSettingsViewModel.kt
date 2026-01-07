@@ -30,6 +30,7 @@ import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.ParseException
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.parser.legado.LegadoRepository
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -74,7 +75,7 @@ class SourceSettingsViewModel @Inject constructor(
 				repository.getConfig().subscribe(this)
 				loadUsername(repository.getAuthProvider())
 			}
-			is org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository -> {
+			is LegadoRepository -> {
 				val url = runCatching {
 					val json = Json { ignoreUnknownKeys = true; isLenient = true }
 					val config = json.decodeFromString<LegadoBookSource>(

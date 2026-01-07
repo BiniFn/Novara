@@ -99,6 +99,10 @@
     <string name="source_type">源类型</string>
     <string name="source_type_legado">Legado</string>
     <string name="source_type_tvbox">TVBox</string>
+    <string name="import_from_url">从在线地址添加</string>
+    <string name="enter_source_url">输入源地址</string>
+    <string name="fetching_content">正在获取内容…</string>
+    <string name="error_fetching_url">获取内容失败：%s</string>
     <string name="import_button">导入</string>
     <string name="importing_">正在导入…</string>
     <string name="json_content_required">需要 JSON 内容</string>

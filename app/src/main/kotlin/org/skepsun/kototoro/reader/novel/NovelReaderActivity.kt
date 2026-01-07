@@ -551,8 +551,9 @@ class NovelReaderActivity :
             try {
                 showLoading(true)
                 
+                android.util.Log.d("NovelReaderActivity", "Manga chapters null or empty: ${manga.chapters.isNullOrEmpty()}, isLocal: ${manga.isLocal}")
+
                 // For local manga, ALWAYS reload from repository to get fresh chapter list from index
-                // This ensures we get updated chapters after EPUB download/extraction
                 val details = if (manga.isLocal || manga.chapters.isNullOrEmpty()) {
                     android.util.Log.d("NovelReaderActivity", "Loading chapters from repository (local=${manga.isLocal}, empty=${manga.chapters.isNullOrEmpty()})...")
                     val startTime = System.currentTimeMillis()
@@ -645,11 +646,16 @@ class NovelReaderActivity :
             return
         }
         
-        android.util.Log.d("NovelReaderActivity", "Loading chapter: id=${chapter.id}, name=${chapter.name}")
-        
         lifecycleScope.launch {
             try {
-                showLoading(true)
+                // Determine if we need to show the loading spinner
+                val needsLoading = !chapter.url.startsWith("epub://") && 
+                                  !chapter.url.contains("#chapter/") &&
+                                  !novelContentLoader.isCached(chapter)
+                
+                if (needsLoading) {
+                    showLoading(true)
+                }
                 
                 // Check if this is an EPUB internal chapter (Requirement 6.1, 6.2, 6.3)
                 if (chapter.url.contains("#chapter/") || chapter.url.startsWith("epub://")) {
@@ -687,9 +693,21 @@ class NovelReaderActivity :
                 // Use chapter's source to get correct repository (local or online)
                 // This allows seamless switching between downloaded and online chapters
                 val chapterRepo = mangaRepositoryFactory.create(chapter.source)
+                
+                // 1. FAST PATH: Check if already cached
+                if (novelContentLoader.isCached(chapter)) {
+                    android.util.Log.d("NovelReaderActivity", "✅ Cache hit for chapter, loading directly")
+                    val plainText = novelContentLoader.loadChapterContent(chapterRepo, chapter)
+                    showLoading(false)
+                    renderChapter(chapter, plainText)
+                    preloadNextChapter(index + 1)
+                    return@launch
+                }
+
+                // 2. SLOW PATH: Need to fetch from network
                 val isLocalChapter = chapter.source is org.skepsun.kototoro.core.model.LocalNovelSource || 
                                     chapter.source is org.skepsun.kototoro.core.model.LocalMangaSource
-                android.util.Log.d("NovelReaderActivity", "Using repository for source: ${chapter.source}, isLocal: $isLocalChapter")
+                android.util.Log.d("NovelReaderActivity", "Cache miss, using repository for source: ${chapter.source}, isLocal: $isLocalChapter")
                 
                 val pages = chapterRepo.getPages(chapter)
                 
@@ -734,17 +752,37 @@ class NovelReaderActivity :
                 }
                 
                 android.util.Log.d("NovelReaderActivity", "Processing as regular chapter with cache")
-                // 使用缓存加载器加载章节内容 - use per-chapter repository
-                val plainText = novelContentLoader.loadChapterContent(chapterRepo, chapter)
+                // 使用已经解析的 pages 加载，避免二次抓取
+                val plainText = novelContentLoader.loadChapterContent(chapterRepo, chapter, pages)
                 
                 android.util.Log.d("NovelReaderActivity", "Plain text length: ${plainText.length}")
                 
                 showLoading(false)
                 renderChapter(chapter, plainText)
+                
+                // Preload next chapter
+                preloadNextChapter(index + 1)
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Failed to load chapter", e)
                 showLoading(false)
                 showError("加载章节失败: ${e.message}")
+            }
+        }
+    }
+
+    private fun preloadNextChapter(nextIndex: Int) {
+        val nextChapter = chapters.getOrNull(nextIndex) ?: return
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                if (novelContentLoader.isCached(nextChapter)) return@launch
+                
+                android.util.Log.d("NovelReaderActivity", "Preloading next chapter: ${nextChapter.title}")
+                val chapterRepo = mangaRepositoryFactory.create(nextChapter.source)
+                novelContentLoader.loadChapterContent(chapterRepo, nextChapter)
+                android.util.Log.d("NovelReaderActivity", "Successfully preloaded: ${nextChapter.title}")
+            } catch (e: Exception) {
+                android.util.Log.w("NovelReaderActivity", "Failed to preload chapter: ${nextChapter.title}", e)
             }
         }
     }

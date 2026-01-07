@@ -14,7 +14,7 @@ import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
-import org.skepsun.kototoro.core.parser.dynamic.DynamicParserFactory
+
 import org.skepsun.kototoro.core.parser.rule.DefaultRuleEngine
 import org.skepsun.kototoro.core.parser.rule.RuleCache
 

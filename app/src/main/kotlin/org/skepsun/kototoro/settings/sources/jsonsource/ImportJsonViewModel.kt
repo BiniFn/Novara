@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.jsonsource.SecurityValidator
+import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import javax.inject.Inject
 
@@ -26,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ImportJsonViewModel @Inject constructor(
 	private val jsonSourceManager: JsonSourceManager,
+	private val legadoHttpClient: LegadoHttpClient,
 ) : BaseViewModel() {
 	
 	// Import options (can be toggled from UI if needed)
@@ -37,6 +39,40 @@ class ImportJsonViewModel @Inject constructor(
 	
 	private val _selectedFileUri = MutableStateFlow<Uri?>(null)
 	val selectedFileUri: StateFlow<Uri?> = _selectedFileUri.asStateFlow()
+
+	private val _fetchedContent = MutableStateFlow<String?>(null)
+	val fetchedContent = _fetchedContent.asStateFlow()
+	
+	/**
+	 * Fetches JSON content from a URL.
+	 * 
+	 * @param url The URL to fetch from
+	 */
+	fun fetchFromUrl(url: String) {
+		viewModelScope.launch {
+			_uiState.value = ImportUiState.Loading
+			try {
+				val response = legadoHttpClient.get(url)
+				if (response.isSuccessful) {
+					val content = response.body?.string()
+					if (content != null) {
+						_fetchedContent.value = content
+						_uiState.value = ImportUiState.Idle
+					} else {
+						_uiState.value = ImportUiState.Error("Empty response body")
+					}
+				} else {
+					_uiState.value = ImportUiState.Error("HTTP Error ${response.code}")
+				}
+			} catch (e: Exception) {
+				_uiState.value = ImportUiState.Error(e.message ?: "Unknown error occurred")
+			}
+		}
+	}
+
+	fun clearFetchedContent() {
+		_fetchedContent.value = null
+	}
 	
 	/**
 	 * Selects a file for import.

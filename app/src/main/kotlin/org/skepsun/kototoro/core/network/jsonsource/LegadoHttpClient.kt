@@ -3,13 +3,17 @@ package org.skepsun.kototoro.core.network.jsonsource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.CacheControl
 import okhttp3.Headers
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.Response
 import org.skepsun.kototoro.core.network.MangaHttpClient
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.parsers.model.MangaSource
+import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,12 +43,7 @@ class LegadoHttpClient @Inject constructor(
     }
 
     /**
-     * Execute a POST request
-     * @param url Target URL
-     * @param formData Form data to post
-     * @param headers Optional custom headers
-     * @param source Optional MangaSource for request tagging
-     * @return HTTP response
+     * Execute a POST request with form data
      */
     suspend fun post(
         url: String,
@@ -52,14 +51,25 @@ class LegadoHttpClient @Inject constructor(
         headers: Map<String, String> = emptyMap(),
         source: MangaSource? = null
     ): Response {
-        return withContext(Dispatchers.IO) {
-            val formBody = FormBody.Builder().apply {
-                formData.forEach { (key, value) ->
-                    add(key, value)
-                }
-            }.build()
+        val formBody = FormBody.Builder().apply {
+            formData.forEach { (key, value) ->
+                add(key, value)
+            }
+        }.build()
+        return post(url, formBody, headers, source)
+    }
 
-            val request = buildRequest(url, headers, method = "POST", body = formBody, source = source)
+    /**
+     * Execute a POST request with a raw body
+     */
+    suspend fun post(
+        url: String,
+        body: okhttp3.RequestBody,
+        headers: Map<String, String> = emptyMap(),
+        source: MangaSource? = null
+    ): Response {
+        return withContext(Dispatchers.IO) {
+            val request = buildRequest(url, headers, method = "POST", body = body, source = source)
             okHttpClient.newCall(request).execute()
         }
     }
@@ -78,7 +88,29 @@ class LegadoHttpClient @Inject constructor(
         
         // Add User-Agent if not provided
         if (!customHeaders.containsKey("User-Agent")) {
-            headersBuilder.add("User-Agent", userAgentManager.getUserAgent())
+            // For Legado sources, we prefer Desktop User-Agent to avoid mobile redirects (like m. subdomains)
+            // which often cause CloudFlare cookie issues.
+            val userAgent = if (source?.name?.startsWith("JSON_LEGADO", ignoreCase = true) == true) {
+                userAgentManager.getUserAgent("chrome_desktop")
+            } else {
+                userAgentManager.getUserAgent()
+            }
+            headersBuilder.add("User-Agent", userAgent)
+        }
+        
+        // Add Referer if not provided (many sites require this)
+        if (!customHeaders.containsKey("Referer")) {
+            try {
+                val parsedUrl = url.toHttpUrlOrNull() ?: URL(url).let { 
+                    HttpUrl.Builder()
+                        .scheme(it.protocol)
+                        .host(it.host)
+                        .build()
+                }
+                headersBuilder.add("Referer", "${parsedUrl.scheme}://${parsedUrl.host}/")
+            } catch (_: Exception) {
+                // Ignore if URL parsing fails
+            }
         }
         
         // Add custom headers
@@ -90,14 +122,36 @@ class LegadoHttpClient @Inject constructor(
             .url(url)
             .headers(headersBuilder.build())
             .method(method, body)
+
+        // 强制直连以避免 OkHttp 基于缓存的条件请求（部分站点会拒绝未来时间的 If-Modified-Since）
+        if (source?.name?.startsWith("JSON_LEGADO", ignoreCase = true) == true) {
+            requestBuilder.cacheControl(CacheControl.FORCE_NETWORK)
+        }
         
         // Tag the request with the source if provided
         if (source != null) {
             requestBuilder.tag(MangaSource::class.java, source)
         }
         
+        // Log cookies for debugging
+        try {
+            val httpUrl = url.toHttpUrlOrNull()
+            if (httpUrl != null) {
+                val cookies = cookieJar.loadForRequest(httpUrl)
+                if (cookies.isNotEmpty()) {
+                    android.util.Log.d("LegadoHttpClient", "Cookies for $url: ${cookies.map { "${it.name}=${it.value.take(20)}..." }}")
+                } else {
+                    android.util.Log.d("LegadoHttpClient", "No cookies for $url")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("LegadoHttpClient", "Failed to log cookies", e)
+        }
+        
         return requestBuilder.build()
     }
+
+
 
     /**
      * Get the current cookie jar for manual cookie management

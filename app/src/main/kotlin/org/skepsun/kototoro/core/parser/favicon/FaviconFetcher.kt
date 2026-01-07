@@ -31,7 +31,7 @@ import org.skepsun.kototoro.core.model.MangaSource
 import org.skepsun.kototoro.core.parser.EmptyMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
-import org.skepsun.kototoro.core.parser.dynamic.BasicJsonRepository
+import org.skepsun.kototoro.core.parser.legado.LegadoRepository
 import org.skepsun.kototoro.core.parser.external.ExternalMangaRepository
 import org.skepsun.kototoro.core.parser.JsMangaRepository
 import org.skepsun.kototoro.mihon.MihonMangaRepository
@@ -69,7 +69,7 @@ class FaviconFetcher(
 			)
 			
 			// JSON/Legado sources: use a neutral icon
-			is BasicJsonRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
+			is LegadoRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
 
 			is LocalMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
 

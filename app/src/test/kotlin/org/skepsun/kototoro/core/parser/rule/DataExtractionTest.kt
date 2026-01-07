@@ -3,7 +3,8 @@ package org.skepsun.kototoro.core.parser.rule
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.string.shouldContain as shouldContainString
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
@@ -148,7 +149,7 @@ class DataExtractionTest : FunSpec({
             val elements = enhancedCssSelector.select(doc.body(), "class.title")
             
             elements.size shouldBe 1
-            elements.first().text() shouldBe "标题文本"
+            elements.first()?.text() shouldBe "标题文本"
         }
         
         test("tag.tagName 语法") {
@@ -164,7 +165,7 @@ class DataExtractionTest : FunSpec({
             val elements = enhancedCssSelector.select(doc.body(), "tag.h1")
             
             elements.size shouldBe 1
-            elements.first().text() shouldBe "标题1"
+            elements.first()?.text() shouldBe "标题1"
         }
         
         test("id.idName 语法") {
@@ -179,7 +180,7 @@ class DataExtractionTest : FunSpec({
             val elements = enhancedCssSelector.select(doc.body(), "id.header")
             
             elements.size shouldBe 1
-            elements.first().text() shouldBe "头部"
+            elements.first()?.text() shouldBe "头部"
         }
         
         test("@tag.tagName.index 语法") {
@@ -195,7 +196,7 @@ class DataExtractionTest : FunSpec({
             val elements = enhancedCssSelector.select(doc.body().child(0), "@tag.p.1")
             
             elements.size shouldBe 1
-            elements.first().text() shouldBe "第二段"
+            elements.first()?.text() shouldBe "第二段"
         }
     }
     
@@ -230,7 +231,7 @@ class DataExtractionTest : FunSpec({
             
             val elements = enhancedCssSelector.select(img, "@data-src")
             elements.size shouldBe 1
-            elements.first().text() shouldBe "full.jpg"
+            elements.first()?.text() shouldBe "full.jpg"
         }
         
         test("反向选择 [-1:0]") {

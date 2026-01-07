@@ -131,6 +131,10 @@ data class JavaScriptContext(
         page?.let { allVars["page"] = it }
         result?.let { allVars["result"] = it }
         
+        // java 绑定在 Sandbox.setResult 时注入，以便可替换为具备方法的绑定对象
+        variables["java"]?.let { allVars["java"] = it }
+        // cookie 和 cache 将在 Sandbox 中实际注入
+        
         return allVars
     }
     

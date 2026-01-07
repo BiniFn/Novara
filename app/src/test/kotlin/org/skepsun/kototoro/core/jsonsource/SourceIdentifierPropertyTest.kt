@@ -199,6 +199,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 			val expectedPrefix = when (sourceType) {
 				JsonSourceType.LEGADO -> "JSON_LEGADO_"
 				JsonSourceType.TVBOX -> "JSON_TVBOX_"
+				JsonSourceType.JS -> "JSON_JS_"
 			}
 			sourceId shouldStartWith expectedPrefix
 			
@@ -260,6 +261,9 @@ class SourceIdentifierPropertyTest : StringSpec({
 				SourceType.NATIVE -> label shouldBe "原生源"
 				SourceType.JSON_LEGADO -> label shouldBe "JSON 源 (Legado)"
 				SourceType.JSON_TVBOX -> label shouldBe "JSON 源 (TVBox)"
+				SourceType.JSON_JS -> label shouldBe "JavaScript 源"
+				SourceType.MIHON -> label shouldBe "Mihon 扩展"
+				SourceType.ANIYOMI -> label shouldBe "Aniyomi 扩展"
 				SourceType.EXTERNAL -> label shouldBe "外部源"
 			}
 		}

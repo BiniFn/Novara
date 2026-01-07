@@ -8,6 +8,7 @@ import android.view.animation.RotateAnimation
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
@@ -136,15 +137,20 @@ class GroupedJsonSourcesAdapter(
 				}
 				
 				// Parse config to extract base URL and explore rule status (Legado only)
-				val legado = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
-					runCatching {
-						kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
-							.decodeFromString<org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource>(mangaSource.entity.config)
-					}.getOrNull()
+				val (bookSourceUrl, hasExplore) = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
+					try {
+						val jsonObj = JSONObject(mangaSource.entity.config)
+						val url = jsonObj.optString("bookSourceUrl")
+						val exploreRule = jsonObj.optJSONObject("ruleExplore")
+						val exploreStatus = exploreRule != null && !exploreRule.optString("bookList").isNullOrBlank()
+						url to exploreStatus
+					} catch (e: Exception) {
+						null to true
+					}
 				} else {
-					null
+					null to true
 				}
-				binding.textViewUrl.text = legado?.bookSourceUrl ?: mangaSource.entity.id
+				binding.textViewUrl.text = bookSourceUrl ?: mangaSource.entity.id
 				
 				// Enabled switch/buttons visible
 				binding.switchEnabled.visibility = View.VISIBLE
@@ -159,11 +165,6 @@ class GroupedJsonSourcesAdapter(
 				
 				// Badges
 				var badgesVisible = false
-				val hasExplore = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
-					!(legado?.ruleExplore?.bookList.isNullOrBlank())
-				} else {
-					true
-				}
 				if (!hasExplore) {
 					binding.chipSearchOnly.visibility = View.VISIBLE
 					binding.chipSearchOnly.text = binding.root.context.getString(R.string.badge_search_only)
