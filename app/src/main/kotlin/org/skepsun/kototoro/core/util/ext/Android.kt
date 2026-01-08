@@ -207,7 +207,7 @@ fun Context.ensureRamAtLeast(requiredSize: Long) {
 	}
 }
 
-fun WebView.configureForParser(userAgentOverride: String?) = with(settings) {
+fun WebView.configureForParser(userAgentOverride: String?, blockImages: Boolean = false) = with(settings) {
 	javaScriptEnabled = true
 	domStorageEnabled = true
 	mediaPlaybackRequiresUserGesture = false
@@ -216,6 +216,9 @@ fun WebView.configureForParser(userAgentOverride: String?) = with(settings) {
 	}
 	databaseEnabled = true
 	allowContentAccess = false
+	// Match Legado's settings for content loading
+	mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+	blockNetworkImage = blockImages // 阻止图片加载以加速
 	if (userAgentOverride != null) {
 		userAgentString = userAgentOverride
 	}

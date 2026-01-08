@@ -174,7 +174,9 @@ class RhinoJavaScriptEngine(
                 RhinoContext.exit()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Script execution failed: $script", e)
+            Log.e(TAG, "Script execution failed: $script")
+            Log.e(TAG, "Exception: ${e.javaClass.simpleName}: ${e.message}")
+            e.printStackTrace()
             null
         }
     }
@@ -218,7 +220,29 @@ class RhinoJavaScriptEngine(
         
         // 设置所有变量到 JavaScript 作用域
         allVariables.forEach { (name, value) ->
-            val jsValue = RhinoContext.javaToJS(value, currentScope)
+            // Special handling for arrays/lists to ensure they work as JS arrays
+            // This is critical for rules like chapterList where JS expects result.length to work
+            val jsValue = when (value) {
+                is List<*> -> {
+                    Log.d(TAG, "Converting List to NativeArray for '$name', size=${value.size}")
+                    val array = ctx.newArray(currentScope, value.size)
+                    value.forEachIndexed { index, item ->
+                        val jsItem = RhinoContext.javaToJS(item, currentScope)
+                        ScriptableObject.putProperty(array, index, jsItem)
+                    }
+                    array
+                }
+                is Array<*> -> {
+                    Log.d(TAG, "Converting Array to NativeArray for '$name', size=${value.size}")
+                    val array = ctx.newArray(currentScope, value.size)
+                    value.forEachIndexed { index, item ->
+                        val jsItem = RhinoContext.javaToJS(item, currentScope)
+                        ScriptableObject.putProperty(array, index, jsItem)
+                    }
+                    array
+                }
+                else -> RhinoContext.javaToJS(value, currentScope)
+            }
             ScriptableObject.putProperty(currentScope, name, jsValue)
         }
         
@@ -229,6 +253,7 @@ class RhinoJavaScriptEngine(
             ScriptableObject.putProperty(currentScope, "source", jsSource)
         }
     }
+
     
     /**
      * Source 对象包装器，提供 Legado 兼容的方法

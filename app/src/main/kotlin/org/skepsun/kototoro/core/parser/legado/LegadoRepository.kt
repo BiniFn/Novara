@@ -1,6 +1,10 @@
 package org.skepsun.kototoro.core.parser.legado
 
 import android.util.Log
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import okhttp3.Response
@@ -19,6 +23,11 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.nio.charset.Charset
+import org.skepsun.kototoro.core.cache.MemoryContentCache
+import org.skepsun.kototoro.core.cache.SafeDeferred
+import org.skepsun.kototoro.core.util.ext.processLifecycleScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
 
 import java.util.*
 
@@ -32,6 +41,7 @@ class LegadoRepository(
     override val source: MangaSource,
     private val httpClient: LegadoHttpClient,
     private val jsEngine: JavaScriptEngine,
+    private val memoryCache: MemoryContentCache? = null,
     private val browserLauncher: org.skepsun.kototoro.core.javascript.BrowserLauncher? = null
 ) : MangaRepository {
 
@@ -53,14 +63,28 @@ class LegadoRepository(
         LegadoSandbox(jsEngine, httpClient, config)
     }
 
-    private val configHeaders: Map<String, String> by lazy { parseConfigHeaders(config.header) }
+    /**
+     * Get headers from source config, evaluating JS each time (like legado's getHeaderMap)
+     * This allows dynamic headers from JS scripts to work properly
+     */
+    private fun getConfigHeaders(): Map<String, String> {
+        return parseConfigHeaders(config.header)
+    }
 
-    private val sourceUserAgent: String by lazy {
-        configHeaders["User-Agent"] ?: configHeaders["user-agent"] ?: run {
-            // Legado sources are typically designed for mobile websites
-            // Use mobile UA as default for better compatibility
-            "Mozilla/5.0 (Linux; Android 10; SM-G965F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
-        }
+    /**
+     * Default UA for when source doesn't specify one
+     * Using Windows Chrome desktop UA like legado does for better source compatibility
+     * Many sources return different HTML for mobile vs desktop
+     */
+    private val defaultUserAgent: String = 
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+
+    /**
+     * Get User-Agent, preferring source config over default
+     */
+    private fun getSourceUserAgent(): String {
+        val headers = getConfigHeaders()
+        return headers["User-Agent"] ?: headers["user-agent"] ?: defaultUserAgent
     }
 
     override val sortOrders: Set<SortOrder> = EnumSet.allOf(SortOrder::class.java)
@@ -139,71 +163,103 @@ class LegadoRepository(
         )
         
         val request = urlAnalyzer.build()
-        Log.d(TAG, "getList isSearch=$isSearch page=$page url=${request.url}")
         val result = executeRequest(request)
         
         if (result == null) return emptyList()
         val (content, finalUrl) = result
         
-        val list = BookList.parse(content, finalUrl, source, config, isSearch, sandbox)
-        Log.d(TAG, "getList parsed=${list.size} items for url=$finalUrl")
-        if (list.isEmpty()) {
-            val preview = content.take(400).replace("\n", " ")
-            Log.d(TAG, "getList empty for url=$finalUrl ruleUrl=$ruleUrl preview=${preview}")
-        }
-        return list
+        return BookList.parse(content, finalUrl, source, config, isSearch, sandbox)
     }
+
+    private val rateLimiter by lazy {
+        ConcurrentRateLimiter(config.bookSourceUrl, config.concurrentRate)
+    }
+
 
     /**
      * Centralized request executor with retry and protection logic
      */
     private suspend fun executeRequest(request: AnalyzeUrl.UrlResult): Pair<String, String>? {
-        val maxRetries = request.retry.coerceAtLeast(1)
-        var lastContent: String? = null
+        // Legado sources often have 0 retries by default, but we need more for stability
+        // Increase to 5 to handle aggressive sites like bilinovel
+        val maxRetries = (request.retry).coerceAtLeast(5)
         
         repeat(maxRetries) { attempt ->
             try {
-                // Sync CloudFlare cookies
-                LegadoCloudFlareResolver.syncCloudFlareCookies(config.bookSourceUrl)
-                
-                val headersWithUa = request.headers.toMutableMap()
-                if (!headersWithUa.containsKey("User-Agent") && !headersWithUa.containsKey("user-agent")) {
-                    headersWithUa["User-Agent"] = sourceUserAgent
-                }
+                // Extract priority from context
+                val priority = kotlin.coroutines.coroutineContext[RequestPriority]?.priority ?: RequestPriority.FOREGROUND
 
-                val response = if (request.method == "POST") {
-                    val body = request.body ?: ""
-                    val mediaType = "application/x-www-form-urlencoded; charset=${request.charset}".toMediaTypeOrNull()
-                    val requestBody = body.toRequestBody(mediaType)
-                    httpClient.post(request.url, requestBody, headersWithUa, source = source)
-                } else {
-                    httpClient.get(request.url, headersWithUa, source = source)
+                // Apply concurrency limit
+                return rateLimiter.withLimit(priority) {
+                    // Sync CloudFlare cookies
+                    LegadoCloudFlareResolver.syncCloudFlareCookies(config.bookSourceUrl)
+                    
+                    val headersWithUa = request.headers.toMutableMap()
+                    if (!headersWithUa.containsKey("User-Agent") && !headersWithUa.containsKey("user-agent")) {
+                        headersWithUa["User-Agent"] = getSourceUserAgent()
+                    }
+
+                    // Use WebView for sources that require JavaScript execution
+                    if (request.useWebView && request.method == "GET") {
+                        Log.d(TAG, "[WebView] Loading URL: ${request.url}")
+                        val delayMs = if (request.webViewDelayTime > 0) request.webViewDelayTime else 2500L
+                        val content = httpClient.getWithWebView(
+                            url = request.url, 
+                            headers = headersWithUa, 
+                            delayMs = delayMs,
+                            webJs = request.webJs
+                        )
+                        
+                        if (content.isBlank()) return@withLimit null
+                        
+                        // For WebView, the final URL is the same as the request URL
+                        return@withLimit content to request.url
+                    }
+
+                    val response = if (request.method == "POST") {
+                        val body = request.body ?: ""
+                        val mediaType = "application/x-www-form-urlencoded; charset=${request.charset}".toMediaTypeOrNull()
+                        val requestBody = body.toRequestBody(mediaType)
+                        httpClient.post(request.url, requestBody, headersWithUa, source = source)
+                    } else {
+                        httpClient.get(request.url, headersWithUa, source = source)
+                    }
+                    
+                    val content = getResponseBodyWithCharset(response)
+                    val responseClone = response.newBuilder().build()
+                    response.close()
+                    
+                    if (content == null) return@withLimit null
+                    
+                    // Check for CloudFlare challenge
+                    val cfStatus = LegadoCloudFlareResolver.checkResponseForProtection(responseClone, content)
+                    if (cfStatus == LegadoCloudFlareResolver.PROTECTION_CAPTCHA) {
+                        Log.w(TAG, "CF challenge detected, throwing exception for UI verification")
+                        val headersForException = toHeaders(headersWithUa)
+                        throw LegadoCloudFlareResolver.createException(request.url, source, headersForException)
+                    } else if (cfStatus == LegadoCloudFlareResolver.PROTECTION_BLOCKED) {
+                        Log.e(TAG, "CloudFlare BLOCKED this request!")
+                        return@withLimit null
+                    }
+                    
+                    val finalUrl = response.request.url.toString()
+                    content to finalUrl
                 }
-                
-                val content = getResponseBodyWithCharset(response)
-                val responseClone = response.newBuilder().build()
-                response.close()
-                
-                if (content == null) return@repeat
-                
-                // Check for CloudFlare challenge
-                val cfStatus = LegadoCloudFlareResolver.checkResponseForProtection(responseClone, content)
-                if (cfStatus == LegadoCloudFlareResolver.PROTECTION_CAPTCHA) {
-                    Log.w(TAG, "CF challenge detected, throwing exception for UI verification")
-                    val headersForException = toHeaders(headersWithUa)
-                    throw LegadoCloudFlareResolver.createException(request.url, source, headersForException)
-                } else if (cfStatus == LegadoCloudFlareResolver.PROTECTION_BLOCKED) {
-                    Log.e(TAG, "CloudFlare BLOCKED this request!")
-                    return null
-                }
-                
-                val finalUrl = response.request.url.toString()
-                
-                return content to finalUrl
             } catch (e: Exception) {
                 if (e is org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException) throw e
-                Log.e(TAG, "Request failed: ${request.url}", e)
-                if (attempt == maxRetries - 1) throw e
+                
+                if (e is org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions) {
+                    val waitTime = e.getRetryDelay().coerceAtLeast(1000L)
+                    Log.w(TAG, "Rate limit hit (429), waiting ${waitTime}ms before retry $attempt/$maxRetries")
+                    delay(waitTime)
+                    // We don't throw here if we have more attempts, we just let the loop continue
+                    if (attempt == maxRetries - 1) throw e
+                } else {
+                    Log.e(TAG, "Request failed: ${request.url} (attempt $attempt/$maxRetries)", e)
+                    if (attempt == maxRetries - 1) throw e
+                    // For other errors, add a small 500ms delay before retrying
+                    delay(500)
+                }
             }
         }
         
@@ -212,27 +268,24 @@ class LegadoRepository(
 
 
     override suspend fun getDetails(manga: Manga): Manga {
-        Log.d(TAG, "===== getDetails START =====")
-        Log.d(TAG, "manga.url=${manga.url}")
-        Log.d(TAG, "manga.title=${manga.title}")
-        
+        val normalizedMangaUrl = AnalyzeUrl.normalizeUrl(manga.url)
+        memoryCache?.getDetails(source, normalizedMangaUrl)?.let {
+            android.util.Log.d(TAG, "Memory cache HIT (getDetails) for book: ${manga.title}")
+            return it
+        }
+
         val request = AnalyzeUrl(manga.url, baseUrl = config.bookSourceUrl, sandbox = sandbox).build()
         val result = executeRequest(request)
         
         if (result == null) {
-            Log.e(TAG, "Response body is null for details!")
             return manga
         }
         val (content, finalUrl) = result
         
-        Log.d(TAG, "Content length: ${content.length}, finalUrl: $finalUrl")
-        
         val infoResult = BookInfo.parse(manga, content, finalUrl, config, sandbox)
-        Log.d(TAG, "Parsed info: tocUrl=${infoResult.tocUrl}")
         
         // TOC parsing - often combined or needed for chapters
         val tocUrl = infoResult.tocUrl ?: finalUrl
-        Log.d(TAG, "Using TOC URL: $tocUrl")
         
         val chapters = if (tocUrl == finalUrl) {
             // Already on TOC page, parse chapters from current content
@@ -240,22 +293,56 @@ class LegadoRepository(
         } else {
             getChaptersHelper(infoResult.manga, tocUrl)
         }
-        Log.d(TAG, "Got ${chapters.size} chapters")
-        Log.d(TAG, "===== getDetails END =====")
         
-        return infoResult.manga.copy(chapters = chapters)
+        val finalManga = infoResult.manga.copy(chapters = chapters)
+        
+        android.util.Log.d(TAG, "Memory cache FILL (getDetails) for book: ${manga.title}")
+        memoryCache?.putDetails(
+            source, 
+            normalizedMangaUrl, 
+            SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(finalManga) })
+        )
+        
+        return finalManga
     }
 
 
     override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+        val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
+        memoryCache?.getPages(source, normalizedUrl)?.let {
+            android.util.Log.d(TAG, "Memory cache HIT (getPages) for chapter: ${chapter.title}")
+            return it
+        }
+        return getPagesFlow(chapter, null).toList().lastOrNull() ?: emptyList()
+    }
+
+    override fun getPagesFlow(chapter: MangaChapter, nextChapterUrl: String?): Flow<List<MangaPage>> = kotlinx.coroutines.flow.channelFlow {
+        val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
+        memoryCache?.getPages(source, normalizedUrl)?.let {
+            android.util.Log.d(TAG, "Memory cache HIT (getPagesFlow) for chapter: ${chapter.title}")
+            send(it)
+            return@channelFlow
+        }
+        
         val visited = mutableSetOf<String>()
         val pages = mutableListOf<MangaPage>()
         val queue: ArrayDeque<String> = ArrayDeque()
         queue.add(chapter.url)
 
+        var pageCount = 0
         while (queue.isNotEmpty()) {
             val url = queue.removeFirst()
             if (!visited.add(url)) continue
+            
+            // 安全检查：如果这个 URL 是下一章的 URL，或者是已经处理过的下一章 URL，停止加载
+            // 注意：Legado URL 可能带有 ",{'webView': true}" 这种后缀，需要剥离后再对比
+            val normalizedUrl = url.substringBefore(",")
+            val normalizedNextChapter = nextChapterUrl?.substringBefore(",")
+            android.util.Log.d("LegadoRepository", "[BoundaryCheck] url=$normalizedUrl, nextChapterUrl=$normalizedNextChapter")
+            if (normalizedNextChapter != null && normalizedUrl == normalizedNextChapter) {
+                android.util.Log.w("LegadoRepository", "Reached next chapter URL: $url, stopping page load.")
+                break
+            }
 
             val request = AnalyzeUrl(url, baseUrl = config.bookSourceUrl, sandbox = sandbox).build()
             val result = executeRequest(request) ?: run {
@@ -268,15 +355,42 @@ class LegadoRepository(
                 val pageId = (source.name.hashCode().toLong() shl 32) + startIndex + index
                 pages.add(page.copy(id = pageId))
             }
+            
+            // Emit current progress
+            send(pages.toList())
+            pageCount++
+
+            // 安全限制：单章节页数超过 100 页（通常是规则误触了下一章）
+            if (pages.size > 100) {
+                android.util.Log.e("LegadoRepository", "Chapter has too many pages (>100), possible rule leakage. Stopping.")
+                break
+            }
 
             parseResult.nextPageUrls.forEach { next ->
+                val normalizedNext = next.substringBefore(",")
+                val normalizedNextChapter = nextChapterUrl?.substringBefore(",")
+                android.util.Log.d("LegadoRepository", "[NextPageFilter] next=$normalizedNext, nextChapter=$normalizedNextChapter, match=${normalizedNext == normalizedNextChapter}")
+                
                 if (!visited.contains(next)) {
-                    queue.add(next)
+                    // 再次检查 next URL
+                    if (normalizedNextChapter != null && normalizedNext == normalizedNextChapter) {
+                        android.util.Log.d("LegadoRepository", "[NextPageFilter] SKIPPING next chapter URL: $next")
+                        // Skip adding next chapter to queue
+                    } else {
+                        queue.add(next)
+                    }
                 }
             }
         }
-
-        return pages
+        
+        if (pages.isNotEmpty()) {
+            android.util.Log.d(TAG, "Memory cache FILL for chapter: ${chapter.title}, pages: ${pages.size}")
+            memoryCache?.putPages(
+                source, 
+                normalizedUrl, 
+                SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(pages.toList()) })
+            )
+        }
     }
 
     override suspend fun getPageUrl(page: MangaPage): String {
@@ -303,11 +417,11 @@ class LegadoRepository(
     }
 
     override fun getRequestHeaders(): Map<String, String> {
-        val headers = configHeaders.toMutableMap()
+        val headers = getConfigHeaders().toMutableMap()
 
         // Ensure User-Agent is included in headers for Browser/WebView consistency
         if (!headers.containsKey("User-Agent") && !headers.containsKey("user-agent")) {
-            headers["User-Agent"] = sourceUserAgent
+            headers["User-Agent"] = getSourceUserAgent()
         }
         
         return headers
@@ -318,37 +432,27 @@ class LegadoRepository(
     }
 
     private suspend fun getChaptersHelper(manga: Manga, tocUrl: String): List<MangaChapter> {
-        Log.d(TAG, "===== getChaptersHelper START =====")
-        Log.d(TAG, "tocUrl=$tocUrl")
-        
         val visited = mutableSetOf<String>()
         val chapters = mutableListOf<MangaChapter>()
         var reverseFlag = false
         val queue: ArrayDeque<String> = ArrayDeque()
         queue.add(tocUrl)
 
-        var iteration = 0
         while (queue.isNotEmpty()) {
-            iteration++
             val url = queue.removeFirst()
-            Log.d(TAG, "[TOC iteration $iteration] Processing: $url")
             
             if (!visited.add(url)) {
-                Log.d(TAG, "[TOC iteration $iteration] Already visited, skipping")
                 continue
             }
 
             val request = AnalyzeUrl(url, baseUrl = config.bookSourceUrl, sandbox = sandbox).build()
             val result = executeRequest(request)
             if (result == null) {
-                Log.e(TAG, "[TOC iteration $iteration] Response body is null!")
                 continue
             }
             val (content, finalUrl) = result
 
             val parseResult = BookChapterList.parse(content, finalUrl, source, config, sandbox)
-            Log.d(TAG, "[TOC iteration $iteration] Parsed ${parseResult.chapters.size} chapters, reverse=${parseResult.reverse}")
-            Log.d(TAG, "[TOC iteration $iteration] Next page URLs: ${parseResult.nextPageUrls}")
             
             if (parseResult.reverse) {
                 reverseFlag = true
@@ -362,8 +466,6 @@ class LegadoRepository(
             }
         }
         
-        Log.d(TAG, "Total chapters collected: ${chapters.size}")
-
         val deduped = linkedMapOf<String, MangaChapter>()
         chapters.forEach { chapter ->
             deduped.putIfAbsent(chapter.url, chapter)
@@ -377,19 +479,15 @@ class LegadoRepository(
         }
         
         // Re-assign sequential indices and numbers to ensure they are 1, 2, 3... in ascending order.
-        val sequentialChapters = ordered.mapIndexed { index, chapter ->
-            // Use stable ID based on URL hash instead of list index
-            val stableId = (source.name.hashCode().toLong() shl 32) + (chapter.url.hashCode().toLong() and 0xFFFFFFFFL)
+        return ordered.mapIndexed { index, chapter ->
+            // Use stable ID based on normalized URL hash instead of list index
+            val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
+            val stableId = (source.name.hashCode().toLong() shl 32) + (normalizedUrl.hashCode().toLong() and 0xFFFFFFFFL)
             chapter.copy(
                 id = stableId,
                 number = index.toFloat() + 1f
             )
         }
-        
-        Log.d(TAG, "Final chapters: ${sequentialChapters.size}, reversed by rule=$reverseFlag")
-        Log.d(TAG, "===== getChaptersHelper END =====")
-        
-        return sequentialChapters
     }
 
     /**
@@ -397,28 +495,19 @@ class LegadoRepository(
      * Uses EncodingDetect with ICU4J for accurate charset identification.
      */
     private fun getResponseBodyWithCharset(response: Response): String? {
-        val body = response.body ?: run {
-            Log.e(TAG, "Response body is null")
-            return null
-        }
-        
+        val body = response.body ?: return null
         val bytes = body.bytes()
-        Log.d(TAG, "Response body size: ${bytes.size} bytes")
         
         // Try to detect charset from Content-Type header first
         val contentType = body.contentType()
         val headerCharset = contentType?.charset()
         
-        Log.d(TAG, "Content-Type: $contentType, headerCharset: $headerCharset")
-        
         if (headerCharset != null) {
-            Log.d(TAG, "Using charset from header: $headerCharset")
             return String(bytes, headerCharset)
         }
         
         // Use EncodingDetect (ICU4J) for HTML charset detection
         val charsetName = org.skepsun.kototoro.core.util.EncodingDetect.getHtmlEncode(bytes)
-        Log.d(TAG, "Detected charset: $charsetName")
         
         return try {
             String(bytes, java.nio.charset.Charset.forName(charsetName))
@@ -436,7 +525,6 @@ class LegadoRepository(
         // Check if header is JavaScript code that needs execution
         if (jsonStr.startsWith("<js>", ignoreCase = true) || 
             jsonStr.startsWith("@js:", ignoreCase = true)) {
-            Log.d(TAG, "Header contains JS, extracting...")
             
             // Extract and execute JavaScript
             val jsCode = when {
@@ -449,15 +537,10 @@ class LegadoRepository(
                 else -> jsonStr
             }
             
-            Log.d(TAG, "Executing header JS: ${jsCode.take(100)}...")
-            
             try {
                 val result = sandbox.eval(jsCode.trim())?.toString()
-                Log.d(TAG, "Header JS execution result: ${result?.take(300)}")
                 if (!result.isNullOrBlank()) {
                     jsonStr = result
-                } else {
-                    Log.w(TAG, "Header JS returned null or blank")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to execute header JS: ${e.message}", e)
@@ -478,7 +561,6 @@ class LegadoRepository(
                     }
                 }
             }
-            Log.d(TAG, "Parsed config headers: ${headers.keys}")
             headers
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse headers JSON: $jsonStr", e)

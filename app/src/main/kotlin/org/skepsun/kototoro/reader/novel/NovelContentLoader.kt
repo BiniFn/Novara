@@ -2,6 +2,7 @@ package org.skepsun.kototoro.reader.novel
 
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import okio.buffer
 import okio.source
@@ -46,7 +47,82 @@ class NovelContentLoader @Inject constructor(
         chapter: MangaChapter,
         pages: List<MangaPage>? = null,
     ): String = withContext(Dispatchers.IO) {
-        loadChapterContentInternal(repository, chapter, pages, forceRefresh = false)
+        val flow = loadChapterContentFlow(repository, chapter, pages, forceRefresh = false)
+        flow.toList().lastOrNull() ?: ""
+    }
+
+    /**
+     * 以流的形式加载章节内容，支持增量渲染
+     */
+    fun loadChapterContentFlow(
+        repository: MangaRepository,
+        chapter: MangaChapter,
+        prefetchedPages: List<MangaPage>? = null,
+        forceRefresh: Boolean = false,
+        priority: Int = org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND,
+        nextChapterUrl: String? = null
+    ): Flow<String> = kotlinx.coroutines.flow.channelFlow {
+        android.util.Log.d("NovelContentLoader", ">>> loadChapterContentFlow START: id=${chapter.id}, priority=$priority, nextChapterUrl=$nextChapterUrl")
+
+        // 注入优先级到当前协程上下文，确保流的 upstream (repository.getPagesFlow) 能看到
+        withContext(org.skepsun.kototoro.core.parser.legado.RequestPriority(priority)) {
+            // 0. 本地/EPUB 逻辑（目前不支持增量，直接一次性返回）
+            if (org.skepsun.kototoro.local.epub.LocalEpubSource.isEpubUrl(chapter.url)) {
+                send(loadEpubChapterContent(chapter))
+                return@withContext
+            }
+
+            val cacheKey = generateCacheKey(chapter)
+            android.util.Log.d("NovelContentLoader", "Checking cache for $cacheKey (chapterId=${chapter.id}, url=${chapter.url})")
+            if (!forceRefresh) {
+                val cachedFile = cache.get(cacheKey)
+                if (cachedFile != null) {
+                    val content = readTextFromFile(cachedFile)
+                    if (!isErrorContent(content)) {
+                        android.util.Log.d("NovelContentLoader", "Cache HIT for $cacheKey")
+                        send(content)
+                        return@withContext
+                    } else {
+                        android.util.Log.d("NovelContentLoader", "Cache EXPIRED/INVALID for $cacheKey")
+                    }
+                } else {
+                    android.util.Log.d("NovelContentLoader", "Cache MISS for $cacheKey")
+                }
+            }
+
+            // 1. 网络抓取（支持 Flow）
+            if (prefetchedPages != null) {
+                val html = concatPagesHtml(prefetchedPages)
+                val plainText = htmlToPlainText(html)
+                send(plainText)
+                if (plainText.isNotBlank() && !isErrorContent(plainText)) {
+                    saveToCache(cacheKey, plainText)
+                }
+            } else {
+                var fullHtml = ""
+                repository.getPagesFlow(chapter, nextChapterUrl).collect { currentPages ->
+                    val html = concatPagesHtml(currentPages)
+                    val plainText = htmlToPlainText(html)
+                    send(plainText)
+                    fullHtml = html
+                }
+                
+                // 保存最终结果到缓存
+                val finalText = htmlToPlainText(fullHtml)
+                if (finalText.isNotBlank() && !isErrorContent(finalText)) {
+                    saveToCache(cacheKey, finalText)
+                }
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun concatPagesHtml(pages: List<MangaPage>): String {
+        val sb = StringBuilder()
+        pages.forEach { page ->
+            sb.append(decodeChapterHtml(page.url))
+            sb.append("\n")
+        }
+        return sb.toString()
     }
 
     /**

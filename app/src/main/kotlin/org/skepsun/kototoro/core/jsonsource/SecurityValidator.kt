@@ -185,12 +185,13 @@ object SecurityValidator {
      * Validates: Requirements 13.3
      */
     fun validateJsonFileSize(sizeInBytes: Long): ValidationResult {
-        val maxSizeBytes = 5 * 1024 * 1024 // 5MB
+        // Practically no limit for local imports as requested
+        val maxSizeBytes = 100 * 1024 * 1024 // 100MB
         
         return if (sizeInBytes > maxSizeBytes) {
             ValidationResult(
                 isValid = false,
-                errors = listOf("JSON file is too large (max 5MB)")
+                errors = listOf("JSON file is too large (max 100MB)")
             )
         } else {
             ValidationResult(isValid = true, errors = emptyList())

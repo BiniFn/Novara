@@ -124,13 +124,12 @@ class GroupedJsonSourcesAdapter(
 			}
 			
 			// Set type label with content type
-			val contentTypeLabel = getContentTypeLabel(sourceInfo)
-			val originTypeLabel = getOriginTypeLabel(sourceInfo.name)
-			binding.textViewType.text = "$contentTypeLabel · $originTypeLabel"
+			binding.textViewType.text = getContentTypeLabel(sourceInfo)
 			
 			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
 				// Selection
 				binding.checkboxSelect.visibility = View.VISIBLE
+				binding.checkboxSelect.setOnCheckedChangeListener(null)
 				binding.checkboxSelect.isChecked = selectedIds.contains(mangaSource.entity.id)
 				binding.checkboxSelect.setOnCheckedChangeListener { _, isChecked ->
 					listener.onSelectSource(mangaSource.entity.id, isChecked)
@@ -232,14 +231,6 @@ class GroupedJsonSourcesAdapter(
 			return "其他"
 		}
 		
-		private fun getOriginTypeLabel(sourceName: String): String {
-			return when {
-				sourceName.startsWith("JSON_LEGADO") -> "Legado"
-				sourceName.startsWith("JSON_TVBOX") -> "TVBox"
-				sourceName.startsWith("JSON_") -> "JSON"
-				else -> "原生"
-			}
-		}
 		
 		private fun getContentTypeIcon(sourceInfo: MangaSourceInfo): String {
 			// Check if it's a MangaParserSource (which has contentType)

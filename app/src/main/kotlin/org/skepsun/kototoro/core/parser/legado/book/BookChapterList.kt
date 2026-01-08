@@ -90,7 +90,12 @@ object BookChapterList {
                 return@mapIndexedNotNull null
             }
             
-            val stableId = (source.name.hashCode().toLong() shl 32) + (absoluteUrl.hashCode().toLong() and 0xFFFFFFFFL)
+            val normalizedUrl = AnalyzeUrl.normalizeUrl(absoluteUrl)
+            val stableId = (source.name.hashCode().toLong() shl 32) + (normalizedUrl.hashCode().toLong() and 0xFFFFFFFFL)
+            
+            if (index < 5) {
+                android.util.Log.d(TAG, "[TOC] Chapter[$index] name=\"$name\", stableId=$stableId, sourceName=${source.name}(hash=${source.name.hashCode()}), url=\"$absoluteUrl\", normalized=\"$normalizedUrl\"(hash=${normalizedUrl.hashCode()})")
+            }
             
             MangaChapter(
                 id = stableId,

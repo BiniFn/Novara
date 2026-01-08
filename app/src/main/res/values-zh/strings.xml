@@ -165,4 +165,6 @@
     <plurals name="source_count">
         <item quantity="other">%d 个源</item>
     </plurals>
+    <string name="select_all">全选</string>
+    <string name="deselect_all">全不选</string>
 </resources>

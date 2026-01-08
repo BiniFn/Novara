@@ -8,6 +8,12 @@ import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
+import org.skepsun.kototoro.core.javascript.JavaScriptEnginePool
+import org.skepsun.kototoro.core.parser.legado.book.BookChapterList
+import org.skepsun.kototoro.core.parser.legado.book.BookContent
+import org.skepsun.kototoro.core.parser.legado.book.BookInfo
+import org.skepsun.kototoro.core.parser.legado.book.BookList
+import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,6 +36,7 @@ class JsonSourceManager @Inject constructor(
 	private val jsonSourceDao: JsonSourceDao,
 	private val legadoHttpClient: LegadoHttpClient? = null,
 	private val jsSourceParser: JSSourceParser? = null,
+	private val jsEnginePool: JavaScriptEnginePool? = null,
 ) {
 	
 	/**
@@ -236,37 +243,76 @@ class JsonSourceManager @Inject constructor(
 	}
 	
 	/**
-	 * Validate a source by performing a simple search with keyword "我的".
-	 * Returns true if searchUrl exists and HTTP response looks non-empty.
+	 * Validate a source by performing a multi-stage check:
+	 * Search -> Details -> Chapter List -> Content
+	 * This aligns with Legado's source verification logic.
 	 */
 	suspend fun validateSourceBySearch(sourceId: String, searchKey: String = "我的"): Boolean {
 		val client = legadoHttpClient ?: return false
+		val enginePool = jsEnginePool ?: return false
 		val entity = getById(sourceId) ?: return false
 		val config = runCatching {
-			Json { ignoreUnknownKeys = true; isLenient = true }
+			Json { ignoreUnknownKeys = true; isLenient = true; allowTrailingComma = true }
 				.decodeFromString<org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource>(entity.config)
 		}.getOrNull() ?: return false
 		
 		val searchUrl = config.searchUrl
 		if (searchUrl.isNullOrBlank()) return false
 		
-		val page = 1
-		val encodedKey = java.net.URLEncoder.encode(searchKey, "UTF-8")
-		val finalUrl = searchUrl
-			.replace("{{key}}", encodedKey)
-			.replace("{key}", encodedKey)
-			.replace("{{page}}", page.toString())
-			.replace("{page}", page.toString())
-		
-		val headers = parseCustomHeaders(config.header)
+		val engine = enginePool.acquire()
 		return try {
-			val response = client.get(finalUrl, headers, source = null)
-			val body = response.body?.string().orEmpty()
-			val ok = response.isSuccessful && body.length > 500
-			response.close()
-			ok
+			val sandbox = LegadoSandbox(engine, client, config)
+			val mangaSource = JsonMangaSource(entity)
+			
+			// 1. Search
+			val page = 1
+			val encodedKey = java.net.URLEncoder.encode(searchKey, "UTF-8")
+			val finalSearchUrl = searchUrl
+				.replace("{{key}}", encodedKey)
+				.replace("{key}", encodedKey)
+				.replace("{{page}}", page.toString())
+				.replace("{page}", page.toString())
+			
+			val searchResponse = client.get(finalSearchUrl, parseCustomHeaders(config.header), source = null)
+			val searchBody = searchResponse.body?.string().orEmpty()
+			searchResponse.close()
+			
+			val results = BookList.parse(searchBody, finalSearchUrl, mangaSource, config, true, sandbox)
+			if (results.isEmpty()) return false
+			
+			val firstManga = results.first()
+			
+			// 2. Details
+			val detailsResponse = client.get(firstManga.url, parseCustomHeaders(config.header), source = null)
+			val detailsBody = detailsResponse.body?.string().orEmpty()
+			detailsResponse.close()
+			
+			val infoResult = BookInfo.parse(firstManga, detailsBody, firstManga.url, config, sandbox)
+			
+			// 3. Chapter List (TOC)
+			val tocUrl = infoResult.tocUrl ?: firstManga.url
+			val tocResponse = client.get(tocUrl, parseCustomHeaders(config.header), source = null)
+			val tocBody = tocResponse.body?.string().orEmpty()
+			tocResponse.close()
+			
+			val tocResult = BookChapterList.parse(tocBody, tocUrl, mangaSource, config, sandbox)
+			val chapters = tocResult.chapters
+			if (chapters.isEmpty()) return false
+			
+			// 4. Content
+			val firstChapter = chapters.first()
+			val contentResponse = client.get(firstChapter.url, parseCustomHeaders(config.header), source = null)
+			val contentBody = contentResponse.body?.string().orEmpty()
+			contentResponse.close()
+			
+			val content = BookContent.parse(contentBody, firstChapter.url, mangaSource, config, sandbox)
+			
+			content.pages.isNotEmpty()
 		} catch (e: Exception) {
+			JsonSourceLogger.logError("Verification failed for ${entity.name}", e)
 			false
+		} finally {
+			enginePool.release(engine)
 		}
 	}
 	

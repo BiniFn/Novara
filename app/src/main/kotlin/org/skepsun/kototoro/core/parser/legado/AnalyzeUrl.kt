@@ -38,6 +38,32 @@ class AnalyzeUrl(
 
         // Regex for @js: or <js>...</js>
         private val JS_PATTERN = Regex("@js:([\\s\\S]*)|<js>([\\s\\S]*?)</js>", RegexOption.IGNORE_CASE)
+
+        /**
+         * Normalize URL for stable ID generation.
+         * Removes Legado options (,{...}) and trailing slashes.
+         */
+        fun normalizeUrl(url: String?): String {
+            if (url.isNullOrBlank()) return ""
+            val commaIndex = url.indexOf(",{")
+            var normalized = if (commaIndex != -1) {
+                url.substring(0, commaIndex).trim()
+            } else {
+                val commaSpaceIndex = url.indexOf(", {")
+                if (commaSpaceIndex != -1) {
+                    url.substring(0, commaSpaceIndex).trim()
+                } else {
+                    url.trim()
+                }
+            }
+            
+            // Remove trailing slash
+            if (normalized.endsWith("/") && normalized.length > 8) {
+                normalized = normalized.substring(0, normalized.length - 1)
+            }
+            
+            return normalized
+        }
     }
     
     data class UrlResult(

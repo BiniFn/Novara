@@ -117,28 +117,66 @@ class ImportJsonViewModel @Inject constructor(
 						skipNoExplore = skipNoExploreSources
 					)
 					JsonSourceType.TVBOX -> {
-						// TVBox import not yet implemented
 						Result.failure(UnsupportedOperationException("TVBox import not yet implemented"))
 					}
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
 				}
 				
-				result.fold(
-					onSuccess = { count ->
-						_uiState.value = ImportUiState.Success(count)
-					},
-					onFailure = { error ->
-						_uiState.value = ImportUiState.Error(
-							error.message ?: "Unknown error occurred"
-						)
-					}
-				)
+				handleImportResult(result)
 			} catch (e: Exception) {
 				_uiState.value = ImportUiState.Error(
 					e.message ?: "Unknown error occurred"
 				)
 			}
 		}
+	}
+
+	/**
+	 * Imports JSON content from a file URI.
+	 */
+	fun importJsonFromFile(uri: Uri, sourceType: JsonSourceType, contentResolver: android.content.ContentResolver) {
+		viewModelScope.launch(Dispatchers.IO) {
+			_uiState.value = ImportUiState.Loading
+			try {
+				val inputStream = contentResolver.openInputStream(uri) ?: throw Exception("Failed to open file")
+				val jsonContent = inputStream.bufferedReader().use { it.readText() }
+				
+				// Validate size (now uses higher limit)
+				val sizeInBytes = jsonContent.toByteArray().size.toLong()
+				val sizeValidation = SecurityValidator.validateJsonFileSize(sizeInBytes)
+				if (!sizeValidation.isValid) {
+					_uiState.value = ImportUiState.Error(sizeValidation.errors.joinToString(", "))
+					return@launch
+				}
+
+				val result = when (sourceType) {
+					JsonSourceType.LEGADO -> jsonSourceManager.importLegadoJson(
+						jsonContent,
+						skipUnreachable = skipUnreachableSources,
+						skipNoExplore = skipNoExploreSources
+					)
+					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
+					else -> Result.failure(UnsupportedOperationException("Unsupported type"))
+				}
+				
+				handleImportResult(result)
+			} catch (e: Exception) {
+				_uiState.value = ImportUiState.Error(e.message ?: "Unknown error occurred")
+			}
+		}
+	}
+
+	private fun handleImportResult(result: Result<Int>) {
+		result.fold(
+			onSuccess = { count ->
+				_uiState.value = ImportUiState.Success(count)
+			},
+			onFailure = { error ->
+				_uiState.value = ImportUiState.Error(
+					error.message ?: "Unknown error occurred"
+				)
+			}
+		)
 	}
 	
 	/**

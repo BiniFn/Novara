@@ -49,7 +49,6 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		if (result.resultCode == Activity.RESULT_OK) {
 			result.data?.data?.let { uri ->
 				viewModel.selectFile(uri)
-				loadFileContent(uri)
 			}
 		}
 	}
@@ -74,14 +73,10 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		// Observe fetched content from URL
 		viewModel.fetchedContent.observe(viewLifecycleOwner) { content ->
 			if (content != null) {
-				binding.editTextJson.setText(content)
+				// Automatic import for fetched content from URL
+				val sourceType = determineSourceType()
+				viewModel.importJson(content, sourceType)
 				viewModel.clearFetchedContent()
-				
-				Toast.makeText(
-					requireContext(),
-					R.string.file_loaded_successfully,
-					Toast.LENGTH_SHORT
-				).show()
 			}
 		}
 		
@@ -191,63 +186,40 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
         filePickerLauncher.launch(intent)
     }
 	
-	/**
-	 * Loads content from the selected file URI.
-	 */
-	private fun loadFileContent(uri: Uri) {
-		try {
-			val contentResolver = requireContext().contentResolver
-			val inputStream = contentResolver.openInputStream(uri)
-			
-			if (inputStream != null) {
-				val reader = BufferedReader(InputStreamReader(inputStream))
-				val content = reader.use { it.readText() }
-				
-				requireViewBinding().editTextJson.setText(content)
-				
-				Toast.makeText(
-					requireContext(),
-					R.string.file_loaded_successfully,
-					Toast.LENGTH_SHORT
-				).show()
-			}
-		} catch (e: Exception) {
-			Toast.makeText(
-				requireContext(),
-				getString(R.string.error_loading_file, e.message),
-				Toast.LENGTH_LONG
-			).show()
-		}
-	}
 	
 	/**
 	 * Performs the JSON import operation.
 	 */
 	private fun performImport() {
 		val binding = requireViewBinding()
+		val uri = viewModel.selectedFileUri.value
 		val jsonContent = binding.editTextJson.text?.toString() ?: ""
 		
-		if (jsonContent.isBlank()) {
-			binding.textInputLayoutJson.error = getString(R.string.json_content_required)
-			return
-		}
-		
-		binding.textInputLayoutJson.error = null
-		
-		// Determine source type from dropdown selection
-		val sourceType = when {
-			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_tvbox) -> JsonSourceType.TVBOX
-			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_js) -> JsonSourceType.JS
-			binding.textViewSelectedFile.text?.toString()?.endsWith(".js", ignoreCase = true) == true -> JsonSourceType.JS
-			else -> JsonSourceType.LEGADO
-		}
+		val sourceType = determineSourceType()
 		
 		// Apply import options
 		viewModel.skipUnreachableSources = binding.checkboxSkipUnreachable.isChecked
 		viewModel.skipNoExploreSources = binding.checkboxSkipNoExplore.isChecked
 		
-		// Trigger import
-		viewModel.importJson(jsonContent, sourceType)
+		if (uri != null) {
+			// Prefer file import
+			viewModel.importJsonFromFile(uri, sourceType, requireContext().contentResolver)
+		} else if (jsonContent.isNotBlank()) {
+			// Falls back to pasted text (even if hidden, it might have been set by URL fetch before)
+			viewModel.importJson(jsonContent, sourceType)
+		} else {
+			Toast.makeText(requireContext(), R.string.select_file_or_enter_url, Toast.LENGTH_SHORT).show()
+		}
+	}
+
+	private fun determineSourceType(): JsonSourceType {
+		val binding = requireViewBinding()
+		return when {
+			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_tvbox) -> JsonSourceType.TVBOX
+			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_js) -> JsonSourceType.JS
+			binding.textViewSelectedFile.text?.toString()?.endsWith(".js", ignoreCase = true) == true -> JsonSourceType.JS
+			else -> JsonSourceType.LEGADO
+		}
 	}
 	
 	/**

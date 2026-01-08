@@ -107,22 +107,8 @@ fun exploreSourceListItemAD(
 		binding.textViewSubtitle.text = item.source.getSummary(context)
 		binding.imageViewIcon.setImageAsync(item.source)
 		
-		// Show source type chip for JSON sources
-		val sourceId = item.source.mangaSource.name
-		if (sourceTypeIdentifier.isJsonSource(sourceId)) {
-			binding.chipSourceType.visibility = View.VISIBLE
-			val sourceType = sourceTypeIdentifier.getSourceType(sourceId)
-			binding.chipSourceType.text = when (sourceType) {
-				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "JSON"
-				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
-				else -> "JSON"
-			}
-			// Set chip color for JSON sources (orange tint)
-			binding.chipSourceType.setChipBackgroundColorResource(R.color.orange_100)
-			binding.chipSourceType.setTextColor(ContextCompat.getColor(context, R.color.orange_900))
-		} else {
-			binding.chipSourceType.visibility = View.GONE
-		}
+		// JSON badges removed as per user request
+		binding.chipSourceType.visibility = View.GONE
 	}
 }
 
@@ -161,21 +147,7 @@ fun exploreSourceGridItemAD(
 		binding.textViewTitle.drawableStart = if (item.source.isPinned) iconPinned else null
 		binding.imageViewIcon.setImageAsync(item.source)
 		
-		// Show source type chip for JSON sources
-		val sourceId = item.source.mangaSource.name
-		if (sourceTypeIdentifier.isJsonSource(sourceId)) {
-			binding.chipSourceType.visibility = View.VISIBLE
-			val sourceType = sourceTypeIdentifier.getSourceType(sourceId)
-			binding.chipSourceType.text = when (sourceType) {
-				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "JSON"
-				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
-				else -> "JSON"
-			}
-			// Set chip color for JSON sources (orange tint)
-			binding.chipSourceType.setChipBackgroundColorResource(R.color.orange_100)
-			binding.chipSourceType.setTextColor(ContextCompat.getColor(context, R.color.orange_900))
-		} else {
-			binding.chipSourceType.visibility = View.GONE
-		}
+		// JSON badges removed as per user request
+		binding.chipSourceType.visibility = View.GONE
 	}
 }

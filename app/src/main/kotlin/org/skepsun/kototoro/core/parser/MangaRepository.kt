@@ -1,4 +1,6 @@
 package org.skepsun.kototoro.core.parser
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 import android.content.Context
 import androidx.annotation.AnyThread
@@ -46,6 +48,15 @@ interface MangaRepository {
 	suspend fun getDetails(manga: Manga): Manga
 
 	suspend fun getPages(chapter: MangaChapter): List<MangaPage>
+
+	/**
+	 * 获取章节页面的流，支持增量加载（如 Legado 多页小说章节）。
+	 * 每次 emit 都是目前已获取到的所有页面列表。
+	 * @param nextChapterUrl 下一章的 URL。如果加载过程中遇到此 URL，应停止加载，防止“下一章”规则误触导致无限连读。
+	 */
+	fun getPagesFlow(chapter: MangaChapter, nextChapterUrl: String? = null): Flow<List<MangaPage>> = flow {
+		emit(getPages(chapter))
+	}
 
 	suspend fun getPageUrl(page: MangaPage): String
 
@@ -231,6 +242,7 @@ interface MangaRepository {
 								source = source,
 								httpClient = legadoHttpClient,
 								jsEngine = jsEngine,
+								memoryCache = contentCache,
 								browserLauncher = browserLauncher
 							)
 					}

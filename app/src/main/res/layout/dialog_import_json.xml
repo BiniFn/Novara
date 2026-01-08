@@ -55,7 +55,8 @@
 			android:layout_marginHorizontal="?dialogPreferredPadding"
 			android:layout_marginVertical="@dimen/margin_normal"
 			android:gravity="center_vertical"
-			android:orientation="horizontal">
+			android:orientation="horizontal"
+			android:visibility="gone">
 
 			<View
 				android:layout_width="0dp"
@@ -86,6 +87,7 @@
 			android:layout_height="wrap_content"
 			android:layout_marginHorizontal="?dialogPreferredPadding"
 			android:hint="@string/paste_json_content"
+			android:visibility="gone"
 			app:counterEnabled="true"
 			app:counterMaxLength="1000000">
 

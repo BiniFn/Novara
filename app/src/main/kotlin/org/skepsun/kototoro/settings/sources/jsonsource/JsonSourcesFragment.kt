@@ -211,6 +211,20 @@ class JsonSourcesFragment :
 						true
 					}
 				}
+				R.id.action_select_all -> {
+					val allIds = viewModel.getJsonSourceIds()
+					selectedIds.clear()
+					selectedIds.addAll(allIds)
+					adapter?.selectedIds = selectedIds
+					adapter?.notifyDataSetChanged()
+					true
+				}
+				R.id.action_deselect_all -> {
+					selectedIds.clear()
+					adapter?.selectedIds = selectedIds
+					adapter?.notifyDataSetChanged()
+					true
+				}
 				else -> false
 			}
 		}

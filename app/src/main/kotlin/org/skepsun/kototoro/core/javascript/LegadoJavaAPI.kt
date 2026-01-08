@@ -74,6 +74,8 @@ class LegadoJavaAPI(
             val body = options?.get("body") as? String
             val charset = options?.get("charset") as? String ?: "UTF-8"
             
+            Log.d(TAG, "ajax: $method $url")
+            
             val response = runBlocking {
                 when (method.uppercase()) {
                     "POST" -> {
@@ -93,10 +95,14 @@ class LegadoJavaAPI(
                 }
             }
             
-            response.body?.string() ?: ""
+            val result = response.body?.string() ?: ""
+            Log.d(TAG, "ajax: $url -> ${result.length} bytes")
+            result
         } catch (e: Exception) {
-            Log.e(TAG, "Ajax request failed: $url", e)
-            throw e
+            // Don't throw - return empty string like legado does
+            // This allows scripts to handle network failures gracefully
+            Log.e(TAG, "Ajax request failed: $url - ${e.javaClass.simpleName}: ${e.message}")
+            ""
         }
     }
     
@@ -124,6 +130,16 @@ class LegadoJavaAPI(
     }
     
     /**
+     * 使用 CSS 选择器解析 HTML (getElements 别名)
+     * 
+     * @param selector CSS 选择器
+     * @return 匹配的元素列表
+     */
+    fun getElements(selector: String): Elements {
+        return getElement(selector)
+    }
+    
+    /**
      * 转换 Legado 选择器到 Jsoup 选择器
      */
     private fun convertLegadoSelectorToJsoup(selector: String): String {
@@ -143,6 +159,29 @@ class LegadoJavaAPI(
      */
     fun setContent(html: String) {
         currentHtml = html
+    }
+    
+    /**
+     * 设置当前 HTML 内容 (支持多种类型)
+     * 
+     * @param content 内容对象 (可以是 String, Element, 或其他对象的 outerHtml/toString)
+     */
+    fun setContent(content: Any?) {
+        currentHtml = when (content) {
+            null -> null
+            is String -> content
+            is Element -> content.outerHtml()
+            is org.mozilla.javascript.NativeJavaObject -> {
+                val unwrapped = content.unwrap()
+                when (unwrapped) {
+                    is String -> unwrapped
+                    is Element -> unwrapped.outerHtml()
+                    else -> unwrapped?.toString()
+                }
+            }
+            else -> content.toString()
+        }
+        Log.d(TAG, "setContent: type=${content?.javaClass?.simpleName}, html=${currentHtml?.take(100)}")
     }
     
     /**
@@ -269,16 +308,51 @@ class LegadoJavaAPI(
     }
     
     /**
-     * 从 JSON 数据中提取字符串值
+     * 从当前 HTML 内容中提取字符串
      * 
-     * @param jsonPath JSONPath 表达式
+     * @param rule Legado 规则表达式 (如 "tag.a@href", "class.title@text", "#id@src")
      * @return 提取的字符串值
      */
-    fun getString(jsonPath: String): String? {
-        // TODO: 实现 JSONPath 提取
-        // 需要集成 JSONPath 库
-        Log.w(TAG, "getString not implemented yet")
-        return null
+    fun getString(rule: String): String {
+        val html = currentHtml
+        if (html.isNullOrEmpty()) {
+            Log.w(TAG, "getString($rule): currentHtml is null/empty")
+            return ""
+        }
+        
+        try {
+            // Parse the rule: selector@attribute or just selector (defaults to text)
+            val parts = rule.split("@", limit = 2)
+            val selectorPart = parts[0]
+            val attributePart = if (parts.size > 1) parts[1] else "text"
+            
+            // Convert Legado selector to JSoup selector
+            val jsoupSelector = convertLegadoSelectorToJsoup(selectorPart)
+            
+            val doc = Jsoup.parse(html)
+            val elements = doc.select(jsoupSelector)
+            
+            if (elements.isEmpty()) {
+                Log.d(TAG, "getString($rule): no elements found for selector '$jsoupSelector'")
+                return ""
+            }
+            
+            val element = elements.first()!!
+            val result = when (attributePart.lowercase()) {
+                "text" -> element.text()
+                "owntext" -> element.ownText()
+                "html" -> element.html()
+                "outerhtml" -> element.outerHtml()
+                "textNodes" -> element.textNodes().joinToString("") { it.text() }
+                else -> element.attr(attributePart) // Get attribute value
+            }
+            
+            Log.d(TAG, "getString($rule) = ${result.take(100)}")
+            return result
+        } catch (e: Exception) {
+            Log.e(TAG, "getString($rule) failed: ${e.message}")
+            return ""
+        }
     }
     
     /**

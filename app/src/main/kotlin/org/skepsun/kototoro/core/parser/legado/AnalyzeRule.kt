@@ -144,7 +144,7 @@ class AnalyzeRule(
     fun getString(ruleStr: String?, mContent: Any? = null, isUrl: Boolean = false): String {
         val result = getStringList(ruleStr, mContent, isUrl)
         if (!result.isNullOrEmpty()) {
-            return result.joinToString("\n") { it }
+            return if (isUrl) result[0] else result.joinToString("\n") { it }
         }
         return ""
     }
@@ -317,7 +317,9 @@ class AnalyzeRule(
     private fun evalJS(rule: String, result: Any?): Any? {
         sandbox.putVariable("baseUrl", baseUrl)
         sandbox.setResult(result)
-        return sandbox.eval(rule)
+        val jsResult = sandbox.eval(rule)
+        Log.d(TAG, "[evalJS] input=${result.toString().take(100)}, output=${jsResult.toString().take(100)}")
+        return jsResult
     }
 
     /**

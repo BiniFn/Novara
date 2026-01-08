@@ -144,12 +144,12 @@ class DownloadWorker @AssistedInject constructor(
 	private val etaEstimator = RealtimeEtaEstimator()
 	private val notificationThrottler = Throttler(400)
 
-	override suspend fun doWork(): Result {
+	override suspend fun doWork(): Result = withContext(org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND)) {
 		setForeground(getForegroundInfo())
-		val manga = mangaDataRepository.findMangaById(task.mangaId, withChapters = true) ?: return Result.failure()
+		val manga = mangaDataRepository.findMangaById(task.mangaId, withChapters = true) ?: return@withContext Result.failure()
 		publishState(DownloadState(manga = manga, isIndeterminate = true).also { lastPublishedState = it })
 		val downloadedIds = getDoneChapters(manga)
-		return try {
+		try {
 			val pausingHandle = PausingHandle()
 			if (task.isPaused) {
 				pausingHandle.pause()

@@ -178,6 +178,8 @@ class AnalyzeByJSoup(private val element: Element) {
         rule.trim() //修建前置赘余符号
 
         val rules = rule.splitRule("@") // 切割成列表
+        
+        android.util.Log.d("AnalyzeByJSoup", "[getResultList] ruleStr=$ruleStr, rules=${rules.joinToString(", ")}")
 
         val last = rules.size - 1
         for (i in 0 until last) {
@@ -185,9 +187,11 @@ class AnalyzeByJSoup(private val element: Element) {
             for (elt in elements) {
                 es.addAll(ElementsSingle().getElementsSingle(elt, rules[i]))
             }
+            android.util.Log.d("AnalyzeByJSoup", "[getResultList] After rule[${i}]='${rules[i]}', found ${es.size} elements")
             elements.clear()
             elements = es
         }
+        android.util.Log.d("AnalyzeByJSoup", "[getResultList] Final elements count=${elements.size}, lastRule=${rules[last]}")
         return if (elements.isEmpty()) null else getResultLast(elements, rules[last])
     }
 
@@ -293,7 +297,9 @@ class AnalyzeByJSoup(private val element: Element) {
                         "tag" -> temp.getElementsByTag(rules[1])
                         "id" -> Collector.collect(Evaluator.Id(rules[1]), temp)
                         "text" -> temp.getElementsContainingOwnText(rules[1])
-                        else -> temp.select(beforeRule)
+                        else -> {
+                            temp.select(beforeRule)
+                        }
                     }
                 }
 

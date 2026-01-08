@@ -21,7 +21,7 @@ import androidx.transition.TransitionSet
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -247,13 +247,55 @@ class NovelReaderActivity :
     }
 
     private fun setupImageHeaders() {
-        viewBinding.readerView.imageHeadersProvider = when (manga.source) {
+        viewBinding.readerView.imageHeadersProvider = when (val source = manga.source) {
             MangaParserSource.BILINOVEL -> { _ ->
                 mapOf(
                     "Referer" to "https://www.bilinovel.com/",
                     "Origin" to "https://www.bilinovel.com",
                     "Accept-Encoding" to "identity",
                 )
+            }
+            is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> { imageUrl ->
+                // Extract headers from Legado JSON source config
+                val headers = mutableMapOf<String, String>()
+                
+                try {
+                    val config = kotlinx.serialization.json.Json { 
+                        ignoreUnknownKeys = true 
+                        isLenient = true 
+                    }.decodeFromString<org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource>(source.entity.config)
+                    
+                    // Parse header from source config
+                    val headerStr = config.header
+                    if (!headerStr.isNullOrBlank()) {
+                        try {
+                            val headerJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                                .decodeFromString<Map<String, String>>(headerStr)
+                            headers.putAll(headerJson)
+                        } catch (e: Exception) {
+                            android.util.Log.w("NovelReaderActivity", "Failed to parse source headers: ${e.message}")
+                        }
+                    }
+                    
+                    // Add Referer based on source URL if not already present
+                    if (!headers.containsKey("Referer") && !headers.containsKey("referer")) {
+                        val sourceUrl = config.bookSourceUrl
+                        if (!sourceUrl.isNullOrBlank()) {
+                            headers["Referer"] = sourceUrl
+                        }
+                    }
+                    
+                    // Add User-Agent if not present
+                    if (!headers.containsKey("User-Agent") && !headers.containsKey("user-agent")) {
+                        headers["User-Agent"] = "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
+                    }
+                    
+                    android.util.Log.d("NovelReaderActivity", "Image headers for $imageUrl: $headers")
+                } catch (e: Exception) {
+                    android.util.Log.w("NovelReaderActivity", "Failed to setup image headers: ${e.message}")
+                }
+                
+                headers.takeIf { it.isNotEmpty() }
             }
             else -> null
         }
@@ -547,7 +589,7 @@ class NovelReaderActivity :
         android.util.Log.d("NovelReaderActivity", "Current manga.chapters: ${manga.chapters?.size ?: 0} chapters")
         android.util.Log.d("NovelReaderActivity", "Manga is local: ${manga.isLocal}")
         
-        lifecycleScope.launch {
+        lifecycleScope.launch(org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND)) {
             try {
                 showLoading(true)
                 
@@ -646,7 +688,7 @@ class NovelReaderActivity :
             return
         }
         
-        lifecycleScope.launch {
+        lifecycleScope.launch(org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND)) {
             try {
                 // Determine if we need to show the loading spinner
                 val needsLoading = !chapter.url.startsWith("epub://") && 
@@ -707,58 +749,93 @@ class NovelReaderActivity :
                 // 2. SLOW PATH: Need to fetch from network
                 val isLocalChapter = chapter.source is org.skepsun.kototoro.core.model.LocalNovelSource || 
                                     chapter.source is org.skepsun.kototoro.core.model.LocalMangaSource
-                android.util.Log.d("NovelReaderActivity", "Cache miss, using repository for source: ${chapter.source}, isLocal: $isLocalChapter")
+                val isLegadoSource = chapterRepo is org.skepsun.kototoro.core.parser.legado.LegadoRepository
+                android.util.Log.d("NovelReaderActivity", "Cache miss, using repository for source: ${chapter.source}, isLocal: $isLocalChapter, isLegado: $isLegadoSource")
                 
-                val pages = chapterRepo.getPages(chapter)
-                
-                android.util.Log.d("NovelReaderActivity", "Got ${pages.size} pages, first page preview: ${pages.firstOrNull()?.preview}, url: ${pages.firstOrNull()?.url?.take(100)}")
-                
-                // 检查是否为EPUB章节（通过preview字段标记）
-                if (pages.size == 1 && pages[0].preview == "EPUB") {
-                    android.util.Log.d("NovelReaderActivity", "Detected EPUB chapter, loading EPUB content")
-                    // 尝试读取EPUB内容
-                    val epubContent = loadEpubContent(chapter)
-                    showLoading(false)
+                // For Legado sources, skip EPUB check and go directly to flow-based loading with nextChapterUrl
+                // This ensures proper boundary checking to prevent infinite page loading
+                if (!isLegadoSource) {
+                    // Non-Legado sources: check for EPUB type
+                    val pages = chapterRepo.getPages(chapter)
                     
-                    if (epubContent != null) {
-                        // 成功读取EPUB，显示内容
-                        renderChapter(chapter, epubContent)
-                    } else {
-                        // 读取失败，显示提示信息
-                        val webUrl = pages[0].url
-                        val epubMessage = """
-                            此章节为EPUB格式文件
-                            
-                            Novelia文库的EPUB文件需要在网页端下载。
-                            
-                            下载步骤：
-                            1. 在浏览器中打开小说页面
-                            2. 找到对应的分卷
-                            3. 点击下载按钮
-                            4. 下载EPUB文件
-                            5. 使用EPUB阅读器打开
-                            
-                            小说页面：
-                            $webUrl
-                            
-                            提示：
-                            - 可能需要登录Novelia账号
-                            - 下载后可以使用Moon+ Reader等阅读器打开
-                            - 未来版本将支持更便捷的下载方式
-                        """.trimIndent()
-                        renderChapter(chapter, epubMessage)
+                    android.util.Log.d("NovelReaderActivity", "Got ${pages.size} pages, first page preview: ${pages.firstOrNull()?.preview}, url: ${pages.firstOrNull()?.url?.take(100)}")
+                    
+                    // 检查是否为EPUB章节（通过preview字段标记）
+                    if (pages.size == 1 && pages[0].preview == "EPUB") {
+                        android.util.Log.d("NovelReaderActivity", "Detected EPUB chapter, loading EPUB content")
+                        // 尝试读取EPUB内容
+                        val epubContent = loadEpubContent(chapter)
+                        showLoading(false)
+                        
+                        if (epubContent != null) {
+                            // 成功读取EPUB，显示内容
+                            renderChapter(chapter, epubContent)
+                        } else {
+                            // 读取失败，显示提示信息
+                            val webUrl = pages[0].url
+                            val epubMessage = """
+                                此章节为EPUB格式文件
+                                
+                                Novelia文库的EPUB文件需要在网页端下载。
+                                
+                                下载步骤：
+                                1. 在浏览器中打开小说页面
+                                2. 找到对应的分卷
+                                3. 点击下载按钮
+                                4. 下载EPUB文件
+                                5. 使用EPUB阅读器打开
+                                
+                                小说页面：
+                                $webUrl
+                                
+                                提示：
+                                - 可能需要登录Novelia账号
+                                - 下载后可以使用Moon+ Reader等阅读器打开
+                                - 未来版本将支持更便捷的下载方式
+                            """.trimIndent()
+                            renderChapter(chapter, epubMessage)
+                        }
+                        return@launch
                     }
-                    return@launch
                 }
                 
-                android.util.Log.d("NovelReaderActivity", "Processing as regular chapter with cache")
-                // 使用已经解析的 pages 加载，避免二次抓取
-                val plainText = novelContentLoader.loadChapterContent(chapterRepo, chapter, pages)
+                android.util.Log.d("NovelReaderActivity", "Processing as regular chapter with flow-based loading")
                 
-                android.util.Log.d("NovelReaderActivity", "Plain text length: ${plainText.length}")
+                val nextChapterUrl = chapters.getOrNull(index + 1)?.url
+                android.util.Log.d("NovelReaderActivity", "nextChapterUrl for boundary check: $nextChapterUrl")
                 
-                showLoading(false)
-                renderChapter(chapter, plainText)
+                try {
+                    var isFirstEmit = true
+                    // Pass null for prefetchedPages to ensure getPagesFlow with nextChapterUrl is used
+                    novelContentLoader.loadChapterContentFlow(
+                        chapterRepo, 
+                        chapter, 
+                        prefetchedPages = null,
+                        priority = org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND,
+                        nextChapterUrl = nextChapterUrl
+                    ).onCompletion {
+                        showLoading(false)
+                    }.collect { plainText: String ->
+                        android.util.Log.d("NovelReaderActivity", "Incremental content emit, length: ${plainText.length}")
+                        
+                        if (isFirstEmit) {
+                            showLoading(false)
+                            renderChapter(chapter, plainText)
+                            isFirstEmit = false
+                        } else {
+                            // Update existing content without resetting page
+                            viewBinding.readerView.setContent(
+                                content = plainText,
+                                resetPage = false,
+                                suppressNotification = true
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("NovelReaderActivity", "Error collecting novel flow", e)
+                    showLoading(false)
+                    // Optionally show error to user
+                }
                 
                 // Preload next chapter
                 preloadNextChapter(index + 1)
@@ -773,13 +850,22 @@ class NovelReaderActivity :
     private fun preloadNextChapter(nextIndex: Int) {
         val nextChapter = chapters.getOrNull(nextIndex) ?: return
         
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO + org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND)) {
             try {
+                // Give the current chapter a head start
+                kotlinx.coroutines.delay(2000)
+                
                 if (novelContentLoader.isCached(nextChapter)) return@launch
                 
                 android.util.Log.d("NovelReaderActivity", "Preloading next chapter: ${nextChapter.title}")
                 val chapterRepo = mangaRepositoryFactory.create(nextChapter.source)
-                novelContentLoader.loadChapterContent(chapterRepo, nextChapter)
+                val nextNextChapterUrl = chapters.getOrNull(nextIndex + 1)?.url
+                novelContentLoader.loadChapterContentFlow(
+                    chapterRepo, 
+                    nextChapter,
+                    priority = org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND,
+                    nextChapterUrl = nextNextChapterUrl
+                ).collect { /* just consume and cache */ }
                 android.util.Log.d("NovelReaderActivity", "Successfully preloaded: ${nextChapter.title}")
             } catch (e: Exception) {
                 android.util.Log.w("NovelReaderActivity", "Failed to preload chapter: ${nextChapter.title}", e)

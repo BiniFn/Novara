@@ -1084,6 +1084,7 @@
 	<string name="batch_no_selection">请先选择源</string>
     <string name="import_from_url">From Online URL</string>
     <string name="enter_source_url">Enter source URL</string>
+    <string name="select_file_or_enter_url">Please select a file or enter a source URL</string>
     <string name="fetching_content">Fetching content…</string>
     <string name="error_fetching_url">Error fetching content: %s</string>
     <string name="import_button">Import</string>
@@ -1149,4 +1150,6 @@
         <item quantity="other">%d sources</item>
     </plurals>
     <string name="built_in_sources">Built-in</string>
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Deselect all</string>
 </resources>

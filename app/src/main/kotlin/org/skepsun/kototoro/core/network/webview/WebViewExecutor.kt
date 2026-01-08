@@ -104,6 +104,117 @@ class WebViewExecutor @Inject constructor(
 		}.isSuccess
 	}
 
+	/**
+	 * Load a URL via WebView and return the page HTML after JavaScript execution.
+	 * Used for sources that require webView: true.
+	 *
+	 * @param url The URL to load
+	 * @param headers Optional headers to set
+	 * @param delayMs Delay in milliseconds to wait after page load for JS execution
+	 * @param timeoutMs Total timeout in milliseconds
+	 * @param webJs Optional custom JavaScript to execute instead of outerHTML
+	 * @param blockImages Whether to block images to speed up loading
+	 * @return The page HTML content (or JS result)
+	 */
+	suspend fun loadPageHtml(
+		url: String,
+		headers: Map<String, String>? = null,
+		delayMs: Long = 2500,
+		timeoutMs: Long = 30000,
+		webJs: String? = null,
+		blockImages: Boolean = true
+	): String = mutex.withLock {
+		withContext(Dispatchers.Main.immediate) {
+			val webView = obtainWebView()
+			try {
+				// Configure with common browser settings plus image blocking
+				webView.configureForParser(headers?.get("User-Agent"), blockImages = blockImages)
+
+				withTimeout(timeoutMs) {
+					// Load the page and wait for it to finish
+					suspendCancellableCoroutine<Unit> { cont ->
+						webView.webViewClient = object : WebViewClient() {
+							override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+								if (cont.isActive) {
+									cont.resume(Unit)
+								}
+							}
+						}
+						if (headers != null && headers.isNotEmpty()) {
+							webView.loadUrl(url, headers)
+						} else {
+							webView.loadUrl(url)
+						}
+					}
+
+					// Wait for initial JavaScript to execute
+					kotlinx.coroutines.delay(delayMs)
+					
+					val extractionJs = webJs?.takeIf { it.isNotBlank() } ?: "document.documentElement.outerHTML"
+					
+					// Poll for the actual content to be available (some sites use anti-adblock that takes time)
+					// Match Legado's retry mechanism: up to 30 attempts
+					var result = ""
+					var attempts = 0
+					val maxAttempts = 30
+					while (attempts < maxAttempts) {
+						result = suspendCancellableCoroutine<String> { cont ->
+							webView.evaluateJavascript(extractionJs) { jsResult ->
+								val unescaped = jsResult?.let {
+									if (it == "null") ""
+									else if (it.startsWith("\"") && it.endsWith("\"")) {
+										// Basic JSON unescaping for the string result
+										it.substring(1, it.length - 1)
+											.replace("\\u003C", "<")
+											.replace("\\u003E", ">")
+											.replace("\\n", "\n")
+											.replace("\\t", "\t")
+											.replace("\\\"", "\"")
+											.replace("\\\\", "\\")
+									} else it
+								} ?: ""
+								cont.resume(unescaped)
+							}
+						}
+						
+						// If user provided custom JS, we don't know the "ready" condition, just return it
+						if (webJs != null && webJs.isNotBlank()) break
+						
+						// Default extraction: Check if content element has actual text
+						val hasContent = suspendCancellableCoroutine<Boolean> { cont ->
+							webView.evaluateJavascript(
+								"""(function() {
+									var el = document.getElementById('TextContent') || document.querySelector('#TextContent') || document.querySelector('.content') || document.querySelector('#content');
+									if (!el) return false;
+									var text = el.innerText || el.textContent || '';
+									return text.trim().length > 100;
+								})()"""
+							) { jsResult ->
+								cont.resume(jsResult == "true")
+							}
+						}
+						
+						if (hasContent) {
+							android.util.Log.d("WebViewExecutor", "[WebView] Content ready after ${attempts + 1} attempts")
+							break
+						}
+						
+						attempts++
+						if (attempts < maxAttempts) {
+							android.util.Log.d("WebViewExecutor", "[WebView] Content not ready, waiting... (attempt $attempts/$maxAttempts)")
+							kotlinx.coroutines.delay(1000)
+						}
+					}
+					
+					android.util.Log.d("WebViewExecutor", "[WebView] Extracted length=${result.length}, preview=${result.take(200).replace("\n", " ")}")
+					result
+				}
+			} finally {
+				webView.reset()
+			}
+		}
+	}
+
 	private suspend fun obtainWebView(): WebView {
 		webViewCached?.get()?.let {
 			return it

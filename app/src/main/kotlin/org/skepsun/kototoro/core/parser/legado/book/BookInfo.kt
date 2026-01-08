@@ -41,7 +41,7 @@ object BookInfo {
         val coverUrl = analyzeRule.getString(rule.coverUrl).let { resolveUrl(baseUrl, it) }.takeIf { it.isNotBlank() } ?: manga.coverUrl
         val intro = analyzeRule.getString(rule.intro).takeIf { it.isNotBlank() } ?: manga.description
         val kind = analyzeRule.getString(rule.kind)
-        val tocUrl = analyzeRule.getString(rule.tocUrl).let { resolveUrl(baseUrl, it) }.takeIf { it.isNotBlank() }
+        val tocUrl = analyzeRule.getString(rule.tocUrl, isUrl = true).takeIf { it.isNotBlank() }
         
         val source = manga.source
         val tags = if (kind.isNotBlank()) {

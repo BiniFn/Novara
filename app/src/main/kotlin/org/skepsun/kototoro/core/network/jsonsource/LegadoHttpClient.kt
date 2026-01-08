@@ -26,6 +26,7 @@ class LegadoHttpClient @Inject constructor(
     @JsonSourceHttpClient private val okHttpClient: OkHttpClient,
     private val cookieJar: MutableCookieJar,
     private val userAgentManager: UserAgentManager,
+    private val webViewExecutor: org.skepsun.kototoro.core.network.webview.WebViewExecutor,
 ) {
 
     /**
@@ -40,6 +41,31 @@ class LegadoHttpClient @Inject constructor(
             val request = buildRequest(url, headers, source = source)
             okHttpClient.newCall(request).execute()
         }
+    }
+
+    /**
+     * Execute a GET request using WebView for JavaScript execution.
+     * Used for sources with webView: true that require JS to render content.
+     * @param url Target URL
+     * @param headers Optional custom headers
+     * @param delayMs Delay in ms to wait for JS execution after page load
+     * @return HTML content as string
+     */
+    suspend fun getWithWebView(
+        url: String, 
+        headers: Map<String, String> = emptyMap(),
+        delayMs: Long = 1500,
+        webJs: String? = null,
+        blockImages: Boolean = true
+    ): String {
+        android.util.Log.d("LegadoHttpClient", "[WebView] Loading URL: $url")
+        val allHeaders = mutableMapOf<String, String>()
+        if (!headers.containsKey("User-Agent")) {
+            allHeaders["User-Agent"] = userAgentManager.getUserAgent()
+        }
+        allHeaders.putAll(headers)
+        
+        return webViewExecutor.loadPageHtml(url, allHeaders, delayMs, webJs = webJs, blockImages = blockImages)
     }
 
     /**

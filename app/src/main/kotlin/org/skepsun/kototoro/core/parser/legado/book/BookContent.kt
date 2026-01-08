@@ -28,8 +28,13 @@ object BookContent {
         val rule = config.ruleContent ?: return ParseResult(emptyList(), emptyList())
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
         
+        android.util.Log.d(TAG, "[BookContent] Rule: ${rule.content}, HTML length: ${content.length}")
+        
         // Legado content rule can return multiple image URLs or text
         val rawContentList = analyzeRule.getStringList(rule.content) ?: emptyList()
+        
+        android.util.Log.d(TAG, "[BookContent] Extracted ${rawContentList.size} items, first item preview: ${rawContentList.firstOrNull()?.take(100) ?: "EMPTY"}")
+        
         val processedContent = applyReplace(rawContentList, rule)
         
         val pages = processedContent.mapIndexed { index, raw ->
@@ -64,6 +69,10 @@ object BookContent {
             ?.mapNotNull { it.takeIf { url -> url.isNotBlank() } }
             ?.map { resolveUrl(baseUrl, it) }
             ?: emptyList()
+        
+        if (nextPageUrls.isNotEmpty()) {
+            android.util.Log.d(TAG, "[Content] nextPageUrls found: ${nextPageUrls.take(3)}")
+        }
 
         return ParseResult(pages, nextPageUrls)
     }

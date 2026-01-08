@@ -229,6 +229,13 @@ class JsonSourcesViewModel @Inject constructor(
 	fun expandAllGroups() {
 		_collapsedGroups.value = emptyMap()
 	}
+	
+	/**
+	 * Returns a list of all current JSON source IDs.
+	 */
+	fun getJsonSourceIds(): List<String> {
+		return jsonSources.value.map { it.id }
+	}
 }
 
 /**

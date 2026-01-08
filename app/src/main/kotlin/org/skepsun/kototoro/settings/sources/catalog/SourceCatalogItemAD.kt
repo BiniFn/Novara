@@ -52,25 +52,14 @@ fun sourceCatalogItemSourceAD(
 		FaviconDrawable(context, R.style.FaviconDrawable_Small, item.source.name)
 		binding.imageViewIcon.setImageAsync(item.source)
 		
-		// Show source type chip for JSON sources
+		// JSON badges removed as per user request
+		binding.chipSourceType.visibility = android.view.View.GONE
 		val sourceId = item.source.name
 		if (sourceTypeIdentifier.isJsonSource(sourceId)) {
-			binding.chipSourceType.visibility = android.view.View.VISIBLE
-			val sourceType = sourceTypeIdentifier.getSourceType(sourceId)
-			binding.chipSourceType.text = when (sourceType) {
-				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "JSON"
-				org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
-				else -> "JSON"
-			}
-			// Set chip color for JSON sources (orange tint)
-			binding.chipSourceType.setChipBackgroundColorResource(R.color.orange_100)
-			binding.chipSourceType.setTextColor(ContextCompat.getColor(context, R.color.orange_900))
 			// 显示人类可读名称
 			if (item.source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
 				binding.textViewTitle.text = (item.source as org.skepsun.kototoro.core.jsonsource.JsonMangaSource).displayName.ifBlank { item.source.name }
 			}
-		} else {
-			binding.chipSourceType.visibility = android.view.View.GONE
 		}
 	}
 }

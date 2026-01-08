@@ -7,6 +7,7 @@ import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Build
 import coil3.ColorImage
+import org.json.JSONObject
 import coil3.ImageLoader
 import coil3.asImage
 import coil3.decode.DataSource
@@ -68,8 +69,24 @@ class FaviconFetcher(
 				dataSource = DataSource.MEMORY,
 			)
 			
-			// JSON/Legado sources: use a neutral icon
-			is LegadoRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
+			// JSON/Legado sources: try to derive favicon from bookSourceUrl in config
+			is LegadoRepository -> {
+				val config = (repo.source as? JsonMangaSource)?.entity?.config
+				val siteUrl = try {
+					config?.let { JSONObject(it).optString("bookSourceUrl") }
+				} catch (e: Exception) {
+					null
+				}
+				val faviconUrl = siteUrl?.let { url ->
+					val uri = Uri.parse(url)
+					if (uri.scheme != null && uri.host != null) {
+						"${uri.scheme}://${uri.host}/favicon.ico"
+					} else null
+				}
+				faviconUrl?.let { url ->
+					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
+				} ?: imageLoader.fetch(R.drawable.ic_storage, options)
+			}
 
 			is LocalMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
 

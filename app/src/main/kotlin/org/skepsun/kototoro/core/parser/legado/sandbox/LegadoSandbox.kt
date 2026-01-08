@@ -26,15 +26,32 @@ class LegadoSandbox(
     
     inner class CacheBinding {
         fun put(key: String, value: String?) {
+            Log.d(TAG, "cache.put(key=$key, value=${value?.take(50)})")
             if (value != null) cache[key] = value
             else cache.remove(key)
         }
         
+        // Overload with TTL (time-to-live in seconds) - for Legado compatibility
+        // Currently ignores TTL, stores indefinitely
+        fun put(key: String, value: String?, ttl: Int) {
+            Log.d(TAG, "cache.put(key=$key, value=${value?.take(50)}, ttl=$ttl)")
+            if (value != null) cache[key] = value
+            else cache.remove(key)
+        }
+        
+        // Overload with TTL as Long
+        fun put(key: String, value: String?, ttl: Long) {
+            put(key, value, ttl.toInt())
+        }
+        
         fun get(key: String): String? {
-            return cache[key]
+            val result = cache[key]
+            Log.d(TAG, "cache.get(key=$key) = ${result?.take(50) ?: "null"}")
+            return result
         }
         
         fun delete(key: String) {
+            Log.d(TAG, "cache.delete(key=$key)")
             cache.remove(key)
         }
     }
@@ -63,6 +80,7 @@ class LegadoSandbox(
     }
     
     fun setResult(result: Any?) {
+        Log.d(TAG, "setResult: type=${result?.javaClass?.simpleName}, isList=${result is List<*>}, size=${(result as? List<*>)?.size}")
         context.result = result
         context.setVariable("result", result)
     }
