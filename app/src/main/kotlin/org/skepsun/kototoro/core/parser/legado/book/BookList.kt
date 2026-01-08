@@ -85,14 +85,22 @@ object BookList {
         sandbox: LegadoSandbox,
         reverse: Boolean
     ): List<Manga> {
-        val mangas = items.mapNotNull { item ->
+        val mangas = items.mapIndexedNotNull { index, item ->
             // Create a new analyzer for the specific item
             val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
             
             val title = itemAnalyzer.getString(rule.name)
             val bookUrl = itemAnalyzer.getString(rule.bookUrl)
             
-            if (title.isBlank() || bookUrl.isBlank()) return@mapNotNull null
+            if (index < 3) {
+                Log.d(TAG, "[parseItem $index] rule.name='${rule.name}' -> title='$title'")
+                Log.d(TAG, "[parseItem $index] rule.bookUrl='${rule.bookUrl}' -> bookUrl='$bookUrl'")
+                // 打印item的内容预览
+                val itemStr = item.toString().take(200)
+                Log.d(TAG, "[parseItem $index] item preview: $itemStr")
+            }
+            
+            if (title.isBlank() || bookUrl.isBlank()) return@mapIndexedNotNull null
             
             val absoluteUrl = resolveUrl(baseUrl, bookUrl)
             val author = itemAnalyzer.getString(rule.author)

@@ -324,6 +324,133 @@ class LegadoJavaAPI(
     }
     
     /**
+     * 输出调试日志
+     * 
+     * @param msg 日志消息
+     * @return 原始消息（支持链式调用）
+     */
+    fun log(msg: Any?): Any? {
+        Log.d(TAG, "[JS Log] ${msg.toString()}")
+        return msg
+    }
+    
+    /**
+     * 输出对象类型
+     */
+    fun logType(any: Any?) {
+        if (any == null) {
+            log("null")
+        } else {
+            log(any.javaClass.name)
+        }
+    }
+    
+    /**
+     * URL 编码
+     * 
+     * @param str 需要编码的字符串
+     * @return URL 编码后的字符串
+     */
+    fun encodeURI(str: String): String {
+        return try {
+            java.net.URLEncoder.encode(str, "UTF-8")
+        } catch (e: Exception) {
+            ""
+        }
+    }
+    
+    /**
+     * URL 编码（指定编码）
+     */
+    fun encodeURI(str: String, enc: String): String {
+        return try {
+            java.net.URLEncoder.encode(str, enc)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+    
+    /**
+     * 生成 UUID
+     */
+    fun randomUUID(): String {
+        return java.util.UUID.randomUUID().toString()
+    }
+    
+    /**
+     * 字符串转字节数组
+     */
+    fun strToBytes(str: String): ByteArray {
+        return str.toByteArray(Charsets.UTF_8)
+    }
+    
+    fun strToBytes(str: String, charset: String): ByteArray {
+        return str.toByteArray(Charset.forName(charset))
+    }
+    
+    /**
+     * 字节数组转字符串
+     */
+    fun bytesToStr(bytes: ByteArray): String {
+        return String(bytes, Charsets.UTF_8)
+    }
+    
+    fun bytesToStr(bytes: ByteArray, charset: String): String {
+        return String(bytes, Charset.forName(charset))
+    }
+    
+    /**
+     * MD5 编码（16位）
+     */
+    fun md5Encode16(str: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("MD5")
+            val digest = md.digest(str.toByteArray())
+            // 取中间16位
+            digest.slice(4..11).joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+    
+    /**
+     * MD5 编码（32位）
+     */
+    fun md5Encode(str: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("MD5")
+            val digest = md.digest(str.toByteArray())
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+    
+    /**
+     * 获取 WebView User-Agent
+     */
+    fun getWebViewUA(): String {
+        return try {
+            android.webkit.WebSettings.getDefaultUserAgent(context)
+        } catch (e: Exception) {
+            "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+        }
+    }
+    
+    /**
+     * HTML 格式化，保留图片
+     */
+    fun htmlFormat(str: String): String {
+        // 简单实现：移除HTML标签但保留img
+        val imgPattern = "<img[^>]*src=\"([^\"]*)\"[^>]*>".toRegex()
+        val images = imgPattern.findAll(str).map { it.value }.toList()
+        val text = str.replace(Regex("<[^>]*>"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return if (images.isEmpty()) text else "$text\n${images.joinToString("\n")}"
+    }
+    
+    /**
      * 打开内置浏览器并等待用户操作完成
      * 
      * 此方法会阻塞 JavaScript 执行，直到用户关闭浏览器或完成操作

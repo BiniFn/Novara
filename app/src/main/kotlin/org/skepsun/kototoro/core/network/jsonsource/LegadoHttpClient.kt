@@ -88,14 +88,8 @@ class LegadoHttpClient @Inject constructor(
         
         // Add User-Agent if not provided
         if (!customHeaders.containsKey("User-Agent")) {
-            // For Legado sources, we prefer Desktop User-Agent to avoid mobile redirects (like m. subdomains)
-            // which often cause CloudFlare cookie issues.
-            val userAgent = if (source?.name?.startsWith("JSON_LEGADO", ignoreCase = true) == true) {
-                userAgentManager.getUserAgent("chrome_desktop")
-            } else {
-                userAgentManager.getUserAgent()
-            }
-            headersBuilder.add("User-Agent", userAgent)
+            // Use mobile User-Agent for better compatibility with mobile-first web sources
+            headersBuilder.add("User-Agent", userAgentManager.getUserAgent())
         }
         
         // Add Referer if not provided (many sites require this)

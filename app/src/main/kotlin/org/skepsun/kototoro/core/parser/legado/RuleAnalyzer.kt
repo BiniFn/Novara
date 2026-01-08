@@ -173,6 +173,21 @@ class RuleAnalyzer(data: String, code: Boolean = false) {
                 step = elementsType.length //设置分隔符长度
                 splitRule()
             } //递归匹配
+        } else if (split.isEmpty() && elementsType.isNotEmpty()) {
+            // 递归调用时split为空，但elementsType已设置，使用elementsType继续分割
+            // 首先将之前找到的片段添加到结果中
+            rule += queue.substring(startX, pos)
+            pos += step //跳过分隔符
+            startX = pos //更新起始位置
+            
+            // 继续查找下一个分隔符
+            while (consumeTo(elementsType)) {
+                rule += queue.substring(start, pos)
+                pos += step
+            }
+            // 添加剩余部分
+            rule += queue.substring(pos)
+            return rule
         } else if (!consumeToAny(*split)) { //未找到分隔符
             rule += queue.substring(startX)
             return rule
@@ -301,10 +316,138 @@ class RuleAnalyzer(data: String, code: Boolean = false) {
         return queue.substring(start, pos)
     }
 
+    @JvmName("splitRuleNext")
+    private tailrec fun splitRuleNext(): ArrayList<String> { //二段匹配被调用,elementsType非空(已在首段赋值),直接按elementsType查找,比首段采用的方式更快
+
+        val end = pos //记录分隔位置
+        pos = start //重回开始，启动另一种查找
+
+        do {
+            val st = findToAny('[', '(') //查找筛选器位置
+
+            if (st == -1) {
+
+                rule += arrayOf(queue.substring(startX, end)) //压入分隔的首段规则到数组
+                pos = end + step //跳过分隔符
+
+                while (consumeTo(elementsType)) { //循环切分规则压入数组
+                    rule += queue.substring(start, pos)
+                    pos += step //跳过分隔符
+                }
+
+                rule += queue.substring(pos) //将剩余字段压入数组末尾
+
+                return rule
+            }
+
+            if (st > end) { //先匹配到st1pos，表明分隔字串不在选择器中，将选择器前分隔字串分隔的字段依次压入数组
+
+                rule += arrayListOf(queue.substring(startX, end)) //压入分隔的首段规则到数组
+                pos = end + step //跳过分隔符
+
+                while (consumeTo(elementsType) && pos < st) { //循环切分规则压入数组
+                    rule += queue.substring(start, pos)
+                    pos += step //跳过分隔符
+                }
+
+                return if (pos > st) {
+                    startX = start
+                    splitRuleNext() //首段已匹配,但当前段匹配未完成,调用二段匹配
+                } else { //执行到此，证明后面再无分隔字符
+                    rule += queue.substring(pos) //将剩余字段压入数组末尾
+                    rule
+                }
+            }
+
+            pos = st //位置推移到筛选器处
+            val next = if (queue[pos] == '[') ']' else ')' //平衡组末尾字符
+
+            if (!chompBalanced(queue[pos], next)) throw Error(
+                queue.substring(0, start) + "后未平衡"
+            ) //拉出一个筛选器,不平衡则报错
+
+        } while (end > pos)
+
+        start = pos //设置开始查找筛选器位置的起始位置
+
+        return if (!consumeTo(elementsType)) {
+            rule += queue.substring(startX)
+            rule
+        } else splitRuleNext() //递归匹配
+
+    }
+
+    /**
+     * 替换内嵌规则
+     * @param inner 起始标志,如{$.
+     * @param startStep 不属于规则部分的前置字符长度，如{$.中{不属于规则的组成部分，故startStep为1
+     * @param endStep 不属于规则部分的后置字符长度
+     * @param fr 查找到内嵌规则时，用于解析的函数
+     *
+     * */
+    fun innerRule(
+        inner: String,
+        startStep: Int = 1,
+        endStep: Int = 1,
+        fr: (String) -> String?
+    ): String {
+        val st = StringBuilder()
+
+        while (consumeTo(inner)) { //拉取成功返回true，ruleAnalyzes里的字符序列索引变量pos后移相应位置，否则返回false,且isEmpty为true
+            val posPre = pos //记录consumeTo匹配位置
+            if (chompCodeBalanced('{', '}')) {
+                val frv = fr(queue.substring(posPre + startStep, pos - endStep))
+                if (!frv.isNullOrEmpty()) {
+                    st.append(queue.substring(startX, posPre) + frv) //压入内嵌规则前的内容，及内嵌规则解析得到的字符串
+                    startX = pos //记录下次规则起点
+                    continue //获取内容成功，继续选择下个内嵌规则
+                }
+            }
+            pos += inner.length //拉出字段不平衡，inner只是个普通字串，跳到此inner后继续匹配
+        }
+
+        return if (startX == 0) "" else st.apply {
+            append(queue.substring(startX))
+        }.toString()
+    }
+
+    /**
+     * 替换内嵌规则
+     * @param fr 查找到内嵌规则时，用于解析的函数
+     *
+     * */
+    fun innerRule(
+        startStr: String,
+        endStr: String,
+        fr: (String) -> String?
+    ): String {
+
+        val st = StringBuilder()
+        while (consumeTo(startStr)) { //拉取成功返回true，ruleAnalyzes里的字符序列索引变量pos后移相应位置，否则返回false,且isEmpty为true
+            pos += startStr.length //跳过开始字符串
+            val posPre = pos //记录consumeTo匹配位置
+            if (consumeTo(endStr)) {
+                val frv = fr(queue.substring(posPre, pos))
+                st.append(
+                    queue.substring(
+                        startX,
+                        posPre - startStr.length
+                    ) + frv
+                ) //压入内嵌规则前的内容，及内嵌规则解析得到的字符串
+                pos += endStr.length //跳过结束字符串
+                startX = pos //记录下次规则起点
+            }
+        }
+
+        return if (startX == 0) queue else st.apply {
+            append(queue.substring(startX))
+        }.toString()
+    }
+
     /**
      * 设置平衡组函数，json或JavaScript时设置成chompCodeBalanced，否则为chompRuleBalanced
      */
-    val balancedDelegate = if (code) ::chompCodeBalanced else ::chompRuleBalanced
+    val chompBalanced = if (code) ::chompCodeBalanced else ::chompRuleBalanced
 
     companion object {
 

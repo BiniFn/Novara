@@ -57,12 +57,9 @@ class LegadoRepository(
 
     private val sourceUserAgent: String by lazy {
         configHeaders["User-Agent"] ?: configHeaders["user-agent"] ?: run {
-            if (source.name.startsWith("JSON_LEGADO", ignoreCase = true)) {
-                // Use desktop UA for Legado to avoid mobile redirects and stay consistent
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            } else {
-                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.203 Mobile Safari/537.36"
-            }
+            // Legado sources are typically designed for mobile websites
+            // Use mobile UA as default for better compatibility
+            "Mozilla/5.0 (Linux; Android 10; SM-G965F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
         }
     }
 
@@ -433,9 +430,45 @@ class LegadoRepository(
 
     private fun parseConfigHeaders(headerStr: String?): Map<String, String> {
         if (headerStr.isNullOrBlank()) return emptyMap()
+        
+        var jsonStr = headerStr.trim()
+        
+        // Check if header is JavaScript code that needs execution
+        if (jsonStr.startsWith("<js>", ignoreCase = true) || 
+            jsonStr.startsWith("@js:", ignoreCase = true)) {
+            Log.d(TAG, "Header contains JS, extracting...")
+            
+            // Extract and execute JavaScript
+            val jsCode = when {
+                jsonStr.startsWith("<js>", ignoreCase = true) -> {
+                    jsonStr.removePrefix("<js>").removeSuffix("</js>").trim()
+                }
+                jsonStr.startsWith("@js:", ignoreCase = true) -> {
+                    jsonStr.removePrefix("@js:").trim()
+                }
+                else -> jsonStr
+            }
+            
+            Log.d(TAG, "Executing header JS: ${jsCode.take(100)}...")
+            
+            try {
+                val result = sandbox.eval(jsCode.trim())?.toString()
+                Log.d(TAG, "Header JS execution result: ${result?.take(300)}")
+                if (!result.isNullOrBlank()) {
+                    jsonStr = result
+                } else {
+                    Log.w(TAG, "Header JS returned null or blank")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to execute header JS: ${e.message}", e)
+                return emptyMap()
+            }
+        }
+        
         return try {
             val headers = mutableMapOf<String, String>()
-            val jsonObj = JSONObject(headerStr.replace("'", "\""))
+            val normalized = jsonStr.replace("'", "\"")
+            val jsonObj = JSONObject(normalized)
             jsonObj.keys().forEach { key ->
                 val value = jsonObj.opt(key)
                 if (value != null && value != JSONObject.NULL) {
@@ -445,8 +478,10 @@ class LegadoRepository(
                     }
                 }
             }
+            Log.d(TAG, "Parsed config headers: ${headers.keys}")
             headers
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse headers JSON: $jsonStr", e)
             emptyMap()
         }
     }

@@ -260,7 +260,8 @@ class RhinoJavaScriptEngine(
         /**
          * 将 Legado 规则中的裸 JS 片段包装为可执行表达式。
          * 1) 去掉 @js:/<js> 标签
-         * 2) 包装成 IIFE，返回 c/result/最后表达式，减少分号/换行导致的解析问题。
+         * 2) 对于简单表达式脚本，不做包装直接返回
+         * 3) 对于复杂脚本（包含c或result变量），包装成IIFE返回c/result
          */
         fun wrapScript(raw: String): String {
             var script = raw.trim()
@@ -273,7 +274,23 @@ class RhinoJavaScriptEngine(
             if (script.endsWith("</js>", ignoreCase = true)) {
                 script = script.removeSuffix("</js>").trim()
             }
-            return "(function(){\n$script\nreturn (typeof c!=='undefined'?c:(typeof result!=='undefined'?result:null));\n})();"
+            
+            // 检查是否需要包装
+            // 如果脚本中没有定义 c 或 result 变量，直接执行脚本，让 Rhino 返回最后表达式的值
+            val hasResultVar = script.contains(Regex("\\b(var|let|const)\\s+c\\b")) || 
+                              script.contains(Regex("\\b(var|let|const)\\s+result\\b")) ||
+                              script.contains(Regex("\\bc\\s*=\\s*java\\.")) ||
+                              script.contains("c=java.") ||
+                              script.contains("result=")
+            
+            return if (hasResultVar) {
+                // 复杂脚本：包装成IIFE并返回c或result
+                "(function(){\n$script\nreturn (typeof c!=='undefined'?c:(typeof result!=='undefined'?result:null));\n})();"
+            } else {
+                // 简单脚本（如header JS）：直接执行，让Rhino返回最后表达式值
+                // 删除末尾的分号以确保表达式被返回
+                script
+            }
         }
     }
 }

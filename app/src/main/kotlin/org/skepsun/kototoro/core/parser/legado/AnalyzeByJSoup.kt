@@ -64,6 +64,34 @@ class AnalyzeByJSoup(private val element: Element) {
         }
         return textS
     }
+    
+    /**
+     * 合并内容列表,得到内容
+     */
+    internal fun getStringResult(ruleStr: String): String? {
+        if (ruleStr.isEmpty()) {
+            return null
+        }
+        val list = getString(ruleStr)
+        if (list.isEmpty()) {
+            return null
+        }
+        if (list.size == 1) {
+            return list.first()
+        }
+        return list.joinToString("\n")
+    }
+
+    /**
+     * 获取一个字符串
+     */
+    internal fun getString0(ruleStr: String) =
+        getString(ruleStr).let { if (it.isEmpty()) "" else it[0] }
+    
+    /**
+     * 获取string list别名（兼容老代码）
+     */
+    internal fun getStringList(rule: String): List<String> = getString(rule)
 
     /**
      * 获取Elements
