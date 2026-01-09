@@ -177,4 +177,23 @@
 		android:title="@string/preload_pages"
 		app:useSimpleSummaryProvider="true" />
 
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="reader_threads"
+		android:title="@string/download_threads"
+		android:summary="@string/download_threads_summary"
+		android:valueFrom="1"
+		android:valueTo="10"
+		app:defaultValue="3"
+		app:allowDividerAbove="true"
+		app:useSimpleSummaryProvider="true" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="reader_prefetch_limit"
+		android:title="@string/prefetch_limit"
+		android:summary="@string/prefetch_limit_summary"
+		android:valueFrom="1"
+		android:valueTo="20"
+		app:defaultValue="6"
+		app:useSimpleSummaryProvider="true" />
+
 </PreferenceScreen>

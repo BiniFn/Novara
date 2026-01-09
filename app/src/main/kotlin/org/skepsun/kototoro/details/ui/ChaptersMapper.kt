@@ -12,6 +12,7 @@ import org.skepsun.kototoro.local.epub.ChapterMetadata
 import org.skepsun.kototoro.local.epub.ChapterType
 import org.skepsun.kototoro.parsers.model.MangaChapter
 import org.skepsun.kototoro.parsers.util.mapToSet
+import org.skepsun.kototoro.core.model.isLocal
 
 /**
  * Represents a group of chapters for UI display
@@ -72,18 +73,18 @@ fun MangaDetails.mapChapters(
 				null
 			}
 			val local = localById ?: localByUrl
-			
+			val finalChapter = local ?: chapter
 			val isUnread = if (currentChapterNumber != null) {
 				chapter.number > currentChapterNumber
 			} else {
 				true
 			}
 			
-			result += (local ?: chapter).toListItem(
+			result += finalChapter.toListItem(
 				isCurrent = chapter.id == currentChapterId,
 				isUnread = isUnread,
 				isNew = isUnread && result.size >= newFrom,
-				isDownloaded = local != null,
+				isDownloaded = finalChapter.source.isLocal,
 				isBookmarked = chapter.id in bookmarked,
 				isGrid = isGrid,
 			)
@@ -95,7 +96,7 @@ fun MangaDetails.mapChapters(
 				isCurrent = chapter.id == currentChapterId,
 				isUnread = true,
 				isNew = false,
-				isDownloaded = !isLocal,
+				isDownloaded = chapter.source.isLocal,
 				isBookmarked = chapter.id in bookmarked,
 				isGrid = isGrid,
 			)

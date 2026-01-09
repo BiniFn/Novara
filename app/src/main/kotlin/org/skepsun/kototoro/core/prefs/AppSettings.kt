@@ -362,8 +362,20 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		get() = prefs.getBoolean(KEY_SOURCES_ENABLED_ALL, false)
 		set(value) = prefs.edit { putBoolean(KEY_SOURCES_ENABLED_ALL, value) }
 
+	var isExtensionsFilterLangEnabled: Boolean
+		get() = prefs.getBoolean(KEY_EXTENSIONS_FILTER_LANG, false)
+		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_FILTER_LANG, value) }
+
 	val isPagesNumbersEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PAGES_NUMBERS, false)
+
+	var readerThreads: Int
+		get() = prefs.getInt(KEY_READER_THREADS, 3)
+		set(value) = prefs.edit { putInt(KEY_READER_THREADS, value.coerceIn(1, 10)) }
+
+	var readerPrefetchLimit: Int
+		get() = prefs.getInt(KEY_READER_PREFETCH_LIMIT, 6)
+		set(value) = prefs.edit { putInt(KEY_READER_PREFETCH_LIMIT, value.coerceIn(1, 20)) }
 
 	val screenshotsPolicy: ScreenshotsPolicy
 		get() = prefs.getEnumValue(KEY_SCREENSHOTS_POLICY, ScreenshotsPolicy.ALLOW)
@@ -871,6 +883,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_INCOGNITO_NSFW = "incognito_nsfw"
 		const val KEY_PAGES_NUMBERS = "pages_numbers"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"
+		const val KEY_READER_THREADS = "reader_threads"
+		const val KEY_READER_PREFETCH_LIMIT = "reader_prefetch_limit"
 		const val KEY_PAGES_PRELOAD = "pages_preload"
 		const val KEY_SUGGESTIONS = "suggestions"
 		const val KEY_SUGGESTIONS_WIFI_ONLY = "suggestions_wifi"
@@ -955,6 +969,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_SEARCH_SUGGESTION_TYPES = "search_suggest_types"
 		const val KEY_SOURCES_VERSION = "sources_version"
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
+		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
 		const val KEY_QUICK_FILTER = "quick_filter"
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"

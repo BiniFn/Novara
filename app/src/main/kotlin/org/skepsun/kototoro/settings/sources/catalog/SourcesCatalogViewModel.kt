@@ -25,6 +25,8 @@ import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaSource
 import java.util.EnumSet
@@ -39,7 +41,7 @@ class SourcesCatalogViewModel @Inject constructor(
 ) : BaseViewModel() {
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
-	val locales: Set<String?> = repository.allMangaSources.mapTo(HashSet<String?>()) { it.locale }.also {
+	val locales: Set<String?> = repository.allMangaSources.mapTo(HashSet<String?>()) { it.getLocale()?.language }.also {
 		it.add(null)
 	}
 
@@ -156,6 +158,6 @@ class SourcesCatalogViewModel @Inject constructor(
 		} else {
 			repository.allMangaSources
 		}
-		return sources.mapSortedByCount { it.contentType }
+		return sources.mapSortedByCount { it.getContentType() }
 	}
 }

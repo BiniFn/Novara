@@ -12,6 +12,7 @@ import javax.inject.Singleton
 @Singleton
 class GetMihonSourcesUseCase @Inject constructor(
     private val extensionManager: MihonExtensionManager,
+    private val settings: org.skepsun.kototoro.core.prefs.AppSettings,
 ) {
     
     fun getSourcesFlow(): Flow<List<MihonSourceItem>> {
@@ -43,6 +44,8 @@ class GetMihonSourcesUseCase @Inject constructor(
     
     fun getSourcesFlowFiltered(userLanguages: Set<String>): Flow<List<MihonSourceItem>> {
         return getSourcesFlow().map { sources ->
+            if (!settings.isExtensionsFilterLangEnabled) return@map sources
+            
             sources.filter { item ->
                 item.language == "all" || userLanguages.isEmpty() || userLanguages.contains(item.language)
             }

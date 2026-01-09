@@ -241,6 +241,12 @@ class RhinoJavaScriptEngine(
                     }
                     array
                 }
+                is String -> {
+                    // 确保 Java String 在 Rhino 中可以访问 String.prototype 方法（如 match）
+                    // 使用 ctx.newObject("String", ...) 来创建一个真实的 JS String 对象
+                    val jsString = ctx.newObject(currentScope, "String", arrayOf(value))
+                    jsString
+                }
                 else -> RhinoContext.javaToJS(value, currentScope)
             }
             ScriptableObject.putProperty(currentScope, name, jsValue)

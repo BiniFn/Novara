@@ -12,6 +12,7 @@ import javax.inject.Singleton
 @Singleton
 class GetAniyomiSourcesUseCase @Inject constructor(
     private val extensionManager: AniyomiExtensionManager,
+    private val settings: org.skepsun.kototoro.core.prefs.AppSettings,
 ) {
     
     fun getSourcesFlow(): Flow<List<AniyomiSourceItem>> {
@@ -43,6 +44,8 @@ class GetAniyomiSourcesUseCase @Inject constructor(
     
     fun getSourcesFlowFiltered(userLanguages: Set<String>): Flow<List<AniyomiSourceItem>> {
         return getSourcesFlow().map { sources ->
+            if (!settings.isExtensionsFilterLangEnabled) return@map sources
+            
             sources.filter { item ->
                 item.language == "all" || userLanguages.isEmpty() || userLanguages.contains(item.language)
             }

@@ -88,6 +88,11 @@ class SourcesSettingsFragment : BasePreferenceFragment(R.string.remote_sources),
 			true
 		}
 
+		"setup_wizard" -> {
+			router.showWelcomeSheet()
+			true
+		}
+
 		else -> super.onPreferenceTreeClick(preference)
 	}
 

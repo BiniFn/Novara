@@ -43,6 +43,7 @@ import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.local.data.FaviconCache
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageCache
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import javax.inject.Inject
@@ -62,6 +63,7 @@ class FaviconFetcher(
 
 		return when (val repo = mangaRepositoryFactory.create(mangaSource)) {
 			is ParserMangaRepository -> fetchParserFavicon(repo)
+			is KotatsuParserRepository -> fetchKotatsuFavicon(repo)
 			is ExternalMangaRepository -> fetchPluginIcon(repo)
 			is EmptyMangaRepository -> ImageFetchResult(
 				image = ColorImage(Color.WHITE),
@@ -147,6 +149,47 @@ class FaviconFetcher(
             imageLoader.fetch(R.drawable.ic_storage, options)!!
         }
     }
+
+	private suspend fun fetchKotatsuFavicon(repository: KotatsuParserRepository): FetchResult {
+		val sizePx = maxOf(
+			options.size.width.pxOrElse { FALLBACK_SIZE },
+			options.size.height.pxOrElse { FALLBACK_SIZE },
+		)
+		val cacheKey = options.diskCacheKey ?: "${repository.source.name}_$sizePx"
+		if (options.diskCachePolicy.readEnabled) {
+			localStorageCache[cacheKey]?.let { file ->
+				return SourceFetchResult(
+					source = ImageSource(file.toOkioPath(), FileSystem.SYSTEM),
+					mimeType = MimeTypes.probeMimeType(file)?.toString(),
+					dataSource = DataSource.DISK,
+				)
+			}
+		}
+		var favicons = repository.getFavicons()
+		var lastError: Exception? = null
+		while (favicons.isNotEmpty()) {
+			currentCoroutineContext().ensureActive()
+			val icon = favicons.find(sizePx) ?: throwNSEE(lastError)
+			try {
+				val result = imageLoader.fetch(icon.url, options)
+				if (result != null) {
+					return if (options.diskCachePolicy.writeEnabled) {
+						writeToCache(cacheKey, result)
+					} else {
+						result
+					}
+				} else {
+					favicons -= icon
+				}
+			} catch (e: CloudFlareProtectedException) {
+				throw e
+			} catch (e: IOException) {
+				lastError = e
+				favicons -= icon
+			}
+		}
+		throwNSEE(lastError)
+	}
 
 	private suspend fun fetchParserFavicon(repository: ParserMangaRepository): FetchResult {
 		val sizePx = maxOf(

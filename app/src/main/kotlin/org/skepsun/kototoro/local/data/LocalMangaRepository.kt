@@ -14,6 +14,7 @@ import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.AlphanumComparator
 import org.skepsun.kototoro.core.util.ext.deleteAwait
@@ -41,6 +42,7 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import java.util.EnumSet
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 private const val MAX_PARALLELISM = 4
@@ -53,6 +55,7 @@ class LocalMangaRepository @Inject constructor(
 	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalManga?>,
 	private val settings: AppSettings,
 	private val lock: MangaLock,
+	private val repositoryFactory: Provider<MangaRepository.Factory>,
 ) : MangaRepository {
 
 	override val source = LocalMangaSource
@@ -144,7 +147,12 @@ class LocalMangaRepository @Inject constructor(
 		else -> LocalMangaParser(manga.url.toUri()).getManga(withDetails = true).manga
 	}
 
-	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
+		if (!chapter.source.isLocal) {
+			android.util.Log.d("LocalMangaRepository", "Delegating getPages to original source: ${chapter.source.name}")
+			return repositoryFactory.get().create(chapter.source).getPages(chapter, nextChapterUrl)
+		}
+		
 		android.util.Log.d("LocalMangaRepository", "getPages: chapter.url=${chapter.url}, title=${chapter.title}")
 		
 		// NEW ARCHITECTURE: EPUB chapters use epub:// protocol
@@ -173,6 +181,14 @@ class LocalMangaRepository @Inject constructor(
 		// 普通章节，使用LocalMangaParser
 		android.util.Log.d("LocalMangaRepository", "Using LocalMangaParser for regular chapter")
 		return LocalMangaParser(chapter.url.toUri()).getPages(chapter)
+	}
+
+	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): NovelChapterContent? {
+		if (!chapter.source.isLocal) {
+			android.util.Log.d("LocalMangaRepository", "Delegating getChapterContent to original source: ${chapter.source.name}")
+			return repositoryFactory.get().create(chapter.source).getChapterContent(chapter, nextChapterUrl)
+		}
+		return super.getChapterContent(chapter, nextChapterUrl)
 	}
 
 	suspend fun delete(manga: Manga): Boolean {

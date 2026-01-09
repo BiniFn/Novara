@@ -50,6 +50,7 @@ data class SearchRule(
     val wordCount: String? = null,     // 字数规则
     val checkKeyWord: String? = null,  // 校验关键字
     val init: String? = null,          // 初始化脚本
+    val webView: Boolean? = false,     // 是否启用 WebView
 )
 
 /**
@@ -68,7 +69,8 @@ data class BookInfoRule(
     val tocUrl: String? = null,        // 目录页链接规则
     val init: String? = null,          // 初始化脚本
     val canReName: String? = null,
-    val downloadUrls: String? = null
+    val downloadUrls: String? = null,
+    val webView: Boolean? = false,     // 是否启用 WebView
 )
 
 /**
@@ -85,7 +87,8 @@ data class TocRule(
     val isPay: String? = null,          // 付费标识
     val updateTime: String? = null,     // 更新时间
     val preUpdateJs: String? = null,    // 刷新前JS
-    val formatJs: String? = null        // 格式化JS
+    val formatJs: String? = null,       // 格式化JS
+    val webView: Boolean? = false,      // 是否启用 WebView
 )
 
 /**
@@ -100,5 +103,7 @@ data class ContentRule(
     val sourceRegex: String? = null,   // 资源正则
     val replaceRegex: String? = null,  // 正文替换
     val imageStyle: String? = null,    // 图片样式
-    val payAction: String? = null      // 支付操作
+    val payAction: String? = null,     // 支付操作
+    val webView: String? = null,       // 是否启用 WebView (Legado 规则中此处可能是字符串 "true" 或 JS 脚本)
+    val webViewDelayTime: Long? = null, // WebView 延迟时间
 )

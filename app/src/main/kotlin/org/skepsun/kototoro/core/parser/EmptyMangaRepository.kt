@@ -27,11 +27,11 @@ open class EmptyMangaRepository(override val source: MangaSource) : MangaReposit
 
 	override suspend fun getDetails(manga: Manga): Manga = stub(manga)
 
-	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> = stub(null)
+	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = stub(null)
 
 	override suspend fun getPageUrl(page: MangaPage): String = stub(null)
 
-	override suspend fun getChapterContent(chapter: MangaChapter) = stub(null)
+	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?) = stub(null)
 
 	override suspend fun getFilterOptions(): MangaListFilterOptions = stub(null)
 

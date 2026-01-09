@@ -134,6 +134,7 @@ class MangaSearchRepository @Inject constructor(
 		}
 		val skipNsfw = settings.isNsfwContentDisabled
 		val sources = sourcesRepository.allMangaSources
+			.mapNotNull { it as? org.skepsun.kototoro.parsers.model.MangaParserSource }
 			.filter { x ->
 				(x.contentType != ContentType.HENTAI_MANGA || !skipNsfw) && x.title.contains(query, ignoreCase = true)
 			}

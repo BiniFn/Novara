@@ -18,8 +18,9 @@ import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.util.mapToSet
-import java.util.EnumSet
 import java.util.Locale
 import javax.inject.Inject
 
@@ -30,8 +31,8 @@ class WelcomeViewModel @Inject constructor(
 	@LocalizedAppContext context: Context,
 ) : BaseViewModel() {
 
-	private val allSources = repository.allMangaSources
-	private val localesGroups by lazy { allSources.groupBy { it.locale.toLocale() } }
+private val allSources = repository.allMangaSources
+private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Locale.ROOT } }
 
 	private var updateJob: Job
 
@@ -58,11 +59,11 @@ class WelcomeViewModel @Inject constructor(
 			// Map adult content types to their base types for display
 			val contentTypes = allSources
 				.map { source ->
-					when (source.contentType) {
+					when (source.getContentType()) {
 						ContentType.HENTAI_MANGA -> ContentType.MANGA
 						ContentType.HENTAI_NOVEL -> ContentType.NOVEL
 						ContentType.HENTAI_VIDEO -> ContentType.VIDEO
-						else -> source.contentType
+						else -> source.getContentType()
 					}
 				}
 				.groupingBy { it }
@@ -74,17 +75,40 @@ class WelcomeViewModel @Inject constructor(
 				availableItems = contentTypes,
 				isLoading = false,
 			)
-			val languages = localesGroups.keys.associateBy { x -> x.language }
-			val selectedLocales = HashSet<Locale>(2)
-			ConfigurationCompat.getLocales(context.resources.configuration).toList()
-				.firstNotNullOfOrNull { lc -> languages[lc.language] }
-				?.let { selectedLocales += it }
-			selectedLocales += Locale.ROOT
+			val previouslySelectedLanguages = settings.contentLanguages
+			val selectedLocales = if (previouslySelectedLanguages.isNotEmpty()) {
+				localesGroups.keys.filterTo(HashSet()) { it.language in previouslySelectedLanguages }
+			} else {
+				val languagesMap = localesGroups.keys.associateBy { x -> x.language }
+				val set = HashSet<Locale>(2)
+				ConfigurationCompat.getLocales(context.resources.configuration).toList()
+					.firstNotNullOfOrNull { lc -> languagesMap[lc.language] }
+					?.let { set += it }
+				set += Locale.ROOT
+				set
+			}
 			locales.value = locales.value.copy(
 				availableItems = localesGroups.keys.sortedWithSafe(LocaleComparator()),
 				selectedItems = selectedLocales,
 				isLoading = false,
 			)
+
+			val enabledSources = repository.getEnabledSources().map { it.name }.toSet()
+			val selectedTypes = allSources
+				.filter { it.name in enabledSources }
+				.map { source ->
+					when (source.getContentType()) {
+						ContentType.HENTAI_MANGA -> ContentType.MANGA
+						ContentType.HENTAI_NOVEL -> ContentType.NOVEL
+						ContentType.HENTAI_VIDEO -> ContentType.VIDEO
+						else -> source.getContentType()
+					}
+				}
+				.toSet()
+			if (selectedTypes.isNotEmpty()) {
+				types.value = types.value.copy(selectedItems = selectedTypes)
+			}
+
 			repository.clearNewSourcesBadge()
 			commit()
 		}
@@ -134,9 +158,10 @@ class WelcomeViewModel @Inject constructor(
 				else -> listOf(type)
 			}
 		}
-		val enabledSources = allSources.filterTo(EnumSet.noneOf(MangaParserSource::class.java)) { x ->
-			x.contentType in expandedTypes && x.locale in languages
-		}
+		val enabledSources = allSources
+			.filterTo(HashSet()) { x ->
+				x.getContentType() in expandedTypes && (x.getLocale()?.language ?: "") in languages
+			}
 		repository.setSourcesEnabledExclusive(enabledSources)
 		settings.contentLanguages = languages
 	}

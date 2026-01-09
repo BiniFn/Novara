@@ -14,6 +14,8 @@ import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
 import org.skepsun.kototoro.core.util.ext.getDisplayName
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
@@ -23,6 +25,9 @@ import java.util.Locale
 data object LocalMangaSource : MangaSource {
 	override val name = "LOCAL"
 }
+
+val MangaSource.isLocal: Boolean
+	get() = this == LocalMangaSource || this == LocalNovelSource
 
 data object LocalNovelSource : MangaSource {
 	override val name = "LOCAL_NOVEL"
@@ -62,6 +67,7 @@ fun MangaSource(name: String?): MangaSource {
 		android.util.Log.d("MangaSource", "Detected Aniyomi source name: $name, returning stable MangaSource")
 		return AnonymousMangaSource(name)
 	}
+	KotatsuParsersProvider.findByName(name)?.let { return it }
 	MangaParserSource.entries.forEach {
 		if (it.name == name) return it
 	}
@@ -73,6 +79,11 @@ fun Collection<String>.toMangaSources() = map(::MangaSource)
 fun MangaSource.isNsfw(): Boolean = when (this) {
 	is MangaSourceInfo -> mangaSource.isNsfw()
 	is MangaParserSource -> contentType in setOf(
+		ContentType.HENTAI_MANGA,
+		ContentType.HENTAI_NOVEL,
+		ContentType.HENTAI_VIDEO,
+	)
+	is KotatsuParserSource -> contentType in setOf(
 		ContentType.HENTAI_MANGA,
 		ContentType.HENTAI_NOVEL,
 		ContentType.HENTAI_VIDEO,
@@ -139,9 +150,11 @@ tailrec fun MangaSource.unwrap(): MangaSource = if (this is MangaSourceInfo) {
 }
 
 fun MangaSource.getLocale(): Locale? = (unwrap() as? MangaParserSource)?.locale?.toLocaleOrNull()
+	?: (unwrap() as? KotatsuParserSource)?.locale?.toLocaleOrNull()
 
 fun MangaSource.getContentType(): ContentType = when (val source = unwrap()) {
 	is MangaParserSource -> source.contentType
+	is KotatsuParserSource -> source.contentType
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> if (source.isNsfw) ContentType.HENTAI_VIDEO else ContentType.VIDEO
 	else -> {
@@ -159,12 +172,14 @@ fun MangaSource.getContentType(): ContentType = when (val source = unwrap()) {
 
 fun MangaSource.getSummary(context: Context): String? = when (val source = unwrap()) {
 	is MangaParserSource,
+	is KotatsuParserSource,
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource,
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> {
 		val contentType = getContentType()
 		val type = context.getString(contentType.titleResId)
 		val lang = when (source) {
 			is MangaParserSource -> source.locale.toLocale()
+			is KotatsuParserSource -> source.locale.toLocale()
 			is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.language.toLocale()
 			is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.language.toLocale()
 			else -> Locale.getDefault()
@@ -190,6 +205,7 @@ fun MangaSource.getSummary(context: Context): String? = when (val source = unwra
 
 fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()) {
 	is MangaParserSource -> source.title
+	is KotatsuParserSource -> source.title
 	LocalMangaSource -> context.getString(R.string.local_storage)
 	LocalNovelSource -> "本地小说"
 	TestMangaSource -> context.getString(R.string.test_parser)

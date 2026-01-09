@@ -44,7 +44,8 @@ class TestMangaRepository(
 	): Manga = TODO("Fetch manga details")
 
 	override suspend fun getPagesImpl(
-		chapter: MangaChapter
+		chapter: MangaChapter,
+		nextChapterUrl: String?
 	): List<MangaPage> = TODO("Get pages for specific chapter")
 
 	override suspend fun getPageUrl(

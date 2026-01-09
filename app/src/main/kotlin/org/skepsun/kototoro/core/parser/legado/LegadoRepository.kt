@@ -30,6 +30,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 
 import java.util.*
+import java.net.URLDecoder
 
 /**
  * Main repository implementation for Legado JSON sources.
@@ -153,16 +154,15 @@ class LegadoRepository(
             else -> getFirstExploreUrl() ?: config.searchUrl!!
         }
         
-        val urlAnalyzer = AnalyzeUrl(
+        val request = AnalyzeUrl(
             ruleUrl = ruleUrl,
             key = query,
             page = page,
             baseUrl = config.bookSourceUrl,
             ruleData = sandbox.getRuleData(),
-            sandbox = sandbox
-        )
-        
-        val request = urlAnalyzer.build()
+            sandbox = sandbox,
+            useWebViewDefault = config.ruleSearch?.webView == true
+        ).build()
         val result = executeRequest(request)
         
         if (result == null) return emptyList()
@@ -183,6 +183,12 @@ class LegadoRepository(
         // Legado sources often have 0 retries by default, but we need more for stability
         // Increase to 5 to handle aggressive sites like bilinovel
         val maxRetries = (request.retry).coerceAtLeast(5)
+        
+        // Ensure URL is a valid web URL
+        if (!request.url.startsWith("http", ignoreCase = true)) {
+            Log.w(TAG, "Skipping non-HTTP request in LegadoRepository: ${request.url}")
+            return null
+        }
         
         repeat(maxRetries) { attempt ->
             try {
@@ -274,7 +280,12 @@ class LegadoRepository(
             return it
         }
 
-        val request = AnalyzeUrl(manga.url, baseUrl = config.bookSourceUrl, sandbox = sandbox).build()
+        val request = AnalyzeUrl(
+            manga.url, 
+            baseUrl = config.bookSourceUrl, 
+            sandbox = sandbox,
+            useWebViewDefault = config.ruleBookInfo?.webView == true
+        ).build()
         val result = executeRequest(request)
         
         if (result == null) {
@@ -307,13 +318,13 @@ class LegadoRepository(
     }
 
 
-    override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+    override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
         val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
         memoryCache?.getPages(source, normalizedUrl)?.let {
             android.util.Log.d(TAG, "Memory cache HIT (getPages) for chapter: ${chapter.title}")
             return it
         }
-        return getPagesFlow(chapter, null).toList().lastOrNull() ?: emptyList()
+        return getPagesFlow(chapter, nextChapterUrl).toList().lastOrNull() ?: emptyList()
     }
 
     override fun getPagesFlow(chapter: MangaChapter, nextChapterUrl: String?): Flow<List<MangaPage>> = kotlinx.coroutines.flow.channelFlow {
@@ -344,7 +355,15 @@ class LegadoRepository(
                 break
             }
 
-            val request = AnalyzeUrl(url, baseUrl = config.bookSourceUrl, sandbox = sandbox).build()
+            val contentRule = config.ruleContent
+            val request = AnalyzeUrl(
+                url, 
+                baseUrl = config.bookSourceUrl, 
+                sandbox = sandbox,
+                useWebViewDefault = isWebViewEnabled(contentRule?.webView),
+                webJsDefault = contentRule?.webJs,
+                webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L
+            ).build()
             val result = executeRequest(request) ?: run {
                 continue
             }
@@ -397,6 +416,53 @@ class LegadoRepository(
         return page.url
     }
 
+    override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): NovelChapterContent? {
+        val pages = getPages(chapter, nextChapterUrl)
+        if (pages.isEmpty()) return null
+
+        val htmlBuilder = StringBuilder()
+        val images = mutableListOf<NovelChapterContent.NovelImage>()
+
+        pages.forEach { page ->
+            if (page.url.startsWith("data:", ignoreCase = true)) {
+                decodeDataUrl(page.url)?.let { decoded ->
+                    htmlBuilder.append(decoded.html)
+                    images.addAll(decoded.images)
+                }
+            } else {
+                // Legado novel chapters might return image URLs for illustrations
+                images.add(NovelChapterContent.NovelImage(page.url, page.headers ?: emptyMap()))
+                // Note: The HTML usually already contains <img> tags pointing to these URLs
+            }
+        }
+
+        return NovelChapterContent(
+            html = htmlBuilder.toString(),
+            images = images
+        )
+    }
+
+    private fun decodeDataUrl(url: String): NovelChapterContent? {
+        val data = url.removePrefix("data:")
+        val commaIndex = data.indexOf(',')
+        if (commaIndex <= 0) return null
+        val meta = data.substring(0, commaIndex)
+        val contentPart = data.substring(commaIndex + 1)
+        val isBase64 = meta.contains(";base64", ignoreCase = true)
+
+        return try {
+            val html = if (isBase64) {
+                String(Base64.getDecoder().decode(contentPart), Charsets.UTF_8)
+            } else {
+                URLDecoder.decode(contentPart, "UTF-8")
+            }
+            NovelChapterContent(html = html, images = emptyList())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decode data URL", e)
+            null
+        }
+    }
+
     override suspend fun getFilterOptions(): MangaListFilterOptions {
         val kinds = parseExploreKinds()
         
@@ -445,7 +511,12 @@ class LegadoRepository(
                 continue
             }
 
-            val request = AnalyzeUrl(url, baseUrl = config.bookSourceUrl, sandbox = sandbox).build()
+            val request = AnalyzeUrl(
+                url, 
+                baseUrl = config.bookSourceUrl, 
+                sandbox = sandbox,
+                useWebViewDefault = config.ruleToc?.webView == true
+            ).build()
             val result = executeRequest(request)
             if (result == null) {
                 continue
@@ -574,5 +645,27 @@ class LegadoRepository(
             builder.add(k, v)
         }
         return builder.build()
+    }
+
+    private fun isWebViewEnabled(ruleValue: String?): Boolean {
+        if (ruleValue == null) return false
+        if (ruleValue == "true" || ruleValue == "1") return true
+        if (ruleValue == "false" || ruleValue == "0") return false
+        
+        // Evaluate as JS if it looks like a script
+        if (ruleValue.startsWith("<js>") || ruleValue.startsWith("@js:")) {
+            return try {
+                val script = if (ruleValue.startsWith("<js>")) {
+                    ruleValue.removePrefix("<js>").removeSuffix("</js>")
+                } else {
+                    ruleValue.removePrefix("@js:")
+                }
+                sandbox.eval(script)?.toString() == "true"
+            } catch (e: Exception) {
+                false
+            }
+        }
+        
+        return false
     }
 }

@@ -1,0 +1,57 @@
+package org.skepsun.kototoro.core.parser.kotatsu
+
+import okhttp3.CookieJar
+import okhttp3.OkHttpClient
+import okhttp3.Response
+import org.koitharu.kotatsu.parsers.MangaLoaderContext as KTMangaLoaderContext
+import org.koitharu.kotatsu.parsers.bitmap.Bitmap as KTBitmap
+import org.koitharu.kotatsu.parsers.model.MangaSource as KTMangaSource
+import org.skepsun.kototoro.parsers.MangaLoaderContext
+import org.skepsun.kototoro.parsers.config.MangaSourceConfig
+import java.util.Locale
+
+/**
+ * 将 Kototoro 的 MangaLoaderContext 适配到 kotatsu。
+ */
+internal class KotatsuLoaderContextAdapter(
+	private val delegate: MangaLoaderContext,
+) : KTMangaLoaderContext() {
+
+	override val httpClient: OkHttpClient
+		get() = delegate.httpClient
+
+	override val cookieJar: CookieJar
+		get() = delegate.cookieJar
+
+	override suspend fun evaluateJs(script: String): String? = delegate.evaluateJs(script)
+
+	override suspend fun evaluateJs(baseUrl: String, script: String): String? = delegate.evaluateJs(baseUrl, script)
+
+	override fun requestBrowserAction(parser: org.koitharu.kotatsu.parsers.MangaParser, url: String): Nothing {
+		throw UnsupportedOperationException("Browser action is not supported in Kotatsu adapter")
+	}
+
+	override fun getConfig(source: KTMangaSource): org.koitharu.kotatsu.parsers.config.MangaSourceConfig =
+		KotatsuConfigAdapter(delegate.getConfig(KotatsuParserSource(source as org.koitharu.kotatsu.parsers.model.MangaParserSource)))
+
+	override fun getDefaultUserAgent(): String = delegate.getDefaultUserAgent()
+
+	override fun encodeBase64(data: ByteArray): String = delegate.encodeBase64(data)
+
+	override fun decodeBase64(data: String): ByteArray = delegate.decodeBase64(data)
+
+	override fun getPreferredLocales(): List<Locale> = delegate.getPreferredLocales()
+
+	override fun redrawImageResponse(
+		response: Response,
+		redraw: (image: KTBitmap) -> KTBitmap,
+	): Response = response
+
+	override fun createBitmap(width: Int, height: Int): KTBitmap {
+		return object : KTBitmap {
+			override val width: Int = width
+			override val height: Int = height
+			override fun drawBitmap(sourceBitmap: KTBitmap, src: org.koitharu.kotatsu.parsers.bitmap.Rect, dst: org.koitharu.kotatsu.parsers.bitmap.Rect) = Unit
+		}
+	}
+}

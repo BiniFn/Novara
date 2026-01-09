@@ -28,6 +28,9 @@ import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
 import java.lang.ref.WeakReference
 import javax.inject.Inject
@@ -47,7 +50,7 @@ interface MangaRepository {
 
 	suspend fun getDetails(manga: Manga): Manga
 
-	suspend fun getPages(chapter: MangaChapter): List<MangaPage>
+	suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String? = null): List<MangaPage>
 
 	/**
 	 * 获取章节页面的流，支持增量加载（如 Legado 多页小说章节）。
@@ -55,7 +58,7 @@ interface MangaRepository {
 	 * @param nextChapterUrl 下一章的 URL。如果加载过程中遇到此 URL，应停止加载，防止“下一章”规则误触导致无限连读。
 	 */
 	fun getPagesFlow(chapter: MangaChapter, nextChapterUrl: String? = null): Flow<List<MangaPage>> = flow {
-		emit(getPages(chapter))
+		emit(getPages(chapter, nextChapterUrl))
 	}
 
 	suspend fun getPageUrl(page: MangaPage): String
@@ -66,7 +69,7 @@ interface MangaRepository {
 	 * 可选：返回小说章节的完整 HTML 与图片资源信息，用于离线下载。
 	 * 默认实现返回 null（未实现）。
 	 */
-	suspend fun getChapterContent(chapter: MangaChapter): NovelChapterContent? = null
+	suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String? = null): NovelChapterContent? = null
 
 	/**
 	 * Create an OkHttp Request for a specific page.
@@ -93,6 +96,8 @@ interface MangaRepository {
 	}
 
 	suspend fun getRelated(seed: Manga): List<Manga>
+
+	suspend fun getConfigKeys(): List<org.skepsun.kototoro.parsers.config.ConfigKey<*>> = emptyList()
 
 	suspend fun find(manga: Manga): Manga? {
 		val list = getList(0, SortOrder.RELEVANCE, MangaListFilter(query = manga.title))
@@ -189,6 +194,15 @@ interface MangaRepository {
 						parser = loaderContext.newParserInstance(source),
 						cache = contentCache,
 						mirrorSwitcher = mirrorSwitcher,
+					)
+				}
+				is KotatsuParserSource -> {
+					android.util.Log.d("MangaRepository", "Creating Kotatsu Parser repository for: ${source.name}")
+					KotatsuParserRepository(
+						parser = KotatsuParsersProvider.newParserInstance(loaderContext, source),
+						kotatsuSource = source,
+						loaderContext = loaderContext,
+						cache = contentCache,
 					)
 				}
 

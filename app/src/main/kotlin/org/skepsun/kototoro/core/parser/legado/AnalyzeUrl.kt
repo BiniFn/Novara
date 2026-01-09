@@ -25,7 +25,10 @@ class AnalyzeUrl(
     private val page: Int = 1,
     private var baseUrl: String = "",
     private val ruleData: RuleDataInterface? = null,
-    private val sandbox: LegadoSandbox? = null
+    private val sandbox: LegadoSandbox? = null,
+    private val useWebViewDefault: Boolean = false,
+    private val webJsDefault: String? = null,
+    private val webViewDelayDefault: Long = 0
 ) {
     
     companion object {
@@ -156,10 +159,10 @@ class AnalyzeUrl(
                 val wv = optionsJson.opt("webView")
                 val wvStr = wv?.toString()
                 wvStr == "true" || wvStr == "1"
-            } else false
+            } else useWebViewDefault
             
-            val webJs = if (optionsJson.has("webJs")) optionsJson.optString("webJs") else null
-            val webViewDelayTime = optionsJson.optLong("webViewDelayTime", 0L)
+            val webJs = (if (optionsJson.has("webJs")) optionsJson.optString("webJs") else null) ?: webJsDefault
+            val webViewDelayTime = optionsJson.optLong("webViewDelayTime", webViewDelayDefault)
             val retry = optionsJson.optInt("retry", 0)
             val type = if (optionsJson.has("type")) optionsJson.optString("type") else null
             

@@ -167,4 +167,8 @@
     </plurals>
     <string name="select_all">全选</string>
     <string name="deselect_all">全不选</string>
+    <string name="filter_extensions_by_language">按照语言过滤插件</string>
+    <string name="filter_extensions_by_language_summary">仅显示符合应用所选内容语言的 Mihon 和 Aniyomi 插件</string>
+    <string name="setup_wizard">设置向导</string>
+    <string name="setup_wizard_summary">选择内容语言和类型。这将重新初始化已启用源列表。</string>
 </resources>

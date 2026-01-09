@@ -9,7 +9,9 @@ import org.jetbrains.annotations.Blocking
 import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.BuildConfig
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.model.LocalNovelSource
+import org.skepsun.kototoro.core.model.MangaSource as createMangaSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.parsers.model.ContentRating
@@ -36,23 +38,29 @@ class MangaIndex(source: String?) {
 	private val json: JSONObject = source?.let(::JSONObject) ?: JSONObject()
 
 	fun setMangaInfo(manga: Manga) {
-		require(!manga.isLocal) { "Local manga information cannot be stored" }
+		require(!manga.isLocal || manga.source == LocalNovelSource) { "Local manga information cannot be stored" }
 		json.put(KEY_ID, manga.id)
 		json.put(KEY_TITLE, manga.title)
-		json.put(KEY_TITLE_ALT, manga.altTitle) // for backward compatibility
+		json.put(KEY_TITLE_ALT, manga.altTitles.ifEmpty { null }?.firstOrNull()) // for backward compatibility
 		json.put(KEY_ALT_TITLES, JSONArray(manga.altTitles))
 		json.put(KEY_URL, manga.url)
 		json.put(KEY_PUBLIC_URL, manga.publicUrl)
-		json.put(KEY_AUTHOR, manga.author) // for backward compatibility
+		json.put(KEY_AUTHOR, manga.authors.ifEmpty { null }?.firstOrNull()) // for backward compatibility
 		json.put(KEY_AUTHORS, JSONArray(manga.authors))
 		json.put(KEY_COVER, manga.coverUrl)
+		json.put(KEY_COVER_LARGE, manga.largeCoverUrl)
 		json.put(KEY_DESCRIPTION, manga.description)
 		json.put(KEY_RATING, manga.rating)
-		json.put(KEY_CONTENT_RATING, manga.contentRating)
+		val contentRating = manga.contentRating
+		if (contentRating != null) {
+			json.put(KEY_CONTENT_RATING, contentRating.name)
+		}
 		json.put(KEY_NSFW, manga.isNsfw) // for backward compatibility
-		json.put(KEY_STATE, manga.state?.name)
+		val state = manga.state
+		if (state != null) {
+			json.put(KEY_STATE, state.name)
+		}
 		json.put(KEY_SOURCE, manga.source.name)
-		json.put(KEY_COVER_LARGE, manga.largeCoverUrl)
 		json.put(
 			KEY_TAGS,
 			JSONArray().also { a ->
@@ -69,10 +77,44 @@ class MangaIndex(source: String?) {
 		}
 		json.put(KEY_APP_ID, BuildConfig.APPLICATION_ID)
 		json.put(KEY_APP_VERSION, BuildConfig.VERSION_CODE)
+		
+		manga.chapters?.let { chapters ->
+			val chaptersJson = json.optJSONObject(KEY_CHAPTERS) ?: JSONObject().also { json.put(KEY_CHAPTERS, it) }
+			chapters.forEachIndexed { index, chapter ->
+				val chapterIdStr = chapter.id.toString()
+				if (!chaptersJson.has(chapterIdStr)) {
+					val jo = JSONObject()
+					jo.put(KEY_NUMBER, chapter.number)
+					jo.put(KEY_VOLUME, chapter.volume)
+					jo.put(KEY_URL, chapter.url)
+					jo.put(KEY_NAME, chapter.title.orEmpty())
+					jo.put(KEY_UPLOAD_DATE, chapter.uploadDate)
+					jo.put(KEY_SCANLATOR, chapter.scanlator)
+					jo.put(KEY_BRANCH, chapter.branch)
+					jo.put(KEY_SOURCE, chapter.source.name)
+					// Note: KEY_FILE and KEY_ENTRIES are not set here as it's not downloaded yet
+					chaptersJson.put(chapterIdStr, jo)
+				} else {
+					// Update existing entry with potentially new info (e.g. title, number)
+					// but keep KEY_FILE and KEY_ENTRIES if present
+					val jo = chaptersJson.getJSONObject(chapterIdStr)
+					jo.put(KEY_NUMBER, chapter.number)
+					jo.put(KEY_VOLUME, chapter.volume)
+					jo.put(KEY_URL, chapter.url)
+					jo.put(KEY_NAME, chapter.title.orEmpty())
+					jo.put(KEY_UPLOAD_DATE, chapter.uploadDate)
+					jo.put(KEY_SCANLATOR, chapter.scanlator)
+					jo.put(KEY_BRANCH, chapter.branch)
+					if (!jo.has(KEY_SOURCE)) {
+						jo.put(KEY_SOURCE, chapter.source.name)
+					}
+				}
+			}
+		}
 	}
 
 	fun getMangaInfo(): Manga? = if (json.length() == 0) null else runCatching {
-		val source = MangaSource(json.getString(KEY_SOURCE))
+		val source = createMangaSource(json.getStringOrNull(KEY_SOURCE))
 		Manga(
 			id = json.getLong(KEY_ID),
 			title = json.getString(KEY_TITLE),
@@ -97,7 +139,7 @@ class MangaIndex(source: String?) {
 					source = source,
 				)
 			},
-			chapters = getChapters(json.getJSONObject(KEY_CHAPTERS), source),
+			chapters = getChapters(source),
 		)
 	}.getOrNull()
 
@@ -119,6 +161,7 @@ class MangaIndex(source: String?) {
 			jo.put(KEY_UPLOAD_DATE, chapter.value.uploadDate)
 			jo.put(KEY_SCANLATOR, chapter.value.scanlator)
 			jo.put(KEY_BRANCH, chapter.value.branch)
+			jo.put(KEY_SOURCE, chapter.value.source.name)
 			jo.put(KEY_ENTRIES, "%08d_%04d\\d{4}".format(chapter.value.branch.hashCode(), chapter.index + 1))
 			jo.put(KEY_FILE, filename)
 			putImagesInternal(jo, remoteImages)
@@ -127,6 +170,9 @@ class MangaIndex(source: String?) {
 			val jo = chapters.getJSONObject(chapterIdStr)
 			if (jo.optString(KEY_FILE).isNullOrBlank()) {
 				jo.put(KEY_FILE, filename)
+			}
+			if (!jo.has(KEY_SOURCE)) {
+				jo.put(KEY_SOURCE, chapter.value.source.name)
 			}
 		}
 	}
@@ -167,7 +213,19 @@ class MangaIndex(source: String?) {
 	}
 
 	fun removeChapter(id: Long): Boolean {
-		return json.has(KEY_CHAPTERS) && json.getJSONObject(KEY_CHAPTERS).remove(id.toString()) != null
+		val chapters = json.optJSONObject(KEY_CHAPTERS) ?: return false
+		val idStr = id.toString()
+		val jo = chapters.optJSONObject(idStr) ?: return false
+		
+		val mangaSource = json.optString(KEY_SOURCE)
+		val isPurelyLocal = mangaSource == LocalMangaSource.name || mangaSource == LocalNovelSource.name
+		
+		return if (isPurelyLocal) {
+			chapters.remove(idStr) != null
+		} else {
+			jo.remove(KEY_FILE)
+			true
+		}
 	}
 
 	fun getChapterFileName(chapterId: Long): String? {
@@ -217,10 +275,12 @@ class MangaIndex(source: String?) {
 		}
 	}
 
-	private fun getChapters(json: JSONObject, source: MangaSource): List<MangaChapter> {
+	fun getChapters(source: MangaSource): List<MangaChapter> {
+		val json = json.optJSONObject(KEY_CHAPTERS) ?: return emptyList()
 		val chapters = ArrayList<MangaChapter>(json.length())
 		for (k in json.keys()) {
 			val v = json.getJSONObject(k)
+			val chapterSource = v.getStringOrNull(KEY_SOURCE)?.let { createMangaSource(it) } ?: source
 			chapters.add(
 				MangaChapter(
 					id = k.toLong(),
@@ -231,7 +291,7 @@ class MangaIndex(source: String?) {
 					uploadDate = v.getLongOrDefault(KEY_UPLOAD_DATE, 0L),
 					scanlator = v.getStringOrNull(KEY_SCANLATOR),
 					branch = v.getStringOrNull(KEY_BRANCH),
-					source = source,
+					source = chapterSource,
 				),
 			)
 		}

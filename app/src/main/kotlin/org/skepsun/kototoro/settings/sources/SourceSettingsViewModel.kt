@@ -17,6 +17,7 @@ import org.skepsun.kototoro.core.parser.CachingMangaRepository
 import org.skepsun.kototoro.core.parser.JsMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.js.JSSourceParser
@@ -101,12 +102,19 @@ class SourceSettingsViewModel @Inject constructor(
 				val httpSource = repository.aniyomiSource as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 				browserUrl.value = httpSource?.baseUrl
 			}
+			is KotatsuParserRepository -> {
+				browserUrl.value = "https://${repository.domain}"
+				repository.getConfig().subscribe(this)
+			}
 		}
 	}
 
 	override fun onCleared() {
 		when (repository) {
 			is ParserMangaRepository -> {
+				repository.getConfig().unsubscribe(this)
+			}
+			is KotatsuParserRepository -> {
 				repository.getConfig().unsubscribe(this)
 			}
 		}
@@ -199,6 +207,11 @@ class SourceSettingsViewModel @Inject constructor(
 			}
 		}
 		if (repository is ParserMangaRepository) {
+			if (key == SourceSettings.KEY_DOMAIN) {
+				browserUrl.value = "https://${repository.domain}"
+			}
+		}
+		if (repository is KotatsuParserRepository) {
 			if (key == SourceSettings.KEY_DOMAIN) {
 				browserUrl.value = "https://${repository.domain}"
 			}

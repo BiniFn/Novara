@@ -203,7 +203,7 @@ class MihonMangaRepository(
         ).copy(id = manga.id)
     }
     
-    override suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
+    override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = withContext(Dispatchers.IO) {
         val sChapter = chapter.toMihonChapter()
         val pages = mihonSource.getPageList(sChapter)
         

@@ -71,7 +71,8 @@ class ParserMangaRepository(
 	}
 
 	override suspend fun getPagesImpl(
-		chapter: MangaChapter
+		chapter: MangaChapter,
+		nextChapterUrl: String?
 	): List<MangaPage> = withMirrors {
 		parser.getPages(chapter)
 	}
@@ -82,7 +83,7 @@ class ParserMangaRepository(
 		}
 	}
 
-	override suspend fun getChapterContent(chapter: MangaChapter): org.skepsun.kototoro.parsers.model.NovelChapterContent? {
+	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): org.skepsun.kototoro.parsers.model.NovelChapterContent? {
 		return runCatching {
 			withMirrors { parser.getChapterContent(chapter) ?: throw IllegalStateException("Chapter content is null") }
 		}.getOrNull()
@@ -164,7 +165,7 @@ class ParserMangaRepository(
 		return null
 	}
 
-	fun getConfigKeys(): List<ConfigKey<*>> = ArrayList<ConfigKey<*>>().also {
+	override suspend fun getConfigKeys(): List<ConfigKey<*>> = ArrayList<ConfigKey<*>>().also {
 		parser.onCreateConfig(it)
 	}
 

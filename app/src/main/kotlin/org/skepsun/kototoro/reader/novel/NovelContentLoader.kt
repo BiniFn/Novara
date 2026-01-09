@@ -72,6 +72,32 @@ class NovelContentLoader @Inject constructor(
                 return@withContext
             }
 
+            if (chapter.url.startsWith(URI_SCHEME_ZIP, ignoreCase = true) || 
+                chapter.url.startsWith("zip", ignoreCase = true) || 
+                chapter.url.startsWith("file", ignoreCase = true) ||
+                chapter.url.startsWith("cbz", ignoreCase = true)) {
+                
+                android.util.Log.d("NovelContentLoader", "Detected local novel chapter, reading directly: ${chapter.url}")
+                val localContent = runCatching {
+                    val uri = android.net.Uri.parse(chapter.url)
+                    val pages = org.skepsun.kototoro.local.data.input.LocalMangaParser(uri).getPages(chapter)
+                    if (pages.isNotEmpty()) {
+                        htmlToPlainText(concatPagesHtml(pages))
+                    } else {
+                        val javaUri = java.net.URI(chapter.url)
+                        readLocalHtmlFromUri(javaUri)?.let { html ->
+                            val rewritten = rewriteLocalImageSrc(html, javaUri)
+                            htmlToPlainText(rewritten)
+                        }
+                    }
+                }.getOrNull()
+
+                if (localContent != null && localContent.isNotBlank()) {
+                    send(localContent)
+                    return@withContext
+                }
+            }
+
             val cacheKey = generateCacheKey(chapter)
             android.util.Log.d("NovelContentLoader", "Checking cache for $cacheKey (chapterId=${chapter.id}, url=${chapter.url})")
             if (!forceRefresh) {
@@ -119,7 +145,17 @@ class NovelContentLoader @Inject constructor(
     private fun concatPagesHtml(pages: List<MangaPage>): String {
         val sb = StringBuilder()
         pages.forEach { page ->
-            sb.append(decodeChapterHtml(page.url))
+            val html = if (page.url.startsWith("data:", ignoreCase = true)) {
+                decodeChapterHtml(page.url)
+            } else {
+                runCatching {
+                    val uri = java.net.URI(page.url)
+                    readLocalHtmlFromUri(uri)?.let { h ->
+                        rewriteLocalImageSrc(h, uri)
+                    }
+                }.getOrNull()
+            }
+            sb.append(html ?: "")
             sb.append("\n")
         }
         return sb.toString()
@@ -253,11 +289,7 @@ class NovelContentLoader @Inject constructor(
 				return htmlToPlainText(syntheticHtml)
 			}
 
-			val page = pages.first()
-			val uri = java.net.URI(page.url)
-			val html = readLocalHtmlFromUri(uri) ?: return null
-			val rewritten = rewriteLocalImageSrc(html, uri)
-			htmlToPlainText(rewritten)
+			htmlToPlainText(concatPagesHtml(pages))
         }.getOrNull()
     }
 

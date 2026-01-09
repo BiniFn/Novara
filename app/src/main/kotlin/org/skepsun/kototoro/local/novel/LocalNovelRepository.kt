@@ -82,7 +82,7 @@ class LocalNovelRepository @Inject constructor(
 		return manga
 	}
 
-	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
 		val uri = runCatching { android.net.Uri.parse(chapter.url) }.getOrNull()
 		if (uri != null && (uri.scheme == "file" || uri.scheme == "zip" || uri.scheme == "cbz")) {
 			return org.skepsun.kototoro.local.data.input.LocalMangaParser(uri).getPages(chapter)

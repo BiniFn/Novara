@@ -161,7 +161,7 @@ class AniyomiAnimeRepository(
         ).copy(id = manga.id)
     }
     
-    override suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
+    override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = withContext(Dispatchers.IO) {
         android.util.Log.d("AniyomiRepo", "getPagesImpl called for chapter: ${chapter.title} (${chapter.url})")
         val sEpisode = chapter.toAniyomiEpisode()
         val videos = try {

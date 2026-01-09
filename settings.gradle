@@ -40,3 +40,11 @@ rootProject.name = "Kototoro"
 //         substitute module('com.github.skepsun:kototoro-parsers') using project(':')
 //     }
 // }
+
+// 使用本地 kotatsu-parsers 进行编译：通过复合构建替换远程依赖
+// 注释掉以使用在线版本
+// includeBuild("../kotatsu-parsers") {
+//     dependencySubstitution {
+//         substitute module("com.github.YakaTeam:kotatsu-parsers") using project(":")
+//     }
+// }

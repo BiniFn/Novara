@@ -61,6 +61,10 @@ object JsonSourceNetworkModule {
         loggingInterceptor: JsonSourceLoggingInterceptor,
     ): OkHttpClient {
         return baseClient.newBuilder().apply {
+            connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            
             // Remove global CloudFlareInterceptor to enable custom handling in Legado
             interceptors().removeAll { it is CloudFlareInterceptor }
             

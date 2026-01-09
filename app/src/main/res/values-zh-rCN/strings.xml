@@ -930,4 +930,39 @@
     <string name="video_cache_size_summary">%1$d MB</string>
     <string name="video_controls_alpha">控件不透明度 (%)</string>
     <string name="built_in_sources">内置</string>
+    <string name="download_threads">下载线程数</string>
+    <string name="download_threads_summary">同时下载图片的任务数量 (1-10)</string>
+    <string name="prefetch_limit">预读页数</string>
+    <string name="prefetch_limit_summary">提前预加载的页面数量 (1-20)</string>
+
+    <!-- 内容源管理相关 -->
+    <string name="json_sources">JSON 内容源</string>
+    <string name="json_sources_summary">管理导入的 JSON 内容源</string>
+    <string name="import_json">导入 JSON</string>
+    <string name="source_deleted">内容源已删除</string>
+    <string name="import_json_sources">导入 JSON 内容源</string>
+    <string name="import_json_sources_summary">导入 Legado 或 TVBox 内容源配置</string>
+    <string name="native_sources">原生内容源</string>
+    <string name="setup_wizard">设置向导</string>
+    <string name="setup_wizard_summary">选择内容语言和类型。这重置已启用的图源列表。</string>
+
+    <!-- Mihon/Aniyomi 扩展源 -->
+    <string name="mihon_sources">Mihon</string>
+    <string name="aniyomi_sources">Aniyomi</string>
+    <string name="mihon_extensions">Mihon 扩展</string>
+    <string name="mihon_extensions_summary">管理 Mihon 扩展源</string>
+    <string name="aniyomi_extensions">Aniyomi 扩展</string>
+    <string name="aniyomi_extensions_summary">管理 Aniyomi 扩展源</string>
+    <string name="filter_extensions_by_language">按语言过滤扩展</string>
+    <string name="filter_extensions_by_language_summary">仅显示与您选择的内容语言相匹配的 Mihon 和 Aniyomi 扩展</string>
+    <string name="no_mihon_extensions">未安装 Mihon 扩展</string>
+    <string name="no_mihon_extensions_text">从 Keiyoushi 仓库安装 Mihon 扩展 APK 以添加源</string>
+    <string name="mihon_extension_count">已加载 %d 个扩展</string>
+    <string name="mihon_source_count">%d 个源可用</string>
+    <string name="aniyomi_extension_count">已加载 %d 个扩展</string>
+    <string name="aniyomi_source_count">%d 个源可用</string>
+    <string name="no_aniyomi_extensions">无 Aniyomi 扩展</string>
+    <string name="no_aniyomi_extensions_text">安装 Aniyomi 扩展以在线观看动漫</string>
+    <string name="loading_mihon_extensions">正在加载 Mihon 扩展…</string>
+    <string name="mihon_extension_error">加载扩展失败：%s</string>
 </resources>

@@ -120,7 +120,7 @@ class WebViewExecutor @Inject constructor(
 		url: String,
 		headers: Map<String, String>? = null,
 		delayMs: Long = 2500,
-		timeoutMs: Long = 30000,
+		timeoutMs: Long = 60000,
 		webJs: String? = null,
 		blockImages: Boolean = true
 	): String = mutex.withLock {

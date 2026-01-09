@@ -121,7 +121,7 @@ class JsMangaRepository(
 		)
 	}
 
-	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
 		val parsed = parseChapterUrl(chapter.url)
 		val mangaId = parsed?.mangaId ?: chapter.url.ifBlank { chapter.source.name }
 		val epId = parsed?.chapterId ?: chapter.url

@@ -7,9 +7,12 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
 import org.skepsun.kototoro.R
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.core.parser.EmptyMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
@@ -23,13 +26,24 @@ import org.skepsun.kototoro.settings.utils.validation.HeaderValidator
 import org.skepsun.kototoro.core.model.getDomainTitleResId
 import org.skepsun.kototoro.core.model.unwrap
 
-fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: MangaRepository) = when (repository) {
-	is ParserMangaRepository -> addPreferencesFromParserRepository(repository)
-	is EmptyMangaRepository -> addPreferencesFromEmptyRepository()
-	else -> Unit
+fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: MangaRepository) {
+	when (repository) {
+		is ParserMangaRepository -> {
+			lifecycleScope.launch {
+				addPreferencesFromParserRepository(repository)
+			}
+		}
+		is KotatsuParserRepository -> {
+			lifecycleScope.launch {
+				addPreferencesFromParserRepository(repository)
+			}
+		}
+		is EmptyMangaRepository -> addPreferencesFromEmptyRepository()
+		else -> Unit
+	}
 }
 
-private fun PreferenceFragmentCompat.addPreferencesFromParserRepository(repository: ParserMangaRepository) {
+private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(repository: MangaRepository) {
 	addPreferencesFromResource(R.xml.pref_source_parser)
 	val configKeys = repository.getConfigKeys()
 	val screen = preferenceScreen

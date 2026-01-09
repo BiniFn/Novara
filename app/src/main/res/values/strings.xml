@@ -1134,6 +1134,10 @@
     <string name="mihon_extensions_summary">Manage Mihon extension sources</string>
     <string name="aniyomi_extensions">Aniyomi Extensions</string>
     <string name="aniyomi_extensions_summary">Manage Aniyomi extension sources</string>
+    <string name="filter_extensions_by_language">Filter extensions by language</string>
+    <string name="filter_extensions_by_language_summary">Only show Mihon and Aniyomi extensions that match your selected content languages</string>
+    <string name="setup_wizard">Setup wizard</string>
+    <string name="setup_wizard_summary">Select content languages and types. This will reset the list of enabled sources.</string>
     <string name="no_mihon_extensions">No Mihon extensions installed</string>
     <string name="no_mihon_extensions_text">Install Mihon extension APKs from the Keiyoushi repository to add sources</string>
     <string name="mihon_extension_count">%d extension(s) loaded</string>
@@ -1152,4 +1156,8 @@
     <string name="built_in_sources">Built-in</string>
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
+    <string name="download_threads">Download threads</string>
+    <string name="download_threads_summary">Number of concurrent image downloads (1-10)</string>
+    <string name="prefetch_limit">Prefetch limit</string>
+    <string name="prefetch_limit_summary">Number of pages to prefetch ahead (1-20)</string>
 </resources>

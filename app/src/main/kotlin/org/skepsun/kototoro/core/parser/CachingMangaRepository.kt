@@ -29,10 +29,10 @@ abstract class CachingMangaRepository(
 
 	final override suspend fun getDetails(manga: Manga): Manga = getDetails(manga, CachePolicy.ENABLED)
 
-	final override suspend fun getPages(chapter: MangaChapter): List<MangaPage> = pagesMutex.withLock(chapter.id) {
+	final override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = pagesMutex.withLock(chapter.id) {
 		cache.getPages(source, chapter.url)?.let { return it }
 		val pages = asyncSafe {
-			getPagesImpl(chapter).distinctById()
+			getPagesImpl(chapter, nextChapterUrl).distinctById()
 		}
 		cache.putPages(source, chapter.url, pages)
 		pages
@@ -72,9 +72,9 @@ abstract class CachingMangaRepository(
 
 	protected abstract suspend fun getRelatedMangaImpl(seed: Manga): List<Manga>
 
-	protected abstract suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage>
+	protected abstract suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String? = null): List<MangaPage>
 
-	override suspend fun getChapterContent(chapter: MangaChapter): org.skepsun.kototoro.parsers.model.NovelChapterContent? = null
+	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): org.skepsun.kototoro.parsers.model.NovelChapterContent? = null
 
 	private suspend fun <T> asyncSafe(block: suspend CoroutineScope.() -> T): SafeDeferred<T> {
 		var dispatcher = currentCoroutineContext()[CoroutineDispatcher.Key]

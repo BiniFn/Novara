@@ -83,14 +83,15 @@ class LocalMangaParser(private val uri: Uri) {
 							
 							val fileName = index.getChapterFileName(c.id)
 							val path = fileName?.toPath()
-							if (path == null || !fileSystem.exists(rootPath / path)) {
-								// 关键：如果没有文件，不应作为本地章节返回
-								null
-							} else {
+							if (path != null && fileSystem.exists(rootPath / path)) {
+								// 已加载的本地章节
 								c.copy(
 									url = uri.child(path, resolve = false).toString(),
 									source = LocalMangaSource,
 								)
+							} else {
+								// 未下载的在线章节（保留原始 URL 和 Source）
+								c
 							}
 						}
 					} else {
@@ -103,7 +104,10 @@ class LocalMangaParser(private val uri: Uri) {
 									url = uri.child(path, resolve = false).toString(),
 									source = LocalMangaSource
 								)
-							} else null
+							} else {
+								// 如果不需要详情，通常是列表页，保留原始章节以显示进度条等
+								c
+							}
 						}
 					},
 				)

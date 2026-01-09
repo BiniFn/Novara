@@ -30,14 +30,17 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.util.ReversibleHandle
 import org.skepsun.kototoro.core.util.ext.flattenLatest
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
 import org.skepsun.kototoro.parsers.util.mapToSet
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
 import java.util.Collections
-import java.util.EnumSet
+import java.util.LinkedHashSet
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,15 +61,12 @@ class MangaSourcesRepository @Inject constructor(
 	private val dao: MangaSourcesDao
 		get() = db.getSourcesDao()
 
-	val allMangaSources: Set<MangaParserSource> = Collections.unmodifiableSet(
-		EnumSet.noneOf<MangaParserSource>(MangaParserSource::class.java).also {
-			// val allowedLocales = setOf("en", "ja", "zh")
-			// allow all sources
-            MangaParserSource.entries.filterTo(it) { src ->
-                !src.isBroken
-            }
-        }
-	)
+val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
+	LinkedHashSet<MangaSource>().also {
+		MangaParserSource.entries.filterTo(it) { src -> !src.isBroken }
+		KotatsuParsersProvider.sources.filterTo(it) { src -> !src.isBroken }
+	}
+)
 
 	suspend fun getEnabledSources(): List<MangaSource> {
 		assimilateNewSources()
@@ -126,6 +126,11 @@ class MangaSourcesRepository @Inject constructor(
 				return@filter false
 			}
 
+			// If language filter is disabled, show all sources
+			if (!settings.isExtensionsFilterLangEnabled) {
+				return@filter true
+			}
+
 			val mihonLang = source.language.lowercase()
 			if (mihonLang == "all") {
 				isMultiLangEnabled
@@ -164,6 +169,11 @@ class MangaSourcesRepository @Inject constructor(
 		return allSources.filter { source ->
 			if (isNsfwDisabled && source.isNsfw) return@filter false
 			
+			// If language filter is disabled, show all sources
+			if (!settings.isExtensionsFilterLangEnabled) {
+				return@filter true
+			}
+
 			val lang = source.language.lowercase()
 			if (lang == "all") {
 				isMultiLangEnabled
@@ -212,7 +222,7 @@ class MangaSourcesRepository @Inject constructor(
 		if (settings.isAllSourcesEnabled) {
 			return emptySet()
 		}
-		val result = EnumSet.copyOf(allMangaSources)
+		val result = allMangaSources.toMutableSet()
 		val enabled = dao.findAllEnabledNames()
 		for (name in enabled) {
 			val source = name.toMangaSourceOrNull() ?: continue
@@ -230,7 +240,7 @@ class MangaSourcesRepository @Inject constructor(
 		locale: String?,
 		sortOrder: SourcesSortOrder?,
 		sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
-	): List<MangaParserSource> {
+	): List<MangaSource> {
 		assimilateNewSources()
 		
 		// Filter by source type if specified
@@ -252,21 +262,24 @@ class MangaSourcesRepository @Inject constructor(
 				skipNsfwSources = settings.isNsfwContentDisabled,
 				sortOrder = sortOrder,
 			).run {
-				mapNotNullTo(ArrayList(size)) { it.mangaSource as? MangaParserSource }
+				mapTo(ArrayList<MangaSource>(size)) { it.mangaSource }
 			}
 		} else {
 			ArrayList()
 		}
 		
-		// Apply filters to native sources
+
+		// Apply filters to all collected sources
 		if (locale != null) {
-			sources.retainAll { it.locale == locale }
+			sources.retainAll { it.getLocale()?.language == locale }
 		}
 		if (excludeBroken) {
-			sources.removeAll { it.isBroken }
+			sources.removeAll {
+				(it as? MangaParserSource)?.isBroken == true || (it is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource && it.isBroken)
+			}
 		}
 		if (types.isNotEmpty()) {
-			sources.retainAll { it.contentType in types }
+			sources.retainAll { it.getContentType() in types }
 		}
 		if (!query.isNullOrEmpty()) {
 			sources.retainAll {
@@ -441,14 +454,17 @@ class MangaSourcesRepository @Inject constructor(
 		observeIsNsfwDisabled(),
 		observeAllEnabled(),
 		observeSortOrder(),
-		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages }
-	) { skipNsfw, allEnabled, order, contentLanguages ->
+		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
+		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
+	) { skipNsfw, allEnabled, order, contentLanguages, isExtFilterEnabled ->
 		dao.observeAll(!allEnabled, order).map { entities ->
 			// Map entities to sources and filter by NSFW and language
 			entities.toSources(skipNsfw, order).filter { info ->
 				val source = info.mangaSource
 				if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
-					// Apply language filter to Mihon sources in the list
+					// Apply language filter to Mihon sources in the list if enabled
+					if (!isExtFilterEnabled) return@filter true
+					
 					val isMultiLangEnabled = contentLanguages.contains("")
 					val mihonLang = source.language.lowercase()
 					if (mihonLang == "all") {
@@ -517,8 +533,9 @@ class MangaSourcesRepository @Inject constructor(
 		return combine(
 			aniyomiExtensionManager.installedExtensions,
 			observeIsNsfwDisabled(),
-			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages }
-		) { _, _, _ ->
+			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
+			settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
+		) { _, _, _, _ ->
 			getEnabledAniyomiSources()
 		}
 	}
@@ -547,8 +564,9 @@ class MangaSourcesRepository @Inject constructor(
 		return combine(
 			mihonExtensionManager.installedExtensions,
 			observeIsNsfwDisabled(),
-			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages }
-		) { _, _, _ ->
+			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
+			settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
+		) { _, _, _, _ ->
 			getEnabledMihonSources()
 		}
 	}
@@ -672,7 +690,7 @@ class MangaSourcesRepository @Inject constructor(
 
 	private suspend fun getNewSources(): MutableSet<out MangaSource> {
 		val entities = dao.findAll()
-		val result = EnumSet.copyOf(allMangaSources)
+		val result = allMangaSources.toMutableSet()
 		for (e in entities) {
 			result.remove(e.source.toMangaSourceOrNull() ?: continue)
 		}
@@ -880,6 +898,9 @@ class MangaSourcesRepository @Inject constructor(
 			}
 			jsonSources.find { it.name == this }?.let { return it }
 		}
+
+		// Kotatsu sources
+		KotatsuParsersProvider.findByName(this)?.let { return it }
 		
 		// Fallback to anonymous wrapper
 		return org.skepsun.kototoro.core.model.MangaSource(this)

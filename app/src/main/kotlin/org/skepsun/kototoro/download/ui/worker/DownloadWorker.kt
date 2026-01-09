@@ -223,13 +223,17 @@ class DownloadWorker @AssistedInject constructor(
 				val isNovel = when (parserSource?.contentType) {
 					ContentType.NOVEL, ContentType.HENTAI_NOVEL -> true
 					else -> false
-				} || mangaDetails.source.name.uppercase() in setOf("BILINOVEL", "LKNOVEL_US", "LIGHTNOVEL_WIKI", "NOVELIA", "WENKU8", "BIQUGE")
+				} || mangaDetails.source.name.uppercase() in setOf("BILINOVEL", "LKNOVEL_US", "LIGHTNOVEL_WIKI", "NOVELIA", "WENKU8", "BIQUGE") ||
+					mangaDetails.source.name.startsWith("JSON_LEGADO", ignoreCase = true)
 				
 				// 检测是否包含EPUB章节
 				val hasEpubChapters = runCatchingCancellable {
+					val fullChapters = mangaDetails.chapters ?: emptyList()
 					val chaptersToCheck = getChapters(mangaDetails, task)
 					chaptersToCheck.any { chapter ->
-						val pages = repo.getPages(chapter.value)
+						val currentInFull = fullChapters.indexOfFirst { it.id == chapter.value.id }
+						val nextChapterUrl = if (currentInFull != -1) fullChapters.getOrNull(currentInFull + 1)?.url else null
+						val pages = repo.getPages(chapter.value, nextChapterUrl)
 						pages.size == 1 && pages[0].preview == "EPUB"
 					}
 				}.getOrNull() ?: false
@@ -319,8 +323,11 @@ class DownloadWorker @AssistedInject constructor(
 		for ((chapterIndex, chapter) in chapters.withIndex()) {
 			checkIsPaused()
 
+			val fullChapters = mangaDetails.chapters ?: emptyList()
+			val currentInFull = fullChapters.indexOfFirst { it.id == chapter.value.id }
+			val nextChapterUrl = if (currentInFull != -1) fullChapters.getOrNull(currentInFull + 1)?.url else null
 			val pages = runFailsafe {
-				repo.getPages(chapter.value)
+				repo.getPages(chapter.value, nextChapterUrl)
 			} ?: continue
 
 			println("DownloadWorker: Chapter ${chapter.index}: ${chapter.value.title}")
@@ -419,7 +426,7 @@ class DownloadWorker @AssistedInject constructor(
 
 			val pageCounter = AtomicInteger(0)
 			channelFlow {
-				val semaphore = Semaphore(MAX_PAGES_PARALLELISM)
+				val semaphore = Semaphore(settings.readerThreads)
 				for ((pageIndex, page) in pages.withIndex()) {
 					checkIsPaused()
 					launch {
@@ -547,8 +554,7 @@ class DownloadWorker @AssistedInject constructor(
 		output: LocalMangaOutput,
 		chaptersToSkip: MutableSet<Long>,
 	) {
-			val chapters = getChapters(manga, task)
-
+		val chapters = getChapters(manga, task)
 		for ((chapterIndex, chapter) in chapters.withIndex()) {
 			checkIsPaused()
 			if (chaptersToSkip.remove(chapter.value.id)) {
@@ -556,8 +562,12 @@ class DownloadWorker @AssistedInject constructor(
 				continue
 			}
 
-			val content = runFailsafe { repo.getChapterContent(chapter.value) }
-				?: runFailsafe { decodeDataPage(repo.getPages(chapter.value).firstOrNull()) }
+			val fullChapters = manga.chapters ?: emptyList()
+			val currentInFull = fullChapters.indexOfFirst { it.id == chapter.value.id }
+			val nextChapterUrl = if (currentInFull != -1) fullChapters.getOrNull(currentInFull + 1)?.url else null
+
+			val content = runFailsafe { repo.getChapterContent(chapter.value, nextChapterUrl) }
+				?: runFailsafe { decodeDataPage(repo.getPages(chapter.value, nextChapterUrl).firstOrNull()) }
 				?: run {
 					android.util.Log.w("DownloadWorker", "downloadNovelChapters: skip chapter ${chapter.value.title} (no content)")
 					continue
@@ -1284,7 +1294,6 @@ class DownloadWorker @AssistedInject constructor(
 	private companion object {
 
 		const val MAX_FAILSAFE_ATTEMPTS = 5
-		const val MAX_PAGES_PARALLELISM = 2
 		const val DOWNLOAD_ERROR_DELAY = 2_000L
 		const val MAX_RETRY_DELAY = 7_200_000L // 2 hours
 		const val TAG = "download"

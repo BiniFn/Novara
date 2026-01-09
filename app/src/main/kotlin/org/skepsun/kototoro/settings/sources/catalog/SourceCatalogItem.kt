@@ -3,12 +3,12 @@ package org.skepsun.kototoro.settings.sources.catalog
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 sealed interface SourceCatalogItem : ListModel {
 
 	data class Source(
-		val source: MangaParserSource,
+		val source: MangaSource,
 	) : SourceCatalogItem {
 
 		override fun areItemsTheSame(other: ListModel): Boolean {
