@@ -66,7 +66,13 @@ class SourcesListProducer @Inject constructor(
 	}
 
 	private suspend fun buildList(): List<SourceConfigItem> {
-		val enabledSources = repository.getEnabledSources().filter { it.unwrap() is MangaParserSource }
+		val enabledSources = repository.getEnabledSources().filter {
+			when (it.unwrap()) {
+				is MangaParserSource -> true
+				is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource -> true
+				else -> false
+			}
+		}
 		val pinned = repository.getPinnedSources().mapToSet { it.name }
 		val isNsfwDisabled = settings.isNsfwContentDisabled
 		val isReorderAvailable = settings.sourcesSortOrder == SourcesSortOrder.MANUAL
