@@ -1,0 +1,77 @@
+name: Sync Parser Commits
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update parser commit hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+import pathlib
+import re
+import subprocess
+import sys
+
+file_path = pathlib.Path("gradle/libs.versions.toml")
+if not file_path.exists():
+    print(f"::error file={file_path}::版本文件不存在")
+    sys.exit(1)
+
+targets = {
+    "parsers": "https://github.com/skepsun/kototoro-parsers.git",
+    "kotatsuParsers": "https://github.com/YakaTeam/kotatsu-parsers.git",
+}
+
+text = file_path.read_text()
+updated = False
+
+def latest_commit(repo_url: str) -> str:
+    commit = (
+        subprocess.check_output(["git", "ls-remote", repo_url, "HEAD"], text=True)
+        .split()[0]
+        .strip()
+    )
+    return commit[:10]
+
+for key, repo in targets.items():
+    commit = latest_commit(repo)
+    pattern = rf'({re.escape(key)}\s*=\s*")([0-9a-fA-F]+)(")'
+    match = re.search(pattern, text)
+    if not match:
+        print(f"::error file={file_path}::{key} 未找到")
+        sys.exit(1)
+    old = match.group(2)
+    if old == commit:
+        print(f"{key} 已是最新 {commit}")
+        continue
+    text = re.sub(pattern, rf"\1{commit}\3", text, count=1)
+    updated = True
+    print(f"{key}: {old} -> {commit}")
+
+if updated:
+    file_path.write_text(text)
+    print(f"已更新 {file_path}")
+else:
+    print("无需更新")
+PY
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: sync parser commits"
+          file_pattern: gradle/libs.versions.toml
