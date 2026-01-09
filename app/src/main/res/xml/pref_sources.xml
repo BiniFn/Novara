@@ -45,12 +45,6 @@
         android:summary="@string/json_sources_summary"
         android:title="@string/json_sources" />
 
-    <Preference
-        android:key="import_json_sources"
-        android:persistent="false"
-        android:summary="@string/import_json_sources_summary"
-        android:title="@string/import_json_sources" />
-
     <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.sources.mihon.MihonExtensionsFragment"
         android:key="mihon_extensions"

@@ -7,6 +7,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.viewModels
@@ -17,6 +18,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
+import org.skepsun.kototoro.core.ui.widgets.SelectActionBar
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
 import org.skepsun.kototoro.core.util.ext.end
@@ -35,17 +37,24 @@ import org.skepsun.kototoro.databinding.FragmentJsonSourcesBinding
  * - Test sources
  * - Delete sources
  * - Import new sources
+ * - Batch operations via SelectActionBar
  */
 @AndroidEntryPoint
 class JsonSourcesFragment :
 	BaseFragment<FragmentJsonSourcesBinding>(),
 	GroupedJsonSourcesAdapter.GroupedSourceListener,
-	RecyclerViewOwner {
+	RecyclerViewOwner,
+	SelectActionBar.Callback,
+	PopupMenu.OnMenuItemClickListener {
 	
 	private val viewModel by viewModels<JsonSourcesViewModel>()
 	private val importViewModel by viewModels<ImportJsonViewModel>()
 	private var adapter: GroupedJsonSourcesAdapter? = null
 	private val selectedIds = mutableSetOf<String>()
+	
+	// Current sort and filter state
+	private var currentSort = SortOption.NAME
+	private var currentFilter = FilterOption.ALL
 	
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -64,11 +73,15 @@ class JsonSourcesFragment :
 		adapter = GroupedJsonSourcesAdapter(this)
 		binding.recyclerView.adapter = adapter
 		
+		// Setup SelectActionBar
+		setupSelectActionBar(binding)
+		
 		// Observe grouped sources
 		viewModel.groupedSources.observe(viewLifecycleOwner) { groupedList ->
 			val flatList = groupedList.toFlatList()
 			adapter?.submitList(flatList)
 			adapter?.selectedIds = selectedIds
+			updateCountView()
 		}
 		
 		// Observe validation states to update badges
@@ -97,7 +110,33 @@ class JsonSourcesFragment :
 			}
 		}
 		
+		// Observe last invalid IDs to auto-select invalid sources after validation
+		viewModel.lastInvalidIds.observe(viewLifecycleOwner) { invalidIds ->
+			if (invalidIds.isNotEmpty()) {
+				selectedIds.clear()
+				selectedIds.addAll(invalidIds)
+				adapter?.selectedIds = selectedIds
+				adapter?.notifyDataSetChanged()
+				updateCountView()
+				showSnackbar("已选中 ${invalidIds.size} 个失效源")
+				viewModel.clearLastInvalidIds()
+			}
+		}
+		
 		addMenuProvider(JsonSourcesMenuProvider())
+	}
+	
+	private fun setupSelectActionBar(binding: FragmentJsonSourcesBinding) {
+		binding.selectActionBar.setMainActionText(R.string.delete)
+		binding.selectActionBar.setCallback(this)
+		binding.selectActionBar.inflateMenu(R.menu.menu_json_sources_sel)
+		binding.selectActionBar.setOnMenuItemClickListener(this)
+		updateCountView()
+	}
+	
+	private fun updateCountView() {
+		val totalCount = viewModel.getJsonSourceIds().size
+		viewBinding?.selectActionBar?.updateCount(selectedIds.size, totalCount)
 	}
 	
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -107,8 +146,9 @@ class JsonSourcesFragment :
 			if (isTablet) 0 else barsInsets.start(v),
 			barsInsets.top, // avoid status bar overlap
 			if (isTablet) 0 else barsInsets.end(v),
-			barsInsets.bottom,
+			0, // SelectActionBar handles bottom padding
 		)
+		viewBinding?.selectActionBar?.setPadding(0, 0, 0, barsInsets.bottom)
 		return insets.consumeAllSystemBarsInsets()
 	}
 	
@@ -121,6 +161,8 @@ class JsonSourcesFragment :
 		adapter = null
 		super.onDestroyView()
 	}
+	
+	// ---- GroupedSourceListener ----
 	
 	override fun onGroupHeaderClick(group: SourceGroup) {
 		viewModel.toggleGroupCollapsed(group)
@@ -139,12 +181,85 @@ class JsonSourcesFragment :
 		showSnackbar(getString(R.string.source_deleted))
 		selectedIds.remove(sourceId)
 		adapter?.selectedIds = selectedIds
-		adapter?.notifyDataSetChanged()
+		updateCountView()
 	}
 	
 	override fun onSelectSource(sourceId: String, selected: Boolean) {
 		if (selected) selectedIds.add(sourceId) else selectedIds.remove(sourceId)
 		adapter?.selectedIds = selectedIds
+		updateCountView()
+	}
+	
+	// ---- SelectActionBar.Callback ----
+	
+	override fun selectAll(selectAll: Boolean) {
+		if (selectAll) {
+			val allIds = viewModel.getJsonSourceIds()
+			selectedIds.clear()
+			selectedIds.addAll(allIds)
+		} else {
+			selectedIds.clear()
+		}
+		adapter?.selectedIds = selectedIds
+		adapter?.notifyDataSetChanged()
+		updateCountView()
+	}
+	
+	override fun revertSelection() {
+		val allIds = viewModel.getJsonSourceIds().toSet()
+		val newSelection = allIds - selectedIds
+		selectedIds.clear()
+		selectedIds.addAll(newSelection)
+		adapter?.selectedIds = selectedIds
+		adapter?.notifyDataSetChanged()
+		updateCountView()
+	}
+	
+	override fun onClickMainAction() {
+		if (selectedIds.isEmpty()) {
+			showSnackbar(getString(R.string.batch_no_selection))
+		} else {
+			viewModel.batchDelete(selectedIds.toList())
+			selectedIds.clear()
+			adapter?.selectedIds = selectedIds
+			showSnackbar(getString(R.string.delete_selected))
+			updateCountView()
+		}
+	}
+	
+	// ---- PopupMenu.OnMenuItemClickListener ----
+	
+	override fun onMenuItemClick(item: MenuItem): Boolean {
+		return when (item.itemId) {
+			R.id.menu_enable_selection -> {
+				if (selectedIds.isEmpty()) {
+					showSnackbar(getString(R.string.batch_no_selection))
+				} else {
+					viewModel.batchEnable(selectedIds.toList(), true)
+					showSnackbar(getString(R.string.enable_selected))
+				}
+				true
+			}
+			R.id.menu_disable_selection -> {
+				if (selectedIds.isEmpty()) {
+					showSnackbar(getString(R.string.batch_no_selection))
+				} else {
+					viewModel.batchEnable(selectedIds.toList(), false)
+					showSnackbar(getString(R.string.disable_selected))
+				}
+				true
+			}
+			R.id.menu_validate_selection -> {
+				if (selectedIds.isEmpty()) {
+					showSnackbar(getString(R.string.batch_no_selection))
+				} else {
+					viewModel.batchValidate(selectedIds.toList())
+					showSnackbar(getString(R.string.validate_selected))
+				}
+				true
+			}
+			else -> false
+		}
 	}
 	
 	private fun showSnackbar(message: String) {
@@ -160,7 +275,21 @@ class JsonSourcesFragment :
 	private inner class JsonSourcesMenuProvider : MenuProvider {
 		
 		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-			menuInflater.inflate(R.menu.opt_json_sources, menu)
+			menuInflater.inflate(R.menu.menu_json_sources, menu)
+		}
+		
+		override fun onPrepareMenu(menu: Menu) {
+			// Update sort checkmarks
+			val sortSubMenu = menu.findItem(R.id.action_sort)?.subMenu
+			sortSubMenu?.findItem(R.id.menu_sort_name)?.isChecked = currentSort == SortOption.NAME
+			sortSubMenu?.findItem(R.id.menu_sort_enabled)?.isChecked = currentSort == SortOption.ENABLED
+			
+			// Update filter checkmarks
+			val filterSubMenu = menu.findItem(R.id.action_filter)?.subMenu
+			filterSubMenu?.findItem(R.id.menu_filter_all)?.isChecked = currentFilter == FilterOption.ALL
+			filterSubMenu?.findItem(R.id.menu_filter_enabled)?.isChecked = currentFilter == FilterOption.ENABLED
+			filterSubMenu?.findItem(R.id.menu_filter_disabled)?.isChecked = currentFilter == FilterOption.DISABLED
+			filterSubMenu?.findItem(R.id.menu_filter_invalid)?.isChecked = currentFilter == FilterOption.INVALID
 		}
 		
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
@@ -169,64 +298,52 @@ class JsonSourcesFragment :
 					showImportDialog()
 					true
 				}
-				R.id.action_enable_selected -> {
-					if (selectedIds.isEmpty()) {
-						showSnackbar(getString(R.string.batch_no_selection))
-						true
-					} else {
-						viewModel.batchEnable(selectedIds.toList(), true)
-						showSnackbar(getString(R.string.enable_selected))
-						true
-					}
-				}
-				R.id.action_disable_selected -> {
-					if (selectedIds.isEmpty()) {
-						showSnackbar(getString(R.string.batch_no_selection))
-						true
-					} else {
-						viewModel.batchEnable(selectedIds.toList(), false)
-						showSnackbar(getString(R.string.disable_selected))
-						true
-					}
-				}
-				R.id.action_delete_selected -> {
-					if (selectedIds.isEmpty()) {
-						showSnackbar(getString(R.string.batch_no_selection))
-						true
-					} else {
-						viewModel.batchDelete(selectedIds.toList())
-						selectedIds.clear()
-						adapter?.selectedIds = selectedIds
-						showSnackbar(getString(R.string.delete_selected))
-						true
-					}
-				}
-				R.id.action_validate_selected -> {
-					if (selectedIds.isEmpty()) {
-						showSnackbar(getString(R.string.batch_no_selection))
-						true
-					} else {
-						viewModel.batchValidate(selectedIds.toList())
-						showSnackbar(getString(R.string.validate_selected))
-						true
-					}
-				}
-				R.id.action_select_all -> {
-					val allIds = viewModel.getJsonSourceIds()
-					selectedIds.clear()
-					selectedIds.addAll(allIds)
-					adapter?.selectedIds = selectedIds
-					adapter?.notifyDataSetChanged()
+				R.id.menu_sort_name -> {
+					currentSort = SortOption.NAME
+					viewModel.setSortOption(currentSort)
+					activity?.invalidateOptionsMenu()
 					true
 				}
-				R.id.action_deselect_all -> {
-					selectedIds.clear()
-					adapter?.selectedIds = selectedIds
-					adapter?.notifyDataSetChanged()
+				R.id.menu_sort_enabled -> {
+					currentSort = SortOption.ENABLED
+					viewModel.setSortOption(currentSort)
+					activity?.invalidateOptionsMenu()
+					true
+				}
+				R.id.menu_filter_all -> {
+					currentFilter = FilterOption.ALL
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateOptionsMenu()
+					true
+				}
+				R.id.menu_filter_enabled -> {
+					currentFilter = FilterOption.ENABLED
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateOptionsMenu()
+					true
+				}
+				R.id.menu_filter_disabled -> {
+					currentFilter = FilterOption.DISABLED
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateOptionsMenu()
+					true
+				}
+				R.id.menu_filter_invalid -> {
+					currentFilter = FilterOption.INVALID
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateOptionsMenu()
 					true
 				}
 				else -> false
 			}
 		}
 	}
+}
+
+enum class SortOption {
+	NAME, ENABLED
+}
+
+enum class FilterOption {
+	ALL, ENABLED, DISABLED, INVALID
 }

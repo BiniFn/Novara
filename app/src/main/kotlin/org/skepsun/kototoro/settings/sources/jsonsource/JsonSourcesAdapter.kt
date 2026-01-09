@@ -1,10 +1,13 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.widget.PopupMenu
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.databinding.ItemJsonSourceBinding
 
@@ -38,24 +41,44 @@ class JsonSourcesAdapter(
 		
 		fun bind(source: JsonSourceEntity) {
 			binding.textViewName.text = source.name.ifBlank { source.id }
-			binding.textViewType.text = source.type.name
 			binding.textViewUrl.text = extractBaseUrl(source.config)
 			
+			// Hide checkbox for simple adapter
+			binding.checkboxSelect.visibility = View.GONE
+			
 			// Set enabled switch
+			binding.switchEnabled.setOnCheckedChangeListener(null)
 			binding.switchEnabled.isChecked = source.enabled
 			binding.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
 				listener.onToggleEnabled(source.id, isChecked)
 			}
 			
-			// Set test button
-			binding.buttonTest.setOnClickListener {
-				listener.onTestSource(source.id)
+			// Set more button for popup menu
+			binding.buttonMore.setOnClickListener { view ->
+				showPopupMenu(view, source.id)
 			}
 			
-			// Set delete button
-			binding.buttonDelete.setOnClickListener {
-				listener.onDeleteSource(source.id)
+			// Hide badges in simple adapter
+			binding.layoutBadges.visibility = View.GONE
+		}
+		
+		private fun showPopupMenu(anchor: View, sourceId: String) {
+			val popup = PopupMenu(anchor.context, anchor)
+			popup.menuInflater.inflate(R.menu.menu_source_item, popup.menu)
+			popup.setOnMenuItemClickListener { menuItem ->
+				when (menuItem.itemId) {
+					R.id.menu_test -> {
+						listener.onTestSource(sourceId)
+						true
+					}
+					R.id.menu_delete -> {
+						listener.onDeleteSource(sourceId)
+						true
+					}
+					else -> false
+				}
 			}
+			popup.show()
 		}
 		
 		/**

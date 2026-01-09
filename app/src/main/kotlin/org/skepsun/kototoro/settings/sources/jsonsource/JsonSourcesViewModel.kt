@@ -64,17 +64,46 @@ class JsonSourcesViewModel @Inject constructor(
 	private val _collapsedGroups = MutableStateFlow<Map<SourceGroup, Boolean>>(emptyMap())
 	
 	/**
+	 * Current sort option.
+	 */
+	private val _sortOption = MutableStateFlow(SortOption.NAME)
+	
+	/**
+	 * Current filter option.
+	 */
+	private val _filterOption = MutableStateFlow(FilterOption.ALL)
+	
+	/**
 	 * StateFlow of grouped sources.
-	 * Combines all JSON sources with grouping strategy and collapsed states.
+	 * Combines all JSON sources with grouping strategy, collapsed states, sort, and filter.
 	 * Shows ALL JSON sources (both enabled and disabled) for management.
 	 */
 	val groupedSources: StateFlow<GroupedSourceList> = combine(
 		jsonSources,
 		_groupingStrategy,
-		_collapsedGroups
-	) { jsonSourceEntities, strategy, collapsedMap ->
+		_collapsedGroups,
+		_sortOption,
+		_filterOption
+	) { jsonSourceEntities, strategy, collapsedMap, sort, filter ->
+		// Filter sources
+		val filteredEntities = when (filter) {
+			FilterOption.ALL -> jsonSourceEntities
+			FilterOption.ENABLED -> jsonSourceEntities.filter { it.enabled }
+			FilterOption.DISABLED -> jsonSourceEntities.filter { !it.enabled }
+			FilterOption.INVALID -> {
+				val invalidIds = _validationStates.value.filter { it.value == false }.keys
+				jsonSourceEntities.filter { invalidIds.contains(it.id) }
+			}
+		}
+		
+		// Sort sources
+		val sortedEntities = when (sort) {
+			SortOption.NAME -> filteredEntities.sortedBy { it.name.lowercase() }
+			SortOption.ENABLED -> filteredEntities.sortedByDescending { it.enabled }
+		}
+		
 		// Convert JSON source entities to MangaSourceInfo
-		val sourceInfoList = jsonSourceEntities.map { entity ->
+		val sourceInfoList = sortedEntities.map { entity ->
 			val jsonMangaSource = org.skepsun.kototoro.core.jsonsource.JsonMangaSource(entity)
 			MangaSourceInfo(
 				mangaSource = jsonMangaSource,
@@ -177,15 +206,35 @@ class JsonSourcesViewModel @Inject constructor(
 		}
 	}
 	
-	fun batchValidate(ids: List<String>) {
+	fun batchValidate(ids: List<String>): List<String> {
+		val invalidIds = mutableListOf<String>()
 		launchJob(Dispatchers.Default) {
 			val updated = _validationStates.value.toMutableMap()
 			ids.forEach { id ->
 				val ok = jsonSourceManager.validateSourceBySearch(id, searchKey = "我的")
 				updated[id] = ok
+				if (!ok) {
+					invalidIds.add(id)
+				}
 			}
 			_validationStates.value = updated
+			_lastInvalidIds.value = invalidIds
 		}
+		return invalidIds
+	}
+	
+	/**
+	 * StateFlow of the last batch of invalid source IDs from validation.
+	 * Fragment can observe this to auto-select invalid sources.
+	 */
+	private val _lastInvalidIds = MutableStateFlow<List<String>>(emptyList())
+	val lastInvalidIds: StateFlow<List<String>> = _lastInvalidIds.asStateFlow()
+	
+	/**
+	 * Clears the last invalid IDs.
+	 */
+	fun clearLastInvalidIds() {
+		_lastInvalidIds.value = emptyList()
 	}
 	
 	/**
@@ -235,6 +284,20 @@ class JsonSourcesViewModel @Inject constructor(
 	 */
 	fun getJsonSourceIds(): List<String> {
 		return jsonSources.value.map { it.id }
+	}
+	
+	/**
+	 * Sets the sort option.
+	 */
+	fun setSortOption(option: SortOption) {
+		_sortOption.value = option
+	}
+	
+	/**
+	 * Sets the filter option.
+	 */
+	fun setFilterOption(option: FilterOption) {
+		_filterOption.value = option
 	}
 }
 

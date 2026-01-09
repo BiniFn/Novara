@@ -965,4 +965,18 @@
     <string name="no_aniyomi_extensions_text">安装 Aniyomi 扩展以在线观看动漫</string>
     <string name="loading_mihon_extensions">正在加载 Mihon 扩展…</string>
     <string name="mihon_extension_error">加载扩展失败：%s</string>
+    <string name="invert_selection">反选</string>
+    <string name="select_count_format">共 %d 项</string>
+    <string name="enable_selected">启用所选</string>
+    <string name="disable_selected">禁用所选</string>
+    <string name="validate_selected">验证所选</string>
+    <string name="search_sources">搜索源</string>
+    <string name="sort_by_name">按名称排序</string>
+    <string name="sort_by_enabled">按启用状态排序</string>
+    <string name="filter_enabled">仅显示已启用</string>
+    <string name="filter_disabled">仅显示已禁用</string>
+    <string name="filter_all">显示全部</string>
+    <string name="select_all">全选</string>
+    <string name="deselect_all">取消全选</string>
+    <string name="filter_invalid">仅显示失效</string>
 </resources>

@@ -112,22 +112,37 @@ class GroupedJsonSourcesAdapter(
 		
 		fun bind(item: GroupedSourceItem.Source, validationStates: Map<String, Boolean?>, selectedIds: Set<String>) {
 			val sourceInfo = item.sourceInfo
-			
-			// Set icon based on content type
-			binding.textViewIcon.text = getContentTypeIcon(sourceInfo)
-			
-			// Set source name (use the name property from MangaSource)
 			val mangaSource = sourceInfo.mangaSource
+			
+			// Set source name
 			binding.textViewName.text = when (mangaSource) {
 				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> mangaSource.displayName.ifBlank { mangaSource.name }
 				else -> sourceInfo.name
 			}
 			
-			// Set type label with content type
-			binding.textViewType.text = getContentTypeLabel(sourceInfo)
-			
 			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
-				// Selection
+				// Parse config to extract base URL, explore rule status, and group
+				val (bookSourceUrl, hasExplore, groups) = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
+					try {
+						val jsonObj = JSONObject(mangaSource.entity.config)
+						val url = jsonObj.optString("bookSourceUrl")
+						val exploreRule = jsonObj.optJSONObject("ruleExplore")
+						val exploreStatus = exploreRule != null && !exploreRule.optString("bookList").isNullOrBlank()
+						val groupStr = jsonObj.optString("bookSourceGroup", "")
+						Triple(url, exploreStatus, groupStr)
+					} catch (e: Exception) {
+						Triple(null, true, "")
+					}
+				} else {
+					Triple(null, true, "")
+				}
+				
+				// Set URL with content type and groups
+				val contentType = getContentTypeLabel(sourceInfo)
+				val groupsDisplay = if (groups.isNotBlank()) " [$groups]" else ""
+				binding.textViewUrl.text = "${bookSourceUrl ?: mangaSource.entity.id} · $contentType$groupsDisplay"
+				
+				// Selection checkbox
 				binding.checkboxSelect.visibility = View.VISIBLE
 				binding.checkboxSelect.setOnCheckedChangeListener(null)
 				binding.checkboxSelect.isChecked = selectedIds.contains(mangaSource.entity.id)
@@ -135,54 +150,42 @@ class GroupedJsonSourcesAdapter(
 					listener.onSelectSource(mangaSource.entity.id, isChecked)
 				}
 				
-				// Parse config to extract base URL and explore rule status (Legado only)
-				val (bookSourceUrl, hasExplore) = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
-					try {
-						val jsonObj = JSONObject(mangaSource.entity.config)
-						val url = jsonObj.optString("bookSourceUrl")
-						val exploreRule = jsonObj.optJSONObject("ruleExplore")
-						val exploreStatus = exploreRule != null && !exploreRule.optString("bookList").isNullOrBlank()
-						url to exploreStatus
-					} catch (e: Exception) {
-						null to true
-					}
-				} else {
-					null to true
-				}
-				binding.textViewUrl.text = bookSourceUrl ?: mangaSource.entity.id
-				
-				// Enabled switch/buttons visible
+				// Enabled switch
 				binding.switchEnabled.visibility = View.VISIBLE
+				binding.switchEnabled.setOnCheckedChangeListener(null)
 				binding.switchEnabled.isChecked = sourceInfo.isEnabled
 				binding.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
 					listener.onToggleEnabled(mangaSource.entity.id, isChecked)
 				}
-				binding.buttonTest.visibility = View.VISIBLE
-				binding.buttonDelete.visibility = View.VISIBLE
-				binding.buttonTest.setOnClickListener { listener.onTestSource(mangaSource.entity.id) }
-				binding.buttonDelete.setOnClickListener { listener.onDeleteSource(mangaSource.entity.id) }
 				
-				// Badges
+				// More menu button
+				binding.buttonMore.visibility = View.VISIBLE
+				binding.buttonMore.setOnClickListener { view ->
+					showPopupMenu(view, mangaSource.entity.id)
+				}
+				
+				// Badges - compact version
 				var badgesVisible = false
 				if (!hasExplore) {
 					binding.chipSearchOnly.visibility = View.VISIBLE
-					binding.chipSearchOnly.text = binding.root.context.getString(R.string.badge_search_only)
+					binding.chipSearchOnly.text = "搜"
 					badgesVisible = true
 				} else {
 					binding.chipSearchOnly.visibility = View.GONE
 				}
+				
 				val valid = validationStates[mangaSource.entity.id]
 				when (valid) {
 					true -> {
 						binding.chipValid.visibility = View.VISIBLE
-						binding.chipValid.text = binding.root.context.getString(R.string.badge_valid)
+						binding.chipValid.text = "✓"
 						binding.chipInvalid.visibility = View.GONE
 						badgesVisible = true
 					}
 					false -> {
 						binding.chipValid.visibility = View.GONE
 						binding.chipInvalid.visibility = View.VISIBLE
-						binding.chipInvalid.text = binding.root.context.getString(R.string.badge_invalid)
+						binding.chipInvalid.text = "✗"
 						badgesVisible = true
 					}
 					else -> {
@@ -192,17 +195,35 @@ class GroupedJsonSourcesAdapter(
 				}
 				binding.layoutBadges.visibility = if (badgesVisible) View.VISIBLE else View.GONE
 			} else {
-				// Native sources: hide badges and controls
+				// Native sources
 				binding.textViewUrl.text = sourceInfo.name
 				binding.checkboxSelect.visibility = View.GONE
 				binding.switchEnabled.visibility = View.GONE
-				binding.buttonTest.visibility = View.GONE
-				binding.buttonDelete.visibility = View.GONE
+				binding.buttonMore.visibility = View.GONE
 				binding.layoutBadges.visibility = View.GONE
 				binding.chipSearchOnly.visibility = View.GONE
 				binding.chipValid.visibility = View.GONE
 				binding.chipInvalid.visibility = View.GONE
 			}
+		}
+		
+		private fun showPopupMenu(anchor: View, sourceId: String) {
+			val popup = androidx.appcompat.widget.PopupMenu(anchor.context, anchor)
+			popup.menuInflater.inflate(R.menu.menu_source_item, popup.menu)
+			popup.setOnMenuItemClickListener { menuItem ->
+				when (menuItem.itemId) {
+					R.id.menu_test -> {
+						listener.onTestSource(sourceId)
+						true
+					}
+					R.id.menu_delete -> {
+						listener.onDeleteSource(sourceId)
+						true
+					}
+					else -> false
+				}
+			}
+			popup.show()
 		}
 		
 		private fun getContentTypeLabel(sourceInfo: MangaSourceInfo): String {
@@ -229,35 +250,6 @@ class GroupedJsonSourcesAdapter(
 				}
 			}
 			return "其他"
-		}
-		
-		
-		private fun getContentTypeIcon(sourceInfo: MangaSourceInfo): String {
-			// Check if it's a MangaParserSource (which has contentType)
-			val source = sourceInfo.mangaSource
-			if (source is org.skepsun.kototoro.parsers.model.MangaParserSource) {
-				return when (source.contentType) {
-					org.skepsun.kototoro.parsers.model.ContentType.MANGA,
-					org.skepsun.kototoro.parsers.model.ContentType.MANHWA,
-					org.skepsun.kototoro.parsers.model.ContentType.MANHUA,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_MANGA,
-					org.skepsun.kototoro.parsers.model.ContentType.COMICS,
-					org.skepsun.kototoro.parsers.model.ContentType.ONE_SHOT,
-					org.skepsun.kototoro.parsers.model.ContentType.DOUJINSHI,
-					org.skepsun.kototoro.parsers.model.ContentType.IMAGE_SET,
-					org.skepsun.kototoro.parsers.model.ContentType.ARTIST_CG,
-					org.skepsun.kototoro.parsers.model.ContentType.GAME_CG -> "📚"
-					
-					org.skepsun.kototoro.parsers.model.ContentType.NOVEL,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> "📖"
-					org.skepsun.kototoro.parsers.model.ContentType.VIDEO,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> "🎬"
-					org.skepsun.kototoro.parsers.model.ContentType.OTHER -> "📄"
-				}
-			}
-			
-			// For JSON sources, use JSON icon
-			return if (sourceInfo.name.startsWith("JSON_")) "📄" else "📚"
 		}
 	}
 	

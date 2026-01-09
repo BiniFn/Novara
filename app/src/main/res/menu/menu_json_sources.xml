@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto">
+
+	<!-- Sort submenu -->
+	<item
+		android:id="@+id/action_sort"
+		android:icon="@drawable/ic_sort"
+		android:title="@string/sort_order"
+		app:showAsAction="always">
+		<menu>
+			<group android:id="@+id/menu_group_sort" android:checkableBehavior="single">
+				<item
+					android:id="@+id/menu_sort_name"
+					android:checkable="true"
+					android:checked="true"
+					android:title="@string/sort_by_name" />
+				<item
+					android:id="@+id/menu_sort_enabled"
+					android:checkable="true"
+					android:title="@string/sort_by_enabled" />
+			</group>
+		</menu>
+	</item>
+
+	<!-- Filter submenu -->
+	<item
+		android:id="@+id/action_filter"
+		android:icon="@drawable/ic_filter_menu"
+		android:title="@string/filter"
+		app:showAsAction="always">
+		<menu>
+			<group android:id="@+id/menu_group_filter" android:checkableBehavior="single">
+				<item
+					android:id="@+id/menu_filter_all"
+					android:checkable="true"
+					android:checked="true"
+					android:title="@string/filter_all" />
+				<item
+					android:id="@+id/menu_filter_enabled"
+					android:checkable="true"
+					android:title="@string/filter_enabled" />
+				<item
+					android:id="@+id/menu_filter_disabled"
+					android:checkable="true"
+					android:title="@string/filter_disabled" />
+				<item
+					android:id="@+id/menu_filter_invalid"
+					android:checkable="true"
+					android:title="@string/filter_invalid" />
+			</group>
+		</menu>
+	</item>
+
+	<!-- Import -->
+	<item
+		android:id="@+id/action_import"
+		android:icon="@drawable/ic_import"
+		android:title="@string/_import"
+		app:showAsAction="never" />
+
+</menu>
