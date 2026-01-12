@@ -23,7 +23,7 @@ data class JavaScriptContext(
      */
     fun setVariable(name: String, value: Any?) {
         when (name) {
-            "result" -> result = value
+            "result", "src" -> result = value
             else -> variables[name] = value
         }
     }
@@ -62,7 +62,7 @@ data class JavaScriptContext(
             "source" -> source
             "key" -> key
             "page" -> page
-            "result" -> result
+            "result", "src" -> result
             else -> null
         }
     }
@@ -129,7 +129,10 @@ data class JavaScriptContext(
         source?.let { allVars["source"] = it }
         key?.let { allVars["key"] = it }
         page?.let { allVars["page"] = it }
-        result?.let { allVars["result"] = it }
+        result?.let { 
+            allVars["result"] = it
+            allVars["src"] = it
+        }
         
         // java 绑定在 Sandbox.setResult 时注入，以便可替换为具备方法的绑定对象
         variables["java"]?.let { allVars["java"] = it }

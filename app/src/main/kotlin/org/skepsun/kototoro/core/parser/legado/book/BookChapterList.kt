@@ -60,6 +60,16 @@ object BookChapterList {
         android.util.Log.d(TAG, "listRule (after prefix processing)=$listRule, reverse=$reverse")
 
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
+        
+        // Execute preUpdateJs if present (equivalent to init for TOC)
+        var currentContent: Any = content
+        if (!rule.preUpdateJs.isNullOrBlank()) {
+            val initResult = analyzeRule.evalJS(rule.preUpdateJs!!, content)
+            if (initResult != null) {
+                currentContent = initResult
+                analyzeRule.setContent(currentContent)
+            }
+        }
         val items = analyzeRule.getElements(listRule)
         android.util.Log.d(TAG, "Found ${items.size} elements with listRule")
         
@@ -77,7 +87,14 @@ object BookChapterList {
             val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
             
             val name = itemAnalyzer.getString(rule.chapterName)
-            val url = itemAnalyzer.getString(rule.chapterUrl)
+            var url = itemAnalyzer.getString(rule.chapterUrl, isUrl = true)
+            
+            // 如果 chapterUrl 规则返回空，但有章节名，则使用 baseUrl 作为当前页面的 URL
+            // 这处理了"单页内容"类型的源（书籍页面本身就是内容页）
+            if (url.isBlank() && name.isNotBlank()) {
+                url = baseUrl
+                android.util.Log.d(TAG, "[TOC] Chapter[$index] chapterUrl empty, falling back to baseUrl")
+            }
             
             val absoluteUrl = resolveUrl(baseUrl, url)
 
@@ -97,14 +114,27 @@ object BookChapterList {
                 android.util.Log.d(TAG, "[TOC] Chapter[$index] name=\"$name\", stableId=$stableId, sourceName=${source.name}(hash=${source.name.hashCode()}), url=\"$absoluteUrl\", normalized=\"$normalizedUrl\"(hash=${normalizedUrl.hashCode()})")
             }
             
+            var finalName = name
+            var finalUrl = absoluteUrl
+            
+            if (!rule.formatJs.isNullOrBlank()) {
+                sandbox.setResult(item)
+                val formatResult = sandbox.eval(rule.formatJs!!)
+                if (formatResult is String && formatResult.isNotEmpty()) {
+                    finalName = formatResult
+                }
+            }
+
+            val uploadDate = 0L // TODO: Parse updateTime if present
+
             MangaChapter(
                 id = stableId,
-                title = name,
+                title = finalName,
                 number = index.toFloat() + 1f,
                 volume = 0,
-                url = absoluteUrl,
+                url = finalUrl,
                 scanlator = null,
-                uploadDate = 0L,
+                uploadDate = uploadDate,
                 branch = null,
                 source = source
             )

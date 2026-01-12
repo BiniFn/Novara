@@ -108,6 +108,16 @@ interface AppModule {
 
 		@Provides
 		@Singleton
+		fun provideJson(): kotlinx.serialization.json.Json = kotlinx.serialization.json.Json {
+			ignoreUnknownKeys = true
+			isLenient = true
+			encodeDefaults = true
+			prettyPrint = true
+			coerceInputValues = true
+		}
+
+		@Provides
+		@Singleton
 		fun provideCoil(
 			@LocalizedAppContext context: Context,
 			@MangaHttpClient okHttpClientProvider: Provider<OkHttpClient>,

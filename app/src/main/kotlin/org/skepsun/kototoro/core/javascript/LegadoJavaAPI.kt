@@ -113,14 +113,23 @@ class LegadoJavaAPI(
      * @return 匹配的元素列表
      */
     fun getElement(selector: String): Elements {
-        val html = currentHtml ?: throw IllegalStateException("No HTML content set. Call setContent() first.")
+        Log.d(TAG, "getElement called with selector: $selector")
+        val html = currentHtml ?: run {
+            Log.e(TAG, "getElement: No HTML content set!")
+            throw IllegalStateException("No HTML content set. Call setContent() first.")
+        }
         
         // 转换 Legado 选择器到 Jsoup 选择器
         val jsoupSelector = convertLegadoSelectorToJsoup(selector)
+        Log.d(TAG, "getElement: Legado selector '$selector' -> JSoup selector '$jsoupSelector'")
         
         val doc = Jsoup.parse(html)
         val elements = doc.select(jsoupSelector)
         Log.d(TAG, "getElement($selector -> $jsoupSelector) found ${elements.size} elements")
+        
+        if (elements.isEmpty()) {
+            Log.w(TAG, "getElement: No elements found for '$jsoupSelector'. HTML preview: ${html.take(500)}")
+        }
         
         // 在JavaScript上下文中设置选择器，以便后续使用
         jsContext?.setVariable("lastSelector", selector)
@@ -136,6 +145,7 @@ class LegadoJavaAPI(
      * @return 匹配的元素列表
      */
     fun getElements(selector: String): Elements {
+        Log.d(TAG, "getElements called with selector: $selector")
         return getElement(selector)
     }
     
@@ -364,26 +374,27 @@ class LegadoJavaAPI(
      * @return 值
      */
     fun get(key: String): Any? {
-        // 首先检查 JavaScript 变量存储
-        if (jsVariables.containsKey(key)) {
-            return jsVariables[key]
-        }
+        // 首先从 context 获取，因为它包含所有持久化的变量
+        val contextValue = jsContext?.getVariable(key)
+        if (contextValue != null) return contextValue
         
-        // 然后检查 JavaScript 上下文
-        return jsContext?.getVariable(key)
+        // 兜底检查本地 jsVariables
+        return jsVariables[key]
     }
     
     /**
      * 设置 JavaScript 变量
      * 
-     * 用于在 JavaScript 代码中存储临时变量
+     * 用于在 JavaScript 代码中存储临时变量，并确保其在当前分析任务中持久化
      * 
      * @param key 键名
      * @param value 值
      */
     fun put(key: String, value: Any?) {
         jsVariables[key] = value
-        Log.d(TAG, "Set JavaScript variable: $key = $value")
+        // 同步到 jsContext 以便持久化到 LegadoSandbox，供后续规则使用
+        jsContext?.setVariable(key, value)
+        Log.d(TAG, "Set JavaScript variable: $key = $value (persistent in context)")
     }
     
     /**
@@ -395,6 +406,26 @@ class LegadoJavaAPI(
      */
     fun getSourceKey(): String {
         return jsContext?.source?.bookSourceUrl ?: "unknown_source"
+    }
+    
+    /**
+     * Get host part of a URL
+     */
+    fun getHost(url: String?): String {
+        if (url.isNullOrBlank()) return ""
+        return try {
+            val uri = java.net.URI(url)
+            uri.host ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+    
+    /**
+     * Get host of current source
+     */
+    fun bhost(): String {
+        return getHost(getSourceKey())
     }
     
     /**

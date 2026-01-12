@@ -68,7 +68,7 @@
 			android:layout_height="wrap_content"
 			android:layout_marginEnd="4dp"
 			android:contentDescription="@string/invert_selection"
-			app:icon="@drawable/ic_invert_selection" />
+			app:icon="@drawable/ic_select_range" />
 
 		<!-- Main Action Button -->
 		<com.google.android.material.button.MaterialButton

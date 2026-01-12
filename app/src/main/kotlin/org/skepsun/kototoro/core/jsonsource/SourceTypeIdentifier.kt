@@ -16,6 +16,7 @@ class SourceTypeIdentifier @Inject constructor() {
 	companion object {
 		private const val JSON_PREFIX = "JSON_"
 		private const val LEGADO_PREFIX = "JSON_LEGADO_"
+		private const val LEGADO_MANGA_PREFIX = "JSON_LEGADO_M_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
 		private const val JS_PREFIX = "JSON_JS_"
 		private const val MIHON_PREFIX = "MIHON_"
@@ -42,6 +43,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		return when {
 			sourceId.startsWith(MIHON_PREFIX) -> SourceType.MIHON
 			sourceId.startsWith(ANIYOMI_PREFIX) -> SourceType.ANIYOMI
+			sourceId.startsWith(LEGADO_MANGA_PREFIX) -> SourceType.JSON_LEGADO
 			sourceId.startsWith(LEGADO_PREFIX) -> SourceType.JSON_LEGADO
 			sourceId.startsWith(TVBOX_PREFIX) -> SourceType.JSON_TVBOX
 			sourceId.startsWith(JS_PREFIX) -> SourceType.JSON_JS

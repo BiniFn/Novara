@@ -12,4 +12,5 @@ interface AppRouterEntryPoint {
 
     val settings: AppSettings
     val mangaRepositoryFactory: MangaRepository.Factory
+    val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 }

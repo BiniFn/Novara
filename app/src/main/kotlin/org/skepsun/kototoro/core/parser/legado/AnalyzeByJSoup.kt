@@ -5,6 +5,7 @@ import org.jsoup.nodes.Element
 import org.jsoup.select.Collector
 import org.jsoup.select.Elements
 import org.jsoup.select.Evaluator
+import org.skepsun.kototoro.core.util.splitNotBlank
 
 /**
  * JSoup 解析（对齐 legado-with-MD3 的核心选择能力，精简日志与依赖）
@@ -173,22 +174,26 @@ class AnalyzeByJSoup(private val element: Element) {
 
         elements.add(element)
 
-        val rule = RuleAnalyzer(ruleStr) //创建解析
+        // 预处理规则：将 "a.href" 或 "img.src" 等格式转换为 "a@href" 或 "img@src"
+        val processedRuleStr = preprocessRule(ruleStr)
+
+        val rule = RuleAnalyzer(processedRuleStr) //创建解析
 
         rule.trim() //修建前置赘余符号
 
         val rules = rule.splitRule("@") // 切割成列表
         
-        android.util.Log.d("AnalyzeByJSoup", "[getResultList] ruleStr=$ruleStr, rules=${rules.joinToString(", ")}")
+        android.util.Log.d("AnalyzeByJSoup", "[getResultList] ruleStr=$ruleStr, processedRuleStr=$processedRuleStr, rules=${rules.joinToString(", ")}")
 
         val last = rules.size - 1
         for (i in 0 until last) {
             val es = Elements()
             for (elt in elements) {
-                es.addAll(ElementsSingle().getElementsSingle(elt, rules[i]))
+                val found = ElementsSingle().getElementsSingle(elt, rules[i])
+                android.util.Log.v("AnalyzeByJSoup", "[getResultList] elt[${elt.tagName()}] sub-rule='${rules[i]}' found=${found.size}")
+                es.addAll(found)
             }
             android.util.Log.d("AnalyzeByJSoup", "[getResultList] After rule[${i}]='${rules[i]}', found ${es.size} elements")
-            elements.clear()
             elements = es
         }
         android.util.Log.d("AnalyzeByJSoup", "[getResultList] Final elements count=${elements.size}, lastRule=${rules[last]}")
@@ -230,20 +235,28 @@ class AnalyzeByJSoup(private val element: Element) {
             }
 
             "html" -> {
-                for (element in elements) {
-                    val html = element.html()
-                    if (html.isNotEmpty()) {
-                        textS.add(html)
-                    }
+                // 与 legado-with-MD3 保持一致：移除 script 和 style，然后获取外部 HTML
+                elements.select("script").remove()
+                elements.select("style").remove()
+                val html = elements.outerHtml()
+                if (html.isNotEmpty()) {
+                    textS.add(html)
                 }
             }
 
-            "outerHtml", "all" -> {
+            "outerHtml" -> {
                 for (element in elements) {
                     val html = element.outerHtml()
                     if (html.isNotEmpty()) {
                         textS.add(html)
                     }
+                }
+            }
+            
+            "all" -> {
+                val html = elements.outerHtml()
+                if (html.isNotEmpty()) {
+                    textS.add(html)
                 }
             }
 
@@ -274,230 +287,213 @@ class AnalyzeByJSoup(private val element: Element) {
      * 单条规则解析（移植 ElementsSingle）
      */
     internal inner class ElementsSingle {
-
         private var beforeRule: String = ""
         private var split: Char = ' '
         private val indexes = mutableListOf<Any>()
         private val indexDefault = mutableListOf<Int>()
 
         fun getElementsSingle(temp: Element, rule: String): Elements {
-
-            findIndexSet(rule) //执行索引列表处理器
-
-            /**
-             * 获取所有元素
-             * */
-            var elements =
-                if (beforeRule.isEmpty()) temp.children() //允许索引直接作为根元素，此时前置规则为空，效果与children相同
-                else {
-                    val rules = beforeRule.split(".")
-                    when (rules[0]) {
-                        "children" -> temp.children() //允许索引直接作为根元素，此时前置规则为空，效果与children相同
-                        "class" -> temp.getElementsByClass(rules[1])
-                        "tag" -> temp.getElementsByTag(rules[1])
-                        "id" -> Collector.collect(Evaluator.Id(rules[1]), temp)
-                        "text" -> temp.getElementsContainingOwnText(rules[1])
-                        else -> {
-                            temp.select(beforeRule)
-                        }
-                    }
+            findIndexSet(rule)
+            
+            var elements = if (beforeRule.isEmpty()) {
+                temp.children()
+            } else {
+                val splitIndex = beforeRule.indexOfFirst { it == '.' || it == ':' || it == ' ' }
+                val (cmd, arg) = if (splitIndex != -1) {
+                    beforeRule.substring(0, splitIndex) to beforeRule.substring(splitIndex + 1).trim()
+                } else {
+                    beforeRule to ""
                 }
 
+                when (cmd) {
+                    "children" -> temp.children()
+                    "class" -> {
+                        if (arg.isEmpty()) temp.children()
+                        else {
+                            val classNames = arg.splitNotBlank(" ")
+                            if (classNames.size > 1) {
+                                temp.select(classNames.joinToString(separator = ".", prefix = "."))
+                            } else {
+                                temp.getElementsByClass(arg)
+                            }
+                        }
+                    }
+                    "id" -> {
+                        if (arg.isEmpty()) temp.children()
+                        else {
+                            val idNames = arg.splitNotBlank(" ")
+                            if (idNames.size > 1) {
+                                temp.select(idNames.joinToString(separator = ", #", prefix = "#"))
+                            } else {
+                                Collector.collect(Evaluator.Id(arg), temp)
+                            }
+                        }
+                    }
+                    "tag" -> if (arg.isEmpty()) temp.children() else temp.getElementsByTag(arg)
+                    "text" -> if (arg.isEmpty()) temp.children() else temp.getElementsContainingOwnText(arg)
+                    else -> temp.select(beforeRule)
+                }
+            }
+
             val len = elements.size
+            if (len == 0) return elements
+            
+            // Default to return all if no indexes provided
+            if (indexes.isEmpty() && indexDefault.isEmpty()) {
+                return if (split == '!') Elements() else elements
+            }
+            
             val lastIndexes = (indexDefault.size - 1).takeIf { it != -1 } ?: (indexes.size - 1)
             val indexSet = mutableSetOf<Int>()
 
-            /**
-             * 获取无重且不越界的索引集合
-             * */
-            if (indexes.isEmpty()) for (ix in lastIndexes downTo 0) { //indexes为空，表明是非[]式索引，集合是逆向遍历插入的，所以这里也逆向遍历，好还原顺序
-
-                val it = indexDefault[ix]
-                if (it in 0 until len) indexSet.add(it) //将正数不越界的索引添加到集合
-                else if (it < 0 && len >= -it) indexSet.add(it + len) //将负数不越界的索引添加到集合
-
-            } else for (ix in lastIndexes downTo 0) { //indexes不空，表明是[]式索引，集合是逆向遍历插入的，所以这里也逆向遍历，好还原顺序
-
-                if (indexes[ix] is Triple<*, *, *>) { //区间
-                    val (startX, endX, stepX) = indexes[ix] as Triple<Int?, Int?, Int> //还原储存时的类型
-
-                    var start = startX ?: 0 // 左端省略表示0
-                    if (start < 0) start += len // 将负索引转正
-
-                    var end = endX ?: (len - 1) // 右端省略表示 len - 1
-                    if (end < 0) end += len // 将负索引转正
-
-                    if ((start < 0 && end < 0) || (start >= len && end >= len)) {
-                        // start 和 end 同侧左右端越界，无效索引
-                        continue
-                    }
-
-                    if (start >= len) start = len - 1 // 右端越界，设置为最大索引
-                    else if (start < 0) start = 0 // 左端越界，设置为最小索引
-
-                    if (end >= len) end = len - 1 // 右端越界，设置为最大索引
-                    else if (end < 0) end = 0 // 左端越界，设置为最小索引
-
-                    if (start == end || stepX >= len) { //两端相同，区间里只有一个数。或间隔过大，区间实际上仅有首位
-
-                        indexSet.add(start)
-                        continue
-
-                    }
-
-                    val step =
-                        if (stepX > 0) stepX else if (-stepX < len) stepX + len else 1 //最小正数间隔为1
-
-                    //将区间展开到集合中,允许列表反向。
-                    indexSet.addAll(if (end > start) start..end step step else start downTo end step step)
-
-                } else {//单个索引
-
-                    val it = indexes[ix] as Int //还原储存时的类型
-
-                    if (it in 0 until len) indexSet.add(it) //将正数不越界的索引添加到集合
-                    else if (it < 0 && len >= -it) indexSet.add(it + len) //将负数不越界的索引添加到集合
-
+            if (indexes.isEmpty()) {
+                for (ix in lastIndexes downTo 0) {
+                    val it = indexDefault[ix]
+                    if (it in 0 until len) indexSet.add(it)
+                    else if (it < 0 && len >= -it) indexSet.add(it + len)
                 }
-
+            } else {
+                for (ix in lastIndexes downTo 0) {
+                    if (indexes[ix] is Triple<*, *, *>) {
+                        val (startX, endX, stepX) = indexes[ix] as Triple<Int?, Int?, Int>
+                        var start = startX ?: 0
+                        if (start < 0) start += len
+                        var end = endX ?: (len - 1)
+                        if (end < 0) end += len
+                        if ((start < 0 && end < 0) || (start >= len && end >= len)) continue
+                        if (start >= len) start = len - 1
+                        else if (start < 0) start = 0
+                        if (end >= len) end = len - 1
+                        else if (end < 0) end = 0
+                        if (start == end || stepX >= len) {
+                            indexSet.add(start)
+                            continue
+                        }
+                        val step = if (stepX > 0) stepX else if (-stepX < len) stepX + len else 1
+                        indexSet.addAll(if (end > start) start..end step step else start downTo end step step)
+                    } else {
+                        val it = indexes[ix] as Int
+                        if (it in 0 until len) indexSet.add(it)
+                        else if (it < 0 && len >= -it) indexSet.add(it + len)
+                    }
+                }
             }
 
-            /**
-             * 根据索引集合筛选元素
-             * */
-            if (split == '!') { //排除
+            if (split == '!') {
                 val filtered = Elements()
                 elements.forEachIndexed { idx, el ->
-                    if (!indexSet.contains(idx)) {
-                        filtered.add(el)
-                    }
+                    if (!indexSet.contains(idx)) filtered.add(el)
                 }
                 elements = filtered
-            } else if (split == '.') { //选择
-
+            } else if (split == '.') {
                 val es = Elements()
-
                 for (pcInt in indexSet) es.add(elements[pcInt])
-
                 elements = es
-
             }
 
-            return elements //返回筛选结果
-
+            return elements
         }
 
         private fun findIndexSet(rule: String) {
-
-            val rus = rule.trim { it <= ' ' }
-
-            var len = rus.length
-            var curInt: Int? //当前数字
-            var curMinus = false //当前数字是否为负
-            val curList = mutableListOf<Int?>() //当前数字区间
-            var l = "" //暂存数字字符串
-
-            val head = rus.last() == ']' //是否为常规索引写法
-
-            if (head) { //常规索引写法[index...]
-
-                len-- //跳过尾部']'
-
-                if (len <= 0 || rus[len] != '[') { //非索引结构，跳出
-                    beforeRule = rus
-                    split = ' '
-                    return
-                }
-
-                split = '.' //常规索引默认的索引器
-
-                while (len-- >= 0) {
-
-                    val rl = rus[len] //反向遍历字符串
-                    if (rl in '0'..'9') l = rl + l //将数值累接入临时字串中，遇到分界符才取出
-                    else if (rl == '-') curMinus = true
-                    else {
-
-                        curInt =
-                            if (l.isEmpty()) null else if (curMinus) -l.toInt() else l.toInt() //当前数字
-
-                        when (rl) {
-
-                            ':' -> curList.add(curInt) //区间右端或区间间隔
-
-                            else -> {
-
-                                //为保证查找顺序，区间和单个索引都添加到同一集合
-                                if (curList.isEmpty()) {
-
-                                    if (curInt == null) break //是jsoup选择器而非索引列表，跳出
-
-                                    indexes.add(curInt)
-                                } else {
-
-                                    //列表最后压入的是区间右端，若列表有两位则最先压入的是间隔
-                                    indexes.add(
-                                        Triple(
-                                            curInt,
-                                            curList.last(),
-                                            if (curList.size == 2) curList.first() else 1
-                                        )
-                                    )
-
-                                    curList.clear() //重置临时列表，避免影响到下个区间的处理
-
-                                }
-
-                var currentRl = rl
-                if (currentRl == '!') {
-                    split = '!'
-                    do {
-                        currentRl = rus[--len]
-                    } while (len > 0 && currentRl == ' ')//跳过所有空格
-                }
-
-                if (currentRl == '[') {
-                    beforeRule = rus.substring(0, len) //遇到索引边界，返回结果
-                    return
-                }
-
-                if (currentRl != ',') break //非索引结构，跳出
-
+            val rus = rule.trim()
+            if (rus.isEmpty()) {
+                beforeRule = ""
+                split = ' '
+                return
             }
-        }
 
-                        l = "" //清空
-                        curMinus = false //重置
+            indexes.clear()
+            indexDefault.clear()
+            
+            if (rus.endsWith("]")) {
+                val openBracket = rus.lastIndexOf('[')
+                if (openBracket != -1) {
+                    val indexStr = rus.substring(openBracket + 1, rus.length - 1)
+                    val before = rus.substring(0, openBracket).trim()
+                    if (before.endsWith('!')) {
+                        beforeRule = before.dropLast(1).trim()
+                        split = '!'
+                    } else {
+                        beforeRule = before
+                        split = '.'
                     }
+                    parseIndexString(indexStr, indexes)
+                    return
                 }
-            } else while (len-- >= 0) { //阅读原本写法，逆向遍历,可以无前置规则
+            }
 
-                val rl = rus[len]
-                if (rl == ' ') continue //跳过空格
-
-                if (rl in '0'..'9') l = rl + l //将数值累接入临时字串中，遇到分界符才取出
-                else if (rl == '-') curMinus = true
-                else {
-
-                    if (rl == '!' || rl == '.' || rl == ':') { //分隔符或起始符
-
-                        indexDefault.add(if (curMinus) -l.toInt() else l.toInt()) // 当前数字追加到列表
-
-                        if (rl != ':') { //rl == '!'  || rl == '.'
-                            split = rl
-                            beforeRule = rus.substring(0, len)
-                            return
-                        }
-
-                    } else break //非索引结构，跳出循环
-
-                    l = "" //清空
-                    curMinus = false //重置
+            val lastDot = rus.lastIndexOf('.')
+            val lastExcl = rus.lastIndexOf('!')
+            val splitIdx = maxOf(lastDot, lastExcl)
+            
+            if (splitIdx != -1) {
+                val possibleIndex = rus.substring(splitIdx + 1).trim()
+                if (possibleIndex.isNotEmpty() && (possibleIndex[0].isDigit() || (possibleIndex[0] == '-' && possibleIndex.length > 1 && possibleIndex[1].isDigit()))) {
+                    val idx = possibleIndex.toIntOrNull()
+                    if (idx != null) {
+                        indexDefault.add(idx)
+                        split = rus[splitIdx]
+                        beforeRule = rus.substring(0, splitIdx).trim()
+                        return
+                    }
                 }
             }
 
             split = ' '
             beforeRule = rus
+        }
+
+        private fun parseIndexString(s: String, target: MutableList<Any>) {
+            s.split(',').forEach { part ->
+                val trimmed = part.trim()
+                if (trimmed.isEmpty()) return@forEach
+                if (trimmed.contains(':')) {
+                    val range = trimmed.split(':')
+                    val start = range.getOrNull(0)?.toIntOrNull()
+                    val end = range.getOrNull(1)?.toIntOrNull()
+                    val step = range.getOrNull(2)?.toIntOrNull() ?: 1
+                    target.add(Triple(start, end, step))
+                } else {
+                    trimmed.toIntOrNull()?.let { target.add(it) }
+                }
+            }
+        }
+    }
+
+    companion object {
+        // 常见的 HTML 属性，用于判断 "a.href" 是否应该转换为 "a@href"
+        private val COMMON_ATTRS = setOf(
+            "href", "src", "data-src", "data-original", "data-lazy-src",
+            "alt", "title", "class", "id", "name", "value", "type",
+            "content", "rel", "target", "action", "method", "placeholder",
+            "style", "width", "height", "data-setbg", "data-bg", "poster"
+        )
+        
+        /**
+         * 预处理规则：将 "a.href" 格式转换为 "a@href"
+         * 仅当 "." 后面是已知的 HTML 属性时才转换
+         */
+        private fun preprocessRule(ruleStr: String): String {
+            // 如果已经包含 @，不需要转换
+            if (ruleStr.contains("@")) return ruleStr
+            
+            // 检查是否是 "tag.attr" 格式（不含空格，且 . 后面是常见属性）
+            val dotIndex = ruleStr.lastIndexOf('.')
+            if (dotIndex > 0 && dotIndex < ruleStr.length - 1) {
+                val beforeDot = ruleStr.substring(0, dotIndex)
+                val afterDot = ruleStr.substring(dotIndex + 1)
+                
+                // 确保 beforeDot 是简单标签名（不含特殊字符）
+                // 且 afterDot 是已知的 HTML 属性
+                if (beforeDot.isNotBlank() && 
+                    !beforeDot.contains(" ") && 
+                    !beforeDot.contains("[") &&
+                    COMMON_ATTRS.contains(afterDot.lowercase())) {
+                    return "$beforeDot@$afterDot"
+                }
+            }
+            
+            return ruleStr
         }
     }
 

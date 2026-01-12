@@ -48,6 +48,8 @@ import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.UnknownMangaSource
 import org.skepsun.kototoro.core.model.getSummary
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.model.titleResId
@@ -464,8 +466,9 @@ class DetailsActivity :
 				textViewSourceLabel.isVisible = false
 			} else {
 				val initialTitle = manga.source.getTitle(this@DetailsActivity)
+				val contentType = getContentType(manga.source)
 				textViewSource.textAndVisible = initialTitle
-				textViewSource.setTooltipCompat(manga.source.getSummary(this@DetailsActivity))
+				textViewSource.setTooltipCompat(manga.source.getSummary(this@DetailsActivity, contentType))
 				textViewSourceLabel.isVisible = textViewSource.isVisible == true
 				if ((initialTitle == getString(R.string.unknown) || manga.source.name.startsWith("JSON_")) &&
 					manga.source !is JsonMangaSource
@@ -577,6 +580,26 @@ class DetailsActivity :
 
         viewBinding.root.requestLayout()
     }
+
+	private fun getContentType(source: org.skepsun.kototoro.parsers.model.MangaSource): org.skepsun.kototoro.parsers.model.ContentType {
+		val unwrapped = source.unwrap()
+		if (unwrapped is JsonMangaSource) return unwrapped.getContentType()
+		if (unwrapped.name.startsWith("JSON_")) {
+			if (unwrapped.name.startsWith("JSON_LEGADO_M_")) return org.skepsun.kototoro.parsers.model.ContentType.MANGA
+			if (unwrapped.name.startsWith("JSON_LEGADO_")) {
+				val entity = kotlinx.coroutines.runBlocking { jsonSourceManager.getById(unwrapped.name) }
+				if (entity != null) {
+					return try {
+						val jsonObj = org.json.JSONObject(entity.config)
+						if (jsonObj.optInt("bookSourceType", 0) == 2) org.skepsun.kototoro.parsers.model.ContentType.MANGA else org.skepsun.kototoro.parsers.model.ContentType.NOVEL
+					} catch (e: Exception) {
+						org.skepsun.kototoro.parsers.model.ContentType.NOVEL
+					}
+				}
+			}
+		}
+		return unwrapped.getContentType()
+	}
 
 	private fun String.withEstimatedTime(time: ReadingTime?): String {
 		if (time == null) {

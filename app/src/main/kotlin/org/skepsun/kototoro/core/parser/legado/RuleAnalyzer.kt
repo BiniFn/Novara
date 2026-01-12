@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.core.parser.legado
 
 // 通用的规则切分处理（移植自 legado-with-MD3）
-class RuleAnalyzer(data: String, code: Boolean = false) {
+class RuleAnalyzer(data: String, private val isCodeMode: Boolean = false) {
 
     private var queue: String = data //被处理字符串
     private var pos = 0 //当前处理到的位置
@@ -162,67 +162,94 @@ class RuleAnalyzer(data: String, code: Boolean = false) {
      * 不用正则,不到最后不切片也不用中间变量存储,只在序列中标记当前查找字段的开头结尾,到返回时才切片,高效快速准确切割规则
      * 解决jsonPath自带的"&&"和"||"与阅读的规则冲突,以及规则正则或字符串中包含"&&"、"||"、"%%"、"@"导致的冲突
      */
-    tailrec fun splitRule(vararg split: String): ArrayList<String> { //首段匹配,elementsType为空
-
-        if (split.size == 1) {
-            elementsType = split[0] //设置分割字串
-            return if (!consumeTo(elementsType)) {
-                rule += queue.substring(startX)
-                rule
-            } else {
-                step = elementsType.length //设置分隔符长度
-                splitRule()
-            } //递归匹配
-        } else if (split.isEmpty() && elementsType.isNotEmpty()) {
-            // 递归调用时split为空，但elementsType已设置，使用elementsType继续分割
-            // 首先将之前找到的片段添加到结果中
-            rule += queue.substring(startX, pos)
-            pos += step //跳过分隔符
-            startX = pos //更新起始位置
-            
-            // 继续查找下一个分隔符
-            while (consumeTo(elementsType)) {
-                rule += queue.substring(start, pos)
-                pos += step
-            }
-            // 添加剩余部分
-            rule += queue.substring(pos)
-            return rule
-        } else if (!consumeToAny(*split)) { //未找到分隔符
-            rule += queue.substring(startX)
+    fun splitRule(vararg split: String): ArrayList<String> {
+        if (split.isEmpty()) {
+            rule.add(queue.substring(startX))
             return rule
         }
 
-        val end = pos //记录分隔位置
-        pos = start //重回开始，启动另一种查找
-
-        do {
-            val st = findToAny('[', '(') //查找筛选器位置
-
-            if (st == -1) {
-
-                rule = arrayListOf(queue.substring(startX, end)) //压入分隔的首段规则到数组
-
-                elementsType = queue.substring(end, end + step) //设置组合类型
-                pos = end + step //跳过分隔符
-
-                while (consumeTo(elementsType)) { //循环切分规则压入数组
-                    rule += queue.substring(start, pos)
-                    pos += step //跳过分隔符
-                }
-
-                rule += queue.substring(pos) //将剩余字段压入数组末尾
-
-                return rule
-            } else {
-
-                if (chompBalancedGroup('[', ']') == null) return splitRule(*split) //查找匹配失败
-                if (pos > end || !consumeToAny(*split)) { //优先匹配括号外的分割符
-                    rule = arrayListOf(queue.substring(startX))
-                    return rule
+        while (pos < queue.length) {
+            // 检查是否遇到分隔符
+            var stepLen = 0
+            var foundType = ""
+            var match = false
+            for (s in split) {
+                if (queue.regionMatches(pos, s, 0, s.length)) {
+                    stepLen = s.length
+                    foundType = s
+                    match = true
+                    break
                 }
             }
-        } while (true)
+
+            if (match) {
+                // 找到了一个候选分隔符
+                val segment = queue.substring(startX, pos)
+                // 检查这个片段是否平衡
+                val testAnalyzer = RuleAnalyzer(segment, isCodeMode)
+                if (testAnalyzer.isBalanced()) {
+                    // 平衡，确实是分隔符
+                    rule.add(segment)
+                    elementsType = foundType
+                    pos += stepLen
+                    startX = pos
+                    start = pos
+                    // 继续循环查找下一个
+                    continue
+                } else {
+                    // 不平衡，跳过分隔符的第一个字符继续找
+                    pos++
+                }
+            } else {
+                // 处理括号跳过，避免在括号内匹配分隔符
+                val c = queue[pos]
+                if (c == '[' || c == '(' || c == '{') {
+                    val next = when(c) {
+                        '[' -> ']'
+                        '(' -> ')'
+                        '{' -> '}'
+                        else -> ' '
+                    }
+                    if (!chompBalanced(c, next)) {
+                        // 如果不平衡，强行推进一位
+                        pos++
+                    }
+                } else {
+                    pos++
+                }
+            }
+        }
+
+        // 添加最后一段
+        if (startX < queue.length) {
+            rule.add(queue.substring(startX))
+        } else if (startX == queue.length && rule.isEmpty()) {
+            // 处理空字符串或刚好结束的情况
+            rule.add("")
+        }
+        return rule
+    }
+
+    /**
+     * 检查当前 queue 是否平衡
+     */
+    private fun isBalanced(): Boolean {
+        pos = 0
+        while (pos < queue.length) {
+            val c = queue[pos]
+            val next = when (c) {
+                '[' -> ']'
+                '(' -> ')'
+                '{' -> '}'
+                else -> {
+                    pos++
+                    continue
+                }
+            }
+            // 尝试拉出一个平衡组，如果失败说明不平衡
+            if (!chompBalanced(c, next)) return false
+        }
+        return true
     }
 
     /**
@@ -316,66 +343,7 @@ class RuleAnalyzer(data: String, code: Boolean = false) {
         return queue.substring(start, pos)
     }
 
-    @JvmName("splitRuleNext")
-    private tailrec fun splitRuleNext(): ArrayList<String> { //二段匹配被调用,elementsType非空(已在首段赋值),直接按elementsType查找,比首段采用的方式更快
-
-        val end = pos //记录分隔位置
-        pos = start //重回开始，启动另一种查找
-
-        do {
-            val st = findToAny('[', '(') //查找筛选器位置
-
-            if (st == -1) {
-
-                rule += arrayOf(queue.substring(startX, end)) //压入分隔的首段规则到数组
-                pos = end + step //跳过分隔符
-
-                while (consumeTo(elementsType)) { //循环切分规则压入数组
-                    rule += queue.substring(start, pos)
-                    pos += step //跳过分隔符
-                }
-
-                rule += queue.substring(pos) //将剩余字段压入数组末尾
-
-                return rule
-            }
-
-            if (st > end) { //先匹配到st1pos，表明分隔字串不在选择器中，将选择器前分隔字串分隔的字段依次压入数组
-
-                rule += arrayListOf(queue.substring(startX, end)) //压入分隔的首段规则到数组
-                pos = end + step //跳过分隔符
-
-                while (consumeTo(elementsType) && pos < st) { //循环切分规则压入数组
-                    rule += queue.substring(start, pos)
-                    pos += step //跳过分隔符
-                }
-
-                return if (pos > st) {
-                    startX = start
-                    splitRuleNext() //首段已匹配,但当前段匹配未完成,调用二段匹配
-                } else { //执行到此，证明后面再无分隔字符
-                    rule += queue.substring(pos) //将剩余字段压入数组末尾
-                    rule
-                }
-            }
-
-            pos = st //位置推移到筛选器处
-            val next = if (queue[pos] == '[') ']' else ')' //平衡组末尾字符
-
-            if (!chompBalanced(queue[pos], next)) throw Error(
-                queue.substring(0, start) + "后未平衡"
-            ) //拉出一个筛选器,不平衡则报错
-
-        } while (end > pos)
-
-        start = pos //设置开始查找筛选器位置的起始位置
-
-        return if (!consumeTo(elementsType)) {
-            rule += queue.substring(startX)
-            rule
-        } else splitRuleNext() //递归匹配
-
-    }
+    // 移除旧的 splitRuleNext 逻辑，统一由 splitRule 处理
 
     /**
      * 替换内嵌规则
@@ -447,7 +415,7 @@ class RuleAnalyzer(data: String, code: Boolean = false) {
     /**
      * 设置平衡组函数，json或JavaScript时设置成chompCodeBalanced，否则为chompRuleBalanced
      */
-    val chompBalanced = if (code) ::chompCodeBalanced else ::chompRuleBalanced
+    val chompBalanced = if (isCodeMode) ::chompCodeBalanced else ::chompRuleBalanced
 
     companion object {
 

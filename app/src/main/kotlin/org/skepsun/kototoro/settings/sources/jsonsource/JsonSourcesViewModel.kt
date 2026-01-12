@@ -9,7 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.jsonsource.GroupedSourceList
 import org.skepsun.kototoro.core.jsonsource.GroupingStrategy
@@ -20,6 +24,11 @@ import org.skepsun.kototoro.core.model.MangaSourceInfo
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import javax.inject.Inject
+import kotlinx.serialization.json.Json
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.first
 
 /**
  * ViewModel for managing JSON sources with grouping support.
@@ -37,6 +46,7 @@ class JsonSourcesViewModel @Inject constructor(
 	private val jsonSourceManager: JsonSourceManager,
 	private val sourceGroupManager: SourceGroupManager,
 	private val mangaSourcesRepository: MangaSourcesRepository,
+	private val json: Json,
 ) : BaseViewModel() {
 	
 	/**
@@ -50,6 +60,31 @@ class JsonSourcesViewModel @Inject constructor(
 			started = SharingStarted.WhileSubscribed(5000),
 			initialValue = emptyList()
 		)
+	
+	private val parsedSources = jsonSources.map { sources ->
+		sources.associate { entity ->
+			entity.id to runCatching {
+				json.decodeFromString<LegadoBookSource>(entity.config)
+			}.getOrNull()
+		}
+	}.stateIn(
+		scope = viewModelScope,
+		started = SharingStarted.Eagerly,
+		initialValue = emptyMap()
+	)
+
+	val availableGroups: StateFlow<List<String>> = parsedSources.map { sourceMap ->
+		sourceMap.values.filterNotNull()
+			.flatMap { it.bookSourceGroup?.split(Regex("[,;，；]")) ?: emptyList() }
+			.map { it.trim() }
+			.filter { it.isNotBlank() }
+			.distinct()
+			.sorted()
+	}.stateIn(
+		scope = viewModelScope,
+		started = SharingStarted.WhileSubscribed(5000),
+		initialValue = emptyList()
+	)
 	
 	/**
 	 * Current grouping strategy (by content or by origin).
@@ -66,16 +101,21 @@ class JsonSourcesViewModel @Inject constructor(
 	/**
 	 * Current sort option.
 	 */
-	private val _sortOption = MutableStateFlow(SortOption.NAME)
+	private val _sortOption = MutableStateFlow<SortOption>(SortOption.NAME)
 	
 	/**
 	 * Current filter option.
 	 */
-	private val _filterOption = MutableStateFlow(FilterOption.ALL)
+	private val _filterOption = MutableStateFlow<FilterOption>(FilterOption.ALL)
+	
+	/**
+	 * Current search query.
+	 */
+	private val _searchQuery = MutableStateFlow("")
 	
 	/**
 	 * StateFlow of grouped sources.
-	 * Combines all JSON sources with grouping strategy, collapsed states, sort, and filter.
+	 * Combines all JSON sources with grouping strategy, collapsed states, sort, filter and search.
 	 * Shows ALL JSON sources (both enabled and disabled) for management.
 	 */
 	val groupedSources: StateFlow<GroupedSourceList> = combine(
@@ -83,16 +123,53 @@ class JsonSourcesViewModel @Inject constructor(
 		_groupingStrategy,
 		_collapsedGroups,
 		_sortOption,
-		_filterOption
-	) { jsonSourceEntities, strategy, collapsedMap, sort, filter ->
+		combine(_filterOption, _searchQuery) { filter, query -> filter to query }
+	) { jsonSourceEntities, strategy, collapsedMap, sort, (filter, searchQuery) ->
+		// Apply search filter first
+		val searchedEntities = if (searchQuery.isBlank()) {
+			jsonSourceEntities
+		} else {
+			val query = searchQuery.lowercase()
+			jsonSourceEntities.filter { entity ->
+				entity.name.lowercase().contains(query) ||
+				entity.id.lowercase().contains(query)
+			}
+		}
+		
 		// Filter sources
 		val filteredEntities = when (filter) {
-			FilterOption.ALL -> jsonSourceEntities
-			FilterOption.ENABLED -> jsonSourceEntities.filter { it.enabled }
-			FilterOption.DISABLED -> jsonSourceEntities.filter { !it.enabled }
-			FilterOption.INVALID -> {
+			is FilterOption.ALL -> searchedEntities
+			is FilterOption.ENABLED -> searchedEntities.filter { it.enabled }
+			is FilterOption.DISABLED -> searchedEntities.filter { !it.enabled }
+			is FilterOption.INVALID -> {
 				val invalidIds = _validationStates.value.filter { it.value == false }.keys
-				jsonSourceEntities.filter { invalidIds.contains(it.id) }
+				searchedEntities.filter { invalidIds.contains(it.id) }
+			}
+			is FilterOption.NEED_LOGIN -> {
+				searchedEntities.filter { entity ->
+					parsedSources.value[entity.id]?.loginUrl?.isNotBlank() == true
+				}
+			}
+			is FilterOption.NO_GROUP -> {
+				searchedEntities.filter { entity ->
+					parsedSources.value[entity.id]?.bookSourceGroup.isNullOrBlank()
+				}
+			}
+			is FilterOption.EXPLORE_ENABLED -> {
+				searchedEntities.filter { entity ->
+					parsedSources.value[entity.id]?.exploreUrl?.isNotBlank() == true
+				}
+			}
+			is FilterOption.EXPLORE_DISABLED -> {
+				searchedEntities.filter { entity ->
+					parsedSources.value[entity.id]?.exploreUrl.isNullOrBlank()
+				}
+			}
+			is FilterOption.GROUP -> {
+				searchedEntities.filter { entity ->
+					val groups = parsedSources.value[entity.id]?.bookSourceGroup?.split(Regex("[,;，；]"))?.map { it.trim() }
+					groups?.contains(filter.name) == true
+				}
 			}
 		}
 		
@@ -136,6 +213,12 @@ class JsonSourcesViewModel @Inject constructor(
 	val testResult: StateFlow<TestResult?> = _testResult.asStateFlow()
 	private val _validationStates = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
 	val validationStates: StateFlow<Map<String, Boolean?>> = _validationStates.asStateFlow()
+	
+	private val _validationProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+	val validationProgress: StateFlow<Pair<Int, Int>?> = _validationProgress.asStateFlow()
+	
+	private val _lastInvalidIds = MutableStateFlow<List<String>>(emptyList())
+	val lastInvalidIds: StateFlow<List<String>> = _lastInvalidIds.asStateFlow()
 	
 	/**
 	 * Toggles the enabled state of a JSON source.
@@ -206,37 +289,91 @@ class JsonSourcesViewModel @Inject constructor(
 		}
 	}
 	
-	fun batchValidate(ids: List<String>): List<String> {
-		val invalidIds = mutableListOf<String>()
-		launchJob(Dispatchers.Default) {
-			val updated = _validationStates.value.toMutableMap()
-			ids.forEach { id ->
-				val ok = jsonSourceManager.validateSourceBySearch(id, searchKey = "我的")
-				updated[id] = ok
-				if (!ok) {
-					invalidIds.add(id)
+	/**
+	 * Export selected sources as JSON string.
+	 * Returns a pair of (JSON string, count of exported sources).
+	 */
+	suspend fun exportSources(ids: List<String>): Pair<String, Int> {
+		val sources = jsonSources.value.filter { ids.contains(it.id) }
+		val jsonArray = org.json.JSONArray()
+		sources.forEach { entity ->
+			try {
+				// entity.config contains the original Legado JSON
+				val jsonObject = org.json.JSONObject(entity.config)
+				jsonArray.put(jsonObject)
+			} catch (e: Exception) {
+				// Fallback to basic info if config is invalid
+				val fallback = org.json.JSONObject().apply {
+					put("bookSourceName", entity.name)
+					put("enabled", entity.enabled)
 				}
+				jsonArray.put(fallback)
 			}
-			_validationStates.value = updated
-			_lastInvalidIds.value = invalidIds
 		}
-		return invalidIds
+		return jsonArray.toString(2) to sources.size
 	}
 	
-	/**
-	 * StateFlow of the last batch of invalid source IDs from validation.
-	 * Fragment can observe this to auto-select invalid sources.
-	 */
-	private val _lastInvalidIds = MutableStateFlow<List<String>>(emptyList())
-	val lastInvalidIds: StateFlow<List<String>> = _lastInvalidIds.asStateFlow()
+	private var validationJob: Job? = null
 	
-	/**
-	 * Clears the last invalid IDs.
-	 */
+	fun batchValidate(ids: List<String>) {
+		if (ids.isEmpty()) return
+		
+		validationJob?.cancel()
+		validationJob = launchJob(Dispatchers.Default) {
+			_validationProgress.value = 0 to ids.size
+			val invalidIds = java.util.Collections.synchronizedList(mutableListOf<String>())
+			val updated = java.util.concurrent.ConcurrentHashMap(_validationStates.value)
+			
+			var completedCount = 0
+			val totalCount = ids.size
+			
+			// Use a semaphore or chunking to limit concurrency (e.g., 3 at a time)
+			val semaphore = kotlinx.coroutines.sync.Semaphore(3)
+			
+			kotlinx.coroutines.coroutineScope {
+				ids.map { id ->
+					launch {
+						semaphore.withPermit {
+							try {
+								val ok = jsonSourceManager.validateSourceBySearch(id, searchKey = "我的")
+								updated[id] = ok
+								if (!ok) {
+									invalidIds.add(id)
+								}
+							} catch (e: Exception) {
+								if (e is kotlinx.coroutines.CancellationException) throw e
+								updated[id] = false
+								invalidIds.add(id)
+							} finally {
+								synchronized(this@JsonSourcesViewModel) {
+									completedCount++
+									_validationStates.value = updated.toMap()
+									_validationProgress.value = completedCount to totalCount
+								}
+							}
+						}
+					}
+				}
+			}.joinAll()
+			
+			_lastInvalidIds.value = invalidIds.toList()
+			// Keep the progress for a moment then clear
+			kotlinx.coroutines.delay(1000)
+			_validationProgress.value = null
+			validationJob = null
+		}
+	}
+	
+	fun stopValidation() {
+		validationJob?.cancel()
+		validationJob = null
+		_validationProgress.value = null
+	}
+	
 	fun clearLastInvalidIds() {
 		_lastInvalidIds.value = emptyList()
 	}
-	
+
 	/**
 	 * Clears the test result.
 	 */
@@ -287,6 +424,15 @@ class JsonSourcesViewModel @Inject constructor(
 	}
 	
 	/**
+	 * Returns a list of all currently visible JSON source IDs (after filtering).
+	 */
+	fun getVisibleJsonSourceIds(): List<String> {
+		return groupedSources.value.getAllSources()
+			.filter { it.mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource }
+			.map { (it.mangaSource as org.skepsun.kototoro.core.jsonsource.JsonMangaSource).entity.id }
+	}
+	
+	/**
 	 * Sets the sort option.
 	 */
 	fun setSortOption(option: SortOption) {
@@ -298,6 +444,13 @@ class JsonSourcesViewModel @Inject constructor(
 	 */
 	fun setFilterOption(option: FilterOption) {
 		_filterOption.value = option
+	}
+	
+	/**
+	 * Sets the search query.
+	 */
+	fun setSearchQuery(query: String) {
+		_searchQuery.value = query
 	}
 }
 
@@ -321,4 +474,20 @@ sealed class TestResult {
 	 * Test failed with error.
 	 */
 	data class Error(override val sourceId: String, val message: String) : TestResult()
+}
+
+enum class SortOption {
+	NAME, ENABLED
+}
+
+sealed class FilterOption {
+	object ALL : FilterOption()
+	object ENABLED : FilterOption()
+	object DISABLED : FilterOption()
+	object INVALID : FilterOption()
+	object NEED_LOGIN : FilterOption()
+	object NO_GROUP : FilterOption()
+	object EXPLORE_ENABLED : FilterOption()
+	object EXPLORE_DISABLED : FilterOption()
+	data class GROUP(val name: String) : FilterOption()
 }

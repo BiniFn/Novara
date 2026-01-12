@@ -81,11 +81,11 @@ class LegadoRepository(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 
     /**
-     * Get User-Agent, preferring source config over default
+     * Get User-Agent, preferring source config over default (case-insensitive)
      */
     private fun getSourceUserAgent(): String {
         val headers = getConfigHeaders()
-        return headers["User-Agent"] ?: headers["user-agent"] ?: defaultUserAgent
+        return headers.entries.find { it.key.equals("User-Agent", ignoreCase = true) }?.value ?: defaultUserAgent
     }
 
     override val sortOrders: Set<SortOrder> = EnumSet.allOf(SortOrder::class.java)
@@ -200,10 +200,26 @@ class LegadoRepository(
                     // Sync CloudFlare cookies
                     LegadoCloudFlareResolver.syncCloudFlareCookies(config.bookSourceUrl)
                     
-                    val headersWithUa = request.headers.toMutableMap()
-                    if (!headersWithUa.containsKey("User-Agent") && !headersWithUa.containsKey("user-agent")) {
+                    val headersWithUa = getConfigHeaders().toMutableMap()
+                    
+                    // Helper to check for key existence case-insensitively
+                    fun MutableMap<String, String>.containsKeyIgnoreCase(key: String): Boolean =
+                        this.keys.any { it.equals(key, ignoreCase = true) }
+
+                    // Request-specific headers override source config headers
+                    request.headers.forEach { (k, v) ->
+                        // Remove existing similar key to avoid duplicates with different casing
+                        val existingKey = headersWithUa.keys.find { it.equals(k, ignoreCase = true) }
+                        if (existingKey != null) headersWithUa.remove(existingKey)
+                        headersWithUa[k] = v
+                    }
+
+                    // Ensure User-Agent is present
+                    if (!headersWithUa.containsKeyIgnoreCase("User-Agent")) {
                         headersWithUa["User-Agent"] = getSourceUserAgent()
                     }
+                    
+                    Log.d(TAG, "Final headers for ${request.url}: $headersWithUa")
 
                     // Use WebView for sources that require JavaScript execution
                     if (request.useWebView && request.method == "GET") {
@@ -379,9 +395,9 @@ class LegadoRepository(
             send(pages.toList())
             pageCount++
 
-            // 安全限制：单章节页数超过 100 页（通常是规则误触了下一章）
-            if (pages.size > 100) {
-                android.util.Log.e("LegadoRepository", "Chapter has too many pages (>100), possible rule leakage. Stopping.")
+            // 安全限制：单章节页数超过 500 页（通常是规则误触了下一章）
+            if (pages.size > 500) {
+                android.util.Log.e("LegadoRepository", "Chapter has too many pages (>500), possible rule leakage. Stopping.")
                 break
             }
 
@@ -568,25 +584,63 @@ class LegadoRepository(
     private fun getResponseBodyWithCharset(response: Response): String? {
         val body = response.body ?: return null
         val bytes = body.bytes()
+        if (bytes.isEmpty()) return ""
         
-        // Try to detect charset from Content-Type header first
-        val contentType = body.contentType()
-        val headerCharset = contentType?.charset()
+        val encoding = response.header("Content-Encoding")
+        var decodedBytes = bytes
+        if (encoding != null) {
+            try {
+                if (encoding.equalsIgnoreCase("gzip")) {
+                    decodedBytes = java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(bytes)).readBytes()
+                } else if (encoding.equalsIgnoreCase("deflate")) {
+                    decodedBytes = java.util.zip.InflaterInputStream(java.io.ByteArrayInputStream(bytes)).readBytes()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Manual decompression failed: ${e.message}")
+            }
+        }
+
+        val contentTypeHeader = response.header("Content-Type") ?: ""
+        val isJson = contentTypeHeader.contains("json", ignoreCase = true)
         
-        if (headerCharset != null) {
-            return String(bytes, headerCharset)
+        var charset: java.nio.charset.Charset? = null
+        
+        // Try to get from OkHttp's own parsing first
+        body.contentType()?.charset()?.let {
+            charset = it
+        }
+
+        if (charset == null) {
+            val parts = contentTypeHeader.split(";")
+            for (part in parts) {
+                val trimmed = part.trim()
+                if (trimmed.startsWith("charset", ignoreCase = true) && trimmed.contains("=")) {
+                    val charsetName = trimmed.substringAfter("=").trim().removeSurrounding("\"").removeSurrounding("'")
+                    try {
+                        charset = java.nio.charset.Charset.forName(charsetName)
+                    } catch (e: Exception) {}
+                }
+            }
+        }
+
+        if (charset == null) {
+            if (isJson) {
+                charset = Charsets.UTF_8
+            } else {
+                val detected = org.skepsun.kototoro.core.util.EncodingDetect.getHtmlEncode(decodedBytes)
+                charset = try {
+                    java.nio.charset.Charset.forName(detected)
+                } catch (e: Exception) {
+                    Charsets.UTF_8
+                }
+            }
         }
         
-        // Use EncodingDetect (ICU4J) for HTML charset detection
-        val charsetName = org.skepsun.kototoro.core.util.EncodingDetect.getHtmlEncode(bytes)
-        
-        return try {
-            String(bytes, java.nio.charset.Charset.forName(charsetName))
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode with $charsetName, falling back to UTF-8", e)
-            String(bytes, kotlin.text.Charsets.UTF_8)
-        }
+        Log.d(TAG, "Decoded response using charset: ${charset?.name()} (Header: $contentTypeHeader)")
+        return String(decodedBytes, charset!!)
     }
+
+    private fun String.equalsIgnoreCase(other: String): Boolean = this.equals(other, ignoreCase = true)
 
     private fun parseConfigHeaders(headerStr: String?): Map<String, String> {
         if (headerStr.isNullOrBlank()) return emptyMap()

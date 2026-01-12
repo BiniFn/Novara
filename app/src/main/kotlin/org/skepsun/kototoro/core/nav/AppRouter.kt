@@ -57,6 +57,7 @@ import org.skepsun.kototoro.core.util.ext.getThemeDrawable
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.details.ui.DetailsActivity
@@ -136,6 +137,10 @@ class AppRouter private constructor(
         EntryPointAccessors.fromApplication<AppRouterEntryPoint>(checkNotNull(contextOrNull())).mangaRepositoryFactory
     }
 
+    private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager by lazy {
+        EntryPointAccessors.fromApplication<AppRouterEntryPoint>(checkNotNull(contextOrNull())).jsonSourceManager
+    }
+
     /** Activities **/
 
     fun openList(source: MangaSource, filter: MangaListFilter?, sortOrder: SortOrder?) {
@@ -171,7 +176,7 @@ class AppRouter private constructor(
 
 	fun openReader(manga: Manga, anchor: View? = null) {
 		val source = manga.source.unwrap()
-        val contentType = source.getContentType()
+        val contentType = getContentType(source)
         if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
             startActivity(
                 Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
@@ -270,7 +275,7 @@ class AppRouter private constructor(
                 val source = manga.source.unwrap()
                 val history = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                 
-                val contentType = source.getContentType()
+                val contentType = getContentType(source)
                 
                 if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
                     val state = if (history != null) {
@@ -820,6 +825,31 @@ class AppRouter private constructor(
         } else {
             false
         }
+    }
+
+    private fun getContentType(source: MangaSource): ContentType {
+        if (source is JsonMangaSource) return source.getContentType()
+        
+        // Handle anonymous JSON sources
+        if (source.name.startsWith("JSON_")) {
+            // Check for manga-specific prefix first
+            if (source.name.startsWith("JSON_LEGADO_M_")) return ContentType.MANGA
+            
+            // For general JSON_LEGADO_ prefix, try to resolve from DB
+            if (source.name.startsWith("JSON_LEGADO_")) {
+                val entity = kotlinx.coroutines.runBlocking { jsonSourceManager.getById(source.name) }
+                if (entity != null) {
+                    return try {
+                        val jsonObj = org.json.JSONObject(entity.config)
+                        if (jsonObj.optInt("bookSourceType", 0) == 2) ContentType.MANGA else ContentType.NOVEL
+                    } catch (e: Exception) {
+                        ContentType.NOVEL
+                    }
+                }
+            }
+        }
+        
+        return source.getContentType()
     }
 
     /** Private utils **/

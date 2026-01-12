@@ -83,6 +83,7 @@ class LegadoSandbox(
         Log.d(TAG, "setResult: type=${result?.javaClass?.simpleName}, isList=${result is List<*>}, size=${(result as? List<*>)?.size}")
         context.result = result
         context.setVariable("result", result)
+        context.setVariable("src", result)
     }
     
     fun setBook(book: BookContext) {
@@ -121,6 +122,7 @@ class LegadoSandbox(
                 context.setVariable(k, v)
             }
             context.setVariable("cache", CacheBinding())
+            Log.d(TAG, "eval: context.result=${context.result?.javaClass?.simpleName}, preview=${context.result?.toString()?.take(50)}")
             jsEngine.evaluate(script, context)
         } catch (e: Exception) {
             Log.e(TAG, "JavaScript evaluation failed: ${e.message}", e)

@@ -16,10 +16,12 @@ import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.util.splitTwoParts
+import org.json.JSONObject
 import java.util.Locale
 
 data object LocalMangaSource : MangaSource {
@@ -157,6 +159,18 @@ fun MangaSource.getContentType(): ContentType = when (val source = unwrap()) {
 	is KotatsuParserSource -> source.contentType
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> if (source.isNsfw) ContentType.HENTAI_VIDEO else ContentType.VIDEO
+	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
+		when (source.entity.type) {
+			JsonSourceType.TVBOX -> ContentType.VIDEO
+			JsonSourceType.JS -> ContentType.MANGA
+			JsonSourceType.LEGADO -> try {
+				val jsonObj = JSONObject(source.entity.config)
+				if (jsonObj.optInt("bookSourceType", 0) == 2) ContentType.MANGA else ContentType.NOVEL
+			} catch (e: Exception) {
+				ContentType.NOVEL
+			}
+		}
+	}
 	else -> {
 		// Fallback for serialized sources that lost their type info (e.g., through Parcelable)
 		// Detect by name prefix
@@ -164,19 +178,25 @@ fun MangaSource.getContentType(): ContentType = when (val source = unwrap()) {
 		when {
 			sourceName.startsWith("ANIYOMI_") -> ContentType.VIDEO  // Aniyomi sources are always video
 			sourceName.startsWith("JSON_TVBOX_") -> ContentType.VIDEO
-			sourceName.startsWith("JSON_LEGADO_") -> ContentType.NOVEL
+			sourceName.startsWith("JSON_LEGADO_M_") -> ContentType.MANGA
+			sourceName.startsWith("JSON_LEGADO_") -> {
+				// We can't know for sure here without the entity, but let's default to novel
+				// as Legado is primarily a novel engine.
+				ContentType.NOVEL
+			}
+			sourceName.startsWith("JSON_JS_") -> ContentType.MANGA
 			else -> ContentType.MANGA
 		}
 	}
 }
 
-fun MangaSource.getSummary(context: Context): String? = when (val source = unwrap()) {
+fun MangaSource.getSummary(context: Context, contentType: ContentType? = null): String? = when (val source = unwrap()) {
 	is MangaParserSource,
 	is KotatsuParserSource,
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource,
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> {
-		val contentType = getContentType()
-		val type = context.getString(contentType.titleResId)
+		val resolvedContentType = contentType ?: getContentType()
+		val type = context.getString(resolvedContentType.titleResId)
 		val lang = when (source) {
 			is MangaParserSource -> source.locale.toLocale()
 			is KotatsuParserSource -> source.locale.toLocale()
@@ -193,14 +213,20 @@ fun MangaSource.getSummary(context: Context): String? = when (val source = unwra
 	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
 		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 		val sourceType = sourceTypeIdentifier.getSourceType(source.name)
+		val resolvedContentType = contentType ?: getContentType()
+		val type = context.getString(resolvedContentType.titleResId)
 		when (sourceType) {
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado JSON Source"
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox JSON Source"
-			else -> "JSON Source"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "$type (Legado)"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "视频 (TVBox)"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "$type (JS)"
+			else -> "$type (JSON)"
 		}
 	}
 
-	else -> null
+	else -> {
+		val resolvedContentType = contentType ?: getContentType()
+		context.getString(resolvedContentType.titleResId)
+	}
 }
 
 fun MangaSource.getTitle(context: Context): String = when (val source = unwrap()) {

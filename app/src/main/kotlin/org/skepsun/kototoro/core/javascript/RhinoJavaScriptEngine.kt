@@ -43,6 +43,9 @@ class RhinoJavaScriptEngine(
                 // 设置优化级别为 -1（解释模式，Android 兼容）
                 ctx.optimizationLevel = -1
                 
+                // 设置语言版本为 ES6 (200)
+                ctx.languageVersion = 200
+                
                 // 初始化标准对象
                 scope = ctx.initStandardObjects()
                 
@@ -57,6 +60,9 @@ class RhinoJavaScriptEngine(
                 // 保存 API 引用以便后续设置上下文
                 this.javaAPI = javaAPI
                 this.cookieAPI = cookieAPI
+                
+                // 注册全局辅助函数
+                ctx.evaluateString(scope, "function bhost() { return java.bhost(); }", "init", 1, null)
                 
                 Log.i(TAG, "Rhino engine initialized successfully with Legado APIs")
             }
@@ -78,23 +84,40 @@ class RhinoJavaScriptEngine(
         
         return try {
             // 确保在正确的Rhino上下文中执行
-            RhinoContext.enter()
+            val currentCtx = RhinoContext.enter()
             try {
+                // Configure the current thread's context
+                currentCtx.optimizationLevel = -1
+                currentCtx.languageVersion = 200
+                
                 // 设置上下文变量
                 setContextVariables(currentScope, context)
                 
                 // 设置 JavaScript 上下文到 API 中
                 javaAPI?.jsContext = context
                 
-                // 设置 HTML 内容到 LegadoJavaAPI（如果 result 变量是 HTML 字符串）
-                val resultVar = context.getVariable("result")
-                if (resultVar is String && resultVar.isNotEmpty()) {
-                    javaAPI?.setContent(resultVar)
-                    Log.d(TAG, "Set HTML content to LegadoJavaAPI: ${resultVar.take(100)}...")
+                // 重要：每次执行前重新注册 java 对象
+                // Rhino 的标准对象中包含 "java" 作为 JavaPackage，会覆盖我们的绑定
+                // 所以需要在每次执行前显式设置
+                javaAPI?.let { api ->
+                    val wrappedApi = RhinoContext.javaToJS(api, currentScope)
+                    ScriptableObject.putProperty(currentScope, "java", wrappedApi)
+                    Log.d(TAG, "Re-registered 'java' API object before script execution")
+                }
+                
+                // 设置 HTML 内容到 LegadoJavaAPI
+                // 优先使用 context.result，然后尝试 getVariable("result")
+                val contentToSet = context.result ?: context.getVariable("result")
+                Log.d(TAG, "Content for LegadoJavaAPI: context.result=${context.result?.javaClass?.simpleName}, getVariable=${context.getVariable("result")?.javaClass?.simpleName}")
+                if (contentToSet != null) {
+                    javaAPI?.setContent(contentToSet)
+                    Log.d(TAG, "Set HTML content to LegadoJavaAPI: type=${contentToSet.javaClass.simpleName}, preview=${contentToSet.toString().take(100)}...")
+                } else {
+                    Log.w(TAG, "No content to set for LegadoJavaAPI - java.getElements() will fail!")
                 }
                 
                 // 执行脚本
-                val evalResult = ctx.evaluateString(currentScope, wrapScript(script), "script", 1, null)
+                val evalResult = currentCtx.evaluateString(currentScope, wrapScript(script), "script", 1, null)
                 
                 // 返回脚本的评估结果
                 // 如果评估结果是 undefined，则检查其他可能的返回值
@@ -220,22 +243,31 @@ class RhinoJavaScriptEngine(
         
         // 设置所有变量到 JavaScript 作用域
         allVariables.forEach { (name, value) ->
+            // 特殊处理 result 变量：如果是单元素 List，转换为 String
+            // 这是因为 JS 链式规则通常期望 result 是一个字符串
+            val effectiveValue = if (name == "result" && value is List<*> && value.size == 1) {
+                Log.d(TAG, "Converting single-item List to String for 'result': ${value[0]}")
+                value[0]?.toString() ?: ""
+            } else {
+                value
+            }
+            
             // Special handling for arrays/lists to ensure they work as JS arrays
             // This is critical for rules like chapterList where JS expects result.length to work
-            val jsValue = when (value) {
+            val jsValue = when (effectiveValue) {
                 is List<*> -> {
-                    Log.d(TAG, "Converting List to NativeArray for '$name', size=${value.size}")
-                    val array = ctx.newArray(currentScope, value.size)
-                    value.forEachIndexed { index, item ->
+                    Log.d(TAG, "Converting List to NativeArray for '$name', size=${effectiveValue.size}")
+                    val array = ctx.newArray(currentScope, effectiveValue.size)
+                    effectiveValue.forEachIndexed { index, item ->
                         val jsItem = RhinoContext.javaToJS(item, currentScope)
                         ScriptableObject.putProperty(array, index, jsItem)
                     }
                     array
                 }
                 is Array<*> -> {
-                    Log.d(TAG, "Converting Array to NativeArray for '$name', size=${value.size}")
-                    val array = ctx.newArray(currentScope, value.size)
-                    value.forEachIndexed { index, item ->
+                    Log.d(TAG, "Converting Array to NativeArray for '$name', size=${effectiveValue.size}")
+                    val array = ctx.newArray(currentScope, effectiveValue.size)
+                    effectiveValue.forEachIndexed { index, item ->
                         val jsItem = RhinoContext.javaToJS(item, currentScope)
                         ScriptableObject.putProperty(array, index, jsItem)
                     }
@@ -244,10 +276,10 @@ class RhinoJavaScriptEngine(
                 is String -> {
                     // 确保 Java String 在 Rhino 中可以访问 String.prototype 方法（如 match）
                     // 使用 ctx.newObject("String", ...) 来创建一个真实的 JS String 对象
-                    val jsString = ctx.newObject(currentScope, "String", arrayOf(value))
+                    val jsString = ctx.newObject(currentScope, "String", arrayOf(effectiveValue))
                     jsString
                 }
-                else -> RhinoContext.javaToJS(value, currentScope)
+                else -> RhinoContext.javaToJS(effectiveValue, currentScope)
             }
             ScriptableObject.putProperty(currentScope, name, jsValue)
         }
@@ -268,20 +300,21 @@ class RhinoJavaScriptEngine(
         private val source: org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource,
         private val javaAPI: LegadoJavaAPI?
     ) {
+        // 属性访问器 - Rhino 会自动调用这些 getter 方法
+        val bookSourceComment: String? get() = source.bookSourceComment
+        val bookSourceName: String get() = source.bookSourceName
+        val bookSourceUrl: String get() = source.bookSourceUrl
+        val bookSourceType: Int get() = source.bookSourceType
+        val bookSourceGroup: String? get() = source.bookSourceGroup
+        val header: String? get() = source.header
+        val loginUrl: String? get() = source.loginUrl
+        val loginUi: String? get() = source.loginUi
+        val loginCheckJs: String? get() = source.loginCheckJs
+        val enabled: Boolean get() = source.enabled
+        val weight: Int get() = source.weight
+        
         fun getKey(): String {
             return source.bookSourceUrl
-        }
-        
-        fun getBookSourceName(): String {
-            return source.bookSourceName
-        }
-        
-        fun getBookSourceUrl(): String {
-            return source.bookSourceUrl
-        }
-        
-        fun getBookSourceType(): Int {
-            return source.bookSourceType
         }
     }
     

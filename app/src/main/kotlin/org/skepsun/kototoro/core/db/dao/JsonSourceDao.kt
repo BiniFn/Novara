@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
@@ -87,6 +88,12 @@ interface JsonSourceDao {
 	 */
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun insertAll(sources: List<JsonSourceEntity>)
+
+	/**
+	 * Update a source entity
+	 */
+	@Update
+	suspend fun update(source: JsonSourceEntity)
 
 	/**
 	 * Update enabled status

@@ -11,7 +11,9 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.launch
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
@@ -53,8 +55,9 @@ class JsonSourcesFragment :
 	private val selectedIds = mutableSetOf<String>()
 	
 	// Current sort and filter state
-	private var currentSort = SortOption.NAME
-	private var currentFilter = FilterOption.ALL
+	private var currentSort: SortOption = SortOption.NAME
+	private var currentFilter: FilterOption = FilterOption.ALL
+	private var currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_ORIGIN
 	
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -96,17 +99,34 @@ class JsonSourcesFragment :
 				is TestResult.Testing -> {
 					showSnackbar("Testing source...")
 				}
-				is TestResult.Success -> {
-					showSnackbar(result.message)
-					viewModel.clearTestResult()
-				}
-				is TestResult.Error -> {
-					showSnackbar("Test failed: ${result.message}")
-					viewModel.clearTestResult()
-				}
+				is TestResult.Success -> showSnackbar(getString(R.string.test_success))
+				is TestResult.Error -> showSnackbar(getString(R.string.test_failed, result.message))
 				null -> {
 					// No result to show
 				}
+			}
+		}
+		
+		// Observe validation progress
+		var progressSnackbar: Snackbar? = null
+		viewModel.validationProgress.observe(viewLifecycleOwner) { progress ->
+			if (progress != null) {
+				val (current, total) = progress
+				val message = "正在校验源 ($current/$total)"
+				if (progressSnackbar == null) {
+					viewBinding?.root?.let { view ->
+						progressSnackbar = Snackbar.make(view, message, Snackbar.LENGTH_INDEFINITE)
+						progressSnackbar?.setAction("取消") {
+							viewModel.stopValidation()
+						}
+						progressSnackbar?.show()
+					}
+				} else {
+					progressSnackbar?.setText(message)
+				}
+			} else {
+				progressSnackbar?.dismiss()
+				progressSnackbar = null
 			}
 		}
 		
@@ -123,6 +143,11 @@ class JsonSourcesFragment :
 			}
 		}
 		
+		// Observe available groups to refresh menu if needed
+		viewModel.availableGroups.observe(viewLifecycleOwner) {
+			activity?.invalidateMenu()
+		}
+		
 		addMenuProvider(JsonSourcesMenuProvider())
 	}
 	
@@ -135,8 +160,9 @@ class JsonSourcesFragment :
 	}
 	
 	private fun updateCountView() {
-		val totalCount = viewModel.getJsonSourceIds().size
-		viewBinding?.selectActionBar?.updateCount(selectedIds.size, totalCount)
+		val totalCount = viewModel.getVisibleJsonSourceIds().size
+		val selectedCount = selectedIds.size
+		viewBinding?.selectActionBar?.updateCount(selectedCount, totalCount)
 	}
 	
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -154,7 +180,7 @@ class JsonSourcesFragment :
 	
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.json_sources)
+		activity?.setTitle("")
 	}
 	
 	override fun onDestroyView() {
@@ -189,12 +215,19 @@ class JsonSourcesFragment :
 		adapter?.selectedIds = selectedIds
 		updateCountView()
 	}
+
+	override fun onEditSource(sourceId: String) {
+		val intent = android.content.Intent(requireContext(), org.skepsun.kototoro.settings.sources.jsonsource.edit.JsonSourceEditActivity::class.java).apply {
+			putExtra(org.skepsun.kototoro.settings.sources.jsonsource.edit.JsonSourceEditActivity.EXTRA_SOURCE_ID, sourceId)
+		}
+		startActivity(intent)
+	}
 	
 	// ---- SelectActionBar.Callback ----
 	
 	override fun selectAll(selectAll: Boolean) {
 		if (selectAll) {
-			val allIds = viewModel.getJsonSourceIds()
+			val allIds = viewModel.getVisibleJsonSourceIds()
 			selectedIds.clear()
 			selectedIds.addAll(allIds)
 		} else {
@@ -206,10 +239,14 @@ class JsonSourcesFragment :
 	}
 	
 	override fun revertSelection() {
-		val allIds = viewModel.getJsonSourceIds().toSet()
-		val newSelection = allIds - selectedIds
-		selectedIds.clear()
-		selectedIds.addAll(newSelection)
+		val visibleIds = viewModel.getVisibleJsonSourceIds().toSet()
+		val currentVisibleSelection = visibleIds.intersect(selectedIds)
+		val newVisibleSelection = visibleIds - currentVisibleSelection
+		
+		// Remove all visible ones first, then add the new ones
+		selectedIds.removeAll(visibleIds)
+		selectedIds.addAll(newVisibleSelection)
+		
 		adapter?.selectedIds = selectedIds
 		adapter?.notifyDataSetChanged()
 		updateCountView()
@@ -258,6 +295,22 @@ class JsonSourcesFragment :
 				}
 				true
 			}
+			R.id.menu_export_selection -> {
+				if (selectedIds.isEmpty()) {
+					showSnackbar(getString(R.string.batch_no_selection))
+				} else {
+					exportSources()
+				}
+				true
+			}
+			R.id.menu_share_selection -> {
+				if (selectedIds.isEmpty()) {
+					showSnackbar(getString(R.string.batch_no_selection))
+				} else {
+					shareSources()
+				}
+				true
+			}
 			else -> false
 		}
 	}
@@ -272,10 +325,63 @@ class JsonSourcesFragment :
 		ImportJsonDialogFragment().show(childFragmentManager, "import_json")
 	}
 	
+	private fun exportSources() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			val (json, count) = viewModel.exportSources(selectedIds.toList())
+			if (count > 0) {
+				// Save to file
+				val fileName = "json_sources_${System.currentTimeMillis()}.json"
+				val file = java.io.File(requireContext().cacheDir, fileName)
+				file.writeText(json)
+				
+				// Open share intent to save file
+				val uri = androidx.core.content.FileProvider.getUriForFile(
+					requireContext(),
+					"${requireContext().packageName}.fileprovider",
+					file
+				)
+				val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+					type = "application/json"
+					putExtra(android.content.Intent.EXTRA_STREAM, uri)
+					addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				}
+				startActivity(android.content.Intent.createChooser(intent, getString(R.string.export_sources)))
+				showSnackbar(getString(R.string.export_success_count, count))
+			}
+		}
+	}
+	
+	private fun shareSources() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			val (json, count) = viewModel.exportSources(selectedIds.toList())
+			if (count > 0) {
+				// Share as text
+				val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+					type = "text/plain"
+					putExtra(android.content.Intent.EXTRA_TEXT, json)
+				}
+				startActivity(android.content.Intent.createChooser(intent, getString(R.string.share_sources)))
+			}
+		}
+	}
+	
 	private inner class JsonSourcesMenuProvider : MenuProvider {
 		
 		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
 			menuInflater.inflate(R.menu.menu_json_sources, menu)
+			
+			// Setup Search
+			val searchItem = menu.findItem(R.id.action_search)
+			val searchView = searchItem.actionView as androidx.appcompat.widget.SearchView
+			searchView.queryHint = getString(R.string.search_json_source)
+			searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
+				override fun onQueryTextSubmit(query: String?): Boolean = false
+				
+				override fun onQueryTextChange(newText: String?): Boolean {
+					viewModel.setSearchQuery(newText ?: "")
+					return true
+				}
+			})
 		}
 		
 		override fun onPrepareMenu(menu: Menu) {
@@ -286,52 +392,132 @@ class JsonSourcesFragment :
 			
 			// Update filter checkmarks
 			val filterSubMenu = menu.findItem(R.id.action_filter)?.subMenu
-			filterSubMenu?.findItem(R.id.menu_filter_all)?.isChecked = currentFilter == FilterOption.ALL
-			filterSubMenu?.findItem(R.id.menu_filter_enabled)?.isChecked = currentFilter == FilterOption.ENABLED
-			filterSubMenu?.findItem(R.id.menu_filter_disabled)?.isChecked = currentFilter == FilterOption.DISABLED
-			filterSubMenu?.findItem(R.id.menu_filter_invalid)?.isChecked = currentFilter == FilterOption.INVALID
+			val statusSubMenu = filterSubMenu?.findItem(R.id.menu_filter_status)?.subMenu
+			
+			statusSubMenu?.findItem(R.id.menu_filter_all)?.isChecked = currentFilter is FilterOption.ALL
+			statusSubMenu?.findItem(R.id.menu_filter_enabled)?.isChecked = currentFilter is FilterOption.ENABLED
+			statusSubMenu?.findItem(R.id.menu_filter_disabled)?.isChecked = currentFilter is FilterOption.DISABLED
+			statusSubMenu?.findItem(R.id.menu_filter_need_login)?.isChecked = currentFilter is FilterOption.NEED_LOGIN
+			statusSubMenu?.findItem(R.id.menu_filter_no_group)?.isChecked = currentFilter is FilterOption.NO_GROUP
+			statusSubMenu?.findItem(R.id.menu_filter_explore_enabled)?.isChecked = currentFilter is FilterOption.EXPLORE_ENABLED
+			statusSubMenu?.findItem(R.id.menu_filter_explore_disabled)?.isChecked = currentFilter is FilterOption.EXPLORE_DISABLED
+			statusSubMenu?.findItem(R.id.menu_filter_invalid)?.isChecked = currentFilter is FilterOption.INVALID
+			
+			// Dynamic source groups
+			val groupsSubMenu = filterSubMenu?.findItem(R.id.menu_source_groups)?.subMenu
+			groupsSubMenu?.clear()
+			val availableGroups = viewModel.availableGroups.value
+			availableGroups.forEach { groupName ->
+				val item = groupsSubMenu?.add(Menu.NONE, Menu.NONE, Menu.NONE, groupName)
+				item?.isCheckable = true
+				item?.isChecked = currentFilter is FilterOption.GROUP && (currentFilter as FilterOption.GROUP).name == groupName
+			}
+			
+			// Update grouping checkmarks
+			val groupBySubMenu = filterSubMenu?.findItem(R.id.action_group_by)?.subMenu
+			groupBySubMenu?.findItem(R.id.menu_group_by_origin)?.isChecked = 
+				currentGrouping == org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_ORIGIN
+			groupBySubMenu?.findItem(R.id.menu_group_by_type)?.isChecked = 
+				currentGrouping == org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_CONTENT
 		}
 		
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-			return when (menuItem.itemId) {
+			val itemId = menuItem.itemId
+			
+			// Check if it's a dynamic group item
+			val availableGroups = viewModel.availableGroups.value
+			val groupName = menuItem.title?.toString()
+			if (groupName != null && availableGroups.contains(groupName)) {
+				currentFilter = FilterOption.GROUP(groupName)
+				viewModel.setFilterOption(currentFilter)
+				activity?.invalidateMenu()
+				return true
+			}
+			
+			return when (itemId) {
+				R.id.action_add_source -> {
+					val intent = android.content.Intent(requireContext(), org.skepsun.kototoro.settings.sources.jsonsource.edit.JsonSourceEditActivity::class.java)
+					startActivity(intent)
+					true
+				}
 				R.id.action_import -> {
 					showImportDialog()
+					true
+				}
+				R.id.menu_manage_groups -> {
+					showSnackbar("分组管理功能开发中")
 					true
 				}
 				R.id.menu_sort_name -> {
 					currentSort = SortOption.NAME
 					viewModel.setSortOption(currentSort)
-					activity?.invalidateOptionsMenu()
+					activity?.invalidateMenu()
 					true
 				}
 				R.id.menu_sort_enabled -> {
 					currentSort = SortOption.ENABLED
 					viewModel.setSortOption(currentSort)
-					activity?.invalidateOptionsMenu()
+					activity?.invalidateMenu()
 					true
 				}
 				R.id.menu_filter_all -> {
 					currentFilter = FilterOption.ALL
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateOptionsMenu()
+					activity?.invalidateMenu()
 					true
 				}
 				R.id.menu_filter_enabled -> {
 					currentFilter = FilterOption.ENABLED
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateOptionsMenu()
+					activity?.invalidateMenu()
 					true
 				}
 				R.id.menu_filter_disabled -> {
 					currentFilter = FilterOption.DISABLED
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateOptionsMenu()
+					activity?.invalidateMenu()
+					true
+				}
+				R.id.menu_filter_need_login -> {
+					currentFilter = FilterOption.NEED_LOGIN
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateMenu()
+					true
+				}
+				R.id.menu_filter_no_group -> {
+					currentFilter = FilterOption.NO_GROUP
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateMenu()
+					true
+				}
+				R.id.menu_filter_explore_enabled -> {
+					currentFilter = FilterOption.EXPLORE_ENABLED
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateMenu()
+					true
+				}
+				R.id.menu_filter_explore_disabled -> {
+					currentFilter = FilterOption.EXPLORE_DISABLED
+					viewModel.setFilterOption(currentFilter)
+					activity?.invalidateMenu()
 					true
 				}
 				R.id.menu_filter_invalid -> {
 					currentFilter = FilterOption.INVALID
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateOptionsMenu()
+					activity?.invalidateMenu()
+					true
+				}
+				R.id.menu_group_by_origin -> {
+					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_ORIGIN
+					viewModel.setGroupingStrategy(currentGrouping)
+					activity?.invalidateMenu()
+					true
+				}
+				R.id.menu_group_by_type -> {
+					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_CONTENT
+					viewModel.setGroupingStrategy(currentGrouping)
+					activity?.invalidateMenu()
 					true
 				}
 				else -> false
@@ -340,10 +526,3 @@ class JsonSourcesFragment :
 	}
 }
 
-enum class SortOption {
-	NAME, ENABLED
-}
-
-enum class FilterOption {
-	ALL, ENABLED, DISABLED, INVALID
-}

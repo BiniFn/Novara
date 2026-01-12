@@ -119,6 +119,22 @@
     <string name="import_json">导入 JSON</string>
     <string name="test">测试</string>
     <string name="source_deleted">源已删除</string>
+    <string name="export_sources">导出源</string>
+    <string name="share_sources">分享源</string>
+    <string name="add_source">添加源</string>
+    <string name="add_source_menu">新建源</string>
+    <string name="edit_source">编辑源</string>
+    <string name="export_success_count">成功导出 %d 个源</string>
+    <string name="basic_info">基本信息</string>
+    <string name="source_name">源名称</string>
+    <string name="source_url">源地址</string>
+    <string name="source_group">分组</string>
+    <string name="rules">规则配置</string>
+    <string name="search_url">搜索地址</string>
+    <string name="explore_url">浏览地址</string>
+    <string name="saved">已保存</string>
+    <string name="test_success">测试成功</string>
+    <string name="test_failed">测试失败: %s</string>
     
     <!-- JSON 源错误 -->
     <string name="error_invalid_json_format">JSON 格式错误，位置 %1$d：%2$s</string>
@@ -171,4 +187,20 @@
     <string name="filter_extensions_by_language_summary">仅显示符合应用所选内容语言的 Mihon 和 Aniyomi 插件</string>
     <string name="setup_wizard">设置向导</string>
     <string name="setup_wizard_summary">选择内容语言和类型。这将重新初始化已启用源列表。</string>
+    <string name="invert_selection">反选</string>
+    <string name="select_count_format">共 %d 项</string>
+    <string name="enable_selected">启用所选</string>
+    <string name="disable_selected">禁用所选</string>
+    <string name="validate_selected">验证所选</string>
+    <string name="search_sources">搜索源</string>
+    <string name="sort_by_name">按名称排序</string>
+    <string name="sort_by_enabled">按启用状态排序</string>
+    <string name="filter_enabled">已启用</string>
+    <string name="filter_disabled">已禁用</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_invalid">失效</string>
+    <string name="sort_by">排序方式</string>
+    <string name="group_by">分组方式</string>
+    <string name="group_by_origin">按来源分组</string>
+    <string name="group_by_type">按类型分组</string>
 </resources>

@@ -58,6 +58,7 @@ class JsonSourceManager @Inject constructor(
 	companion object {
 		private const val JSON_PREFIX = "JSON_"
 		private const val LEGADO_PREFIX = "JSON_LEGADO_"
+		private const val LEGADO_MANGA_PREFIX = "JSON_LEGADO_M_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
 		private const val JS_PREFIX = "JSON_JS_"
 		
@@ -243,6 +244,38 @@ class JsonSourceManager @Inject constructor(
 	}
 	
 	/**
+	 * Inserts a new JSON source into the database.
+	 * 
+	 * @param entity The new source entity
+	 */
+	suspend fun insertSource(entity: JsonSourceEntity) {
+		try {
+			jsonSourceDao.insert(entity)
+			invalidateCache(entity.id)
+			JsonSourceLogger.logInfo("Inserted source: ${entity.name}")
+		} catch (e: Exception) {
+			JsonSourceLogger.logDatabaseError("insert source", e)
+			throw JsonSourceError.DatabaseError("insert source", e)
+		}
+	}
+
+	/**
+	 * Updates a JSON source in the database.
+	 * 
+	 * @param entity The updated source entity
+	 */
+	suspend fun updateSource(entity: JsonSourceEntity) {
+		try {
+			jsonSourceDao.update(entity)
+			invalidateCache(entity.id)
+			JsonSourceLogger.logInfo("Updated source: ${entity.name}")
+		} catch (e: Exception) {
+			JsonSourceLogger.logDatabaseError("update source", e)
+			throw JsonSourceError.DatabaseError("update source", e)
+		}
+	}
+	
+	/**
 	 * Validate a source by performing a multi-stage check:
 	 * Search -> Details -> Chapter List -> Content
 	 * This aligns with Legado's source verification logic.
@@ -257,29 +290,61 @@ class JsonSourceManager @Inject constructor(
 		}.getOrNull() ?: return false
 		
 		val searchUrl = config.searchUrl
-		if (searchUrl.isNullOrBlank()) return false
+		val exploreUrl = config.exploreUrl
+		if (searchUrl.isNullOrBlank() && exploreUrl.isNullOrBlank()) return false
 		
 		val engine = enginePool.acquire()
 		return try {
 			val sandbox = LegadoSandbox(engine, client, config)
 			val mangaSource = JsonMangaSource(entity)
+			var results: List<org.skepsun.kototoro.parsers.model.Manga> = emptyList()
 			
-			// 1. Search
-			val page = 1
-			val encodedKey = java.net.URLEncoder.encode(searchKey, "UTF-8")
-			val finalSearchUrl = searchUrl
-				.replace("{{key}}", encodedKey)
-				.replace("{key}", encodedKey)
-				.replace("{{page}}", page.toString())
-				.replace("{page}", page.toString())
+			// 1. Try Search if available
+			if (!searchUrl.isNullOrBlank()) {
+				val page = 1
+				val encodedKey = java.net.URLEncoder.encode(searchKey, "UTF-8")
+				val finalSearchUrl = searchUrl
+					.replace("{{key}}", encodedKey)
+					.replace("{key}", encodedKey)
+					.replace("{{page}}", page.toString())
+					.replace("{page}", page.toString())
+				
+				val searchResponse = client.get(finalSearchUrl, parseCustomHeaders(config.header), source = null)
+				val searchBody = searchResponse.body?.string().orEmpty()
+				searchResponse.close()
+				
+				results = BookList.parse(searchBody, finalSearchUrl, mangaSource, config, true, sandbox)
+			}
 			
-			val searchResponse = client.get(finalSearchUrl, parseCustomHeaders(config.header), source = null)
-			val searchBody = searchResponse.body?.string().orEmpty()
-			searchResponse.close()
+			// 2. Try Explore fallback if search failed or not available
+			if (results.isEmpty() && !exploreUrl.isNullOrBlank()) {
+				try {
+					val firstExploreUrl = if (exploreUrl.trim().startsWith("[")) {
+						org.json.JSONArray(exploreUrl).optJSONObject(0)?.optString("url")
+					} else {
+						exploreUrl.split("&&").first().split("\n").first().trim()
+					}
+					
+					if (!firstExploreUrl.isNullOrBlank()) {
+						val fullExploreUrl = if (firstExploreUrl.startsWith("http")) {
+							firstExploreUrl
+						} else {
+							val baseUrl = config.bookSourceUrl.removeSuffix("/")
+							if (firstExploreUrl.startsWith("/")) "$baseUrl$firstExploreUrl" else "$baseUrl/$firstExploreUrl"
+						}
+						
+						val exploreResponse = client.get(fullExploreUrl, parseCustomHeaders(config.header), source = null)
+						val exploreBody = exploreResponse.body?.string().orEmpty()
+						exploreResponse.close()
+						
+						results = BookList.parse(exploreBody, fullExploreUrl, mangaSource, config, false, sandbox)
+					}
+				} catch (e: Exception) {
+					JsonSourceLogger.logWarning("Explore fallback failed during validation: ${e.message}")
+				}
+			}
 			
-			val results = BookList.parse(searchBody, finalSearchUrl, mangaSource, config, true, sandbox)
 			if (results.isEmpty()) return false
-			
 			val firstManga = results.first()
 			
 			// 2. Details
@@ -489,7 +554,7 @@ class JsonSourceManager @Inject constructor(
 			}
 			
 			// Generate unique identifier using URL (following Legado's approach)
-			val sourceId = generateSourceId(source.bookSourceUrl, JsonSourceType.LEGADO)
+			val sourceId = generateSourceId(source.bookSourceUrl, JsonSourceType.LEGADO, source.bookSourceType)
 			JsonSourceLogger.logIdGeneration(source.bookSourceName, sourceId)
 			
 			// Serialize the source back to JSON for storage
@@ -638,10 +703,10 @@ class JsonSourceManager @Inject constructor(
 	 * @param sourceType The type of JSON source (LEGADO or TVBOX)
 	 * @return A unique identifier string
 	 */
-	suspend fun generateSourceId(sourceUrl: String, sourceType: JsonSourceType): String {
+	suspend fun generateSourceId(sourceUrl: String, sourceType: JsonSourceType, bookSourceType: Int = 0): String {
 		// Build the type prefix
 		val typePrefix = when (sourceType) {
-			JsonSourceType.LEGADO -> LEGADO_PREFIX
+			JsonSourceType.LEGADO -> if (bookSourceType == 2) LEGADO_MANGA_PREFIX else LEGADO_PREFIX
 			JsonSourceType.TVBOX -> TVBOX_PREFIX
 			JsonSourceType.JS -> JS_PREFIX
 		}
@@ -663,11 +728,11 @@ class JsonSourceManager @Inject constructor(
 	 * @deprecated Use generateSourceId(sourceUrl, sourceType) instead
 	 */
 	@Deprecated("Use generateSourceId with sourceUrl parameter")
-	suspend fun generateSourceIdFromName(sourceName: String, sourceType: JsonSourceType): String {
+	suspend fun generateSourceIdFromName(sourceName: String, sourceType: JsonSourceType, bookSourceType: Int = 0): String {
 		// For legacy calls, generate a UUID-based ID
 		val uuid = java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
 		val typePrefix = when (sourceType) {
-			JsonSourceType.LEGADO -> LEGADO_PREFIX
+			JsonSourceType.LEGADO -> if (bookSourceType == 2) LEGADO_MANGA_PREFIX else LEGADO_PREFIX
 			JsonSourceType.TVBOX -> TVBOX_PREFIX
 			JsonSourceType.JS -> JS_PREFIX
 		}

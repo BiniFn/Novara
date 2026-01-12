@@ -215,23 +215,29 @@ class AnalyzeUrl(
     private fun applyTemplateVars(input: String): String {
         if (input.isBlank()) return input
         
+        val encodedKey = key?.let { URLEncoder.encode(it, "UTF-8") } ?: ""
         var result = input
         
-        // Replace {{key}} and {key}
-        val encodedKey = key?.let { URLEncoder.encode(it, "UTF-8") } ?: ""
+        // Match {{...}} blocks
+        val doubleBraceRegex = Regex("\\{\\{([\\s\\S]*?)\\}\\}")
+        result = doubleBraceRegex.replace(result) { match ->
+            val content = match.groups[1]?.value?.trim() ?: ""
+            when (content) {
+                "key", "searchKey" -> encodedKey
+                "page" -> page.toString()
+                "baseUrl" -> baseUrl
+                else -> {
+                    // Evaluate as JS
+                    val evalResult = evalJS(content, result)
+                    evalResult?.toString() ?: match.value
+                }
+            }
+        }
+        
+        // Replace single {key} and {page} for backward compatibility
         result = result
-            .replace("{{key}}", encodedKey)
             .replace("{key}", encodedKey)
-            .replace("{{searchKey}}", encodedKey)
-            .replace("{searchKey}", encodedKey)
-        
-        // Replace {{page}} and {page}
-        result = result
-            .replace("{{page}}", page.toString())
             .replace("{page}", page.toString())
-        
-        // Replace {{baseUrl}}
-        result = result.replace("{{baseUrl}}", baseUrl)
         
         // Replace variables from RuleData
         ruleData?.getVariableMap()?.forEach { (k, v) ->
@@ -243,7 +249,6 @@ class AnalyzeUrl(
         return result
     }
     
-    
     /**
      * Resolve relative URL against base URL
      */
@@ -251,6 +256,17 @@ class AnalyzeUrl(
         if (relative.isBlank()) return base
         if (relative.startsWith("http://") || relative.startsWith("https://") || relative.startsWith("data:")) {
             return relative
+        }
+
+        if (relative.startsWith("//")) {
+            val protocol = if (base.startsWith("https")) "https" else "http"
+            return "$protocol:$relative"
+        }
+
+        val host = getHost(base)
+        if (host.isNotEmpty() && relative.startsWith(host)) {
+            val protocol = if (base.startsWith("https")) "https" else "http"
+            return "$protocol://$relative"
         }
         
         return try {
@@ -267,6 +283,16 @@ class AnalyzeUrl(
             } else {
                 relative
             }
+        }
+    }
+
+    private fun getHost(url: String?): String {
+        if (url.isNullOrBlank()) return ""
+        return try {
+            val host = java.net.URL(url).host
+            host ?: ""
+        } catch (e: Exception) {
+            ""
         }
     }
 }

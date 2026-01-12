@@ -1104,6 +1104,23 @@
     <string name="import_json">Import JSON</string>
     <string name="test">Test</string>
     <string name="source_deleted">Source deleted</string>
+    <string name="search_json_source">Search JSON sources</string>
+    <string name="export_sources">Export sources</string>
+    <string name="share_sources">Share sources</string>
+    <string name="add_source">Add source</string>
+    <string name="add_source_menu">New source</string>
+    <string name="edit_source">Edit source</string>
+    <string name="export_success_count">Successfully exported %d sources</string>
+    <string name="basic_info">Basic info</string>
+    <string name="source_name">Source name</string>
+    <string name="source_url">Source URL</string>
+    <string name="source_group">Group</string>
+    <string name="rules">Rules</string>
+    <string name="search_url">Search URL</string>
+    <string name="explore_url">Explore URL</string>
+    <string name="saved">Saved</string>
+    <string name="test_success">Test success</string>
+    <string name="test_failed">Test failed: %s</string>
     
     <!-- JSON Source Errors -->
     <string name="error_invalid_json_format">Invalid JSON format at position %1$d: %2$s</string>
@@ -1163,10 +1180,19 @@
     <string name="invert_selection">Invert selection</string>
     <string name="select_count_format">of %d</string>
     <string name="search_sources">Search sources</string>
+    <string name="sort_by">Sort by</string>
     <string name="sort_by_name">Sort by name</string>
     <string name="sort_by_enabled">Sort by enabled</string>
-    <string name="filter_enabled">Enabled only</string>
-    <string name="filter_disabled">Disabled only</string>
-    <string name="filter_all">All sources</string>
-    <string name="filter_invalid">Invalid only</string>
+    <string name="filter_enabled">Enabled</string>
+    <string name="filter_disabled">Disabled</string>
+    <string name="filter_all">All</string>
+    <string name="filter_invalid">Invalid</string>
+    <string name="group_by">Group by</string>
+    <string name="group_by_origin">Group by origin</string>
+    <string name="group_by_type">Group by type</string>
+    <string name="manage_groups">Group management</string>
+    <string name="filter_need_login">Need login</string>
+    <string name="filter_no_group">No group</string>
+    <string name="filter_explore_enabled">Explore enabled</string>
+    <string name="filter_explore_disabled">Explore disabled</string>
 </resources>

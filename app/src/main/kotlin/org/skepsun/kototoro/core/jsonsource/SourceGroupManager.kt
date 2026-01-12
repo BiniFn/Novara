@@ -6,6 +6,8 @@ import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.json.Json
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 
 /**
  * Manages source grouping and categorization.
@@ -20,6 +22,7 @@ import javax.inject.Singleton
 class SourceGroupManager @Inject constructor(
 	private val sourceTypeIdentifier: SourceTypeIdentifier,
 	private val jsonSourceManager: JsonSourceManager,
+	private val json: Json,
 ) {
 	
 	/**
@@ -53,7 +56,15 @@ class SourceGroupManager @Inject constructor(
 			return try {
 				when (source.entity.type) {
 					org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
-						if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+						val legacyConfig = runCatching { 
+							json.decodeFromString<LegadoBookSource>(source.entity.config)
+						}.getOrNull()
+						
+						if (legacyConfig?.bookSourceType == 2) {
+							if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+						} else {
+							if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+						}
 					}
 					org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
 						if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
@@ -73,6 +84,7 @@ class SourceGroupManager @Inject constructor(
 		return when {
 			name.startsWith("ANIYOMI_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 			name.startsWith("JSON_TVBOX_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+			name.startsWith("JSON_LEGADO_M_") -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 			name.startsWith("JSON_LEGADO_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
 			else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 		}

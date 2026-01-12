@@ -16,6 +16,7 @@ import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.core.model.getContentType
 
 class BookmarksAdapter(
 	clickListener: OnListItemClickListener<Bookmark>,
@@ -37,7 +38,8 @@ class BookmarksAdapter(
 		return when {
 			item is Bookmark -> {
 			val source = item.manga.source.unwrap()
-				if (source is MangaParserSource && (source.contentType == ContentType.NOVEL || source.contentType == ContentType.HENTAI_NOVEL)) {
+				val contentType = source.getContentType()
+				if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
 					ListItemType.NOVEL_BOOKMARK.ordinal
 				} else {
 					ListItemType.PAGE_THUMB.ordinal

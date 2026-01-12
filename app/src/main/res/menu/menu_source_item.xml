@@ -2,6 +2,10 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
 	<item
+		android:id="@+id/menu_edit"
+		android:title="@string/edit_source" />
+
+	<item
 		android:id="@+id/menu_test"
 		android:title="@string/test" />
 
@@ -10,3 +14,4 @@
 		android:title="@string/delete" />
 
 </menu>
+

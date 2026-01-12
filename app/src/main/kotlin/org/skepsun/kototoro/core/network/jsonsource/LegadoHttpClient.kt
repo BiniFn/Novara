@@ -112,8 +112,9 @@ class LegadoHttpClient @Inject constructor(
     ): Request {
         val headersBuilder = Headers.Builder()
         
-        // Add User-Agent if not provided
-        if (!customHeaders.containsKey("User-Agent")) {
+        // Add User-Agent if not provided (case-insensitive check)
+        val hasUserAgent = customHeaders.keys.any { it.equals("User-Agent", ignoreCase = true) }
+        if (!hasUserAgent) {
             // Use mobile User-Agent for better compatibility with mobile-first web sources
             headersBuilder.add("User-Agent", userAgentManager.getUserAgent())
         }

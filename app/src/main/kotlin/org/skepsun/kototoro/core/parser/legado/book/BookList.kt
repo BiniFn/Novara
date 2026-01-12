@@ -49,6 +49,17 @@ object BookList {
         }
 
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
+        
+        // Execute init if present (Legado init script can transform content)
+        var currentContent: Any = content
+        if (!rule.init.isNullOrBlank()) {
+            val initResult = analyzeRule.evalJS(rule.init, content)
+            if (initResult != null) {
+                currentContent = initResult
+                analyzeRule.setContent(currentContent)
+            }
+        }
+
         val items = analyzeRule.getElements(listRule)
         Log.d(TAG, "bookList rule=$listRule items=${items.size} isSearch=$isSearch")
         if (items.isEmpty()) {
@@ -90,7 +101,7 @@ object BookList {
             val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
             
             val title = itemAnalyzer.getString(rule.name)
-            val bookUrl = itemAnalyzer.getString(rule.bookUrl)
+            val bookUrl = itemAnalyzer.getString(rule.bookUrl, isUrl = true)
             
             if (index < 3) {
                 Log.d(TAG, "[parseItem $index] rule.name='${rule.name}' -> title='$title'")
@@ -104,7 +115,7 @@ object BookList {
             
             val absoluteUrl = resolveUrl(baseUrl, bookUrl)
             val author = itemAnalyzer.getString(rule.author)
-            val coverUrl = itemAnalyzer.getString(rule.coverUrl).let { resolveUrl(baseUrl, it) }
+            val coverUrl = itemAnalyzer.getString(rule.coverUrl, isUrl = true).let { resolveUrl(baseUrl, it) }
             val intro = itemAnalyzer.getString(rule.intro)
             
             Manga(

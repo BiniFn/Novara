@@ -32,6 +32,19 @@ class AnalyzeRule(
         private val regexPattern = Pattern.compile("\\$\\d{1,2}")
         private val JS_PATTERN =
             Pattern.compile("<js>([\\s\\S]*?)</js>|@js:([\\s\\S]*)", Pattern.CASE_INSENSITIVE)
+
+        fun isRule(ruleStr: String): Boolean {
+            if (ruleStr.isBlank()) return false
+            val trimmed = ruleStr.trim()
+            // Identify standard JSoup tags, class selectors, JSONPath, XPath, or script markers
+            return trimmed.startsWith("@") || trimmed.startsWith("$") || trimmed.startsWith(".") || trimmed.startsWith("/")
+                    || trimmed.startsWith("<js>", ignoreCase = true) || trimmed.startsWith("@js:", ignoreCase = true)
+                    || trimmed.contains("@") || trimmed.contains("$") || trimmed.contains(".") || trimmed.contains("##") || trimmed.contains("{{")
+                    || (trimmed.contains("//") && !trimmed.startsWith("http"))
+                    || trimmed.startsWith("children", ignoreCase = true)
+                    || trimmed.startsWith("textNodes", ignoreCase = true)
+                    || (trimmed.isNotEmpty() && !trimmed.contains(" ") && trimmed.all { it.isLetterOrDigit() || it == '-' || it == '_' } && (trimmed.length > 3 || trimmed.startsWith("h") || trimmed.startsWith("a") || trimmed.startsWith("p") || trimmed.startsWith("li")))
+        }
     }
 
     private var analyzeByJSoup: AnalyzeByJSoup? = null
@@ -103,14 +116,41 @@ class AnalyzeRule(
                 result ?: continue
                 val rule = sourceRule.rule
                 if (rule.isNotEmpty()) {
-                    result = when (sourceRule.mode) {
-                        Mode.Js -> evalJS(rule, result)
-                        Mode.Json -> getAnalyzeByJsonPath(result).getStringList(rule)
-                        Mode.XPath -> getAnalyzeByXPath(result).getStringList(rule)
-                        Mode.Default -> getAnalyzeByJSoup(result).getStringList(rule)
-                        else -> rule
+                    if (!isRule(rule) && sourceRule.mode == Mode.Default) {
+                        result = rule
+                        Log.d(TAG, "[getStringList] Rule is literal: $rule")
+                    } else {
+                        Log.d(TAG, "[getStringList] Executing mode=${sourceRule.mode}, rule=$rule on content=${result?.javaClass?.simpleName}")
+                        result = if (result is List<*> && sourceRule.mode != Mode.Js) {
+                            val list = ArrayList<Any>()
+                            for (item in result) {
+                                if (item == null) continue
+                                val itemResult = when (sourceRule.mode) {
+                                    Mode.Json -> getAnalyzeByJsonPath(item).getStringList(rule)
+                                    Mode.XPath -> getAnalyzeByXPath(item).getStringList(rule)
+                                    else -> getAnalyzeByJSoup(item).getStringList(rule)
+                                }
+                                if (itemResult != null) list.addAll(itemResult)
+                            }
+                            list
+                        } else {
+                            val context = result ?: content
+                            
+                            // For JS mode, if input is a list, join it to string to support .replace() etc.
+                            val jsInput = if (sourceRule.mode == Mode.Js && context is List<*>) {
+                                context.joinToString(" ")
+                            } else context
+                            
+                            when (sourceRule.mode) {
+                                Mode.Js -> evalJS(rule, jsInput)
+                                Mode.Json -> getAnalyzeByJsonPath(context ?: "").getStringList(rule)
+                                Mode.XPath -> getAnalyzeByXPath(context ?: "").getStringList(rule)
+                                else -> getAnalyzeByJSoup(context ?: "").getStringList(rule)
+                            }
+                        }
                     }
                 }
+                Log.d(TAG, "[getStringList] Result after rule processing: ${result?.toString()?.take(100)}")
                 if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
                     result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
                 } else if (sourceRule.replaceRegex.isNotEmpty() && result != null) {
@@ -144,8 +184,10 @@ class AnalyzeRule(
     fun getString(ruleStr: String?, mContent: Any? = null, isUrl: Boolean = false): String {
         val result = getStringList(ruleStr, mContent, isUrl)
         if (!result.isNullOrEmpty()) {
-            return if (isUrl) result[0] else result.joinToString("\n") { it }
+            val text = if (isUrl) result[0] else result.joinToString("\n") { it.toString() }
+            if (text.isNotEmpty()) return text
         }
+        Log.d(TAG, "[getString] Returned empty string for rule: $ruleStr")
         return ""
     }
 
@@ -155,8 +197,8 @@ class AnalyzeRule(
         return getString(ruleList, unescape = unescape)
     }
 
-    private fun getString(ruleList: List<SourceRule>, unescape: Boolean = false): String {
-        val result = getStringList(ruleList)
+    private fun getString(ruleList: List<SourceRule>, mContent: Any? = null, unescape: Boolean = false): String {
+        val result = getStringList(ruleList, mContent)
         var text: String? = null
         if (!result.isNullOrEmpty()) {
             text = result[0]
@@ -176,58 +218,84 @@ class AnalyzeRule(
     /**
      * 获取文本列表
      */
-    private fun getStringList(ruleList: List<SourceRule>): List<String>? {
+    private fun getStringList(ruleList: List<SourceRule>, mContent: Any? = null): List<String>? {
         var result: Any? = null
-        val content = this.content
+        val content = mContent ?: this.content
         if (content != null && ruleList.isNotEmpty()) {
             result = content
-            if (ruleList.size == 1) {
-                val sourceRule = ruleList.first()
+            Log.d(TAG, "[getStringList(internal)] starting with content=${content.javaClass.simpleName}")
+            
+            for (sourceRule in ruleList) {
                 putRule(sourceRule.putMap)
                 sourceRule.makeUpRule(result)
-                result = if (sourceRule.getParamSize() > 1) {
-                    sourceRule.rule
-                } else {
-                    resolveIndexed(result, sourceRule.rule)
-                }
-                result?.let {
-                    if (sourceRule.replaceRegex.isNotEmpty() && it is List<*>) {
-                        result = it.map { o ->
-                            replaceRegex(o.toString(), sourceRule)
+                result ?: continue
+                val rule = sourceRule.rule
+                if (rule.isNotEmpty()) {
+                    Log.d(TAG, "[getStringList(internal)] Executing mode=${sourceRule.mode}, rule=$rule on result=${result?.javaClass?.simpleName}")
+                    
+                    // Handle list iteration if not in JavaScript mode
+                    result = if (result is List<*> && sourceRule.mode != Mode.Js) {
+                        val list = ArrayList<Any>()
+                        for (item in result) {
+                            if (item == null) continue
+                            val itemResult = when (sourceRule.mode) {
+                                Mode.Json -> getAnalyzeByJsonPath(item).getStringList(rule)
+                                Mode.XPath -> getAnalyzeByXPath(item).getStringList(rule)
+                                else -> {
+                                    if (item is Map<*, *>) {
+                                        val indexed = resolveIndexed(item, rule)
+                                        if (indexed != null) listOf(indexed.toString())
+                                        else getAnalyzeByJSoup(item).getStringList(rule)
+                                    } else {
+                                        getAnalyzeByJSoup(item).getStringList(rule)
+                                    }
+                                }
+                            }
+                            if (itemResult != null) list.addAll(itemResult)
                         }
-                    } else if (sourceRule.replaceRegex.isNotEmpty()) {
-                        result = replaceRegex(result.toString(), sourceRule)
-                    }
-                }
-            } else {
-                for (sourceRule in ruleList) {
-                    putRule(sourceRule.putMap)
-                    sourceRule.makeUpRule(result)
-                    result ?: continue
-                    val rule = sourceRule.rule
-                    if (rule.isNotEmpty()) {
-                        result = when (sourceRule.mode) {
-                            Mode.Js -> evalJS(rule, result)
-                            Mode.Json -> getAnalyzeByJsonPath(result).getStringList(rule)
-                            Mode.XPath -> getAnalyzeByXPath(result).getStringList(rule)
-                            Mode.Default -> getAnalyzeByJSoup(result).getStringList(rule)
+                        list
+                    } else {
+                        // For JS mode, if input is a list, join it to string to support .replace() etc.
+                        val jsInput = if (sourceRule.mode == Mode.Js && result is List<*>) {
+                            result.joinToString(" ")
+                        } else result
+                        
+                        when (sourceRule.mode) {
+                            Mode.Js -> evalJS(rule, jsInput)
+                            Mode.Json -> getAnalyzeByJsonPath(result ?: content!!).getStringList(rule)
+                            Mode.XPath -> getAnalyzeByXPath(result ?: content!!).getStringList(rule)
+                            Mode.Default -> {
+                                if (result is Map<*, *> || result is List<*>) {
+                                    val indexed = resolveIndexed(result, rule)
+                                    if (indexed != null) listOf(indexed.toString())
+                                    else getAnalyzeByJSoup(result).getStringList(rule)
+                                } else {
+                                    getAnalyzeByJSoup(result).getStringList(rule)
+                                }
+                            }
                             else -> rule
                         }
                     }
-                    if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
-                        result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
-                    } else if (sourceRule.replaceRegex.isNotEmpty()) {
-                        result = replaceRegex(result.toString(), sourceRule)
-                    }
+                }
+                
+                // Handle replacements
+                if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
+                    result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
+                } else if (sourceRule.replaceRegex.isNotEmpty() && result != null) {
+                    result = replaceRegex(result.toString(), sourceRule)
                 }
             }
         }
+        
         if (result == null) return null
         if (result is String) {
-            result = result.split("\n")
+            return result.split("\n")
         }
         @Suppress("UNCHECKED_CAST")
-        return result as? List<String>
+        return when (result) {
+            is List<*> -> result.map { it.toString() }
+            else -> listOf(result.toString())
+        }
     }
 
     /**
@@ -244,12 +312,38 @@ class AnalyzeRule(
                 putRule(sourceRule.putMap)
                 result ?: continue
                 val rule = sourceRule.rule
-                result = when (sourceRule.mode) {
-                    Mode.Regex -> AnalyzeByRegex.getElements(result.toString(), rule.splitNotBlank("&&"))
-                    Mode.Js -> evalJS(rule, result)
-                    Mode.Json -> getAnalyzeByJsonPath(result).getList(rule)
-                    Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
-                    else -> getAnalyzeByJSoup(result).getElements(rule)
+                if (rule.isNotEmpty()) {
+                    // For getElements, we almost always want to execute the rule.
+                    // Only treat as literal if it's clearly intended (e.g. starts with @@)
+                    if (sourceRule.mode == Mode.Default && rule.startsWith("@@")) {
+                        result = listOf(rule.substring(2))
+                    } else if (sourceRule.mode == Mode.Default && !isRule(rule)) {
+                        // If it's not a clear rule, but we need elements, try it as JSoup
+                        result = getAnalyzeByJSoup(result ?: content!!).getElements(rule)
+                    } else {
+                        result = if (result is List<*> && sourceRule.mode != Mode.Js) {
+                            val list = ArrayList<Any>()
+                            for (item in result) {
+                                if (item == null) continue
+                                val itemResult = when (sourceRule.mode) {
+                                    Mode.Json -> getAnalyzeByJsonPath(item).getList(rule)
+                                    Mode.XPath -> getAnalyzeByXPath(item).getElements(rule)
+                                    else -> getAnalyzeByJSoup(item).getElements(rule)
+                                }
+                                if (itemResult != null) list.addAll(itemResult)
+                            }
+                            list
+                        } else {
+                            when (sourceRule.mode) {
+                                Mode.Js -> evalJS(rule, result)
+                                Mode.Json -> getAnalyzeByJsonPath(result).getList(rule)
+                                Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
+                                else -> getAnalyzeByJSoup(result).getElements(rule)
+                            }
+                        }
+                    }
+                } else if (sourceRule.mode == Mode.Regex) {
+                    result = AnalyzeByRegex.getElements(result.toString(), rule.splitNotBlank("&&"))
                 }
             }
         }
@@ -314,7 +408,7 @@ class AnalyzeRule(
     /**
      * eval js
      */
-    private fun evalJS(rule: String, result: Any?): Any? {
+    fun evalJS(rule: String, result: Any?): Any? {
         sandbox.putVariable("baseUrl", baseUrl)
         sandbox.setResult(result)
         val jsResult = sandbox.eval(rule)
@@ -348,20 +442,12 @@ class AnalyzeRule(
     }
 
     /**
-     * 分离规则
+     * 分离规则 (仅分离 JS 块，内部逻辑运算符由具体解析器处理)
      */
     private fun splitSourceRule(ruleStr: String, isElements: Boolean): List<SourceRule> {
         val ruleList = ArrayList<SourceRule>()
-        val ruleAnalyzes = RuleAnalyzer(ruleStr, true)
-        val ruleStrS = ruleAnalyzes.splitRule("&&", "||", "%%")
-        val mode = when {
-            ruleAnalyzes.elementsType == "||" -> Mode.XPath //用不到
-            ruleAnalyzes.elementsType == "%%" -> Mode.Json //用不到
-            else -> Mode.Default
-        }
-        for (rs in ruleStrS) {
-            ruleList.addAll(splitJSToSourceRule(rs, isElements, mode))
-        }
+        val mode = Mode.Default
+        ruleList.addAll(splitJSToSourceRule(ruleStr, isElements, mode))
         return ruleList
     }
 
@@ -436,7 +522,7 @@ class AnalyzeRule(
                     ruleStr.substring(6)
                 }
 
-                ruleStr.startsWith("$.") || ruleStr.startsWith("$[") -> {
+                ruleStr.startsWith("$") -> {
                     mode = Mode.Json
                     ruleStr
                 }
@@ -446,7 +532,30 @@ class AnalyzeRule(
                     ruleStr
                 }
 
-                else -> ruleStr
+                else -> {
+                    // Detect if content is or looks like JSON
+                    val isJsonLike = content is JSONObject || content is org.json.JSONArray || 
+                                   content is Map<*, *> || content is List<*> ||
+                                   (content is String && (content.toString().trim().startsWith("{") || content.toString().trim().startsWith("[")))
+                    
+                    when {
+                        // Shorthand JSONPath like .member
+                        ruleStr.startsWith(".") && isJsonLike -> {
+                            mode = Mode.Json
+                            "\$$ruleStr"
+                        }
+                        // Simple key name (alphanumeric only, no special chars) when content is JSON
+                        // This handles rules like "name", "author", "url" when init returns JSON
+                        isJsonLike && ruleStr.isNotEmpty() && 
+                        ruleStr.all { it.isLetterOrDigit() || it == '_' } &&
+                        !ruleStr.contains("@") && !ruleStr.contains(".") -> {
+                            mode = Mode.Json
+                            Log.d(TAG, "[SourceRule] Converting simple key '$ruleStr' to JSONPath for JSON content")
+                            "\$.$ruleStr"
+                        }
+                        else -> ruleStr
+                    }
+                }
             }
             //分离put
             rule = splitPutRule(rule, putMap)
@@ -548,7 +657,7 @@ class AnalyzeRule(
                         regType == jsRuleType -> {
                             if (isRule(ruleParam[index])) {
                                 val ruleList = splitSourceRuleCacheString(ruleParam[index])
-                                getString(ruleList).let {
+                                getString(ruleList, result).let {
                                     infoVal.insert(0, it)
                                 }
                             } else {
@@ -589,12 +698,7 @@ class AnalyzeRule(
             }
         }
 
-        private fun isRule(ruleStr: String): Boolean {
-            return ruleStr.startsWith('@')
-                    || ruleStr.startsWith("$.")
-                    || ruleStr.startsWith("$[")
-                    || ruleStr.startsWith("//")
-        }
+
 
         fun getParamSize(): Int {
             return ruleParam.size
@@ -611,6 +715,37 @@ class AnalyzeRule(
             is List<*> -> key.toIntOrNull()?.let { idx -> holder.getOrNull(idx) }
             else -> null
         }
+    }
+
+    /**
+     * Attempts to unwrap common JSON wrappers like {"code": 200, "data": [...]}
+     */
+    private fun unwrapJson(content: Any?): Any? {
+        if (content == null) return null
+        
+        // If content is already a JSONObject/JSONArray, we might need to look inside
+        val json = when (content) {
+            is String -> {
+                val trimmed = content.trim()
+                if (trimmed.startsWith("{")) JSONObject(trimmed)
+                else if (trimmed.startsWith("[")) org.json.JSONArray(trimmed)
+                else return content
+            }
+            else -> content
+        }
+
+        if (json is JSONObject) {
+            val keys = listOf("data", "result", "list", "items", "book", "chapters", "manga")
+            for (key in keys) {
+                if (json.has(key) && json.length() <= 10) { 
+                    val unwrapped = json.get(key)
+                    Log.d(TAG, "unwrapping JSON via key '$key', result type=${unwrapped?.javaClass?.simpleName}")
+                    return unwrapped
+                }
+            }
+        }
+        
+        return content
     }
 
     private fun resolveUrl(base: String?, relative: String): String {

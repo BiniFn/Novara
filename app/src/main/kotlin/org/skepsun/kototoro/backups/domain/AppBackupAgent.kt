@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import androidx.annotation.VisibleForTesting
 import com.google.common.io.ByteStreams
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.backups.data.BackupRepository
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -43,9 +44,11 @@ class AppBackupAgent : BackupAgent() {
 			jsonSourceDao = db.getJsonSourceDao()
 		)
 		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
+		val json = Json { ignoreUnknownKeys = true }
 		val sourceGroupManager = org.skepsun.kototoro.core.jsonsource.SourceGroupManager(
 			sourceTypeIdentifier = sourceTypeIdentifier,
-			jsonSourceManager = jsonSourceManager
+			jsonSourceManager = jsonSourceManager,
+			json = json
 		)
 		val file = createBackupFile(
 			this,
@@ -116,9 +119,11 @@ class AppBackupAgent : BackupAgent() {
 				jsonSourceDao = db.getJsonSourceDao()
 			)
 			val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
+			val json = Json { ignoreUnknownKeys = true }
 			val sourceGroupManager = org.skepsun.kototoro.core.jsonsource.SourceGroupManager(
 				sourceTypeIdentifier = sourceTypeIdentifier,
-				jsonSourceManager = jsonSourceManager
+				jsonSourceManager = jsonSourceManager,
+				json = json
 			)
 			restoreBackupFile(
 				data.fileDescriptor,

@@ -121,24 +121,31 @@ class GroupedJsonSourcesAdapter(
 			}
 			
 			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
-				// Parse config to extract base URL, explore rule status, and group
-				val (bookSourceUrl, hasExplore, groups) = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
+				// Parse config to extract base URL, explore rule status, group and sub-type
+				val (bookSourceUrl, hasExplore, groups, type) = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
 					try {
 						val jsonObj = JSONObject(mangaSource.entity.config)
 						val url = jsonObj.optString("bookSourceUrl")
 						val exploreRule = jsonObj.optJSONObject("ruleExplore")
 						val exploreStatus = exploreRule != null && !exploreRule.optString("bookList").isNullOrBlank()
 						val groupStr = jsonObj.optString("bookSourceGroup", "")
-						Triple(url, exploreStatus, groupStr)
+						val bookSourceType = jsonObj.optInt("bookSourceType", 0)
+						android.util.Log.d("JsonSourcesAdapter", "Source ${mangaSource.displayName} has type $bookSourceType")
+						Quadruple(url, exploreStatus, groupStr, bookSourceType)
 					} catch (e: Exception) {
-						Triple(null, true, "")
+						Quadruple(null, true, "", 0)
 					}
 				} else {
-					Triple(null, true, "")
+					Quadruple(null, true, "", if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.JS) 2 else 0)
 				}
 				
 				// Set URL with content type and groups
-				val contentType = getContentTypeLabel(sourceInfo)
+				val contentType = when {
+					mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> if (type == 2) "漫画" else "小说"
+					mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> "视频"
+					mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> "漫画"
+					else -> getContentTypeLabel(sourceInfo)
+				}
 				val groupsDisplay = if (groups.isNotBlank()) " [$groups]" else ""
 				binding.textViewUrl.text = "${bookSourceUrl ?: mangaSource.entity.id} · $contentType$groupsDisplay"
 				
@@ -212,6 +219,10 @@ class GroupedJsonSourcesAdapter(
 			popup.menuInflater.inflate(R.menu.menu_source_item, popup.menu)
 			popup.setOnMenuItemClickListener { menuItem ->
 				when (menuItem.itemId) {
+					R.id.menu_edit -> {
+						listener.onEditSource(sourceId)
+						true
+					}
 					R.id.menu_test -> {
 						listener.onTestSource(sourceId)
 						true
@@ -299,6 +310,7 @@ class GroupedJsonSourcesAdapter(
 		fun onTestSource(sourceId: String)
 		fun onDeleteSource(sourceId: String)
 		fun onSelectSource(sourceId: String, selected: Boolean)
+		fun onEditSource(sourceId: String)
 	}
 }
 
@@ -335,3 +347,13 @@ fun org.skepsun.kototoro.core.jsonsource.GroupedSourceList.toFlatList(): List<Gr
 	
 	return items
 }
+
+/**
+ * Simple container for four values.
+ */
+data class Quadruple<out A, out B, out C, out D>(
+	val first: A,
+	val second: B,
+	val third: C,
+	val fourth: D
+)

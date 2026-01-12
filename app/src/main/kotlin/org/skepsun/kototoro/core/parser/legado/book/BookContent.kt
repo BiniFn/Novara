@@ -28,40 +28,89 @@ object BookContent {
         val rule = config.ruleContent ?: return ParseResult(emptyList(), emptyList())
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
         
-        android.util.Log.d(TAG, "[BookContent] Rule: ${rule.content}, HTML length: ${content.length}")
+        android.util.Log.d(TAG, "[BookContent] Rule: ${rule.content}, HTML length: ${content.length}, Type: ${config.bookSourceType}")
         
         // Legado content rule can return multiple image URLs or text
         val rawContentList = analyzeRule.getStringList(rule.content) ?: emptyList()
         
-        android.util.Log.d(TAG, "[BookContent] Extracted ${rawContentList.size} items, first item preview: ${rawContentList.firstOrNull()?.take(100) ?: "EMPTY"}")
+        android.util.Log.d(TAG, "[BookContent] Extracted ${rawContentList.size} items from rule")
         
         val processedContent = applyReplace(rawContentList, rule)
         
-        val pages = processedContent.mapIndexed { index, raw ->
-            val refined = refineContent(raw, config)
+        val pages = ArrayList<MangaPage>()
+        val isManga = config.bookSourceType == 2
+        
+        if (isManga) {
+            // For manga, merge all items and perform deep image extraction (Legado-style)
+            val fullContent = processedContent.joinToString("\n")
+            val doc = org.jsoup.Jsoup.parse(fullContent)
+            val imgs = doc.select("img")
             
-            val absoluteUrl = if (isLikelyUrl(refined)) {
-                resolveUrl(baseUrl, refined)
+            if (imgs.isNotEmpty()) {
+                imgs.forEach { img ->
+                    val url = img.attr("data-original").takeIf { it.isNotBlank() }
+                        ?: img.attr("data-src").takeIf { it.isNotBlank() }
+                        ?: img.attr("src").takeIf { it.isNotBlank() }
+                        ?: return@forEach
+                    
+                    val absoluteUrl = resolveUrl(baseUrl, url)
+                    pages.add(MangaPage(
+                        id = (source.name.hashCode().toLong() shl 32) + pages.size,
+                        url = absoluteUrl,
+                        preview = absoluteUrl,
+                        headers = emptyMap(),
+                        source = source
+                    ))
+                }
+                android.util.Log.d(TAG, "[BookContent] Deeply extracted ${pages.size} image URLs from HTML block")
             } else {
-                // Wrap text content in data URL for NovelContentLoader
-                val base64 = android.util.Base64.encodeToString(
-                    refined.toByteArray(Charsets.UTF_8),
-                    android.util.Base64.NO_WRAP
-                )
-                "data:text/html;base64,$base64"
+                // If no <img> found, fall back to interpreting items as raw URLs (for compatibility)
+                processedContent.forEach { raw ->
+                    val candidate = raw.trim()
+                    if (candidate.isBlank()) return@forEach
+                    if (isLikelyUrl(candidate)) {
+                        val absoluteUrl = resolveUrl(baseUrl, candidate)
+                        pages.add(MangaPage(
+                            id = (source.name.hashCode().toLong() shl 32) + pages.size,
+                            url = absoluteUrl,
+                            preview = absoluteUrl,
+                            headers = emptyMap(),
+                            source = source
+                        ))
+                    }
+                }
+                android.util.Log.d(TAG, "[BookContent] Extracted ${pages.size} raw URLs from result list")
             }
-            
-            if (index == 0) {
-                android.util.Log.d(TAG, "[Content] Page[0] starts with: ${refined.take(100).replace("\n", " ")}")
-            }
+        } else {
+            // Novel mode: proceed as individual text items
+            processedContent.forEach { raw ->
+                val refined = refineContent(raw, config)
+                if (refined.isBlank()) return@forEach
+                
+                val isUrl = isLikelyUrl(refined)
+                val absoluteUrl = if (isUrl) {
+                    resolveUrl(baseUrl, refined)
+                } else {
+                    // Wrap text content in data URL for NovelContentLoader
+                    val base64 = android.util.Base64.encodeToString(
+                        refined.toByteArray(Charsets.UTF_8),
+                        android.util.Base64.NO_WRAP
+                    )
+                    "data:text/html;base64,$base64"
+                }
 
-            MangaPage(
-                id = (source.name.hashCode().toLong() shl 32) + index,
-                url = absoluteUrl,
-                preview = if (isLikelyUrl(refined)) absoluteUrl else "TEXT",
-                headers = emptyMap(),
-                source = source
-            )
+                pages.add(MangaPage(
+                    id = (source.name.hashCode().toLong() shl 32) + pages.size,
+                    url = absoluteUrl,
+                    preview = if (isUrl) absoluteUrl else "TEXT",
+                    headers = emptyMap(),
+                    source = source
+                ))
+            }
+        }
+        
+        if (pages.isNotEmpty()) {
+            android.util.Log.d(TAG, "[Content] Page[0] URL: ${pages[0].url}")
         }
 
         val nextPageUrls = rule.nextContentUrl

@@ -53,6 +53,9 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 	@Inject
 	lateinit var settings: AppSettings
 
+	@Inject
+	lateinit var jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager
+
 	private val viewModel by ChaptersPagesViewModel.ActivityVMLazy(this)
 
 	private var isFoldUnfolded: Boolean = false
@@ -83,7 +86,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		}
 		
 		android.util.Log.d("ChaptersPagesSheet", "Source: $source, type: ${source?.javaClass?.simpleName}")
-		val contentType = source?.getContentType()
+		val contentType = source?.let { getContentType(it) }
 		android.util.Log.d("ChaptersPagesSheet", "ContentType: $contentType")
 		val isNovel = contentType == org.skepsun.kototoro.parsers.model.ContentType.NOVEL || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL
 		val isVideo = contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
@@ -224,6 +227,25 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         binding.splitButtonRead.scaleX = 0.8f
         binding.splitButtonRead.scaleY = 0.8f
     }
+
+	private fun getContentType(source: org.skepsun.kototoro.parsers.model.MangaSource): org.skepsun.kototoro.parsers.model.ContentType {
+		if (source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) return source.getContentType()
+		if (source.name.startsWith("JSON_")) {
+			if (source.name.startsWith("JSON_LEGADO_M_")) return org.skepsun.kototoro.parsers.model.ContentType.MANGA
+			if (source.name.startsWith("JSON_LEGADO_")) {
+				val entity = kotlinx.coroutines.runBlocking { jsonSourceManager.getById(source.name) }
+				if (entity != null) {
+					return try {
+						val jsonObj = org.json.JSONObject(entity.config)
+						if (jsonObj.optInt("bookSourceType", 0) == 2) org.skepsun.kototoro.parsers.model.ContentType.MANGA else org.skepsun.kototoro.parsers.model.ContentType.NOVEL
+					} catch (e: Exception) {
+						org.skepsun.kototoro.parsers.model.ContentType.NOVEL
+					}
+				}
+			}
+		}
+		return source.getContentType()
+	}
 
 	companion object {
 
