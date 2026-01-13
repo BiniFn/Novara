@@ -12,6 +12,8 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
+import org.skepsun.kototoro.core.parser.legado.AnalyzeByJSoup
+import org.skepsun.kototoro.core.parser.legado.AnalyzeByJsonPath
 import java.net.CookieManager
 import java.nio.charset.Charset
 import java.text.SimpleDateFormat
@@ -363,6 +365,50 @@ class LegadoJavaAPI(
             Log.e(TAG, "getString($rule) failed: ${e.message}")
             return ""
         }
+    }
+
+    /**
+     * 获取字符串列表（legado 兼容）
+     *
+     * - HTML：按 legado 规则语法（包含 `@` 链式、`&&/||/%%`）通过 JSoup 解析
+     * - JSON：按 JsonPath 解析（支持 `$`/`.` 形式）
+     */
+    fun getStringList(rule: String): List<String> {
+        return getStringList(rule, null)
+    }
+
+    fun getStringList(rule: String, content: String?): List<String> {
+        val text = content ?: currentHtml
+        if (rule.isBlank() || text.isNullOrBlank()) return emptyList()
+
+        val trimmedText = text.trimStart()
+        val trimmedRule = rule.trim()
+        val isJson = trimmedRule.startsWith("$") ||
+            trimmedRule.startsWith("@json:", ignoreCase = true) ||
+            trimmedText.startsWith("{") ||
+            trimmedText.startsWith("[")
+
+        return try {
+            if (isJson) {
+                val jsonPathRule = normalizeToJsonPath(trimmedRule)
+                AnalyzeByJsonPath(text).getStringList(jsonPathRule)
+            } else {
+                AnalyzeByJSoup(text).getStringList(trimmedRule)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getStringList(rule=$trimmedRule) failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun normalizeToJsonPath(rule: String): String {
+        val trimmed = rule.trim()
+        if (trimmed.startsWith("@json:", ignoreCase = true)) {
+            return trimmed.substringAfter(":").trim()
+        }
+        if (trimmed.startsWith("$")) return trimmed
+        if (trimmed.startsWith(".")) return "$$trimmed"
+        return "$.$trimmed"
     }
     
     /**

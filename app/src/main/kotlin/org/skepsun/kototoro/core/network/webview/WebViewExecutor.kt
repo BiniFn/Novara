@@ -20,6 +20,7 @@ import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.proxy.ProxyProvider
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
 import org.skepsun.kototoro.core.util.ext.configureForParser
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.parsers.model.MangaSource
@@ -267,25 +268,26 @@ class WebViewExecutor @Inject constructor(
 						}
 					}
 					if (!result) return@withContext false
-					val domain = cookiesDomain ?: loginUrl.toHttpUrlOrNull()?.host ?: return@withContext true
-					// 同步 WebView Cookie 到应用 CookieJar
-					cookieJar.removeCookies(loginUrl.toHttpUrlOrNull() ?: return@withContext true) { true }
-					android.webkit.CookieManager.getInstance().getCookie(loginUrl)?.let { raw ->
-						val httpUrl = "https://$domain".toHttpUrlOrNull() ?: return@let
-						raw.split(";").map { it.trim() }.forEach { line ->
-							val parts = line.split("=", limit = 2)
-							if (parts.size == 2) {
-								val name = parts[0]
-								val value = parts[1]
-								val c = runCatching {
-									Cookie.Builder()
-										.hostOnlyDomain(httpUrl.host)
-										.path("/")
-										.name(name)
-										.value(value)
-										.secure()
-										.build()
-								}.getOrNull()
+						val domain = cookiesDomain ?: loginUrl.toHttpUrlOrNull()?.host ?: return@withContext true
+						val rootDomain = LegadoNetworkUtils.getSubDomain("https://$domain")
+						// 同步 WebView Cookie 到应用 CookieJar
+						cookieJar.removeCookies(loginUrl.toHttpUrlOrNull() ?: return@withContext true) { true }
+						android.webkit.CookieManager.getInstance().getCookie(loginUrl)?.let { raw ->
+							val httpUrl = "https://$rootDomain".toHttpUrlOrNull() ?: return@let
+							raw.split(";").map { it.trim() }.forEach { line ->
+								val parts = line.split("=", limit = 2)
+								if (parts.size == 2) {
+									val name = parts[0]
+									val value = parts[1]
+									val c = runCatching {
+										Cookie.Builder()
+											.domain(httpUrl.host)
+											.path("/")
+											.name(name)
+											.value(value)
+											.secure()
+											.build()
+									}.getOrNull()
 								if (c != null) {
 									cookieJar.saveFromResponse(httpUrl, listOf(c))
 								}

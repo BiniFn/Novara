@@ -8,6 +8,10 @@ import java.net.URL
 import java.util.regex.Pattern
 import org.jsoup.nodes.Element
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
+import java.util.regex.Matcher
+import org.mozilla.javascript.NativeArray
+import org.mozilla.javascript.NativeObject
+import org.mozilla.javascript.Undefined
 
 /**
  * Unified rule executor that delegates to appropriate analyzer based on rule syntax.
@@ -32,6 +36,7 @@ class AnalyzeRule(
         private val regexPattern = Pattern.compile("\\$\\d{1,2}")
         private val JS_PATTERN =
             Pattern.compile("<js>([\\s\\S]*?)</js>|@js:([\\s\\S]*)", Pattern.CASE_INSENSITIVE)
+        private val singleBracePlaceholderPattern = Pattern.compile("\\{([^{}]+)\\}")
 
         fun isRule(ruleStr: String): Boolean {
             if (ruleStr.isBlank()) return false
@@ -50,6 +55,42 @@ class AnalyzeRule(
     private var analyzeByJSoup: AnalyzeByJSoup? = null
     private var analyzeByJsonPath: AnalyzeByJsonPath? = null
     private var analyzeByXPath: AnalyzeByXPath? = null
+    private var isRegex: Boolean = false
+
+    private fun looksLikeJsonText(value: Any?): Boolean {
+        val text = value as? String ?: return false
+        val trimmed = text.trimStart()
+        return trimmed.startsWith("{") || trimmed.startsWith("[")
+    }
+
+    private fun looksLikeDottedJsonRule(rule: String): Boolean {
+        val trimmed = rule.trim()
+        if (trimmed.isEmpty()) return false
+        if (trimmed.startsWith("$") || trimmed.startsWith("@")) return false
+        // Typical JSON dotted path like data.xxx.yyy (common in legacy Legado rules).
+        // Avoid overly broad heuristics; only accept strict dotted identifiers.
+        return trimmed.matches(Regex("[A-Za-z_][\\w-]*(\\.[A-Za-z_][\\w-]*)+"))
+    }
+
+    private fun toJsonPath(rule: String): String {
+        val trimmed = rule.trim()
+        if (trimmed.startsWith("$")) return trimmed
+        if (trimmed.startsWith(".")) return "$$trimmed"
+        return "$.$trimmed"
+    }
+    
+    private fun previewForLog(value: Any?, limit: Int = 120): String {
+        if (value == null) return "null"
+        val text = value.toString()
+        if (text.length <= limit) return text
+        // URLs are the most common source of confusion when truncated; keep both head and tail.
+        if (text.startsWith("http", ignoreCase = true) || text.startsWith("//")) {
+            val headLen = 80.coerceAtMost(limit - 20)
+            val tailLen = (limit - headLen - 1).coerceAtLeast(20)
+            return text.take(headLen) + "…" + text.takeLast(tailLen)
+        }
+        return text.take(limit) + "…"
+    }
 
     init {
         setContent(content)
@@ -116,7 +157,9 @@ class AnalyzeRule(
                 result ?: continue
                 val rule = sourceRule.rule
                 if (rule.isNotEmpty()) {
-                    if (!isRule(rule) && sourceRule.mode == Mode.Default) {
+                    if ((sourceRule.mode == Mode.Default || sourceRule.mode == Mode.Regex) &&
+                        (rule.startsWith("http", true) || rule.startsWith("//") || !isRule(rule))
+                    ) {
                         result = rule
                         Log.d(TAG, "[getStringList] Rule is literal: $rule")
                     } else {
@@ -128,6 +171,7 @@ class AnalyzeRule(
                                 val itemResult = when (sourceRule.mode) {
                                     Mode.Json -> getAnalyzeByJsonPath(item).getStringList(rule)
                                     Mode.XPath -> getAnalyzeByXPath(item).getStringList(rule)
+                                    Mode.Regex -> listOf(rule)
                                     else -> getAnalyzeByJSoup(item).getStringList(rule)
                                 }
                                 if (itemResult != null) list.addAll(itemResult)
@@ -136,21 +180,41 @@ class AnalyzeRule(
                         } else {
                             val context = result ?: content
                             
-                            // For JS mode, if input is a list, join it to string to support .replace() etc.
+                            // For JS mode, if input is a list, join it to string for legacy compatibility.
+                            // Use '\n' to match legado behavior (many rules rely on result.split("\\n")).
                             val jsInput = if (sourceRule.mode == Mode.Js && context is List<*>) {
-                                context.joinToString(" ")
+                                context.joinToString("\n")
                             } else context
                             
                             when (sourceRule.mode) {
                                 Mode.Js -> evalJS(rule, jsInput)
                                 Mode.Json -> getAnalyzeByJsonPath(context ?: "").getStringList(rule)
                                 Mode.XPath -> getAnalyzeByXPath(context ?: "").getStringList(rule)
-                                else -> getAnalyzeByJSoup(context ?: "").getStringList(rule)
+                                Mode.Regex -> listOf(rule)
+                                else -> {
+                                    if (context is Map<*, *> || context is List<*>) {
+                                        val indexed = resolveIndexed(context, rule)
+                                        if (indexed != null) {
+                                            listOf(indexed.toString())
+                                        } else if (looksLikeJsonText(context) && looksLikeDottedJsonRule(rule)) {
+                                            getAnalyzeByJsonPath(context ?: "").getStringList(toJsonPath(rule))
+                                        } else {
+                                            getAnalyzeByJSoup(context ?: "").getStringList(rule)
+                                        }
+                                    } else
+                                    // legado-with-MD3 兼容：当内容为 JSON 字符串、规则为 "data.xxx" 这类 dotted path 时，
+                                    // 即使未显式标注 @json:/$ 前缀，也应按 JsonPath 执行。
+                                    if (looksLikeJsonText(context) && looksLikeDottedJsonRule(rule)) {
+                                        getAnalyzeByJsonPath(context ?: "").getStringList(toJsonPath(rule))
+                                    } else {
+                                        getAnalyzeByJSoup(context ?: "").getStringList(rule)
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                Log.d(TAG, "[getStringList] Result after rule processing: ${result?.toString()?.take(100)}")
+                Log.d(TAG, "[getStringList] Result after rule processing: ${previewForLog(result)}")
                 if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
                     result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
                 } else if (sourceRule.replaceRegex.isNotEmpty() && result != null) {
@@ -241,6 +305,7 @@ class AnalyzeRule(
                             val itemResult = when (sourceRule.mode) {
                                 Mode.Json -> getAnalyzeByJsonPath(item).getStringList(rule)
                                 Mode.XPath -> getAnalyzeByXPath(item).getStringList(rule)
+                                Mode.Regex -> listOf(rule)
                                 else -> {
                                     if (item is Map<*, *>) {
                                         val indexed = resolveIndexed(item, rule)
@@ -255,9 +320,10 @@ class AnalyzeRule(
                         }
                         list
                     } else {
-                        // For JS mode, if input is a list, join it to string to support .replace() etc.
+                        // For JS mode, if input is a list, join it to string for legacy compatibility.
+                        // Use '\n' to match legado behavior (many rules rely on result.split("\\n")).
                         val jsInput = if (sourceRule.mode == Mode.Js && result is List<*>) {
-                            result.joinToString(" ")
+                            result.joinToString("\n")
                         } else result
                         
                         when (sourceRule.mode) {
@@ -265,7 +331,9 @@ class AnalyzeRule(
                             Mode.Json -> getAnalyzeByJsonPath(result ?: content!!).getStringList(rule)
                             Mode.XPath -> getAnalyzeByXPath(result ?: content!!).getStringList(rule)
                             Mode.Default -> {
-                                if (result is Map<*, *> || result is List<*>) {
+                                if (rule.startsWith("http", true) || rule.startsWith("//")) {
+                                    listOf(rule)
+                                } else if (result is Map<*, *> || result is List<*>) {
                                     val indexed = resolveIndexed(result, rule)
                                     if (indexed != null) listOf(indexed.toString())
                                     else getAnalyzeByJSoup(result).getStringList(rule)
@@ -273,6 +341,7 @@ class AnalyzeRule(
                                     getAnalyzeByJSoup(result).getStringList(rule)
                                 }
                             }
+                            Mode.Regex -> listOf(rule)
                             else -> rule
                         }
                     }
@@ -312,38 +381,15 @@ class AnalyzeRule(
                 putRule(sourceRule.putMap)
                 result ?: continue
                 val rule = sourceRule.rule
-                if (rule.isNotEmpty()) {
-                    // For getElements, we almost always want to execute the rule.
-                    // Only treat as literal if it's clearly intended (e.g. starts with @@)
-                    if (sourceRule.mode == Mode.Default && rule.startsWith("@@")) {
-                        result = listOf(rule.substring(2))
-                    } else if (sourceRule.mode == Mode.Default && !isRule(rule)) {
-                        // If it's not a clear rule, but we need elements, try it as JSoup
-                        result = getAnalyzeByJSoup(result ?: content!!).getElements(rule)
-                    } else {
-                        result = if (result is List<*> && sourceRule.mode != Mode.Js) {
-                            val list = ArrayList<Any>()
-                            for (item in result) {
-                                if (item == null) continue
-                                val itemResult = when (sourceRule.mode) {
-                                    Mode.Json -> getAnalyzeByJsonPath(item).getList(rule)
-                                    Mode.XPath -> getAnalyzeByXPath(item).getElements(rule)
-                                    else -> getAnalyzeByJSoup(item).getElements(rule)
-                                }
-                                if (itemResult != null) list.addAll(itemResult)
-                            }
-                            list
-                        } else {
-                            when (sourceRule.mode) {
-                                Mode.Js -> evalJS(rule, result)
-                                Mode.Json -> getAnalyzeByJsonPath(result).getList(rule)
-                                Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
-                                else -> getAnalyzeByJSoup(result).getElements(rule)
-                            }
-                        }
-                    }
-                } else if (sourceRule.mode == Mode.Regex) {
-                    result = AnalyzeByRegex.getElements(result.toString(), rule.splitNotBlank("&&"))
+                if (rule.isBlank() && sourceRule.mode != Mode.Regex) continue
+
+                // legado-with-MD3 对齐：getElements 不对 List 做隐式逐项映射，交由具体解析器/规则本身决定。
+                result = when (sourceRule.mode) {
+                    Mode.Regex -> AnalyzeByRegex.getElements(result.toString(), rule.splitNotBlank("&&"))
+                    Mode.Js -> evalJS(rule, result)
+                    Mode.Json -> getAnalyzeByJsonPath(result).getList(rule)
+                    Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
+                    else -> getAnalyzeByJSoup(result).getElements(rule)
                 }
             }
         }
@@ -370,7 +416,7 @@ class AnalyzeRule(
         val putMatcher = putPattern.matcher(vRuleStr)
         while (putMatcher.find()) {
             vRuleStr = vRuleStr.replace(putMatcher.group(), "")
-            val putJsonStr = putMatcher.group(1)
+            val putJsonStr = putMatcher.group(1) ?: continue
             try {
                 val jsonObj = JSONObject(putJsonStr)
                 jsonObj.keys().forEach { k ->
@@ -409,11 +455,27 @@ class AnalyzeRule(
      * eval js
      */
     fun evalJS(rule: String, result: Any?): Any? {
-        sandbox.putVariable("baseUrl", baseUrl)
+        sandbox.putVariable("baseUrl", normalizeBaseUrlForJavaScript(baseUrl))
         sandbox.setResult(result)
         val jsResult = sandbox.eval(rule)
-        Log.d(TAG, "[evalJS] input=${result.toString().take(100)}, output=${jsResult.toString().take(100)}")
+        Log.d(TAG, "[evalJS] input=${previewForLog(result)}, output=${previewForLog(jsResult)}")
         return jsResult
+    }
+
+    private fun normalizeBaseUrlForJavaScript(url: String): String {
+        if (url.isBlank()) return url
+
+        val trimmed = url.trim()
+        val commaIndex = trimmed.indexOf(",{").let { if (it >= 0) it else trimmed.indexOf(", {") }
+        val withoutOptions = if (commaIndex >= 0) trimmed.substring(0, commaIndex).trim() else trimmed
+
+        val splitIndex = withoutOptions.indexOfAny(charArrayOf('?', '#'))
+        val head = if (splitIndex >= 0) withoutOptions.substring(0, splitIndex) else withoutOptions
+        val tail = if (splitIndex >= 0) withoutOptions.substring(splitIndex) else ""
+
+        if (head.endsWith("/")) return head + tail
+        if (head.matches(Regex(".*/\\d+"))) return head + "/" + tail
+        return head + tail
     }
 
     /**
@@ -446,17 +508,26 @@ class AnalyzeRule(
      */
     private fun splitSourceRule(ruleStr: String, isElements: Boolean): List<SourceRule> {
         val ruleList = ArrayList<SourceRule>()
-        val mode = Mode.Default
-        ruleList.addAll(splitJSToSourceRule(ruleStr, isElements, mode))
+        var mode: Mode = Mode.Default
+        var startIndex = 0
+        // 与 legado-with-MD3 对齐：getElements/getElement 下，首字符为 ':' 时启用 AllInOne 正则模式
+        if (isElements && ruleStr.startsWith(":")) {
+            mode = Mode.Regex
+            isRegex = true
+            startIndex = 1
+        } else if (isRegex) {
+            mode = Mode.Regex
+        }
+        ruleList.addAll(splitJSToSourceRule(ruleStr, startIndex, mode))
         return ruleList
     }
 
     /**
      * 拆分 js 到 SourceRule 列表
      */
-    private fun splitJSToSourceRule(ruleStr: String, isElements: Boolean, mMode: Mode): List<SourceRule> {
+    private fun splitJSToSourceRule(ruleStr: String, startIndex: Int, mMode: Mode): List<SourceRule> {
         val ruleList = ArrayList<SourceRule>()
-        var start = 0
+        var start = startIndex
         var tmp: String
         val jsMatcher = JS_PATTERN.matcher(ruleStr)
 
@@ -532,31 +603,38 @@ class AnalyzeRule(
                     ruleStr
                 }
 
-                else -> {
-                    // Detect if content is or looks like JSON
-                    val isJsonLike = content is JSONObject || content is org.json.JSONArray || 
-                                   content is Map<*, *> || content is List<*> ||
-                                   (content is String && (content.toString().trim().startsWith("{") || content.toString().trim().startsWith("[")))
-                    
-                    when {
-                        // Shorthand JSONPath like .member
-                        ruleStr.startsWith(".") && isJsonLike -> {
-                            mode = Mode.Json
-                            "\$$ruleStr"
-                        }
-                        // Simple key name (alphanumeric only, no special chars) when content is JSON
-                        // This handles rules like "name", "author", "url" when init returns JSON
-                        isJsonLike && ruleStr.isNotEmpty() && 
-                        ruleStr.all { it.isLetterOrDigit() || it == '_' } &&
-                        !ruleStr.contains("@") && !ruleStr.contains(".") -> {
-                            mode = Mode.Json
-                            Log.d(TAG, "[SourceRule] Converting simple key '$ruleStr' to JSONPath for JSON content")
-                            "\$.$ruleStr"
-                        }
-                        else -> ruleStr
-                    }
-                }
-            }
+	                else -> {
+	                    // Detect if content is or looks like JSON
+	                    val isJsonLike = content is JSONObject || content is org.json.JSONArray || 
+	                                   content is Map<*, *> || content is List<*> ||
+	                                   content is NativeObject || content is NativeArray ||
+	                                   (content is String && (content.toString().trim().startsWith("{") || content.toString().trim().startsWith("[")))
+	                    
+	                    when {
+	                        // Shorthand JSONPath like .member
+	                        ruleStr.startsWith(".") && isJsonLike -> {
+	                            mode = Mode.Json
+	                            "\$$ruleStr"
+	                        }
+	                        // JSON dotted path without '$.' prefix, e.g. data.current_chapter.list[0]
+	                        // Some Legado rules rely on this shorthand when response body is JSON.
+	                        isJsonLike && looksLikeJsonDottedPath(ruleStr) -> {
+	                            mode = Mode.Json
+	                            "\$.$ruleStr"
+	                        }
+	                        // Simple key name (alphanumeric only, no special chars) when content is JSON
+	                        // This handles rules like "name", "author", "url" when init returns JSON
+	                        isJsonLike && ruleStr.isNotEmpty() && 
+	                        ruleStr.all { it.isLetterOrDigit() || it == '_' } &&
+	                        !ruleStr.contains("@") && !ruleStr.contains(".") -> {
+	                            mode = Mode.Json
+	                            Log.d(TAG, "[SourceRule] Converting simple key '$ruleStr' to JSONPath for JSON content")
+	                            "\$.$ruleStr"
+	                        }
+	                        else -> ruleStr
+	                    }
+	                }
+	            }
             //分离put
             rule = splitPutRule(rule, putMap)
             //@get,{{ }}, 拆分
@@ -684,6 +762,7 @@ class AnalyzeRule(
                 }
                 rule = infoVal.toString()
             }
+            rule = replaceSingleBracePlaceholders(rule, result)
             //分离正则表达式
             val ruleStrS = rule.split("##")
             rule = ruleStrS[0].trim()
@@ -707,6 +786,41 @@ class AnalyzeRule(
 
     enum class Mode {
         XPath, Json, Default, Js, Regex
+    }
+
+    private fun looksLikeJsonDottedPath(rule: String): Boolean {
+        if (rule.isBlank()) return false
+        if (rule.startsWith("$") || rule.startsWith("/") || rule.startsWith("@", ignoreCase = true)) return false
+        if (rule.contains("##") || rule.contains("{{") || rule.contains("}}")) return false
+        if (rule.startsWith("http", ignoreCase = true) || rule.startsWith("//")) return false
+        // Allow segments like a_b, a1, list[0], list[*]
+        return rule.matches(Regex("^[A-Za-z_][A-Za-z0-9_\\[\\]\\*]*(\\.[A-Za-z_][A-Za-z0-9_\\[\\]\\*]*)*\$"))
+    }
+
+    private fun replaceSingleBracePlaceholders(template: String, context: Any?): String {
+        if (!template.contains('{') || !template.contains('}')) return template
+        if (context !is Map<*, *> && context !is JSONObject) return template
+
+        val matcher = singleBracePlaceholderPattern.matcher(template)
+        if (!matcher.find()) return template
+        matcher.reset()
+
+        val sb = StringBuffer(template.length)
+        while (matcher.find()) {
+            val expr = matcher.group(1)?.trim().orEmpty()
+            val replacement = when {
+                expr.startsWith("$") || expr.startsWith(".") -> {
+                    val jsonPath = if (expr.startsWith(".")) "\$$expr" else expr
+                    getAnalyzeByJsonPath(context).getStringList(jsonPath)?.firstOrNull().orEmpty()
+                }
+                context is Map<*, *> -> context[expr]?.toString().orEmpty()
+                context is JSONObject -> context.opt(expr)?.toString().orEmpty()
+                else -> ""
+            }
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement))
+        }
+        matcher.appendTail(sb)
+        return sb.toString()
     }
 
     private fun resolveIndexed(holder: Any?, key: String): Any? {

@@ -71,7 +71,10 @@ object BookChapterList {
             }
         }
         val items = analyzeRule.getElements(listRule)
-        android.util.Log.d(TAG, "Found ${items.size} elements with listRule")
+        android.util.Log.d(TAG, "Found ${items.size} elements with listRule (raw)")
+
+        val normalizedItems = flattenNestedItems(items)
+        android.util.Log.d(TAG, "Found ${normalizedItems.size} elements with listRule (flattened)")
         
         val nextPageUrls = rule.nextTocUrl
             ?.let { 
@@ -83,15 +86,15 @@ object BookChapterList {
             ?: emptyList()
         android.util.Log.d(TAG, "nextPageUrls=$nextPageUrls")
 
-        val chapters = items.mapIndexedNotNull { index, item ->
+        val chapters = normalizedItems.mapIndexedNotNull { index, item ->
             val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
             
             val name = itemAnalyzer.getString(rule.chapterName)
             var url = itemAnalyzer.getString(rule.chapterUrl, isUrl = true)
             
-            // 如果 chapterUrl 规则返回空，但有章节名，则使用 baseUrl 作为当前页面的 URL
-            // 这处理了"单页内容"类型的源（书籍页面本身就是内容页）
-            if (url.isBlank() && name.isNotBlank()) {
+            // 仅当源未提供 chapterUrl 规则时，才回退到 baseUrl（单页内容源：书籍页面本身就是内容页）。
+            // 若 chapterUrl 规则存在但解析失败，不应回退，否则会导致所有章节 url/id 相同。
+            if (rule.chapterUrl.isNullOrBlank() && url.isBlank() && name.isNotBlank()) {
                 url = baseUrl
                 android.util.Log.d(TAG, "[TOC] Chapter[$index] chapterUrl empty, falling back to baseUrl")
             }
@@ -146,6 +149,27 @@ object BookChapterList {
         return ParseResult(chapters, nextPageUrls, reverse)
     }
 
+    private fun flattenNestedItems(items: List<Any>): List<Any> {
+        if (items.isEmpty()) return items
+        val out = ArrayList<Any>(items.size)
+        val stack = ArrayDeque<Any>(items.size)
+        for (item in items) stack.addLast(item)
+
+        // Only flatten arrays/lists; keep primitive items as-is (they may be valid for some sources).
+        // Limit the recursion depth implicitly by using an explicit stack with element-wise expansion.
+        while (stack.isNotEmpty()) {
+            val current = stack.removeFirst()
+            when (current) {
+                is List<*> -> {
+                    for (child in current) {
+                        if (child != null) stack.addFirst(child)
+                    }
+                }
+                else -> out.add(current)
+            }
+        }
+        return out
+    }
 
     private fun resolveUrl(baseUrl: String, relativeUrl: String): String {
         if (relativeUrl.isBlank() || relativeUrl.startsWith("http")) return relativeUrl

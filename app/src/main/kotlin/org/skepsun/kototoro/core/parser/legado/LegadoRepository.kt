@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.parser.legado
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -158,7 +159,7 @@ class LegadoRepository(
             ruleUrl = ruleUrl,
             key = query,
             page = page,
-            baseUrl = config.bookSourceUrl,
+            baseUrl = effectiveBaseUrlForRequest(ruleUrl),
             ruleData = sandbox.getRuleData(),
             sandbox = sandbox,
             useWebViewDefault = config.ruleSearch?.webView == true
@@ -197,8 +198,9 @@ class LegadoRepository(
 
                 // Apply concurrency limit
                 return rateLimiter.withLimit(priority) {
-                    // Sync CloudFlare cookies
-                    LegadoCloudFlareResolver.syncCloudFlareCookies(config.bookSourceUrl)
+                    // Sync CloudFlare cookies (部分书源的 bookSourceUrl 可能不是合法 URL，需回退到当前请求 URL)
+                    val cookieSyncUrl = config.bookSourceUrl.takeIf { it.startsWith("http", ignoreCase = true) } ?: request.url
+                    LegadoCloudFlareResolver.syncCloudFlareCookies(cookieSyncUrl)
                     
                     val headersWithUa = getConfigHeaders().toMutableMap()
                     
@@ -218,8 +220,20 @@ class LegadoRepository(
                     if (!headersWithUa.containsKeyIgnoreCase("User-Agent")) {
                         headersWithUa["User-Agent"] = getSourceUserAgent()
                     }
+
+                    // Many sites (including JSON APIs and image CDNs) require Referer to avoid blocking.
+                    if (!headersWithUa.containsKeyIgnoreCase("Referer")) {
+                        originForReferer(request.url)?.let { headersWithUa["Referer"] = it }
+                    }
+
+                    // OkHttp header values must be ASCII; drop unsafe values to avoid IllegalArgumentException.
+                    val sanitizedHeaders = headersWithUa.filterValues { isHeaderValueSafe(it) }.toMutableMap()
+                    if (sanitizedHeaders.size != headersWithUa.size) {
+                        val dropped = headersWithUa.keys - sanitizedHeaders.keys
+                        Log.w(TAG, "Dropping unsafe headers for ${request.url}: $dropped")
+                    }
                     
-                    Log.d(TAG, "Final headers for ${request.url}: $headersWithUa")
+                    Log.d(TAG, "Final headers for ${request.url}: $sanitizedHeaders")
 
                     // Use WebView for sources that require JavaScript execution
                     if (request.useWebView && request.method == "GET") {
@@ -227,7 +241,7 @@ class LegadoRepository(
                         val delayMs = if (request.webViewDelayTime > 0) request.webViewDelayTime else 2500L
                         val content = httpClient.getWithWebView(
                             url = request.url, 
-                            headers = headersWithUa, 
+                            headers = sanitizedHeaders, 
                             delayMs = delayMs,
                             webJs = request.webJs
                         )
@@ -242,9 +256,9 @@ class LegadoRepository(
                         val body = request.body ?: ""
                         val mediaType = "application/x-www-form-urlencoded; charset=${request.charset}".toMediaTypeOrNull()
                         val requestBody = body.toRequestBody(mediaType)
-                        httpClient.post(request.url, requestBody, headersWithUa, source = source)
+                        httpClient.post(request.url, requestBody, sanitizedHeaders, source = source)
                     } else {
-                        httpClient.get(request.url, headersWithUa, source = source)
+                        httpClient.get(request.url, sanitizedHeaders, source = source)
                     }
                     
                     val content = getResponseBodyWithCharset(response)
@@ -268,6 +282,7 @@ class LegadoRepository(
                     content to finalUrl
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException) throw e
                 
                 if (e is org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions) {
@@ -288,6 +303,33 @@ class LegadoRepository(
         return null
     }
 
+    private fun originForReferer(url: String): String? {
+        return runCatching {
+            val parsed = java.net.URL(url)
+            val host = parsed.host?.takeIf { it.isNotBlank() } ?: return null
+            "${parsed.protocol}://$host/"
+        }.getOrNull()
+    }
+
+    private fun effectiveBaseUrlForRequest(url: String): String {
+        val configured = config.bookSourceUrl.trim()
+        return when {
+            configured.startsWith("http", ignoreCase = true) -> configured
+            url.startsWith("http", ignoreCase = true) -> url
+            else -> ""
+        }
+    }
+
+    private fun isHeaderValueSafe(value: String): Boolean {
+        // OkHttp 对 header value 有严格限制：不允许控制字符与非 ASCII。
+        for (ch in value) {
+            if (ch == '\t') continue
+            val code = ch.code
+            if (code < 0x20 || code >= 0x7f) return false
+        }
+        return true
+    }
+
 
     override suspend fun getDetails(manga: Manga): Manga {
         val normalizedMangaUrl = AnalyzeUrl.normalizeUrl(manga.url)
@@ -298,7 +340,7 @@ class LegadoRepository(
 
         val request = AnalyzeUrl(
             manga.url, 
-            baseUrl = config.bookSourceUrl, 
+            baseUrl = effectiveBaseUrlForRequest(manga.url),
             sandbox = sandbox,
             useWebViewDefault = config.ruleBookInfo?.webView == true
         ).build()
@@ -374,7 +416,7 @@ class LegadoRepository(
             val contentRule = config.ruleContent
             val request = AnalyzeUrl(
                 url, 
-                baseUrl = config.bookSourceUrl, 
+                baseUrl = effectiveBaseUrlForRequest(url),
                 sandbox = sandbox,
                 useWebViewDefault = isWebViewEnabled(contentRule?.webView),
                 webJsDefault = contentRule?.webJs,
@@ -505,8 +547,15 @@ class LegadoRepository(
         if (!headers.containsKey("User-Agent") && !headers.containsKey("user-agent")) {
             headers["User-Agent"] = getSourceUserAgent()
         }
-        
-        return headers
+
+        // 图片站常见防盗链：没有 Referer 会直接 403
+        val hasReferer = headers.keys.any { it.equals("Referer", ignoreCase = true) }
+        if (!hasReferer) {
+            val fallback = config.bookSourceUrl.takeIf { it.startsWith("http", ignoreCase = true) }
+            originForReferer(fallback ?: "")?.let { headers["Referer"] = it }
+        }
+
+        return headers.filterValues { isHeaderValueSafe(it) }
     }
 
     override suspend fun getRelated(seed: Manga): List<Manga> {
@@ -529,7 +578,7 @@ class LegadoRepository(
 
             val request = AnalyzeUrl(
                 url, 
-                baseUrl = config.bookSourceUrl, 
+                baseUrl = effectiveBaseUrlForRequest(url),
                 sandbox = sandbox,
                 useWebViewDefault = config.ruleToc?.webView == true
             ).build()
@@ -559,9 +608,10 @@ class LegadoRepository(
         }
         val ordered = deduped.values.toMutableList()
         
-        // Legado rule: if starts with '-', it means the source provides chapters in descending order.
-        // We reverse it to get ascending order (first -> last).
-        if (reverseFlag) {
+        // legado-with-MD3 规则：
+        // - `chapterList` 以 '-' 开头表示“源本身已是正序（旧->新）”，不需要反转
+        // - 否则默认反转一次，把常见的“新->旧”目录变为“旧->新”
+        if (!reverseFlag) {
             ordered.reverse()
         }
         

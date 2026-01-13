@@ -25,6 +25,7 @@ import javax.inject.Singleton
 class LegadoHttpClient @Inject constructor(
     @JsonSourceHttpClient private val okHttpClient: OkHttpClient,
     private val cookieJar: MutableCookieJar,
+    private val persistentCookieJar: PersistentCookieJar,
     private val userAgentManager: UserAgentManager,
     private val webViewExecutor: org.skepsun.kototoro.core.network.webview.WebViewExecutor,
 ) {
@@ -137,6 +138,16 @@ class LegadoHttpClient @Inject constructor(
         // Add custom headers
         customHeaders.forEach { (key, value) ->
             headersBuilder.add(key, value)
+        }
+
+        // Add Cookie header explicitly for Legado sources to enforce header-length limits (<= 4096).
+        // OkHttp will skip adding cookies if the request already has a Cookie header.
+        val hasCookieHeader = customHeaders.keys.any { it.equals("Cookie", ignoreCase = true) }
+        if (!hasCookieHeader) {
+            val cookieHeader = persistentCookieJar.getCookieHeader(url)
+            if (cookieHeader.isNotBlank()) {
+                headersBuilder.add("Cookie", cookieHeader)
+            }
         }
 
         val requestBuilder = Request.Builder()

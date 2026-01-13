@@ -1,8 +1,10 @@
 package org.skepsun.kototoro.core.parser.legado.book
 
+import org.json.JSONObject
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.parser.legado.AnalyzeRule
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
+import org.skepsun.kototoro.parsers.exception.ContentUnavailableException
 import org.skepsun.kototoro.parsers.model.MangaPage
 import org.skepsun.kototoro.parsers.model.MangaSource
 
@@ -12,6 +14,7 @@ import org.skepsun.kototoro.parsers.model.MangaSource
 object BookContent {
 
     private const val TAG = "LegadoRepository"
+    private val optionsSplitRegex = Regex("\\s*,\\s*(?=\\{)")
 
     data class ParseResult(
         val pages: List<MangaPage>,
@@ -48,17 +51,18 @@ object BookContent {
             
             if (imgs.isNotEmpty()) {
                 imgs.forEach { img ->
-                    val url = img.attr("data-original").takeIf { it.isNotBlank() }
+                    val urlRaw = img.attr("data-original").takeIf { it.isNotBlank() }
                         ?: img.attr("data-src").takeIf { it.isNotBlank() }
                         ?: img.attr("src").takeIf { it.isNotBlank() }
                         ?: return@forEach
-                    
+
+                    val (url, headers) = splitUrlAndHeaders(urlRaw)
                     val absoluteUrl = resolveUrl(baseUrl, url)
                     pages.add(MangaPage(
                         id = (source.name.hashCode().toLong() shl 32) + pages.size,
                         url = absoluteUrl,
                         preview = absoluteUrl,
-                        headers = emptyMap(),
+                        headers = headers,
                         source = source
                     ))
                 }
@@ -69,12 +73,13 @@ object BookContent {
                     val candidate = raw.trim()
                     if (candidate.isBlank()) return@forEach
                     if (isLikelyUrl(candidate)) {
-                        val absoluteUrl = resolveUrl(baseUrl, candidate)
+                        val (url, headers) = splitUrlAndHeaders(candidate)
+                        val absoluteUrl = resolveUrl(baseUrl, url)
                         pages.add(MangaPage(
                             id = (source.name.hashCode().toLong() shl 32) + pages.size,
                             url = absoluteUrl,
                             preview = absoluteUrl,
-                            headers = emptyMap(),
+                            headers = headers,
                             source = source
                         ))
                     }
@@ -109,9 +114,13 @@ object BookContent {
             }
         }
         
-        if (pages.isNotEmpty()) {
-            android.util.Log.d(TAG, "[Content] Page[0] URL: ${pages[0].url}")
-        }
+	        if (pages.isNotEmpty()) {
+	            android.util.Log.d(TAG, "[Content] Page[0] URL: ${pages[0].url}")
+	        } else if (isManga) {
+	            detectApiErrorMessage(content)?.let { message ->
+	                throw ContentUnavailableException(message)
+	            }
+	        }
 
         val nextPageUrls = rule.nextContentUrl
             ?.let { analyzeRule.getStringList(it) }
@@ -154,12 +163,48 @@ object BookContent {
                (trimmed.contains(".") && !trimmed.contains(" ") && !trimmed.contains("\n"))
     }
 
-    private fun resolveUrl(baseUrl: String, relativeUrl: String): String {
-        if (relativeUrl.isBlank() || relativeUrl.startsWith("http")) return relativeUrl
-        return try {
-            java.net.URL(java.net.URL(baseUrl), relativeUrl).toString()
-        } catch (e: Exception) {
-            relativeUrl
+	    private fun resolveUrl(baseUrl: String, relativeUrl: String): String {
+	        if (relativeUrl.isBlank() || relativeUrl.startsWith("http")) return relativeUrl
+	        return try {
+	            java.net.URL(java.net.URL(baseUrl), relativeUrl).toString()
+	        } catch (e: Exception) {
+	            relativeUrl
+	        }
+	    }
+
+	    private fun detectApiErrorMessage(content: String): String? {
+	        val trimmed = content.trim()
+	        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null
+	        val obj = runCatching { JSONObject(trimmed) }.getOrNull() ?: return null
+
+	        val codeValue = obj.opt("code")?.toString()?.trim().orEmpty()
+	        val message = (obj.optString("message").ifBlank { obj.optString("msg") }).trim()
+	        if (message.isBlank()) return null
+
+	        val isSuccess = codeValue == "0" || codeValue.equals("success", ignoreCase = true)
+	        return if (isSuccess) null else message
+	    }
+
+        private fun splitUrlAndHeaders(raw: String): Pair<String, Map<String, String>> {
+            val splitMatch = optionsSplitRegex.find(raw)
+            if (splitMatch == null) return raw.trim() to emptyMap()
+
+            val urlPart = raw.substring(0, splitMatch.range.first).trim()
+            val optionsPart = raw.substring(splitMatch.range.last + 1).trim()
+
+            val headers = runCatching {
+                val normalizedOptions = if (optionsPart.contains("'")) {
+                    optionsPart.replace("'", "\"")
+                } else optionsPart
+                val optionsJson = JSONObject(normalizedOptions)
+                val headersObj = optionsJson.optJSONObject("headers") ?: return@runCatching emptyMap()
+                buildMap<String, String> {
+                    headersObj.keys().forEach { key ->
+                        put(key, headersObj.optString(key))
+                    }
+                }
+            }.getOrDefault(emptyMap())
+
+            return urlPart to headers
         }
-    }
 }

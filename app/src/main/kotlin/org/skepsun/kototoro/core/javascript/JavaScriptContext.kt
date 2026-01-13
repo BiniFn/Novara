@@ -123,7 +123,9 @@ data class JavaScriptContext(
         allVars.putAll(variables)
         
         // 添加标准变量
-        baseUrl?.let { allVars["baseUrl"] = it }
+        // 允许通过 setVariable/putVariable("baseUrl", ...) 动态覆盖上下文 baseUrl
+        // 显式变量优先，避免被构造时的 baseUrl 覆盖（与 legado 行为对齐）
+        baseUrl?.let { if (!allVars.containsKey("baseUrl")) allVars["baseUrl"] = it }
         book?.let { allVars["book"] = it }
         chapter?.let { allVars["chapter"] = it }
         source?.let { allVars["source"] = it }

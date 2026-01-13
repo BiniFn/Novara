@@ -16,6 +16,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.skepsun.kototoro.browser.BrowserActivity
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
+import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
 import org.skepsun.kototoro.parsers.model.MangaSource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -188,6 +189,7 @@ class BrowserLauncher(
      * @return Cookie 对象列表
      */
     private fun parseCookieString(cookieString: String, url: okhttp3.HttpUrl): List<Cookie> {
+        val rootDomain = LegadoNetworkUtils.getSubDomain(url.toString())
         return cookieString.split(";").mapNotNull { cookiePart ->
             val trimmed = cookiePart.trim()
             if (trimmed.isEmpty()) return@mapNotNull null
@@ -202,7 +204,7 @@ class BrowserLauncher(
                 Cookie.Builder()
                     .name(name)
                     .value(value)
-                    .domain(url.host)
+                    .domain(rootDomain)
                     .path("/")
                     .build()
             } catch (e: Exception) {

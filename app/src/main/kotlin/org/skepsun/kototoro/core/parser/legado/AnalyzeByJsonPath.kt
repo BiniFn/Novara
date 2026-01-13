@@ -3,6 +3,9 @@ package org.skepsun.kototoro.core.parser.legado
 import android.util.Log
 import com.jayway.jsonpath.JsonPath
 import com.jayway.jsonpath.ReadContext
+import org.mozilla.javascript.NativeArray
+import org.mozilla.javascript.NativeObject
+import org.mozilla.javascript.Undefined
 
 /**
  * JSONPath analyzer for API responses.
@@ -26,6 +29,9 @@ class AnalyzeByJsonPath(content: Any) {
                 is String -> JsonPath.parse(json)
                 is Map<*, *> -> JsonPath.parse(json)
                 is List<*> -> JsonPath.parse(json)
+                is Array<*> -> JsonPath.parse(json.toList())
+                is NativeArray -> JsonPath.parse(toKotlinList(json))
+                is NativeObject -> JsonPath.parse(toKotlinMap(json))
                 else -> {
                     val className = json.javaClass.name
                     if (className.contains("org.json.JSONObject") || className.contains("org.json.JSONArray")) {
@@ -34,6 +40,36 @@ class AnalyzeByJsonPath(content: Any) {
                         JsonPath.parse(json)
                     }
                 }
+            }
+        }
+
+        private fun toKotlinList(array: NativeArray): List<Any?> {
+            val length = (array.get("length", array) as? Number)?.toInt() ?: 0
+            val out = ArrayList<Any?>(length)
+            for (i in 0 until length) {
+                val value = array.get(i, array)
+                out.add(toPlainValue(value))
+            }
+            return out
+        }
+
+        private fun toKotlinMap(obj: NativeObject): Map<String, Any?> {
+            val out = LinkedHashMap<String, Any?>()
+            for (id in obj.ids) {
+                val key = id?.toString()?.takeIf { it.isNotBlank() } ?: continue
+                val value = obj.get(key, obj)
+                out[key] = toPlainValue(value)
+            }
+            return out
+        }
+
+        private fun toPlainValue(value: Any?): Any? {
+            return when (value) {
+                null -> null
+                is Undefined -> null
+                is NativeArray -> toKotlinList(value)
+                is NativeObject -> toKotlinMap(value)
+                else -> value
             }
         }
     }

@@ -21,6 +21,10 @@ import javax.inject.Singleton
 class PersistentCookieJar @Inject constructor(
     private val cookieJar: MutableCookieJar
 ) {
+    companion object {
+        // Match legado-with-MD3 CookieStore behavior (Cookie header hard limit)
+        private const val MAX_COOKIE_HEADER_LENGTH = 4096
+    }
 
     /**
      * Get all cookies for a URL
@@ -33,6 +37,39 @@ class PersistentCookieJar @Inject constructor(
         val scheme = try { url.toHttpUrl().scheme } catch (_: Exception) { "https" }
         val normalizedUrl = "$scheme://$domain".toHttpUrl()
         return cookieJar.loadForRequest(normalizedUrl)
+    }
+
+    /**
+     * Get cookies for a URL as a Cookie header string.
+     *
+     * Matches legado-with-MD3 CookieStore behavior:
+     * - Aggregate by TLD+1 (sub-domain)
+     * - Enforce Cookie header length <= 4096 by removing random keys
+     */
+    fun getCookieHeader(url: String, maxLength: Int = MAX_COOKIE_HEADER_LENGTH): String {
+        val cookies = getCookies(url)
+        if (cookies.isEmpty()) return ""
+
+        val cookieMap = LinkedHashMap<String, String>(cookies.size)
+        for (cookie in cookies) {
+            // Last write wins, similar to MD3 mergeCookiesToMap behavior
+            cookieMap[cookie.name] = cookie.value
+        }
+
+        fun buildHeader(): String {
+            if (cookieMap.isEmpty()) return ""
+            return cookieMap.entries.joinToString("; ") { (k, v) -> "$k=$v" }
+        }
+
+        var header = buildHeader()
+        while (header.length > maxLength && cookieMap.isNotEmpty()) {
+            // Remove a random key (MD3 behavior)
+            val removeKey = cookieMap.keys.random()
+            removeCookies(url, setOf(removeKey))
+            cookieMap.remove(removeKey)
+            header = buildHeader()
+        }
+        return header
     }
 
     /**
@@ -57,7 +94,7 @@ class PersistentCookieJar @Inject constructor(
         val domain = LegadoNetworkUtils.getSubDomain(url)
         val scheme = try { url.toHttpUrl().scheme } catch (_: Exception) { "https" }
         val normalizedUrl = "$scheme://$domain".toHttpUrl()
-        cookieJar.saveFromResponse(normalizedUrl, cookies)
+        cookieJar.saveFromResponse(normalizedUrl, cookies.map { it.withDomain(domain) })
     }
 
     /**
@@ -114,4 +151,19 @@ class PersistentCookieJar @Inject constructor(
      * Get the underlying MutableCookieJar for advanced usage
      */
     fun getUnderlyingJar(): MutableCookieJar = cookieJar
+
+    private fun Cookie.withDomain(domain: String): Cookie {
+        if (this.domain == domain && !this.hostOnly) return this
+        return Cookie.Builder()
+            .name(name)
+            .value(value)
+            .expiresAt(expiresAt)
+            .path(path)
+            .apply {
+                if (secure) secure()
+                if (httpOnly) httpOnly()
+                domain(domain) // widen scope for Legado compatibility
+            }
+            .build()
+    }
 }

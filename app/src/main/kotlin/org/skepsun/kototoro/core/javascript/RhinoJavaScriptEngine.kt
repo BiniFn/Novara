@@ -286,7 +286,7 @@ class RhinoJavaScriptEngine(
         
         // 为 source 对象添加 getKey() 方法
         context.source?.let { source ->
-            val sourceWrapper = SourceWrapper(source, javaAPI)
+            val sourceWrapper = SourceWrapper(source, androidContext)
             val jsSource = RhinoContext.javaToJS(sourceWrapper, currentScope)
             ScriptableObject.putProperty(currentScope, "source", jsSource)
         }
@@ -298,8 +298,12 @@ class RhinoJavaScriptEngine(
      */
     class SourceWrapper(
         private val source: org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource,
-        private val javaAPI: LegadoJavaAPI?
+        private val context: Context
     ) {
+        private val prefs by lazy {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
+
         // 属性访问器 - Rhino 会自动调用这些 getter 方法
         val bookSourceComment: String? get() = source.bookSourceComment
         val bookSourceName: String get() = source.bookSourceName
@@ -312,9 +316,77 @@ class RhinoJavaScriptEngine(
         val loginCheckJs: String? get() = source.loginCheckJs
         val enabled: Boolean get() = source.enabled
         val weight: Int get() = source.weight
-        
+
         fun getKey(): String {
             return source.bookSourceUrl
+        }
+
+        /**
+         * legado-with-MD3 兼容：源变量读写（JS 中常用 source.getVariable()/setVariable()）
+         *
+         * 该变量用于跨请求/跨规则保存少量状态（例如登录 token、设备注册信息等）。
+         */
+        fun getVariable(): String {
+            return prefs.getString(sourceVariableKey(), "") ?: ""
+        }
+
+        fun setVariable(variable: String?) {
+            prefs.edit().apply {
+                if (variable == null) remove(sourceVariableKey()) else putString(sourceVariableKey(), variable)
+            }.apply()
+        }
+
+        /**
+         * legado-with-MD3 兼容：持久化 KV（JS 中常用 source.put()/source.get()）
+         */
+        fun put(key: String, value: String): String {
+            prefs.edit().putString(kvKey(key), value).apply()
+            return value
+        }
+
+        fun get(key: String): String {
+            return prefs.getString(kvKey(key), "") ?: ""
+        }
+
+        /**
+         * legado-with-MD3 兼容：登录信息读写（部分源脚本用于保存可变基址、token 等）
+         * Kototoro 这里按明文存储（不做 legado 的 AES 加密），避免引入额外依赖与复杂度。
+         */
+        fun putLoginInfo(info: String): Boolean {
+            return runCatching {
+                prefs.edit().putString(loginInfoKey(), info).apply()
+            }.isSuccess
+        }
+
+        fun getLoginInfo(): String? {
+            return prefs.getString(loginInfoKey(), null)
+        }
+
+        fun getLoginInfoMap(): Map<String, String> {
+            val json = getLoginInfo().orEmpty()
+            if (json.isBlank()) return emptyMap()
+            return runCatching {
+                val obj = org.json.JSONObject(json)
+                val result = LinkedHashMap<String, String>(obj.length())
+                val keys = obj.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    result[k] = obj.optString(k, "")
+                }
+                result
+            }.getOrElse { emptyMap() }
+        }
+
+        fun removeLoginInfo() {
+            prefs.edit().remove(loginInfoKey()).apply()
+        }
+
+        private fun sourceVariableKey(): String = "sourceVariable_${getKey()}"
+        private fun loginInfoKey(): String = "userInfo_${getKey()}"
+        private fun kvKey(key: String): String = "v_${getKey()}_$key"
+
+        private companion object {
+            private const val PREFS_NAME = "legado_source_store"
         }
     }
     
@@ -322,10 +394,11 @@ class RhinoJavaScriptEngine(
         private const val TAG = "RhinoJavaScriptEngine"
 
         /**
-         * 将 Legado 规则中的裸 JS 片段包装为可执行表达式。
-         * 1) 去掉 @js:/<js> 标签
-         * 2) 对于简单表达式脚本，不做包装直接返回
-         * 3) 对于复杂脚本（包含c或result变量），包装成IIFE返回c/result
+         * 预处理 Legado 规则中的 JS 片段：
+         * - 去掉 `@js:` / `<js>` / `</js>` 包装
+         *
+         * legado-with-MD3 的 Rhino 执行不会强制包裹 IIFE，也不会强行返回 `result/c`；
+         * 返回值应当由脚本最后一个表达式决定（必要时由调用方兜底读取 `result` 变量）。
          */
         fun wrapScript(raw: String): String {
             var script = raw.trim()
@@ -338,23 +411,7 @@ class RhinoJavaScriptEngine(
             if (script.endsWith("</js>", ignoreCase = true)) {
                 script = script.removeSuffix("</js>").trim()
             }
-            
-            // 检查是否需要包装
-            // 如果脚本中没有定义 c 或 result 变量，直接执行脚本，让 Rhino 返回最后表达式的值
-            val hasResultVar = script.contains(Regex("\\b(var|let|const)\\s+c\\b")) || 
-                              script.contains(Regex("\\b(var|let|const)\\s+result\\b")) ||
-                              script.contains(Regex("\\bc\\s*=\\s*java\\.")) ||
-                              script.contains("c=java.") ||
-                              script.contains("result=")
-            
-            return if (hasResultVar) {
-                // 复杂脚本：包装成IIFE并返回c或result
-                "(function(){\n$script\nreturn (typeof c!=='undefined'?c:(typeof result!=='undefined'?result:null));\n})();"
-            } else {
-                // 简单脚本（如header JS）：直接执行，让Rhino返回最后表达式值
-                // 删除末尾的分号以确保表达式被返回
-                script
-            }
+            return script
         }
     }
 }

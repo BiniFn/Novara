@@ -89,7 +89,7 @@ object BookList {
     }
 
     private fun parseItems(
-        items: List<Any>,
+        items: List<Any?>,
         rule: org.skepsun.kototoro.core.model.jsonsource.SearchRule,
         baseUrl: String,
         source: MangaSource,
@@ -97,6 +97,7 @@ object BookList {
         reverse: Boolean
     ): List<Manga> {
         val mangas = items.mapIndexedNotNull { index, item ->
+            if (item == null) return@mapIndexedNotNull null
             // Create a new analyzer for the specific item
             val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
             

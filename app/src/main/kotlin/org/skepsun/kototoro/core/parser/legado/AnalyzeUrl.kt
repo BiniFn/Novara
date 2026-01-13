@@ -33,11 +33,13 @@ class AnalyzeUrl(
     
     companion object {
         private const val TAG = "AnalyzeUrl"
-        
+
         private val json = Json {
             ignoreUnknownKeys = true
             isLenient = true
         }
+
+        private val optionsSplitRegex = Regex("\\s*,\\s*(?=\\{)")
 
         // Regex for @js: or <js>...</js>
         private val JS_PATTERN = Regex("@js:([\\s\\S]*)|<js>([\\s\\S]*?)</js>", RegexOption.IGNORE_CASE)
@@ -48,17 +50,8 @@ class AnalyzeUrl(
          */
         fun normalizeUrl(url: String?): String {
             if (url.isNullOrBlank()) return ""
-            val commaIndex = url.indexOf(",{")
-            var normalized = if (commaIndex != -1) {
-                url.substring(0, commaIndex).trim()
-            } else {
-                val commaSpaceIndex = url.indexOf(", {")
-                if (commaSpaceIndex != -1) {
-                    url.substring(0, commaSpaceIndex).trim()
-                } else {
-                    url.trim()
-                }
-            }
+            val splitMatch = optionsSplitRegex.find(url)
+            var normalized = if (splitMatch != null) url.substring(0, splitMatch.range.first).trim() else url.trim()
             
             // Remove trailing slash
             if (normalized.endsWith("/") && normalized.length > 8) {
@@ -104,17 +97,34 @@ class AnalyzeUrl(
      * Identify and execute @js: or <js> blocks in the ruleUrl
      */
     private fun analyzeJs() {
-        val matches = JS_PATTERN.findAll(ruleUrl)
-        if (matches.none()) return
+        val matches = JS_PATTERN.findAll(ruleUrl).toList()
+        if (matches.isEmpty()) return
 
+        var start = 0
         var result = ruleUrl
-        matches.forEach { match ->
+        for (match in matches) {
+            val matchStart = match.range.first
+            if (matchStart > start) {
+                val chunk = ruleUrl.substring(start, matchStart).trim()
+                if (chunk.isNotEmpty()) {
+                    result = chunk.replace("@result", result)
+                }
+            }
             val script = match.groups[1]?.value ?: match.groups[2]?.value ?: ""
             if (script.isNotBlank()) {
                 val evalResult = evalJS(script, result)
                 result = evalResult?.toString() ?: ""
             }
+            start = match.range.last + 1
         }
+
+        if (ruleUrl.length > start) {
+            val chunk = ruleUrl.substring(start).trim()
+            if (chunk.isNotEmpty()) {
+                result = chunk.replace("@result", result)
+            }
+        }
+
         ruleUrl = result
     }
     
@@ -123,15 +133,14 @@ class AnalyzeUrl(
      * Format: url,{"method":"POST","body":"...","headers":{...}}
      */
     private fun parseUrlWithOptions(): UrlResult {
-        // Find the first comma followed by a brace (ignoring those inside braces if possible, but Legado is usually simple)
-        val commaIndex = ruleUrl.indexOf(",{")
-        
-        if (commaIndex == -1) {
+        // legado-with-MD3 behavior: split by the first ',{...}' marker with optional whitespace.
+        val splitMatch = optionsSplitRegex.find(ruleUrl)
+        if (splitMatch == null) {
             return UrlResult(url = resolveUrl(baseUrl, ruleUrl.trim()))
         }
-        
-        val urlPart = ruleUrl.substring(0, commaIndex).trim()
-        val optionsPart = ruleUrl.substring(commaIndex + 1).trim()
+
+        val urlPart = ruleUrl.substring(0, splitMatch.range.first).trim()
+        val optionsPart = ruleUrl.substring(splitMatch.range.last + 1).trim()
         
         val finalUrl = resolveUrl(baseUrl, urlPart)
         
@@ -238,6 +247,18 @@ class AnalyzeUrl(
         result = result
             .replace("{key}", encodedKey)
             .replace("{page}", page.toString())
+
+        // Replace pagePattern like <a,b,c> (legado-with-MD3 behavior)
+        // Apply after {{...}} evaluation to avoid breaking expressions containing '<'/'>'.
+        val pagePattern = Regex("<(.*?)>")
+        result = pagePattern.replace(result) { match ->
+            val raw = match.groups[1]?.value?.trim().orEmpty()
+            if (raw.isEmpty()) return@replace match.value
+            val pages = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (pages.isEmpty()) return@replace match.value
+            val index = page - 1
+            if (index in pages.indices) pages[index] else pages.last()
+        }
         
         // Replace variables from RuleData
         ruleData?.getVariableMap()?.forEach { (k, v) ->

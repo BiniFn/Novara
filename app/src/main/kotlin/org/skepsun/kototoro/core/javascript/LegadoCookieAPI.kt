@@ -4,6 +4,7 @@ import android.util.Log
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
+import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
 
 /**
  * Legado Cookie API 实现
@@ -36,12 +37,7 @@ class LegadoCookieAPI(
      */
     fun getCookie(url: String): String {
         return try {
-            val cookies = cookieJar.getCookies(url)
-            if (cookies.isEmpty()) {
-                ""
-            } else {
-                cookies.joinToString("; ") { "${it.name}=${it.value}" }
-            }
+            cookieJar.getCookieHeader(url)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get cookie for $url", e)
             ""
@@ -160,8 +156,8 @@ class LegadoCookieAPI(
                     val key = parts[0].trim()
                     val value = parts[1].trim()
                     
-                    // 跳过空值和 "null" 字符串
-                    if (value.isNotBlank() && value != "null") {
+                    // 对齐 legado-with-MD3：允许 value 为 "null"
+                    if (value.isNotBlank() || value == "null") {
                         cookieMap[key] = value
                     }
                 }
@@ -226,6 +222,7 @@ class LegadoCookieAPI(
      */
     private fun parseCookieString(cookieString: String, url: okhttp3.HttpUrl): List<Cookie> {
         val cookies = mutableListOf<Cookie>()
+        val rootDomain = LegadoNetworkUtils.getSubDomain(url.toString())
         
         try {
             // 按分号分割多个 Cookie
@@ -238,7 +235,7 @@ class LegadoCookieAPI(
                 // 尝试解析为 OkHttp Cookie
                 val cookie = Cookie.parse(url, trimmedPair)
                 if (cookie != null) {
-                    cookies.add(cookie)
+                    cookies.add(cookie.toDomainCookie(rootDomain))
                 } else {
                     // 如果解析失败，尝试简单格式 "key=value"
                     val parts = trimmedPair.split("=", limit = 2)
@@ -246,12 +243,12 @@ class LegadoCookieAPI(
                         val key = parts[0].trim()
                         val value = parts[1].trim()
                         
-                        if (key.isNotBlank() && value.isNotBlank() && value != "null") {
+                        if (key.isNotBlank() && (value.isNotBlank() || value == "null")) {
                             // 创建简单的 Cookie（使用 URL 的域名和路径）
                             val simpleCookie = Cookie.Builder()
                                 .name(key)
                                 .value(value)
-                                .domain(url.host)
+                                .domain(rootDomain)
                                 .path("/")
                                 .build()
                             cookies.add(simpleCookie)
@@ -264,5 +261,20 @@ class LegadoCookieAPI(
         }
         
         return cookies
+    }
+
+    private fun Cookie.toDomainCookie(domain: String): Cookie {
+        if (this.domain == domain && !this.hostOnly) return this
+        return Cookie.Builder()
+            .name(name)
+            .value(value)
+            .expiresAt(expiresAt)
+            .path(path)
+            .apply {
+                if (secure) secure()
+                if (httpOnly) httpOnly()
+                domain(domain)
+            }
+            .build()
     }
 }
