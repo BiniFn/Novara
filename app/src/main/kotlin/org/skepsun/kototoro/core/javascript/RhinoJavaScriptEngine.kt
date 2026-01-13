@@ -290,6 +290,13 @@ class RhinoJavaScriptEngine(
             val jsSource = RhinoContext.javaToJS(sourceWrapper, currentScope)
             ScriptableObject.putProperty(currentScope, "source", jsSource)
         }
+        
+        // 为 book 对象添加 putVariable/getVariable/setUseReplaceRule 方法
+        context.book?.let { book ->
+            val bookWrapper = BookWrapper(book, androidContext)
+            val jsBook = RhinoContext.javaToJS(bookWrapper, currentScope)
+            ScriptableObject.putProperty(currentScope, "book", jsBook)
+        }
     }
 
     
@@ -387,6 +394,120 @@ class RhinoJavaScriptEngine(
 
         private companion object {
             private const val PREFS_NAME = "legado_source_store"
+        }
+    }
+    
+    /**
+     * Book 对象包装器，提供 Legado 兼容的方法
+     * 
+     * 支持聚合源等场景中 JavaScript 调用：
+     * - book.putVariable(key, value)
+     * - book.getVariable(key)
+     * - book.setUseReplaceRule(boolean)
+     * 
+     * 变量持久化：使用 SharedPreferences，key 基于 bookUrl
+     */
+    class BookWrapper(
+        private val book: BookInfo,
+        private val context: Context
+    ) {
+        private val prefs by lazy {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
+        
+        // 属性访问器 - Rhino 会自动调用这些 getter 方法
+        val bookUrl: String get() = book.bookUrl
+        val name: String? get() = book.name
+        val author: String? get() = book.author
+        val coverUrl: String? get() = book.coverUrl
+        val intro: String? get() = book.intro
+        val kind: String? get() = book.kind
+        val lastChapter: String? get() = book.lastChapter
+        val tocUrl: String? get() = book.tocUrl
+        val wordCount: String? get() = book.wordCount
+        val type: Int? get() = book.type
+        
+        /**
+         * 存储变量（Legado 兼容 + 持久化）
+         * JS 中调用：book.putVariable("key", "value")
+         * 
+         * 同时存储到内存（BookInfo）和持久化存储（SharedPreferences）
+         */
+        fun putVariable(key: String, value: String?): Boolean {
+            // 内存存储
+            book.putVariable(key, value)
+            // 持久化存储
+            prefs.edit().apply {
+                if (value == null) {
+                    remove(bookVariableKey(key))
+                } else {
+                    putString(bookVariableKey(key), value)
+                }
+            }.apply()
+            Log.d(TAG, "book.putVariable($key, $value) -> persisted to prefs")
+            return true
+        }
+        
+        /**
+         * 获取变量（Legado 兼容 + 持久化读取）
+         * JS 中调用：book.getVariable("key") 或 book.getVariable("custom")
+         * 
+         * 优先从内存读取，如果不存在则从持久化存储读取
+         */
+        fun getVariable(key: String): String {
+            // 先从内存获取
+            val memValue = book.getVariable(key)
+            if (memValue.isNotEmpty()) {
+                return memValue
+            }
+            // 从持久化存储获取
+            val persistedValue = prefs.getString(bookVariableKey(key), "") ?: ""
+            if (persistedValue.isNotEmpty()) {
+                // 同步到内存
+                book.putVariable(key, persistedValue)
+                Log.d(TAG, "book.getVariable($key) -> loaded from prefs: $persistedValue")
+            }
+            return persistedValue
+        }
+        
+        /**
+         * 设置是否使用替换规则（Legado 兼容）
+         * JS 中调用：book.setUseReplaceRule(false)
+         */
+        fun setUseReplaceRule(useReplaceRule: Boolean) {
+            book.setUseReplaceRule(useReplaceRule)
+        }
+        
+        /**
+         * 获取是否使用替换规则
+         */
+        fun getUseReplaceRule(): Boolean {
+            return book.getUseReplaceRule()
+        }
+        
+        /**
+         * 设置属性（Legado 兼容）
+         */
+        fun setProperty(name: String, value: Any?) {
+            book.setProperty(name, value)
+        }
+        
+        /**
+         * 获取属性（Legado 兼容）
+         */
+        fun getProperty(propertyName: String): Any? {
+            return book.getProperty(propertyName)
+        }
+        
+        // 生成持久化 key，使用 bookUrl 的 MD5 hash 避免 key 过长
+        private fun bookVariableKey(key: String): String {
+            val urlHash = book.bookUrl.hashCode().toString(16)
+            return "bookVar_${urlHash}_$key"
+        }
+        
+        private companion object {
+            private const val TAG = "BookWrapper"
+            private const val PREFS_NAME = "legado_book_store"
         }
     }
     

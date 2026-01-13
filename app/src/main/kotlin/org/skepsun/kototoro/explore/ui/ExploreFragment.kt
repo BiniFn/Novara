@@ -213,11 +213,11 @@ class ExploreFragment :
 			)
 		}
 		
-		// Keep original vertical spacing; only extend horizontal padding for insets
+		// Apply insets: top for status bar, left/right for gesture bars
 		groupTabsInitialPadding?.let { padding ->
 			groupTabs?.setPadding(
 				/* left = */ padding.left + barsInsets.left,
-				/* top = */ padding.top,
+				/* top = */ padding.top + barsInsets.top,
 				/* right = */ padding.right + barsInsets.right,
 				/* bottom = */ padding.bottom,
 			)

@@ -211,8 +211,12 @@ data class BookInfo(
     var tocUrl: String? = null,
     var wordCount: String? = null,
     var type: Int? = null, // 自定义属性，可被 JavaScript 设置
-    val customProperties: MutableMap<String, Any?> = mutableMapOf()
+    val customProperties: MutableMap<String, Any?> = mutableMapOf(),
+    private val variableMap: MutableMap<String, String> = mutableMapOf()
 ) {
+    // Legado 兼容：是否使用替换规则
+    private var useReplaceRule: Boolean = true
+    
     /**
      * 设置自定义属性
      */
@@ -248,6 +252,51 @@ data class BookInfo(
             "type" -> this.type
             else -> customProperties[propertyName]
         }
+    }
+    
+    // ======== Legado 兼容：变量管理 ========
+    
+    /**
+     * 存储变量（Legado 兼容）
+     * 用于聚合源等场景，在 JavaScript 中调用 book.putVariable(key, value)
+     */
+    fun putVariable(key: String, value: String?): Boolean {
+        if (value == null) {
+            variableMap.remove(key)
+        } else {
+            variableMap[key] = value
+        }
+        return true
+    }
+    
+    /**
+     * 获取变量（Legado 兼容）
+     * 用于聚合源等场景，在 JavaScript 中调用 book.getVariable(key)
+     */
+    fun getVariable(key: String): String {
+        return variableMap[key] ?: ""
+    }
+    
+    /**
+     * 设置是否使用替换规则（Legado 兼容）
+     * 部分聚合源会调用 book.setUseReplaceRule(false) 来禁用净化替换
+     */
+    fun setUseReplaceRule(useReplaceRule: Boolean) {
+        this.useReplaceRule = useReplaceRule
+    }
+    
+    /**
+     * 获取是否使用替换规则
+     */
+    fun getUseReplaceRule(): Boolean {
+        return useReplaceRule
+    }
+    
+    /**
+     * 获取所有变量（用于序列化等）
+     */
+    fun getVariableMap(): Map<String, String> {
+        return variableMap.toMap()
     }
 }
 

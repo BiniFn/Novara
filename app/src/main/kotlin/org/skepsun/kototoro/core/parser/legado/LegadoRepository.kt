@@ -568,6 +568,8 @@ class LegadoRepository(
         var reverseFlag = false
         val queue: ArrayDeque<String> = ArrayDeque()
         queue.add(tocUrl)
+        
+        var pageCount = 0
 
         while (queue.isNotEmpty()) {
             val url = queue.removeFirst()
@@ -575,6 +577,8 @@ class LegadoRepository(
             if (!visited.add(url)) {
                 continue
             }
+            
+            pageCount++
 
             val request = AnalyzeUrl(
                 url, 
@@ -594,6 +598,8 @@ class LegadoRepository(
                 reverseFlag = true
             }
             chapters.addAll(parseResult.chapters)
+            
+            android.util.Log.d(TAG, "TOC page $pageCount: loaded ${parseResult.chapters.size} chapters, total: ${chapters.size}, nextPages: ${parseResult.nextPageUrls.size}")
 
             parseResult.nextPageUrls.forEach { next ->
                 if (!visited.contains(next)) {
