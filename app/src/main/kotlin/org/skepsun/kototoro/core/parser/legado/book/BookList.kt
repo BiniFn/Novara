@@ -24,7 +24,7 @@ object BookList {
             ?: img.attr("data-lazy-src").takeIf { it.isNotBlank() }
             ?: img.attr("src").takeIf { it.isNotBlank() }
             ?: return ""
-        return resolveUrl(baseUrl, raw.trim())
+        return LegadoUrlSanitizer.sanitizeImageUrl(resolveUrl(baseUrl, raw.trim()))
     }
 
     private fun previewForLog(value: String, limit: Int = 160): String {
@@ -142,7 +142,7 @@ object BookList {
             val coverUrl = if (ruleCover.isBlank()) {
                 extractCoverUrlFallback(item, baseUrl)
             } else {
-                resolveUrl(baseUrl, ruleCover.trim())
+                LegadoUrlSanitizer.sanitizeImageUrl(resolveUrl(baseUrl, ruleCover.trim()))
             }.takeIf { it.isNotBlank() }
             val intro = itemAnalyzer.getString(rule.intro)
             

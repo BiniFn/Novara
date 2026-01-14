@@ -51,7 +51,7 @@ object BookInfo {
         val coverFromRule = analyzeRule.getString(rule.coverUrl, isUrl = true)
         val coverUrl = coverFromRule
             .takeIf { it.isNotBlank() }
-            ?.let { resolveUrl(baseUrl, it).takeIf { u -> u.isNotBlank() } }
+            ?.let { LegadoUrlSanitizer.sanitizeImageUrl(resolveUrl(baseUrl, it)).takeIf { u -> u.isNotBlank() } }
             ?: manga.coverUrl
         val intro = analyzeRule.getString(rule.intro).takeIf { it.isNotBlank() } ?: manga.description
         val kind = analyzeRule.getString(rule.kind)
