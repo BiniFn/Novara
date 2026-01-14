@@ -147,7 +147,7 @@ class AnalyzeUrl(
             val script = match.groups[1]?.value ?: match.groups[2]?.value ?: ""
             if (script.isNotBlank()) {
                 val evalResult = evalJS(script, result)
-                result = evalResult?.toString() ?: ""
+                result = jsValueToTemplateString(evalResult) ?: ""
             }
             start = match.range.last + 1
         }
@@ -252,6 +252,24 @@ class AnalyzeUrl(
         return sandbox.eval(script)
     }
 
+    private fun jsValueToTemplateString(value: Any?): String? {
+        return when (value) {
+            null -> null
+            is String -> value
+            is Double -> if (value % 1.0 == 0.0) {
+                String.format(java.util.Locale.ROOT, "%.0f", value)
+            } else {
+                value.toString()
+            }
+            is Float -> if (value % 1f == 0f) {
+                String.format(java.util.Locale.ROOT, "%.0f", value.toDouble())
+            } else {
+                value.toString()
+            }
+            else -> value.toString()
+        }
+    }
+
     /**
      * Apply template variable substitutions
      */
@@ -272,7 +290,7 @@ class AnalyzeUrl(
                 else -> {
                     // Evaluate as JS
                     val evalResult = evalJS(content, result)
-                    evalResult?.toString() ?: match.value
+                    jsValueToTemplateString(evalResult) ?: match.value
                 }
             }
         }

@@ -71,14 +71,31 @@ class LegadoJavaAPI(
      */
     fun ajax(url: String, options: Map<String, Any>?): String {
         return try {
-            val method = options?.get("method") as? String ?: "GET"
-            val headers = (options?.get("headers") as? Map<*, *>)?.mapKeys { it.key.toString() }?.mapValues { it.value.toString() } ?: emptyMap()
-            val body = options?.get("body") as? String
-            val charset = options?.get("charset") as? String ?: "UTF-8"
+            // legado 兼容：支持 url 末尾追加 ",{...}" 的 options 写法（常见于 java.ajax(url + ',' + JSON.stringify(opt))）。
+            val (urlPart, inlineOptions) = parseInlineOptions(url)
+            val mergedOptions: Map<String, Any> = buildMap {
+                inlineOptions?.let { putAll(it) }
+                options?.let { putAll(it) }
+            }
+
+            val method = mergedOptions["method"] as? String ?: "GET"
+            val rawHeaders = mergedOptions["headers"] as? Map<*, *>
+            val headers = rawHeaders?.mapKeys { it.key.toString() }?.mapValues { it.value.toString() } ?: emptyMap()
+            val body = mergedOptions["body"] as? String
+            val charset = mergedOptions["charset"] as? String ?: "UTF-8"
             
-            Log.d(TAG, "ajax: $method $url")
+            Log.d(TAG, "ajax: $method $urlPart")
             
             val response = runBlocking {
+                val finalHeaders = headers.toMutableMap().apply {
+                    // 兜底补 referer，部分站点对 oauth/login 接口会校验 referer/origin。
+                    if (this["Referer"].isNullOrBlank() && this["referer"].isNullOrBlank()) {
+                        runCatching {
+                            val u = java.net.URL(urlPart)
+                            put("Referer", "${u.protocol}://${u.host}/")
+                        }
+                    }
+                }
                 when (method.uppercase()) {
                     "POST" -> {
                         // Convert body to form data if it's a string
@@ -91,9 +108,9 @@ class LegadoJavaAPI(
                         } else {
                             emptyMap()
                         }
-                        httpClient.post(url, formData, headers)
+                        httpClient.post(urlPart, formData, finalHeaders)
                     }
-                    else -> httpClient.get(url, headers)
+                    else -> httpClient.get(urlPart, finalHeaders)
                 }
             }
             
@@ -105,6 +122,25 @@ class LegadoJavaAPI(
             // This allows scripts to handle network failures gracefully
             Log.e(TAG, "Ajax request failed: $url - ${e.javaClass.simpleName}: ${e.message}")
             ""
+        }
+    }
+
+    private fun parseInlineOptions(url: String): Pair<String, Map<String, Any>?> {
+        val trimmed = url.trim()
+        val commaIndex = trimmed.indexOf(",{").let { if (it >= 0) it else trimmed.indexOf(", {") }
+        if (commaIndex < 0) return trimmed to null
+
+        val urlPart = trimmed.substring(0, commaIndex).trim()
+        val jsonPart = trimmed.substring(commaIndex + 1).trim()
+        return try {
+            val obj = org.json.JSONObject(jsonPart)
+            val map = LinkedHashMap<String, Any>()
+            obj.keys().forEach { key ->
+                map[key] = obj.get(key)
+            }
+            urlPart to map
+        } catch (_: Exception) {
+            urlPart to null
         }
     }
     
@@ -417,7 +453,7 @@ class LegadoJavaAPI(
         if (contextValue != null) return contextValue
         
         // 兜底检查本地 jsVariables
-        return jsVariables[key]
+        return jsVariables[key] ?: ""
     }
     
     /**

@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 
 import java.util.*
 import java.net.URLDecoder
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Main repository implementation for Legado JSON sources.
@@ -65,6 +66,8 @@ class LegadoRepository(
     private val sandbox: LegadoSandbox by lazy {
         LegadoSandbox(jsEngine, httpClient, config)
     }
+
+    private val manhuataiChapterNewIdCache = ConcurrentHashMap<Int, Map<String, String>>()
 
     /**
      * 清理该源的内存缓存（详情/目录/页面）。
@@ -155,33 +158,63 @@ class LegadoRepository(
     override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> {
         val query = filter?.query
         val isSearch = !query.isNullOrBlank()
-        val pageSize = 18 
-        val page = (offset / pageSize) + 1
-        
         val selectedCategoryUrl = filter?.tags?.find { it.key.startsWith("category:") }
             ?.key?.removePrefix("category:")
-        
+
+        val firstExploreUrl = getFirstExploreUrl()
         val ruleUrl = when {
             isSearch -> config.searchUrl!!
             selectedCategoryUrl != null -> selectedCategoryUrl
-            else -> getFirstExploreUrl() ?: config.searchUrl!!
+            firstExploreUrl != null -> firstExploreUrl
+            else -> config.searchUrl!!
         }
+
+        // 对“仅提供 searchUrl、没有 exploreUrl 的源”，Kototoro 的首页列表仍会调用 getList。
+        // 这类源存在两种常见情况：
+        // 1) 搜索接口允许空 key（例如 m.kanman.com：search_key= 空时也会返回列表）
+        // 2) 搜索接口 key 为空会返回 data=null（例如 api.sfacg.com 漫画）
+        // 处理策略：先用空 key 请求；若解析结果为空，再用一个最小默认 key 重试一次。
+        val shouldRetryWithDefaultKey =
+            !isSearch && selectedCategoryUrl == null && firstExploreUrl == null && query.isNullOrBlank()
+
+        // legado 源的分页参数经常不是 18（例如 mkz 这里固定 page_size=12），
+        // 若用错误的 pageSize 计算 page，会表现为“列表无法翻页/一直请求第 1 页”。
+        val pageSize = extractPageSizeFromUrl(ruleUrl) ?: 18
+        val page = (offset / pageSize) + 1
         
-        val request = AnalyzeUrl(
-            ruleUrl = ruleUrl,
-            key = query,
-            page = page,
-            baseUrl = effectiveBaseUrlForRequest(ruleUrl),
-            ruleData = sandbox.getRuleData(),
-            sandbox = sandbox,
-            useWebViewDefault = config.ruleSearch?.webView == true
-        ).build()
-        val result = executeRequest(request)
-        
-        if (result == null) return emptyList()
-        val (content, finalUrl) = result
-        
-        return BookList.parse(content, finalUrl, source, config, isSearch, sandbox)
+        fun buildRequest(key: String?): AnalyzeUrl.UrlResult {
+            return AnalyzeUrl(
+                ruleUrl = ruleUrl,
+                key = key,
+                page = page,
+                baseUrl = effectiveBaseUrlForRequest(ruleUrl),
+                ruleData = sandbox.getRuleData(),
+                sandbox = sandbox,
+                useWebViewDefault = config.ruleSearch?.webView == true
+            ).build()
+        }
+
+        val firstResult = executeRequest(buildRequest(query)) ?: return emptyList()
+        val (firstContent, firstFinalUrl) = firstResult
+        val firstParsed = BookList.parse(firstContent, firstFinalUrl, source, config, isSearch, sandbox)
+        if (firstParsed.isNotEmpty() || !shouldRetryWithDefaultKey) return firstParsed
+
+        val retryResult = executeRequest(buildRequest("a")) ?: return firstParsed
+        val (retryContent, retryFinalUrl) = retryResult
+        return BookList.parse(retryContent, retryFinalUrl, source, config, isSearch, sandbox)
+    }
+
+    private fun extractPageSizeFromUrl(url: String): Int? {
+        val raw = url.trim()
+        // only try when template uses page placeholder (avoid false positives)
+        if (!raw.contains("{{page}}")) return null
+
+        fun findInt(regex: Regex): Int? =
+            regex.find(raw)?.groupValues?.getOrNull(1)?.toIntOrNull()?.takeIf { it in 1..500 }
+
+        return findInt(Regex("[?&]page_size=(\\d+)", RegexOption.IGNORE_CASE))
+            ?: findInt(Regex("[?&]pageSize=(\\d+)", RegexOption.IGNORE_CASE))
+            ?: findInt(Regex("[?&]size=(\\d+)", RegexOption.IGNORE_CASE))
     }
 
     private val rateLimiter by lazy {
@@ -476,7 +509,28 @@ class LegadoRepository(
                 continue
             }
             val (content, finalUrl) = result
-            val parseResult = BookContent.parse(content, finalUrl, source, config, sandbox)
+            val parseResult = try {
+                BookContent.parse(content, finalUrl, source, config, sandbox)
+            } catch (e: org.skepsun.kototoro.parsers.exception.ContentUnavailableException) {
+                // manhuatai/kanman 站点：目录页的 href 可能不是 chapter_newid，导致接口返回“章节不存在!”。
+                // legado-with-MD3 通常通过正确的目录接口拿到 chapter_newid；这里做兜底映射以提升兼容性。
+                val fallbackUrl = resolveManhuataiChapterInfoUrl(url, chapter.title.orEmpty())
+                if (fallbackUrl != null && fallbackUrl != url) {
+                    val retryRequest = AnalyzeUrl(
+                        fallbackUrl,
+                        baseUrl = effectiveBaseUrlForRequest(fallbackUrl),
+                        sandbox = sandbox,
+                        useWebViewDefault = isWebViewEnabled(contentRule?.webView),
+                        webJsDefault = contentRule?.webJs,
+                        webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L
+                    ).build()
+                    val retryResult = executeRequest(retryRequest) ?: continue
+                    val (retryContent, retryFinalUrl) = retryResult
+                    BookContent.parse(retryContent, retryFinalUrl, source, config, sandbox)
+                } else {
+                    throw e
+                }
+            }
             val startIndex = pages.size
             parseResult.pages.forEachIndexed { index, page ->
                 val pageId = (source.name.hashCode().toLong() shl 32) + startIndex + index
@@ -518,6 +572,56 @@ class LegadoRepository(
                 SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(pages.toList()) })
             )
         }
+    }
+
+    private suspend fun resolveManhuataiChapterInfoUrl(originalUrl: String, chapterTitle: String): String? {
+        val httpUrl = originalUrl.toHttpUrlOrNull() ?: return null
+        if (!httpUrl.encodedPath.contains("/api/getchapterinfov2")) return null
+
+        val comicId = httpUrl.queryParameter("comic_id")?.toIntOrNull() ?: return null
+        val currentNewId = httpUrl.queryParameter("chapter_newid").orEmpty()
+        if (currentNewId.isBlank()) return null
+
+        val mapping = manhuataiChapterNewIdCache[comicId] ?: run {
+            val listUrl = "${httpUrl.scheme}://${httpUrl.host}/api/getchapterlist/?comic_id=$comicId"
+            val req = AnalyzeUrl(listUrl, baseUrl = effectiveBaseUrlForRequest(listUrl), sandbox = sandbox).build()
+            val resp = executeRequest(req) ?: return null
+            val body = resp.first
+            val obj = runCatching { JSONObject(body) }.getOrNull() ?: return null
+            val arr = obj.optJSONArray("data") ?: return null
+            val map = LinkedHashMap<String, String>(arr.length())
+            for (i in 0 until arr.length()) {
+                val item = arr.optJSONObject(i) ?: continue
+                val name = item.optString("chapter_name").trim()
+                val newId = item.optString("chapter_newid").trim()
+                if (name.isNotBlank() && newId.isNotBlank()) {
+                    map[normalizeChapterName(name)] = newId
+                }
+            }
+            manhuataiChapterNewIdCache[comicId] = map
+            map
+        }
+
+        val wanted = normalizeChapterName(chapterTitle)
+        val matchedNewId = mapping[wanted]
+            ?: mapping.entries.firstOrNull { (k, _) -> k.endsWith(wanted) || wanted.endsWith(k) }?.value
+            ?: return null
+
+        if (matchedNewId == currentNewId) return null
+
+        return httpUrl.newBuilder()
+            .setQueryParameter("chapter_newid", matchedNewId)
+            .build()
+            .toString()
+    }
+
+    private fun normalizeChapterName(title: String): String {
+        // 妙华台藏目录常见前缀：日期 + 空格，例如 "09-06 第1话 重生"
+        return title
+            .trim()
+            .replace(Regex("^\\d{2}-\\d{2}\\s+"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     override suspend fun getPageUrl(page: MangaPage): String {

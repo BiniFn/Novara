@@ -71,6 +71,10 @@ object JsonSourceNetworkModule {
             // Add JSON source specific interceptors
             addInterceptor(userAgentInterceptor)
             addInterceptor(rateLimitInterceptor)
+
+            // Keep JSON sources always fresh: avoid OkHttp HTTP cache returning stale bodies.
+            // This mirrors legado-with-MD3 default (no explicit cache configured).
+            cache(null)
             
             // NOTE: CloudFlareInterceptor is NOT added here
             // Legado sources handle CloudFlare internally in LegadoRepository

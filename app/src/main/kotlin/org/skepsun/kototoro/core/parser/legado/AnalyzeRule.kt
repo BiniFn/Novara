@@ -231,23 +231,32 @@ class AnalyzeRule(
             }
         }
         if (result == null) return null
+        if (result is Undefined) return null
         if (result is String) {
             result = result.split("\n")
         }
         if (isUrl) {
             val urlList = ArrayList<String>()
-            if (result is List<*>) {
-                for (url in result) {
-                    val absoluteURL = resolveUrl(baseUrl, url.toString())
-                    if (absoluteURL.isNotEmpty() && !urlList.contains(absoluteURL)) {
-                        urlList.add(absoluteURL)
-                    }
+            val rawUrls: Iterable<Any?> = when (result) {
+                is List<*> -> result
+                is NativeArray -> (0 until result.length.toInt()).map { idx -> result.get(idx, result) }
+                else -> listOf(result)
+            }
+            for (url in rawUrls) {
+                if (url == null || url is Undefined) continue
+                val absoluteURL = resolveUrl(baseUrl, url.toString())
+                if (absoluteURL.isNotEmpty() && !urlList.contains(absoluteURL)) {
+                    urlList.add(absoluteURL)
                 }
             }
             return urlList
         }
-        @Suppress("UNCHECKED_CAST")
-        return result as? List<String>
+        return when (result) {
+            is List<*> -> result.mapNotNull { it?.takeIf { v -> v !is Undefined }?.toString() }
+            is NativeArray -> (0 until result.length.toInt())
+                .mapNotNull { idx -> result.get(idx, result)?.takeIf { v -> v !is Undefined }?.toString() }
+            else -> listOf(result.toString())
+        }
     }
 
     /**
@@ -259,7 +268,8 @@ class AnalyzeRule(
             val text = if (isUrl) result[0] else result.joinToString("\n") { it.toString() }
             if (text.isNotEmpty()) return text
         }
-        Log.d(TAG, "[getString] Returned empty string for rule: $ruleStr")
+        val rulePreview = ruleStr?.let { previewRuleForLog(it) } ?: "null"
+        Log.d(TAG, "[getString] Returned empty string for rule: $rulePreview")
         return ""
     }
 
@@ -744,21 +754,26 @@ class AnalyzeRule(
                         }
 
                         regType == jsRuleType -> {
-                            if (isRule(ruleParam[index])) {
-                                val ruleList = splitSourceRuleCacheString(ruleParam[index])
-                                getString(ruleList, result).let {
-                                    infoVal.insert(0, it)
-                                }
+                            val expr = ruleParam[index].trim()
+                            val looksLikeRuleExpr =
+                                expr.startsWith("$") ||
+                                    expr.startsWith(".") ||
+                                    expr.startsWith("/") ||
+                                    expr.startsWith("@", ignoreCase = true) ||
+                                    (looksLikeJsonText(result) && looksLikeDottedJsonRule(expr))
+
+                            if (looksLikeRuleExpr) {
+                                val ruleList = splitSourceRuleCacheString(expr)
+                                infoVal.insert(0, getString(ruleList, result))
                             } else {
-                                val jsEval: Any? = evalJS(ruleParam[index], result)
+                                val jsEval: Any? = evalJS(expr, result)
                                 when {
-                                    jsEval == null -> Unit
+                                    jsEval == null || jsEval is Undefined -> Unit
                                     jsEval is String -> infoVal.insert(0, jsEval)
                                     jsEval is Double && jsEval % 1.0 == 0.0 -> infoVal.insert(
                                         0,
                                         String.format(java.util.Locale.ROOT, "%.0f", jsEval)
                                     )
-
                                     else -> infoVal.insert(0, jsEval.toString())
                                 }
                             }

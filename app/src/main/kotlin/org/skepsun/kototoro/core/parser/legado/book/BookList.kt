@@ -16,6 +16,17 @@ object BookList {
 
     private const val TAG = "LegadoBookList"
 
+    private fun extractCoverUrlFallback(item: Any?, baseUrl: String): String {
+        val element = item as? org.jsoup.nodes.Element ?: return ""
+        val img = element.selectFirst("img") ?: return ""
+        val raw = img.attr("data-src").takeIf { it.isNotBlank() }
+            ?: img.attr("data-original").takeIf { it.isNotBlank() }
+            ?: img.attr("data-lazy-src").takeIf { it.isNotBlank() }
+            ?: img.attr("src").takeIf { it.isNotBlank() }
+            ?: return ""
+        return resolveUrl(baseUrl, raw.trim())
+    }
+
     private fun previewForLog(value: String, limit: Int = 160): String {
         val normalized = value.replace("\r", "").replace("\n", "\\n").trim()
         return if (normalized.length <= limit) normalized else normalized.take(limit) + "…"
@@ -127,7 +138,12 @@ object BookList {
             
             val absoluteUrl = resolveUrl(baseUrl, bookUrl)
             val author = itemAnalyzer.getString(rule.author)
-            val coverUrl = itemAnalyzer.getString(rule.coverUrl, isUrl = true).let { resolveUrl(baseUrl, it) }
+            val ruleCover = itemAnalyzer.getString(rule.coverUrl, isUrl = true)
+            val coverUrl = if (ruleCover.isBlank()) {
+                extractCoverUrlFallback(item, baseUrl)
+            } else {
+                resolveUrl(baseUrl, ruleCover.trim())
+            }.takeIf { it.isNotBlank() }
             val intro = itemAnalyzer.getString(rule.intro)
             
             Manga(

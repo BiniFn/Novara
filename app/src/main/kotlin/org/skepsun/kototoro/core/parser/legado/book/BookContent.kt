@@ -62,12 +62,15 @@ object BookContent {
                         ?: return@forEach
 
                     val (url, headers) = splitUrlAndHeaders(urlRaw)
-                    val absoluteUrl = resolveUrl(baseUrl, url)
+                    if (url.isBlank()) return@forEach
+                    val absoluteUrl = normalizeMangaImageUrl(resolveUrl(baseUrl, url))
+                    if (absoluteUrl.isBlank()) return@forEach
+                    val finalHeaders = mergeDefaultImageHeaders(headers, baseUrl, absoluteUrl)
                     pages.add(MangaPage(
                         id = (source.name.hashCode().toLong() shl 32) + pages.size,
                         url = absoluteUrl,
                         preview = absoluteUrl,
-                        headers = headers,
+                        headers = finalHeaders,
                         source = source
                     ))
                 }
@@ -79,12 +82,13 @@ object BookContent {
                     if (candidate.isBlank()) return@forEach
                     if (isLikelyUrl(candidate)) {
                         val (url, headers) = splitUrlAndHeaders(candidate)
-                        val absoluteUrl = resolveUrl(baseUrl, url)
+                        val absoluteUrl = normalizeMangaImageUrl(resolveUrl(baseUrl, url))
+                        val finalHeaders = mergeDefaultImageHeaders(headers, baseUrl, absoluteUrl)
                         pages.add(MangaPage(
                             id = (source.name.hashCode().toLong() shl 32) + pages.size,
                             url = absoluteUrl,
                             preview = absoluteUrl,
-                            headers = headers,
+                            headers = finalHeaders,
                             source = source
                         ))
                     }
@@ -140,6 +144,40 @@ object BookContent {
         return ParseResult(pages, nextPageUrls)
     }
 
+    private fun normalizeMangaImageUrl(url: String): String {
+        if (url.isBlank()) return url
+        // Android 9+ 默认可能禁用 cleartext；对 mkzcdn 等常见图床统一升级 https。
+        if (url.startsWith("http://", ignoreCase = true)) {
+            val host = runCatching { java.net.URL(url).host.orEmpty() }.getOrDefault("")
+            if (host.endsWith("mkzcdn.com", ignoreCase = true)) {
+                return "https://" + url.removePrefix("http://")
+            }
+        }
+        return url
+    }
+
+    private fun mergeDefaultImageHeaders(
+        original: Map<String, String>,
+        baseUrl: String,
+        imageUrl: String
+    ): Map<String, String> {
+        val host = runCatching { java.net.URL(imageUrl).host.orEmpty() }.getOrDefault("")
+        if (!host.endsWith("mkzcdn.com", ignoreCase = true)) return original
+
+        val lower = original.keys.associateBy { it.lowercase() }
+        if (lower.containsKey("referer")) return original
+
+        val referer = runCatching {
+            val u = java.net.URL(baseUrl)
+            "${u.protocol}://${u.host}/"
+        }.getOrNull() ?: "https://comic.mkzhan.com/"
+
+        return buildMap {
+            putAll(original)
+            put("Referer", referer)
+        }
+    }
+
     private fun refineContent(content: String, config: LegadoBookSource): String {
         return content.trim()
     }
@@ -183,10 +221,18 @@ object BookContent {
 	        val obj = runCatching { JSONObject(trimmed) }.getOrNull() ?: return null
 
 	        val codeValue = obj.opt("code")?.toString()?.trim().orEmpty()
+	        val statusValue = obj.opt("status")?.toString()?.trim().orEmpty()
 	        val message = (obj.optString("message").ifBlank { obj.optString("msg") }).trim()
 	        if (message.isBlank()) return null
 
-	        val isSuccess = codeValue == "0" || codeValue.equals("success", ignoreCase = true)
+	        // 常见约定：
+	        // - code: 0 / success
+	        // - status: 0 / 200 / ok
+	        val isSuccess = codeValue == "0" ||
+	            codeValue.equals("success", ignoreCase = true) ||
+	            statusValue == "0" ||
+	            statusValue == "200" ||
+	            statusValue.equals("ok", ignoreCase = true)
 	        return if (isSuccess) null else message
 	    }
 

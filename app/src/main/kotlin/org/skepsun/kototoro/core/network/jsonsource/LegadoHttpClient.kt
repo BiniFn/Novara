@@ -5,8 +5,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.CacheControl
 import okhttp3.Headers
-import okhttp3.OkHttpClient
 import okhttp3.HttpUrl
+import okhttp3.OkHttpClient
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.Response
@@ -111,6 +111,7 @@ class LegadoHttpClient @Inject constructor(
         body: okhttp3.RequestBody? = null,
         source: MangaSource? = null
     ): Request {
+        val finalUrl = url
         val headersBuilder = Headers.Builder()
         
         // Add User-Agent if not provided (case-insensitive check)
@@ -123,7 +124,7 @@ class LegadoHttpClient @Inject constructor(
         // Add Referer if not provided (many sites require this)
         if (!customHeaders.containsKey("Referer")) {
             try {
-                val parsedUrl = url.toHttpUrlOrNull() ?: URL(url).let { 
+                val parsedUrl = finalUrl.toHttpUrlOrNull() ?: URL(finalUrl).let {
                     HttpUrl.Builder()
                         .scheme(it.protocol)
                         .host(it.host)
@@ -140,23 +141,36 @@ class LegadoHttpClient @Inject constructor(
             headersBuilder.add(key, value)
         }
 
+        // Follow legado-with-MD3 default behavior: prefer fresh network responses.
+        // Do not set "Connection"/"Keep-Alive" here; our network stack intentionally strips them.
+        val hasCacheControl = customHeaders.keys.any { it.equals("Cache-Control", ignoreCase = true) }
+        if (!hasCacheControl) {
+            headersBuilder.add("Cache-Control", "no-cache")
+        }
+        val hasPragma = customHeaders.keys.any { it.equals("Pragma", ignoreCase = true) }
+        if (!hasPragma) {
+            headersBuilder.add("Pragma", "no-cache")
+        }
+
         // Add Cookie header explicitly for Legado sources to enforce header-length limits (<= 4096).
         // OkHttp will skip adding cookies if the request already has a Cookie header.
         val hasCookieHeader = customHeaders.keys.any { it.equals("Cookie", ignoreCase = true) }
         if (!hasCookieHeader) {
-            val cookieHeader = persistentCookieJar.getCookieHeader(url)
+            val cookieHeader = persistentCookieJar.getCookieHeader(finalUrl)
             if (cookieHeader.isNotBlank()) {
                 headersBuilder.add("Cookie", cookieHeader)
             }
         }
 
         val requestBuilder = Request.Builder()
-            .url(url)
+            .url(finalUrl)
             .headers(headersBuilder.build())
             .method(method, body)
 
-        // 强制直连以避免 OkHttp 基于缓存的条件请求（部分站点会拒绝未来时间的 If-Modified-Since）
-        if (source?.name?.startsWith("JSON_LEGADO", ignoreCase = true) == true) {
+        // JSON 源的部分接口会返回带时效 token（例如图片 auth_key）；
+        // 若被 OkHttp/中间缓存命中旧响应，会拿到过期链接导致 403。
+        // 对所有 JSON_* 源强制走网络，行为更接近 legado-with-MD3（全局 no-cache）。
+        if (source?.name?.startsWith("JSON_", ignoreCase = true) == true) {
             requestBuilder.cacheControl(CacheControl.FORCE_NETWORK)
         }
         

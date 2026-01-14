@@ -245,7 +245,44 @@ class RhinoJavaScriptEngine(
         
         // 获取所有变量（包括标准变量和自定义变量）
         val allVariables = context.getAllVariables()
-        
+
+        fun toJsValue(value: Any?): Any? {
+            return when (value) {
+                null -> null
+                is List<*> -> {
+                    Log.d(TAG, "Converting List to NativeArray, size=${value.size}")
+                    val array = ctx.newArray(currentScope, value.size)
+                    value.forEachIndexed { index, item ->
+                        ScriptableObject.putProperty(array, index, toJsValue(item))
+                    }
+                    array
+                }
+                is Array<*> -> {
+                    Log.d(TAG, "Converting Array to NativeArray, size=${value.size}")
+                    val array = ctx.newArray(currentScope, value.size)
+                    value.forEachIndexed { index, item ->
+                        ScriptableObject.putProperty(array, index, toJsValue(item))
+                    }
+                    array
+                }
+                is Map<*, *> -> {
+                    // Legado 规则大量依赖 `result.xxx` 访问 JSON 字段；
+                    // Rhino 对 Java Map 的点语法兼容不稳定，这里显式转换为 JS Object。
+                    val obj = ctx.newObject(currentScope)
+                    value.forEach { (k, v) ->
+                        val key = k?.toString() ?: return@forEach
+                        ScriptableObject.putProperty(obj, key, toJsValue(v))
+                    }
+                    obj
+                }
+                is String -> {
+                    // 确保 Java String 在 Rhino 中可以访问 String.prototype 方法（如 match）
+                    ctx.newObject(currentScope, "String", arrayOf(value))
+                }
+                else -> RhinoContext.javaToJS(value, currentScope)
+            }
+        }
+
         // 设置所有变量到 JavaScript 作用域
         allVariables.forEach { (name, value) ->
             // 特殊处理 result 变量：如果是单元素 List，转换为 String
@@ -256,36 +293,8 @@ class RhinoJavaScriptEngine(
             } else {
                 value
             }
-            
-            // Special handling for arrays/lists to ensure they work as JS arrays
-            // This is critical for rules like chapterList where JS expects result.length to work
-            val jsValue = when (effectiveValue) {
-                is List<*> -> {
-                    Log.d(TAG, "Converting List to NativeArray for '$name', size=${effectiveValue.size}")
-                    val array = ctx.newArray(currentScope, effectiveValue.size)
-                    effectiveValue.forEachIndexed { index, item ->
-                        val jsItem = RhinoContext.javaToJS(item, currentScope)
-                        ScriptableObject.putProperty(array, index, jsItem)
-                    }
-                    array
-                }
-                is Array<*> -> {
-                    Log.d(TAG, "Converting Array to NativeArray for '$name', size=${effectiveValue.size}")
-                    val array = ctx.newArray(currentScope, effectiveValue.size)
-                    effectiveValue.forEachIndexed { index, item ->
-                        val jsItem = RhinoContext.javaToJS(item, currentScope)
-                        ScriptableObject.putProperty(array, index, jsItem)
-                    }
-                    array
-                }
-                is String -> {
-                    // 确保 Java String 在 Rhino 中可以访问 String.prototype 方法（如 match）
-                    // 使用 ctx.newObject("String", ...) 来创建一个真实的 JS String 对象
-                    val jsString = ctx.newObject(currentScope, "String", arrayOf(effectiveValue))
-                    jsString
-                }
-                else -> RhinoContext.javaToJS(effectiveValue, currentScope)
-            }
+
+            val jsValue = toJsValue(effectiveValue)
             ScriptableObject.putProperty(currentScope, name, jsValue)
         }
         
