@@ -30,11 +30,16 @@ object BookContent {
     ): ParseResult {
         val rule = config.ruleContent ?: return ParseResult(emptyList(), emptyList())
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
-        
-        android.util.Log.d(TAG, "[BookContent] Rule: ${rule.content}, HTML length: ${content.length}, Type: ${config.bookSourceType}")
+
+        // 避免打印超长（多行）规则导致 logcat 刷屏；仅保留长度信息便于定位。
+        val ruleContent = rule.content.orEmpty()
+        android.util.Log.d(
+            TAG,
+            "[BookContent] Rule length=${ruleContent.length}, HTML length=${content.length}, Type=${config.bookSourceType}"
+        )
         
         // Legado content rule can return multiple image URLs or text
-        val rawContentList = analyzeRule.getStringList(rule.content) ?: emptyList()
+        val rawContentList = analyzeRule.getStringList(ruleContent) ?: emptyList()
         
         android.util.Log.d(TAG, "[BookContent] Extracted ${rawContentList.size} items from rule")
         

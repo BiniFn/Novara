@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.content.Context
+import android.text.InputType
 import org.skepsun.kototoro.settings.utils.EditTextBindListener
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
@@ -44,11 +46,20 @@ import eu.kanade.tachiyomi.source.ConfigurableSource
 import org.skepsun.kototoro.mihon.MihonMangaRepository
 import java.io.File
 import java.util.regex.Pattern
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
 
 @AndroidEntryPoint
 class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenceChangeListener {
 
 	private val viewModel: SourceSettingsViewModel by viewModels()
+
+	private val legadoJson by lazy {
+		Json { ignoreUnknownKeys = true; isLenient = true; allowTrailingComma = true }
+	}
 
 	override fun onResume() {
 		super.onResume()
@@ -91,10 +102,11 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 
         // 如果解析器支持用户名/密码登录，在当前页面插入输入框与登录按钮
         val credentialsProvider = (viewModel.repository as? ParserMangaRepository)?.getAuthProvider() as? MangaParserCredentialsAuthProvider
-        if (credentialsProvider != null) {
+		if (credentialsProvider != null) {
             addCredentialsPreferences()
         }
 		findPreference<Preference>(SourceSettings.KEY_SLOWDOWN)?.isVisible = isValidSource
+		tryAddLegadoVariablePreferences()
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -168,6 +180,107 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			}
 		}
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(listView))
+	}
+
+	private fun tryAddLegadoVariablePreferences() {
+		val repo = viewModel.repository as? org.skepsun.kototoro.core.parser.legado.LegadoRepository ?: return
+		val jsonSource = repo.source as? JsonMangaSource ?: return
+		val config = runCatching {
+			legadoJson.decodeFromString<LegadoBookSource>(jsonSource.entity.config)
+		}.getOrNull() ?: return
+		val sourceKey = config.bookSourceUrl.trim()
+		if (sourceKey.isBlank()) return
+
+		val screen = preferenceScreen ?: return
+		val sourcePrefs = requireContext().getSharedPreferences(LEGADO_SOURCE_PREFS, Context.MODE_PRIVATE)
+		val bookPrefs = requireContext().getSharedPreferences(LEGADO_BOOK_PREFS, Context.MODE_PRIVATE)
+
+		val category = findPreference<PreferenceCategory>(KEY_LEGADO_VARIABLES_CATEGORY)
+			?: PreferenceCategory(requireContext()).apply {
+				key = KEY_LEGADO_VARIABLES_CATEGORY
+				title = "Legado 变量"
+				order = 40
+				isIconSpaceReserved = false
+				screen.addPreference(this)
+			}
+
+		val sourceVariablePref = findPreference<EditTextPreference>(KEY_LEGADO_SOURCE_VARIABLE)
+			?: EditTextPreference(requireContext()).apply {
+				key = KEY_LEGADO_SOURCE_VARIABLE
+				title = "源变量"
+				dialogTitle = "源变量"
+				dialogMessage = "用于控制书籍列表加载数量（脚本通常读取末尾数字）。留空表示不设置。"
+				order = 41
+				isIconSpaceReserved = false
+				isPersistent = false
+				summaryProvider = EditTextDefaultSummaryProvider("未设置")
+				setOnBindEditTextListener(
+					EditTextBindListener(
+						inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED,
+						hint = "",
+						validator = null,
+					),
+				)
+				category.addPreference(this)
+			}
+		sourceVariablePref.text = sourcePrefs.getString(sourceVariableKey(sourceKey), "").orEmpty()
+		sourceVariablePref.setOnPreferenceChangeListener { _, newValue ->
+			val value = (newValue as? String)?.trim().orEmpty()
+			if (!isSignedIntOrBlank(value)) {
+				Toast.makeText(requireContext(), "请输入整数（可为空）", Toast.LENGTH_SHORT).show()
+				return@setOnPreferenceChangeListener false
+			}
+			sourcePrefs.edit().apply {
+				if (value.isBlank()) remove(sourceVariableKey(sourceKey)) else putString(sourceVariableKey(sourceKey), value)
+			}.apply()
+			repo.invalidateCache()
+			true
+		}
+
+		val defaultBookVarPref = findPreference<EditTextPreference>(KEY_LEGADO_BOOK_DEFAULT_CUSTOM)
+			?: EditTextPreference(requireContext()).apply {
+				key = KEY_LEGADO_BOOK_DEFAULT_CUSTOM
+				title = "书籍变量（custom）默认值"
+				dialogTitle = "书籍变量（custom）默认值"
+				dialogMessage = "用于限制章节加载上限（聚合源常用）。-1 表示不限制；留空表示不设置。"
+				order = 42
+				isIconSpaceReserved = false
+				isPersistent = false
+				summaryProvider = EditTextDefaultSummaryProvider("未设置")
+				setOnBindEditTextListener(
+					EditTextBindListener(
+						inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED,
+						hint = "-1",
+						validator = null,
+					),
+				)
+				category.addPreference(this)
+			}
+		defaultBookVarPref.text = bookPrefs.getString(bookDefaultKey(sourceKey, "custom"), "").orEmpty()
+		defaultBookVarPref.setOnPreferenceChangeListener { _, newValue ->
+			val value = (newValue as? String)?.trim().orEmpty()
+			if (!isSignedIntOrBlank(value)) {
+				Toast.makeText(requireContext(), "请输入整数（可为空）", Toast.LENGTH_SHORT).show()
+				return@setOnPreferenceChangeListener false
+			}
+			bookPrefs.edit().apply {
+				if (value.isBlank()) remove(bookDefaultKey(sourceKey, "custom")) else putString(bookDefaultKey(sourceKey, "custom"), value)
+			}.apply()
+			repo.invalidateCache()
+			true
+		}
+	}
+
+	private fun sourceVariableKey(sourceKey: String): String = "sourceVariable_$sourceKey"
+
+	private fun bookDefaultKey(sourceKey: String, key: String): String {
+		val sourceHash = sourceKey.hashCode().toString(16)
+		return "bookVar_default_${sourceHash}_$key"
+	}
+
+	private fun isSignedIntOrBlank(text: String): Boolean {
+		if (text.isBlank()) return true
+		return SIGNED_INT_PATTERN.matcher(text).matches()
 	}
 
 	private fun addJsLoginPreferences(meta: JsMangaRepository.JsAccountMeta) {
@@ -395,6 +508,13 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		private const val KEY_JS_COOKIE_PREFIX = "js_cookie_"
 		private const val KEY_JS_COOKIE_SUBMIT = "js_cookie_submit"
 		private const val KEY_JS_WEB_LOGIN = "js_web_login"
+		private const val KEY_LEGADO_VARIABLES_CATEGORY = "legado_variables"
+		private const val KEY_LEGADO_SOURCE_VARIABLE = "legado_source_variable"
+		private const val KEY_LEGADO_BOOK_DEFAULT_CUSTOM = "legado_book_default_custom"
+
+		private const val LEGADO_SOURCE_PREFS = "legado_source_store"
+		private const val LEGADO_BOOK_PREFS = "legado_book_store"
+		private val SIGNED_INT_PATTERN = Pattern.compile("^-?\\d+$")
 
 		fun newInstance(source: org.skepsun.kototoro.parsers.model.MangaSource) = SourceSettingsFragment().withArgs(1) {
 			putString(AppRouter.KEY_SOURCE, source.name)

@@ -49,6 +49,7 @@ class LegadoRepository(
 
     companion object {
         private const val TAG = "LegadoRepository"
+        private const val MAX_AUTO_TOC_PAGES = 200
         private val json = Json {
             ignoreUnknownKeys = true
             isLenient = true
@@ -63,6 +64,17 @@ class LegadoRepository(
 
     private val sandbox: LegadoSandbox by lazy {
         LegadoSandbox(jsEngine, httpClient, config)
+    }
+
+    /**
+     * 清理该源的内存缓存（详情/目录/页面）。
+     *
+     * 用途：
+     * - 在设置页修改 source/book 变量后，让规则重新生效
+     * - 排查网络错误导致的“脏缓存”
+     */
+    fun invalidateCache() {
+        memoryCache?.clear(source)
     }
 
     /**
@@ -233,10 +245,9 @@ class LegadoRepository(
                         Log.w(TAG, "Dropping unsafe headers for ${request.url}: $dropped")
                     }
                     
-                    Log.d(TAG, "Final headers for ${request.url}: $sanitizedHeaders")
-
                     // Use WebView for sources that require JavaScript execution
                     if (request.useWebView && request.method == "GET") {
+                        Log.d(TAG, "Final headers for ${request.url}: $sanitizedHeaders")
                         Log.d(TAG, "[WebView] Loading URL: ${request.url}")
                         val delayMs = if (request.webViewDelayTime > 0) request.webViewDelayTime else 2500L
                         val content = httpClient.getWithWebView(
@@ -254,14 +265,42 @@ class LegadoRepository(
 
                     val response = if (request.method == "POST") {
                         val body = request.body ?: ""
-                        val mediaType = "application/x-www-form-urlencoded; charset=${request.charset}".toMediaTypeOrNull()
+                        // legado-with-MD3 兼容：body 为 JSON 时应使用 application/json，否则部分 API 会返回 502/4xx
+                        // 允许通过显式 Content-Type 覆盖自动推断
+                        val explicitContentType = sanitizedHeaders.entries
+                            .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+                            ?.value
+                        val isJsonBody = body.trimStart().startsWith("{") || body.trimStart().startsWith("[")
+                        val inferredContentType = when {
+                            !explicitContentType.isNullOrBlank() -> explicitContentType
+                            isJsonBody -> "application/json; charset=${request.charset}"
+                            else -> "application/x-www-form-urlencoded; charset=${request.charset}"
+                        }
+                        val inferredMediaType = inferredContentType.toMediaTypeOrNull()
+                        val mediaType = inferredMediaType
+
+                        // 让最终 headers 可观测且与 MD3 更一致（OkHttp 也会从 RequestBody 写入 Content-Type，但这里显式补齐）。
+                        if (!sanitizedHeaders.containsKeyIgnoreCase("Content-Type")) {
+                            sanitizedHeaders["Content-Type"] = inferredContentType
+                        }
+                        if (!sanitizedHeaders.containsKeyIgnoreCase("Accept")) {
+                            sanitizedHeaders["Accept"] = if (isJsonBody) "application/json, text/plain, */*" else "*/*"
+                        }
+
+                        val bodyPreview = body.replace("\r", "").replace("\n", "\\n").take(180)
+                        Log.d(
+                            TAG,
+                            "Final request for ${request.url}: method=POST contentType=$inferredContentType bodyPreview=$bodyPreview headers=$sanitizedHeaders"
+                        )
                         val requestBody = body.toRequestBody(mediaType)
                         httpClient.post(request.url, requestBody, sanitizedHeaders, source = source)
                     } else {
+                        Log.d(TAG, "Final request for ${request.url}: method=GET headers=$sanitizedHeaders")
                         httpClient.get(request.url, sanitizedHeaders, source = source)
                     }
                     
                     val content = getResponseBodyWithCharset(response)
+                    Log.d(TAG, "Response for ${request.url}: code=${response.code} contentType=${response.header("Content-Type")}")
                     val responseClone = response.newBuilder().build()
                     response.close()
                     
@@ -334,8 +373,14 @@ class LegadoRepository(
     override suspend fun getDetails(manga: Manga): Manga {
         val normalizedMangaUrl = AnalyzeUrl.normalizeUrl(manga.url)
         memoryCache?.getDetails(source, normalizedMangaUrl)?.let {
-            android.util.Log.d(TAG, "Memory cache HIT (getDetails) for book: ${manga.title}")
-            return it
+            val hasTocRule = !config.ruleToc?.chapterList.isNullOrBlank()
+            val cachedChapters = it.chapters.orEmpty()
+            if (!hasTocRule || cachedChapters.isNotEmpty()) {
+                android.util.Log.d(TAG, "Memory cache HIT (getDetails) for book: ${manga.title}")
+                return it
+            }
+            // 章节为空且存在目录规则：视为“脏缓存”，触发重新拉取（常见于网络错误/规则调整后）。
+            android.util.Log.w(TAG, "Memory cache BYPASS (getDetails) for book: ${manga.title} (cached chapters empty)")
         }
 
         val request = AnalyzeUrl(
@@ -354,11 +399,16 @@ class LegadoRepository(
         val infoResult = BookInfo.parse(manga, content, finalUrl, config, sandbox)
         
         // TOC parsing - often combined or needed for chapters
-        val tocUrl = infoResult.tocUrl ?: finalUrl
+        // 对聚合源/POST JSON 目录：必须保留 options（body/method），否则无法翻页（表现为永远 20 章）。
+        // `finalUrl` 是请求的 urlPart（AnalyzeUrl.build 后不含 ",{...}"），更适合作为解析基址而非“目录请求串”。
+        val tocUrl = infoResult.tocUrl
+            ?.takeIf { it.isNotBlank() }
+            ?: manga.url.takeIf { it.contains(",{") || it.contains(", {") }
+            ?: finalUrl
         
-        val chapters = if (tocUrl == finalUrl) {
-            // Already on TOC page, parse chapters from current content
-            BookChapterList.parse(content, finalUrl, source, config, sandbox).chapters
+        val chapters = if (tocUrl == manga.url) {
+            // 复用首包响应，避免重复请求目录第一页
+            getChaptersHelper(infoResult.manga, tocUrl, initialContent = content, initialFinalUrl = finalUrl)
         } else {
             getChaptersHelper(infoResult.manga, tocUrl)
         }
@@ -562,12 +612,31 @@ class LegadoRepository(
         return emptyList()
     }
 
-    private suspend fun getChaptersHelper(manga: Manga, tocUrl: String): List<MangaChapter> {
+    private suspend fun getChaptersHelper(
+        manga: Manga,
+        tocUrl: String,
+        initialContent: String? = null,
+        initialFinalUrl: String? = null
+    ): List<MangaChapter> {
+        // 设置当前书籍上下文，供 JS 侧 book.getVariable("custom") 等读取。
+        sandbox.setBook(
+            LegadoSandbox.BookContext(
+                name = manga.title,
+                url = manga.url,
+                tocUrl = tocUrl
+            )
+        )
+
+        // legado-with-MD3 聚合源常用：通过 source/book 变量控制目录翻页上限（cmpVariable）。
+        // 返回值语义：0 表示不限制（含 -1 的约定），>0 表示最多加载多少“目录页”。
+        val tocPageLimit = computeTocPageLimitFromSourceComment() // nullable
+
         val visited = mutableSetOf<String>()
         val chapters = mutableListOf<MangaChapter>()
-        var reverseFlag = false
+        var shouldReverse = false
         val queue: ArrayDeque<String> = ArrayDeque()
         queue.add(tocUrl)
+        var usedInitial = false
         
         var pageCount = 0
 
@@ -580,23 +649,23 @@ class LegadoRepository(
             
             pageCount++
 
-            val request = AnalyzeUrl(
-                url, 
-                baseUrl = effectiveBaseUrlForRequest(url),
-                sandbox = sandbox,
-                useWebViewDefault = config.ruleToc?.webView == true
-            ).build()
-            val result = executeRequest(request)
-            if (result == null) {
-                continue
+            val (content, finalUrl) = if (!usedInitial && url == tocUrl && initialContent != null && initialFinalUrl != null) {
+                usedInitial = true
+                initialContent to initialFinalUrl
+            } else {
+                val request = AnalyzeUrl(
+                    url,
+                    baseUrl = effectiveBaseUrlForRequest(url),
+                    sandbox = sandbox,
+                    useWebViewDefault = config.ruleToc?.webView == true
+                ).build()
+                val result = executeRequest(request) ?: continue
+                result
             }
-            val (content, finalUrl) = result
 
             val parseResult = BookChapterList.parse(content, finalUrl, source, config, sandbox)
             
-            if (parseResult.reverse) {
-                reverseFlag = true
-            }
+            shouldReverse = shouldReverse || parseResult.shouldReverse
             chapters.addAll(parseResult.chapters)
             
             android.util.Log.d(TAG, "TOC page $pageCount: loaded ${parseResult.chapters.size} chapters, total: ${chapters.size}, nextPages: ${parseResult.nextPageUrls.size}")
@@ -606,6 +675,19 @@ class LegadoRepository(
                     queue.add(next)
                 }
             }
+
+            // 若源未提供 nextTocUrl，但 tocUrl 是“带 page 的 POST JSON 请求”，则尝试自动翻页：
+            // - 依赖书籍变量/源变量（cmpVariable）控制最多翻多少页；0 表示直到无数据为止
+            // - 仅对 options URL 生效，避免对普通 HTML URL 造成意外请求
+            if (parseResult.nextPageUrls.isEmpty()) {
+                enqueueAutoNextTocPageIfPossible(
+                    rawUrl = url,
+                    tocPageLimit = tocPageLimit,
+                    visited = visited,
+                    queue = queue,
+                    lastParseHadItems = parseResult.chapters.isNotEmpty()
+                )
+            }
         }
         
         val deduped = linkedMapOf<String, MangaChapter>()
@@ -614,12 +696,8 @@ class LegadoRepository(
         }
         val ordered = deduped.values.toMutableList()
         
-        // legado-with-MD3 规则：
-        // - `chapterList` 以 '-' 开头表示“源本身已是正序（旧->新）”，不需要反转
-        // - 否则默认反转一次，把常见的“新->旧”目录变为“旧->新”
-        if (!reverseFlag) {
-            ordered.reverse()
-        }
+        // legado 规则约定：`chapterList` 以 '-' 开头表示“反转章节列表”
+        if (shouldReverse) ordered.reverse()
         
         // Re-assign sequential indices and numbers to ensure they are 1, 2, 3... in ascending order.
         return ordered.mapIndexed { index, chapter ->
@@ -632,6 +710,111 @@ class LegadoRepository(
             )
         }
     }
+
+    private fun computeTocPageLimitFromSourceComment(): Int? {
+        val comment = config.bookSourceComment?.trim().orEmpty()
+        if (comment.isBlank()) return null
+        // 仅当源脚本定义了 cmpVariable 时才尝试，避免对其它源产生副作用。
+        if (!comment.contains("cmpVariable", ignoreCase = true)) return null
+
+        // 兼容 legado-with-MD3 的写法：eval(String(source.bookSourceComment)); cmpVariable();
+        val script = """
+            try {
+              eval(String(source.bookSourceComment));
+              var n = (typeof cmpVariable === 'function') ? cmpVariable() : null;
+              n;
+            } catch (e) {
+              null;
+            }
+        """.trimIndent()
+
+        val result = sandbox.eval(script) ?: return null
+        val value = when (result) {
+            is Number -> result.toInt()
+            is String -> result.trim().toIntOrNull()
+            else -> result.toString().trim().toIntOrNull()
+        } ?: return null
+        return value.coerceAtLeast(0)
+    }
+
+    private fun enqueueAutoNextTocPageIfPossible(
+        rawUrl: String,
+        tocPageLimit: Int?,
+        visited: Set<String>,
+        queue: ArrayDeque<String>,
+        lastParseHadItems: Boolean
+    ) {
+        // 无数据则不再翻页（避免无限请求空页）。
+        if (!lastParseHadItems) return
+
+        val parsed = parsePagedPostJsonOptions(rawUrl) ?: return
+        val currentPage = parsed.page ?: return
+
+        // 若 cmpVariable 未定义：不自动翻页（保持当前行为）。
+        val limit = tocPageLimit ?: return
+
+        // limit == 0 表示不限制（含 -1 的约定）。
+        if (limit > 0 && currentPage >= limit) return
+
+        val nextPage = currentPage + 1
+
+        // 额外安全阈值：即使“不限制”，也避免规则/站点异常导致无限增长。
+        if (nextPage > MAX_AUTO_TOC_PAGES) return
+
+        val nextUrl = buildPagedPostJsonOptionsUrl(parsed, nextPage) ?: return
+        if (!visited.contains(nextUrl)) {
+            android.util.Log.d(TAG, "[TOC-AutoPage] page=$currentPage -> $nextPage, limit=$limit, urlPart=${parsed.urlPart}")
+            queue.add(nextUrl)
+        }
+    }
+
+    private data class PagedPostJsonOptions(
+        val urlPart: String,
+        val optionsJson: JSONObject,
+        val bodyJson: JSONObject,
+        val page: Int?
+    )
+
+    private fun parsePagedPostJsonOptions(rawUrl: String): PagedPostJsonOptions? {
+        val splitMatch = Regex("\\s*,\\s*(?=\\{)").find(rawUrl) ?: return null
+        val urlPart = rawUrl.substring(0, splitMatch.range.first).trim()
+        val optionsPart = rawUrl.substring(splitMatch.range.last + 1).trim()
+
+        val optionsJson = runCatching {
+            val normalized = if (optionsPart.contains("'")) optionsPart.replace("'", "\"") else optionsPart
+            JSONObject(normalized)
+        }.getOrNull() ?: return null
+
+        val method = optionsJson.optString("method", "GET").uppercase()
+        if (method == "GET") return null
+
+        val bodyAny = optionsJson.opt("body") ?: return null
+        val bodyText = when (bodyAny) {
+            is String -> bodyAny
+            is JSONObject -> bodyAny.toString()
+            else -> bodyAny.toString()
+        }.trim()
+        if (bodyText.isBlank() || !(bodyText.startsWith("{") && bodyText.endsWith("}"))) return null
+
+        val bodyJson = runCatching { JSONObject(bodyText) }.getOrNull() ?: return null
+        val page = when (val p = bodyJson.opt("page")) {
+            is Number -> p.toInt()
+            is String -> p.trim().toIntOrNull()
+            else -> null
+        }
+
+        return PagedPostJsonOptions(urlPart = urlPart, optionsJson = optionsJson, bodyJson = bodyJson, page = page)
+    }
+
+    private fun buildPagedPostJsonOptionsUrl(parsed: PagedPostJsonOptions, page: Int): String? {
+        val newBody = JSONObject(parsed.bodyJson.toString())
+        newBody.put("page", page)
+        val newOptions = JSONObject(parsed.optionsJson.toString())
+        // 为兼容 legado 源常见写法，保持 body 为 JSON 字符串（而非嵌套对象）。
+        newOptions.put("body", newBody.toString())
+        return parsed.urlPart + "," + newOptions.toString()
+    }
+
 
     /**
      * Decode response body with proper charset detection.

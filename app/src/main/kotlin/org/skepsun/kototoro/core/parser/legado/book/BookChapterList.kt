@@ -17,7 +17,13 @@ object BookChapterList {
 
         val chapters: List<MangaChapter>,
         val nextPageUrls: List<String>,
-        val reverse: Boolean
+        /**
+         * 是否需要对当前页解析出的章节列表做反转。
+         *
+         * legado 规则约定：`chapterList` 以 '-' 开头表示“反转章节列表”。
+         * `chapterList` 以 '+' 开头表示“显式不反转”（等同于无前缀，但可用于自解释）。
+         */
+        val shouldReverse: Boolean
     )
 
     /**
@@ -36,7 +42,7 @@ object BookChapterList {
         val rule = config.ruleToc
         if (rule == null) {
             android.util.Log.w(TAG, "ruleToc is null!")
-            return ParseResult(emptyList(), emptyList(), reverse = false)
+            return ParseResult(emptyList(), emptyList(), shouldReverse = false)
         }
         
         android.util.Log.d(TAG, "ruleToc.chapterList=${rule.chapterList}")
@@ -46,18 +52,18 @@ object BookChapterList {
         
         if (rule.chapterList.isNullOrBlank()) {
             android.util.Log.w(TAG, "chapterList rule is blank!")
-            return ParseResult(emptyList(), emptyList(), reverse = false)
+            return ParseResult(emptyList(), emptyList(), shouldReverse = false)
         }
 
         var listRule = rule.chapterList
-        var reverse = false
+        var shouldReverse = false
         if (listRule.startsWith("-")) {
-            reverse = true
+            shouldReverse = true
             listRule = listRule.removePrefix("-")
         } else if (listRule.startsWith("+")) {
             listRule = listRule.removePrefix("+")
         }
-        android.util.Log.d(TAG, "listRule (after prefix processing)=$listRule, reverse=$reverse")
+        android.util.Log.d(TAG, "listRule (after prefix processing)=$listRule, shouldReverse=$shouldReverse")
 
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
         
@@ -146,7 +152,7 @@ object BookChapterList {
         android.util.Log.d(TAG, "Parsed ${chapters.size} chapters")
         android.util.Log.d(TAG, "===== BookChapterList.parse END =====")
 
-        return ParseResult(chapters, nextPageUrls, reverse)
+        return ParseResult(chapters, nextPageUrls, shouldReverse)
     }
 
     private fun flattenNestedItems(items: List<Any>): List<Any> {

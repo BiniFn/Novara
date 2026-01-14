@@ -197,11 +197,16 @@ class RhinoJavaScriptEngine(
                 RhinoContext.exit()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Script execution failed: $script")
+            Log.e(TAG, "Script execution failed: ${scriptPreviewForLog(script)}")
             Log.e(TAG, "Exception: ${e.javaClass.simpleName}: ${e.message}")
-            e.printStackTrace()
             null
         }
+    }
+
+    private fun scriptPreviewForLog(script: String, limit: Int = 220): String {
+        val normalized = script.replace("\r", "").replace("\n", "\\n").trim()
+        if (normalized.length <= limit) return normalized
+        return normalized.take(limit) + "…(len=${normalized.length})"
     }
     
     override fun evaluate(expression: String, context: JavaScriptContext): Any? {
@@ -293,7 +298,8 @@ class RhinoJavaScriptEngine(
         
         // 为 book 对象添加 putVariable/getVariable/setUseReplaceRule 方法
         context.book?.let { book ->
-            val bookWrapper = BookWrapper(book, androidContext)
+            val sourceKey = context.source?.bookSourceUrl.orEmpty()
+            val bookWrapper = BookWrapper(book, androidContext, sourceKey)
             val jsBook = RhinoContext.javaToJS(bookWrapper, currentScope)
             ScriptableObject.putProperty(currentScope, "book", jsBook)
         }
@@ -409,7 +415,8 @@ class RhinoJavaScriptEngine(
      */
     class BookWrapper(
         private val book: BookInfo,
-        private val context: Context
+        private val context: Context,
+        private val sourceKey: String
     ) {
         private val prefs by lazy {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -466,8 +473,15 @@ class RhinoJavaScriptEngine(
                 // 同步到内存
                 book.putVariable(key, persistedValue)
                 Log.d(TAG, "book.getVariable($key) -> loaded from prefs: $persistedValue")
+                return persistedValue
             }
-            return persistedValue
+            // 聚合源常见：书籍变量（custom）可配置为“全局默认值”，当单书未设置时回退到默认。
+            val defaultValue = prefs.getString(bookDefaultKey(key), "") ?: ""
+            if (defaultValue.isNotEmpty()) {
+                book.putVariable(key, defaultValue)
+                Log.d(TAG, "book.getVariable($key) -> loaded default from prefs: $defaultValue")
+            }
+            return defaultValue
         }
         
         /**
@@ -503,6 +517,11 @@ class RhinoJavaScriptEngine(
         private fun bookVariableKey(key: String): String {
             val urlHash = book.bookUrl.hashCode().toString(16)
             return "bookVar_${urlHash}_$key"
+        }
+
+        private fun bookDefaultKey(key: String): String {
+            val sourceHash = sourceKey.hashCode().toString(16)
+            return "bookVar_default_${sourceHash}_$key"
         }
         
         private companion object {

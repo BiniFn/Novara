@@ -15,6 +15,11 @@ import org.skepsun.kototoro.parsers.model.MangaSource
 object BookList {
 
     private const val TAG = "LegadoBookList"
+
+    private fun previewForLog(value: String, limit: Int = 160): String {
+        val normalized = value.replace("\r", "").replace("\n", "\\n").trim()
+        return if (normalized.length <= limit) normalized else normalized.take(limit) + "…"
+    }
     
     /**
      * Parse book list from HTML/JSON content
@@ -61,13 +66,19 @@ object BookList {
         }
 
         val items = analyzeRule.getElements(listRule)
-        Log.d(TAG, "bookList rule=$listRule items=${items.size} isSearch=$isSearch")
+        Log.d(
+            TAG,
+            "bookList ruleLen=${listRule.length} rule=${previewForLog(listRule)} items=${items.size} isSearch=$isSearch"
+        )
         if (items.isEmpty()) {
             // Fallback: 尝试将含空格的 class 规则转为 CSS 连写
             val fallbackRule = buildCssFallback(listRule)
             if (fallbackRule != listRule) {
                 val fallbackItems = analyzeRule.getElements(fallbackRule)
-                Log.d(TAG, "bookList fallback rule=$fallbackRule items=${fallbackItems.size}")
+                Log.d(
+                    TAG,
+                    "bookList fallback ruleLen=${fallbackRule.length} rule=${previewForLog(fallbackRule)} items=${fallbackItems.size}"
+                )
                 if (fallbackItems.isNotEmpty()) {
                     return parseItems(fallbackItems, rule, baseUrl, source, sandbox, reverse)
                 }

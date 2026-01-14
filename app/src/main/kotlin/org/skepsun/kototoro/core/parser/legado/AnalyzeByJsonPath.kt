@@ -22,6 +22,16 @@ class AnalyzeByJsonPath(content: Any) {
     
     companion object {
         private const val TAG = "AnalyzeByJsonPath"
+
+        /**
+         * legado 源里常见的“宽松 JSONPath”写法：
+         * - `$.a.b.[*]` / `$..a.b.[0]` 等在 Jayway JsonPath 中并非标准语法（不允许 `.[`）。
+         * legado-with-MD3 会在执行前做兼容性规整，这里做最小同等处理。
+         */
+        private fun normalizeJsonPathRule(rule: String): String {
+            // remove optional dot before bracket: ".[" -> "["
+            return rule.replace(Regex("\\.\\s*\\["), "[")
+        }
         
         fun parse(json: Any): ReadContext {
             return when (json) {
@@ -88,8 +98,9 @@ class AnalyzeByJsonPath(content: Any) {
      */
     fun getString(rule: String): String? {
         if (rule.isEmpty() || ctx == null) return null
+        val normalizedRule = normalizeJsonPathRule(rule)
         var result: String
-        val ruleAnalyzes = RuleAnalyzer(rule, true) //设置平衡组为代码平衡
+        val ruleAnalyzes = RuleAnalyzer(normalizedRule, true) //设置平衡组为代码平衡
         val rules = ruleAnalyzes.splitRule("&&", "||")
 
         if (rules.size == 1) {
@@ -99,15 +110,15 @@ class AnalyzeByJsonPath(content: Any) {
             if (result.isEmpty()) { //st为空，表明无成功替换的内嵌规则
                 try {
                     var ob: Any? = try {
-                        ctx.read<Any>(rule)
+                        ctx.read<Any>(normalizedRule)
                     } catch (e: Exception) {
                         null
                     }
 
                     // Heuristic: if direct path failed, try recursive search if it's a simple key (like $.title)
                     if ((ob == null || (ob is String && ob.isBlank())) && 
-                        !rule.startsWith("$..") && !rule.contains("[") && !rule.contains("*")) {
-                        val simpleKey = rule.substringAfterLast('.')
+                        !normalizedRule.startsWith("$..") && !normalizedRule.contains("[") && !normalizedRule.contains("*")) {
+                        val simpleKey = normalizedRule.substringAfterLast('.')
                         try {
                             val fallback = ctx.read<Any>("$..$simpleKey")
                             if (fallback != null) {
@@ -122,7 +133,7 @@ class AnalyzeByJsonPath(content: Any) {
                         ob?.toString() ?: ""
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error reading JSONPath: $rule", e)
+                    Log.e(TAG, "Error reading JSONPath: $normalizedRule", e)
                     return null
                 }
             }
@@ -148,7 +159,8 @@ class AnalyzeByJsonPath(content: Any) {
     fun getStringList(rule: String): List<String> {
         val result = ArrayList<String>()
         if (rule.isEmpty() || ctx == null) return result
-        val ruleAnalyzes = RuleAnalyzer(rule, true) //设置平衡组为代码平衡
+        val normalizedRule = normalizeJsonPathRule(rule)
+        val ruleAnalyzes = RuleAnalyzer(normalizedRule, true) //设置平衡组为代码平衡
         val rules = ruleAnalyzes.splitRule("&&", "||", "%%")
 
         if (rules.size == 1) {
@@ -157,15 +169,15 @@ class AnalyzeByJsonPath(content: Any) {
             if (st.isEmpty()) { //st为空，表明无成功替换的内嵌规则
                 try {
                     var obj: Any? = try {
-                        ctx.read<Any>(rule)
+                        ctx.read<Any>(normalizedRule)
                     } catch (e: Exception) {
                         null
                     }
 
                     // Heuristic: if direct path failed, try recursive search if it's a simple key
                     if ((obj == null || (obj is List<*> && obj.isEmpty())) && 
-                        !rule.startsWith("$..") && !rule.contains("[") && !rule.contains("*")) {
-                        val simpleKey = rule.substringAfterLast('.')
+                        !normalizedRule.startsWith("$..") && !normalizedRule.contains("[") && !normalizedRule.contains("*")) {
+                        val simpleKey = normalizedRule.substringAfterLast('.')
                         try {
                             val fallback = ctx.read<Any>("$..$simpleKey")
                             if (fallback != null && (!(fallback is List<*>) || fallback.isNotEmpty())) {
@@ -180,7 +192,7 @@ class AnalyzeByJsonPath(content: Any) {
                         result.add(obj.toString())
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error reading JSONPath list: $rule", e)
+                    Log.e(TAG, "Error reading JSONPath list: $normalizedRule", e)
                 }
             } else {
                 result.add(st)
@@ -221,12 +233,13 @@ class AnalyzeByJsonPath(content: Any) {
      */
     fun getObject(rule: String): Any? {
         if (ctx == null || rule.isBlank()) return null
+        val normalizedRule = normalizeJsonPathRule(rule)
         return try {
-            ctx.read(rule)
+            ctx.read(normalizedRule)
         } catch (e: Exception) {
             // Heuristic fallback for simple keys
-            if (!rule.startsWith("$..") && !rule.contains("[") && !rule.contains("*")) {
-                val simpleKey = rule.substringAfterLast('.')
+            if (!normalizedRule.startsWith("$..") && !normalizedRule.contains("[") && !normalizedRule.contains("*")) {
+                val simpleKey = normalizedRule.substringAfterLast('.')
                 try {
                     val fallback = ctx.read<Any>("$..$simpleKey")
                     if (fallback is List<*>) fallback.firstOrNull() else fallback

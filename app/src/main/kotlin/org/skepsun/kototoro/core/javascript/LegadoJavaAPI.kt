@@ -326,41 +326,33 @@ class LegadoJavaAPI(
      * @return 提取的字符串值
      */
     fun getString(rule: String): String {
-        val html = currentHtml
-        if (html.isNullOrEmpty()) {
+        val content = currentHtml
+        if (content.isNullOrEmpty()) {
             Log.w(TAG, "getString($rule): currentHtml is null/empty")
             return ""
         }
-        
+
+        val trimmedRule = rule.trim()
+        val trimmedContent = content.trimStart()
+        val isJsonContent = trimmedContent.startsWith("{") || trimmedContent.startsWith("[")
+        val isJsonRule =
+            trimmedRule.startsWith("$") ||
+                trimmedRule.startsWith("@json:", ignoreCase = true) ||
+                (isJsonContent && trimmedRule.startsWith("."))
+
         try {
-            // Parse the rule: selector@attribute or just selector (defaults to text)
-            val parts = rule.split("@", limit = 2)
-            val selectorPart = parts[0]
-            val attributePart = if (parts.size > 1) parts[1] else "text"
-            
-            // Convert Legado selector to JSoup selector
-            val jsoupSelector = convertLegadoSelectorToJsoup(selectorPart)
-            
-            val doc = Jsoup.parse(html)
-            val elements = doc.select(jsoupSelector)
-            
-            if (elements.isEmpty()) {
-                Log.d(TAG, "getString($rule): no elements found for selector '$jsoupSelector'")
-                return ""
+            // legado-with-MD3 兼容：在 JSON 内容上允许直接使用 JsonPath（例如 $.data.list[0].catid）
+            if (isJsonRule) {
+                val jsonRule = when {
+                    trimmedRule.startsWith("@json:", ignoreCase = true) -> trimmedRule.substring(6).trim()
+                    trimmedRule.startsWith(".") -> "\$$trimmedRule"
+                    else -> trimmedRule
+                }
+                return AnalyzeByJsonPath(content).getString(jsonRule).orEmpty()
             }
-            
-            val element = elements.first()!!
-            val result = when (attributePart.lowercase()) {
-                "text" -> element.text()
-                "owntext" -> element.ownText()
-                "html" -> element.html()
-                "outerhtml" -> element.outerHtml()
-                "textNodes" -> element.textNodes().joinToString("") { it.text() }
-                else -> element.attr(attributePart) // Get attribute value
-            }
-            
-            Log.d(TAG, "getString($rule) = ${result.take(100)}")
-            return result
+
+            // HTML：使用 legado 规则语法（包含 `@` 链式、`&&/||/%%`）
+            return AnalyzeByJSoup(content).getString0(rule)
         } catch (e: Exception) {
             Log.e(TAG, "getString($rule) failed: ${e.message}")
             return ""

@@ -92,6 +92,11 @@ class AnalyzeRule(
         return text.take(limit) + "…"
     }
 
+    private fun previewRuleForLog(rule: String, limit: Int = 160): String {
+        val normalized = rule.replace("\r", "").replace("\n", "\\n").trim()
+        return previewForLog(normalized, limit)
+    }
+
     init {
         setContent(content)
     }
@@ -163,7 +168,10 @@ class AnalyzeRule(
                         result = rule
                         Log.d(TAG, "[getStringList] Rule is literal: $rule")
                     } else {
-                        Log.d(TAG, "[getStringList] Executing mode=${sourceRule.mode}, rule=$rule on content=${result?.javaClass?.simpleName}")
+                        Log.d(
+                            TAG,
+                            "[getStringList] Executing mode=${sourceRule.mode}, rule=${previewRuleForLog(rule)} on content=${result?.javaClass?.simpleName}"
+                        )
                         result = if (result is List<*> && sourceRule.mode != Mode.Js) {
                             val list = ArrayList<Any>()
                             for (item in result) {
@@ -295,7 +303,10 @@ class AnalyzeRule(
                 result ?: continue
                 val rule = sourceRule.rule
                 if (rule.isNotEmpty()) {
-                    Log.d(TAG, "[getStringList(internal)] Executing mode=${sourceRule.mode}, rule=$rule on result=${result?.javaClass?.simpleName}")
+                    Log.d(
+                        TAG,
+                        "[getStringList(internal)] Executing mode=${sourceRule.mode}, rule=${previewRuleForLog(rule)} on result=${result?.javaClass?.simpleName}"
+                    )
                     
                     // Handle list iteration if not in JavaScript mode
                     result = if (result is List<*> && sourceRule.mode != Mode.Js) {

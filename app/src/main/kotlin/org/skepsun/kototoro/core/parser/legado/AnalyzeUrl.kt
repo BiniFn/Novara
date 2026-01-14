@@ -46,12 +46,46 @@ class AnalyzeUrl(
 
         /**
          * Normalize URL for stable ID generation.
-         * Removes Legado options (,{...}) and trailing slashes.
+         * Removes Legado options (,{...}) and trailing slashes for GET.
+         *
+         * 注意：对于 POST（或带 body 的请求），options 会影响请求语义（同一路径不同 body 对应不同内容），
+         * 若无区分会导致章节/页面缓存键冲突（表现为“所有章节都是同一个章节”）。
          */
         fun normalizeUrl(url: String?): String {
             if (url.isNullOrBlank()) return ""
             val splitMatch = optionsSplitRegex.find(url)
-            var normalized = if (splitMatch != null) url.substring(0, splitMatch.range.first).trim() else url.trim()
+            if (splitMatch == null) {
+                var normalized = url.trim()
+                if (normalized.endsWith("/") && normalized.length > 8) {
+                    normalized = normalized.substring(0, normalized.length - 1)
+                }
+                return normalized
+            }
+
+            val urlPart = url.substring(0, splitMatch.range.first).trim()
+            val optionsPart = url.substring(splitMatch.range.last + 1).trim()
+
+            // 尝试解析 options；若是 POST/带 body，则把 options 的摘要拼到 key 上避免冲突
+            val optionsKeySuffix = runCatching {
+                val normalizedOptions = if (optionsPart.contains("'")) {
+                    optionsPart.replace("'", "\"")
+                } else optionsPart
+                val optionsJson = JSONObject(normalizedOptions)
+                val method = optionsJson.optString("method", "GET").uppercase()
+                val body = optionsJson.optString("body", "")
+                if (method != "GET" || body.isNotBlank()) {
+                    val signature = buildString {
+                        append(method)
+                        if (body.isNotBlank()) {
+                            append("|")
+                            append(body)
+                        }
+                    }
+                    "#opt=" + signature.hashCode().toUInt().toString(16)
+                } else ""
+            }.getOrDefault("")
+
+            var normalized = urlPart + optionsKeySuffix
             
             // Remove trailing slash
             if (normalized.endsWith("/") && normalized.length > 8) {
