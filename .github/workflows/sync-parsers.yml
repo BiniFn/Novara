@@ -161,7 +161,7 @@ jobs:
                       short = commit_full[:10]
                       repo_url = f"https://github.com/{repo_path}"
                       lines.append(f"- {key}: {repo_path}@{short} ({repo_url}/commit/{commit_full})")
-                  fh.write("commit_message<<'EOF'\n")
+                  fh.write("commit_message<<EOF\n")
                   fh.write("\n".join(lines) + "\n")
                   fh.write("EOF\n")
           else:
