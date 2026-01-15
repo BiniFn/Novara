@@ -209,7 +209,7 @@ class ExploreViewModel @Inject constructor(
 	}
 
 	private fun createContentFlow() = kotlinx.coroutines.flow.combine(
-			sourcesRepository.observeEnabledSources(),
+			sourcesRepository.observeEnabledBrowseSources(),
 			getSuggestionFlow(),
 			isGrid,
 			isRandomLoading,

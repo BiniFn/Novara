@@ -68,6 +68,7 @@ class LegadoRepository(
     }
 
     private val manhuataiChapterNewIdCache = ConcurrentHashMap<Int, Map<String, String>>()
+    private val listPageSizeCache = ConcurrentHashMap<String, Int>()
 
     /**
      * 清理该源的内存缓存（详情/目录/页面）。
@@ -78,6 +79,7 @@ class LegadoRepository(
      */
     fun invalidateCache() {
         memoryCache?.clear(source)
+        listPageSizeCache.clear()
     }
 
     /**
@@ -163,23 +165,17 @@ class LegadoRepository(
 
         val firstExploreUrl = getFirstExploreUrl()
         val ruleUrl = when {
-            isSearch -> config.searchUrl!!
+            isSearch -> config.searchUrl?.takeIf { it.isNotBlank() } ?: return emptyList()
             selectedCategoryUrl != null -> selectedCategoryUrl
             firstExploreUrl != null -> firstExploreUrl
-            else -> config.searchUrl!!
+            // 对齐 legado-with-MD3：发现/列表必须由 exploreUrl 提供；仅有 searchUrl 的源不自动用空 key/默认 key 生成“首页列表”。
+            else -> return emptyList()
         }
 
-        // 对“仅提供 searchUrl、没有 exploreUrl 的源”，Kototoro 的首页列表仍会调用 getList。
-        // 这类源存在两种常见情况：
-        // 1) 搜索接口允许空 key（例如 m.kanman.com：search_key= 空时也会返回列表）
-        // 2) 搜索接口 key 为空会返回 data=null（例如 api.sfacg.com 漫画）
-        // 处理策略：先用空 key 请求；若解析结果为空，再用一个最小默认 key 重试一次。
-        val shouldRetryWithDefaultKey =
-            !isSearch && selectedCategoryUrl == null && firstExploreUrl == null && query.isNullOrBlank()
-
-        // legado 源的分页参数经常不是 18（例如 mkz 这里固定 page_size=12），
+        // legado 源的分页参数经常不是 18（例如 mkz 这里固定 page_size=12 或者接口固定每页 6 条），
         // 若用错误的 pageSize 计算 page，会表现为“列表无法翻页/一直请求第 1 页”。
-        val pageSize = extractPageSizeFromUrl(ruleUrl) ?: 18
+        val cachedPageSize = listPageSizeCache[ruleUrl]
+        val pageSize = extractPageSizeFromUrl(ruleUrl) ?: cachedPageSize ?: 18
         val page = (offset / pageSize) + 1
         
         fun buildRequest(key: String?): AnalyzeUrl.UrlResult {
@@ -197,17 +193,20 @@ class LegadoRepository(
         val firstResult = executeRequest(buildRequest(query)) ?: return emptyList()
         val (firstContent, firstFinalUrl) = firstResult
         val firstParsed = BookList.parse(firstContent, firstFinalUrl, source, config, isSearch, sandbox)
-        if (firstParsed.isNotEmpty() || !shouldRetryWithDefaultKey) return firstParsed
 
-        val retryResult = executeRequest(buildRequest("a")) ?: return firstParsed
-        val (retryContent, retryFinalUrl) = retryResult
-        return BookList.parse(retryContent, retryFinalUrl, source, config, isSearch, sandbox)
+        // 动态探测“每页返回条数”，让 offset->page 映射与 UI 的 offset（当前列表大小）保持一致。
+        // 仅在该 URL 未显式声明 page_size/pageSize/size 时启用，且只在第一页写入，避免末页(少于页大小)污染缓存。
+        if (offset == 0 && extractPageSizeFromUrl(ruleUrl) == null && firstParsed.isNotEmpty()) {
+            listPageSizeCache.putIfAbsent(ruleUrl, firstParsed.size)
+        }
+
+        return firstParsed
     }
 
     private fun extractPageSizeFromUrl(url: String): Int? {
         val raw = url.trim()
         // only try when template uses page placeholder (avoid false positives)
-        if (!raw.contains("{{page}}")) return null
+        if (!raw.contains("{{page")) return null
 
         fun findInt(regex: Regex): Int? =
             regex.find(raw)?.groupValues?.getOrNull(1)?.toIntOrNull()?.takeIf { it in 1..500 }

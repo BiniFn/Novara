@@ -790,7 +790,10 @@ class AnalyzeRule(
                 }
                 rule = infoVal.toString()
             }
-            rule = replaceSingleBracePlaceholders(rule, result)
+            // 单花括号占位符替换：
+            // - Default/Regex 下用于 URL/文本模板（如 https://.../{$.id}、{id}）
+            // - Json 模式下由 JsonPath 解析器自身处理 "{$.}"，避免提前替换破坏规则语义（例如 "/b/{$.FolderName}"）
+            rule = replaceSingleBracePlaceholders(rule, result, allowJsonPathExpr = mode != Mode.Json)
             //分离正则表达式
             val ruleStrS = rule.split("##")
             rule = ruleStrS[0].trim()
@@ -825,7 +828,7 @@ class AnalyzeRule(
         return rule.matches(Regex("^[A-Za-z_][A-Za-z0-9_\\[\\]\\*]*(\\.[A-Za-z_][A-Za-z0-9_\\[\\]\\*]*)*\$"))
     }
 
-    private fun replaceSingleBracePlaceholders(template: String, context: Any?): String {
+    private fun replaceSingleBracePlaceholders(template: String, context: Any?, allowJsonPathExpr: Boolean): String {
         if (!template.contains('{') || !template.contains('}')) return template
         if (context !is Map<*, *> && context !is JSONObject) return template
 
@@ -838,8 +841,12 @@ class AnalyzeRule(
             val expr = matcher.group(1)?.trim().orEmpty()
             val replacement = when {
                 expr.startsWith("$") || expr.startsWith(".") -> {
-                    val jsonPath = if (expr.startsWith(".")) "\$$expr" else expr
-                    getAnalyzeByJsonPath(context).getStringList(jsonPath)?.firstOrNull().orEmpty()
+                    if (!allowJsonPathExpr) {
+                        matcher.group()
+                    } else {
+                        val jsonPath = if (expr.startsWith(".")) "\$$expr" else expr
+                        getAnalyzeByJsonPath(context).getStringList(jsonPath)?.firstOrNull().orEmpty()
+                    }
                 }
                 context is Map<*, *> -> context[expr]?.toString().orEmpty()
                 context is JSONObject -> context.opt(expr)?.toString().orEmpty()

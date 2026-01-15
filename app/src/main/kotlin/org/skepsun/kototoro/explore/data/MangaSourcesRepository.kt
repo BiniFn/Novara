@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.LocalizedAppContext
@@ -44,6 +45,8 @@ import java.util.LinkedHashSet
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.json.Json
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 
 @Singleton
 class MangaSourcesRepository @Inject constructor(
@@ -58,6 +61,11 @@ class MangaSourcesRepository @Inject constructor(
 ) {
 
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
+	private val legadoJson = Json {
+		ignoreUnknownKeys = true
+		isLenient = true
+		allowTrailingComma = true
+	}
 	private val dao: MangaSourcesDao
 		get() = db.getSourcesDao()
 
@@ -513,9 +521,9 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 			}
 			list
 		}
-		.combine(observeAniyomiSources()) { sources, aniyomiSources ->
-			val list = ArrayList<MangaSourceInfo>(sources.size + aniyomiSources.size)
-			list.addAll(sources)
+			.combine(observeAniyomiSources()) { sources, aniyomiSources ->
+				val list = ArrayList<MangaSourceInfo>(sources.size + aniyomiSources.size)
+				list.addAll(sources)
 			
 			val existingNames = sources.mapToSet { it.mangaSource.name }
 			aniyomiSources.forEach { aniyomiSource ->
@@ -523,8 +531,30 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 					list.add(MangaSourceInfo(aniyomiSource, isEnabled = true, isPinned = false))
 				}
 			}
-			list
+				list
+			}
+
+	/**
+	 * 对齐 legado-with-MD3：浏览(发现)仅展示具备 exploreUrl 的源；仅提供 searchUrl 的源不应出现在浏览页。
+	 *
+	 * 说明：
+	 * - 仅针对 JSON_LEGADO 源做该过滤（避免误伤 JS/TVBox 等其它 JSON 类型）。
+	 * - 搜索仍使用 `getEnabledSources()`，不受影响。
+	 */
+	fun observeEnabledBrowseSources(): Flow<List<MangaSourceInfo>> {
+		return observeEnabledSources().mapLatest { sources ->
+			sources.filterNot { info ->
+				val src = info.mangaSource
+				if (src !is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) return@filterNot false
+				if (sourceTypeIdentifier.getSourceType(src.name) != org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO) {
+					return@filterNot false
+				}
+				val config = runCatching { legadoJson.decodeFromString<LegadoBookSource>(src.entity.config) }.getOrNull()
+					?: return@filterNot false
+				config.exploreUrl.isNullOrBlank()
+			}
 		}
+	}
 	
 	/**
 	 * Observes all Aniyomi sources.
