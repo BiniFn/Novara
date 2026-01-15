@@ -4,7 +4,13 @@ on:
   push:
     tags:
       - 'v*'  # 当推送 v* 标签时触发（如 v1.0.0）
+  repository_dispatch:
+    types: [trigger-release]  # 由 sync-parsers 触发
   workflow_dispatch:  # 允许手动触发
+
+# 定义 tag 名称变量，根据触发方式选择来源
+env:
+  TAG_NAME: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}
 
 jobs:
   build:
@@ -20,12 +26,11 @@ jobs:
     - name: Generate Changelog
       id: changelog
       run: |
-        CURRENT_TAG=${{ github.ref_name }}
-        # Find the most recent tag before the current one
-        # If this is the first tag, PREVIOUS_TAG will be empty
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 --exclude="$CURRENT_TAG" 2>/dev/null || echo "")
-        
+        CURRENT_TAG="${{ env.TAG_NAME }}"
         echo "Current Tag: $CURRENT_TAG"
+        
+        # Find the most recent tag before the current one
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 --exclude="$CURRENT_TAG" 2>/dev/null || echo "")
         echo "Previous Tag: $PREVIOUS_TAG"
         
         if [ -z "$PREVIOUS_TAG" ]; then
@@ -36,7 +41,6 @@ jobs:
           CHANGELOG=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG..$CURRENT_TAG" --no-merges)
         fi
         
-        # Escape for GITHUB_OUTPUT
         echo "changelog<<EOF" >> $GITHUB_OUTPUT
         echo "$CHANGELOG" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
@@ -76,7 +80,6 @@ jobs:
     - name: Get version info
       id: version
       run: |
-        # Use Gradle to get version info (handles Groovy expressions)
         VERSION_NAME=$(./gradlew -q printVersionName --no-daemon | tail -n 1)
         VERSION_CODE=$(./gradlew -q printVersionCode --no-daemon | tail -n 1)
         echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
@@ -91,7 +94,6 @@ jobs:
     - name: Rename APK
       run: |
         mkdir -p release
-        # Find the release APK (handles different naming patterns)
         APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
         if [ -z "$APK_FILE" ]; then
           echo "Error: No APK file found in app/build/outputs/apk/release"
@@ -103,6 +105,7 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ env.TAG_NAME }}
         files: |
           release/*.apk
         body: |
