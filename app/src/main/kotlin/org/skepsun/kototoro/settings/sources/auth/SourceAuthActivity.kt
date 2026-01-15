@@ -3,6 +3,7 @@ package org.skepsun.kototoro.settings.sources.auth
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContract
@@ -19,6 +20,7 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.MangaParserAuthProvider
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -29,6 +31,7 @@ class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {
 	private lateinit var authProvider: MangaParserAuthProvider
 
 	private var authCheckJob: Job? = null
+	private var lastUsernameVerifyUptimeMs: Long = 0L
 
 	override fun onCreate2(savedInstanceState: Bundle?, source: MangaSource, repository: ParserMangaRepository?) {
 		if (repository == null) {
@@ -85,7 +88,25 @@ class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {
 			val isAuthorized = runCatchingCancellable {
 				authProvider.isAuthorized()
 			}.getOrDefault(false)
-			if (isAuthorized) {
+			if (!isAuthorized) {
+				return@launch
+			}
+
+			// isAuthorized() 在部分站点可能仅依赖 Cookie，存在误判风险；这里用 getUsername() 做一次更强校验。
+			// 避免 WebView 频繁触发校验导致过多网络请求，做轻量节流。
+			val now = SystemClock.elapsedRealtime()
+			if (now - lastUsernameVerifyUptimeMs < 1500L) {
+				return@launch
+			}
+			lastUsernameVerifyUptimeMs = now
+
+			val isVerified = runCatchingCancellable { authProvider.getUsername() }
+				.fold(
+					onSuccess = { it.isNotBlank() },
+					onFailure = { e -> e !is AuthRequiredException },
+				)
+
+			if (isVerified) {
 				Toast.makeText(this@SourceAuthActivity, R.string.auth_complete, Toast.LENGTH_SHORT).show()
 				setResult(RESULT_OK)
 				finishAfterTransition()
