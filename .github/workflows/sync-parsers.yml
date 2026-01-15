@@ -67,7 +67,7 @@ jobs:
               if old == commit_short:
                   print(f"{key} 已是最新 {commit_short}")
                   continue
-              text = re.sub(pattern, rf"\1{commit_short}\3", text, count=1)
+              text = re.sub(pattern, rf"\g<1>{commit_short}\g<3>", text, count=1)
               updated = True
               repo_path = repo.split("github.com/")[-1].removesuffix(".git")
               changes.append((key, repo_path, commit_full, old))
