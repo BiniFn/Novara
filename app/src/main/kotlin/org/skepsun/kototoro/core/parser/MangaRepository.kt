@@ -38,6 +38,11 @@ import javax.inject.Singleton
 
 interface MangaRepository {
 
+	enum class ListPagingMode {
+		OFFSET,
+		PAGE_INDEX,
+	}
+
 	val source: MangaSource
 
 	val sortOrders: Set<SortOrder>
@@ -45,6 +50,16 @@ interface MangaRepository {
 	var defaultSortOrder: SortOrder
 
 	val filterCapabilities: MangaListFilterCapabilities
+
+	/**
+	 * 列表分页模式：
+	 * - OFFSET：`getList(offset)` 的 offset 为“已加载条数”（Kototoro 原语义）。
+	 * - PAGE_INDEX：`getList(offset)` 的 offset 视为“页索引(0-based)”，最终请求页号通常为 offset+1（对齐 legado/MD3 的 {{page}}）。
+	 *
+	 * 默认 OFFSET，避免影响现有解析器/本地库实现。
+	 */
+	val listPagingMode: ListPagingMode
+		get() = ListPagingMode.OFFSET
 
 	suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga>
 

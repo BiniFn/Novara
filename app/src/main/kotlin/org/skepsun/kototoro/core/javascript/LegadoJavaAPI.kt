@@ -57,6 +57,33 @@ class LegadoJavaAPI(
     fun ajax(url: String): String {
         return ajax(url, null)
     }
+
+    /**
+     * Rhino 兼容：部分脚本会调用 java.ajax(url, undefined/null)。
+     *
+     * Rhino 传入的第二参数可能是 `org.mozilla.javascript.Undefined` 或 `NativeObject`，
+     * 这里做一次兜底分发，避免 `Can't find method ...ajax(string, Undefined)`。
+     */
+    @Suppress("unused")
+    fun ajax(url: String, options: Any?): String {
+        if (options == null || options is org.mozilla.javascript.Undefined) {
+            return ajax(url, null)
+        }
+        val mapOptions = when (options) {
+            is Map<*, *> -> options.entries.associate { it.key.toString() to it.value }
+            is org.mozilla.javascript.NativeObject -> {
+                val result = LinkedHashMap<String, Any?>()
+                options.ids.forEach { key ->
+                    val k = key?.toString() ?: return@forEach
+                    result[k] = options.get(k, options)
+                }
+                result
+            }
+            else -> null
+        }
+        @Suppress("UNCHECKED_CAST")
+        return ajax(url, mapOptions as? Map<String, Any>)
+    }
     
     /**
      * 执行 HTTP 请求 (支持 GET/POST)
@@ -666,5 +693,30 @@ class LegadoJavaAPI(
             toast("启动浏览器失败: ${e.message}")
             return ""
         }
+    }
+
+    /**
+     * legado 常用：打开内置浏览器（不等待结果）。
+     *
+     * 三方脚本里常写 `java.startBrowser(url, title)` 用于跳转介绍页/发布页等。
+     */
+    @Suppress("unused")
+    fun startBrowser(url: String, title: String = "") {
+        try {
+            val intent = org.skepsun.kototoro.core.nav.AppRouter.browserIntent(
+                context = context,
+                url = url,
+                source = null,
+                title = title,
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "startBrowser failed: $url - ${e.message}", e)
+        }
+    }
+
+    @Suppress("unused")
+    fun startBrowser(url: String) {
+        startBrowser(url, "")
     }
 }

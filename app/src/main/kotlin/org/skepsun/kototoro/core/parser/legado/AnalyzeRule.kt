@@ -39,6 +39,7 @@ class AnalyzeRule(
         // Avoid clobbering JavaScript template strings like `${mid}` / `${id}`:
         // legacy single-brace placeholders are `{key}` (NOT preceded by '$').
         private val singleBracePlaceholderPattern = Pattern.compile("(?<!\\$)\\{([^{}]+)\\}")
+        private val doubleBracePlaceholderRegex = Regex("\\{\\{([\\s\\S]*?)\\}\\}")
 
         fun isRule(ruleStr: String): Boolean {
             if (ruleStr.isBlank()) return false
@@ -79,6 +80,46 @@ class AnalyzeRule(
         if (trimmed.startsWith("$")) return trimmed
         if (trimmed.startsWith(".")) return "$$trimmed"
         return "$.$trimmed"
+    }
+
+    /**
+     * JS 规则中的 `{{...}}` 占位符常用于把当前 item 的 JSON 字段注入脚本（如 `{{$.comic_id}}`）。
+     *
+     * 但 exploreUrl 这类“生成分类 URL 列表”的脚本也可能包含 `{{page}}` 作为后续 URL 模板的一部分，
+     * 这里仅替换“看起来像规则表达式”的占位符（JsonPath/规则前缀等），其它保持原样，避免提前把 `{{page}}` 等替换成残留变量。
+     */
+    private fun replaceJsDoubleBracePlaceholders(script: String, context: Any?): String {
+        if (!script.contains("{{")) return script
+        if (context == null) return script
+        // 仅在“item 上下文”为 JSON 对象时才做替换：
+        // - 列表项 @js: 规则常用 `{{$.comic_id}}` 这类占位符；
+        // - exploreUrl 之类脚本会包含 `{{page}}` / `{{/regex/.test(...)}}`，不应在此阶段被改写。
+        val isJsonContext = when (context) {
+            is Map<*, *>,
+            is JSONObject,
+            is NativeObject,
+            is NativeArray,
+            -> true
+            else -> false
+        }
+        if (!isJsonContext) return script
+
+        return doubleBracePlaceholderRegex.replace(script) { match ->
+            val expr = match.groups[1]?.value?.trim().orEmpty()
+            val looksLikeRuleExpr =
+                expr.startsWith("$") ||
+                    expr.startsWith(".") ||
+                    expr.startsWith("/") ||
+                    expr.startsWith("@", ignoreCase = true) ||
+                    (looksLikeJsonText(context) && looksLikeDottedJsonRule(expr))
+
+            if (!looksLikeRuleExpr) {
+                match.value
+            } else {
+                val ruleList = splitSourceRuleCacheString(expr)
+                getString(ruleList, context)
+            }
+        }
     }
     
     private fun previewForLog(value: Any?, limit: Int = 120): String {
@@ -657,48 +698,51 @@ class AnalyzeRule(
 	                        else -> ruleStr
 	                    }
 	                }
-	            }
+            }
             //分离put
             rule = splitPutRule(rule, putMap)
-            //@get,{{ }}, 拆分
-            var start = 0
-            var tmp: String
-            val evalMatcher = evalPattern.matcher(rule)
+            // @get / {{ }} 拆分：
+            // 对 JS 模式不做替换（脚本内可能包含用于后续 URL 模板的 {{page}} 等占位符），避免把脚本源码提前改写导致语义错误。
+            if (mode != Mode.Js) {
+                var start = 0
+                var tmp: String
+                val evalMatcher = evalPattern.matcher(rule)
 
-            if (evalMatcher.find()) {
-                tmp = rule.substring(start, evalMatcher.start())
-                if (mode != Mode.Js && mode != Mode.Regex &&
-                    (evalMatcher.start() == 0 || !tmp.contains("##"))
-                ) {
-                    mode = Mode.Regex
-                }
-                do {
-                    if (evalMatcher.start() > start) {
-                        tmp = rule.substring(start, evalMatcher.start())
-                        splitRegex(tmp)
+                if (evalMatcher.find()) {
+                    tmp = rule.substring(start, evalMatcher.start())
+                    if (mode != Mode.Js && mode != Mode.Regex &&
+                        (evalMatcher.start() == 0 || !tmp.contains("##"))
+                    ) {
+                        mode = Mode.Regex
                     }
-                    tmp = evalMatcher.group()
-                    when {
-                        tmp.startsWith("@get:", true) -> {
-                            ruleType.add(getRuleType)
-                            ruleParam.add(tmp.substring(6, tmp.lastIndex))
-                        }
-
-                        tmp.startsWith("{{") -> {
-                            ruleType.add(jsRuleType)
-                            ruleParam.add(tmp.substring(2, tmp.length - 2))
-                        }
-
-                        else -> {
+                    do {
+                        if (evalMatcher.start() > start) {
+                            tmp = rule.substring(start, evalMatcher.start())
                             splitRegex(tmp)
                         }
-                    }
-                    start = evalMatcher.end()
-                } while (evalMatcher.find())
-            }
-            if (rule.length > start) {
-                tmp = rule.substring(start)
-                splitRegex(tmp)
+                        tmp = evalMatcher.group()
+                        when {
+                            tmp.startsWith("@get:", true) -> {
+                                ruleType.add(getRuleType)
+                                ruleParam.add(tmp.substring(6, tmp.lastIndex))
+                            }
+
+                            tmp.startsWith("{{") -> {
+                                ruleType.add(jsRuleType)
+                                ruleParam.add(tmp.substring(2, tmp.length - 2))
+                            }
+
+                            else -> {
+                                splitRegex(tmp)
+                            }
+                        }
+                        start = evalMatcher.end()
+                    } while (evalMatcher.find())
+                }
+                if (rule.length > start) {
+                    tmp = rule.substring(start)
+                    splitRegex(tmp)
+                }
             }
         }
 
@@ -790,10 +834,17 @@ class AnalyzeRule(
                 }
                 rule = infoVal.toString()
             }
+
+            if (mode == Mode.Js) {
+                rule = replaceJsDoubleBracePlaceholders(rule, result)
+            }
             // 单花括号占位符替换：
             // - Default/Regex 下用于 URL/文本模板（如 https://.../{$.id}、{id}）
             // - Json 模式下由 JsonPath 解析器自身处理 "{$.}"，避免提前替换破坏规则语义（例如 "/b/{$.FolderName}"）
-            rule = replaceSingleBracePlaceholders(rule, result, allowJsonPathExpr = mode != Mode.Json)
+            // - Js 模式下禁止替换：脚本中大量存在对象字面量 `{ ... }`，若按占位符处理会破坏脚本语法。
+            if (mode != Mode.Js) {
+                rule = replaceSingleBracePlaceholders(rule, result, allowJsonPathExpr = mode != Mode.Json)
+            }
             //分离正则表达式
             val ruleStrS = rule.split("##")
             rule = ruleStrS[0].trim()

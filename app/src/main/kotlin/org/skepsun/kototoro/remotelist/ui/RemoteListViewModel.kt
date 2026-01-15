@@ -76,6 +76,8 @@ open class RemoteListViewModel @Inject constructor(
 	private val listError = MutableStateFlow<Throwable?>(null)
 	private var loadingJob: Job? = null
 	private var randomJob: Job? = null
+	private var lastLoadedPageIndex: Int = -1
+	private var lastRequestedPageIndex: Int = 0
 
 	override val content = combine(
 		mangaList.map { it?.skipNsfwIfNeeded() },
@@ -113,6 +115,7 @@ open class RemoteListViewModel @Inject constructor(
 			.onEach { filterState ->
 				loadingJob?.cancelAndJoin()
 				mangaList.value = null
+				lastLoadedPageIndex = -1
 				loadList(filterState, false)
 			}.catch { error ->
 				listError.value = error
@@ -130,6 +133,7 @@ open class RemoteListViewModel @Inject constructor(
 
 	override fun onRefresh() {
 		loadingJob?.cancel()
+		lastLoadedPageIndex = -1
 		loadList(filterCoordinator.snapshot(), append = false)
 	}
 
@@ -150,21 +154,38 @@ open class RemoteListViewModel @Inject constructor(
 		return launchLoadingJob(Dispatchers.Default) {
 			try {
 				listError.value = null
+				val offsetOrPageIndex = when (repository.listPagingMode) {
+					MangaRepository.ListPagingMode.OFFSET -> if (append) mangaList.value.sizeOrZero() else 0
+					MangaRepository.ListPagingMode.PAGE_INDEX -> {
+						val pageIndex = if (append) lastLoadedPageIndex + 1 else 0
+						lastRequestedPageIndex = pageIndex
+						pageIndex
+					}
+				}
 				val list = repository.getList(
-					offset = if (append) mangaList.value.sizeOrZero() else 0,
+					offset = offsetOrPageIndex,
 					order = filterState.sortOrder,
 					filter = filterState.listFilter,
 				)
 				val prevList = mangaList.value.orEmpty()
 				if (!append) {
 					mangaList.value = list.distinctById()
+					if (repository.listPagingMode == MangaRepository.ListPagingMode.PAGE_INDEX && list.isNotEmpty()) {
+						lastLoadedPageIndex = 0
+					}
 				} else if (list.isNotEmpty()) {
 					mangaList.value = (prevList + list).distinctById()
+					if (repository.listPagingMode == MangaRepository.ListPagingMode.PAGE_INDEX) {
+						lastLoadedPageIndex = lastRequestedPageIndex
+					}
 				}
-				hasNextPage.value = if (append) {
-					prevList != mangaList.value
-				} else {
-					list.size > prevList.size || hasNextPage.value
+				hasNextPage.value = when (repository.listPagingMode) {
+					MangaRepository.ListPagingMode.OFFSET -> if (append) {
+						prevList != mangaList.value
+					} else {
+						list.size > prevList.size || hasNextPage.value
+					}
+					MangaRepository.ListPagingMode.PAGE_INDEX -> list.isNotEmpty()
 				}
 			} catch (e: CancellationException) {
 				throw e

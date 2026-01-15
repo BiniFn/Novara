@@ -48,6 +48,10 @@ import java.io.File
 import java.util.regex.Pattern
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
@@ -107,6 +111,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
         }
 		findPreference<Preference>(SourceSettings.KEY_SLOWDOWN)?.isVisible = isValidSource
 		tryAddLegadoVariablePreferences()
+		tryAddLegadoAuthPreferences()
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -183,13 +188,8 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 	}
 
 	private fun tryAddLegadoVariablePreferences() {
-		val repo = viewModel.repository as? org.skepsun.kototoro.core.parser.legado.LegadoRepository ?: return
-		val jsonSource = repo.source as? JsonMangaSource ?: return
-		val config = runCatching {
-			legadoJson.decodeFromString<LegadoBookSource>(jsonSource.entity.config)
-		}.getOrNull() ?: return
-		val sourceKey = config.bookSourceUrl.trim()
-		if (sourceKey.isBlank()) return
+		val (repo, config) = getLegadoRepoAndConfigOrNull() ?: return
+		val sourceKey = config.bookSourceUrl.trim().ifBlank { return }
 
 		val screen = preferenceScreen ?: return
 		val sourcePrefs = requireContext().getSharedPreferences(LEGADO_SOURCE_PREFS, Context.MODE_PRIVATE)
@@ -271,7 +271,196 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		}
 	}
 
+	private fun tryAddLegadoAuthPreferences() {
+		val (repo, config) = getLegadoRepoAndConfigOrNull() ?: return
+		val sourceKey = config.bookSourceUrl.trim().ifBlank { return }
+
+		val rawLoginUi = config.loginUi?.trim().orEmpty()
+		val hasAnyLogin = rawLoginUi.isNotBlank() || config.loginUrl?.isNotBlank() == true || config.loginCheckJs?.isNotBlank() == true
+		if (!hasAnyLogin) return
+
+		val screen = preferenceScreen ?: return
+		val sourcePrefs = requireContext().getSharedPreferences(LEGADO_SOURCE_PREFS, Context.MODE_PRIVATE)
+
+		val category = findPreference<PreferenceCategory>(KEY_LEGADO_AUTH_CATEGORY)
+			?: PreferenceCategory(requireContext()).apply {
+				key = KEY_LEGADO_AUTH_CATEGORY
+				title = "登录（Legado）"
+				order = 35
+				isIconSpaceReserved = false
+				screen.addPreference(this)
+			}
+
+		val items = parseLegadoLoginUiItems(repo, rawLoginUi)
+		items.forEachIndexed { idx, item ->
+			when (item.type.lowercase()) {
+				"text", "password" -> {
+					val prefKey = "$KEY_LEGADO_LOGIN_FIELD_PREFIX$idx"
+					val storeKey = sourceKvKey(sourceKey, item.name)
+					val pref = findPreference<EditTextPreference>(prefKey) ?: EditTextPreference(requireContext()).apply {
+						key = prefKey
+						title = item.name
+						order = 36 + idx
+						isIconSpaceReserved = false
+						isPersistent = false
+						summaryProvider = if (item.type.equals("password", ignoreCase = true)) {
+							PasswordSummaryProvider()
+						} else {
+							EditTextDefaultSummaryProvider("未设置")
+						}
+						setOnBindEditTextListener(
+							EditTextBindListener(
+								inputType = if (item.type.equals("password", ignoreCase = true)) {
+									android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT or android.view.inputmethod.EditorInfo.TYPE_TEXT_VARIATION_PASSWORD
+								} else {
+									android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT
+								},
+								hint = null,
+								validator = null,
+							),
+						)
+						category.addPreference(this)
+					}
+					pref.text = sourcePrefs.getString(storeKey, "").orEmpty()
+					pref.setOnPreferenceChangeListener { _, newValue ->
+						val value = (newValue as? String).orEmpty()
+						sourcePrefs.edit().putString(storeKey, value).apply()
+						repo.invalidateCache()
+						true
+					}
+				}
+				"button" -> {
+					val action = item.action?.trim().orEmpty()
+					if (action.isBlank()) return@forEachIndexed
+					val prefKey = "$KEY_LEGADO_LOGIN_BUTTON_PREFIX$idx"
+					if (findPreference<Preference>(prefKey) == null) {
+						Preference(requireContext()).apply {
+							key = prefKey
+							title = item.name
+							order = 36 + idx
+							isIconSpaceReserved = false
+							setOnPreferenceClickListener {
+								viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+									val output = runCatching { repo.runUserScript(action) }.getOrNull()
+									withContext(Dispatchers.Main) {
+										val msg = output?.toString()?.take(200).orEmpty().ifBlank { "执行完成" }
+										Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+									}
+								}
+								true
+							}
+							category.addPreference(this)
+						}
+					}
+				}
+			}
+		}
+
+		val checkJs = config.loginCheckJs?.trim().orEmpty()
+		if (checkJs.isNotBlank() && findPreference<Preference>(KEY_LEGADO_LOGIN_CHECK) == null) {
+			Preference(requireContext()).apply {
+				key = KEY_LEGADO_LOGIN_CHECK
+				title = "检测登录状态"
+				order = 80
+				isIconSpaceReserved = false
+				setOnPreferenceClickListener {
+					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+						val output = runCatching { repo.evalUserExpression(checkJs) }.getOrNull()
+						withContext(Dispatchers.Main) {
+							Toast.makeText(requireContext(), output?.toString()?.take(200) ?: "执行失败", Toast.LENGTH_SHORT).show()
+						}
+					}
+					true
+				}
+				category.addPreference(this)
+			}
+		}
+
+		if (findPreference<Preference>(KEY_LEGADO_LOGIN_CLEAR) == null) {
+			Preference(requireContext()).apply {
+				key = KEY_LEGADO_LOGIN_CLEAR
+				title = "清理登录信息"
+				summary = "清空该源的 sourceVariable/loginInfo/登录表单缓存"
+				order = 81
+				isIconSpaceReserved = false
+				setOnPreferenceClickListener {
+					sourcePrefs.edit().apply {
+						remove(sourceVariableKey(sourceKey))
+						remove(loginInfoKey(sourceKey))
+						val prefix = sourceKvPrefix(sourceKey)
+						sourcePrefs.all.keys.filter { it.startsWith(prefix) }.forEach { remove(it) }
+					}.apply()
+					repo.invalidateCache()
+					Toast.makeText(requireContext(), "已清理", Toast.LENGTH_SHORT).show()
+					true
+				}
+				category.addPreference(this)
+			}
+		}
+	}
+
+	private data class LegadoLoginUiItem(
+		val name: String,
+		val type: String,
+		val action: String?,
+	)
+
+	private fun parseLegadoLoginUiItems(
+		repo: org.skepsun.kototoro.core.parser.legado.LegadoRepository,
+		rawLoginUi: String,
+	): List<LegadoLoginUiItem> {
+		val resolved = resolveLegadoMaybeJs(repo, rawLoginUi).trim()
+		if (resolved.isBlank()) return emptyList()
+
+		val asJson = runCatching { legadoJson.parseToJsonElement(resolved) }.getOrNull()
+			?: runCatching {
+				// fallback：loginUi 可能是 JS object literal（不带双引号 key），用 Rhino 解析后再 JSON.stringify。
+				val js = "var __ui = $resolved; JSON.stringify(__ui);"
+				val str = repo.runUserScript(js)?.toString().orEmpty()
+				legadoJson.parseToJsonElement(str)
+			}.getOrNull()
+			?: return emptyList()
+
+		val array = asJson as? JsonArray ?: return emptyList()
+		return array.mapNotNull { element ->
+			val obj = element as? JsonObject ?: return@mapNotNull null
+			val name = obj["name"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+			val type = obj["type"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+			val action = obj["action"]?.jsonPrimitive?.contentOrNull
+			if (name.isBlank() || type.isBlank()) return@mapNotNull null
+			LegadoLoginUiItem(name = name, type = type, action = action)
+		}
+	}
+
+	private fun resolveLegadoMaybeJs(
+		repo: org.skepsun.kototoro.core.parser.legado.LegadoRepository,
+		text: String,
+	): String {
+		val trimmed = text.trim()
+		if (trimmed.startsWith("@js:", ignoreCase = true)) {
+			return repo.runUserScript(trimmed.removePrefix("@js:"))?.toString().orEmpty()
+		}
+		if (trimmed.startsWith("<js>", ignoreCase = true) && trimmed.contains("</js>", ignoreCase = true)) {
+			val script = trimmed.substringAfter("<js>", "").substringBeforeLast("</js>", "")
+			return repo.runUserScript(script)?.toString().orEmpty()
+		}
+		return trimmed
+	}
+
+	private fun getLegadoRepoAndConfigOrNull(): Pair<org.skepsun.kototoro.core.parser.legado.LegadoRepository, LegadoBookSource>? {
+		val repo = viewModel.repository as? org.skepsun.kototoro.core.parser.legado.LegadoRepository ?: return null
+		val jsonSource = repo.source as? JsonMangaSource ?: return null
+		val config = runCatching { legadoJson.decodeFromString<LegadoBookSource>(jsonSource.entity.config) }.getOrNull() ?: return null
+		return repo to config
+	}
+
 	private fun sourceVariableKey(sourceKey: String): String = "sourceVariable_$sourceKey"
+
+	private fun loginInfoKey(sourceKey: String): String = "userInfo_$sourceKey"
+
+	private fun sourceKvPrefix(sourceKey: String): String = "v_${sourceKey}_"
+
+	private fun sourceKvKey(sourceKey: String, key: String): String = "${sourceKvPrefix(sourceKey)}$key"
 
 	private fun bookDefaultKey(sourceKey: String, key: String): String {
 		val sourceHash = sourceKey.hashCode().toString(16)
@@ -511,6 +700,11 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		private const val KEY_LEGADO_VARIABLES_CATEGORY = "legado_variables"
 		private const val KEY_LEGADO_SOURCE_VARIABLE = "legado_source_variable"
 		private const val KEY_LEGADO_BOOK_DEFAULT_CUSTOM = "legado_book_default_custom"
+		private const val KEY_LEGADO_AUTH_CATEGORY = "legado_auth"
+		private const val KEY_LEGADO_LOGIN_FIELD_PREFIX = "legado_login_field_"
+		private const val KEY_LEGADO_LOGIN_BUTTON_PREFIX = "legado_login_btn_"
+		private const val KEY_LEGADO_LOGIN_CHECK = "legado_login_check"
+		private const val KEY_LEGADO_LOGIN_CLEAR = "legado_login_clear"
 
 		private const val LEGADO_SOURCE_PREFS = "legado_source_store"
 		private const val LEGADO_BOOK_PREFS = "legado_book_store"

@@ -68,7 +68,9 @@ class LegadoRepository(
     }
 
     private val manhuataiChapterNewIdCache = ConcurrentHashMap<Int, Map<String, String>>()
-    private val listPageSizeCache = ConcurrentHashMap<String, Int>()
+
+    override val listPagingMode: MangaRepository.ListPagingMode
+        get() = MangaRepository.ListPagingMode.PAGE_INDEX
 
     /**
      * 清理该源的内存缓存（详情/目录/页面）。
@@ -79,7 +81,21 @@ class LegadoRepository(
      */
     fun invalidateCache() {
         memoryCache?.clear(source)
-        listPageSizeCache.clear()
+    }
+
+    /**
+     * 为设置页（loginUi 等）提供的脚本执行入口。
+     *
+     * 说明：
+     * - 使用与解析流程相同的 sandbox，确保缓存/变量/JS 全局函数可复用，行为更接近 legado-with-MD3。
+     * - 仅用于用户主动触发的“登录/配置”按钮，不应在后台自动高频调用。
+     */
+    fun runUserScript(script: String): Any? {
+        return sandbox.execute(script)
+    }
+
+    fun evalUserExpression(expression: String): Any? {
+        return sandbox.eval(expression)
     }
 
     /**
@@ -129,15 +145,24 @@ class LegadoRepository(
         if (exploreUrl.isNullOrBlank()) return emptyList()
         
         val trimmed = exploreUrl.trim()
+        val effectiveText = resolveExploreUrlText(trimmed).trim()
+        if (effectiveText.isEmpty()) return emptyList()
         
         return try {
-            if (trimmed.startsWith("[")) {
+            if (effectiveText.startsWith("[")) {
                 // JSON array format
-                val normalized = trimmed.replace("'", "\"")
-                json.decodeFromString<List<ExploreKind>>(normalized)
+                val normalized = effectiveText.replace("'", "\"")
+                runCatching { json.decodeFromString<List<ExploreKind>>(normalized) }
+                    .recoverCatching {
+                        // 部分三方脚本会把 `{{...Get(\"url\")...}}` 直接写进字符串，
+                        // 若内容中出现未转义的 `"` 会导致严格 JSON 解析失败。
+                        val fixed = fixExploreJsonString(normalized)
+                        json.decodeFromString<List<ExploreKind>>(fixed)
+                    }
+                    .getOrThrow()
             } else {
                 // Text format: title::url separated by && or newline
-                trimmed.split("(&&|\n)+".toRegex()).mapNotNull { kindStr ->
+                effectiveText.split("(&&|\n)+".toRegex()).mapNotNull { kindStr ->
                     val parts = kindStr.trim().split("::")
                     if (parts.isNotEmpty() && parts[0].isNotBlank()) {
                         ExploreKind(parts[0].trim(), parts.getOrNull(1)?.trim())
@@ -148,6 +173,68 @@ class LegadoRepository(
             Log.w(TAG, "Failed to parse exploreUrl", e)
             emptyList()
         }
+    }
+
+    private fun fixExploreJsonString(raw: String): String {
+        // 仅修复 JSON 字符串内部的 `{{...}}` 模板段落：
+        // - 当模板表达式包含双引号（例如 Get("url")）时，将其转义为 `\"`，保证 JSON 合法。
+        if (!raw.contains("{{") || !raw.contains("\"")) return raw
+
+        val sb = StringBuilder(raw.length + 16)
+        var i = 0
+        while (i < raw.length) {
+            // 进入模板段落
+            if (i + 1 < raw.length && raw[i] == '{' && raw[i + 1] == '{') {
+                sb.append("{{")
+                i += 2
+                while (i < raw.length) {
+                    if (i + 1 < raw.length && raw[i] == '}' && raw[i + 1] == '}') {
+                        sb.append("}}")
+                        i += 2
+                        break
+                    }
+                    val ch = raw[i]
+                    if (ch == '"' && (sb.isEmpty() || sb.last() != '\\')) {
+                        sb.append("\\\"")
+                    } else {
+                        sb.append(ch)
+                    }
+                    i++
+                }
+                continue
+            }
+            sb.append(raw[i])
+            i++
+        }
+        return sb.toString()
+    }
+
+    /**
+     * legado-with-MD3 兼容：
+     * - exploreUrl 允许使用 `<js>...</js>`/`@js:` 动态生成分类列表（title::url 多行文本，或 JSON 数组）。
+     *
+     * 注意：这里仅执行 exploreUrl 自身的脚本，不做 `{{page}}` 等模板变量替换；
+     * `{{page}}` 会在后续实际请求时（AnalyzeUrl）按 offset->page 计算替换。
+     */
+    private fun resolveExploreUrlText(exploreUrl: String): String {
+        val trimmed = exploreUrl.trim()
+        if (trimmed.isEmpty()) return ""
+        if (!looksLikeJsRule(trimmed)) return trimmed
+
+        val analyzer = AnalyzeRule(
+            content = "",
+            sandbox = sandbox,
+            baseUrl = config.bookSourceUrl,
+        )
+        val lines = analyzer.getStringList(trimmed, mContent = "", isUrl = false).orEmpty()
+        return lines.joinToString("\n")
+    }
+
+    private fun looksLikeJsRule(rule: String): Boolean {
+        val trimmed = rule.trim()
+        return trimmed.startsWith("@js:", ignoreCase = true) ||
+            trimmed.startsWith("<js>", ignoreCase = true) ||
+            trimmed.contains("</js>", ignoreCase = true)
     }
 
     /**
@@ -172,11 +259,8 @@ class LegadoRepository(
             else -> return emptyList()
         }
 
-        // legado 源的分页参数经常不是 18（例如 mkz 这里固定 page_size=12 或者接口固定每页 6 条），
-        // 若用错误的 pageSize 计算 page，会表现为“列表无法翻页/一直请求第 1 页”。
-        val cachedPageSize = listPageSizeCache[ruleUrl]
-        val pageSize = extractPageSizeFromUrl(ruleUrl) ?: cachedPageSize ?: 18
-        val page = (offset / pageSize) + 1
+        // 对齐 legado-with-MD3：按页号翻页（{{page}}），并使用 0-based pageIndex 作为入参（page = pageIndex + 1）。
+        val page = (offset + 1).coerceAtLeast(1)
         
         fun buildRequest(key: String?): AnalyzeUrl.UrlResult {
             return AnalyzeUrl(
@@ -194,26 +278,7 @@ class LegadoRepository(
         val (firstContent, firstFinalUrl) = firstResult
         val firstParsed = BookList.parse(firstContent, firstFinalUrl, source, config, isSearch, sandbox)
 
-        // 动态探测“每页返回条数”，让 offset->page 映射与 UI 的 offset（当前列表大小）保持一致。
-        // 仅在该 URL 未显式声明 page_size/pageSize/size 时启用，且只在第一页写入，避免末页(少于页大小)污染缓存。
-        if (offset == 0 && extractPageSizeFromUrl(ruleUrl) == null && firstParsed.isNotEmpty()) {
-            listPageSizeCache.putIfAbsent(ruleUrl, firstParsed.size)
-        }
-
         return firstParsed
-    }
-
-    private fun extractPageSizeFromUrl(url: String): Int? {
-        val raw = url.trim()
-        // only try when template uses page placeholder (avoid false positives)
-        if (!raw.contains("{{page")) return null
-
-        fun findInt(regex: Regex): Int? =
-            regex.find(raw)?.groupValues?.getOrNull(1)?.toIntOrNull()?.takeIf { it in 1..500 }
-
-        return findInt(Regex("[?&]page_size=(\\d+)", RegexOption.IGNORE_CASE))
-            ?: findInt(Regex("[?&]pageSize=(\\d+)", RegexOption.IGNORE_CASE))
-            ?: findInt(Regex("[?&]size=(\\d+)", RegexOption.IGNORE_CASE))
     }
 
     private val rateLimiter by lazy {

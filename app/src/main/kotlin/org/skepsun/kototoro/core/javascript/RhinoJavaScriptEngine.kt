@@ -63,6 +63,94 @@ class RhinoJavaScriptEngine(
                 
                 // 注册全局辅助函数
                 ctx.evaluateString(scope, "function bhost() { return java.bhost(); }", "init", 1, null)
+                // legado-with-MD3 兼容：部分规则使用 Reload(url) 动态加载远端 JS（通常配合 eval(String(Reload(url)))）。
+                // 这里将其映射到 java.ajax，保持通用性（不做站点特判）。
+                ctx.evaluateString(
+                    scope,
+                    "function Reload(url, options) {" +
+                        "  if (typeof options === 'undefined' || options === null) {" +
+                        "    return java.ajax(String(url));" +
+                        "  }" +
+                        "  return java.ajax(String(url), options);" +
+                        "}",
+                    "init",
+                    1,
+                    null
+                )
+                // legado-with-MD3 兼容：部分三方脚本依赖通用 helper（Get/Put/Map/get/explore）。
+                // 仅在未定义时注入，避免覆盖源脚本自身实现。
+                ctx.evaluateString(
+                    scope,
+                    "" +
+                        // Put(x): legado 常用来“提交结果/刷新 result 变量”，这里对齐为：写入全局 result 并返回写入值。
+                        "if (typeof Put === 'undefined') {" +
+                        "  function Put(x) {" +
+                        "    var v = x;" +
+                        "    try {" +
+                        "      if (v && typeof v === 'object') {" +
+                        "        v = JSON.stringify(v);" +
+                        "      }" +
+                        "    } catch (e) {}" +
+                        "    try { result = v; } catch (e) {}" +
+                        "    return v;" +
+                        "  }" +
+                        "}" +
+                        // 避免与 ES6 Map 构造器冲突：三方 legado 脚本常把 Map 当作“输入框/配置项读取”的函数使用（Map('xxx')）。
+                        // Rhino 中内置 Map 通常要求 `new Map()`，会导致脚本报错；这里对齐 legado 环境，强制提供 Map() 函数。
+                        "try { if (typeof NativeMap === 'undefined' && typeof Map !== 'undefined') { var NativeMap = Map; } } catch (e) {}" +
+                        "function Map(label) {" +
+                        "  try {" +
+                        "    if (typeof source !== 'undefined' && source && typeof source.get === 'function') {" +
+                        "      var v = String(source.get(String(label)) || '');" +
+                        "      if (v.length > 0) return v;" +
+                        "    }" +
+                        "  } catch (e) {}" +
+                        "  return '';" +
+                        "}" +
+                        "if (typeof Get === 'undefined') {" +
+                        "  function Get(key, defVal) {" +
+                        "    try { if (typeof $$$ !== 'undefined' && $$$ && typeof $$$[key] !== 'undefined') return $$$[key]; } catch (e) {}" +
+                        "    try {" +
+                        "      if (typeof source !== 'undefined' && source && typeof source.getVariable === 'function') {" +
+                        "        var raw = String(source.getVariable() || '');" +
+                        "        if (raw && raw.trim().length > 0) {" +
+                        "          var obj = JSON.parse(raw);" +
+                        "          if (obj && typeof obj[key] !== 'undefined') return obj[key];" +
+                        "        }" +
+                        "      }" +
+                        "    } catch (e) {}" +
+                        "    if (typeof defVal !== 'undefined') return defVal;" +
+                        "    return '';" +
+                        "  }" +
+                        "}" +
+                        "if (typeof explore === 'undefined') {" +
+                        "  function explore(title, url, style, weight, open) {" +
+                        "    return { title: String(title || ''), url: (url == null ? '' : String(url)), style: style, weight: weight, open: open };" +
+                        "  }" +
+                        "}" +
+                        "if (typeof get === 'undefined') {" +
+                        "  function get(name, value, page) {" +
+                        "    var v = value;" +
+                        "    if (name === 'ordering') { return (v && v !== 0 && v !== '0') ? ('?ordering=' + encodeURIComponent(v)) : '?'; }" +
+                        "    if (name === 'top') { return (v && v !== 0 && v !== '0') ? ('&top=' + encodeURIComponent(v)) : ''; }" +
+                        "    if (name === 'audience') { return (v && v !== 0 && v !== '0') ? ('&audience=' + encodeURIComponent(v)) : ''; }" +
+                        "    if (name === 'orderby') {" +
+                        "      var i = parseInt(v, 10);" +
+                        "      if (isNaN(i)) i = 0;" +
+                        "      var p = parseInt(page, 10);" +
+                        "      if (isNaN(p) || p < 1) p = 1;" +
+                        "      var types = ['total','month','week','day'];" +
+                        "      var t = types[i] || 'total';" +
+                        "      var offset = 24 * (p - 1);" +
+                        "      return 'ranks?date_type=' + t + '&_update=true&limit=24&offset=' + offset;" +
+                        "    }" +
+                        "    return '';" +
+                        "  }" +
+                        "}",
+                    "init",
+                    1,
+                    null
+                )
                 
                 Log.i(TAG, "Rhino engine initialized successfully with Legado APIs")
             }
@@ -560,6 +648,9 @@ class RhinoJavaScriptEngine(
             if (script.endsWith("</js>", ignoreCase = true)) {
                 script = script.removeSuffix("</js>").trim()
             }
+            // 兼容部分三方脚本使用的 ES2019 语法：`catch { ... }`（省略异常变量）。
+            // Rhino 在部分版本下不支持该语法，会抛出 SyntaxError。
+            script = script.replace(Regex("\\bcatch\\s*\\{"), "catch(e){")
             return script
         }
     }
