@@ -54,18 +54,44 @@ class CommonHeadersInterceptor @Inject constructor(
 		if (headersBuilder[CommonHeaders.USER_AGENT] == null) {
 			headersBuilder[CommonHeaders.USER_AGENT] = mangaLoaderContextLazy.get().getDefaultUserAgent()
 		}
+		
+		// Add Referer header upfront if not already set (like Kotatsu does)
+		if (headersBuilder[CommonHeaders.REFERER] == null && repository != null) {
+			val domain = when (repository) {
+				is ParserMangaRepository -> repository.domain
+				is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository -> {
+					// Get domain from the underlying Kotatsu parser
+					runCatching { 
+						(repository as? okhttp3.Interceptor)?.let { _ ->
+							// The KotatsuParserRepository wraps a KTMangaParser which has domain
+							val parserField = repository.javaClass.getDeclaredField("parser")
+							parserField.isAccessible = true
+							val parser = parserField.get(repository) as? org.koitharu.kotatsu.parsers.MangaParser
+							parser?.domain
+						}
+					}.getOrNull()
+				}
+				else -> null
+			}
+			if (domain != null) {
+				val idn = IDN.toASCII(domain)
+				headersBuilder.trySet(CommonHeaders.REFERER, "https://$idn/")
+			}
+		}
+		
 		val finalSource = repository?.source ?: source
 		
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
 		val response = (repository as? Interceptor)?.interceptSafe(ProxyChain(chain, newRequest)) ?: chain.proceed(newRequest)
-		
+
 		// Log response for debugging blocked images
 		if (!response.isSuccessful) {
 			android.util.Log.w("CommonHeadersInterceptor", "Request failed: ${response.code} for ${request.url}")
 		}
-		
+
 		return response
 	}
+
 
 	private fun Headers.Builder.trySet(name: String, value: String) = try {
 		set(name, value)

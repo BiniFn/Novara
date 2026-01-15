@@ -12,9 +12,12 @@ class MangaSourceHeaderInterceptor : Interceptor {
 
 	override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
 		val mangaSource = chain.request.extras[mangaSourceKey]?.unwrap()
-		if (mangaSource !is MangaParserSource && mangaSource !is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
+		if (mangaSource !is MangaParserSource 
+			&& mangaSource !is org.skepsun.kototoro.mihon.model.MihonMangaSource
+			&& mangaSource !is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource) {
 			return chain.proceed()
 		}
+
 		val request = chain.request
 		val newHeaders = request.httpHeaders.newBuilder()
 			.set(CommonHeaders.MANGA_SOURCE, mangaSource.name)
