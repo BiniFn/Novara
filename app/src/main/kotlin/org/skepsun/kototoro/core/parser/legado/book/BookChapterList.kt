@@ -67,12 +67,29 @@ object BookChapterList {
 
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
         
-        // Execute preUpdateJs if present (equivalent to init for TOC)
         var currentContent: Any = content
-        if (!rule.preUpdateJs.isNullOrBlank()) {
-            val initResult = analyzeRule.evalJS(rule.preUpdateJs!!, content)
+
+        // legado 规则的 init 通常定义在 ruleBookInfo 上，但很多 JSON API 源会依赖它来“缩小根对象”（例如 `.data`）。
+        // 这里在 TOC 解析前先应用一次全局 init（若存在），以对齐 legado-with-MD3 行为并保持通用。
+        val globalInit = config.ruleBookInfo?.init?.trim()
+        val canApplyGlobalInitAsJsonPath = !globalInit.isNullOrBlank() && (
+            globalInit.startsWith("$") ||
+                globalInit.startsWith(".") ||
+                globalInit.startsWith("@Json:", ignoreCase = true)
+            )
+        if (canApplyGlobalInitAsJsonPath) {
+            val initResult = LegadoInitEvaluator.applyInitIfPresent(analyzeRule, globalInit, currentContent)
             if (initResult != null) {
                 currentContent = initResult
+                analyzeRule.setContent(currentContent)
+            }
+        }
+
+        // Execute preUpdateJs if present (equivalent to init for TOC)
+        if (!rule.preUpdateJs.isNullOrBlank()) {
+            val preUpdateResult = analyzeRule.evalJS(rule.preUpdateJs!!, currentContent)
+            if (preUpdateResult != null) {
+                currentContent = preUpdateResult
                 analyzeRule.setContent(currentContent)
             }
         }

@@ -258,14 +258,17 @@ class AnalyzeByJsonPath(content: Any) {
     fun getList(rule: String): ArrayList<Any>? {
         val result = ArrayList<Any>()
         if (rule.isEmpty() || ctx == null) return result
-        val ruleAnalyzes = RuleAnalyzer(rule, true) //设置平衡组为代码平衡
+        val normalizedRule = normalizeJsonPathRule(rule)
+        val ruleAnalyzes = RuleAnalyzer(normalizedRule, true) //设置平衡组为代码平衡
         val rules = ruleAnalyzes.splitRule("&&", "||", "%%")
         if (rules.size == 1) {
             try {
                 val obj = try {
-                    ctx.read<Any>(rules[0])
+                    ctx.read<Any>(normalizeJsonPathRule(rules[0]))
                 } catch (e: Exception) {
-                    null
+                    // 常见 JSON API 包装：{"code":0,"data":{...}}，而规则仍使用 "$.xxx" 或 ".xxx"。
+                    // 当顶层不存在目标字段时，回退尝试 "$.data.xxx"。
+                    tryReadFromDataWrapper(normalizeJsonPathRule(rules[0]))
                 }
                 
                 // Heuristic fallback
@@ -293,8 +296,12 @@ class AnalyzeByJsonPath(content: Any) {
                     null
                 }
 
-                if ((list == null || list.isEmpty()) && !rule.startsWith("$..") && !rule.contains("[") && !rule.contains("*")) {
-                    val simpleKey = rule.substringAfterLast('.')
+                if ((list == null || list.isEmpty()) &&
+                    !normalizedRule.startsWith("$..") &&
+                    !normalizedRule.contains("[") &&
+                    !normalizedRule.contains("*")
+                ) {
+                    val simpleKey = normalizedRule.substringAfterLast('.')
                     try {
                         // Fallback to deep scan ONLY if the simple key exists elsewhere
                         val fallback = ctx.read<Any>("$..$simpleKey")
@@ -338,5 +345,14 @@ class AnalyzeByJsonPath(content: Any) {
             }
         }
         return result
+    }
+
+    private fun tryReadFromDataWrapper(rule: String): Any? {
+        val trimmed = rule.trim()
+        if (!trimmed.startsWith("$.") || trimmed.startsWith("$.data.")) return null
+        val dataExists = runCatching { ctx?.read<Any>("$.data") }.getOrNull() ?: return null
+        // dataExists 只是用于确认存在；实际读取仍使用完整路径，避免类型分支。
+        val rewritten = "\$.data${trimmed.removePrefix("$")}"
+        return runCatching { ctx?.read<Any>(rewritten) }.getOrNull()
     }
 }

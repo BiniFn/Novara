@@ -29,10 +29,10 @@ object BookInfo {
         val rule = config.ruleBookInfo ?: return Result(manga, null)
         val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
         
-        // Execute init if present (Legado init script can transform content)
+        // Execute init if present (Legado init can be JS or JsonPath and may transform content)
         var currentContent: Any = content
         if (!rule.init.isNullOrBlank()) {
-            val initResult = analyzeRule.evalJS(rule.init, content)
+            val initResult = LegadoInitEvaluator.applyInitIfPresent(analyzeRule, rule.init, currentContent)
             if (initResult != null) {
                 currentContent = initResult
                 analyzeRule.setContent(currentContent)

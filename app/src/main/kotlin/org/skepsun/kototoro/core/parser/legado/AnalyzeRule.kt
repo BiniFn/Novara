@@ -36,7 +36,9 @@ class AnalyzeRule(
         private val regexPattern = Pattern.compile("\\$\\d{1,2}")
         private val JS_PATTERN =
             Pattern.compile("<js>([\\s\\S]*?)</js>|@js:([\\s\\S]*)", Pattern.CASE_INSENSITIVE)
-        private val singleBracePlaceholderPattern = Pattern.compile("\\{([^{}]+)\\}")
+        // Avoid clobbering JavaScript template strings like `${mid}` / `${id}`:
+        // legacy single-brace placeholders are `{key}` (NOT preceded by '$').
+        private val singleBracePlaceholderPattern = Pattern.compile("(?<!\\$)\\{([^{}]+)\\}")
 
         fun isRule(ruleStr: String): Boolean {
             if (ruleStr.isBlank()) return false
