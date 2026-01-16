@@ -205,27 +205,65 @@ fun MangaSource.getSummary(context: Context, contentType: ContentType? = null): 
 			else -> Locale.getDefault()
 		}
 		val locale = lang.getDisplayName(context)
-		context.getString(R.string.source_summary_pattern, type, locale)
+		val base = context.getString(R.string.source_summary_pattern, type, locale)
+		appendOriginSuffix(context, base, source.getOriginLabel(context))
 	}
 
-	is ExternalMangaSource -> context.getString(R.string.external_source)
-	
-	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
-		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
-		val sourceType = sourceTypeIdentifier.getSourceType(source.name)
+	is ExternalMangaSource -> {
 		val resolvedContentType = contentType ?: getContentType()
 		val type = context.getString(resolvedContentType.titleResId)
-		when (sourceType) {
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "$type (Legado)"
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "视频 (TVBox)"
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "$type (JS)"
-			else -> "$type (JSON)"
-		}
+		appendOriginSuffix(context, type, source.getOriginLabel(context))
+	}
+	
+	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
+		val resolvedContentType = contentType ?: getContentType()
+		val type = context.getString(resolvedContentType.titleResId)
+		appendOriginSuffix(context, type, source.getOriginLabel(context))
 	}
 
 	else -> {
 		val resolvedContentType = contentType ?: getContentType()
-		context.getString(resolvedContentType.titleResId)
+		val type = context.getString(resolvedContentType.titleResId)
+		appendOriginSuffix(context, type, source.getOriginLabel(context))
+	}
+}
+
+private fun appendOriginSuffix(context: Context, base: String, originLabel: String?): String {
+	if (originLabel.isNullOrBlank()) {
+		return base
+	}
+	val currentLanguage = context.resources.configuration.locales.get(0)?.language.orEmpty()
+	val (open, close) = if (currentLanguage == "zh") "（" to "）" else "(" to ")"
+	return "$base$open$originLabel$close"
+}
+
+private fun MangaSource.getOriginLabel(context: Context): String? = when (this) {
+	is MangaSourceInfo -> mangaSource.getOriginLabel(context)
+	is MangaParserSource -> "内置"
+	is KotatsuParserSource -> "Kotatsu"
+	is ExternalMangaSource -> context.getString(R.string.external_source)
+	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> "Mihon"
+	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> "Aniyomi"
+	is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> {
+		val type = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier().getSourceType(name)
+		when (type) {
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "JS"
+			else -> "JSON"
+		}
+	}
+	else -> {
+		val type = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier().getSourceType(name)
+		when (type) {
+			org.skepsun.kototoro.core.jsonsource.SourceType.MIHON -> "Mihon"
+			org.skepsun.kototoro.core.jsonsource.SourceType.ANIYOMI -> "Aniyomi"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
+			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "JS"
+			org.skepsun.kototoro.core.jsonsource.SourceType.EXTERNAL -> context.getString(R.string.external_source)
+			org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE -> null
+		}
 	}
 }
 

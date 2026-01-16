@@ -511,7 +511,7 @@
     <string name="catalog">内容源目录</string>
     <string name="content_type_comics">美漫</string>
     <string name="content_type_other">其他</string>
-    <string name="content_type_manga">日漫</string>
+    <string name="content_type_manga">漫画</string>
     <string name="source_summary_pattern">%1$s，%2$s</string>
     <string name="sources_catalog">内容源目录</string>
 <string name="source_enabled">内容源已启用</string>

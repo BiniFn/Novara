@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.plus
+import org.skepsun.kototoro.core.model.MangaSourceInfo
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.SearchSuggestionType
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -49,6 +50,10 @@ class SearchSuggestionViewModel @Inject constructor(
 	private val query = MutableStateFlow("")
 	private val invalidationTrigger = MutableStateFlow(0)
 
+	private val enabledSourcesSnapshot: Flow<EnabledSourcesSnapshot> = sourcesRepository.observeEnabledSources()
+		.map { infos -> infos.toEnabledSourcesSnapshot() }
+		.distinctUntilChanged()
+
 	val isIncognitoModeEnabled = settings.observeAsStateFlow(
 		scope = viewModelScope + Dispatchers.Default,
 		key = AppSettings.KEY_INCOGNITO_MODE,
@@ -57,7 +62,7 @@ class SearchSuggestionViewModel @Inject constructor(
 
 	val suggestion: Flow<List<SearchSuggestionItem>> = combine(
 		query.debounce(DEBOUNCE_TIMEOUT),
-		sourcesRepository.observeEnabledSources().map { it.mapToSet { x -> x.name } },
+		enabledSourcesSnapshot,
 		settings.observeAsFlow(AppSettings.KEY_SEARCH_SUGGESTION_TYPES) { searchSuggestionTypes },
 		invalidationTrigger,
 	)
@@ -102,12 +107,17 @@ class SearchSuggestionViewModel @Inject constructor(
 
 	private suspend fun buildSearchSuggestion(
 		searchQuery: String,
-		enabledSources: Set<String>,
+		enabledSources: EnabledSourcesSnapshot,
 		types: Set<SearchSuggestionType>,
 	): List<SearchSuggestionItem> = coroutineScope {
 		listOfNotNull(
 			if (SearchSuggestionType.GENRES in types) {
 				async { getTags(searchQuery) }
+			} else {
+				null
+			},
+			if (SearchSuggestionType.SOURCES in types) {
+				async { getSources(searchQuery, enabledSources) }
 			} else {
 				null
 			},
@@ -123,11 +133,6 @@ class SearchSuggestionViewModel @Inject constructor(
 			},
 			if (SearchSuggestionType.QUERIES_SUGGEST in types) {
 				async { getQueryHints(searchQuery) }
-			} else {
-				null
-			},
-			if (SearchSuggestionType.SOURCES in types) {
-				async { getSources(searchQuery, enabledSources) }
 			} else {
 				null
 			},
@@ -189,15 +194,15 @@ class SearchSuggestionViewModel @Inject constructor(
 		} else {
 			listOf(SearchSuggestionItem.MangaList(manga))
 		}
-	}.getOrElse { e ->
-		e.printStackTraceDebug()
-		listOf(SearchSuggestionItem.Text(0, e))
-	}
+		}.getOrElse { e ->
+			e.printStackTraceDebug()
+			listOf(SearchSuggestionItem.Text(0, e))
+		}
 
-	private fun getSources(searchQuery: String, enabledSources: Set<String>): List<SearchSuggestionItem> =
+	private fun getSources(searchQuery: String, enabledSources: EnabledSourcesSnapshot): List<SearchSuggestionItem> =
 		runCatchingCancellable {
-			repository.getSourcesSuggestion(searchQuery, MAX_SOURCES_ITEMS)
-				.map { SearchSuggestionItem.Source(it, it.name in enabledSources) }
+			repository.getSourcesSuggestion(searchQuery, MAX_SOURCES_ITEMS, enabledSources.sources)
+				.map { SearchSuggestionItem.Source(it, it.name in enabledSources.names) }
 		}.getOrElse { e ->
 			e.printStackTraceDebug()
 			listOf(SearchSuggestionItem.Text(0, e))
@@ -221,4 +226,17 @@ class SearchSuggestionViewModel @Inject constructor(
 			data = tag,
 		)
 	}
+}
+
+private data class EnabledSourcesSnapshot(
+	val sources: List<MangaSource>,
+	val names: Set<String>,
+)
+
+private fun List<MangaSourceInfo>.toEnabledSourcesSnapshot(): EnabledSourcesSnapshot {
+	val sources = this.map { it.mangaSource }
+	return EnabledSourcesSnapshot(
+		sources = sources,
+		names = sources.mapToSet { it.name },
+	)
 }

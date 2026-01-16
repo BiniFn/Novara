@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.toEntity
 import org.skepsun.kototoro.core.db.entity.toManga
@@ -16,7 +18,6 @@ import org.skepsun.kototoro.core.db.entity.toMangaTag
 import org.skepsun.kototoro.core.db.entity.toMangaTagsList
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
-import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.MangaTag
@@ -24,6 +25,7 @@ import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.search.ui.MangaSuggestionsProvider
 import javax.inject.Inject
+import kotlin.math.abs
 
 @Reusable
 class MangaSearchRepository @Inject constructor(
@@ -129,15 +131,52 @@ class MangaSearchRepository @Inject constructor(
 	suspend fun getSourcesSuggestion(limit: Int): List<MangaSource> = sourcesRepository.getTopSources(limit)
 
 	fun getSourcesSuggestion(query: String, limit: Int): List<MangaSource> {
-		if (query.length < 3) {
+		return getSourcesSuggestion(query, limit, enabledSources = emptyList())
+	}
+
+	fun getSourcesSuggestion(
+		query: String,
+		limit: Int,
+		enabledSources: Collection<MangaSource>,
+	): List<MangaSource> {
+		val normalizedQuery = query.trim()
+		if (normalizedQuery.isEmpty() || normalizedQuery.length < minSourcesQueryLength(normalizedQuery)) {
 			return emptyList()
 		}
 		val skipNsfw = settings.isNsfwContentDisabled
-		val sources = sourcesRepository.allMangaSources
-			.mapNotNull { it as? org.skepsun.kototoro.parsers.model.MangaParserSource }
-			.filter { x ->
-				(x.contentType != ContentType.HENTAI_MANGA || !skipNsfw) && x.title.contains(query, ignoreCase = true)
+		val queryLower = normalizedQuery.lowercase()
+		val candidates = ArrayList<SourceCandidate>()
+
+		val searchableSources = LinkedHashMap<String, MangaSource>(
+			enabledSources.size + sourcesRepository.allMangaSources.size,
+		).also { map ->
+			for (source in enabledSources) {
+				map.putIfAbsent(source.name, source)
 			}
+			for (source in sourcesRepository.allMangaSources) {
+				map.putIfAbsent(source.name, source)
+			}
+		}.values
+
+		for (source in searchableSources) {
+			if (skipNsfw && source.isNsfw()) continue
+			val title = source.getTitle(context)
+			val titleLower = title.lowercase()
+			val index = titleLower.indexOf(queryLower)
+			if (index < 0) continue
+			candidates += SourceCandidate(
+				source = source,
+				titleLower = titleLower,
+				matchIndex = index,
+				titleLength = title.length,
+			)
+		}
+		candidates.sortWith(
+			compareBy<SourceCandidate> { it.matchIndex }
+				.thenBy { abs(it.titleLength - normalizedQuery.length) }
+				.thenBy { it.titleLower },
+		)
+		val sources = candidates.map { it.source }
 		return if (limit == 0) {
 			sources
 		} else {
@@ -174,4 +213,16 @@ class MangaSearchRepository @Inject constructor(
     suspend fun getAuthors(source: MangaSource, limit: Int): List<String> {
         return db.getMangaDao().findAuthorsBySource(source.name, limit)
     }
+}
+
+private data class SourceCandidate(
+	val source: MangaSource,
+	val titleLower: String,
+	val matchIndex: Int,
+	val titleLength: Int,
+)
+
+private fun minSourcesQueryLength(query: String): Int {
+	// 对 CJK/非 ASCII 查询放宽限制，避免 “漫画/日漫” 这类 2 字符关键词搜不到源
+	return if (query.any { it.code > 0x7F }) 1 else 3
 }
