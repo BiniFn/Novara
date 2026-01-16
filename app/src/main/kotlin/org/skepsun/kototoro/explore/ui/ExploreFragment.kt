@@ -2,7 +2,6 @@ package org.skepsun.kototoro.explore.ui
 
 import android.content.DialogInterface
 import android.content.Intent
-import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,13 +12,19 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.view.ActionMode
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.children
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
 import android.content.res.ColorStateList
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
@@ -34,17 +39,18 @@ import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.util.SpanSizeResolver
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
-import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.findAppCompatDelegate
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentExploreBinding
 import org.skepsun.kototoro.explore.ui.adapter.ExploreAdapter
 import org.skepsun.kototoro.explore.ui.adapter.ExploreListEventListener
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 
@@ -53,12 +59,16 @@ class ExploreFragment :
 	BaseFragment<FragmentExploreBinding>(),
 	RecyclerViewOwner,
 	ExploreListEventListener,
-	OnListItemClickListener<MangaSourceItem>, ListSelectionController.Callback {
+	OnListItemClickListener<MangaSourceItem>, ListSelectionController.Callback,
+	AppBarLayout.OnOffsetChangedListener {
 
 	private val viewModel by viewModels<ExploreViewModel>()
 	private var exploreAdapter: ExploreAdapter? = null
 	private var sourceSelectionController: ListSelectionController? = null
-	private var groupTabsInitialPadding: Rect? = null
+	
+	// Track chip IDs for each filter group
+	private val contentTypeChipIds = mutableMapOf<BrowseGroupTab, Int>()
+	private val sourceTagChipIds = mutableMapOf<SourceTag, Int>()
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -86,13 +96,9 @@ class ExploreFragment :
 			checkNotNull(sourceSelectionController).attachToRecyclerView(this)
 		}
 		
-		// Setup group tabs
-		binding.groupTabs.setOnTabSelectedListener { tab ->
-			viewModel.setSelectedGroupTab(tab)
-		}
-		
-		// Restore selected tab
-		binding.groupTabs.setSelectedTab(viewModel.getSelectedGroupTab())
+		// Setup filter chips
+		rebuildContentTypeChips(binding, viewModel.availableTabs.value ?: BrowseGroupTab.getAllTabs())
+		rebuildSourceTagChips(binding)
 		
 		addMenuProvider(ExploreMenuProvider(router))
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
@@ -103,140 +109,198 @@ class ExploreFragment :
 		viewModel.onShowSuggestionsTip.observeEvent(viewLifecycleOwner) {
 			showSuggestionsTip()
 		}
+		
+		// Observe filter changes
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
-			// Update tab selection if changed programmatically
-			if (binding.groupTabs.getSelectedTab() != tab) {
-				binding.groupTabs.setSelectedTab(tab)
-			}
+			updateContentTypeChipsSelection(binding, tab)
 		}
-		viewModel.availableTabs.observe(viewLifecycleOwner) { tabs ->
-			binding.groupTabs.setTabs(tabs)
-		}
-		
-		// Setup source tag chips (multi-select)
-		setupSourceTagChips(binding)
-		
-		// Observe tag filter visibility
-		viewModel.isSourceFilterVisible.observe(viewLifecycleOwner) { isVisible ->
-			binding.adultFilterScrollView.visibility = if (isVisible) View.VISIBLE else View.GONE
-		}
-		
-		// Observe selected tags
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
 			updateSourceTagChipsSelection(binding, tags)
 		}
+		viewModel.availableTabs.observe(viewLifecycleOwner) { tabs ->
+			rebuildContentTypeChips(binding, tabs)
+		}
+
+		// Register for appbar offset changes to handle sticky inset padding
+		val appBar = (activity as? AppBarOwner)?.appBar
+		appBar?.addOnOffsetChangedListener(this)
+
+		// Remove snap flag from ALL children for this screen to make scroll feel multi-stage and linear
+		appBar?.children?.forEach { child ->
+			val lp = child.layoutParams as? AppBarLayout.LayoutParams
+			if (lp != null && (lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP != 0)) {
+				lp.scrollFlags = lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP.inv()
+				child.layoutParams = lp
+			}
+		}
 	}
 
-	private fun setupSourceTagChips(binding: FragmentExploreBinding) {
-		val chipGroup = binding.chipGroupAdultFilter
+	override fun onDestroyView() {
+		val appBar = (activity as? AppBarOwner)?.appBar
+		appBar?.removeOnOffsetChangedListener(this)
+
+		// Restore snap flag when leaving
+		appBar?.children?.forEach { child ->
+			val lp = child.layoutParams as? AppBarLayout.LayoutParams
+			if (lp != null && (child.id == R.id.search_bar || child.id == R.id.insetsHolder)) {
+				lp.scrollFlags = lp.scrollFlags or AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
+				child.layoutParams = lp
+			}
+		}
+
+		super.onDestroyView()
+		sourceSelectionController = null
+		exploreAdapter = null
+		contentTypeChipIds.clear()
+		sourceTagChipIds.clear()
+	}
+
+	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
+		val binding = viewBinding ?: return
+		val appBar = appBarLayout ?: return
+
+		val insets = ViewCompat.getRootWindowInsets(binding.root)?.getInsets(WindowInsetsCompat.Type.statusBars())
+		val statusBarHeight = insets?.top ?: 0
+
+		// Improved Logic: Pin tags exactly to the status bar once the appbar scrolls past it.
+		// Padding needed = max(0, statusBarHeight - appBar.bottom)
+		// This doesn't care about scroll range or snap states, it's a direct geometric constraint.
+		val topPadding = Math.max(0, statusBarHeight - appBar.bottom)
+
+		binding.filterScrollView.updatePadding(top = topPadding)
+	}
+
+	private fun rebuildContentTypeChips(binding: FragmentExploreBinding, tabs: List<BrowseGroupTab>) {
+		val chipGroup = binding.chipGroupContentType
 		chipGroup.removeAllViews()
-		chipGroup.isSingleSelection = true
-		chipGroup.isSelectionRequired = false
+		contentTypeChipIds.clear()
 		
-		// Colors tuned for better contrast and feedback
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+		
+		tabs.forEach { tab ->
+			val chip = createCompactChip(
+				text = getString(tab.titleRes),
+				colors = colors,
+				density = density,
+			)
+			chip.tag = tab
+			chip.isChecked = tab == viewModel.getSelectedGroupTab()
+			chip.setOnCheckedChangeListener { _, isChecked ->
+				if (isChecked) {
+					viewModel.setSelectedGroupTab(tab)
+				}
+			}
+			contentTypeChipIds[tab] = chip.id
+			chipGroup.addView(chip)
+		}
+	}
+	
+	private fun rebuildSourceTagChips(binding: FragmentExploreBinding) {
+		val chipGroup = binding.chipGroupSourceTag
+		chipGroup.removeAllViews()
+		sourceTagChipIds.clear()
+		
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+		val currentTags = viewModel.currentSourceTags.value ?: emptySet()
+		
+		SourceTag.entries.forEach { tag ->
+			val chip = createCompactChip(
+				text = getString(tag.titleRes),
+				colors = colors,
+				density = density,
+			)
+			chip.tag = tag
+			chip.isChecked = tag in currentTags
+			chip.setOnCheckedChangeListener { _, isChecked ->
+				val selectedTags = if (isChecked) setOf(tag) else emptySet()
+				viewModel.setSelectedSourceTags(selectedTags)
+			}
+			sourceTagChipIds[tag] = chip.id
+			chipGroup.addView(chip)
+		}
+	}
+	
+	private data class ChipColors(
+		val bg: ColorStateList,
+		val text: ColorStateList,
+		val stroke: ColorStateList,
+	)
+	
+	private fun createChipColors(): ChipColors {
 		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
 		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
 		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0)
 		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
 		val strokeUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOutline, 0)
-			val strokeChecked = MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0)
-
+		val strokeChecked = MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0)
+		
 		val stateChecked = intArrayOf(android.R.attr.state_checked)
 		val stateDefault = intArrayOf(-android.R.attr.state_checked)
-
-		val bgColors = ColorStateList(
-			arrayOf(stateChecked, stateDefault),
-			intArrayOf(bgChecked, bgUnchecked),
+		
+		return ChipColors(
+			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
+			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
+			stroke = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(strokeChecked, strokeUnchecked)),
 		)
-		val textColors = ColorStateList(
-			arrayOf(stateChecked, stateDefault),
-			intArrayOf(textChecked, textUnchecked),
-		)
-		val strokeColors = ColorStateList(
-			arrayOf(stateChecked, stateDefault),
-			intArrayOf(strokeChecked, strokeUnchecked),
-		)
-
-		SourceTag.entries.forEach { tag ->
-			val chip = com.google.android.material.chip.Chip(requireContext()).apply {
-				id = View.generateViewId()
-				text = getString(tag.titleRes)
-				this.tag = tag
-				isCheckable = true
-				isChecked = tag in viewModel.currentSourceTags.value
-				
-				// Compact visuals
-				val density = resources.displayMetrics.density
-				chipMinHeight = 28 * density
-				minHeight = 0
-				setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
-				chipStartPadding = 4 * density
-				chipEndPadding = 4 * density
-				setEnsureMinTouchTargetSize(false) // allow height < 48dp
-				
-				chipStrokeWidth = 1 * density
-				chipStrokeColor = strokeColors
-				chipBackgroundColor = bgColors
-				setTextColor(textColors)
-			}
-			chipGroup.addView(chip)
+	}
+	
+	private fun createCompactChip(
+		text: String,
+		colors: ChipColors,
+		density: Float,
+	): Chip {
+		return Chip(requireContext()).apply {
+			id = View.generateViewId()
+			this.text = text
+			isCheckable = true
+			
+			// Compact visuals
+			chipMinHeight = 26 * density
+			minHeight = 0
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
+			chipStartPadding = 6 * density
+			chipEndPadding = 6 * density
+			setEnsureMinTouchTargetSize(false)
+			
+			chipStrokeWidth = 1 * density
+			chipStrokeColor = colors.stroke
+			chipBackgroundColor = colors.bg
+			setTextColor(colors.text)
 		}
-		
-		chipGroup.chipSpacingVertical = 0
-		
-		chipGroup.setOnCheckedStateChangeListener { group, checkedIds ->
-			val selectedTags = checkedIds.mapNotNull { id ->
-				group.findViewById<com.google.android.material.chip.Chip>(id)?.tag as? SourceTag
-			}.toSet()
-			viewModel.setSelectedSourceTags(selectedTags)
+	}
+	
+	private fun updateContentTypeChipsSelection(binding: FragmentExploreBinding, selectedTab: BrowseGroupTab) {
+		contentTypeChipIds.forEach { (tab, id) ->
+			binding.chipGroupContentType.findViewById<Chip>(id)?.isChecked = (tab == selectedTab)
 		}
 	}
 	
 	private fun updateSourceTagChipsSelection(binding: FragmentExploreBinding, tags: Set<SourceTag>) {
-		val chipGroup = binding.chipGroupAdultFilter
-		for (i in 0 until chipGroup.childCount) {
-			val chip = chipGroup.getChildAt(i) as? com.google.android.material.chip.Chip
-			chip?.isChecked = chip?.tag in tags
+		sourceTagChipIds.forEach { (tag, id) ->
+			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
 		}
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val barsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
-		val groupTabs = viewBinding?.groupTabs
-		if (groupTabsInitialPadding == null && groupTabs != null) {
-			groupTabsInitialPadding = Rect(
-				groupTabs.paddingLeft,
-				groupTabs.paddingTop,
-				groupTabs.paddingRight,
-				groupTabs.paddingBottom,
-			)
-		}
-		
-		// Apply insets: top for status bar, left/right for gesture bars
-		groupTabsInitialPadding?.let { padding ->
-			groupTabs?.setPadding(
-				/* left = */ padding.left + barsInsets.left,
-				/* top = */ padding.top + barsInsets.top,
-				/* right = */ padding.right + barsInsets.right,
-				/* bottom = */ padding.bottom,
-			)
-		}
-		
-		// Apply side and bottom insets to recycler view
-		viewBinding?.recyclerView?.setPadding(
-			/* left = */ barsInsets.left + basePadding,
-			/* top = */ basePadding,
-			/* right = */ barsInsets.right + basePadding,
-			/* bottom = */ barsInsets.bottom + basePadding,
-		)
-		return insets.consumeAll(WindowInsetsCompat.Type.systemBars())
-	}
+		val sidePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
 
-	override fun onDestroyView() {
-		super.onDestroyView()
-		sourceSelectionController = null
-		exploreAdapter = null
+		// Apply side padding to tags container so they aren't cut off by notches/rounded corners
+		viewBinding?.filterChipsContainer?.updatePadding(
+			left = barsInsets.left + sidePadding,
+			right = barsInsets.right + sidePadding,
+		)
+
+		// RecyclerView handles side and bottom insets
+		viewBinding?.recyclerView?.updatePadding(
+			left = barsInsets.left + sidePadding,
+			right = barsInsets.right + sidePadding,
+			bottom = barsInsets.bottom + sidePadding,
+		)
+		
+		return insets
 	}
 
 	override fun onListHeaderClick(item: ListHeader, view: View) {
@@ -354,7 +418,7 @@ class ExploreFragment :
 	}
 
 	private fun onGridModeChanged(isGrid: Boolean) {
-		requireViewBinding().recyclerView.layoutManager = if (isGrid) {
+		viewBinding?.recyclerView?.layoutManager = if (isGrid) {
 			GridLayoutManager(requireContext(), 4).also { lm ->
 				lm.spanSizeLookup = ExploreGridSpanSizeLookup(checkNotNull(exploreAdapter), lm)
 			}

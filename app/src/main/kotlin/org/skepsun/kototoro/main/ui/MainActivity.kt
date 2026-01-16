@@ -67,6 +67,7 @@ import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.databinding.ActivityMainBinding
 import org.skepsun.kototoro.details.service.MangaPrefetchService
+import org.skepsun.kototoro.explore.ui.ExploreFragment
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
 import org.skepsun.kototoro.history.ui.HistoryListFragment
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
@@ -343,11 +344,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	}
 
 	private fun adjustAppbar(topFragment: Fragment) {
-		if (topFragment is FavouritesContainerFragment) {
+		if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment) {
 			viewBinding.appbar.fitsSystemWindows = true
-			fadingAppbarMediator.bind()
 		} else {
 			viewBinding.appbar.fitsSystemWindows = false
+		}
+
+		if (topFragment is FavouritesContainerFragment) {
+			fadingAppbarMediator.bind()
+		} else {
 			fadingAppbarMediator.unbind()
 		}
 	}

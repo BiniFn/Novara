@@ -1,50 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     tools:context=".explore.ui.ExploreFragment">
 
-    <org.skepsun.kototoro.explore.ui.BrowseGroupTabsView
-        android:id="@+id/groupTabs"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
+    <!-- Filter chips area - background color to match appbar -->
     <HorizontalScrollView
-        android:id="@+id/adultFilterScrollView"
-        android:layout_width="0dp"
+        android:id="@+id/filterScrollView"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fillViewport="false"
-        android:paddingTop="0dp"
+        android:clipToPadding="false"
+        android:fillViewport="true"
         android:scrollbars="none"
-        android:layout_marginTop="8dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/groupTabs">
+        android:background="?attr/colorSurface"
+        android:paddingBottom="16dp">
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/chipGroupAdultFilter"
+        <LinearLayout
+            android:id="@+id/filterChipsContainer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:paddingStart="@dimen/list_spacing_normal"
-            android:paddingEnd="@dimen/list_spacing_normal"
-            app:chipSpacingHorizontal="@dimen/list_spacing_small"
-            app:singleSelection="true" />
+            android:paddingEnd="@dimen/list_spacing_normal">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupContentType"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="4dp"
+                app:chipSpacingVertical="0dp"
+                app:singleLine="true"
+                app:singleSelection="true"
+                app:selectionRequired="true" />
+
+            <View
+                android:id="@+id/filterSeparator"
+                android:layout_width="1dp"
+                android:layout_height="14dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/colorOutlineVariant" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupSourceTag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="4dp"
+                app:chipSpacingVertical="0dp"
+                app:singleLine="true"
+                app:singleSelection="true"
+                app:selectionRequired="false" />
+
+        </LinearLayout>
+
     </HorizontalScrollView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:clipToPadding="false"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/adultFilterScrollView"
-        app:layout_constraintBottom_toBottomOf="parent"
         tools:listitem="@layout/item_explore_source_list" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>
