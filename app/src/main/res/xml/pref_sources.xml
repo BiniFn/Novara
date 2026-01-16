@@ -33,31 +33,35 @@
         android:title="@string/enable_all_sources"
         app:allowDividerAbove="true" />
 
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="enable_kotatsu_sources"
+        android:summary="@string/enable_kotatsu_sources_summary"
+        android:title="@string/enable_kotatsu_sources" />
+
     <Preference
         android:key="sources_catalog"
         android:persistent="false"
-        android:title="@string/sources_catalog" />
+        android:title="@string/built_in_sources_directory" />
 
     <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.sources.jsonsource.JsonSourcesFragment"
         android:key="json_sources"
         android:persistent="false"
-        android:summary="@string/json_sources_summary"
-        android:title="@string/json_sources" />
+        android:title="@string/json_sources_directory" />
 
     <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.sources.mihon.MihonExtensionsFragment"
         android:key="mihon_extensions"
         android:persistent="false"
-        android:summary="@string/mihon_extensions_summary"
-        android:title="@string/mihon_extensions" />
+        android:title="@string/mihon_sources_directory" />
 
     <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.sources.aniyomi.AniyomiExtensionsFragment"
         android:key="aniyomi_extensions"
         android:persistent="false"
-        android:summary="@string/aniyomi_extensions_summary"
-        android:title="@string/aniyomi_extensions" />
+        android:title="@string/aniyomi_sources_directory" />
 
     <SwitchPreferenceCompat
         android:defaultValue="false"

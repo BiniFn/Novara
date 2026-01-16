@@ -66,6 +66,11 @@ class MangaSourcesRepository @Inject constructor(
 		isLenient = true
 		allowTrailingComma = true
 	}
+
+	private val kotatsuSourceNames: Set<String> by lazy {
+		KotatsuParsersProvider.sources.mapToSet { it.name }
+	}
+
 	private val dao: MangaSourcesDao
 		get() = db.getSourcesDao()
 
@@ -79,8 +84,10 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 	suspend fun getEnabledSources(): List<MangaSource> {
 		assimilateNewSources()
 		val order = settings.sourcesSortOrder
+		val isKotatsuEnabled = settings.isKotatsuSourcesEnabled
 		return dao.findAll(!settings.isAllSourcesEnabled, order).toSources(settings.isNsfwContentDisabled, order)
-			.let { enabled ->
+			.let { enabledSources ->
+				val enabled = if (isKotatsuEnabled) enabledSources else enabledSources.filterTo(ArrayList()) { it.mangaSource.name !in kotatsuSourceNames }
 				val external = getExternalSources()
 				val jsonSources = getEnabledJsonSources()
 				val mihonSources = getEnabledMihonSources()
@@ -437,9 +444,12 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 			observeAllEnabled().flatMapLatest { isAllSourcesEnabled ->
 				dao.observeAll(!isAllSourcesEnabled, SourcesSortOrder.MANUAL)
 			},
-		) { skipNsfw, sources ->
+			settings.observeAsFlow(AppSettings.KEY_ENABLE_KOTATSU_SOURCES) { isKotatsuSourcesEnabled }
+		) { skipNsfw, sources, isKotatsuEnabled ->
 			sources.count {
-				it.source.toMangaSourceOrNull()?.let { s -> !skipNsfw || !s.isNsfw() } == true
+				it.source.toMangaSourceOrNull()?.let { s -> 
+					(!skipNsfw || !s.isNsfw()) && (isKotatsuEnabled || s.name !in kotatsuSourceNames)
+				} == true
 			}
 		}.distinctUntilChanged().onStart { assimilateNewSources() }
 	}
@@ -458,17 +468,47 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 		}.distinctUntilChanged().onStart { assimilateNewSources() }
 	}
 
+	fun observeBuiltInSourcesCount(): Flow<Int> {
+		return observeIsNsfwDisabled().map { skipNsfw ->
+			allMangaSources.count { !skipNsfw || !it.isNsfw() }
+		}.distinctUntilChanged()
+	}
+
+	fun observeJsonSourcesCount(): Flow<Int> {
+		return observeJsonSources().map { it.count() }.distinctUntilChanged()
+	}
+
+	fun observeMihonSourcesCount(): Flow<Int> {
+		// getEnabledMihonSources already respects content language filter if enabled
+		return observeMihonSources().map { it.size }.distinctUntilChanged()
+	}
+
+	fun observeAniyomiSourcesCount(): Flow<Int> {
+		return observeAniyomiSources().map { it.size }.distinctUntilChanged()
+	}
+
 	fun observeEnabledSources(): Flow<List<MangaSourceInfo>> = combine(
 		observeIsNsfwDisabled(),
 		observeAllEnabled(),
 		observeSortOrder(),
 		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
-	) { skipNsfw, allEnabled, order, contentLanguages, isExtFilterEnabled ->
+		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled },
+		settings.observeAsFlow(AppSettings.KEY_ENABLE_KOTATSU_SOURCES) { isKotatsuSourcesEnabled }
+	) { args ->
+		val skipNsfw = args[0] as Boolean
+		val allEnabled = args[1] as Boolean
+		val order = args[2] as SourcesSortOrder
+		@Suppress("UNCHECKED_CAST")
+		val contentLanguages = args[3] as Set<String>
+		val isExtFilterEnabled = args[4] as Boolean
+		val isKotatsuEnabled = args[5] as Boolean
+
 		dao.observeAll(!allEnabled, order).map { entities ->
 			// Map entities to sources and filter by NSFW and language
 			entities.toSources(skipNsfw, order).filter { info ->
 				val source = info.mangaSource
+				if (!isKotatsuEnabled && source.name in kotatsuSourceNames) return@filter false
+				
 				if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
 					// Apply language filter to Mihon sources in the list if enabled
 					if (!isExtFilterEnabled) return@filter true
@@ -869,10 +909,12 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 								source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 								
 			if (isKnownSource) {
+				val isKotatsu = source.name in kotatsuSourceNames
+				val isKotatsuEnabled = settings.isKotatsuSourcesEnabled
 				result.add(
 					MangaSourceInfo(
 						mangaSource = source,
-						isEnabled = entity.isEnabled || isAllEnabled,
+						isEnabled = (entity.isEnabled || isAllEnabled) && (!isKotatsu || isKotatsuEnabled),
 						isPinned = entity.isPinned,
 					),
 				)

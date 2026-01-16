@@ -50,12 +50,27 @@ class SourcesSettingsFragment : BasePreferenceFragment(R.string.remote_sources),
 			}
 		}
 		findPreference<Preference>(AppSettings.KEY_SOURCES_CATALOG)?.let { pref ->
-			viewModel.availableSourcesCount.observe(viewLifecycleOwner) {
-				pref.summary = when {
-					it == 0 -> getString(R.string.all_sources_enabled)
-					it > 0 -> getString(R.string.available_d, it)
-					else -> null
-				}
+			pref.setTitle(R.string.built_in_sources_directory)
+			viewModel.builtInSourcesCount.observe(viewLifecycleOwner) {
+				pref.summary = getString(R.string.available_sources_count, it)
+			}
+		}
+		findPreference<Preference>(AppSettings.KEY_JSON_SOURCES)?.let { pref ->
+			pref.setTitle(R.string.json_sources_directory)
+			viewModel.jsonSourcesCount.observe(viewLifecycleOwner) {
+				pref.summary = getString(R.string.available_sources_count, it)
+			}
+		}
+		findPreference<Preference>(AppSettings.KEY_MIHON_EXTENSIONS)?.let { pref ->
+			pref.setTitle(R.string.mihon_sources_directory)
+			viewModel.mihonSourcesCount.observe(viewLifecycleOwner) {
+				pref.summary = getString(R.string.available_sources_count, it)
+			}
+		}
+		findPreference<Preference>(AppSettings.KEY_ANIYOMI_EXTENSIONS)?.let { pref ->
+			pref.setTitle(R.string.aniyomi_sources_directory)
+			viewModel.aniyomiSourcesCount.observe(viewLifecycleOwner) {
+				pref.summary = getString(R.string.available_sources_count, it)
 			}
 		}
 		findPreference<TwoStatePreference>(AppSettings.KEY_HANDLE_LINKS)?.let { pref ->
@@ -109,5 +124,6 @@ class SourcesSettingsFragment : BasePreferenceFragment(R.string.remote_sources),
 
 	private fun updateEnableAllDependencies() {
 		findPreference<Preference>(AppSettings.KEY_SOURCES_CATALOG)?.isEnabled = !settings.isAllSourcesEnabled
+		findPreference<Preference>(AppSettings.KEY_ENABLE_KOTATSU_SOURCES)?.isEnabled = !settings.isAllSourcesEnabled
 	}
 }

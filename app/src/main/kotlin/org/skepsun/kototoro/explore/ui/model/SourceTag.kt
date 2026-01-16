@@ -20,7 +20,7 @@ enum class SourceTag(
     BUILTIN(R.string.built_in_sources, "builtin"),
     MIHON(R.string.mihon_sources, "mihon"),
     ANIYOMI(R.string.aniyomi_sources, "aniyomi"),
-    JSON(R.string.json_sources, "json");
+    JSON(R.string.source_tag_json, "json");
 
     /**
      * Whether this tag matches the given content and origin group.

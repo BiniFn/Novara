@@ -366,6 +366,10 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		get() = prefs.getBoolean(KEY_EXTENSIONS_FILTER_LANG, false)
 		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_FILTER_LANG, value) }
 
+	var isKotatsuSourcesEnabled: Boolean
+		get() = prefs.getBoolean(KEY_ENABLE_KOTATSU_SOURCES, true)
+		set(value) = prefs.edit { putBoolean(KEY_ENABLE_KOTATSU_SOURCES, value) }
+
 	val isPagesNumbersEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PAGES_NUMBERS, false)
 
@@ -970,6 +974,10 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_SOURCES_VERSION = "sources_version"
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
 		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
+		const val KEY_ENABLE_KOTATSU_SOURCES = "enable_kotatsu_sources"
+		const val KEY_JSON_SOURCES = "json_sources"
+		const val KEY_MIHON_EXTENSIONS = "mihon_extensions"
+		const val KEY_ANIYOMI_EXTENSIONS = "aniyomi_extensions"
 		const val KEY_QUICK_FILTER = "quick_filter"
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"

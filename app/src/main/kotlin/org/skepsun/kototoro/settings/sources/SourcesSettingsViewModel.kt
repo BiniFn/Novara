@@ -34,6 +34,22 @@ class SourcesSettingsViewModel @Inject constructor(
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, -1)
 
+	val builtInSourcesCount = sourcesRepository.observeBuiltInSourcesCount()
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
+
+	val jsonSourcesCount = sourcesRepository.observeJsonSourcesCount()
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
+
+	val mihonSourcesCount = sourcesRepository.observeMihonSourcesCount()
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
+
+	val aniyomiSourcesCount = sourcesRepository.observeAniyomiSourcesCount()
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
+
 	val isLinksEnabled = MutableStateFlow(isLinksEnabled())
 
 	fun setLinksEnabled(isEnabled: Boolean) {

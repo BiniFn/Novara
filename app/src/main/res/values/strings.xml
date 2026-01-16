@@ -1099,10 +1099,20 @@
     </plurals>
     
     <!-- JSON Sources Management -->
-    <string name="json_sources">JSON Sources</string>
+    <string name="json_sources_directory">JSON Sources Directory</string>
+    <string name="built_in_sources_directory">Built-in Sources Directory</string>
+    <string name="mihon_sources_directory">Mihon Extensions Directory</string>
+    <string name="aniyomi_sources_directory">Aniyomi Extensions Directory</string>
+    <string name="source_tag_json">JSON</string>
+    <string name="json_sources" translatable="false">JSON</string>
     <string name="json_sources_summary">Manage imported JSON sources</string>
     <string name="import_json">Import JSON</string>
     <string name="test">Test</string>
+
+    <string name="enable_kotatsu_sources">Enable Kotatsu Internal Sources</string>
+    <string name="enable_kotatsu_sources_summary">Enable sources from kotatsu-parsers repository</string>
+    
+    <string name="available_sources_count">%1$d available</string>
     <string name="source_deleted">Source deleted</string>
     <string name="search_json_source">Search JSON sources</string>
     <string name="export_sources">Export sources</string>

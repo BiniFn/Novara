@@ -179,6 +179,7 @@ class ExploreFragment :
 		val density = resources.displayMetrics.density
 		
 		tabs.forEach { tab ->
+			if (tab == BrowseGroupTab.All) return@forEach
 			val chip = createCompactChip(
 				text = getString(tab.titleRes),
 				colors = colors,
@@ -189,6 +190,9 @@ class ExploreFragment :
 			chip.setOnCheckedChangeListener { _, isChecked ->
 				if (isChecked) {
 					viewModel.setSelectedGroupTab(tab)
+				} else if (viewModel.getSelectedGroupTab() == tab) {
+					// If the currently selected chip is unchecked, revert to All
+					viewModel.setSelectedGroupTab(BrowseGroupTab.All)
 				}
 			}
 			contentTypeChipIds[tab] = chip.id

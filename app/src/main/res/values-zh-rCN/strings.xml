@@ -936,10 +936,20 @@
     <string name="prefetch_limit_summary">提前预加载的页面数量 (1-20)</string>
 
     <!-- 内容源管理相关 -->
-    <string name="json_sources">JSON 内容源</string>
+    <string name="source_tag_json">JSON</string>
+    <string name="json_sources" translatable="false">JSON</string>
+    <string name="json_sources_directory">JSON源目录</string>
+    <string name="built_in_sources_directory">内置源目录</string>
+    <string name="mihon_sources_directory">Mihon源目录</string>
+    <string name="aniyomi_sources_directory">Aniyomi源目录</string>
     <string name="json_sources_summary">管理导入的 JSON 内容源</string>
     <string name="import_json">导入 JSON</string>
     <string name="source_deleted">内容源已删除</string>
+
+    <string name="enable_kotatsu_sources">启用 Kotatsu 内置源</string>
+    <string name="enable_kotatsu_sources_summary">启用来自 kotatsu-parsers 仓库的内容源</string>
+    
+    <string name="available_sources_count">%1$d 个可用</string>
     <string name="import_json_sources">导入 JSON 内容源</string>
     <string name="import_json_sources_summary">导入 Legado 或 TVBox 内容源配置</string>
     <string name="native_sources">原生内容源</string>

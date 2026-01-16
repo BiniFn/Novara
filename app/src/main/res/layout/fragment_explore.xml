@@ -35,7 +35,7 @@
                 app:chipSpacingVertical="0dp"
                 app:singleLine="true"
                 app:singleSelection="true"
-                app:selectionRequired="true" />
+                app:selectionRequired="false" />
 
             <View
                 android:id="@+id/filterSeparator"
