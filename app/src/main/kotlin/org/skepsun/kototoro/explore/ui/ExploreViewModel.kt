@@ -74,7 +74,9 @@ class ExploreViewModel @Inject constructor(
 	val onOpenManga = MutableEventFlow<Manga>()
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val onShowSuggestionsTip = MutableEventFlow<Unit>()
-	private val isRandomLoading = MutableStateFlow(false)
+	
+	// Exposed for menu bar loading indicator
+	val isRandomLoading = MutableStateFlow(false)
 	
 	/**
 	 * Currently selected browse group tab
@@ -212,7 +214,6 @@ class ExploreViewModel @Inject constructor(
 			sourcesRepository.observeEnabledBrowseSources(),
 			getSuggestionFlow(),
 			isGrid,
-			isRandomLoading,
 			isAllSourcesEnabled,
 			sourcesRepository.observeHasNewSourcesForBadge(),
 			selectedGroupTab,
@@ -225,9 +226,8 @@ class ExploreViewModel @Inject constructor(
 				values[2] as Boolean,
 				values[3] as Boolean,
 				values[4] as Boolean,
-				values[5] as Boolean,
-				values[6] as BrowseGroupTab,
-				values[7] as Set<SourceTag>,
+				values[5] as BrowseGroupTab,
+				values[6] as Set<SourceTag>,
 			)
 		}.withErrorHandling()
 
@@ -235,7 +235,6 @@ class ExploreViewModel @Inject constructor(
 		sources: List<MangaSourceInfo>,
 		recommendation: List<Manga>,
 		isGrid: Boolean,
-		randomLoading: Boolean,
 		allSourcesEnabled: Boolean,
 		hasNewSources: Boolean,
 		groupTab: BrowseGroupTab,
@@ -245,7 +244,6 @@ class ExploreViewModel @Inject constructor(
 		val filteredSources = applyGroupTabFilter(sources, groupTab, sourceTags)
 		
 		val result = ArrayList<ListModel>(filteredSources.size + 3)
-		result += ExploreButtons(randomLoading)
 		if (recommendation.isNotEmpty()) {
 			result += ListHeader(R.string.suggestions, R.string.more, R.id.nav_suggestions)
 			result += RecommendationsItem(recommendation.toRecommendationList())
@@ -317,7 +315,6 @@ class ExploreViewModel @Inject constructor(
 	}
 
 	private fun getLoadingStateList() = listOf(
-		ExploreButtons(isRandomLoading.value),
 		LoadingState,
 	)
 

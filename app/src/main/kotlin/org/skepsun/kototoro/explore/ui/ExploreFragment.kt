@@ -100,7 +100,15 @@ class ExploreFragment :
 		rebuildContentTypeChips(binding, viewModel.availableTabs.value ?: BrowseGroupTab.getAllTabs())
 		rebuildSourceTagChips(binding)
 		
-		addMenuProvider(ExploreMenuProvider(router))
+		// Setup menu with quick access actions
+		val menuProvider = ExploreMenuProvider(router) { viewModel.openRandom() }
+		addMenuProvider(menuProvider)
+		
+		// Observe random loading state to update menu
+		viewModel.isRandomLoading.observe(viewLifecycleOwner) { isLoading ->
+			menuProvider.setRandomLoading(isLoading)
+		}
+		
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))
 		viewModel.onOpenManga.observeEvent(viewLifecycleOwner, ::onOpenManga)
@@ -235,10 +243,8 @@ class ExploreFragment :
 	private fun createChipColors(): ChipColors {
 		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
 		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
-		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0)
+		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
-		val strokeUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOutline, 0)
-		val strokeChecked = MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0)
 		
 		val stateChecked = intArrayOf(android.R.attr.state_checked)
 		val stateDefault = intArrayOf(-android.R.attr.state_checked)
@@ -246,7 +252,7 @@ class ExploreFragment :
 		return ChipColors(
 			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
 			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
-			stroke = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(strokeChecked, strokeUnchecked)),
+			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
 		)
 	}
 	
@@ -260,18 +266,20 @@ class ExploreFragment :
 			this.text = text
 			isCheckable = true
 			
-			// Compact visuals
-			chipMinHeight = 26 * density
+			// Modern Premium visuals
+			chipMinHeight = 32 * density
 			minHeight = 0
-			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
-			chipStartPadding = 6 * density
-			chipEndPadding = 6 * density
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+			chipStartPadding = 12 * density
+			chipEndPadding = 12 * density
 			setEnsureMinTouchTargetSize(false)
 			
-			chipStrokeWidth = 1 * density
-			chipStrokeColor = colors.stroke
+			chipStrokeWidth = 0f
 			chipBackgroundColor = colors.bg
 			setTextColor(colors.text)
+			
+			// Optional: use a more modern font if available
+			// typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 		}
 	}
 	
@@ -318,12 +326,9 @@ class ExploreFragment :
 	}
 
 	override fun onClick(v: View) {
+		// Note: Quick access buttons moved to menu bar
 		when (v.id) {
-			R.id.button_local -> router.openList(LocalMangaSource, null, null)
-			R.id.button_bookmarks -> router.openBookmarks()
 			R.id.button_more -> router.openSuggestions()
-			R.id.button_downloads -> router.openDownloads()
-			R.id.button_random -> viewModel.openRandom()
 		}
 	}
 

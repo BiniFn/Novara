@@ -1,10 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu
-	xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto">
 
+	<!-- Quick access actions in search bar -->
+	<item
+		android:id="@+id/action_local"
+		android:icon="@drawable/ic_storage"
+		android:title="@string/local_storage"
+		app:showAsAction="ifRoom" />
+
+	<item
+		android:id="@+id/action_bookmarks"
+		android:icon="@drawable/ic_bookmark"
+		android:title="@string/bookmarks"
+		app:showAsAction="ifRoom" />
+
+	<item
+		android:id="@+id/action_random"
+		android:icon="@drawable/ic_dice"
+		android:title="@string/random"
+		app:showAsAction="ifRoom" />
+
+	<item
+		android:id="@+id/action_downloads"
+		android:icon="@drawable/ic_download"
+		android:title="@string/downloads"
+		app:showAsAction="ifRoom" />
+
+	<!-- Overflow menu -->
 	<item
 		android:id="@+id/action_manage"
 		android:title="@string/manage_sources"
-		android:titleCondensed="@string/manage" />
+		android:titleCondensed="@string/manage"
+		app:showAsAction="never" />
 
 </menu>
+

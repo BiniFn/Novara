@@ -7,7 +7,7 @@
     android:orientation="vertical"
     tools:context=".explore.ui.ExploreFragment">
 
-    <!-- Filter chips area - background color to match appbar -->
+    <!-- Filter chips area - background color to match appbar with subtle elevation look -->
     <HorizontalScrollView
         android:id="@+id/filterScrollView"
         android:layout_width="match_parent"
@@ -16,7 +16,8 @@
         android:fillViewport="true"
         android:scrollbars="none"
         android:background="?attr/colorSurface"
-        android:paddingBottom="16dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp">
 
         <LinearLayout
             android:id="@+id/filterChipsContainer"
@@ -31,7 +32,7 @@
                 android:id="@+id/chipGroupContentType"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                app:chipSpacingHorizontal="4dp"
+                app:chipSpacingHorizontal="8dp"
                 app:chipSpacingVertical="0dp"
                 app:singleLine="true"
                 app:singleSelection="true"
@@ -40,17 +41,18 @@
             <View
                 android:id="@+id/filterSeparator"
                 android:layout_width="1dp"
-                android:layout_height="14dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center_vertical"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:background="?attr/colorOutlineVariant" />
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/colorOutlineVariant"
+                android:alpha="0.5" />
 
             <com.google.android.material.chip.ChipGroup
                 android:id="@+id/chipGroupSourceTag"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                app:chipSpacingHorizontal="4dp"
+                app:chipSpacingHorizontal="8dp"
                 app:chipSpacingVertical="0dp"
                 app:singleLine="true"
                 app:singleSelection="true"
