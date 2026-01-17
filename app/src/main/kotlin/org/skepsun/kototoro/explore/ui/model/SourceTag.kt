@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.explore.ui.model
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.ContentGroup
@@ -15,12 +16,13 @@ import org.skepsun.kototoro.core.jsonsource.OriginGroup
  */
 enum class SourceTag(
     @StringRes val titleRes: Int,
+    @DrawableRes val iconRes: Int,
     val id: String,
 ) {
-    BUILTIN(R.string.built_in_sources, "builtin"),
-    MIHON(R.string.mihon_sources, "mihon"),
-    ANIYOMI(R.string.aniyomi_sources, "aniyomi"),
-    JSON(R.string.source_tag_json, "json");
+    BUILTIN(R.string.built_in_sources, R.drawable.ic_storage, "builtin"),
+    MIHON(R.string.mihon_sources, R.drawable.ic_source_mihon, "mihon"),
+    ANIYOMI(R.string.aniyomi_sources, R.drawable.ic_source_aniyomi, "aniyomi"),
+    JSON(R.string.source_tag_json, R.drawable.ic_script, "json");
 
     /**
      * Whether this tag matches the given content and origin group.

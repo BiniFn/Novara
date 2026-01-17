@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.explore.ui.model
 
 import androidx.annotation.StringRes
+import androidx.annotation.DrawableRes
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.ContentGroup
 import org.skepsun.kototoro.core.jsonsource.OriginGroup
@@ -10,27 +11,28 @@ import org.skepsun.kototoro.core.jsonsource.OriginGroup
  */
 sealed class BrowseGroupTab(
 	@StringRes val titleRes: Int,
+	@DrawableRes val iconRes: Int,
 	val id: String,
 ) {
 	/**
 	 * Show all sources without filtering
 	 */
-	object All : BrowseGroupTab(R.string.all, "all")
+	object All : BrowseGroupTab(R.string.all, R.drawable.ic_explore_normal, "all")
 	
 	/**
 	 * Show only manga sources
 	 */
-	object Manga : BrowseGroupTab(R.string.manga, "manga")
+	object Manga : BrowseGroupTab(R.string.manga, R.drawable.ic_manga_source, "manga")
 	
 	/**
 	 * Show only novel sources
 	 */
-	object Novel : BrowseGroupTab(R.string.novel, "novel")
+	object Novel : BrowseGroupTab(R.string.novel, R.drawable.ic_read, "novel")
 	
 	/**
 	 * Show only video sources
 	 */
-	object Video : BrowseGroupTab(R.string.video, "video")
+	object Video : BrowseGroupTab(R.string.video, R.drawable.ic_play, "video")
 	
 	companion object {
 		/**

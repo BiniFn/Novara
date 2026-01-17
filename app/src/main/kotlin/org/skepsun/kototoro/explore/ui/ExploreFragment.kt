@@ -190,6 +190,7 @@ class ExploreFragment :
 			if (tab == BrowseGroupTab.All) return@forEach
 			val chip = createCompactChip(
 				text = getString(tab.titleRes),
+				iconRes = tab.iconRes,
 				colors = colors,
 				density = density,
 			)
@@ -220,6 +221,7 @@ class ExploreFragment :
 		SourceTag.entries.forEach { tag ->
 			val chip = createCompactChip(
 				text = getString(tag.titleRes),
+				iconRes = tag.iconRes,
 				colors = colors,
 				density = density,
 			)
@@ -258,28 +260,39 @@ class ExploreFragment :
 	
 	private fun createCompactChip(
 		text: String,
+		@androidx.annotation.DrawableRes iconRes: Int,
 		colors: ChipColors,
 		density: Float,
 	): Chip {
 		return Chip(requireContext()).apply {
 			id = View.generateViewId()
-			this.text = text
-			isCheckable = true
+			// Use empty text for icon-only look, but set content description/tooltip
+			this.text = ""
+			contentDescription = text
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+				tooltipText = text
+			}
 			
-			// Modern Premium visuals
+			isCheckable = true
+			isChipIconVisible = true
+			setChipIconResource(iconRes)
+			chipIconSize = 20f * density
+			chipIconTint = colors.text
+			
+			// Modern Premium visuals - Icon Only
 			chipMinHeight = 32 * density
 			minHeight = 0
-			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
-			chipStartPadding = 12 * density
-			chipEndPadding = 12 * density
+			// Equal padding for circle/square look
+			chipStartPadding = 8 * density
+			chipEndPadding = 8 * density
+			textStartPadding = 0f
+			textEndPadding = 0f
 			setEnsureMinTouchTargetSize(false)
 			
 			chipStrokeWidth = 0f
 			chipBackgroundColor = colors.bg
-			setTextColor(colors.text)
-			
-			// Optional: use a more modern font if available
-			// typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+			// text color not strictly needed if text is empty but good for consistency
+			setTextColor(colors.text) 
 		}
 	}
 	
