@@ -19,10 +19,10 @@ enum class SourceTag(
     @DrawableRes val iconRes: Int,
     val id: String,
 ) {
-    BUILTIN(R.string.built_in_sources, R.drawable.ic_storage, "builtin"),
+    BUILTIN(R.string.built_in_sources, R.drawable.ic_source_builtin, "builtin"),
     MIHON(R.string.mihon_sources, R.drawable.ic_source_mihon, "mihon"),
     ANIYOMI(R.string.aniyomi_sources, R.drawable.ic_source_aniyomi, "aniyomi"),
-    JSON(R.string.source_tag_json, R.drawable.ic_script, "json");
+    LEGADO(R.string.source_type_legado, R.drawable.ic_source_legado, "json");
 
     /**
      * Whether this tag matches the given content and origin group.
@@ -31,9 +31,7 @@ enum class SourceTag(
         BUILTIN -> originGroup == OriginGroup.NATIVE
         MIHON -> originGroup == OriginGroup.MIHON
         ANIYOMI -> originGroup == OriginGroup.ANIYOMI
-        JSON -> originGroup == OriginGroup.LEGADO_JSON ||
-            originGroup == OriginGroup.TVBOX_JSON ||
-            originGroup == OriginGroup.JS_JSON
+        LEGADO -> originGroup == OriginGroup.LEGADO_JSON
     }
 
     companion object {

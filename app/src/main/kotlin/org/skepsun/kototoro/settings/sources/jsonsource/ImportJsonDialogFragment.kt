@@ -122,8 +122,6 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	private fun setupSourceTypeDropdown(binding: DialogImportJsonBinding) {
 		val sourceTypes = arrayOf(
 			getString(R.string.source_type_legado),
-			getString(R.string.source_type_tvbox),
-			getString(R.string.source_type_js),
 		)
 		
 		val adapter = ArrayAdapter(
@@ -136,6 +134,8 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		
 		// Set default selection to Legado
 		binding.autoCompleteSourceType.setText(sourceTypes[0], false)
+		// Disable dropdown since there is only one option now
+		binding.textInputLayoutSourceType.isEnabled = false
 	}
 	
 	/**
