@@ -2,30 +2,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto">
 
-	<!-- Quick access actions in search bar -->
+	<!-- Quick access actions grid -->
 	<item
-		android:id="@+id/action_local"
-		android:icon="@drawable/ic_storage"
-		android:title="@string/local_storage"
-		app:showAsAction="ifRoom" />
-
-	<item
-		android:id="@+id/action_bookmarks"
-		android:icon="@drawable/ic_bookmark"
-		android:title="@string/bookmarks"
-		app:showAsAction="ifRoom" />
-
-	<item
-		android:id="@+id/action_random"
-		android:icon="@drawable/ic_dice"
-		android:title="@string/random"
-		app:showAsAction="ifRoom" />
-
-	<item
-		android:id="@+id/action_downloads"
-		android:icon="@drawable/ic_download"
-		android:title="@string/downloads"
-		app:showAsAction="ifRoom" />
+		android:id="@+id/action_quick_grid"
+		android:title="@string/quick_access"
+		app:actionLayout="@layout/layout_explore_quick_actions"
+		app:showAsAction="always" />
 
 	<!-- Overflow menu -->
 	<item
