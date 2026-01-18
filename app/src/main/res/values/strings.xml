@@ -1064,11 +1064,11 @@
     <string name="epub_cd_loading_progress">Loading progress: %d%%</string>
     
     <!-- JSON Source Import -->
-    <string name="import_json_sources">Import JSON Sources</string>
-    <string name="import_json_sources_summary">Import Legado or TVBox source configurations</string>
+    <string name="import_json_sources">Import Legado Sources</string>
+    <string name="import_json_sources_summary">Import Legado source configurations</string>
     <string name="select_file">Select File</string>
     <string name="or">OR</string>
-    <string name="paste_json_content">Paste JSON content</string>
+    <string name="paste_json_content">Paste Legado content</string>
 	<string name="source_type">Source Type</string>
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
@@ -1100,14 +1100,14 @@
     </plurals>
     
     <!-- JSON Sources Management -->
-    <string name="json_sources_directory">JSON Sources Directory</string>
+    <string name="json_sources_directory">Legado Sources Directory</string>
     <string name="built_in_sources_directory">Built-in Sources Directory</string>
     <string name="mihon_sources_directory">Mihon Extensions Directory</string>
     <string name="aniyomi_sources_directory">Aniyomi Extensions Directory</string>
-    <string name="source_tag_json">JSON</string>
-    <string name="json_sources" translatable="false">JSON</string>
-    <string name="json_sources_summary">Manage imported JSON sources</string>
-    <string name="import_json">Import JSON</string>
+    <string name="source_tag_json">Legado</string>
+    <string name="json_sources" translatable="false">Legado</string>
+    <string name="json_sources_summary">Manage imported Legado sources</string>
+    <string name="import_json">Import Legado</string>
     <string name="test">Test</string>
 
     <string name="enable_kotatsu_sources">Enable Kotatsu Internal Sources</string>
@@ -1115,7 +1115,7 @@
     
     <string name="available_sources_count">%1$d available</string>
     <string name="source_deleted">Source deleted</string>
-    <string name="search_json_source">Search JSON sources</string>
+    <string name="search_json_source">Search Legado sources</string>
     <string name="export_sources">Export sources</string>
     <string name="share_sources">Share sources</string>
     <string name="add_source">Add source</string>

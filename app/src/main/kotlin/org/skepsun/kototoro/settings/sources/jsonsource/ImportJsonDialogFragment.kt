@@ -61,8 +61,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	override fun onViewBindingCreated(binding: DialogImportJsonBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		
-		// Set up source type dropdown
-		setupSourceTypeDropdown(binding)
+
 		
 		// Set up button listeners
 		binding.buttonSelectFile.setOnClickListener(this)
@@ -84,12 +83,10 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		viewModel.uiState.observe(viewLifecycleOwner, this::onUiStateChanged)
 		
 		// Observe selected file URI
+		// Observe selected file URI
 		viewModel.selectedFileUri.observe(viewLifecycleOwner) { uri ->
 			binding.textViewSelectedFile.isVisible = uri != null
 			binding.textViewSelectedFile.text = uri?.lastPathSegment ?: ""
-			if (uri?.lastPathSegment?.endsWith(".js", ignoreCase = true) == true) {
-				binding.autoCompleteSourceType.setText(getString(R.string.source_type_js), false)
-			}
 		}
 		
 		// Clear status when user types
@@ -119,24 +116,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	/**
 	 * Sets up the source type dropdown with available options.
 	 */
-	private fun setupSourceTypeDropdown(binding: DialogImportJsonBinding) {
-		val sourceTypes = arrayOf(
-			getString(R.string.source_type_legado),
-		)
-		
-		val adapter = ArrayAdapter(
-			requireContext(),
-			android.R.layout.simple_dropdown_item_1line,
-			sourceTypes
-		)
-		
-		binding.autoCompleteSourceType.setAdapter(adapter)
-		
-		// Set default selection to Legado
-		binding.autoCompleteSourceType.setText(sourceTypes[0], false)
-		// Disable dropdown since there is only one option now
-		binding.textInputLayoutSourceType.isEnabled = false
-	}
+
 	
 	/**
 	 * Shows a dialog to input a URL for fetching JSON content.
@@ -213,13 +193,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	}
 
 	private fun determineSourceType(): JsonSourceType {
-		val binding = requireViewBinding()
-		return when {
-			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_tvbox) -> JsonSourceType.TVBOX
-			binding.autoCompleteSourceType.text.toString() == getString(R.string.source_type_js) -> JsonSourceType.JS
-			binding.textViewSelectedFile.text?.toString()?.endsWith(".js", ignoreCase = true) == true -> JsonSourceType.JS
-			else -> JsonSourceType.LEGADO
-		}
+		return JsonSourceType.LEGADO
 	}
 	
 	/**
@@ -235,7 +209,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 				binding.buttonImport.isEnabled = true
 				binding.buttonSelectFile.isEnabled = true
 				binding.editTextJson.isEnabled = true
-				binding.autoCompleteSourceType.isEnabled = true
+
 			}
 			
 			is ImportUiState.Loading -> {
@@ -248,7 +222,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 				binding.buttonImport.isEnabled = false
 				binding.buttonSelectFile.isEnabled = false
 				binding.editTextJson.isEnabled = false
-				binding.autoCompleteSourceType.isEnabled = false
+
 			}
 			
 			is ImportUiState.Success -> {
@@ -265,7 +239,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 				binding.buttonImport.isEnabled = true
 				binding.buttonSelectFile.isEnabled = true
 				binding.editTextJson.isEnabled = true
-				binding.autoCompleteSourceType.isEnabled = true
+
 				
 				// Show toast and dismiss after a short delay
 				Toast.makeText(
@@ -292,7 +266,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 				binding.buttonImport.isEnabled = true
 				binding.buttonSelectFile.isEnabled = true
 				binding.editTextJson.isEnabled = true
-				binding.autoCompleteSourceType.isEnabled = true
+
 			}
 		}
 	}

@@ -22,17 +22,17 @@ sealed class BrowseGroupTab(
 	/**
 	 * Show only manga sources
 	 */
-	object Manga : BrowseGroupTab(R.string.manga, R.drawable.ic_manga_source, "manga")
+	object Manga : BrowseGroupTab(R.string.manga, R.drawable.ic_content_manga, "manga")
 	
 	/**
 	 * Show only novel sources
 	 */
-	object Novel : BrowseGroupTab(R.string.novel, R.drawable.ic_read, "novel")
+	object Novel : BrowseGroupTab(R.string.novel, R.drawable.ic_content_novel, "novel")
 	
 	/**
 	 * Show only video sources
 	 */
-	object Video : BrowseGroupTab(R.string.video, R.drawable.ic_play, "video")
+	object Video : BrowseGroupTab(R.string.video, R.drawable.ic_content_video, "video")
 	
 	companion object {
 		/**

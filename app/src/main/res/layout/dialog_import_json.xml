@@ -104,25 +104,6 @@
 
 		</com.google.android.material.textfield.TextInputLayout>
 
-		<!-- Source type selection -->
-		<com.google.android.material.textfield.TextInputLayout
-			android:id="@+id/textInputLayout_source_type"
-			style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginHorizontal="?dialogPreferredPadding"
-			android:layout_marginTop="@dimen/margin_normal"
-			android:hint="@string/source_type">
-
-			<AutoCompleteTextView
-				android:id="@+id/autoComplete_source_type"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:inputType="none"
-				tools:text="Legado" />
-
-		</com.google.android.material.textfield.TextInputLayout>
-		
 		<!-- Import options -->
 		<CheckBox
 			android:id="@+id/checkbox_skip_unreachable"
