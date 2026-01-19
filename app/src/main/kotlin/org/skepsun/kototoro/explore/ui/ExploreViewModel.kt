@@ -52,6 +52,7 @@ class ExploreViewModel @Inject constructor(
 	private val sourcesRepository: MangaSourcesRepository,
 	private val shortcutManager: AppShortcutManager,
 	private val sourceGroupManager: SourceGroupManager,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : BaseViewModel() {
 
 	val isGrid = settings.observeAsStateFlow(
@@ -79,24 +80,14 @@ class ExploreViewModel @Inject constructor(
 	val isRandomLoading = MutableStateFlow(false)
 	
 	/**
-	 * Currently selected browse group tab
-	 */
-	private val selectedGroupTab = MutableStateFlow<BrowseGroupTab>(BrowseGroupTab.All)
-	
-	/**
 	 * Observable selected group tab for UI
 	 */
-	val currentGroupTab: StateFlow<BrowseGroupTab> = selectedGroupTab
-
-	/**
-	 * Currently selected source tags (multi-select, AND logic)
-	 */
-	private val selectedSourceTags = MutableStateFlow<Set<SourceTag>>(emptySet())
+	val currentGroupTab: StateFlow<BrowseGroupTab> = globalFavoritesState.selectedGroupTab
 
 	/**
 	 * Observable selected source tags for UI
 	 */
-	val currentSourceTags: StateFlow<Set<SourceTag>> = selectedSourceTags
+	val currentSourceTags: StateFlow<Set<SourceTag>> = globalFavoritesState.selectedSourceTags
 
 	/**
 	 * Available tabs based on NSFW setting
@@ -124,23 +115,20 @@ class ExploreViewModel @Inject constructor(
 	 * Set the selected group tab and filter sources accordingly
 	 */
 	fun setSelectedGroupTab(tab: BrowseGroupTab) {
-		selectedGroupTab.value = tab
-		// Save preference
-		settings.setSelectedGroupTab(tab.id)
+		globalFavoritesState.setSelectedGroupTab(tab)
 	}
 
 	/**
 	 * Set selected source tags (multi-select)
 	 */
 	fun setSelectedSourceTags(tags: Set<SourceTag>) {
-		selectedSourceTags.value = tags
-		settings.setSelectedSourceTags(tags.map { it.id }.toSet())
+		globalFavoritesState.setSelectedSourceTags(tags)
 	}
 	
 	/**
 	 * Get the currently selected group tab
 	 */
-	fun getSelectedGroupTab(): BrowseGroupTab = selectedGroupTab.value
+	fun getSelectedGroupTab(): BrowseGroupTab = globalFavoritesState.selectedGroupTab.value
 
 	init {
 		launchJob(Dispatchers.Default) {
@@ -148,14 +136,6 @@ class ExploreViewModel @Inject constructor(
 				onShowSuggestionsTip.call(Unit)
 			}
 		}
-		
-		// Restore saved group tab preference
-		val savedTabId = settings.getSelectedGroupTab()
-		selectedGroupTab.value = BrowseGroupTab.fromId(savedTabId ?: BrowseGroupTab.All.id)
-
-		// Restore saved source tag preferences
-		val savedTags = settings.getSelectedSourceTags()
-		selectedSourceTags.value = SourceTag.fromIds(savedTags)
 	}
 
 	fun openRandom() {
@@ -216,8 +196,8 @@ class ExploreViewModel @Inject constructor(
 			isGrid,
 			isAllSourcesEnabled,
 			sourcesRepository.observeHasNewSourcesForBadge(),
-			selectedGroupTab,
-			selectedSourceTags,
+			currentGroupTab,
+			currentSourceTags,
 		) { values: Array<Any?> ->
 			@Suppress("UNCHECKED_CAST")
 			buildList(

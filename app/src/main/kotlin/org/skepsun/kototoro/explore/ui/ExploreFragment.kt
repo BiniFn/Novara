@@ -174,8 +174,9 @@ class ExploreFragment :
 		// Padding needed = max(0, statusBarHeight - appBar.bottom)
 		// This doesn't care about scroll range or snap states, it's a direct geometric constraint.
 		val topPadding = Math.max(0, statusBarHeight - appBar.bottom)
-
-		binding.filterScrollView.updatePadding(top = topPadding)
+		if (binding.filterScrollView.paddingTop != topPadding) {
+			binding.filterScrollView.updatePadding(top = topPadding)
+		}
 	}
 
 	private fun rebuildContentTypeChips(binding: FragmentExploreBinding, tabs: List<BrowseGroupTab>) {
@@ -196,11 +197,11 @@ class ExploreFragment :
 			)
 			chip.tag = tab
 			chip.isChecked = tab == viewModel.getSelectedGroupTab()
-			chip.setOnCheckedChangeListener { _, isChecked ->
+			chip.setOnClickListener { 
+				val isChecked = (it as Chip).isChecked
 				if (isChecked) {
 					viewModel.setSelectedGroupTab(tab)
-				} else if (viewModel.getSelectedGroupTab() == tab) {
-					// If the currently selected chip is unchecked, revert to All
+				} else {
 					viewModel.setSelectedGroupTab(BrowseGroupTab.All)
 				}
 			}
@@ -227,7 +228,8 @@ class ExploreFragment :
 			)
 			chip.tag = tag
 			chip.isChecked = tag in currentTags
-			chip.setOnCheckedChangeListener { _, isChecked ->
+			chip.setOnClickListener { 
+				val isChecked = (it as Chip).isChecked
 				val selectedTags = if (isChecked) setOf(tag) else emptySet()
 				viewModel.setSelectedSourceTags(selectedTags)
 			}

@@ -1,26 +1,113 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
-	xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
-	android:layout_height="match_parent">
+	android:layout_height="match_parent"
+	android:orientation="vertical">
 
-	<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-		android:id="@+id/swipeRefreshLayout"
+	<HorizontalScrollView
+		android:id="@+id/filterScrollView"
 		android:layout_width="match_parent"
-		android:layout_height="match_parent">
+		android:layout_height="wrap_content"
+		android:clipToPadding="false"
+		android:fillViewport="true"
+		android:scrollbars="none"
+		android:background="?attr/colorSurface"
+		android:paddingTop="8dp"
+		android:paddingBottom="12dp"
+		android:visibility="gone"
+		tools:visibility="visible">
 
-		<org.skepsun.kototoro.core.ui.list.fastscroll.FastScrollRecyclerView
-			android:id="@+id/recyclerView"
+		<LinearLayout
+			android:id="@+id/filterChipsContainer"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:orientation="horizontal"
+			android:gravity="center"
+			android:layout_gravity="center_horizontal"
+			android:paddingStart="@dimen/list_spacing_normal"
+			android:paddingEnd="@dimen/list_spacing_normal">
+
+			<com.google.android.material.chip.ChipGroup
+				android:id="@+id/chipGroupContentType"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				app:chipSpacingHorizontal="8dp"
+				app:chipSpacingVertical="0dp"
+				app:singleLine="true"
+				app:singleSelection="true"
+				app:selectionRequired="false" />
+
+			<View
+				android:id="@+id/filterSeparator"
+				android:layout_width="1dp"
+				android:layout_height="20dp"
+				android:layout_gravity="center_vertical"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp"
+				android:background="?attr/colorOutlineVariant"
+				android:alpha="0.5" />
+
+			<com.google.android.material.chip.ChipGroup
+				android:id="@+id/chipGroupSourceTag"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				app:chipSpacingHorizontal="8dp"
+				app:chipSpacingVertical="0dp"
+				app:singleLine="true"
+				app:singleSelection="true"
+				app:selectionRequired="false" />
+
+			<View
+				android:id="@+id/filterSeparator2"
+				android:layout_width="1dp"
+				android:layout_height="20dp"
+				android:layout_gravity="center_vertical"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp"
+				android:background="?attr/colorOutlineVariant"
+				android:alpha="0.2"
+				android:visibility="gone"
+				tools:visibility="visible" />
+
+			<com.google.android.material.chip.ChipGroup
+				android:id="@+id/chipGroupCategory"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				app:chipSpacingHorizontal="8dp"
+				app:chipSpacingVertical="0dp"
+				app:singleLine="true"
+				app:singleSelection="false"
+				app:selectionRequired="false"
+				android:visibility="gone"
+				tools:visibility="visible" />
+
+		</LinearLayout>
+
+	</HorizontalScrollView>
+
+	<FrameLayout
+		android:layout_width="match_parent"
+		android:layout_height="0dp"
+		android:layout_weight="1">
+
+		<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+			android:id="@+id/swipeRefreshLayout"
 			android:layout_width="match_parent"
-			android:layout_height="match_parent"
-			android:clipChildren="false"
-			android:clipToPadding="false"
-			android:orientation="vertical"
-			android:padding="@dimen/list_spacing_normal"
-			tools:layoutManager="org.skepsun.kototoro.core.ui.list.FitHeightLinearLayoutManager"
-			tools:listitem="@layout/item_manga_list" />
+			android:layout_height="match_parent">
 
-	</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+			<org.skepsun.kototoro.core.ui.list.fastscroll.FastScrollRecyclerView
+				android:id="@+id/recyclerView"
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:clipChildren="false"
+				android:clipToPadding="false"
+				android:orientation="vertical"
+				android:padding="@dimen/list_spacing_normal"
+				tools:layoutManager="org.skepsun.kototoro.core.ui.list.FitHeightLinearLayoutManager"
+				tools:listitem="@layout/item_manga_list" />
 
-</FrameLayout>
+		</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+	</FrameLayout>
+
+</LinearLayout>

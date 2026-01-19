@@ -1,24 +1,35 @@
 package org.skepsun.kototoro.list.ui
 
-import android.os.Bundle
+import android.content.res.ColorStateList
+import android.os.Build
+import androidx.annotation.CallSuper
+import androidx.appcompat.view.ActionMode
+import androidx.collection.ArraySet
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.children
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import coil3.ImageLoader
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
+import com.google.android.material.color.MaterialColors
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import androidx.annotation.CallSuper
-import androidx.appcompat.view.ActionMode
-import androidx.collection.ArraySet
-import androidx.core.view.WindowInsetsCompat
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import coil3.ImageLoader
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
+import android.os.Bundle
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.alternatives.ui.AutoFixService
+import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.isLocal
@@ -44,6 +55,8 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
@@ -68,7 +81,8 @@ abstract class MangaListFragment :
 	RecyclerViewOwner,
 	SwipeRefreshLayout.OnRefreshListener,
 	ListSelectionController.Callback,
-	FastScroller.FastScrollListener {
+	FastScroller.FastScrollListener,
+	AppBarLayout.OnOffsetChangedListener {
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -84,6 +98,11 @@ abstract class MangaListFragment :
 	open val isSwipeRefreshEnabled = true
 
 	private var isFoldUnfolded = false
+	
+	// Track chip IDs for each filter group
+	private val contentTypeChipIds = mutableMapOf<BrowseGroupTab, Int>()
+	private val sourceTagChipIds = mutableMapOf<SourceTag, Int>()
+	private val categoryChipIds = mutableMapOf<Long, Int>()
 
 	protected abstract val viewModel: MangaListViewModel
 
@@ -144,14 +163,44 @@ abstract class MangaListFragment :
 		)
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.recyclerView))
 
-		
+		// Set filter chips
+		rebuildContentTypeChips(binding, BrowseGroupTab.getAllTabs())
+		rebuildSourceTagChips(binding)
+
+		viewModel.isFilterBarVisible.observe(viewLifecycleOwner) { isVisible ->
+			binding.filterScrollView.visibility = if (isVisible) View.VISIBLE else View.GONE
+		}
+		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
+			updateContentTypeChipsSelection(binding, tab)
+		}
+		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
+			updateSourceTagChipsSelection(binding, tags)
+		}
+		viewModel.availableCategories.observe(viewLifecycleOwner) { categories ->
+			rebuildCategoryChips(binding, categories)
+		}
+		viewModel.currentCategoryIds.observe(viewLifecycleOwner) { ids ->
+			updateCategoryChipsSelection(binding, ids)
+		}
+
 		observeFoldableState()
+
+		// Register for appbar offset changes for filter bar positioning
+		val appBar = (activity as? AppBarOwner)?.appBar
+		appBar?.addOnOffsetChangedListener(this)
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val typeMask = WindowInsetsCompat.Type.systemBars()
 		val barsInsets = insets.getInsets(typeMask)
 		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
+
+		// Apply side padding to tags container so they aren't cut off by notches/rounded corners
+		viewBinding?.filterChipsContainer?.updatePadding(
+			left = barsInsets.left + basePadding,
+			right = barsInsets.right + basePadding,
+		)
+
 		viewBinding?.recyclerView?.setPadding(
 			left = barsInsets.left + basePadding,
 			top = basePadding,
@@ -161,12 +210,32 @@ abstract class MangaListFragment :
 		return insets.consumeAll(typeMask)
 	}
 
+	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
+		val binding = viewBinding ?: return
+		val appBar = appBarLayout ?: return
+
+		val insets = ViewCompat.getRootWindowInsets(binding.root)?.getInsets(WindowInsetsCompat.Type.statusBars())
+		val statusBarHeight = insets?.top ?: 0
+
+		// Pin tags exactly to the status bar once the appbar scrolls past it.
+		val topPadding = Math.max(0, statusBarHeight - appBar.bottom)
+		if (binding.filterScrollView.paddingTop != topPadding) {
+			binding.filterScrollView.updatePadding(top = topPadding)
+		}
+	}
+
 	override fun onDestroyView() {
+		val appBar = (activity as? AppBarOwner)?.appBar
+		appBar?.removeOnOffsetChangedListener(this)
+
 		listAdapter = null
 		paginationListener = null
 		selectionController = null
 		spanResolver = null
 		spanSizeLookup.invalidateCache()
+		contentTypeChipIds.clear()
+		sourceTagChipIds.clear()
+		categoryChipIds.clear()
 		super.onDestroyView()
 	}
 
@@ -197,6 +266,21 @@ abstract class MangaListFragment :
 		if (selectionController?.onItemClick(manga.id) != true) {
 			router.showTagDialog(tag)
 		}
+	}
+
+	override fun onFilterClick(view: View?) {
+		// Toggle filter bar visibility or scroll to top
+		val isVisible = viewModel.isFilterBarVisible.value
+		// If we want to toggle via a button, we could do it here. 
+		// Or if this is called when clicking a filter icon.
+		// For now, let's just scroll to top to show filters if they are hidden by scroll
+		if (isVisible) {
+			viewBinding?.recyclerView?.smoothScrollToPosition(0)
+		}
+	}
+
+	override fun onListHeaderClick(item: ListHeader, view: View) {
+		// Default implementation: do nothing
 	}
 
 	@CallSuper
@@ -246,11 +330,7 @@ abstract class MangaListFragment :
 		(viewModel as? QuickFilterListener)?.toggleFilterOption(option)
 	}
 
-	override fun onFilterClick(view: View?) = Unit
-
 	override fun onEmptyActionClick() = Unit
-
-	override fun onListHeaderClick(item: ListHeader, view: View) = Unit
 
 	override fun onPrimaryButtonClick(tipView: TipView) = Unit
 
@@ -423,5 +503,182 @@ abstract class MangaListFragment :
 		val persistedScale = settings.gridSize / 100f
 		spanResolver?.setGridSize(persistedScale, rv)
 		viewBinding?.root?.requestLayout()
+	}
+
+	private fun rebuildContentTypeChips(binding: FragmentListBinding, tabs: List<BrowseGroupTab>) {
+		val chipGroup = binding.chipGroupContentType
+		chipGroup.removeAllViews()
+		contentTypeChipIds.clear()
+
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+
+		tabs.forEach { tab ->
+			if (tab == BrowseGroupTab.All) return@forEach
+			val chip = createCompactChip(
+				text = getString(tab.titleRes),
+				iconRes = tab.iconRes,
+				colors = colors,
+				density = density,
+			)
+			chip.tag = tab
+			chip.setOnClickListener { 
+				val isChecked = (it as Chip).isChecked
+				if (isChecked) {
+					viewModel.setSelectedGroupTab(tab)
+				} else {
+					viewModel.setSelectedGroupTab(BrowseGroupTab.All)
+				}
+			}
+			contentTypeChipIds[tab] = chip.id
+			chipGroup.addView(chip)
+		}
+	}
+
+	private fun rebuildSourceTagChips(binding: FragmentListBinding) {
+		val chipGroup = binding.chipGroupSourceTag
+		chipGroup.removeAllViews()
+		sourceTagChipIds.clear()
+
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+		val currentTags = viewModel.currentSourceTags.value
+
+		SourceTag.entries.forEach { tag ->
+			val chip = createCompactChip(
+				text = getString(tag.titleRes),
+				iconRes = tag.iconRes,
+				colors = colors,
+				density = density,
+			)
+			chip.tag = tag
+			chip.isChecked = tag in currentTags
+			chip.setOnClickListener { 
+				val isChecked = (it as Chip).isChecked
+				val selectedTags = if (isChecked) setOf(tag) else emptySet()
+				viewModel.setSelectedSourceTags(selectedTags)
+			}
+			sourceTagChipIds[tag] = chip.id
+			chipGroup.addView(chip)
+		}
+	}
+
+	private fun updateContentTypeChipsSelection(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+		contentTypeChipIds.forEach { (tab, id) ->
+			binding.chipGroupContentType.findViewById<Chip>(id)?.isChecked = (tab == selectedTab)
+		}
+	}
+
+	private fun updateSourceTagChipsSelection(binding: FragmentListBinding, tags: Set<SourceTag>) {
+		sourceTagChipIds.forEach { (tag, id) ->
+			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
+		}
+	}
+
+	private fun rebuildCategoryChips(binding: FragmentListBinding, categories: List<FavouriteCategory>) {
+		val chipGroup = binding.chipGroupCategory
+		chipGroup.removeAllViews()
+		categoryChipIds.clear()
+
+		if (categories.isEmpty()) {
+			chipGroup.visibility = View.GONE
+			binding.filterSeparator2.visibility = View.GONE
+			return
+		}
+
+		chipGroup.visibility = View.VISIBLE
+		binding.filterSeparator2.visibility = View.VISIBLE
+
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+		val currentIds = viewModel.currentCategoryIds.value
+
+		categories.forEach { category ->
+			val chip = createCompactChip(
+				text = category.title,
+				iconRes = R.drawable.ic_filter_menu,
+				colors = colors,
+				density = density,
+			)
+			chip.text = category.title // Categories show text
+			chip.chipStartPadding = 12 * density
+			chip.chipEndPadding = 12 * density
+			
+			chip.tag = category.id
+			chip.isChecked = category.id in currentIds
+			chip.setOnCheckedChangeListener { _, isChecked ->
+				val selectedIds = viewModel.currentCategoryIds.value.toMutableSet()
+				if (isChecked) {
+					selectedIds.add(category.id)
+				} else {
+					selectedIds.remove(category.id)
+				}
+				viewModel.setSelectedCategoryIds(selectedIds)
+			}
+			categoryChipIds[category.id] = chip.id
+			chipGroup.addView(chip)
+		}
+	}
+
+	private fun updateCategoryChipsSelection(binding: FragmentListBinding, ids: Set<Long>) {
+		categoryChipIds.forEach { (categoryId, id) ->
+			binding.chipGroupCategory.findViewById<Chip>(id)?.isChecked = (categoryId in ids)
+		}
+	}
+
+	private data class ChipColors(
+		val bg: ColorStateList,
+		val text: ColorStateList,
+		val stroke: ColorStateList,
+	)
+
+	private fun createChipColors(): ChipColors {
+		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
+		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
+		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
+		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
+
+		val stateChecked = intArrayOf(android.R.attr.state_checked)
+		val stateDefault = intArrayOf(-android.R.attr.state_checked)
+
+		return ChipColors(
+			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
+			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
+			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
+		)
+	}
+
+	private fun createCompactChip(
+		text: String,
+		@androidx.annotation.DrawableRes iconRes: Int,
+		colors: ChipColors,
+		density: Float,
+	): Chip {
+		return Chip(requireContext()).apply {
+			id = View.generateViewId()
+			this.text = ""
+			contentDescription = text
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+				tooltipText = text
+			}
+
+			isCheckable = true
+			isChipIconVisible = true
+			setChipIconResource(iconRes)
+			chipIconSize = 20f * density
+			chipIconTint = colors.text
+
+			chipMinHeight = 32 * density
+			minHeight = 0
+			chipStartPadding = 8 * density
+			chipEndPadding = 8 * density
+			textStartPadding = 0f
+			textEndPadding = 0f
+			setEnsureMinTouchTargetSize(false)
+
+			chipStrokeWidth = 0f
+			chipBackgroundColor = colors.bg
+			setTextColor(colors.text)
+		}
 	}
 }

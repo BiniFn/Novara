@@ -84,7 +84,16 @@ open class RemoteListViewModel @Inject constructor(
 		observeListModeWithTriggers(),
 		listError,
 		hasNextPage,
-	) { list, mode, error, hasNext ->
+		selectedGroupTab, // Adding these to match the base class requirement if creating a new combine
+		selectedSourceTags, // but RemoteListViewModel might not use them.
+		// Wait, RemoteListViewModel overrides `content`. The error was:
+		// Cannot infer type for this parameter. Specify it explicitly.
+	) { values: Array<Any?> ->
+		val list = values[0] as List<Manga>?
+		val mode = values[1] as ListMode
+		val error = values[2] as Throwable?
+		val hasNext = values[3] as Boolean
+		
 		buildList(list?.size?.plus(2) ?: 2) {
 			when {
 				list.isNullOrEmpty() && error != null -> add(

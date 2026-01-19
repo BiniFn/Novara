@@ -2,16 +2,22 @@ package org.skepsun.kototoro.list.ui
 
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.plus
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -43,6 +49,47 @@ abstract class MangaListViewModel(
 		valueProducer = { gridSize / 100f },
 	)
 
+	/**
+	 * Currently selected browse group tab (Content Type)
+	 */
+	protected val selectedGroupTab = MutableStateFlow<BrowseGroupTab>(BrowseGroupTab.All)
+	open val currentGroupTab: StateFlow<BrowseGroupTab> get() = selectedGroupTab
+
+	/**
+	 * Currently selected source tags (Source Origin)
+	 */
+	protected val selectedSourceTags = MutableStateFlow<Set<SourceTag>>(emptySet())
+	open val currentSourceTags: StateFlow<Set<SourceTag>> get() = selectedSourceTags
+
+	/**
+	 * Currently selected category IDs
+	 */
+	protected val selectedCategoryIds = MutableStateFlow<Set<Long>>(emptySet())
+	val currentCategoryIds: StateFlow<Set<Long>> = selectedCategoryIds
+
+	/**
+	 * Available categories for filtering
+	 */
+	open val availableCategories: StateFlow<List<FavouriteCategory>> = flowOf(emptyList<FavouriteCategory>())
+		.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+	/**
+	 * Whether the filter bar should be shown
+	 */
+	open val isFilterBarVisible: StateFlow<Boolean> = flowOf(false).stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+	open fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		selectedGroupTab.value = tab
+	}
+
+	open fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		selectedSourceTags.value = tags
+	}
+
+	open fun setSelectedCategoryIds(ids: Set<Long>) {
+		selectedCategoryIds.value = ids
+	}
+
 	val isIncognitoModeEnabled: Boolean
 		get() = settings.isIncognitoModeEnabled
 
@@ -69,9 +116,9 @@ abstract class MangaListViewModel(
 	protected fun observeListModeWithTriggers(): Flow<ListMode> = combine(
 		listMode,
 		merge(
-			mangaDataRepository.observeOverridesTrigger(emitInitialState = true),
-			mangaDataRepository.observeFavoritesTrigger(emitInitialState = true),
-			localStorageChanges.onStart { emit(null) },
+			mangaDataRepository.observeOverridesTrigger(emitInitialState = true).map { Unit },
+			mangaDataRepository.observeFavoritesTrigger(emitInitialState = true).map { Unit },
+			localStorageChanges.onStart { emit(null) }.map { Unit },
 		),
 		settings.observeChanges().filter { key ->
 			key == AppSettings.KEY_PROGRESS_INDICATORS

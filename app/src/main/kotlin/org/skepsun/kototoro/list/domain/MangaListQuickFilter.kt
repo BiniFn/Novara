@@ -18,7 +18,7 @@ abstract class MangaListQuickFilter(
 		getAvailableFilterOptions()
 	}
 
-	val appliedOptions
+	open val appliedOptions
 		get() = appliedFilter.asStateFlow()
 
 	override fun setFilterOption(option: ListFilterOption, isApplied: Boolean) {

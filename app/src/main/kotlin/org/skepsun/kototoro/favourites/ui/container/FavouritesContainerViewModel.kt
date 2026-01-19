@@ -5,12 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.plus
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.R
@@ -30,6 +27,15 @@ import org.skepsun.kototoro.core.parser.ParserMangaRepository
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
+import org.skepsun.kototoro.favourites.domain.FavoritesListQuickFilter
+import org.skepsun.kototoro.list.domain.QuickFilterListener
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.explore.ui.model.SourceTag
+import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 @HiltViewModel
@@ -39,7 +45,40 @@ class FavouritesContainerViewModel @Inject constructor(
 	private val favouritesRepository: FavouritesRepository,
 	private val sourcesRepository: MangaSourcesRepository,
 	private val mangaRepositoryFactory: MangaRepository.Factory,
+	mangaDataRepository: MangaDataRepository,
+	networkState: NetworkState,
+	private val globalFavoritesState: GlobalFavoritesState,
 ) : BaseViewModel() {
+
+	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.favoritesListMode)
+
+	val currentGroupTab = globalFavoritesState.selectedGroupTab
+	val selectedSourceTags = globalFavoritesState.selectedSourceTags
+	val availableSourceTags = flowOf(SourceTag.entries.toSet())
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, SourceTag.entries.toSet())
+
+	fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		if (globalFavoritesState.selectedGroupTab.value == tab) {
+			globalFavoritesState.clearSelectedGroupTab()
+		} else {
+			globalFavoritesState.setSelectedGroupTab(tab)
+		}
+	}
+
+	fun toggleSourceTag(tag: SourceTag) {
+		globalFavoritesState.toggleSourceTag(tag)
+	}
+
+	private fun Flow<Set<ListFilterOption>>.combineWithSettings(): Flow<Set<ListFilterOption>> = combine(
+		settings.observeAsFlow(AppSettings.KEY_DISABLE_NSFW) { isNsfwContentDisabled },
+	) { filters, skipNsfw ->
+		if (skipNsfw) {
+			filters + ListFilterOption.SFW
+		} else {
+			filters
+		}
+	}
 
 	data class ImportSource(
 		val source: MangaParserSource,

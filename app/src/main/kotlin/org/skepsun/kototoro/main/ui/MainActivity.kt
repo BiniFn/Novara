@@ -69,6 +69,7 @@ import org.skepsun.kototoro.databinding.ActivityMainBinding
 import org.skepsun.kototoro.details.service.MangaPrefetchService
 import org.skepsun.kototoro.explore.ui.ExploreFragment
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
+import org.skepsun.kototoro.tracker.ui.feed.FeedFragment
 import org.skepsun.kototoro.history.ui.HistoryListFragment
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
@@ -344,7 +345,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	}
 
 	private fun adjustAppbar(topFragment: Fragment) {
-		if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment) {
+		if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
 			viewBinding.appbar.fitsSystemWindows = true
 		} else {
 			viewBinding.appbar.fitsSystemWindows = false

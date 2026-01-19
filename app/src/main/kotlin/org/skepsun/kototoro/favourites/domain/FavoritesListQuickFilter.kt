@@ -14,10 +14,30 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 	private val settings: AppSettings,
 	private val repository: FavouritesRepository,
 	networkState: NetworkState,
+	private val globalFilterState: GlobalFavoritesState,
 ) : MangaListQuickFilter(settings) {
 
 	init {
-		setFilterOption(ListFilterOption.Downloaded, !networkState.value)
+		// Sync initial state if needed, or rely on global state.
+		// Note: MangaListQuickFilter sets 'Downloaded' based on network in init.
+		// We might want to apply that to global state ONLY if it's the first init?
+		// Or just let user control.
+		// For now, let's keep the network logic but apply it to global state
+		globalFilterState.setFilterOption(ListFilterOption.Downloaded, !networkState.value)
+	}
+
+	override val appliedOptions = globalFilterState.appliedFilter
+
+	override fun setFilterOption(option: ListFilterOption, isApplied: Boolean) {
+		globalFilterState.setFilterOption(option, isApplied)
+	}
+
+	override fun toggleFilterOption(option: ListFilterOption) {
+		globalFilterState.toggleFilterOption(option)
+	}
+
+	override fun clearFilter() {
+		globalFilterState.clearFilter()
 	}
 
 	override suspend fun getAvailableFilterOptions(): List<ListFilterOption> = buildList {

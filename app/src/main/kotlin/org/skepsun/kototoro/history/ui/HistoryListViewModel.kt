@@ -46,6 +46,9 @@ import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import kotlinx.coroutines.flow.SharedFlow
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 
 private const val PAGE_SIZE = 16
 
@@ -56,9 +59,24 @@ class HistoryListViewModel @Inject constructor(
 	private val mangaListMapper: MangaListMapper,
 	private val markAsReadUseCase: MarkAsReadUseCase,
 	private val quickFilter: HistoryListQuickFilter,
+	private val sourceGroupManager: SourceGroupManager,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 	mangaDataRepository: MangaDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
 ) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+
+	override val isFilterBarVisible = MutableStateFlow(true)
+
+	override val currentGroupTab = globalFavoritesState.selectedGroupTab
+	override val currentSourceTags = globalFavoritesState.selectedSourceTags
+
+	override fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		globalFavoritesState.setSelectedGroupTab(tab)
+	}
+
+	override fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
+	}
 
 	private val sortOrder: StateFlow<ListSortOrder> = settings.observeAsStateFlow(
 		scope = viewModelScope + Dispatchers.IO,
@@ -94,8 +112,17 @@ class HistoryListViewModel @Inject constructor(
 		isGroupingEnabled,
 		observeListModeWithTriggers(),
 		settings.observeAsFlow(AppSettings.KEY_INCOGNITO_MODE) { isIncognitoModeEnabled },
-	) { filters, list, grouped, mode, incognito ->
-		mapList(list, grouped, mode, filters, incognito)
+		this.currentGroupTab,
+		this.currentSourceTags,
+	) { values: Array<Any?> ->
+		val filters = values[0] as Set<ListFilterOption>
+		val list = values[1] as List<MangaWithHistory>
+		val grouped = values[2] as Boolean
+		val mode = values[3] as ListMode
+		val incognito = values[4] as Boolean
+		val groupTab = values[5] as BrowseGroupTab
+		val sourceTags = values[6] as Set<SourceTag>
+		mapList(list, grouped, mode, filters, incognito, groupTab, sourceTags)
 	}.distinctUntilChanged().onEach {
 		isPaginationReady.set(true)
 	}.catch { e ->
@@ -163,15 +190,32 @@ class HistoryListViewModel @Inject constructor(
 		mode: ListMode,
 		filters: Set<ListFilterOption>,
 		isIncognito: Boolean,
+		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
 	): List<ListModel> {
-		if (list.isEmpty()) {
-			return if (filters.isEmpty()) {
+		val filteredList = list.filter { (manga, _) ->
+			val source = manga.source
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+
+			val groupMatches = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
+			val originMatches = if (sourceTags.isEmpty()) {
+				true
+			} else {
+				sourceTags.any { it.matches(contentGroup, originGroup) }
+			}
+
+			groupMatches && originMatches
+		}
+
+		if (filteredList.isEmpty()) {
+			return if (filters.isEmpty() && groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
 				listOf(getEmptyState(hasFilters = false))
 			} else {
 				listOfNotNull(quickFilter.filterItem(filters), getEmptyState(hasFilters = true))
 			}
 		}
-		val result = ArrayList<ListModel>((if (grouped) (list.size * 1.4).toInt() else list.size) + 2)
+		val result = ArrayList<ListModel>((if (grouped) (filteredList.size * 1.4).toInt() else filteredList.size) + 2)
 		quickFilter.filterItem(filters)?.let(result::add)
 		if (isIncognito) {
 			result += InfoModel(
@@ -184,7 +228,7 @@ class HistoryListViewModel @Inject constructor(
 		val order = sortOrder.value
 		var prevHeader: ListHeader? = null
 		var isEmpty = true
-		for ((manga, history) in list) {
+		for ((manga, history) in filteredList) {
 			isEmpty = false
 			if (grouped) {
 				val header = history.header(order)
@@ -197,7 +241,7 @@ class HistoryListViewModel @Inject constructor(
 			}
 			result += mangaListMapper.toListModel(manga, mode)
 		}
-		if (filters.isNotEmpty() && isEmpty) {
+		if ((filters.isNotEmpty() || groupTab != BrowseGroupTab.All || sourceTags.isNotEmpty()) && isEmpty) {
 			result += getEmptyState(hasFilters = true)
 		}
 		return result

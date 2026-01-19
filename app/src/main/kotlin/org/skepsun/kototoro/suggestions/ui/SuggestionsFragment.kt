@@ -14,6 +14,7 @@ import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.list.ui.MangaListFragment
 
+@dagger.hilt.android.AndroidEntryPoint
 class SuggestionsFragment : MangaListFragment() {
 
 	override val viewModel by viewModels<SuggestionsViewModel>()

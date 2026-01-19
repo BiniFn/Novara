@@ -30,6 +30,9 @@ import org.skepsun.kototoro.remotelist.ui.MangaSearchMenuProvider
 import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
 import org.skepsun.kototoro.settings.storage.RequestStorageManagerPermissionContract
 
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
 class LocalListFragment : MangaListFragment(), FilterCoordinator.Owner {
 
 	private val permissionRequestLauncher = registerForActivityResult(

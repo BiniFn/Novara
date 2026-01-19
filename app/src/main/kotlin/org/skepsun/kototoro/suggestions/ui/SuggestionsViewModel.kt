@@ -27,6 +27,14 @@ import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.list.ui.model.ListModel
 
 @HiltViewModel
 class SuggestionsViewModel @Inject constructor(
@@ -35,9 +43,12 @@ class SuggestionsViewModel @Inject constructor(
 	private val mangaListMapper: MangaListMapper,
 	private val quickFilter: SuggestionsListQuickFilter,
 	private val suggestionsScheduler: SuggestionsWorker.Scheduler,
+	private val sourceGroupManager: SourceGroupManager,
 	mangaDataRepository: MangaDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
 ) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+
+	override val isFilterBarVisible = MutableStateFlow(true)
 
 	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_SUGGESTIONS) { suggestionsListMode }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.suggestionsListMode)
@@ -46,40 +57,63 @@ class SuggestionsViewModel @Inject constructor(
 		quickFilter.appliedOptions.combineWithSettings().flatMapLatest { repository.observeAll(0, it) },
 		quickFilter.appliedOptions,
 		observeListModeWithTriggers(),
-	) { list, filters, mode ->
-		when {
-			list.isEmpty() -> if (filters.isEmpty()) {
-				listOf(
+		selectedGroupTab,
+		selectedSourceTags,
+	) { values: Array<Any?> ->
+		val list = values[0] as List<Manga>
+		val filters = values[1] as Set<ListFilterOption>
+		val mode = values[2] as ListMode
+		val groupTab = values[3] as BrowseGroupTab
+		val sourceTags = values[4] as Set<SourceTag>
+		val filteredList = list.filter { manga ->
+			val source = manga.source
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+
+			val groupMatches = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
+			val originMatches = if (sourceTags.isEmpty()) {
+				true
+			} else {
+				sourceTags.any { it.matches(contentGroup, originGroup) }
+			}
+
+			groupMatches && originMatches
+		}
+
+		val resultList = ArrayList<ListModel>()
+
+		if (filteredList.isEmpty()) {
+			if (filters.isEmpty() && groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
+				resultList.add(
 					EmptyState(
 						icon = R.drawable.ic_empty_common,
 						textPrimary = R.string.nothing_found,
 						textSecondary = R.string.text_suggestion_holder,
 						actionStringRes = 0,
-					),
+					)
 				)
 			} else {
-				listOfNotNull(
-					quickFilter.filterItem(filters),
+				quickFilter.filterItem(filters)?.let { resultList.add(it) }
+				resultList.add(
 					EmptyState(
 						icon = R.drawable.ic_empty_common,
 						textPrimary = R.string.nothing_found,
 						textSecondary = R.string.text_empty_holder_secondary_filtered,
 						actionStringRes = 0,
-					),
+					)
 				)
 			}
-
-			else -> buildList(list.size + 1) {
-				quickFilter.filterItem(filters)?.let(::add)
-				mangaListMapper.toListModelList(this, list, mode)
-			}
+		} else {
+			quickFilter.filterItem(filters)?.let { resultList.add(it) }
+			mangaListMapper.toListModelList(resultList, filteredList, mode)
 		}
+		resultList as List<ListModel>
 	}.onStart {
 		loadingCounter.increment()
 	}.onFirst {
 		loadingCounter.decrement()
 	}.catch {
-		emit(listOf(it.toErrorState(canRetry = false)))
+		emit(listOf<ListModel>(it.toErrorState(canRetry = false)))
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
 	override fun onRefresh() = Unit

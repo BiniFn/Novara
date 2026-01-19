@@ -237,7 +237,7 @@ private fun appendOriginSuffix(context: Context, base: String, originLabel: Stri
 	return "$base$open$originLabel$close"
 }
 
-private fun MangaSource.getOriginLabel(context: Context): String? = when (this) {
+fun MangaSource.getOriginLabel(context: Context): String? = when (this) {
 	is MangaSourceInfo -> mangaSource.getOriginLabel(context)
 	is MangaParserSource -> "内置"
 	is KotatsuParserSource -> "Kotatsu"

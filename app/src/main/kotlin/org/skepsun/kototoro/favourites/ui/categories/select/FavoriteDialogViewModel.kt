@@ -19,6 +19,7 @@ import org.skepsun.kototoro.core.model.ids
 import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
@@ -67,7 +68,13 @@ class FavoriteDialogViewModel @Inject constructor(
 
 	private suspend fun autoAssignSourceCategory(primaryCategoryId: Long, mangas: List<org.skepsun.kototoro.parsers.model.Manga>) {
 		for (m in mangas) {
-			val title = m.source.getTitle(context)
+			val source = m.source
+			val origin = source.getOriginLabel(context)
+			val title = if (origin != null && origin != "内置") {
+				"${source.getTitle(context)} ($origin)"
+			} else {
+				source.getTitle(context)
+			}
 			val target = favouritesRepository.findCategoryByTitle(title)
 				?: favouritesRepository.createCategory(
 					title = title,

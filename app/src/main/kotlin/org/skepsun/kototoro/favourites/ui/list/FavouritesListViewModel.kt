@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -43,6 +44,10 @@ import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.flowOf
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 
 private const val PAGE_SIZE = 16
 
@@ -53,9 +58,11 @@ class FavouritesListViewModel @Inject constructor(
 	private val mangaListMapper: MangaListMapper,
 	private val markAsReadUseCase: MarkAsReadUseCase,
 	quickFilterFactory: FavoritesListQuickFilter.Factory,
+	private val sourceGroupManager: SourceGroupManager,
 	settings: AppSettings,
 	mangaDataRepository: MangaDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener {
 
 	val categoryId: Long = savedStateHandle[AppRouter.KEY_ID] ?: NO_ID
@@ -63,6 +70,23 @@ class FavouritesListViewModel @Inject constructor(
 	private val refreshTrigger = MutableStateFlow(Any())
 	private val limit = MutableStateFlow(if (categoryId == NO_ID) Int.MAX_VALUE else PAGE_SIZE)
 	private val isPaginationReady = AtomicBoolean(false)
+
+	override val isFilterBarVisible = MutableStateFlow(false)
+
+	override val currentSourceTags = globalFavoritesState.selectedSourceTags
+
+	override fun setSelectedSourceTags(tags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
+	}
+
+	override val currentGroupTab = globalFavoritesState.selectedGroupTab
+
+	override fun setSelectedGroupTab(tab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab) {
+		globalFavoritesState.setSelectedGroupTab(tab)
+	}
+
+	override val availableCategories = flowOf(emptyList<FavouriteCategory>())
+		.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
 	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.favoritesListMode)
@@ -82,8 +106,18 @@ class FavouritesListViewModel @Inject constructor(
 		quickFilter.appliedOptions,
 		observeListModeWithTriggers(),
 		refreshTrigger,
-	) { list, filters, mode, _ ->
-		list.mapList(mode, filters)
+		currentGroupTab,
+		currentSourceTags,
+		selectedCategoryIds,
+	) { values: Array<Any?> ->
+		val list = values[0] as List<org.skepsun.kototoro.parsers.model.Manga>
+		val filters = values[1] as Set<ListFilterOption>
+		val mode = values[2] as ListMode
+		// val refreshTrigger = values[3]
+		val groupTab = values[4] as BrowseGroupTab
+		val sourceTags = values[5] as Set<SourceTag>
+		val categoryIds = values[6] as Set<Long>
+		mapList(list, filters, mode, groupTab, sourceTags, categoryIds)
 	}.distinctUntilChanged().onEach {
 		isPaginationReady.set(true)
 	}.catch {
@@ -139,10 +173,39 @@ class FavouritesListViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun List<Manga>.mapList(mode: ListMode, filters: Set<ListFilterOption>): List<ListModel> {
+	private suspend fun mapList(
+		list: List<Manga>,
+		filters: Set<ListFilterOption>,
+		mode: ListMode,
+		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
+		categoryIds: Set<Long>,
+	): List<ListModel> {
+		val filteredList = list.filter { manga ->
+			val source = manga.source
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+
+			val groupMatches = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
+			val originMatches = if (sourceTags.isEmpty()) {
+				true
+			} else {
+				sourceTags.any { it.matches(contentGroup, originGroup) }
+			}
+			
+			val categoryMatches = if (categoryIds.isEmpty()) {
+				true
+			} else {
+				val mangaCategories = repository.getCategoriesIds(manga.id).toSet()
+				categoryIds.any { it in mangaCategories }
+			}
+
+			groupMatches && originMatches && categoryMatches
+		}
+
 		val hideAdult = settings.isNsfwContentDisabled
-		val adultItems = filter { it.isNsfw }
-		val visibleItems = if (hideAdult) filterNot { it.isNsfw } else this
+		val adultItems = filteredList.filter { it.isNsfw }
+		val visibleItems = if (hideAdult) filteredList.filterNot { it.isNsfw } else filteredList
 
 		if (visibleItems.isEmpty()) {
 			val models = mutableListOf<ListModel>()
@@ -158,7 +221,7 @@ class FavouritesListViewModel @Inject constructor(
 				)
 			}
 			models.add(
-				if (filters.isEmpty()) {
+				if (filters.isEmpty() && groupTab == BrowseGroupTab.All && sourceTags.isEmpty() && categoryIds.isEmpty()) {
 					getEmptyState(hasFilters = false)
 				} else {
 					getEmptyState(hasFilters = true)

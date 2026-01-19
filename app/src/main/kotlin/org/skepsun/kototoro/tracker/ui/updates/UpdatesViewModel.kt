@@ -34,6 +34,10 @@ import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 
 @HiltViewModel
 class UpdatesViewModel @Inject constructor(
@@ -41,9 +45,12 @@ class UpdatesViewModel @Inject constructor(
 	settings: AppSettings,
 	private val mangaListMapper: MangaListMapper,
 	private val quickFilter: UpdatesListQuickFilter,
+	private val sourceGroupManager: SourceGroupManager,
 	mangaDataRepository: MangaDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
 ) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+
+	override val isFilterBarVisible = MutableStateFlow(true)
 
 	override val content = combine(
 		quickFilter.appliedOptions.flatMapLatest { filterOptions ->
@@ -55,19 +62,39 @@ class UpdatesViewModel @Inject constructor(
 		quickFilter.appliedOptions,
 		settings.observeAsFlow(AppSettings.KEY_UPDATED_GROUPING) { isUpdatedGroupingEnabled },
 		observeListModeWithTriggers(),
-	) { mangaList, filters, grouping, mode ->
+		selectedGroupTab,
+		selectedSourceTags,
+	) { values: Array<Any?> ->
+		val mangaList = values[0] as List<MangaTracking>
+		val filters = values[1] as Set<ListFilterOption>
+		val grouping = values[2] as Boolean
+		val mode = values[3] as ListMode
+		val groupTab = values[4] as BrowseGroupTab
+		val sourceTags = values[5] as Set<SourceTag>
 		when {
-			mangaList.isEmpty() -> listOfNotNull(
-				quickFilter.filterItem(filters),
-				EmptyState(
-					icon = R.drawable.ic_empty_history,
-					textPrimary = R.string.text_history_holder_primary,
-					textSecondary = R.string.text_history_holder_secondary,
-					actionStringRes = 0,
-				),
-			)
+			mangaList.isEmpty() -> if (filters.isEmpty() && groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
+				listOfNotNull(
+					quickFilter.filterItem(filters),
+					EmptyState(
+						icon = R.drawable.ic_empty_history,
+						textPrimary = R.string.text_history_holder_primary,
+						textSecondary = R.string.text_history_holder_secondary,
+						actionStringRes = 0,
+					),
+				)
+			} else {
+				listOfNotNull(
+					quickFilter.filterItem(filters),
+					EmptyState(
+						icon = R.drawable.ic_empty_history,
+						textPrimary = R.string.nothing_found,
+						textSecondary = R.string.text_empty_holder_secondary_filtered,
+						actionStringRes = 0,
+					),
+				)
+			}
 
-			else -> mangaList.toUi(mode, filters, grouping)
+			else -> mangaList.toUi(mode, filters, grouping, groupTab, sourceTags)
 		}
 	}.onStart {
 		loadingCounter.increment()
@@ -97,11 +124,40 @@ class UpdatesViewModel @Inject constructor(
 		mode: ListMode,
 		filters: Set<ListFilterOption>,
 		grouped: Boolean,
+		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
 	): List<ListModel> {
-		val result = ArrayList<ListModel>(if (grouped) (size * 1.4).toInt() else size + 1)
+		val filteredList = filter { item ->
+			val source = item.manga.source
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+
+			val groupMatches = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
+			val originMatches = if (sourceTags.isEmpty()) {
+				true
+			} else {
+				sourceTags.any { it.matches(contentGroup, originGroup) }
+			}
+
+			groupMatches && originMatches
+		}
+
+		if (filteredList.isEmpty()) {
+			return listOfNotNull(
+				quickFilter.filterItem(filters),
+				EmptyState(
+					icon = R.drawable.ic_empty_history,
+					textPrimary = R.string.nothing_found,
+					textSecondary = R.string.text_empty_holder_secondary_filtered,
+					actionStringRes = 0,
+				),
+			)
+		}
+
+		val result = ArrayList<ListModel>(if (grouped) (filteredList.size * 1.4).toInt() else filteredList.size + 1)
 		quickFilter.filterItem(filters)?.let(result::add)
 		var prevHeader: DateTimeAgo? = null
-		for (item in this) {
+		for (item in filteredList) {
 			if (grouped) {
 				val header = item.lastChapterDate?.let { calculateTimeAgo(it) }
 				if (header != prevHeader) {

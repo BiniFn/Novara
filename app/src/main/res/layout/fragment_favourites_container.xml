@@ -7,6 +7,52 @@
 	android:layout_height="match_parent"
 	android:orientation="vertical">
 
+	<HorizontalScrollView
+		android:id="@+id/filterScrollView"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:paddingHorizontal="@dimen/list_spacing_normal"
+		android:paddingTop="8dp"
+		android:paddingBottom="12dp"
+		android:scrollbars="none"
+		android:fillViewport="true">
+
+		<LinearLayout
+			android:id="@+id/filterChipsContainer"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:gravity="center"
+			android:orientation="horizontal">
+
+			<com.google.android.material.chip.ChipGroup
+				android:id="@+id/chipGroupContentType"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				app:chipSpacingHorizontal="8dp"
+				app:singleLine="true"
+				app:singleSelection="true"
+				app:selectionRequired="false" />
+
+			<View
+				android:id="@+id/filterSeparator"
+				android:layout_width="1dp"
+				android:layout_height="20dp"
+				android:layout_marginHorizontal="12dp"
+				android:background="?attr/colorOutlineVariant"
+				android:alpha="0.2" />
+
+			<com.google.android.material.chip.ChipGroup
+				android:id="@+id/chipGroupSourceTag"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				app:chipSpacingHorizontal="8dp"
+				app:singleLine="true"
+				app:singleSelection="true"
+				app:selectionRequired="false" />
+
+		</LinearLayout>
+	</HorizontalScrollView>
+
 	<com.google.android.material.tabs.TabLayout
 		android:id="@+id/tabs"
 		android:layout_width="match_parent"

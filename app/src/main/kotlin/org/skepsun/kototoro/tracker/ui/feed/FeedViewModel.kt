@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -51,10 +54,15 @@ class FeedViewModel @Inject constructor(
 	private val scheduler: TrackWorker.Scheduler,
 	private val mangaListMapper: MangaListMapper,
 	private val quickFilter: UpdatesListQuickFilter,
+	private val sourceGroupManager: SourceGroupManager,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : BaseViewModel(), QuickFilterListener by quickFilter {
 
 	private val limit = MutableStateFlow(PAGE_SIZE)
 	private val isReady = AtomicBoolean(false)
+
+	val currentGroupTab = globalFavoritesState.selectedGroupTab
+	val currentSourceTags = globalFavoritesState.selectedSourceTags
 
 	val isRunning = scheduler.observeIsRunning()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, false)
@@ -73,13 +81,23 @@ class FeedViewModel @Inject constructor(
 		quickFilter.appliedOptions,
 		combine(limit, quickFilter.appliedOptions.combineWithSettings(), ::Pair)
 			.flatMapLatest { repository.observeTrackingLog(it.first, it.second) },
-	) { header, filters, list ->
-		val result = ArrayList<ListModel>((list.size * 1.4).toInt().coerceAtLeast(3))
+		currentGroupTab,
+		currentSourceTags,
+	) { header, filters, list, groupTab, sourceTags ->
+		val filteredList = list.filter { item ->
+			val contentGroup = sourceGroupManager.getContentGroup(item.manga.source)
+			val originGroup = sourceGroupManager.getOriginGroup(item.manga.source)
+			
+			groupTab.matchesContentGroup(contentGroup) &&
+				(sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) })
+		}
+
+		val result = ArrayList<ListModel>((filteredList.size * 1.4).toInt().coerceAtLeast(3))
 		quickFilter.filterItem(filters)?.let(result::add)
 		if (header != null) {
 			result += header
 		}
-		if (list.isEmpty()) {
+		if (filteredList.isEmpty()) {
 			result += EmptyState(
 				icon = R.drawable.ic_empty_feed,
 				textPrimary = R.string.text_empty_holder_primary,
@@ -88,7 +106,7 @@ class FeedViewModel @Inject constructor(
 			)
 		} else {
 			isReady.set(true)
-			list.mapListTo(result)
+			filteredList.mapListTo(result)
 		}
 		result as List<ListModel>
 	}.catch { e ->
@@ -131,6 +149,14 @@ class FeedViewModel @Inject constructor(
 		}
 	}
 
+	fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		globalFavoritesState.setSelectedGroupTab(tab)
+	}
+
+	fun toggleSourceTag(tag: SourceTag) {
+		globalFavoritesState.toggleSourceTag(tag)
+	}
+
 	private suspend fun List<TrackingLogItem>.mapListTo(destination: MutableList<ListModel>) {
 		var prevDate: DateTimeAgo? = null
 		for (item in this) {
@@ -147,16 +173,29 @@ class FeedViewModel @Inject constructor(
 		}
 	}
 
-	private fun observeHeader() = isHeaderEnabled.flatMapLatest { hasHeader ->
+	private fun observeHeader() = combine(
+		isHeaderEnabled,
+		currentGroupTab,
+		currentSourceTags,
+	) { hasHeader, groupTab, sourceTags ->
+		Triple(hasHeader, groupTab, sourceTags)
+	}.flatMapLatest { (hasHeader, groupTab, sourceTags) ->
 		if (hasHeader) {
 			quickFilter.appliedOptions.combineWithSettings().flatMapLatest {
 				repository.observeUpdatedManga(10, it)
 			}.map { mangaList ->
-				if (mangaList.isEmpty()) {
+				val filteredMangaList = mangaList.filter { item ->
+					val contentGroup = sourceGroupManager.getContentGroup(item.manga.source)
+					val originGroup = sourceGroupManager.getOriginGroup(item.manga.source)
+					
+					groupTab.matchesContentGroup(contentGroup) &&
+						(sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) })
+				}
+				if (filteredMangaList.isEmpty()) {
 					null
 				} else {
 					UpdatedMangaHeader(
-						mangaList.map { mangaListMapper.toListModel(it.manga, ListMode.GRID) },
+						filteredMangaList.map { mangaListMapper.toListModel(it.manga, ListMode.GRID) },
 					)
 				}
 			}

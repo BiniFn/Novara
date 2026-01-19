@@ -133,7 +133,7 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
             }
 
             R.id.action_filter -> {
-                onFilterClick(null)
+                onFilterClick(null as View?)
                 true
             }
 
