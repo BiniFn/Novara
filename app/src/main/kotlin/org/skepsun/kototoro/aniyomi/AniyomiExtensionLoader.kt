@@ -59,29 +59,34 @@ class AniyomiExtensionLoader @Inject constructor(
      * Load all installed Aniyomi extensions.
      */
     suspend fun loadExtensions(context: Context): List<AniyomiLoadResult> = withContext(Dispatchers.IO) {
-        // Ensure Injekt is initialized before loading any extensions
-        injektBridge.get().initialize()
-        
-        val pkgManager = context.packageManager
-        
-        // Get all installed packages
-        val installedPkgs = getInstalledPackages(pkgManager)
-        android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
-        
-        // Filter to only extension packages
-        val extPkgs = installedPkgs.filter { isPackageAnExtension(it) }
-        
-        if (extPkgs.isEmpty()) {
-            android.util.Log.d(TAG, "No Aniyomi extensions found")
-            return@withContext emptyList()
+        try {
+            // Ensure Injekt is initialized before loading any extensions
+            injektBridge.get().initialize()
+            
+            val pkgManager = context.packageManager
+            
+            // Get all installed packages
+            val installedPkgs = getInstalledPackages(pkgManager)
+            android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
+            
+            // Filter to only extension packages
+            val extPkgs = installedPkgs.filter { isPackageAnExtension(it) }
+            
+            if (extPkgs.isEmpty()) {
+                android.util.Log.d(TAG, "No Aniyomi extensions found")
+                return@withContext emptyList()
+            }
+            
+            android.util.Log.d(TAG, "Found ${extPkgs.size} Aniyomi extension(s)")
+            
+            // Load extensions in parallel
+            extPkgs.map { pkgInfo ->
+                async { loadExtension(context, pkgInfo) }
+            }.awaitAll()
+        } catch (e: Throwable) {
+            android.util.Log.e(TAG, "Failed to load Aniyomi extensions", e)
+            emptyList()
         }
-        
-        android.util.Log.d(TAG, "Found ${extPkgs.size} Aniyomi extension(s)")
-        
-        // Load extensions in parallel
-        extPkgs.map { pkgInfo ->
-            async { loadExtension(context, pkgInfo) }
-        }.awaitAll()
     }
     
     /**

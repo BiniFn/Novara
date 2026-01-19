@@ -81,27 +81,51 @@ open class BaseApp : Application(), Configuration.Provider {
 
 	override fun onCreate() {
 		super.onCreate()
-		OkHttp.initialize(this)
+		try {
+			OkHttp.initialize(this)
+		} catch (e: Throwable) {
+			// Ignore initialization errors
+		}
 		if (ACRA.isACRASenderServiceProcess()) {
 			return
 		}
 		AppCompatDelegate.setDefaultNightMode(settings.theme)
 		// TLS 1.3 support for Android < 10
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-			Security.insertProviderAt(Conscrypt.newProvider(), 1)
+			try {
+				Security.insertProviderAt(Conscrypt.newProvider(), 1)
+			} catch (e: Throwable) {
+				// Ignore
+			}
 		}
 		setupActivityLifecycleCallbacks()
 		processLifecycleScope.launch {
-			ACRA.errorReporter.putCustomData("isOriginalApp", appValidator.isOriginalApp.getOrNull().toString())
-			ACRA.errorReporter.putCustomData("isMiui", RomCompat.isMiui.getOrNull().toString())
+			runCatching {
+				ACRA.errorReporter.putCustomData("isOriginalApp", appValidator.isOriginalApp.getOrNull().toString())
+				ACRA.errorReporter.putCustomData("isMiui", RomCompat.isMiui.getOrNull().toString())
+			}
 		}
 		processLifecycleScope.launch(Dispatchers.Default) {
-			setupDatabaseObservers()
-			localStorageChanges.collect(localMangaIndexProvider.get())
+			runCatching {
+				setupDatabaseObservers()
+				localStorageChanges.collect(localMangaIndexProvider.get())
+			}
 		}
-		workScheduleManager.init()
-		mihonExtensionManager.initialize()
-		aniyomiExtensionManager.initialize()
+		try {
+			workScheduleManager.init()
+		} catch (e: Throwable) {
+			e.printStackTrace()
+		}
+		try {
+			mihonExtensionManager.initialize()
+		} catch (e: Throwable) {
+			e.printStackTrace()
+		}
+		try {
+			aniyomiExtensionManager.initialize()
+		} catch (e: Throwable) {
+			e.printStackTrace()
+		}
 	}
 
 	override fun attachBaseContext(base: Context) {

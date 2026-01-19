@@ -62,35 +62,40 @@ class MihonExtensionLoader @Inject constructor(
      * @return List of load results (success, error, or untrusted)
      */
     suspend fun loadExtensions(context: Context): List<MihonLoadResult> = withContext(Dispatchers.IO) {
-        // Ensure Injekt is initialized before loading any extensions
-        injektBridge.get().initialize()
-        
-        val pkgManager = context.packageManager
-        
-        // Get all installed packages
-        val installedPkgs = getInstalledPackages(pkgManager)
-        android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
-        
-        // Filter to only extension packages
-        val extPkgs = installedPkgs.filter { pkg ->
-            val isExt = isPackageAnExtension(pkg)
-            if (pkg.packageName.contains("coomer", ignoreCase = true)) {
-                android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
+        try {
+            // Ensure Injekt is initialized before loading any extensions
+            injektBridge.get().initialize()
+            
+            val pkgManager = context.packageManager
+            
+            // Get all installed packages
+            val installedPkgs = getInstalledPackages(pkgManager)
+            android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
+            
+            // Filter to only extension packages
+            val extPkgs = installedPkgs.filter { pkg ->
+                val isExt = isPackageAnExtension(pkg)
+                if (pkg.packageName.contains("coomer", ignoreCase = true)) {
+                    android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
+                }
+                isExt
             }
-            isExt
+            
+            if (extPkgs.isEmpty()) {
+                android.util.Log.d(TAG, "No Mihon extensions found")
+                return@withContext emptyList()
+            }
+            
+            android.util.Log.d(TAG, "Found ${extPkgs.size} Mihon extension(s)")
+            
+            // Load extensions in parallel
+            extPkgs.map { pkgInfo ->
+                async { loadExtension(context, pkgInfo) }
+            }.awaitAll()
+        } catch (e: Throwable) {
+            android.util.Log.e(TAG, "Failed to load extensions", e)
+            emptyList()
         }
-        
-        if (extPkgs.isEmpty()) {
-            android.util.Log.d(TAG, "No Mihon extensions found")
-            return@withContext emptyList()
-        }
-        
-        android.util.Log.d(TAG, "Found ${extPkgs.size} Mihon extension(s)")
-        
-        // Load extensions in parallel
-        extPkgs.map { pkgInfo ->
-            async { loadExtension(context, pkgInfo) }
-        }.awaitAll()
     }
     
     /**
