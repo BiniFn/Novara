@@ -34,8 +34,8 @@ class MangaBackup(
 		rating = entity.manga.rating,
 		isNsfw = entity.manga.isNsfw,
 		contentRating = entity.manga.contentRating,
-		coverUrl = entity.manga.coverUrl,
-		largeCoverUrl = entity.manga.largeCoverUrl,
+		coverUrl = sanitizeCoverUrl(entity.manga.coverUrl),
+		largeCoverUrl = sanitizeLargeCoverUrl(entity.manga.largeCoverUrl),
 		state = entity.manga.state,
 		authors = entity.manga.authors,
 		source = entity.manga.source,
@@ -57,4 +57,20 @@ class MangaBackup(
 		authors = authors,
 		source = source,
 	)
+	companion object {
+		private fun sanitizeCoverUrl(url: String): String {
+			if (url.startsWith("data:", ignoreCase = true)) {
+				return ""
+			}
+			return url
+		}
+
+		private fun sanitizeLargeCoverUrl(url: String?): String? {
+			if (url.isNullOrBlank()) return null
+			if (url.startsWith("data:", ignoreCase = true)) {
+				return null
+			}
+			return url
+		}
+	}
 }

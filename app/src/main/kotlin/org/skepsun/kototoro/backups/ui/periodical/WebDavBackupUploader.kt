@@ -1,11 +1,13 @@
 package org.skepsun.kototoro.backups.ui.periodical
 
+import android.util.Log
 import androidx.annotation.CheckResult
 import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.Response
 import org.skepsun.kototoro.core.network.BaseHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.parsers.util.await
@@ -31,6 +33,10 @@ class WebDavBackupUploader @Inject constructor(
     private val settings: AppSettings,
     @BaseHttpClient private val client: OkHttpClient,
 ) {
+
+    companion object {
+        private const val TAG = "WebDavBackupUploader"
+    }
 
 	private fun requireServerUrl(): String = checkNotNull(settings.backupWebDavServerUrl) {
 		"WebDAV server URL not set in settings"
@@ -77,8 +83,14 @@ class WebDavBackupUploader @Inject constructor(
             if (!resp.isSuccessful) {
                 val code = resp.code
                 val msg = resp.message
+                val detail = responseBodyPreview(resp)
+                Log.e(TAG, "WebDAV upload failed: $code $msg. Response: ${detail ?: "<empty>"}")
                 resp.close()
-                throw RuntimeException("WebDAV upload failed: $code $msg")
+                if (detail.isNullOrBlank()) {
+                    throw RuntimeException("WebDAV upload failed: $code $msg")
+                } else {
+                    throw RuntimeException("WebDAV upload failed: $code $msg. Response: $detail")
+                }
             }
             resp.close()
         }
@@ -244,6 +256,12 @@ class WebDavBackupUploader @Inject constructor(
 			Date(0)
 	}
 
+    }
+
+    private fun responseBodyPreview(resp: Response, maxLen: Int = 1024): String? {
+        val raw = runCatching { resp.body?.string() }.getOrNull()?.trim().orEmpty()
+        if (raw.isEmpty()) return null
+        return if (raw.length <= maxLen) raw else raw.take(maxLen) + "..."
     }
 
     private fun parseDataVersion(fileName: String): Int? {
