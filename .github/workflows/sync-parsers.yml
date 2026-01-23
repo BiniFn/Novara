@@ -31,21 +31,20 @@ jobs:
           commit_message: ${{ steps.update_parsers.outputs.commit_message }}
           file_pattern: |
             gradle/libs.versions.toml
-            app/build.gradle
 
-      - name: Create tag
-        if: steps.update_parsers.outputs.updated == 'true' && steps.update_parsers.outputs.tag != ''
-        env:
-          TAG_NAME: ${{ steps.update_parsers.outputs.tag }}
-        run: |
-          # Delete local tag if it exists (from a previous failed run)
-          git tag -d "${TAG_NAME}" 2>/dev/null || true
-          git tag "${TAG_NAME}"
-          git push origin "${TAG_NAME}"
+      # - name: Create tag
+      #   if: steps.update_parsers.outputs.updated == 'true' && steps.update_parsers.outputs.tag != ''
+      #   env:
+      #     TAG_NAME: ${{ steps.update_parsers.outputs.tag }}
+      #   run: |
+      #     # Delete local tag if it exists (from a previous failed run)
+      #     git tag -d "${TAG_NAME}" 2>/dev/null || true
+      #     git tag "${TAG_NAME}"
+      #     git push origin "${TAG_NAME}"
 
-      - name: Trigger release workflow
-        if: steps.update_parsers.outputs.updated == 'true' && steps.update_parsers.outputs.tag != ''
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          event-type: trigger-release
-          client-payload: '{"tag": "${{ steps.update_parsers.outputs.tag }}"}'
+      # - name: Trigger release workflow
+      #   if: steps.update_parsers.outputs.updated == 'true' && steps.update_parsers.outputs.tag != ''
+      #   uses: peter-evans/repository-dispatch@v3
+      #   with:
+      #     event-type: trigger-release
+      #     client-payload: '{"tag": "${{ steps.update_parsers.outputs.tag }}"}'
