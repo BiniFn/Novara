@@ -233,8 +233,8 @@ class MangaListActivity :
     }
 
     private fun adjustLayoutForFoldableState() {
-        // 仅折叠屏展开状态下，如果当前布局缺少侧栏容器则重建以切换到双栏资源
-        if (isFoldUnfolded && viewBinding.containerSide == null) {
+        // 仅在折叠屏展开且窗口满足双栏宽度时重建，避免分屏窄窗口反复重建
+        if (isFoldUnfolded && viewBinding.containerSide == null && FoldableUtils.shouldUseTwoPaneLayout(this)) {
             recreate()
         }
     }

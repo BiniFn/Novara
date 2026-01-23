@@ -55,4 +55,13 @@ object FoldableUtils {
             android.content.res.Configuration.ORIENTATION_LANDSCAPE
         return isLandscape || isFoldUnfolded
     }
+
+    /**
+     * 判断当前窗口是否满足双栏布局的最小宽度
+     */
+    fun shouldUseTwoPaneLayout(activity: Activity, minWidthDp: Int = 600): Boolean {
+        val config = activity.resources.configuration
+        val minWindowDp = minOf(config.screenWidthDp, config.screenHeightDp)
+        return minWindowDp >= minWidthDp
+    }
 }

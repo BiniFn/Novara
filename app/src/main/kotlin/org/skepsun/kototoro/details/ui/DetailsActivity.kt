@@ -572,8 +572,8 @@ class DetailsActivity :
 	 * 根据折叠屏状态调整布局
 	 */
     private fun adjustLayoutForFoldableState() {
-        // 仅折叠屏展开状态下，如果当前布局缺少侧栏容器则重建以切换到双栏资源
-        if (isFoldUnfolded && viewBinding.cardChapters == null) {
+        // 仅在折叠屏展开且窗口满足双栏宽度时重建，避免分屏窄窗口反复重建
+        if (isFoldUnfolded && viewBinding.cardChapters == null && FoldableUtils.shouldUseTwoPaneLayout(this)) {
             recreate()
             return
         }

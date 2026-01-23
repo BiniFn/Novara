@@ -219,8 +219,8 @@ class SettingsActivity :
         // 设置页不改变屏幕方向，仅保持默认方向
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
-        // 仅折叠屏展开状态下，如果当前布局缺少主从容器则重建以切换到双栏资源
-        if (isFoldUnfolded && viewBinding.containerMaster == null) {
+        // 仅在折叠屏展开且窗口满足双栏宽度时重建，避免分屏窄窗口反复重建
+        if (isFoldUnfolded && viewBinding.containerMaster == null && FoldableUtils.shouldUseTwoPaneLayout(this)) {
             recreate()
             return
         }
