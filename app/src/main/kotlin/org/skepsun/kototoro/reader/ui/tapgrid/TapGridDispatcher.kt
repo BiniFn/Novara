@@ -42,7 +42,7 @@ class TapGridDispatcher(
 	override fun onLongPress(event: MotionEvent) {
 		if (isDispatching) {
 			val area = getArea(event.rawX, event.rawY) ?: return
-			listener.onGridLongTouch(area)
+			listener.onGridLongTouch(area, event)
 		}
 	}
 
@@ -86,7 +86,7 @@ class TapGridDispatcher(
 
 		fun onGridTouch(area: TapGridArea): Boolean
 
-		fun onGridLongTouch(area: TapGridArea)
+		fun onGridLongTouch(area: TapGridArea, event: MotionEvent)
 
 		fun onProcessTouch(rawX: Int, rawY: Int): Boolean
 	}
