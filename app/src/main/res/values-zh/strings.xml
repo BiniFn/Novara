@@ -18,7 +18,7 @@
     <string name="webdav_password">WebDAV 密码</string>
     <string name="webdav_remote_path">远端路径</string>
 <string name="webdav_auto_restore">启动时自动恢复</string>
-<string name="webdav_auto_restore_summary">应用启动时仅检查一次并恢复 WebDAV 上最新备份；恢复完成后仅在内容不一致时可能上传一次以保持远端同步</string>
+<string name="webdav_auto_restore_summary">应用每天首次启动时检查并恢复 WebDAV 上最新备份；恢复完成后仅在内容不一致时可能上传一次以保持远端同步</string>
     <string name="webdav_upload_now">立即上传备份</string>
     <string name="webdav_restore_now">恢复最新备份</string>
 
@@ -36,7 +36,7 @@
 
     <!-- 新增：自动同步到 WebDAV（自动上传） -->
     <string name="webdav_auto_sync">自动同步到 WebDAV</string>
-<string name="webdav_auto_sync_summary">仅在非计量网络下，监听历史/收藏等变更并在短暂聚合后自动上传到 WebDAV；触发间隔至少 3 小时。</string>
+<string name="webdav_auto_sync_summary">仅在非计量网络下，监听历史/收藏等变更并在短暂聚合后自动上传到 WebDAV；触发间隔至少 12 小时。</string>
 
     <string name="backup_periodic_explain_keep_local_copy_off">关闭“保留本地副本”时，周期性任务仅上传到远端；“最近本地备份时间”可能为空</string>
     <string name="backup_periodic_last_local_empty">已关闭保留本地副本；无本地备份时间</string>

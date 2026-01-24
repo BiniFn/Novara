@@ -14,6 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.data.BackupRepository
@@ -56,6 +59,15 @@ class WebDavAutoRestoreService : Service() {
 			settings.backupWebDavUsername.isNullOrBlank() ||
 			settings.backupWebDavPassword.isNullOrBlank()
 		) {
+			stopSelf()
+			return START_NOT_STICKY
+		}
+
+		// 检查策略：仅当每天第一次启动时执行（比较日期）
+		val lastCheck = settings.backupWebDavLastAutoRestoreCheckTime
+		val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+		if (lastCheck > 0 && df.format(Date(lastCheck)) == df.format(Date())) {
+			Log.d(TAG, "Auto restore check already performed today; skipping")
 			stopSelf()
 			return START_NOT_STICKY
 		}
