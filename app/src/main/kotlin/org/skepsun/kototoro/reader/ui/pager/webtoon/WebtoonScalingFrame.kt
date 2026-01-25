@@ -56,11 +56,13 @@ class WebtoonScalingFrame @JvmOverloads constructor(
 	private var animator: ValueAnimator? = null
 	private var pendingScroll = 0
 
+	var defaultScale: Float = 1f
+
 	var isZoomEnable = false
 		set(value) {
 			field = value
-			if (scale != 1f) {
-				scaleChild(1f, halfWidth, halfHeight)
+			if (scale != defaultScale) {
+				scaleChild(defaultScale, halfWidth, halfHeight)
 			}
 		}
 
@@ -135,7 +137,7 @@ class WebtoonScalingFrame @JvmOverloads constructor(
 			}
 
 			KeyEvent.KEYCODE_ESCAPE -> {
-				smoothScaleTo(1f)
+				smoothScaleTo(defaultScale)
 				true
 			}
 
@@ -307,7 +309,7 @@ class WebtoonScalingFrame @JvmOverloads constructor(
 		}
 
 		override fun onDoubleTap(e: MotionEvent): Boolean {
-			val newScale = if (scale != 1f) 1f else MAX_SCALE * 0.8f
+			val newScale = if (scale != defaultScale) defaultScale else MAX_SCALE * 0.8f
 			ValueAnimator.ofFloat(scale, newScale).run {
 				interpolator = AccelerateDecelerateInterpolator()
 				duration = context.getAnimationDuration(R.integer.config_defaultAnimTime)
