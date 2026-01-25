@@ -53,6 +53,17 @@ class WebDavAutoRestoreService : Service() {
 	override fun onBind(intent: Intent?): IBinder? = null
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+		// 创建前台服务通知
+		val notification = NotificationCompat.Builder(this, BaseBackupRestoreService.CHANNEL_ID)
+			.setContentTitle(getString(R.string.webdav_auto_restore))
+			.setContentText(getString(R.string.checking_for_backups))
+			.setSmallIcon(R.drawable.ic_backup_restore)
+			.setOngoing(true)
+			.setSilent(true)
+			.build()
+
+		startForeground(NOTIFICATION_ID, notification)
+
 		// 遵循开关并校验 WebDAV 配置有效性，避免错误
 		if (!settings.isBackupWebDavAutoRestoreEnabled ||
 			settings.backupWebDavServerUrl.isNullOrBlank() ||
@@ -71,17 +82,6 @@ class WebDavAutoRestoreService : Service() {
 			stopSelf()
 			return START_NOT_STICKY
 		}
-
-		// 创建前台服务通知
-		val notification = NotificationCompat.Builder(this, BaseBackupRestoreService.CHANNEL_ID)
-			.setContentTitle(getString(R.string.webdav_auto_restore))
-			.setContentText(getString(R.string.checking_for_backups))
-			.setSmallIcon(R.drawable.ic_backup_restore)
-			.setOngoing(true)
-			.setSilent(true)
-			.build()
-
-		startForeground(NOTIFICATION_ID, notification)
 
 		serviceScope.launch {
 			try {
