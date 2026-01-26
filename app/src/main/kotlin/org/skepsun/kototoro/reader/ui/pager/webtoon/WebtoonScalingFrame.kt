@@ -26,6 +26,7 @@ import kotlin.math.roundToInt
 
 private const val MAX_SCALE = 2.5f
 private const val MIN_SCALE = 0.5f
+private const val SCALE_TOLERANCE = 0.001f
 
 private const val FLING_RANGE = 20_000
 
@@ -61,7 +62,7 @@ class WebtoonScalingFrame @JvmOverloads constructor(
 	var isZoomEnable = false
 		set(value) {
 			field = value
-			if (scale != defaultScale) {
+			if (kotlin.math.abs(scale - defaultScale) > SCALE_TOLERANCE) {
 				scaleChild(defaultScale, halfWidth, halfHeight)
 			}
 		}
@@ -309,7 +310,7 @@ class WebtoonScalingFrame @JvmOverloads constructor(
 		}
 
 		override fun onDoubleTap(e: MotionEvent): Boolean {
-			val newScale = if (scale != defaultScale) defaultScale else MAX_SCALE * 0.8f
+			val newScale = if (kotlin.math.abs(scale - defaultScale) > SCALE_TOLERANCE) defaultScale else MAX_SCALE * 0.8f
 			ValueAnimator.ofFloat(scale, newScale).run {
 				interpolator = AccelerateDecelerateInterpolator()
 				duration = context.getAnimationDuration(R.integer.config_defaultAnimTime)
