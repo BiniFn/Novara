@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.ui.pager.webtoon
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -143,6 +144,7 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 			val position = pages.indexOfFirst {
 				it.chapterId == pendingState.chapterId && it.index == pendingState.page
 			}
+			Log.d(LOG_TAG, "webtoon.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position")
 			setItems.join()
 			if (position != -1) {
 				with(requireViewBinding().recyclerView) {
@@ -192,6 +194,7 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 	}
 
 	override fun switchPageTo(position: Int, smooth: Boolean) {
+		Log.d(LOG_TAG, "webtoon.switchPageTo: position=$position, smooth=$smooth")
 		requireViewBinding().recyclerView.firstVisibleItemPosition = position
 	}
 
@@ -274,5 +277,9 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 		} else {
 			this.text = text
 		}
+	}
+
+	companion object {
+		private const val LOG_TAG = "ReaderDebug"
 	}
 }

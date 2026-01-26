@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.ui.pager
 
 import android.os.Build
+import android.util.Log
 import android.os.Bundle
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -126,6 +127,7 @@ abstract class BasePagerReaderFragment : BaseReaderFragment<FragmentReaderPagerB
 			val position = pages.indexOfFirst {
 				it.chapterId == pendingState.chapterId && it.index == pendingState.page
 			}
+			Log.d(LOG_TAG, "pager.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position")
 			items.join()
 			if (position != -1) {
 				requireViewBinding().pager.setCurrentItem(position, false)
@@ -154,6 +156,7 @@ abstract class BasePagerReaderFragment : BaseReaderFragment<FragmentReaderPagerB
 	}
 
 	override fun switchPageTo(position: Int, smooth: Boolean) {
+		Log.d(LOG_TAG, "pager.switchPageTo: position=$position, smooth=$smooth")
 		with(requireViewBinding().pager) {
 			setCurrentItem(
 				position,
@@ -189,5 +192,6 @@ abstract class BasePagerReaderFragment : BaseReaderFragment<FragmentReaderPagerB
 	companion object {
 
 		const val SMOOTH_SCROLL_LIMIT = 3
+		private const val LOG_TAG = "ReaderDebug"
 	}
 }
