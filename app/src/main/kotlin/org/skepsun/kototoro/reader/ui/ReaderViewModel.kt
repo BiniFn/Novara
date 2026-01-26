@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.ui
 
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
@@ -75,6 +76,7 @@ import javax.inject.Inject
 
 private const val BOUNDS_PAGE_OFFSET = 2
 private const val PREFETCH_LIMIT = 10
+private const val LOG_TAG = "ReaderViewModel"
 
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -355,17 +357,39 @@ class ReaderViewModel @Inject constructor(
         targetPagePosition.value = null
         stateChangeJob = launchJob(Dispatchers.Default) {
             prevJob?.cancelAndJoin()
-            loadingJob?.join()
-            if (pages.size != content.value.pages.size) {
-                return@launchJob // TODO
-            }
             val centerPos = (lowerPos + upperPos) / 2
-            pages.getOrNull(centerPos)?.let { page ->
+            val selectedPos = if (lowerPos >= 0 && upperPos >= 0 && pages.isNotEmpty()) {
+                val lastIndex = pages.lastIndex
+                val safeLower = lowerPos.coerceIn(0, lastIndex)
+                val safeUpper = upperPos.coerceIn(0, lastIndex)
+                when {
+                    safeUpper >= lastIndex - BOUNDS_PAGE_OFFSET -> safeUpper
+                    safeLower <= BOUNDS_PAGE_OFFSET -> safeLower
+                    else -> (safeLower + safeUpper) / 2
+                }
+            } else {
+                centerPos
+            }
+            Log.d(
+                LOG_TAG,
+                "onCurrentPageChanged: lower=$lowerPos, upper=$upperPos, selected=$selectedPos, " +
+                    "pages=${pages.size}, skipBoundary=${skipBoundaryLoadOnce.get()}",
+            )
+            pages.getOrNull(selectedPos)?.let { page ->
                 readingState.update { cs ->
                     cs?.copy(chapterId = page.chapterId, page = page.index)
                 }
             }
             notifyStateChanged()
+            val currentLoadingJob = loadingJob
+            if (currentLoadingJob?.isActive == true) {
+                Log.d(LOG_TAG, "onCurrentPageChanged: loading active, skip boundary check")
+                return@launchJob
+            }
+            currentLoadingJob?.join()
+            if (pages.size != content.value.pages.size) {
+                return@launchJob // TODO
+            }
             if (pages.isEmpty() || loadingJob?.isActive == true) {
                 return@launchJob
             }
@@ -376,9 +400,19 @@ class ReaderViewModel @Inject constructor(
             val autoLoadAllowed = readerMode.value != ReaderMode.WEBTOON || !isWebtoonPullGestureEnabled.value
             if (autoLoadAllowed) {
                 if (upperPos >= pages.lastIndex - BOUNDS_PAGE_OFFSET) {
+                    Log.d(
+                        LOG_TAG,
+                        "preload: trigger next, chapterId=${pages.last().chapterId}, " +
+                            "upper=$upperPos, lastIndex=${pages.lastIndex}",
+                    )
                     loadPrevNextChapter(pages.last().chapterId, isNext = true)
                 }
                 if (lowerPos <= BOUNDS_PAGE_OFFSET) {
+                    Log.d(
+                        LOG_TAG,
+                        "preload: trigger prev, chapterId=${pages.first().chapterId}, " +
+                            "lower=$lowerPos",
+                    )
                     loadPrevNextChapter(pages.first().chapterId, isNext = false)
                 }
             }
@@ -527,6 +561,7 @@ class ReaderViewModel @Inject constructor(
         val prevJob = loadingJob
         loadingJob = launchLoadingJob(Dispatchers.Default) {
             prevJob?.join()
+            Log.d(LOG_TAG, "loadPrevNextChapter: currentId=$currentId, isNext=$isNext")
             chaptersLoader.loadPrevNextChapter(mangaDetails.requireValue(), currentId, isNext)
             content.value = ReaderContent(chaptersLoader.snapshot(), null)
         }

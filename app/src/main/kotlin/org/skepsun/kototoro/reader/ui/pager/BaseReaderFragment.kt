@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.ui.pager
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.activityViewModels
@@ -52,6 +53,11 @@ abstract class BaseReaderFragment<B : ViewBinding> : BaseFragment<B>(), ZoomCont
 			// Otherwise, use content.state (normal flow, mode switch, chapter change)
 			else -> it.state
 		}
+			Log.d(
+				LOG_TAG,
+				"onContent: pages=${it.pages.size}, contentState=${it.state}, " +
+					"currentState=$currentState, pendingState=$pendingState",
+			)
 			onPagesChanged(it.pages, pendingState)
 		}
 	}
@@ -88,4 +94,8 @@ abstract class BaseReaderFragment<B : ViewBinding> : BaseFragment<B>(), ZoomCont
 	protected abstract fun onCreateAdapter(): BaseReaderAdapter<*>
 
 	protected abstract suspend fun onPagesChanged(pages: List<ReaderPage>, pendingState: ReaderState?)
+
+	companion object {
+		private const val LOG_TAG = "ReaderDebug"
+	}
 }

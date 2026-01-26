@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.ui.pager.doublepage
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -92,6 +93,10 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 			var position = pages.indexOfFirst {
 				it.chapterId == pendingState.chapterId && it.index == pendingState.page
 			}
+			Log.d(
+				LOG_TAG,
+				"double.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position",
+			)
 			items.join()
 			if (position != -1) {
 				position = position.toPagePosition()
@@ -105,6 +110,10 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 			items.join()
 			// 预加载完成后：恢复到之前保存的精确位置
 			if (savedPosition != RecyclerView.NO_POSITION) {
+				Log.d(
+					LOG_TAG,
+					"double.restorePosition: pos=$savedPosition, offset=$savedOffset, pages=${pages.size}",
+				)
 				(viewBinding?.recyclerView?.layoutManager as? LinearLayoutManager)
 					?.scrollToPositionWithOffset(savedPosition, savedOffset)
 			}
@@ -140,6 +149,7 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 	}
 
 	override fun switchPageTo(position: Int, smooth: Boolean) {
+		Log.d(LOG_TAG, "double.switchPageTo: position=$position, smooth=$smooth")
 		val lm = viewBinding?.recyclerView?.layoutManager as? LinearLayoutManager ?: return
 		val targetPosition = position.toPagePosition()
 		lm.scrollToPositionWithOffset(targetPosition, 0)
@@ -185,5 +195,9 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 				notifyPageChanged(newFirstPos, newLastPos)
 			}
 		}
+	}
+
+	companion object {
+		private const val LOG_TAG = "ReaderDebug"
 	}
 }

@@ -395,10 +395,6 @@ class ReaderActivity :
 
     private fun applyDoubleModeAuto(manualEnabled: Boolean? = null) {
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        // Auto double-page on foldable when device is unfolded (half-opened or flat)
-        val autoFoldable = settings.isReaderDoubleOnFoldable && isFoldUnfolded
-        val manualLandscape = (manualEnabled ?: settings.isReaderDoubleOnLandscape) && isLandscape
-        
         // Also enable dual-page in split-screen when aspect ratio is close to square
         // This handles foldable devices in split-screen mode
         val windowWidth = viewBinding.root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
@@ -408,7 +404,12 @@ class ReaderActivity :
         // consider it suitable for dual-page. This covers split-screen on foldables where the
         // window is not extremely narrow.
         val isNearSquareOrWider = aspectRatio >= 0.7f
-        val autoSplitScreen = settings.isReaderDoubleOnFoldable && isNearSquareOrWider && !isLandscape
+        val isSuitableForDual = isNearSquareOrWider
+
+        // Auto double-page on foldable when device is unfolded (half-opened or flat)
+        val autoFoldable = settings.isReaderDoubleOnFoldable && isFoldUnfolded && isSuitableForDual
+        val manualLandscape = (manualEnabled ?: settings.isReaderDoubleOnLandscape) && isLandscape && isSuitableForDual
+        val autoSplitScreen = settings.isReaderDoubleOnFoldable && isSuitableForDual && !isLandscape
         
         val autoEnabled = autoFoldable || manualLandscape || autoSplitScreen
         isDoubleReaderMode = autoEnabled
