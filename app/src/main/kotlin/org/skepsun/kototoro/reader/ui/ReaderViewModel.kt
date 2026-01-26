@@ -122,6 +122,7 @@ class ReaderViewModel @Inject constructor(
     val onShowToast = MutableEventFlow<Int>()
     val onAskNsfwIncognito = MutableEventFlow<Unit>()
     val uiState = MutableStateFlow<ReaderUiState?>(null)
+    val targetPagePosition = MutableStateFlow<Int?>(null)
 
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
@@ -281,12 +282,18 @@ class ReaderViewModel @Inject constructor(
         pageSaveJob = launchLoadingJob(Dispatchers.Default) {
             prevJob?.cancelAndJoin()
             val state = checkNotNull(getCurrentState())
+            val targetPage = targetPagePosition.value ?: state.page
             val currentManga = manga.requireValue()
+            val pages = content.value.pages
+            val page = pages.find { it.chapterId == state.chapterId && it.index == targetPage }
+                ?: pages.find { it.chapterId == state.chapterId && it.index == state.page }
+                ?: throw IllegalStateException("Cannot find current page")
+
             val task = PageSaveHelper.Task(
                 manga = currentManga,
                 chapterId = state.chapterId,
-                pageNumber = state.page + 1,
-                page = checkNotNull(getCurrentPage()) { "Cannot find current page" },
+                pageNumber = targetPage + 1,
+                page = page.toMangaPage(),
             )
             val dest = pageSaveHelper.save(setOf(task))
             onPageSaved.call(dest)
@@ -345,6 +352,7 @@ class ReaderViewModel @Inject constructor(
     fun onCurrentPageChanged(lowerPos: Int, upperPos: Int) {
         val prevJob = stateChangeJob
         val pages = content.value.pages // capture immediately
+        targetPagePosition.value = null
         stateChangeJob = launchJob(Dispatchers.Default) {
             prevJob?.cancelAndJoin()
             loadingJob?.join()
@@ -406,6 +414,22 @@ class ReaderViewModel @Inject constructor(
                 bookmarksRepository.addBookmark(bookmark)
                 onShowToast.call(R.string.bookmark_added)
             }
+        }
+    }
+
+    fun setTargetPageBySide(rawX: Float, width: Int, isDoublePage: Boolean) {
+        val mode = readerMode.value ?: return
+        if (isDoublePage && width > 0) {
+            val state = readingState.value ?: return
+            val isRtl = mode == ReaderMode.REVERSED
+            val isRightSide = rawX > width / 2f
+
+            // In LTR: left is page, right is page + 1
+            // In RTL: right is page, left is page + 1
+            val isSecondPage = if (isRtl) !isRightSide else isRightSide
+            targetPagePosition.value = if (isSecondPage) state.page + 1 else state.page
+        } else {
+            targetPagePosition.value = null
         }
     }
 

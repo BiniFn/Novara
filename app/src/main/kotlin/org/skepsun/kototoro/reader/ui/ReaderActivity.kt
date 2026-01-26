@@ -117,6 +117,7 @@ class ReaderActivity :
 
     // Tracks whether the foldable device is in an unfolded state (half-opened or flat)
     private var isFoldUnfolded: Boolean = false
+    private var isDoubleReaderMode: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -294,25 +295,54 @@ class ReaderActivity :
         return isReaderResumed() && controlDelegate.onGridTouch(area)
     }
 
-    override fun onGridLongTouch(area: TapGridArea) {
+    override fun onGridLongTouch(area: TapGridArea, event: MotionEvent) {
         if (isReaderResumed()) {
-            controlDelegate.onGridLongTouch(area)
+            val width = viewBinding.root.width
+            val height = viewBinding.root.height
+            viewModel.setTargetPageBySide(event.rawX, width, isDoubleReaderMode)
+
+            val isMenuTrigger = if (isDoubleReaderMode && width > 0 && height > 0) {
+                val x = event.rawX
+                val y = event.rawY
+                val inVerticalCenter = y > height * 0.25f && y < height * 0.75f
+                val inLeftPageCenter = x > width * 0.125f && x < width * 0.375f
+                val inRightPageCenter = x > width * 0.625f && x < width * 0.875f
+                inVerticalCenter && (inLeftPageCenter || inRightPageCenter)
+            } else {
+                false
+            }
+
+            if (isMenuTrigger) {
+                openMenu()
+            } else {
+                controlDelegate.onGridLongTouch(area)
+            }
         }
     }
 
     override fun onProcessTouch(rawX: Int, rawY: Int): Boolean {
         return if (
-            rawX <= gestureInsets.left ||
             rawY <= gestureInsets.top ||
-            rawX >= viewBinding.root.width - gestureInsets.right ||
             rawY >= viewBinding.root.height - gestureInsets.bottom ||
             viewBinding.appbarTop.hasGlobalPoint(rawX, rawY) ||
-            viewBinding.toolbarDocked?.hasGlobalPoint(rawX, rawY) == true
+            viewBinding.toolbarDocked?.hasGlobalPoint(rawX, rawY) == true ||
+            viewBinding.zoomControl.hasGlobalPoint(rawX, rawY) ||
+            viewBinding.timerControl.hasGlobalPoint(rawX, rawY) ||
+            viewBinding.buttonTimer?.hasGlobalPoint(rawX, rawY) == true
         ) {
             false
         } else {
             val touchables = window.peekDecorView()?.touchables
-            touchables?.none { it.hasGlobalPoint(rawX, rawY) } != false
+            touchables?.none {
+                it.id != R.id.ssiv &&
+                    it.id != R.id.recyclerView &&
+                    it.id != R.id.pager &&
+                    it.id != R.id.textView_number &&
+                    it.id != R.id.layout_progress &&
+                    it.id != R.id.progressBar &&
+                    it.id != R.id.textView_status &&
+                    it.hasGlobalPoint(rawX, rawY)
+            } != false
         }
     }
 
@@ -382,6 +412,7 @@ class ReaderActivity :
         val autoSplitScreen = settings.isReaderDoubleOnFoldable && isSuitableForDual && !isLandscape
         
         val autoEnabled = autoFoldable || manualLandscape || autoSplitScreen
+        isDoubleReaderMode = autoEnabled
         readerManager.setDoubleReaderMode(autoEnabled)
     }
 

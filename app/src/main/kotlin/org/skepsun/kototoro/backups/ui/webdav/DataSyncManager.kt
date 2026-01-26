@@ -54,8 +54,8 @@ class DataSyncManager @Inject constructor(
     private val uploadMutex = Mutex()
 
     private companion object {
-        // 自动同步的最小间隔，防止过于频繁的上传（3 小时）
-        private const val AUTO_SYNC_MIN_INTERVAL_MS: Long = 3L * 60L * 60_000L
+        // 自动同步的最小间隔，防止过于频繁的上传（12 小时）
+        private const val AUTO_SYNC_MIN_INTERVAL_MS: Long = 12L * 60L * 60_000L
         // 去抖动聚合时长保持 30 秒
         private const val AUTO_SYNC_DEBOUNCE_MS: Long = 30_000
     }

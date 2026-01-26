@@ -982,9 +982,9 @@
     <string name="webdav_password">WebDAV password</string>
     <string name="webdav_remote_path">Remote path</string>
     <string name="webdav_auto_restore">Auto restore on startup</string>
-    <string name="webdav_auto_restore_summary">On app startup, restores the latest backup once; may upload once post-restore if content differs</string>
+    <string name="webdav_auto_restore_summary">On the first app startup of each day, restores the latest backup once; may upload once post-restore if content differs</string>
     <string name="webdav_auto_sync">Auto sync to WebDAV</string>
-    <string name="webdav_auto_sync_summary">Monitors changes and uploads backups to WebDAV on unmetered networks after a short delay, with a minimum interval of 3 hours</string>
+    <string name="webdav_auto_sync_summary">Monitors changes and uploads backups to WebDAV on unmetered networks after a short delay, with a minimum interval of 12 hours</string>
     <string name="webdav_upload_now">Upload backup now</string>
     <string name="webdav_restore_now">Restore latest backup</string>
     <string name="webdav_upload_success">Backup uploaded to WebDAV</string>
