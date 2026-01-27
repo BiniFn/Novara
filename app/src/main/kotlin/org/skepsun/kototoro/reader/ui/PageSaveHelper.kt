@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.reader.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.ActivityResultCaller
@@ -51,6 +53,7 @@ class PageSaveHelper @AssistedInject constructor(
 ) : ActivityResultCallback<Uri?> {
 
 	private val savePageRequest = activityResultCaller.registerForActivityResult(PageSaveContract(), this)
+	private val cropPageRequest = activityResultCaller.registerForActivityResult(PageCropContract(), this)
 	private val pickDirectoryRequest = OpenDocumentTreeHelper(activityResultCaller, this)
 
 	private var continuation: CancellableContinuation<Uri>? = null
@@ -85,13 +88,35 @@ class PageSaveHelper @AssistedInject constructor(
 		val pageLoader = getPageLoader()
 		val pageUrl = pageLoader.getPageUrl(task.page).toUri()
 		val pageUri = pageLoader.loadPage(task.page, force = false)
-		val proposedName = task.getFileBaseName() + "." + getPageExtension(pageUrl, pageUri)
-		val destination = getDefaultFileUri(proposedName)?.uri ?: run {
-			val defaultUri = settings.getPagesSaveDir(context)?.uri?.buildUpon()?.appendPath(proposedName)?.toString()
-			savePageRequest.launchAndAwait(defaultUri ?: proposedName)
+		val outputFormat = getOutputFormat(pageUrl, pageUri)
+		val proposedName = task.getFileBaseName() + "." + outputFormat.extension
+		val tempSource = saveToTempFile(task)
+		val tempOutput = createTempOutputFile(outputFormat.extension)
+		val sourceBounds = getImageBounds(tempSource)
+		return try {
+			val cropped = cropPageRequest.launchAndAwait(
+				PageCropRequest(
+					source = tempSource.toUri(),
+					destination = tempOutput.toUri(),
+					compressFormat = outputFormat.compressFormat,
+					compressQuality = CROP_QUALITY,
+					sourceWidth = sourceBounds.first,
+					sourceHeight = sourceBounds.second,
+				),
+			)
+			val destination = getDefaultFileUri(proposedName)?.uri ?: run {
+				val defaultUri = settings.getPagesSaveDir(context)?.uri
+					?.buildUpon()
+					?.appendPath(proposedName)
+					?.toString()
+				savePageRequest.launchAndAwait(defaultUri ?: proposedName)
+			}
+			copyImpl(cropped, destination)
+			destination
+		} finally {
+			tempSource.delete()
+			tempOutput.delete()
 		}
-		copyImpl(pageUri, destination)
-		return destination
 	}
 
 	private suspend fun saveImpl(tasks: Collection<Task>): Collection<Uri> {
@@ -130,6 +155,20 @@ class PageSaveHelper @AssistedInject constructor(
 			extension = fileUri.toFileOrNull()?.let { file -> getImageExtension(file) } ?: EXTENSION_FALLBACK
 		}
 		return extension
+	}
+
+	private suspend fun getOutputFormat(url: Uri, fileUri: Uri): OutputFormat {
+		val ext = getPageExtension(url, fileUri)
+		return if (ext.equals("jpg", true) || ext.equals("jpeg", true)) {
+			OutputFormat("jpg", Bitmap.CompressFormat.JPEG)
+		} else {
+			OutputFormat("png", Bitmap.CompressFormat.PNG)
+		}
+	}
+
+	private fun createTempOutputFile(extension: String): File {
+		val dir = checkNotNull(context.getExternalFilesDir(TEMP_DIR))
+		return File.createTempFile("crop_", ".$extension", dir)
 	}
 
 	private suspend fun <I> ActivityResultLauncher<I>.launchAndAwait(input: I): Uri {
@@ -185,6 +224,19 @@ class PageSaveHelper @AssistedInject constructor(
 		MimeTypes.getExtension(BitmapDecoderCompat.probeMimeType(file))
 	}
 
+	private suspend fun getImageBounds(file: File): Pair<Int, Int> = runInterruptible(Dispatchers.IO) {
+		val options = BitmapFactory.Options().apply {
+			inJustDecodeBounds = true
+		}
+		BitmapFactory.decodeFile(file.absolutePath, options)
+		options.outWidth to options.outHeight
+	}
+
+	private data class OutputFormat(
+		val extension: String,
+		val compressFormat: Bitmap.CompressFormat,
+	)
+
 	data class Task(
 		val manga: Manga,
 		val chapterId: Long,
@@ -214,6 +266,7 @@ class PageSaveHelper @AssistedInject constructor(
 	private companion object {
 
 		private const val MAX_BASENAME_LENGTH = 12
+		private const val CROP_QUALITY = 95
 		private const val EXTENSION_FALLBACK = "png"
 		private const val TEMP_DIR = "pages"
 	}

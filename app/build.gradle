@@ -255,6 +255,7 @@ dependencies {
 	implementation libs.disk.lru.cache
 	implementation libs.markwon
 	implementation libs.kizzyrpc
+	implementation libs.ucrop
 
 	// EPUB support for Novelia Wenku
 	implementation libs.epublib
