@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Base64
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.Insets
@@ -373,6 +374,31 @@ class NovelReaderActivity :
             }
             viewBinding.toastView.showTemporary(message, 1500L)
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> if (settings.isReaderVolumeButtonsEnabled) {
+                val delta = if (settings.isReaderNavigationInverted) 1 else -1
+                switchPageBy(delta)
+                return true
+            }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> if (settings.isReaderVolumeButtonsEnabled) {
+                val delta = if (settings.isReaderNavigationInverted) -1 else 1
+                switchPageBy(delta)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
+            && settings.isReaderVolumeButtonsEnabled
+        ) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun openMenu() {

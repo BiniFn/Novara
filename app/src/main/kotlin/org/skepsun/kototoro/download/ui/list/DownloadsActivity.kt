@@ -10,6 +10,7 @@ import androidx.appcompat.view.ActionMode
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.work.WorkInfo
 import coil3.ImageLoader
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
@@ -115,7 +116,11 @@ class DownloadsActivity : BaseActivity<ActivityDownloadsBinding>(),
 	}
 
 	override fun onResumeClick(item: DownloadItemModel) {
-		scheduler.resume(item.id)
+		if (item.workState == WorkInfo.State.FAILED) {
+			viewModel.resume(setOf(item.id.mostSignificantBits))
+		} else {
+			scheduler.resume(item.id)
+		}
 	}
 
 	override fun onSkipClick(item: DownloadItemModel) {

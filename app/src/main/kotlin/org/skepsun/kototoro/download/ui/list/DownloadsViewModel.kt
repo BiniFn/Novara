@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import android.util.Log
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
@@ -31,8 +32,10 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.isEmpty
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.download.domain.DownloadState
 import org.skepsun.kototoro.download.ui.list.chapters.DownloadChapter
+import org.skepsun.kototoro.download.ui.worker.DownloadTask
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListHeader
@@ -139,26 +142,40 @@ class DownloadsViewModel @Inject constructor(
 
 	fun resumeAll() {
 		val snapshot = works.value ?: return
-		var isResumed = false
-		for (work in snapshot) {
-			if (work.workState == WorkInfo.State.RUNNING && work.isPaused) {
-				workScheduler.resume(work.id)
-				isResumed = true
+		launchJob(Dispatchers.Default) {
+			var isResumed = false
+			for (work in snapshot) {
+				if (work.workState == WorkInfo.State.RUNNING && work.isPaused) {
+					workScheduler.resume(work.id)
+					isResumed = true
+				} else if (work.workState == WorkInfo.State.FAILED) {
+					isResumed = retryWork(work) || isResumed
+				}
 			}
-		}
-		if (isResumed) {
-			onActionDone.call(ReversibleAction(R.string.downloads_resumed, null))
+			if (isResumed) {
+				onActionDone.call(ReversibleAction(R.string.downloads_resumed, null))
+			}
 		}
 	}
 
 	fun resume(ids: Set<Long>) {
 		val snapshot = works.value ?: return
-		for (work in snapshot) {
-			if (work.id.mostSignificantBits in ids) {
-				workScheduler.resume(work.id)
+		launchJob(Dispatchers.Default) {
+			var isResumed = false
+			for (work in snapshot) {
+				if (work.id.mostSignificantBits in ids) {
+					if (work.workState == WorkInfo.State.RUNNING && work.isPaused) {
+						workScheduler.resume(work.id)
+						isResumed = true
+					} else if (work.workState == WorkInfo.State.FAILED) {
+						isResumed = retryWork(work) || isResumed
+					}
+				}
+			}
+			if (isResumed) {
+				onActionDone.call(ReversibleAction(R.string.downloads_resumed, null))
 			}
 		}
-		onActionDone.call(ReversibleAction(R.string.downloads_resumed, null))
 	}
 
 	fun remove(ids: Set<Long>) {
@@ -308,7 +325,10 @@ class DownloadsViewModel @Inject constructor(
 		suspend fun mapChapters(): List<DownloadChapter> {
 			val size = chapterIds?.size ?: chapters.size
 			val localChapters =
-				localMangaRepository.findSavedManga(manga)?.manga?.chapters?.mapToSet { it.id }.orEmpty()
+				localMangaRepository.findSavedManga(manga)?.manga?.chapters
+					?.filter { it.source.isLocal }
+					?.mapToSet { it.id }
+					.orEmpty()
 			return chapters.mapNotNullTo(ArrayList(size)) {
 				if (chapterIds == null || it.id in chapterIds) {
 					DownloadChapter(
@@ -332,4 +352,28 @@ class DownloadsViewModel @Inject constructor(
 	private suspend fun tryLoad(manga: Manga) = runCatchingCancellable {
 		mangaRepositoryFactory.create(manga.source).getDetails(manga)
 	}.getOrNull()
+
+	private suspend fun retryWork(work: DownloadItemModel): Boolean {
+		val task = workScheduler.getTask(work.id) ?: return false
+		val manga = work.manga ?: getManga(task.mangaId) ?: return false
+		synchronized(chaptersCache) {
+			chaptersCache.remove(work.id)
+		}
+		Log.i(
+			"DownloadsViewModel",
+			"retryWork: requeue workId=${work.id} mangaId=${task.mangaId} title=${manga.title}",
+		)
+		val newTask = DownloadTask(
+			mangaId = task.mangaId,
+			isPaused = false,
+			isSilent = task.isSilent,
+			chaptersIds = task.chaptersIds,
+			destination = task.destination,
+			format = task.format,
+			allowMeteredNetwork = task.allowMeteredNetwork,
+		)
+		workScheduler.delete(work.id)
+		workScheduler.schedule(listOf(manga to newTask))
+		return true
+	}
 }

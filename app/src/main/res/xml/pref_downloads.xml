@@ -20,6 +20,56 @@
 		android:title="@string/preferred_download_format"
 		app:useSimpleSummaryProvider="true" />
 
+	<SwitchPreferenceCompat
+		android:defaultValue="false"
+		android:key="downloads_align_reader"
+		android:title="@string/download_align_reader"
+		android:summary="@string/download_align_reader_summary" />
+
+	<SwitchPreferenceCompat
+		android:defaultValue="false"
+		android:key="downloads_auto_retry"
+		android:title="@string/download_auto_retry"
+		android:summary="@string/download_auto_retry_summary" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="downloads_threads"
+		android:title="@string/download_threads"
+		android:summary="@string/download_threads_summary"
+		android:valueFrom="1"
+		android:valueTo="10"
+		app:defaultValue="3"
+		app:useSimpleSummaryProvider="true" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="downloads_request_delay"
+		android:title="@string/download_request_delay"
+		android:summary="@string/download_request_delay_summary"
+		android:valueFrom="0"
+		android:valueTo="5000"
+		android:stepSize="100"
+		app:defaultValue="1600"
+		app:useSimpleSummaryProvider="true" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="downloads_retry_count"
+		android:title="@string/download_retry_count"
+		android:summary="@string/download_retry_count_summary"
+		android:valueFrom="1"
+		android:valueTo="10"
+		app:defaultValue="5"
+		app:useSimpleSummaryProvider="true" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="downloads_retry_delay"
+		android:title="@string/download_retry_delay"
+		android:summary="@string/download_retry_delay_summary"
+		android:valueFrom="500"
+		android:valueTo="10000"
+		android:stepSize="500"
+		app:defaultValue="2000"
+		app:useSimpleSummaryProvider="true" />
+
 	<ListPreference
 		android:entries="@array/metered_network_options"
 		android:key="downloads_metered_network"

@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
@@ -39,6 +40,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.internal.closeQuietly
 import okio.IOException
@@ -148,14 +150,23 @@ class DownloadWorker @AssistedInject constructor(
 		setForeground(getForegroundInfo())
 		val manga = mangaDataRepository.findMangaById(task.mangaId, withChapters = true) ?: return@withContext Result.failure()
 		publishState(DownloadState(manga = manga, isIndeterminate = true).also { lastPublishedState = it })
+		Log.i(
+			"DownloadWorker",
+			"doWork start: workId=$id mangaId=${manga.id} title=${manga.title} chapters=${manga.chapters?.size ?: 0} taskChapters=${task.chaptersIds?.size ?: -1}",
+		)
+		Log.i("DownloadWorker", "doWork before getDoneChapters: workId=$id mangaId=${manga.id}")
 		val downloadedIds = getDoneChapters(manga)
+		Log.i("DownloadWorker", "doWork after getDoneChapters: downloadedIds=${downloadedIds.size} workId=$id mangaId=${manga.id}")
 		try {
 			val pausingHandle = PausingHandle()
 			if (task.isPaused) {
+				Log.i("DownloadWorker", "doWork start paused: workId=$id mangaId=${manga.id}")
 				pausingHandle.pause()
 			}
 			withContext(pausingHandle) {
+				Log.i("DownloadWorker", "doWork before downloadMangaImpl: workId=$id mangaId=${manga.id}")
 				downloadMangaImpl(manga, task, downloadedIds)
+				Log.i("DownloadWorker", "doWork after downloadMangaImpl: workId=$id mangaId=${manga.id}")
 			}
 			Result.success(currentState.toWorkData())
 		} catch (_: CancellationException) {
@@ -167,7 +178,16 @@ class DownloadWorker @AssistedInject constructor(
 				currentState.copy(eta = -1L, isStuck = false).toWorkData(),
 			)
 		} catch (e: Exception) {
+			Log.e(
+				"DownloadWorker",
+				"doWork failed: workId=$id mangaId=${task.mangaId} error=${e.javaClass.simpleName} msg=${e.message}",
+				e,
+			)
 			e.printStackTraceDebug()
+			if (settings.isDownloadAutoRetryOnNetworkError && e is IOException) {
+				Log.w("DownloadWorker", "Retrying work due to IOException: ${e.message}", e)
+				return@withContext Result.retry()
+			}
 			Result.failure(
 				currentState.copy(
 					error = e,
@@ -200,6 +220,7 @@ class DownloadWorker @AssistedInject constructor(
 		excludedIds: Set<Long>,
 	) {
 		var manga = subject
+		Log.d("DownloadWorker", "downloadMangaImpl start: mangaId=${manga.id} title=${manga.title} excluded=${excludedIds.size}")
 		val chaptersToSkip = excludedIds.toMutableSet()
 		val pausingReceiver = PausingReceiver(id, PausingHandle.current())
 		mangaLock.withLock(manga) {
@@ -211,6 +232,7 @@ class DownloadWorker @AssistedInject constructor(
 			)
 			var destination = localMangaRepository.getOutputDir(manga, task.destination)
 			checkNotNull(destination) { applicationContext.getString(R.string.cannot_find_available_storage) }
+			Log.d("DownloadWorker", "downloadMangaImpl outputDir=${destination.absolutePath}")
 			var output: LocalMangaOutput? = null
 			try {
 				if (manga.isLocal) {
@@ -218,7 +240,9 @@ class DownloadWorker @AssistedInject constructor(
 						?: error("Cannot obtain remote manga instance")
 				}
 				val repo = mangaRepositoryFactory.create(manga.source)
+				Log.d("DownloadWorker", "downloadMangaImpl repo=${repo.source.name}")
 				val mangaDetails = if (manga.chapters.isNullOrEmpty() || manga.description.isNullOrEmpty()) repo.getDetails(manga) else manga
+				Log.d("DownloadWorker", "downloadMangaImpl detailsChapters=${mangaDetails.chapters?.size ?: 0}")
 				val parserSource = mangaDetails.source.unwrap() as? MangaParserSource
 				val isNovel = when (parserSource?.contentType) {
 					ContentType.NOVEL, ContentType.HENTAI_NOVEL -> true
@@ -226,17 +250,21 @@ class DownloadWorker @AssistedInject constructor(
 				} || mangaDetails.source.name.uppercase() in setOf("BILINOVEL", "LKNOVEL_US", "LIGHTNOVEL_WIKI", "NOVELIA", "WENKU8", "BIQUGE") ||
 					mangaDetails.source.name.startsWith("JSON_LEGADO", ignoreCase = true)
 				
-				// 检测是否包含EPUB章节
-				val hasEpubChapters = runCatchingCancellable {
-					val fullChapters = mangaDetails.chapters ?: emptyList()
-					val chaptersToCheck = getChapters(mangaDetails, task)
-					chaptersToCheck.any { chapter ->
-						val currentInFull = fullChapters.indexOfFirst { it.id == chapter.value.id }
-						val nextChapterUrl = if (currentInFull != -1) fullChapters.getOrNull(currentInFull + 1)?.url else null
-						val pages = repo.getPages(chapter.value, nextChapterUrl)
-						pages.size == 1 && pages[0].preview == "EPUB"
-					}
-				}.getOrNull() ?: false
+				// 检测是否包含EPUB章节（仅小说需要，漫画全量扫描会导致长时间阻塞）
+				val hasEpubChapters = if (isNovel) {
+					runCatchingCancellable {
+						val fullChapters = mangaDetails.chapters ?: emptyList()
+						val chaptersToCheck = getChapters(mangaDetails, task).take(3)
+						chaptersToCheck.any { chapter ->
+							val currentInFull = fullChapters.indexOfFirst { it.id == chapter.value.id }
+							val nextChapterUrl = if (currentInFull != -1) fullChapters.getOrNull(currentInFull + 1)?.url else null
+							val pages = repo.getPages(chapter.value, nextChapterUrl)
+							pages.size == 1 && pages[0].preview == "EPUB"
+						}
+					}.getOrNull() ?: false
+				} else {
+					false
+				}
 				
 				// 如果包含EPUB章节，强制使用MULTIPLE_CBZ格式
 				val downloadFormat = if (hasEpubChapters) {
@@ -246,10 +274,12 @@ class DownloadWorker @AssistedInject constructor(
 				} else {
 					task.format ?: settings.preferredDownloadFormat
 				}
+				Log.d("DownloadWorker", "downloadMangaImpl isNovel=$isNovel hasEpubChapters=$hasEpubChapters format=$downloadFormat")
 
 				if (isNovel && !hasEpubChapters) {
 					// 尝试获取小说专用的输出目录
 					destination = localStorageManager.getDefaultNovelWriteableDir() ?: localStorageManager.getNovelWriteableDirs().firstOrNull() ?: destination
+					Log.d("DownloadWorker", "downloadMangaImpl novel outputDir=${destination.absolutePath}")
 				}
 
 				output = LocalMangaOutput.getOrCreate(
@@ -286,6 +316,11 @@ class DownloadWorker @AssistedInject constructor(
 				localStorageChanges.emit(localManga)
 				publishState(currentState.copy(localManga = localManga, eta = -1L, isStuck = false))
 			} catch (e: Exception) {
+				Log.e(
+					"DownloadWorker",
+					"downloadMangaImpl failed: mangaId=${manga.id} title=${manga.title} error=${e.javaClass.simpleName} msg=${e.message}",
+					e,
+				)
 				if (e !is CancellationException) {
 					publishState(
 						currentState.copy(
@@ -320,6 +355,7 @@ class DownloadWorker @AssistedInject constructor(
 		output: LocalMangaOutput,
 	) {
 		val chapters = getChapters(mangaDetails, task)
+		Log.d("DownloadWorker", "processStandardChapters total=${chapters.size} mangaId=${mangaDetails.id}")
 		for ((chapterIndex, chapter) in chapters.withIndex()) {
 			checkIsPaused()
 
@@ -329,6 +365,9 @@ class DownloadWorker @AssistedInject constructor(
 			val pages = runFailsafe {
 				repo.getPages(chapter.value, nextChapterUrl)
 			} ?: continue
+			if (pages.isEmpty()) {
+				Log.w("DownloadWorker", "processStandardChapters empty pages: idx=$chapterIndex title=${chapter.value.title}")
+			}
 
 			println("DownloadWorker: Chapter ${chapter.index}: ${chapter.value.title}")
 			println("DownloadWorker: Pages count: ${pages.size}")
@@ -362,6 +401,7 @@ class DownloadWorker @AssistedInject constructor(
 					downloadEpubToStorage(
 						manga = mangaDetails,
 						chapter = chapter,
+						page = pages[0],
 						epubUrl = pages[0].url,
 						destination = destination,
 						repo = repo,
@@ -425,13 +465,19 @@ class DownloadWorker @AssistedInject constructor(
 			}
 
 			val pageCounter = AtomicInteger(0)
+			val successCounter = AtomicInteger(0)
 			channelFlow {
-				val semaphore = Semaphore(settings.readerThreads)
+				val downloadThreads = if (settings.isDownloadAlignedWithReader) {
+					settings.readerThreads
+				} else {
+					settings.downloadThreads
+				}
+				val semaphore = Semaphore(downloadThreads)
 				for ((pageIndex, page) in pages.withIndex()) {
 					checkIsPaused()
 					launch {
 						semaphore.withPermit {
-							runFailsafe {
+							val success = runFailsafe {
 								val url = repo.getPageUrl(page)
 								val file = cache[url]
 									?: downloadFile(repo, url, destination, page = page)
@@ -444,8 +490,12 @@ class DownloadWorker @AssistedInject constructor(
 								if (file.extension == "tmp") {
 									file.deleteAwait()
 								}
+								true
+							} ?: false
+							if (success) {
+								successCounter.incrementAndGet()
+								send(pageIndex)
 							}
-							send(pageIndex)
 						}
 					}
 				}
@@ -469,6 +519,9 @@ class DownloadWorker @AssistedInject constructor(
 					),
 				)
 			}
+			if (successCounter.get() == 0) {
+				throw IOException("No pages downloaded for chapter: ${chapter.value.title ?: chapter.value.id}")
+			}
 			if (output.flushChapter(chapter.value)) {
 				runCatchingCancellable {
 					localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
@@ -482,7 +535,8 @@ class DownloadWorker @AssistedInject constructor(
 		block: suspend () -> R,
 	): R? {
 		checkIsPaused()
-		var countDown = MAX_FAILSAFE_ATTEMPTS
+		val maxAttempts = settings.downloadRetryCount
+		var countDown = maxAttempts
 		failsafe@ while (true) {
 			try {
 				return block()
@@ -490,7 +544,15 @@ class DownloadWorker @AssistedInject constructor(
 				val retryDelay = if (e is TooManyRequestExceptions) {
 					e.getRetryDelay()
 				} else {
-					DOWNLOAD_ERROR_DELAY
+					settings.downloadRetryDelayMs.toLong()
+				}
+				Log.w(
+					"DownloadWorker",
+					"runFailsafe failed: ${e.javaClass.simpleName} msg=${e.message} retryDelay=$retryDelay remaining=$countDown",
+					e,
+				)
+				if (settings.isDownloadAutoRetryOnNetworkError && e !is TooManyRequestExceptions && countDown <= 0) {
+					throw e
 				}
 				if (countDown <= 0 || retryDelay < 0 || retryDelay > MAX_RETRY_DELAY) {
 					val pausingHandle = PausingHandle.current()
@@ -506,7 +568,7 @@ class DownloadWorker @AssistedInject constructor(
 							isStuck = false,
 						),
 					)
-					countDown = MAX_FAILSAFE_ATTEMPTS
+					countDown = maxAttempts
 					pausingHandle.pause()
 					try {
 						pausingHandle.awaitResumed()
@@ -873,6 +935,7 @@ class DownloadWorker @AssistedInject constructor(
 	 */
 	private suspend fun downloadEpubChapter(
 		chapter: IndexedValue<MangaChapter>,
+		page: MangaPage?,
 		epubUrl: String,
 		output: LocalMangaOutput,
 		destination: File,
@@ -885,7 +948,7 @@ class DownloadWorker @AssistedInject constructor(
 		// 下载EPUB文件到临时位置
 		val tempFile = try {
 			println("DownloadWorker.downloadEpubChapter: Calling downloadFile...")
-			val file = downloadFile(repo, epubUrl, destination, useProxy = false)
+			val file = downloadFile(repo, epubUrl, destination, useProxy = true, page = page)
 			println("DownloadWorker.downloadEpubChapter: Downloaded to ${file.absolutePath}, size=${file.length()} bytes")
 			file
 		} catch (e: Exception) {
@@ -1034,6 +1097,7 @@ class DownloadWorker @AssistedInject constructor(
 	private suspend fun downloadEpubToStorage(
 		manga: Manga,
 		chapter: IndexedValue<MangaChapter>,
+		page: MangaPage?,
 		epubUrl: String,
 		destination: File,
 		repo: MangaRepository,
@@ -1050,7 +1114,7 @@ class DownloadWorker @AssistedInject constructor(
 		// IMPORTANT: useProxy = true to ensure cookies are sent for authentication
 		val tempFile = try {
 			android.util.Log.d("DownloadWorker", "downloadEpubToStorage: Downloading file with authentication...")
-			downloadFile(repo, epubUrl, destination, useProxy = true)
+			downloadFile(repo, epubUrl, destination, useProxy = true, page = page)
 		} catch (e: Exception) {
 			android.util.Log.e("DownloadWorker", "downloadEpubToStorage: Download failed", e)
 			throw e
@@ -1112,7 +1176,31 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun getDoneChapters(manga: Manga) = runCatchingCancellable {
-		localMangaRepository.getDetails(manga).chapters?.ids()
+		val start = System.currentTimeMillis()
+		val result = withTimeoutOrNull(3000L) {
+			localMangaRepository.getDetails(manga).chapters
+				?.filter { it.source.isLocal }
+				?.ids()
+		}
+		if (result == null) {
+			Log.w(
+				"DownloadWorker",
+				"getDoneChapters timeout: mangaId=${manga.id} title=${manga.title}",
+			)
+			emptySet()
+		} else {
+			Log.i(
+				"DownloadWorker",
+				"getDoneChapters success: mangaId=${manga.id} took=${System.currentTimeMillis() - start}ms count=${result.size}",
+			)
+			result
+		}
+	}.onFailure { e ->
+		Log.w(
+			"DownloadWorker",
+			"getDoneChapters failed: mangaId=${manga.id} title=${manga.title} error=${e.javaClass.simpleName} msg=${e.message}",
+			e,
+		)
 	}.getOrNull().orEmpty()
 
 	private fun getChapters(
@@ -1188,7 +1276,8 @@ class DownloadWorker @AssistedInject constructor(
 		)
 
 		suspend fun delete(id: UUID) {
-			workManager.deleteWork(id)
+			workManager.cancelWorkById(id).await()
+			workManager.deleteWorks(listOf(id))
 		}
 
 		suspend fun delete(ids: Collection<UUID>) {
@@ -1293,8 +1382,6 @@ class DownloadWorker @AssistedInject constructor(
 
 	private companion object {
 
-		const val MAX_FAILSAFE_ATTEMPTS = 5
-		const val DOWNLOAD_ERROR_DELAY = 2_000L
 		const val MAX_RETRY_DELAY = 7_200_000L // 2 hours
 		const val TAG = "download"
 		private const val PAGE_NAME_PATTERN = "%08d_%04d%04d"

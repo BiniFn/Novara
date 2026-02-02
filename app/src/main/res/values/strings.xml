@@ -1186,6 +1186,16 @@
     <string name="deselect_all">Deselect all</string>
     <string name="download_threads">Download threads</string>
     <string name="download_threads_summary">Number of concurrent image downloads (1-10)</string>
+    <string name="download_request_delay">Download request delay</string>
+    <string name="download_request_delay_summary">Delay between image requests in milliseconds (0-5000)</string>
+    <string name="download_retry_count">Download retry count</string>
+    <string name="download_retry_count_summary">Number of retries before pausing (1-10)</string>
+    <string name="download_retry_delay">Download retry delay</string>
+    <string name="download_retry_delay_summary">Base delay between retries in milliseconds (500-10000)</string>
+    <string name="download_align_reader">Align download with reader</string>
+    <string name="download_align_reader_summary">Use reader threads and disable download request delay</string>
+    <string name="download_auto_retry">Auto retry on network error</string>
+    <string name="download_auto_retry_summary">Retry the task automatically instead of pausing</string>
     <string name="prefetch_limit">Prefetch limit</string>
     <string name="prefetch_limit_summary">Number of pages to prefetch ahead (1-20)</string>
     <string name="invert_selection">Invert selection</string>

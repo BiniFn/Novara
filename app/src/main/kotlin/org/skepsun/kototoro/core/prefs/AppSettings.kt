@@ -420,6 +420,30 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 	val preferredDownloadFormat: DownloadFormat
 		get() = prefs.getEnumValue(KEY_DOWNLOADS_FORMAT, DownloadFormat.AUTOMATIC)
 
+	var isDownloadAlignedWithReader: Boolean
+		get() = prefs.getBoolean(KEY_DOWNLOADS_ALIGN_READER, false)
+		set(value) = prefs.edit { putBoolean(KEY_DOWNLOADS_ALIGN_READER, value) }
+
+	var isDownloadAutoRetryOnNetworkError: Boolean
+		get() = prefs.getBoolean(KEY_DOWNLOADS_AUTO_RETRY, false)
+		set(value) = prefs.edit { putBoolean(KEY_DOWNLOADS_AUTO_RETRY, value) }
+
+	var downloadThreads: Int
+		get() = prefs.getInt(KEY_DOWNLOADS_THREADS, readerThreads).coerceIn(1, 10)
+		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_THREADS, value.coerceIn(1, 10)) }
+
+	var downloadRequestDelayMs: Int
+		get() = prefs.getInt(KEY_DOWNLOADS_REQUEST_DELAY, DOWNLOADS_REQUEST_DELAY_DEFAULT).coerceIn(0, 5000)
+		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_REQUEST_DELAY, value.coerceIn(0, 5000)) }
+
+	var downloadRetryCount: Int
+		get() = prefs.getInt(KEY_DOWNLOADS_RETRY_COUNT, DOWNLOADS_RETRY_COUNT_DEFAULT).coerceIn(1, 10)
+		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_RETRY_COUNT, value.coerceIn(1, 10)) }
+
+	var downloadRetryDelayMs: Int
+		get() = prefs.getInt(KEY_DOWNLOADS_RETRY_DELAY, DOWNLOADS_RETRY_DELAY_DEFAULT).coerceIn(500, 10_000)
+		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_RETRY_DELAY, value.coerceIn(500, 10_000)) }
+
 	var downloadChapterDelay: Int
 		get() = prefs.getInt(KEY_DOWNLOADS_CHAPTER_DELAY, 0).coerceIn(0, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_CHAPTER_DELAY, value.coerceIn(0, 10)) }
@@ -902,6 +926,12 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_KITSU = "kitsu"
 		const val KEY_DOWNLOADS_METERED_NETWORK = "downloads_metered_network"
 		const val KEY_DOWNLOADS_FORMAT = "downloads_format"
+		const val KEY_DOWNLOADS_ALIGN_READER = "downloads_align_reader"
+		const val KEY_DOWNLOADS_AUTO_RETRY = "downloads_auto_retry"
+		const val KEY_DOWNLOADS_THREADS = "downloads_threads"
+		const val KEY_DOWNLOADS_REQUEST_DELAY = "downloads_request_delay"
+		const val KEY_DOWNLOADS_RETRY_COUNT = "downloads_retry_count"
+		const val KEY_DOWNLOADS_RETRY_DELAY = "downloads_retry_delay"
 		const val KEY_DOWNLOADS_CHAPTER_DELAY = "downloads_chapter_delay"
 		const val KEY_ALL_FAVOURITES_VISIBLE = "all_favourites_visible"
 		const val KEY_DOH = "doh"
@@ -928,6 +958,9 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_WEBTOON_GAPS = "webtoon_gaps"
 		const val KEY_WEBTOON_ZOOM = "webtoon_zoom"
 		const val KEY_WEBTOON_ZOOM_OUT = "webtoon_zoom_out"
+		private const val DOWNLOADS_REQUEST_DELAY_DEFAULT = 1600
+		private const val DOWNLOADS_RETRY_COUNT_DEFAULT = 5
+		private const val DOWNLOADS_RETRY_DELAY_DEFAULT = 2000
 		const val KEY_WEBTOON_PULL_GESTURE = "webtoon_pull_gesture"
 		const val KEY_PREFETCH_CONTENT = "prefetch_content"
 		const val KEY_APP_LOCALE = "app_locale"

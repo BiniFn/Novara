@@ -135,6 +135,42 @@ class DownloadDialogViewModel @Inject constructor(
 		settings.downloadChapterDelay = seconds
 	}
 
+	fun isDownloadAlignedWithReader(): Boolean = settings.isDownloadAlignedWithReader
+
+	fun setDownloadAlignedWithReader(enabled: Boolean) {
+		settings.isDownloadAlignedWithReader = enabled
+	}
+
+	fun getDownloadThreads(): Int = settings.downloadThreads
+
+	fun setDownloadThreads(value: Int) {
+		settings.downloadThreads = value
+	}
+
+	fun getDownloadRequestDelayMs(): Int = settings.downloadRequestDelayMs
+
+	fun setDownloadRequestDelayMs(value: Int) {
+		settings.downloadRequestDelayMs = value
+	}
+
+	fun getDownloadRetryCount(): Int = settings.downloadRetryCount
+
+	fun setDownloadRetryCount(value: Int) {
+		settings.downloadRetryCount = value
+	}
+
+	fun getDownloadRetryDelayMs(): Int = settings.downloadRetryDelayMs
+
+	fun setDownloadRetryDelayMs(value: Int) {
+		settings.downloadRetryDelayMs = value
+	}
+
+	fun isDownloadAutoRetryEnabled(): Boolean = settings.isDownloadAutoRetryOnNetworkError
+
+	fun setDownloadAutoRetryEnabled(enabled: Boolean) {
+		settings.isDownloadAutoRetryOnNetworkError = enabled
+	}
+
 	private fun defaultDestination() = DirectoryModel(
 		title = null,
 		titleRes = R.string.system_default,

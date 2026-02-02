@@ -86,6 +86,17 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		viewModel.chaptersSelectOptions.observe(viewLifecycleOwner, this::onChapterSelectOptionsChanged)
 		viewModel.isOptionsLoading.observe(viewLifecycleOwner, binding.progressBar::showOrHide)
 
+		binding.switchAlignReader.isChecked = viewModel.isDownloadAlignedWithReader()
+		updateAlignmentUi(binding, binding.switchAlignReader.isChecked)
+		binding.switchAlignReader.setOnCheckedChangeListener { _, isChecked ->
+			viewModel.setDownloadAlignedWithReader(isChecked)
+			updateAlignmentUi(binding, isChecked)
+		}
+		binding.switchAutoRetry.isChecked = viewModel.isDownloadAutoRetryEnabled()
+		binding.switchAutoRetry.setOnCheckedChangeListener { _, isChecked ->
+			viewModel.setDownloadAutoRetryEnabled(isChecked)
+		}
+
 		// Setup delay slider
 		binding.sliderDelay.value = viewModel.getChapterDownloadDelay().toFloat()
 		updateDelayValueText(binding, viewModel.getChapterDownloadDelay())
@@ -96,10 +107,74 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 				updateDelayValueText(binding, seconds)
 			}
 		}
+
+		// Setup download debug sliders
+		binding.sliderThreads.value = viewModel.getDownloadThreads().toFloat()
+		updateThreadsValueText(binding, viewModel.getDownloadThreads())
+		binding.sliderThreads.addOnChangeListener { _, value, fromUser ->
+			if (fromUser) {
+				val count = value.toInt()
+				viewModel.setDownloadThreads(count)
+				updateThreadsValueText(binding, count)
+			}
+		}
+
+		binding.sliderRequestDelay.value = viewModel.getDownloadRequestDelayMs().toFloat()
+		updateRequestDelayValueText(binding, viewModel.getDownloadRequestDelayMs())
+		binding.sliderRequestDelay.addOnChangeListener { _, value, fromUser ->
+			if (fromUser) {
+				val delayMs = value.toInt()
+				viewModel.setDownloadRequestDelayMs(delayMs)
+				updateRequestDelayValueText(binding, delayMs)
+			}
+		}
+
+		binding.sliderRetryCount.value = viewModel.getDownloadRetryCount().toFloat()
+		updateRetryCountValueText(binding, viewModel.getDownloadRetryCount())
+		binding.sliderRetryCount.addOnChangeListener { _, value, fromUser ->
+			if (fromUser) {
+				val count = value.toInt()
+				viewModel.setDownloadRetryCount(count)
+				updateRetryCountValueText(binding, count)
+			}
+		}
+
+		binding.sliderRetryDelay.value = viewModel.getDownloadRetryDelayMs().toFloat()
+		updateRetryDelayValueText(binding, viewModel.getDownloadRetryDelayMs())
+		binding.sliderRetryDelay.addOnChangeListener { _, value, fromUser ->
+			if (fromUser) {
+				val delayMs = value.toInt()
+				viewModel.setDownloadRetryDelayMs(delayMs)
+				updateRetryDelayValueText(binding, delayMs)
+			}
+		}
 	}
 
 	private fun updateDelayValueText(binding: DialogDownloadBinding, seconds: Int) {
 		binding.textViewDelayValue.text = "${seconds}s"
+	}
+
+	private fun updateThreadsValueText(binding: DialogDownloadBinding, count: Int) {
+		binding.textViewThreadsValue.text = count.toString()
+	}
+
+	private fun updateRequestDelayValueText(binding: DialogDownloadBinding, delayMs: Int) {
+		binding.textViewRequestDelayValue.text = "${delayMs}ms"
+	}
+
+	private fun updateRetryCountValueText(binding: DialogDownloadBinding, count: Int) {
+		binding.textViewRetryCountValue.text = count.toString()
+	}
+
+	private fun updateRetryDelayValueText(binding: DialogDownloadBinding, delayMs: Int) {
+		binding.textViewRetryDelayValue.text = "${delayMs}ms"
+	}
+
+	private fun updateAlignmentUi(binding: DialogDownloadBinding, isAligned: Boolean) {
+		binding.sliderThreads.isEnabled = !isAligned
+		binding.textViewThreadsValue.isEnabled = !isAligned
+		binding.sliderRequestDelay.isEnabled = !isAligned
+		binding.textViewRequestDelayValue.isEnabled = !isAligned
 	}
 
 	override fun onViewStateRestored(savedInstanceState: Bundle?) {
@@ -266,6 +341,17 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		textViewDestination.isVisible = isVisible
 		textViewDelay.isVisible = isVisible
 		layoutDelay.isVisible = isVisible
+		textViewAlignReader.isVisible = isVisible
+		switchAlignReader.isVisible = isVisible
+		switchAutoRetry.isVisible = isVisible
+		textViewThreads.isVisible = isVisible
+		layoutThreads.isVisible = isVisible
+		textViewRequestDelay.isVisible = isVisible
+		layoutRequestDelay.isVisible = isVisible
+		textViewRetryCount.isVisible = isVisible
+		layoutRetryCount.isVisible = isVisible
+		textViewRetryDelay.isVisible = isVisible
+		layoutRetryDelay.isVisible = isVisible
 	}
 
 	private fun setCheckedOption(id: Int) {

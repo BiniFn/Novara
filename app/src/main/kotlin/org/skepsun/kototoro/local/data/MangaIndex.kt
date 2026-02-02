@@ -85,6 +85,7 @@ class MangaIndex(source: String?) {
 				if (!chaptersJson.has(chapterIdStr)) {
 					val jo = JSONObject()
 					jo.put(KEY_NUMBER, chapter.number)
+					jo.put(KEY_ORDER, index + 1)
 					jo.put(KEY_VOLUME, chapter.volume)
 					jo.put(KEY_URL, chapter.url)
 					jo.put(KEY_NAME, chapter.title.orEmpty())
@@ -99,6 +100,7 @@ class MangaIndex(source: String?) {
 					// but keep KEY_FILE and KEY_ENTRIES if present
 					val jo = chaptersJson.getJSONObject(chapterIdStr)
 					jo.put(KEY_NUMBER, chapter.number)
+					jo.put(KEY_ORDER, index + 1)
 					jo.put(KEY_VOLUME, chapter.volume)
 					jo.put(KEY_URL, chapter.url)
 					jo.put(KEY_NAME, chapter.title.orEmpty())
@@ -155,6 +157,7 @@ class MangaIndex(source: String?) {
 		if (!chapters.has(chapterIdStr)) {
 			val jo = JSONObject()
 			jo.put(KEY_NUMBER, chapter.value.number)
+			jo.put(KEY_ORDER, chapter.index + 1)
 			jo.put(KEY_VOLUME, chapter.value.volume)
 			jo.put(KEY_URL, chapter.value.url)
 			jo.put(KEY_NAME, chapter.value.title.orEmpty())
@@ -170,6 +173,9 @@ class MangaIndex(source: String?) {
 			val jo = chapters.getJSONObject(chapterIdStr)
 			if (jo.optString(KEY_FILE).isNullOrBlank()) {
 				jo.put(KEY_FILE, filename)
+			}
+			if (!jo.has(KEY_ORDER)) {
+				jo.put(KEY_ORDER, chapter.index + 1)
 			}
 			if (!jo.has(KEY_SOURCE)) {
 				jo.put(KEY_SOURCE, chapter.value.source.name)
@@ -276,10 +282,10 @@ class MangaIndex(source: String?) {
 	}
 
 	fun getChapters(source: MangaSource): List<MangaChapter> {
-		val json = json.optJSONObject(KEY_CHAPTERS) ?: return emptyList()
-		val chapters = ArrayList<MangaChapter>(json.length())
-		for (k in json.keys()) {
-			val v = json.getJSONObject(k)
+		val chaptersJson = json.optJSONObject(KEY_CHAPTERS) ?: return emptyList()
+		val chapters = ArrayList<MangaChapter>(chaptersJson.length())
+		for (k in chaptersJson.keys()) {
+			val v = chaptersJson.getJSONObject(k)
 			val chapterSource = v.getStringOrNull(KEY_SOURCE)?.let { createMangaSource(it) } ?: source
 			chapters.add(
 				MangaChapter(
@@ -295,7 +301,13 @@ class MangaIndex(source: String?) {
 				),
 			)
 		}
-		return chapters.sortedBy { it.number }
+		return chapters.sortedWith(compareBy { chapter ->
+			val order = chaptersJson
+				.optJSONObject(chapter.id.toString())
+				?.optInt(KEY_ORDER, Int.MAX_VALUE)
+				?: Int.MAX_VALUE
+			if (order != Int.MAX_VALUE) order.toFloat() else chapter.number
+		})
 	}
 
 	override fun toString(): String = if (BuildConfig.DEBUG) {
@@ -347,6 +359,7 @@ class MangaIndex(source: String?) {
 		private const val KEY_TAGS = "tags"
 		private const val KEY_CHAPTERS = "chapters"
 		private const val KEY_NUMBER = "number"
+		private const val KEY_ORDER = "order"
 		private const val KEY_VOLUME = "volume"
 		private const val KEY_NAME = "name"
 		private const val KEY_UPLOAD_DATE = "uploadDate"
