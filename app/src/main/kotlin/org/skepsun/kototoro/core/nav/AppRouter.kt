@@ -149,12 +149,18 @@ class AppRouter private constructor(
 
     fun openList(tag: MangaTag) = openList(tag.source, MangaListFilter(tags = setOf(tag)), null)
 
-    fun openSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
-        startActivity(
-            Intent(contextOrNull() ?: return, SearchActivity::class.java)
-                .putExtra(KEY_QUERY, query)
-                .putExtra(KEY_KIND, kind),
-        )
+    fun openSearch(
+        query: String,
+        kind: SearchKind = SearchKind.SIMPLE,
+        sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
+    ) {
+        val intent = Intent(contextOrNull() ?: return, SearchActivity::class.java)
+            .putExtra(KEY_QUERY, query)
+            .putExtra(KEY_KIND, kind)
+        if (!sourceTypes.isNullOrEmpty()) {
+            intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
+        }
+        startActivity(intent)
     }
 
     fun openSearch(source: MangaSource, query: String) = openList(source, MangaListFilter(query = query), null)
@@ -1077,6 +1083,7 @@ class AppRouter private constructor(
         const val KEY_READER_MODE = "reader_mode"
         const val KEY_SORT_ORDER = "sort_order"
         const val KEY_SOURCE = "source"
+        const val KEY_SOURCE_TYPES = "source_types"
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"
         const val KEY_URL = "url"

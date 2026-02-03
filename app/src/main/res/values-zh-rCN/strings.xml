@@ -916,6 +916,9 @@
 	<string name="enable_pull_gesture_summary">条漫模式下使用推拉手势切换章节</string>
 	<string name="auto_double_foldable">折叠设备自动双页</string>
 	<string name="source_type">来源类型</string>
+	<string name="source_type_native">内置源</string>
+	<string name="source_type_mihon">Mihon 扩展</string>
+	<string name="source_type_aniyomi">Aniyomi 扩展</string>
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
 	<string name="source_type_js">JavaScript 源（Venera）</string>

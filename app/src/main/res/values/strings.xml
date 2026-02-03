@@ -1070,6 +1070,9 @@
     <string name="or">OR</string>
     <string name="paste_json_content">Paste Legado content</string>
 	<string name="source_type">Source Type</string>
+	<string name="source_type_native">Built-in</string>
+	<string name="source_type_mihon">Mihon</string>
+	<string name="source_type_aniyomi">Aniyomi</string>
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
 	<string name="source_type_js">JavaScript (Venera)</string>

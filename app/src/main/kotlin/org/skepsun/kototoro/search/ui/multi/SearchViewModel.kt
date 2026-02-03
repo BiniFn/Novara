@@ -28,7 +28,10 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.append
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toLocale
+import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.MangaListMapper
@@ -41,8 +44,11 @@ import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.domain.SearchV2Helper
+import org.skepsun.kototoro.search.domain.sourceTypesFromNames
+import org.skepsun.kototoro.search.domain.sourceTypesFromTags
 import java.util.Locale
 import javax.inject.Inject
 
@@ -54,6 +60,8 @@ class SearchViewModel @Inject constructor(
 	private val mangaListMapper: MangaListMapper,
 	private val searchHelperFactory: SearchV2Helper.Factory,
 	private val sourcesRepository: MangaSourcesRepository,
+	private val sourceTypeIdentifier: SourceTypeIdentifier,
+	private val globalFavoritesState: GlobalFavoritesState,
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,
 ) : BaseViewModel() {
@@ -64,6 +72,10 @@ class SearchViewModel @Inject constructor(
 	private var includeDisabledSources = MutableStateFlow(false)
 	private var pinnedOnly = MutableStateFlow(false)
 	private var hideEmpty = MutableStateFlow(false)
+	private var sourceTypes = MutableStateFlow(
+		sourceTypesFromNames(savedStateHandle.get<ArrayList<String>>(AppRouter.KEY_SOURCE_TYPES))
+			?: sourceTypesFromTags(globalFavoritesState.selectedSourceTags.value),
+	)
 	private val results = MutableStateFlow<List<SearchResultsListModel>>(emptyList())
 
 	private var searchJob: Job? = null
@@ -133,6 +145,29 @@ class SearchViewModel @Inject constructor(
 		hideEmpty.value = value
 	}
 
+	fun isSourceTypeEnabled(type: SourceType): Boolean {
+		return type in sourceTypes.value
+	}
+
+	fun setSourceTypeEnabled(type: SourceType, enabled: Boolean) {
+		val updated = sourceTypes.value.toMutableSet().apply {
+			if (enabled) add(type) else remove(type)
+		}
+		setSourceTypes(updated)
+	}
+
+	fun setSourceTypes(types: Set<SourceType>) {
+		val resolved = if (types.isEmpty()) ALL_SOURCE_TYPES else types
+		if (resolved != sourceTypes.value) {
+			sourceTypes.value = resolved
+			retry()
+		}
+	}
+
+	fun getSourceTypes(): Set<SourceType> {
+		return sourceTypes.value
+	}
+
 	fun continueSearch() {
 		if (includeDisabledSources.value) {
 			return
@@ -147,8 +182,9 @@ class SearchViewModel @Inject constructor(
 				sourcesRepository.getDisabledSources()
 					.sortedByDescending { it.priority() }
 			}
+			val filteredSources = filterSourcesByType(sources)
 			val semaphore = Semaphore(MAX_PARALLELISM)
-			sources.map { source ->
+			filteredSources.map { source ->
 				launch {
 					semaphore.withPermit {
 						appendResult(searchSource(source))
@@ -170,8 +206,9 @@ class SearchViewModel @Inject constructor(
 			} else {
 				sourcesRepository.getEnabledSources()
 			}
+			val filteredSources = filterSourcesByType(sources)
 			val semaphore = Semaphore(MAX_PARALLELISM)
-			sources.map { source ->
+			filteredSources.map { source ->
 				launch {
 					semaphore.withPermit {
 						appendResult(searchSource(source))
@@ -219,11 +256,12 @@ class SearchViewModel @Inject constructor(
 		historyRepository.search(query, kind, Int.MAX_VALUE)
 	}.fold(
 		onSuccess = { result ->
-			if (result.isNotEmpty()) {
+			val filtered = filterMangaBySourceType(result)
+			if (filtered.isNotEmpty()) {
 				SearchResultsListModel(
 					titleResId = R.string.history,
 					source = UnknownMangaSource,
-					list = mangaListMapper.toListModelList(manga = result, mode = ListMode.GRID),
+					list = mangaListMapper.toListModelList(manga = filtered, mode = ListMode.GRID),
 					error = null,
 					listFilter = null,
 					sortOrder = null,
@@ -248,12 +286,13 @@ class SearchViewModel @Inject constructor(
 		favouritesRepository.search(query, kind, Int.MAX_VALUE)
 	}.fold(
 		onSuccess = { result ->
-			if (result.isNotEmpty()) {
+			val filtered = filterMangaBySourceType(result)
+			if (filtered.isNotEmpty()) {
 				SearchResultsListModel(
 					titleResId = R.string.favourites,
 					source = UnknownMangaSource,
 					list = mangaListMapper.toListModelList(
-						manga = result,
+						manga = filtered,
 						mode = ListMode.GRID,
 						flags = MangaListMapper.NO_FAVORITE,
 					),
@@ -278,7 +317,11 @@ class SearchViewModel @Inject constructor(
 	)
 
 	private suspend fun searchLocal(): SearchResultsListModel? = runCatchingCancellable {
-		searchHelperFactory.create(LocalMangaSource).invoke(query, kind)
+		if (isSourceTypeAllowed(LocalMangaSource)) {
+			searchHelperFactory.create(LocalMangaSource).invoke(query, kind)
+		} else {
+			null
+		}
 	}.fold(
 		onSuccess = { result ->
 			if (!result?.manga.isNullOrEmpty()) {
@@ -314,6 +357,24 @@ class SearchViewModel @Inject constructor(
 		if (item != null) {
 			results.append(item)
 		}
+	}
+
+	private fun filterSourcesByType(sources: Collection<MangaSource>): List<MangaSource> {
+		val allowed = sourceTypes.value
+		return sources.filter { source ->
+			sourceTypeIdentifier.getSourceType(source.name) in allowed
+		}
+	}
+
+	private fun filterMangaBySourceType(manga: List<Manga>): List<Manga> {
+		val allowed = sourceTypes.value
+		return manga.filter { item ->
+			sourceTypeIdentifier.getSourceType(item.source.name) in allowed
+		}
+	}
+
+	private fun isSourceTypeAllowed(source: MangaSource): Boolean {
+		return sourceTypeIdentifier.getSourceType(source.name) in sourceTypes.value
 	}
 
 	private fun MangaSource.priority(): Int {

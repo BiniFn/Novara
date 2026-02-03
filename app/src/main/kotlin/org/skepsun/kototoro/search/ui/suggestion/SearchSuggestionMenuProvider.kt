@@ -10,6 +10,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.resolve
 import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.search.ui.showSourceTypeDialog
 
 class SearchSuggestionMenuProvider(
 	private val context: Context,
@@ -25,6 +26,13 @@ class SearchSuggestionMenuProvider(
 		return when (menuItem.itemId) {
 			R.id.action_clear -> {
 				clearSearchHistory()
+				true
+			}
+
+			R.id.action_source_types -> {
+				showSourceTypeDialog(context, viewModel.getSourceTypes()) { types ->
+					viewModel.setSourceTypes(types)
+				}
 				true
 			}
 

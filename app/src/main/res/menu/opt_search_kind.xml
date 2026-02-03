@@ -34,6 +34,10 @@
 
 			</group>
 
+			<item
+				android:id="@+id/action_source_types"
+				android:title="@string/source_type" />
+
 			<group android:id="@+id/group_search_filters">
 
 				<item

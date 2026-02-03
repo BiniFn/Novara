@@ -8,6 +8,7 @@ import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.ui.showSourceTypeDialog
 
 class SearchMenuProvider(
 	private val activity: SearchActivity,
@@ -32,6 +33,13 @@ class SearchMenuProvider(
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
 		when (menuItem.itemId) {
+			R.id.action_source_types -> {
+				showSourceTypeDialog(activity, viewModel.getSourceTypes()) { types ->
+					viewModel.setSourceTypes(types)
+				}
+				return true
+			}
+
 			R.id.action_filter_pinned_only -> {
 				menuItem.isChecked = !menuItem.isChecked
 				viewModel.setPinnedOnly(menuItem.isChecked)

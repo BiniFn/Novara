@@ -22,12 +22,17 @@ import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.MangaTag
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.MangaSearchRepository
+import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
+import org.skepsun.kototoro.search.domain.sourceTypesFromTags
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 import javax.inject.Inject
 
@@ -45,10 +50,15 @@ class SearchSuggestionViewModel @Inject constructor(
 	private val repository: MangaSearchRepository,
 	private val settings: AppSettings,
 	private val sourcesRepository: MangaSourcesRepository,
+	private val sourceTypeIdentifier: SourceTypeIdentifier,
+	private val globalFavoritesState: GlobalFavoritesState,
 ) : BaseViewModel() {
 
 	private val query = MutableStateFlow("")
 	private val invalidationTrigger = MutableStateFlow(0)
+	private val sourceTypes = MutableStateFlow(
+		sourceTypesFromTags(globalFavoritesState.selectedSourceTags.value),
+	)
 
 	private val enabledSourcesSnapshot: Flow<EnabledSourcesSnapshot> = sourcesRepository.observeEnabledSources()
 		.map { infos -> infos.toEnabledSourcesSnapshot() }
@@ -64,12 +74,15 @@ class SearchSuggestionViewModel @Inject constructor(
 		query.debounce(DEBOUNCE_TIMEOUT),
 		enabledSourcesSnapshot,
 		settings.observeAsFlow(AppSettings.KEY_SEARCH_SUGGESTION_TYPES) { searchSuggestionTypes },
+		sourceTypes,
 		invalidationTrigger,
 	)
-	{ a, b, c, _ ->
-		Triple(a, b, c)
-	}.mapLatest { (searchQuery, enabledSources, types) ->
-		buildSearchSuggestion(searchQuery, enabledSources, types)
+	{ a, b, c, d, _ ->
+		Triple(a, b, c) to d
+	}.mapLatest { (triple, activeTypes) ->
+		val (searchQuery, enabledSources, types) = triple
+		val filteredSources = enabledSources.filterByTypes(activeTypes, sourceTypeIdentifier)
+		buildSearchSuggestion(searchQuery, filteredSources, types)
 	}.distinctUntilChanged()
 		.withErrorHandling()
 		.flowOn(Dispatchers.Default)
@@ -77,6 +90,15 @@ class SearchSuggestionViewModel @Inject constructor(
 	fun onQueryChanged(newQuery: String) {
 		query.value = newQuery
 	}
+
+	fun setSourceTypes(types: Set<SourceType>) {
+		val resolved = if (types.isEmpty()) ALL_SOURCE_TYPES else types
+		if (sourceTypes.value != resolved) {
+			sourceTypes.value = resolved
+		}
+	}
+
+	fun getSourceTypes(): Set<SourceType> = sourceTypes.value
 
 	fun saveQuery(query: String) {
 		if (!settings.isIncognitoModeEnabled) {
@@ -137,7 +159,7 @@ class SearchSuggestionViewModel @Inject constructor(
 				null
 			},
 			if (SearchSuggestionType.RECENT_SOURCES in types) {
-				async { getRecentSources(searchQuery) }
+				async { getRecentSources(searchQuery, enabledSources) }
 			} else {
 				null
 			},
@@ -208,9 +230,13 @@ class SearchSuggestionViewModel @Inject constructor(
 			listOf(SearchSuggestionItem.Text(0, e))
 		}
 
-	private suspend fun getRecentSources(searchQuery: String): List<SearchSuggestionItem> = if (searchQuery.isEmpty()) {
+	private suspend fun getRecentSources(
+		searchQuery: String,
+		enabledSources: EnabledSourcesSnapshot,
+	): List<SearchSuggestionItem> = if (searchQuery.isEmpty()) {
 		runCatchingCancellable {
 			repository.getSourcesSuggestion(MAX_SOURCES_TIPS_ITEMS)
+				.filter { it.name in enabledSources.names }
 				.map { SearchSuggestionItem.SourceTip(it) }
 		}.getOrElse { e ->
 			e.printStackTraceDebug()
@@ -232,6 +258,19 @@ private data class EnabledSourcesSnapshot(
 	val sources: List<MangaSource>,
 	val names: Set<String>,
 )
+
+private fun EnabledSourcesSnapshot.filterByTypes(
+	types: Set<SourceType>,
+	identifier: SourceTypeIdentifier,
+): EnabledSourcesSnapshot {
+	val filtered = sources.filter { source ->
+		identifier.getSourceType(source.name) in types
+	}
+	return EnabledSourcesSnapshot(
+		sources = filtered,
+		names = filtered.mapToSet { it.name },
+	)
+}
 
 private fun List<MangaSourceInfo>.toEnabledSourcesSnapshot(): EnabledSourcesSnapshot {
 	val sources = this.map { it.mangaSource }
