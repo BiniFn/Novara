@@ -520,7 +520,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // 同步系统导航栏颜色为底栏背景色，实现与小白条区域的视觉合并
         runCatching {
-            val navColor = MaterialColors.getColor(viewBinding.root, com.google.android.material.R.attr.colorSurfaceContainerHigh)
+            val navColor = android.graphics.Color.TRANSPARENT
             @Suppress("DEPRECATION")
             window.navigationBarColor = navColor
         }
@@ -874,19 +874,23 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun applyControlsAlpha() {
         val alpha = appSettings.videoControlsAlpha
-        // 恢复使用 SurfaceContainer 系统色，避免主题色过于鲜艳
-        val base = MaterialColors.getColor(viewBinding.root, com.google.android.material.R.attr.colorSurfaceContainerHigh)
-        val colored = ColorUtils.setAlphaComponent(base, (alpha.coerceIn(0.3f, 1.0f) * 255).toInt())
+        // 背景完全透明，避免遮挡视频画面
+        val colored = android.graphics.Color.TRANSPARENT
 
-        viewBinding.toolbar.alpha = alpha
+        // 仅调整背景透明度，避免工具栏文本被整体 alpha 变淡
+        viewBinding.toolbar.alpha = 1f
         viewBinding.toolbar.setBackgroundColor(colored)
+        val titleColor = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorOnSurface)
+        val subtitleColor = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorOnSurfaceVariant)
+        viewBinding.toolbar.setTitleTextColor(titleColor)
+        viewBinding.toolbar.setSubtitleTextColor(subtitleColor)
 
         findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
-            ctl.alpha = alpha
+            ctl.alpha = 1f
             ctl.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)?.setBackgroundColor(colored)
         }
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.apply {
-            this.alpha = alpha
+            this.alpha = 1f
             setBackgroundColor(colored)
         }
         @Suppress("DEPRECATION")
@@ -900,9 +904,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun setUiIsVisible(visible: Boolean) {
         isUiVisible = visible
         val isLandscape = isLandscapeOrientation()
-        viewBinding.toolbar.isVisible = visible
-        // 顶部状态栏遮罩与工具栏同步显隐
-        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.isVisible = visible
+        val showTopBar = visible
+        viewBinding.toolbar.isVisible = showTopBar
+        // 顶部状态栏遮罩与工具栏同步显隐（横屏隐藏，避免拥挤）
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.isVisible = showTopBar
         if (visible) {
             // 当显示 UI 时，将遮罩与工具栏一并置顶，避免被底部控制层或视频内容覆盖
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.bringToFront()
@@ -1053,9 +1058,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun updateStatusBarByToolbar() {
-        val base = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorSurfaceContainerHigh)
-        val alpha = (appSettings.videoControlsAlpha.coerceIn(0.3f, 1.0f) * 255).toInt()
-        val color = ColorUtils.setAlphaComponent(base, alpha)
+        val color = android.graphics.Color.TRANSPARENT
         val isLight = ColorUtils.calculateLuminance(color) > 0.5
         WindowInsetsControllerCompat(window, viewBinding.root).setAppearanceLightStatusBars(isLight)
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.setBackgroundColor(color)
@@ -1374,12 +1377,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             leftMargin = bars.left
             rightMargin = bars.right
         }
-        // 将 DockedToolbar 与系统导航栏视觉合并：为其设置左右边距和底部边距
-        findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+        // 将 DockedToolbar 与系统导航栏视觉合并：使用内边距吸收导航栏高度，避免底部留白
+        val dockedToolbar = findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)
+        dockedToolbar?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             leftMargin = bars.left
             rightMargin = bars.right
-            bottomMargin = bars.bottom  // 添加底部边距，避免与导航栏重合
+            bottomMargin = 0
         }
+        dockedToolbar?.updatePadding(bottom = bars.bottom)
         // PlayerView 内容保持与左右系统栏对齐，底部不再额外内边距，避免与 DockedToolbar 重叠留白
         findViewById<View>(org.skepsun.kototoro.R.id.player_view).updatePadding(
             left = bars.left,
