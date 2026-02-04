@@ -99,6 +99,13 @@
 		<item name="shapeAppearance">?shapeAppearanceCornerMedium</item>
 	</style>
 
+	<!-- Transparent icon button style for video player -->
+	<style name="Widget.Kototoro.IconButton.Transparent" parent="Widget.Material3.Button.IconButton">
+		<item name="android:background">@android:color/transparent</item>
+		<item name="backgroundTint">@android:color/transparent</item>
+		<item name="rippleColor">?attr/colorControlHighlight</item>
+	</style>
+
 	<style name="Widget.Kototoro.Slider.Wide" parent="Widget.Material3.Slider">
 		<item name="thumbHeight">48dp</item>
 		<item name="trackCornerSize">12dp</item>

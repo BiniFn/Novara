@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="?actionBarSize"
-    android:background="?colorSurfaceContainer"
+    android:background="@android:color/transparent"
     android:clipToPadding="false"
     android:theme="@style/ThemeOverlay.Kototoro">
 
@@ -72,7 +72,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_pages_thumbs"
-                style="?materialIconButtonStyle"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:padding="0dp"
@@ -87,7 +87,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_options"
-                style="?materialIconButtonStyle"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:padding="0dp"
