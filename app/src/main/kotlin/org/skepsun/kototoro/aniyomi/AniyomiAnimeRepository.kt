@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.aniyomi
 
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -164,30 +166,17 @@ class AniyomiAnimeRepository(
     override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = withContext(Dispatchers.IO) {
         android.util.Log.d("AniyomiRepo", "getPagesImpl called for chapter: ${chapter.title} (${chapter.url})")
         val sEpisode = chapter.toAniyomiEpisode()
-        val videos = try {
-            android.util.Log.d("AniyomiRepo", "Calling getVideoList...")
-            val result = aniyomiSource.getVideoList(sEpisode)
-            android.util.Log.d("AniyomiRepo", "getVideoList returned ${result.size} videos")
-            result
-        } catch (e: Exception) {
-            android.util.Log.e("AniyomiRepo", "getVideoList failed: ${e.message}", e)
-            val ioException = when {
-                e is java.io.IOException -> e
-                e.cause is java.io.IOException -> e.cause as java.io.IOException
-                else -> null
-            }
-            if (ioException != null) {
-                kotlinx.coroutines.delay(500)
-                aniyomiSource.getVideoList(sEpisode)
-            } else {
-                throw e
-            }
-        }
+        val videos = fetchVideoList(sEpisode)
         
         videos.mapIndexed { index, video ->
             android.util.Log.d("AniyomiRepo", "Video $index: url=${video.videoUrl}, quality=${video.videoTitle}")
             video.toKotoPage(source, sEpisode, index)
         }
+    }
+
+    suspend fun getVideoListForChapter(chapter: MangaChapter): List<Video> = withContext(Dispatchers.IO) {
+        val sEpisode = chapter.toAniyomiEpisode()
+        fetchVideoList(sEpisode)
     }
     
     override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> = emptyList()
@@ -226,5 +215,27 @@ class AniyomiAnimeRepository(
             map[headers.name(i)] = headers.value(i)
         }
         return map
+    }
+
+    private suspend fun fetchVideoList(sEpisode: SEpisode): List<Video> {
+        return try {
+            android.util.Log.d("AniyomiRepo", "Calling getVideoList...")
+            val result = aniyomiSource.getVideoList(sEpisode)
+            android.util.Log.d("AniyomiRepo", "getVideoList returned ${result.size} videos")
+            result
+        } catch (e: Exception) {
+            android.util.Log.e("AniyomiRepo", "getVideoList failed: ${e.message}", e)
+            val ioException = when {
+                e is java.io.IOException -> e
+                e.cause is java.io.IOException -> e.cause as java.io.IOException
+                else -> null
+            }
+            if (ioException != null) {
+                kotlinx.coroutines.delay(500)
+                aniyomiSource.getVideoList(sEpisode)
+            } else {
+                throw e
+            }
+        }
     }
 }

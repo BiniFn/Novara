@@ -7,7 +7,7 @@
     android:minHeight="?actionBarSize"
     android:background="@android:color/transparent"
     android:clipToPadding="false"
-    android:theme="@style/ThemeOverlay.Kototoro">
+    android:theme="@style/ThemeOverlay.Kototoro.VideoControls">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -16,98 +16,14 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="8dp"
-        android:paddingBottom="8dp">
+        android:paddingBottom="10dp">
 
-        <!-- 第一行：操作按钮 -->
+        <!-- 第一行：进度条 + 时间 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
-
-            <ImageButton
-                android:id="@+id/button_prev_chapter"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/prev_chapter"
-                android:src="@drawable/ic_prev"
-                android:tint="?attr/colorOnSurface" />
-
-            <ImageButton
-                android:id="@id/exo_rew"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/rewind"
-                android:src="@drawable/ic_fast_rewind"
-                android:tint="?attr/colorOnSurface" />
-
-            <!-- 合并播放/暂停为一个切换按钮，由 PlayerControlView 自动切换图标与行为 -->
-            <ImageButton
-                android:id="@id/exo_play_pause"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/play"
-                android:tint="?attr/colorOnSurface" />
-
-            <ImageButton
-                android:id="@id/exo_ffwd"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/fast_forward"
-                android:src="@drawable/ic_fast_forward"
-                android:tint="?attr/colorOnSurface" />
-
-            <ImageButton
-                android:id="@+id/button_next_chapter"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/next_chapter"
-                android:src="@drawable/ic_next"
-                android:tint="?attr/colorOnSurface" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/button_pages_thumbs"
-                style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:contentDescription="@string/pages"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:icon="@drawable/ic_grid" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/button_options"
-                style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:contentDescription="@string/options"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:icon="@drawable/ic_settings" />
-        </LinearLayout>
-
-        <!-- 第二行：进度条 + 时间 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="4dp">
 
             <TextView
                 android:id="@id/exo_position"
@@ -148,6 +64,115 @@
                 app:played_color="?attr/colorPrimary"
                 app:buffered_color="?attr/colorOutline"
                 app:scrubber_color="?attr/colorPrimary" />
+        </LinearLayout>
+
+        <!-- 第二行：控制 + 弹幕输入 + 清晰度 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="6dp">
+
+            <ImageButton
+                android:id="@id/exo_play_pause"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/play"
+                android:src="@drawable/ic_play"
+                android:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/button_prev_chapter"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/prev_chapter"
+                android:src="@drawable/ic_prev"
+                android:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/button_next_chapter"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/next_chapter"
+                android:src="@drawable/ic_next"
+                android:tint="?attr/colorOnSurface" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_danmaku_settings"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/video_danmaku_settings"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:icon="@drawable/ic_settings" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                app:boxBackgroundMode="filled"
+                app:boxBackgroundColor="?attr/colorSurfaceContainerHigh"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:hintTextColor="?attr/colorOnSurfaceVariant">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/edit_danmaku_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/video_send_danmaku_hint"
+                    android:imeOptions="actionSend"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="?attr/colorOnSurfaceVariant" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_danmaku_send"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/video_send_danmaku_hint"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:icon="@drawable/ic_arrow_forward" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_quality"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/video_quality"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:icon="@drawable/ic_content_video" />
+
         </LinearLayout>
     </LinearLayout>
 

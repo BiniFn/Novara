@@ -73,6 +73,27 @@
 		<item>@string/video_decoder_hardware</item>
 		<item>@string/video_decoder_software</item>
 	</string-array>
+	<string-array name="video_renderer_modes" translatable="false">
+		<item>@string/video_renderer_auto</item>
+		<item>@string/video_renderer_gpu</item>
+		<item>@string/video_renderer_gpu_next</item>
+		<item>@string/video_renderer_mediacodec_embed</item>
+	</string-array>
+	<string-array name="video_super_resolution_modes" translatable="false">
+		<item>@string/video_super_resolution_off</item>
+		<item>@string/video_super_resolution_quality</item>
+		<item>@string/video_super_resolution_balanced</item>
+		<item>@string/video_super_resolution_performance</item>
+		<item>@string/video_super_resolution_advanced</item>
+	</string-array>
+	<string-array name="video_super_resolution_shaders" translatable="false">
+		<item>@string/video_super_resolution_mode_a</item>
+		<item>@string/video_super_resolution_mode_b</item>
+		<item>@string/video_super_resolution_mode_c</item>
+		<item>@string/video_super_resolution_mode_aa</item>
+		<item>@string/video_super_resolution_mode_bb</item>
+		<item>@string/video_super_resolution_mode_ca</item>
+	</string-array>
 	<string-array name="reader_animation" translatable="false">
 		<item>@string/disabled</item>
 		<item>@string/system_default</item>

@@ -8,6 +8,9 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderBackground
 import org.skepsun.kototoro.core.prefs.VideoDecoderMode
+import org.skepsun.kototoro.core.prefs.VideoRendererMode
+import org.skepsun.kototoro.core.prefs.VideoSuperResolutionMode
+import org.skepsun.kototoro.core.prefs.VideoSuperResolutionShader
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
 import org.skepsun.kototoro.parsers.util.names
@@ -24,9 +27,39 @@ class PlaybackSettingsFragment : BasePreferenceFragment(R.string.playback_settin
 			setDefaultValueCompat(VideoDecoderMode.HARDWARE.name)
 		}
 
+		findPreference<ListPreference>(AppSettings.KEY_VIDEO_RENDERER_MODE)?.run {
+			entryValues = VideoRendererMode.entries.names()
+			setDefaultValueCompat(VideoRendererMode.AUTO.name)
+		}
+
 		findPreference<ListPreference>(AppSettings.KEY_VIDEO_BACKGROUND)?.run {
 			entryValues = ReaderBackground.entries.names()
 			setDefaultValueCompat(ReaderBackground.DEFAULT.name)
+		}
+
+		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_MODE)?.run {
+			entryValues = VideoSuperResolutionMode.entries.names()
+			setDefaultValueCompat(VideoSuperResolutionMode.BALANCED.name)
+		}
+
+		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_QUALITY_SHADER)?.run {
+			entryValues = VideoSuperResolutionShader.entries.names()
+			setDefaultValueCompat(VideoSuperResolutionShader.MODE_A.name)
+		}
+
+		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_BALANCED_SHADER)?.run {
+			entryValues = VideoSuperResolutionShader.entries.names()
+			setDefaultValueCompat(VideoSuperResolutionShader.MODE_B.name)
+		}
+
+		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER)?.run {
+			entryValues = VideoSuperResolutionShader.entries.names()
+			setDefaultValueCompat(VideoSuperResolutionShader.MODE_C.name)
+		}
+
+		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_SHADER)?.run {
+			entryValues = VideoSuperResolutionShader.entries.names()
+			setDefaultValueCompat(VideoSuperResolutionShader.MODE_A.name)
 		}
 
 		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_CACHE_MB)?.run {
@@ -37,6 +70,12 @@ class PlaybackSettingsFragment : BasePreferenceFragment(R.string.playback_settin
 		}
 
 		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_CONTROLS_ALPHA)?.run {
+			summaryProvider = Preference.SummaryProvider<SliderPreference> { pref ->
+				"${pref.value.toInt()}%"
+			}
+		}
+
+		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_GRADIENT_ALPHA)?.run {
 			summaryProvider = Preference.SummaryProvider<SliderPreference> { pref ->
 				"${pref.value.toInt()}%"
 			}

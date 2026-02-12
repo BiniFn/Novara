@@ -11,10 +11,51 @@
 		app:useSimpleSummaryProvider="true" />
 
 	<ListPreference
+		android:entries="@array/video_renderer_modes"
+		android:key="video_renderer_mode"
+		android:title="@string/video_renderer_mode"
+		app:useSimpleSummaryProvider="true" />
+
+	<ListPreference
 		android:entries="@array/reader_backgrounds"
 		android:key="video_background"
 		android:title="@string/video_background"
 		app:useSimpleSummaryProvider="true" />
+
+	<PreferenceCategory
+		android:title="@string/video_super_resolution">
+
+		<ListPreference
+			android:entries="@array/video_super_resolution_modes"
+			android:key="video_super_resolution_mode"
+			android:title="@string/video_super_resolution_mode"
+			app:useSimpleSummaryProvider="true" />
+
+		<ListPreference
+			android:entries="@array/video_super_resolution_shaders"
+			android:key="video_super_resolution_quality_shader"
+			android:title="@string/video_super_resolution_submode_quality"
+			app:useSimpleSummaryProvider="true" />
+
+		<ListPreference
+			android:entries="@array/video_super_resolution_shaders"
+			android:key="video_super_resolution_balanced_shader"
+			android:title="@string/video_super_resolution_submode_balanced"
+			app:useSimpleSummaryProvider="true" />
+
+		<ListPreference
+			android:entries="@array/video_super_resolution_shaders"
+			android:key="video_super_resolution_performance_shader"
+			android:title="@string/video_super_resolution_submode_performance"
+			app:useSimpleSummaryProvider="true" />
+
+		<ListPreference
+			android:entries="@array/video_super_resolution_shaders"
+			android:key="video_super_resolution_shader"
+			android:title="@string/video_super_resolution_advanced_shader"
+			app:useSimpleSummaryProvider="true" />
+
+	</PreferenceCategory>
 
 	<org.skepsun.kototoro.settings.utils.SliderPreference
 		android:key="video_cache_mb"
@@ -32,5 +73,13 @@
 		android:valueTo="100"
 		android:stepSize="1"
 		app:defaultValue="90" />
+
+	<org.skepsun.kototoro.settings.utils.SliderPreference
+		android:key="video_gradient_alpha"
+		android:title="@string/video_gradient_alpha"
+		android:valueFrom="0"
+		android:valueTo="100"
+		android:stepSize="1"
+		app:defaultValue="70" />
 
 </PreferenceScreen>

@@ -7,13 +7,39 @@
     android:background="#FF000000"
     android:clipToPadding="false">
 
-    <androidx.media3.ui.PlayerView
+    <SurfaceView
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:keepScreenOn="true"
-        app:show_buffering="when_playing"
-        app:use_controller="false" />
+        android:keepScreenOn="true" />
+
+    <com.bytedance.danmaku.render.engine.DanmakuView
+        android:id="@+id/danmaku_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/top_gradient"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_gravity="top"
+        android:background="@drawable/bg_video_top_gradient"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/bottom_gradient"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_video_bottom_gradient"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
 
     <!-- 顶部状态栏区域的遮罩（scrim），用于在显示工具栏时让状态栏不透明且与工具栏颜色一致 -->
     <View
@@ -40,12 +66,12 @@
         app:contentInsetStart="8dp"
         app:contentInsetEnd="8dp"
         app:contentInsetStartWithNavigation="8dp"
-        app:theme="@style/ThemeOverlay.Kototoro.MainToolbar"
+        app:theme="@style/ThemeOverlay.Kototoro.VideoControls"
         app:layout_scrollFlags="scroll|enterAlways"
         app:popupTheme="@style/ThemeOverlay.Kototoro"
         app:titleTextAppearance="?textAppearanceTitleSmall"
-        app:titleTextColor="?attr/colorOnPrimary"
-        app:subtitleTextColor="?attr/colorOnPrimaryContainer">
+        app:titleTextColor="?attr/colorOnSurface"
+        app:subtitleTextColor="?attr/colorOnSurfaceVariant">
 
         <!-- 顶部工具栏内的短进度条，用于显示播放进度 -->
         <com.google.android.material.progressindicator.LinearProgressIndicator
@@ -68,6 +94,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:background="@android:color/transparent"
         android:visibility="gone"
         app:show_timeout="0"
         app:controller_layout_id="@layout/video_player_docked_toolbar" />

@@ -2,58 +2,34 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- 横屏：将核心播放控件置于顶部工具栏，方便即点即用 -->
     <item
-        android:id="@+id/action_prev"
-        android:title="@string/prev_chapter"
-        android:icon="@drawable/ic_prev"
-        android:orderInCategory="10"
+        android:id="@+id/action_reload"
+        android:title="@string/video_reload"
+        android:icon="@drawable/ic_retry"
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_rewind"
-        android:title="@string/rewind"
-        android:icon="@drawable/ic_fast_rewind"
-        android:orderInCategory="20"
+        android:id="@+id/action_screenshot"
+        android:title="@string/video_screenshot"
+        android:icon="@drawable/ic_save"
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_play_pause"
-        android:title="@string/play"
-        android:icon="@drawable/ic_play"
-        android:orderInCategory="30"
+        android:id="@+id/action_pip"
+        android:title="@string/video_picture_in_picture"
+        android:icon="@drawable/ic_expand"
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_fast_forward"
-        android:title="@string/fast_forward"
-        android:icon="@drawable/ic_fast_forward"
-        android:orderInCategory="40"
+        android:id="@+id/action_info"
+        android:title="@string/video_detail"
+        android:icon="@drawable/ic_info_outline"
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_next"
-        android:title="@string/next_chapter"
-        android:icon="@drawable/ic_next"
-        android:orderInCategory="50"
-        app:showAsAction="always" />
-
-    <!-- 选集入口保留，清晰度改由设置面板提供 -->
-
-    <!-- 屏幕旋转按钮移至设置 Sheet，移除工具栏中的该项 -->
-
-    <item
-        android:id="@+id/action_pages"
-        android:title="@string/pages"
-        android:icon="@drawable/ic_grid"
-        android:orderInCategory="120"
-        app:showAsAction="always" />
-
-    <item
-        android:id="@+id/action_settings"
-        android:title="@string/options"
-        android:icon="@drawable/ic_settings"
-        android:orderInCategory="130"
+        android:id="@+id/action_more"
+        android:title="@string/video_more_settings"
+        android:icon="@drawable/ic_more_vert"
         app:showAsAction="always" />
 
 </menu>

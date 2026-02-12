@@ -221,6 +221,14 @@
 		<item name="colorControlHighlight">@color/selector_overlay</item>
 	</style>
 
+	<style name="ThemeOverlay.Kototoro.VideoControls" parent="ThemeOverlay.Material3.Dark">
+		<item name="colorOnSurface">@android:color/white</item>
+		<item name="colorOnSurfaceVariant">#B3FFFFFF</item>
+		<item name="colorOutline">#4DFFFFFF</item>
+		<item name="colorPrimary">@android:color/white</item>
+		<item name="colorSurfaceContainerHigh">#33000000</item>
+	</style>
+
 	<style name="ThemeOverlay.Kototoro.ActionMode" parent="">
 		<item name="colorOnSurface">?colorPrimary</item>
 		<item name="colorControlNormal">?colorPrimary</item>

@@ -31,7 +31,7 @@ android {
 
 	defaultConfig {
 		applicationId 'org.skepsun.kototoro'
-		minSdk = 23
+		minSdk = 26
 		targetSdk = 36
         versionCode = 1083
         versionName = '0.4.3'
@@ -265,6 +265,8 @@ dependencies {
 	implementation libs.androidx.media3.ui
 	implementation libs.androidx.media3.exoplayer.hls
 	implementation libs.androidx.media3.datasource.okhttp
+	implementation libs.libmpv
+	implementation libs.bytedance.danmaku.render.engine
 
 	implementation libs.acra.http
 	implementation libs.acra.dialog

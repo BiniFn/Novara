@@ -33,6 +33,9 @@ import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.core.prefs.VideoDecoderMode
+import org.skepsun.kototoro.core.prefs.VideoRendererMode
+import org.skepsun.kototoro.core.prefs.VideoSuperResolutionMode
+import org.skepsun.kototoro.core.prefs.VideoSuperResolutionShader
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.find
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
@@ -225,9 +228,121 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		get() = prefs.getEnumValue(KEY_VIDEO_DECODER_MODE, VideoDecoderMode.HARDWARE)
 		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_DECODER_MODE, value) }
 
+	var videoRendererMode: VideoRendererMode
+		get() = prefs.getEnumValue(KEY_VIDEO_RENDERER_MODE, VideoRendererMode.AUTO)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_RENDERER_MODE, value) }
+
 	var videoBackground: ReaderBackground
 		get() = prefs.getEnumValue(KEY_VIDEO_BACKGROUND, ReaderBackground.DEFAULT)
 		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_BACKGROUND, value) }
+
+	var videoSuperResolutionMode: VideoSuperResolutionMode
+		get() = prefs.getEnumValue(KEY_VIDEO_SUPER_RES_MODE, VideoSuperResolutionMode.BALANCED)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_SUPER_RES_MODE, value) }
+
+	var videoSuperResolutionShader: VideoSuperResolutionShader
+		get() = prefs.getEnumValue(KEY_VIDEO_SUPER_RES_SHADER, VideoSuperResolutionShader.MODE_A)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_SUPER_RES_SHADER, value) }
+
+	var videoSuperResolutionQualityShader: VideoSuperResolutionShader
+		get() = prefs.getEnumValue(KEY_VIDEO_SUPER_RES_QUALITY_SHADER, VideoSuperResolutionShader.MODE_A)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_SUPER_RES_QUALITY_SHADER, value) }
+
+	var videoSuperResolutionBalancedShader: VideoSuperResolutionShader
+		get() = prefs.getEnumValue(KEY_VIDEO_SUPER_RES_BALANCED_SHADER, VideoSuperResolutionShader.MODE_B)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_SUPER_RES_BALANCED_SHADER, value) }
+
+	var videoSuperResolutionPerformanceShader: VideoSuperResolutionShader
+		get() = prefs.getEnumValue(KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER, VideoSuperResolutionShader.MODE_C)
+		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER, value) }
+
+	var videoDanmakuEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_ENABLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_ENABLED, value) }
+
+	var videoDanmakuSizePercent: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_SIZE, 100)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_SIZE, value) }
+
+	var videoDanmakuSpeedPercent: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_SPEED, 100)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_SPEED, value) }
+
+	var videoDanmakuOpacityPercent: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_OPACITY, 100)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_OPACITY, value) }
+
+	var videoDanmakuStrokePercent: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_STROKE, 50)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_STROKE, value) }
+
+	var videoDanmakuShowScroll: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_SHOW_SCROLL, true)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SHOW_SCROLL, value) }
+
+	var videoDanmakuShowTop: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_SHOW_TOP, true)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SHOW_TOP, value) }
+
+	var videoDanmakuShowBottom: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_SHOW_BOTTOM, true)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SHOW_BOTTOM, value) }
+
+	var videoDanmakuMaxScrollLines: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, 0)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, value) }
+
+	var videoDanmakuMaxTopLines: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, 0)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, value) }
+
+	var videoDanmakuMaxBottomLines: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, 0)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, value) }
+
+	var videoDanmakuMaxScreenNum: Int
+		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, 0)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, value) }
+
+	var videoDanmakuSourceDanDan: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_SOURCE_DANDAN, true)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SOURCE_DANDAN, value) }
+
+	var videoDanmakuSourceBilibili: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_SOURCE_BILIBILI, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SOURCE_BILIBILI, value) }
+
+	var videoDanmakuSourceQq: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_SOURCE_QQ, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SOURCE_QQ, value) }
+
+	var videoPlaybackSpeed: Float
+		get() = prefs.getInt(KEY_VIDEO_PLAYBACK_SPEED, 100) / 100f
+		set(value) = prefs.edit { putInt(KEY_VIDEO_PLAYBACK_SPEED, (value * 100).toInt()) }
+
+	var videoDefaultSpeed: Float
+		get() = prefs.getInt(KEY_VIDEO_DEFAULT_SPEED, 100) / 100f
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DEFAULT_SPEED, (value * 100).toInt()) }
+
+	var videoSeekForwardMs: Int
+		get() = prefs.getInt(KEY_VIDEO_SEEK_FORWARD_MS, 10_000)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_FORWARD_MS, value) }
+
+	var videoSeekBackwardMs: Int
+		get() = prefs.getInt(KEY_VIDEO_SEEK_BACKWARD_MS, 10_000)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_BACKWARD_MS, value) }
+
+	var videoDebandEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DEBAND_ENABLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DEBAND_ENABLED, value) }
+
+	var videoVolumeBoostEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_VOLUME_BOOST, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_VOLUME_BOOST, value) }
+
+	var videoAutoNextEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_AUTO_NEXT, true)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_AUTO_NEXT, value) }
 
 	var videoCacheSizeMb: Int
 		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
@@ -237,6 +352,11 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 	var videoControlsAlpha: Float
 		get() = prefs.getInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
 		set(@FloatRange(0.3, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_CONTROLS_ALPHA, (value * 100).toInt()) }
+
+	@get:FloatRange(0.0, 1.0)
+	var videoGradientAlpha: Float
+		get() = prefs.getInt(KEY_VIDEO_GRADIENT_ALPHA, 70) / 100f
+		set(@FloatRange(0.0, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_GRADIENT_ALPHA, (value * 100).toInt()) }
 
 	val defaultReaderMode: ReaderMode
 		get() = prefs.getEnumValue(KEY_READER_MODE, ReaderMode.STANDARD)
@@ -945,9 +1065,38 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_READER_CHAPTER_TOAST = "reader_chapter_toast"
 		const val KEY_READER_BACKGROUND = "reader_background"
 		const val KEY_VIDEO_DECODER_MODE = "video_decoder_mode"
+		const val KEY_VIDEO_RENDERER_MODE = "video_renderer_mode"
 		const val KEY_VIDEO_BACKGROUND = "video_background"
+		const val KEY_VIDEO_SUPER_RES_MODE = "video_super_resolution_mode"
+		const val KEY_VIDEO_SUPER_RES_SHADER = "video_super_resolution_shader"
+		const val KEY_VIDEO_SUPER_RES_QUALITY_SHADER = "video_super_resolution_quality_shader"
+		const val KEY_VIDEO_SUPER_RES_BALANCED_SHADER = "video_super_resolution_balanced_shader"
+		const val KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER = "video_super_resolution_performance_shader"
+		const val KEY_VIDEO_DANMAKU_ENABLED = "video_danmaku_enabled"
+		const val KEY_VIDEO_DANMAKU_SIZE = "video_danmaku_size"
+		const val KEY_VIDEO_DANMAKU_SPEED = "video_danmaku_speed"
+		const val KEY_VIDEO_DANMAKU_OPACITY = "video_danmaku_opacity"
+		const val KEY_VIDEO_DANMAKU_STROKE = "video_danmaku_stroke"
+		const val KEY_VIDEO_DANMAKU_SHOW_SCROLL = "video_danmaku_show_scroll"
+		const val KEY_VIDEO_DANMAKU_SHOW_TOP = "video_danmaku_show_top"
+		const val KEY_VIDEO_DANMAKU_SHOW_BOTTOM = "video_danmaku_show_bottom"
+		const val KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES = "video_danmaku_max_scroll_lines"
+		const val KEY_VIDEO_DANMAKU_MAX_TOP_LINES = "video_danmaku_max_top_lines"
+		const val KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES = "video_danmaku_max_bottom_lines"
+		const val KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM = "video_danmaku_max_screen_num"
+		const val KEY_VIDEO_DANMAKU_SOURCE_DANDAN = "video_danmaku_source_dandan"
+		const val KEY_VIDEO_DANMAKU_SOURCE_BILIBILI = "video_danmaku_source_bilibili"
+		const val KEY_VIDEO_DANMAKU_SOURCE_QQ = "video_danmaku_source_qq"
+		const val KEY_VIDEO_PLAYBACK_SPEED = "video_playback_speed"
+		const val KEY_VIDEO_DEFAULT_SPEED = "video_default_speed"
+		const val KEY_VIDEO_SEEK_FORWARD_MS = "video_seek_forward_ms"
+		const val KEY_VIDEO_SEEK_BACKWARD_MS = "video_seek_backward_ms"
+		const val KEY_VIDEO_DEBAND_ENABLED = "video_deband_enabled"
+		const val KEY_VIDEO_VOLUME_BOOST = "video_volume_boost"
+		const val KEY_VIDEO_AUTO_NEXT = "video_auto_next"
 		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"
 		const val KEY_VIDEO_CONTROLS_ALPHA = "video_controls_alpha"
+		const val KEY_VIDEO_GRADIENT_ALPHA = "video_gradient_alpha"
 		const val KEY_READER_SCREEN_ON = "reader_screen_on"
 		const val KEY_SHORTCUTS = "dynamic_shortcuts"
 		const val KEY_READER_TAP_ACTIONS = "reader_tap_actions"

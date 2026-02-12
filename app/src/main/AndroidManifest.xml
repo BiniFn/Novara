@@ -279,7 +279,9 @@
             android:name="org.skepsun.kototoro.video.ui.VideoPlayerActivity"
             android:exported="false"
             android:label="@string/content_type_video"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode" />
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true" />
 		<activity
 			android:name="org.skepsun.kototoro.scrobbling.kitsu.ui.KitsuAuthActivity"
 			android:exported="false"

@@ -57,6 +57,8 @@ kotest = "5.9.1"
 xsoup = "0.3.7"
 jsonpath = "2.8.0"
 rhino = "1.7.15"
+libmpv = "0.4.1"
+danmakuRenderEngine = "0.1.0"
 quickjsAndroid = "0.1.0"
 quickjsKt = "1.0.0-alpha13"
 epublib = "0.0.1"
@@ -140,6 +142,8 @@ androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", versi
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 androidx-media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "media3" }
+libmpv = { module = "dev.jdtech.mpv:libmpv", version.ref = "libmpv" }
+bytedance-danmaku-render-engine = { module = "com.github.bytedance:danmaku-render-engine", version.ref = "danmakuRenderEngine" }
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
