@@ -1,4 +1,4 @@
-package org.skepsun.kototoro.video.ui
+﻿package org.skepsun.kototoro.video.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -21,8 +21,8 @@ import org.skepsun.kototoro.databinding.SheetVideoSettingsBinding
 import org.skepsun.kototoro.reader.ui.ScreenOrientationHelper
 
 /**
- * 视频“更多设置”底部 Sheet。
- * 提供屏幕旋转控制：自动旋转下显示“锁定”开关；否则显示“手动旋转”按钮。
+ * 瑙嗛鈥滄洿澶氳缃€濆簳閮?Sheet銆?
+ * 鎻愪緵灞忓箷鏃嬭浆鎺у埗锛氳嚜鍔ㄦ棆杞笅鏄剧ず鈥滈攣瀹氣€濆紑鍏筹紱鍚﹀垯鏄剧ず鈥滄墜鍔ㄦ棆杞€濇寜閽€?
  */
 @AndroidEntryPoint
 class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
@@ -46,8 +46,17 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
     ) {
         super.onViewBindingCreated(binding, savedInstanceState)
         binding.headerBar.setTitle(R.string.options)
+        // 工具栏已有入口，隐藏重复操作项
+        binding.buttonQuality.isGone = true
+        binding.buttonDanmakuSettings.isGone = true
+        binding.buttonScreenRotate.isGone = true
 
-        // 清晰度设置入口：直接调用宿主 Activity 的清晰度选择
+        binding.buttonReload.setOnClickListener {
+            (activity as? VideoPlayerActivity)?.reloadPlayback()
+            dismissAllowingStateLoss()
+        }
+
+        // 娓呮櫚搴﹁缃叆鍙ｏ細鐩存帴璋冪敤瀹夸富 Activity 鐨勬竻鏅板害閫夋嫨
         binding.buttonQuality.setOnClickListener {
             (activity as? VideoPlayerActivity)?.showQualityDialog()
         }
@@ -222,3 +231,4 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
         return insets.consume(v, typeMask, bottom = true)
     }
 }
+

@@ -7,7 +7,7 @@
     android:background="#FF000000"
     android:clipToPadding="false">
 
-    <SurfaceView
+    <org.skepsun.kototoro.video.player.CustomMpvView
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

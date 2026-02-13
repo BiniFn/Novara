@@ -75,18 +75,26 @@ class VideoDanmakuController {
             else -> config.bottom.lineCount
         }
         updateVisibility()
+        if (isEnabled && isVisible && hasData && playingProvider?.invoke() == true) {
+            controller.start(positionProvider?.invoke() ?: 0L)
+        }
         controller.invalidateView()
     }
 
-    fun loadDanmaku(items: List<DanmakuItem>) {
+    fun loadDanmaku(
+        items: List<DanmakuItem>,
+        autoShow: Boolean = true,
+        isPlaying: Boolean = false,
+    ) {
         val controller = danmakuController ?: return
         val data = DanmakuListParser(items).toTextDataList()
         hasData = data.isNotEmpty()
+        isVisible = autoShow
         android.util.Log.d("Danmaku", "Render load: items=${items.size} data=${data.size}")
         updateVisibility()
         val startTime = positionProvider?.invoke() ?: 0L
         controller.setData(data, startTime)
-        if (isEnabled && isVisible && playingProvider?.invoke() == true) {
+        if (isEnabled && isVisible && hasData && isPlaying) {
             controller.start(startTime)
         }
     }
@@ -118,6 +126,9 @@ class VideoDanmakuController {
     fun setVisible(visible: Boolean) {
         isVisible = visible
         updateVisibility()
+        if (isEnabled && isVisible && hasData && playingProvider?.invoke() == true) {
+            danmakuController?.start(positionProvider?.invoke() ?: 0L)
+        }
     }
 
     fun seekTo(positionMs: Long) {
@@ -160,6 +171,8 @@ class VideoDanmakuController {
         danmakuController = null
         danmakuView = null
     }
+
+    fun isPrepared(): Boolean = hasData
 
     private fun updateVisibility() {
         danmakuView?.visibility = if (isEnabled && isVisible && hasData) View.VISIBLE else View.GONE

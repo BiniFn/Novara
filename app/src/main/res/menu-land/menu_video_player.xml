@@ -3,12 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_reload"
-        android:title="@string/video_reload"
-        android:icon="@drawable/ic_retry"
-        app:showAsAction="always" />
-
-    <item
         android:id="@+id/action_screenshot"
         android:title="@string/video_screenshot"
         android:icon="@drawable/ic_save"
@@ -17,7 +11,7 @@
     <item
         android:id="@+id/action_pip"
         android:title="@string/video_picture_in_picture"
-        android:icon="@drawable/ic_expand"
+        android:icon="@drawable/ic_picture_in_picture"
         app:showAsAction="always" />
 
     <item

@@ -18,11 +18,11 @@ import android.widget.TextView
 import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.TimeBar
 import android.view.ViewGroup
-import android.view.SurfaceHolder
 import android.view.SurfaceView
-import android.view.PixelCopy
 import android.app.PictureInPictureParams
 import android.provider.MediaStore
+import android.util.Rational
+import android.view.PixelCopy
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -66,14 +66,12 @@ import org.skepsun.kototoro.core.prefs.VideoDecoderMode
 import org.skepsun.kototoro.core.prefs.VideoRendererMode
 import org.skepsun.kototoro.core.prefs.VideoSuperResolutionMode
 import org.skepsun.kototoro.core.prefs.VideoSuperResolutionShader
+import org.skepsun.kototoro.video.player.CustomMpvView
 import org.skepsun.kototoro.video.player.MpvPlayer
 import org.skepsun.kototoro.video.player.MpvShaderManager
 import org.skepsun.kototoro.video.danmaku.VideoDanmakuController
-import org.skepsun.kototoro.video.danmaku.DanDanPlayRepository
 import org.skepsun.kototoro.video.danmaku.DanmakuSettings
-import org.skepsun.kototoro.video.danmaku.DanmakuCache
-import org.skepsun.kototoro.video.danmaku.BilibiliDanmakuRepository
-import org.skepsun.kototoro.video.danmaku.QqDanmakuRepository
+import org.skepsun.kototoro.video.danmaku.DanmakuSourceManager
 import com.bytedance.danmaku.render.engine.DanmakuView
 import eu.kanade.tachiyomi.animesource.model.Video
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -95,21 +93,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private var currentVideoIndex: Int = 0
     private var currentVideoSource: ParsersMangaSource? = null
     private var currentMediaHeaders: Map<String, String>? = null
+    private var skipHistorySeekForCurrentMedia: Boolean = false
+    private lateinit var mpvView: CustomMpvView
     private val danmakuController = VideoDanmakuController()
     private var danmakuLoadJob: Job? = null
     private var danmakuKey: String? = null
 
     @Inject
-    lateinit var danmakuRepository: DanDanPlayRepository
-
-    @Inject
-    lateinit var danmakuCache: DanmakuCache
-
-    @Inject
-    lateinit var bilibiliDanmakuRepository: BilibiliDanmakuRepository
-
-    @Inject
-    lateinit var qqDanmakuRepository: QqDanmakuRepository
+    lateinit var danmakuSourceManager: DanmakuSourceManager
 
     // ReaderState（用于历史保存时提供章节与页信息）
     private var readerState: ReaderState? = null
@@ -125,7 +116,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private val mpvListener = object : MpvPlayer.Listener {
         override fun onDurationChanged(durationMs: Long) {
             if (!hasRestoredProgress && durationMs > 0) {
-                restorePlaybackProgress()
                 tryApplyInitialSeek()
                 hasRestoredProgress = true
                 viewBinding.root.removeCallbacks(progressSaveRunnable)
@@ -319,21 +309,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun isLandscapeOrientation(): Boolean =
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    private fun bindMpvSurface() {
-        val surfaceView = findViewById<SurfaceView>(org.skepsun.kototoro.R.id.player_view) ?: return
-        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                mpvPlayer?.attachSurface(holder.surface)
-            }
-
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
-
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
-                mpvPlayer?.detachSurface()
-            }
-        })
-    }
-
     private fun bindDanmakuOverlay() {
         val danmakuView = findViewById<DanmakuView>(
             org.skepsun.kototoro.R.id.danmaku_view
@@ -355,11 +330,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 确保工具栏整体位于其他层级之上，避免被 PlayerView 或控制层遮挡
         viewBinding.toolbar.bringToFront()
         applyPlaybackBackground()
-        mpvPlayer = MpvPlayer(this).also { player ->
+        mpvView = findViewById(org.skepsun.kototoro.R.id.player_view)
+        mpvView.initialize(filesDir.path, cacheDir.path)
+        mpvPlayer = MpvPlayer().also { player ->
             player.initialize()
             player.addListener(mpvListener)
         }
-        bindMpvSurface()
         bindDanmakuOverlay()
         danmakuController.setPlaybackPositionProvider(
             positionProvider = { mpvPlayer?.positionMs ?: 0L },
@@ -384,10 +360,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             when (item.itemId) {
                 org.skepsun.kototoro.R.id.action_quality -> {
                     showQualityDialog()
-                    true
-                }
-                org.skepsun.kototoro.R.id.action_reload -> {
-                    reloadPlayback()
                     true
                 }
                 org.skepsun.kototoro.R.id.action_screenshot -> {
@@ -446,7 +418,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         initCurrentBrightness()
 
         // Hook player view gestures: 双击播放/暂停；单击显隐UI；长按左右持续快进/快退
-        findViewById<SurfaceView>(org.skepsun.kototoro.R.id.player_view)?.let { pv ->
+        findViewById<View>(org.skepsun.kototoro.R.id.player_view)?.let { pv ->
             pv.isClickable = true
 
             val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -645,6 +617,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 updatePlaybackMenu()
             }
         }
+        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)?.apply {
+            isEnabled = true
+            isClickable = true
+            alpha = 1f
+        }
         ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_ffwd)?.setOnClickListener {
             mpvPlayer?.let { p ->
                 val pos = (p.positionMs + appSettings.videoSeekForwardMs).coerceAtMost(p.durationMs.coerceAtLeast(0))
@@ -672,6 +649,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             if (text.isBlank()) return@setOnClickListener
             sendLocalDanmaku(text)
             danmakuInput?.setText("")
+        }
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_rotate_screen)?.setOnClickListener {
+            orientationHelper.isLandscape = !orientationHelper.isLandscape
         }
         danmakuInput?.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
@@ -830,6 +810,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val mergedHeaders = mutableMapOf(CommonHeaders.MANGA_SOURCE to (source?.name ?: "")).apply {
             headers?.let { putAll(it) }
         }
+        val initialStartMs = startMs ?: resolveSavedPlaybackProgress(url)
+        skipHistorySeekForCurrentMedia = initialStartMs != null
         mpvPlayer?.setVideoOutput(resolveVideoRenderer())
         if (appSettings.videoDecoderMode == VideoDecoderMode.SOFTWARE) {
             mpvPlayer?.setHardwareDecodingMode("no")
@@ -841,12 +823,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val defaultSpeed = appSettings.videoDefaultSpeed
         appSettings.videoPlaybackSpeed = defaultSpeed
         mpvPlayer?.setRate(defaultSpeed.toDouble())
-        mpvPlayer?.load(url, mergedHeaders, startMs)
+        mpvPlayer?.load(url, mergedHeaders, initialStartMs)
         mpvPlayer?.play()
         updateTitleAndSubtitle()
         updatePlaybackMenu()
-        lifecycleScope.launch {
-            restoreInitialSeekPercentFromHistory()
+        if (!skipHistorySeekForCurrentMedia) {
+            lifecycleScope.launch {
+                restoreInitialSeekPercentFromHistory()
+            }
         }
     }
 
@@ -948,7 +932,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.bringToFront()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.bringToFront()
         }
-        systemUiController.setSystemUiVisible(visible)
+        // 播放器控件显隐与系统栏解耦，避免折叠屏任务栏随下工具栏一起唤出并重叠
+        systemUiController.setSystemUiVisible(false)
         updateStatusBarByToolbar()
         if (visible) {
             rebuildToolbarMenuForOrientation()
@@ -1016,6 +1001,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
         val btn = ctl.findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_play_pause) ?: return
         val isPlaying = mpvPlayer?.isPlaying == true
+        btn.isEnabled = true
+        btn.isClickable = true
+        btn.alpha = 1f
         btn.setImageResource(
             if (isPlaying) org.skepsun.kototoro.R.drawable.ic_pause
             else org.skepsun.kototoro.R.drawable.ic_play
@@ -1294,6 +1282,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         saveHistoryProgressAsync()
         mpvPlayer?.release()
         mpvPlayer = null
+        runCatching { mpvView.destroy() }
         danmakuController.release()
         super.onDestroy()
     }
@@ -1317,8 +1306,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         if (!settings.enabled) {
             danmakuController.setVisible(false)
         } else {
-            danmakuKey = null
-            maybeLoadDanmaku()
+            if (danmakuController.isPrepared()) {
+                danmakuController.setVisible(true)
+            } else {
+                danmakuKey = null
+                maybeLoadDanmaku()
+            }
         }
     }
 
@@ -1335,7 +1328,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         mpvPlayer?.applyCacheSettings(appSettings.videoCacheSizeMb, mpvCacheDir)
     }
 
-    private fun reloadPlayback() {
+    fun reloadPlayback() {
         val url = currentMediaUrl
         if (url.isNullOrBlank()) {
             Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
@@ -1346,11 +1339,66 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun openVideoDetails() {
-        val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
-        if (manga != null) {
-            AppRouter(this).openDetails(manga)
+        val dialogView = layoutInflater.inflate(org.skepsun.kototoro.R.layout.dialog_video_player_info, null)
+        dialogView.findViewById<android.widget.TextView>(org.skepsun.kototoro.R.id.text_video_info).text = buildVideoDetailsText()
+        val dialog = MaterialAlertDialogBuilder(this, org.skepsun.kototoro.R.style.ThemeOverlay_Kototoro_VideoInfoDialog)
+            .setView(dialogView)
+            .create()
+        dialogView.findViewById<android.widget.ImageButton>(org.skepsun.kototoro.R.id.button_close).setOnClickListener {
+            dialog.dismiss()
+        }
+        dialog.show()
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+    }
+
+    private fun buildVideoDetailsText(): String {
+        fun String?.orDash(): String = this?.takeIf { it.isNotBlank() } ?: "-"
+
+        val (title, chapter) = extractChapterInfo()
+        val decoderSetting = when (appSettings.videoDecoderMode) {
+            VideoDecoderMode.HARDWARE -> "硬件解码"
+            VideoDecoderMode.SOFTWARE -> "软件解码"
+        }
+        val rendererSetting = when (appSettings.videoRendererMode) {
+            VideoRendererMode.AUTO -> "自动"
+            VideoRendererMode.GPU -> "GPU"
+            VideoRendererMode.GPU_NEXT -> "GPU Next"
+            VideoRendererMode.MEDIACODEC_EMBED -> "MediaCodec Embed"
+        }
+        val hwdecCurrent = mpvPlayer?.getPropertyString("hwdec-current").orDash()
+        val voCurrent = mpvPlayer?.getPropertyString("vo").orDash()
+        val videoCodec = mpvPlayer?.getPropertyString("video-codec").orDash()
+        val audioCodec = mpvPlayer?.getPropertyString("audio-codec-name").orDash()
+        val videoWidth = mpvPlayer?.getPropertyString("video-params/w").orDash()
+        val videoHeight = mpvPlayer?.getPropertyString("video-params/h").orDash()
+        val fps = (
+            mpvPlayer?.getPropertyString("estimated-vf-fps")
+                ?: mpvPlayer?.getPropertyString("video-params/fps")
+                ?: mpvPlayer?.getPropertyString("container-fps")
+            ).orDash()
+        val sourceName = currentVideoSource?.name.orDash()
+
+        val resolution = if (videoWidth != "-" && videoHeight != "-") {
+            "${videoWidth}x${videoHeight}"
         } else {
-            Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+            "-"
+        }
+
+        return buildString {
+            appendLine("标题: ${title.ifBlank { "-" }}")
+            appendLine("章节: ${chapter.ifBlank { "-" }}")
+            appendLine("来源: $sourceName")
+            appendLine("URL: ${currentMediaUrl.orDash()}")
+            appendLine()
+            appendLine("解码设置: $decoderSetting")
+            appendLine("当前解码器: $hwdecCurrent")
+            appendLine("渲染设置: $rendererSetting")
+            appendLine("当前渲染器: $voCurrent")
+            appendLine()
+            appendLine("视频编码: $videoCodec")
+            appendLine("音频编码: $audioCodec")
+            appendLine("分辨率: $resolution")
+            append("帧率: $fps")
         }
     }
 
@@ -1361,50 +1409,79 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
             return
         }
-        enterPictureInPictureMode(PictureInPictureParams.Builder().build())
+        setUiIsVisible(false)
+        val paramsBuilder = PictureInPictureParams.Builder()
+        val pipWidth = mpvPlayer?.getPropertyString("video-params/w")?.toIntOrNull()
+        val pipHeight = mpvPlayer?.getPropertyString("video-params/h")?.toIntOrNull()
+        if (pipWidth != null && pipHeight != null && pipWidth > 0 && pipHeight > 0) {
+            paramsBuilder.setAspectRatio(Rational(pipWidth, pipHeight))
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            paramsBuilder.setSeamlessResizeEnabled(false)
+        }
+        enterPictureInPictureMode(paramsBuilder.build())
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            setUiIsVisible(false)
+            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.isVisible = false
+            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.isVisible = false
+        } else {
+            applyGradientAlpha()
+        }
     }
 
     private fun takeScreenshot() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val surfaceView = findViewById<SurfaceView>(org.skepsun.kototoro.R.id.player_view) ?: return
-        val width = surfaceView.width
-        val height = surfaceView.height
-        if (width <= 0 || height <= 0) {
+        if (surfaceView.width <= 0 || surfaceView.height <= 0) {
             Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
             return
         }
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        PixelCopy.request(surfaceView, bitmap, { result ->
-            if (result != PixelCopy.SUCCESS) {
-                Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
-                return@request
-            }
-            val filename = "kototoro_${System.currentTimeMillis()}.png"
-            val resolver = contentResolver
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Kototoro")
+        val bitmap = Bitmap.createBitmap(surfaceView.width, surfaceView.height, Bitmap.Config.ARGB_8888)
+        PixelCopy.request(
+            surfaceView,
+            bitmap,
+            { result ->
+                if (result == PixelCopy.SUCCESS) {
+                    saveBitmapToGallery(bitmap)
+                } else {
+                    Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
                 }
+            },
+            Handler(Looper.getMainLooper()),
+        )
+    }
+
+    private fun saveBitmapToGallery(bitmap: Bitmap) {
+        val filename = "kototoro_${System.currentTimeMillis()}.png"
+        val resolver = contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Kototoro")
             }
-            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            if (uri == null) {
-                Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
-                return@request
-            }
-            resolver.openOutputStream(uri)?.use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
-            Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.saved, Snackbar.LENGTH_SHORT).show()
-        }, Handler(Looper.getMainLooper()))
+        }
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+        if (uri == null) {
+            Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        resolver.openOutputStream(uri)?.use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        Snackbar.make(viewBinding.root, org.skepsun.kototoro.R.string.saved, Snackbar.LENGTH_SHORT).show()
     }
 
     private fun maybeLoadDanmaku() {
         if (!appSettings.videoDanmakuEnabled) {
-            android.util.Log.d("Danmaku", "Danmaku disabled by settings")
-            danmakuController.setVisible(false)
-            return
+            android.util.Log.d("Danmaku", "Danmaku disabled by settings; keep loading in background")
         }
         val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
         val title = manga?.title?.takeIf { it.isNotBlank() }
@@ -1441,8 +1518,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 return@launch
             }
             android.util.Log.d("Danmaku", "Load result: ${items.size} items")
-            danmakuController.loadDanmaku(items)
-            danmakuController.setVisible(true)
+            val autoShow = appSettings.videoDanmakuEnabled
+            danmakuController.loadDanmaku(
+                items = items,
+                autoShow = autoShow,
+                isPlaying = mpvPlayer?.isPlaying == true,
+            )
+            danmakuController.setVisible(autoShow)
         }
     }
 
@@ -1453,79 +1535,21 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         cacheKey: String,
         keywords: List<String>,
     ): List<org.skepsun.kototoro.video.danmaku.DanmakuItem> {
-        if (appSettings.videoDanmakuSourceDanDan) {
-            val cached = danmakuCache.loadDanmaku(cacheKey, episode)
-            if (!cached.isNullOrEmpty()) {
-                android.util.Log.d("Danmaku", "DanDanPlay cache hit: ${cached.size}")
-                return cached
-            }
-            val cachedAnimeId = danmakuCache.getDanDanAnimeId(cacheKey)
-            val items = if (cachedAnimeId != null) {
-                android.util.Log.d("Danmaku", "Trying DanDanPlay: animeId=$cachedAnimeId episode=$episode")
-                runCatching { danmakuRepository.fetchDanmakuByAnimeId(cachedAnimeId, episode) }
-                    .getOrElse {
-                        android.util.Log.w("Danmaku", "DanDanPlay failed: animeId=$cachedAnimeId", it)
-                        emptyList()
-                    }
-            } else {
-                val animeId = resolveDanDanAnimeId(keywords)
-                if (animeId == null) {
-                    android.util.Log.d("Danmaku", "DanDanPlay resolve failed: title=$title")
-                    emptyList()
-                } else {
-                    danmakuCache.setDanDanAnimeId(cacheKey, animeId)
-                    runCatching { danmakuRepository.fetchDanmakuByAnimeId(animeId, episode) }
-                        .getOrElse {
-                            android.util.Log.w("Danmaku", "DanDanPlay failed: animeId=$animeId", it)
-                            emptyList()
-                        }
-                }
-            }
-            android.util.Log.d("Danmaku", "DanDanPlay result: ${items.size}")
-            if (items.isNotEmpty()) {
-                danmakuCache.saveDanmaku(cacheKey, episode, items)
-                return items
-            }
-        }
-        if (appSettings.videoDanmakuSourceBilibili && url.contains("bilibili.com")) {
-            android.util.Log.d("Danmaku", "Trying Bilibili: url=$url episode=$episode")
-            val items = runCatching { bilibiliDanmakuRepository.fetchDanmakuByUrl(url, episode) }
-                .getOrElse {
-                    android.util.Log.w("Danmaku", "Bilibili failed", it)
-                    emptyList()
-                }
-            android.util.Log.d("Danmaku", "Bilibili result: ${items.size}")
-            if (items.isNotEmpty()) return items
-        }
-        if (appSettings.videoDanmakuSourceQq && (url.contains("v.qq.com") || url.contains("qq.com"))) {
-            android.util.Log.d("Danmaku", "Trying QQ: url=$url")
-            val items = runCatching { qqDanmakuRepository.fetchDanmakuByUrl(url) }
-                .getOrElse {
-                    android.util.Log.w("Danmaku", "QQ failed", it)
-                    emptyList()
-                }
-            android.util.Log.d("Danmaku", "QQ result: ${items.size}")
-            if (items.isNotEmpty()) return items
-        }
-        return emptyList()
+        return danmakuSourceManager.loadFromSources(
+            title = title,
+            episode = episode,
+            url = url,
+            cacheKey = cacheKey,
+            keywords = keywords,
+            enableDanDan = appSettings.videoDanmakuSourceDanDan,
+            enableBilibili = appSettings.videoDanmakuSourceBilibili,
+            enableQq = appSettings.videoDanmakuSourceQq,
+        )
     }
 
     private fun buildDanmakuCacheKey(mangaId: Long?, title: String): String {
         val idPart = mangaId?.takeIf { it > 0 }?.toString()
         return idPart ?: title.trim()
-    }
-
-    private suspend fun resolveDanDanAnimeId(keywords: List<String>): Int? {
-        for (keyword in keywords) {
-            android.util.Log.d("Danmaku", "Trying DanDanPlay: title=$keyword")
-            val animeId = runCatching { danmakuRepository.resolveAnimeId(keyword) }
-                .getOrNull()
-                ?.takeIf { it > 0 }
-            if (animeId != null) {
-                return animeId
-            }
-        }
-        return null
     }
 
     private fun buildDanmakuKeywords(
@@ -1603,6 +1627,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             return
         }
         mpvPlayer?.seekTo(pos)
+    }
+
+    private fun resolveSavedPlaybackProgress(url: String): Long? {
+        val prefs = getSharedPreferences("video_progress", MODE_PRIVATE)
+        val pos = prefs.getLong(url, 0L)
+        val dur = prefs.getLong("${url}_duration", 0L)
+        if (pos <= 0L) return null
+        if (dur > 0L && pos >= (dur - 2_000L)) return null
+        return pos
     }
 
     private suspend fun restoreInitialSeekPercentFromHistory() {
@@ -1763,6 +1796,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
         val type = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime()
         val bars = insets.getInsets(type)
+        val taskbarInsets = insets.getInsets(WindowInsetsCompat.Type.tappableElement())
+        val mandatoryGestureInsets = insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
+        val cutoutInsets = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+        val bottomSafeInset = maxOf(
+            bars.bottom,
+            taskbarInsets.bottom,
+            mandatoryGestureInsets.bottom,
+            cutoutInsets.bottom,
+        )
         // 顶部工具栏：使用外边距对齐系统栏；避免设置顶部内边距导致导航按钮被裁切
         viewBinding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             leftMargin = bars.left
@@ -1787,7 +1829,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             rightMargin = bars.right
             bottomMargin = 0
         }
-        dockedToolbar?.updatePadding(bottom = bars.bottom)
+        dockedToolbar?.updatePadding(bottom = bottomSafeInset)
         // PlayerView 内容保持与左右系统栏对齐，底部不再额外内边距，避免与 DockedToolbar 重叠留白
         findViewById<View>(org.skepsun.kototoro.R.id.player_view).updatePadding(
             left = bars.left,

@@ -1,13 +1,13 @@
 package org.skepsun.kototoro.video.player
 
-import android.content.Context
 import android.view.Surface
-import dev.jdtech.mpv.MPVLib
+import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPVNode
 import java.util.concurrent.CopyOnWriteArrayList
 import android.util.Log
 import java.io.File
 
-class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
+class MpvPlayer : MPVLib.EventObserver {
 
 	interface Listener {
 		fun onPositionChanged(positionMs: Long) = Unit
@@ -21,6 +21,7 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 	private val listeners = CopyOnWriteArrayList<Listener>()
 	private var isInitialized = false
 	private var pendingSeekMs: Long? = null
+	private var shouldAutoPlayAfterLoad: Boolean = false
 
 	var durationMs: Long = 0L
 		private set
@@ -31,12 +32,10 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 
 	fun initialize() {
 		if (isInitialized) return
-		MPVLib.create(context.applicationContext)
-		MPVLib.init()
-		MPVLib.observeProperty("time-pos", MPVLib.MPV_FORMAT_DOUBLE)
-		MPVLib.observeProperty("duration", MPVLib.MPV_FORMAT_DOUBLE)
-		MPVLib.observeProperty("pause", MPVLib.MPV_FORMAT_FLAG)
-		MPVLib.observeProperty("eof-reached", MPVLib.MPV_FORMAT_FLAG)
+		MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+		MPVLib.observeProperty("duration", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+		MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+		MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
 		MPVLib.addObserver(this)
 		isInitialized = true
 	}
@@ -51,9 +50,7 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 
 	fun release() {
 		pendingSeekMs = null
-		runCatching { MPVLib.detachSurface() }
 		MPVLib.removeObserver(this)
-		MPVLib.destroy()
 		isInitialized = false
 	}
 
@@ -67,13 +64,14 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 
 	fun load(url: String, headers: Map<String, String>, startMs: Long? = null) {
 		pendingSeekMs = startMs
+		shouldAutoPlayAfterLoad = true
 		val headerValue = if (headers.isNotEmpty()) {
 			headers.entries.joinToString(",") { "${it.key}: ${it.value}" }
 		} else {
 			""
 		}
 		MPVLib.setOptionString("http-header-fields", headerValue)
-		MPVLib.command(arrayOf("loadfile", url, "replace"))
+		MPVLib.command("loadfile", url, "replace")
 	}
 
 	fun setHardwareDecoding(enabled: Boolean) {
@@ -102,7 +100,7 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 
 	fun seekTo(positionMs: Long) {
 		val seconds = positionMs / 1000.0
-		MPVLib.command(arrayOf("seek", seconds.toString(), "absolute"))
+		MPVLib.command("seek", seconds.toString(), "absolute+keyframes")
 		listeners.forEach { it.onSeek(positionMs) }
 	}
 
@@ -134,10 +132,10 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 	fun applyShaderList(shaderPaths: String?) {
 		Log.d("MpvPlayer", "applyShaderList: ${shaderPaths ?: "none"}")
 		if (shaderPaths.isNullOrBlank()) {
-			MPVLib.command(arrayOf("change-list", "glsl-shaders", "clr", ""))
+			MPVLib.command("change-list", "glsl-shaders", "clr", "")
             return
         }
-        MPVLib.command(arrayOf("change-list", "glsl-shaders", "set", shaderPaths))
+        MPVLib.command("change-list", "glsl-shaders", "set", shaderPaths)
     }
 
 	fun getPropertyString(name: String): String? {
@@ -146,12 +144,16 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 
 	override fun event(eventId: Int) {
 		when (eventId) {
-			MPVLib.MPV_EVENT_FILE_LOADED -> {
+			MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+				if (shouldAutoPlayAfterLoad) {
+					MPVLib.setPropertyBoolean("pause", false)
+					shouldAutoPlayAfterLoad = false
+				}
 				listeners.forEach { it.onFileLoaded() }
 				pendingSeekMs?.let { seekTo(it) }
 				pendingSeekMs = null
 			}
-			MPVLib.MPV_EVENT_END_FILE -> listeners.forEach { it.onPlaybackEnded() }
+			MPVLib.MpvEvent.MPV_EVENT_END_FILE -> listeners.forEach { it.onPlaybackEnded() }
 		}
 	}
 
@@ -187,4 +189,6 @@ class MpvPlayer(private val context: Context) : MPVLib.EventObserver {
 	}
 
 	override fun eventProperty(property: String, value: String) = Unit
+
+	override fun eventProperty(property: String, value: MPVNode) = Unit
 }
