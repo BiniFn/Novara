@@ -21,11 +21,12 @@ class DoHManager(
 	private var cachedProvider: DoHProvider? = null
 
 	override fun lookup(hostname: String): List<InetAddress> {
+		val effectiveHost = SniBypassHostMap.resolve(hostname) ?: hostname
 		return try {
-			getDelegate().lookup(hostname)
+			getDelegate().lookup(effectiveHost)
 		} catch (e: UnknownHostException) {
 			// fallback
-			Dns.SYSTEM.lookup(hostname)
+			Dns.SYSTEM.lookup(effectiveHost)
 		}
 	}
 

@@ -81,7 +81,18 @@ class CommonHeadersInterceptor @Inject constructor(
 		
 		val finalSource = repository?.source ?: source
 		
-		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
+		var workingUrl = request.url
+		if (workingUrl.scheme == "https" && workingUrl.host.contains('_')) {
+			val safeHost = workingUrl.host.replace('_', '-')
+			if (safeHost != workingUrl.host) {
+				SniBypassHostMap.register(safeHost, workingUrl.host)
+				workingUrl = workingUrl.newBuilder().host(safeHost).build()
+				headersBuilder[ "Host" ] = request.url.host
+				Log.w("CommonHeadersInterceptor", "SNI workaround: ${request.url.host} -> $safeHost")
+			}
+		}
+
+		val newRequest = request.newBuilder().url(workingUrl).headers(headersBuilder.build()).build()
 		val response = (repository as? Interceptor)?.interceptSafe(ProxyChain(chain, newRequest)) ?: chain.proceed(newRequest)
 
 		// Log response for debugging blocked images

@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.core.network.SniBypassSSLSocketFactory
 import org.skepsun.kototoro.core.network.CloudFlareInterceptor
 import org.skepsun.kototoro.core.network.MangaHttpClient
 import java.net.CookieManager
@@ -113,7 +114,7 @@ object JsonSourceNetworkModule {
             val sslContext = SSLContext.getInstance("TLS")
             sslContext.init(null, trustAllCerts, SecureRandom())
             
-            sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+            sslSocketFactory(SniBypassSSLSocketFactory(sslContext.socketFactory), trustAllCerts[0] as X509TrustManager)
             hostnameVerifier { _, _ -> true }
         } catch (e: Exception) {
             // If SSL configuration fails, log but continue with default settings
