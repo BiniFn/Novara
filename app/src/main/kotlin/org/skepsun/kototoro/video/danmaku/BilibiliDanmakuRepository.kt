@@ -49,6 +49,7 @@ class BilibiliDanmakuRepository @Inject constructor(
             )
             else -> return null
         }
+        Log.d("Danmaku", "Bilibili cid api: $apiUrl")
         val json = getJson(apiUrl) ?: return null
         if (json.optInt("code") != 0) return null
         val data = json.optJSONArray("data") ?: return null
@@ -64,6 +65,7 @@ class BilibiliDanmakuRepository @Inject constructor(
             epId != null -> "https://api.bilibili.com/pgc/view/web/season?ep_id=$epId"
             else -> return null
         }
+        Log.d("Danmaku", "Bilibili bangumi api: $apiUrl")
         val json = getJson(apiUrl) ?: return null
         if (json.optInt("code") != 0) return null
         val result = json.optJSONObject("result") ?: return null
@@ -91,10 +93,16 @@ class BilibiliDanmakuRepository @Inject constructor(
 
     private fun fetchXml(cid: Long): String? {
         val url = "https://comment.bilibili.com/$cid.xml"
+        Log.d("Danmaku", "Bilibili xml url: $url")
         val request = Request.Builder().url(url).get().build()
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            return response.body?.string()
+            val body = response.body?.string()
+            if (!response.isSuccessful || body.isNullOrBlank()) {
+                val snippet = body?.take(200).orEmpty()
+                Log.d("Danmaku", "Bilibili xml failed: code=${response.code} msg=${response.message} body=$snippet")
+                return null
+            }
+            return body
         }
     }
 
@@ -125,6 +133,7 @@ class BilibiliDanmakuRepository @Inject constructor(
                     timeMs = timeMs,
                     type = type,
                     color = color,
+                    source = "Bilibili",
                 )
             )
         }
@@ -148,8 +157,12 @@ class BilibiliDanmakuRepository @Inject constructor(
     private fun getJson(url: String): JSONObject? {
         val request = Request.Builder().url(url).get().build()
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
+            val body = response.body?.string()
+            if (!response.isSuccessful || body.isNullOrBlank()) {
+                val snippet = body?.take(200).orEmpty()
+                Log.d("Danmaku", "Bilibili json failed: code=${response.code} msg=${response.message} url=$url body=$snippet")
+                return null
+            }
             return JSONObject(body)
         }
     }

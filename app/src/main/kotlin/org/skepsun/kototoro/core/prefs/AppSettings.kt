@@ -332,10 +332,6 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		get() = prefs.getInt(KEY_VIDEO_SEEK_BACKWARD_MS, 10_000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_BACKWARD_MS, value) }
 
-	var videoDebandEnabled: Boolean
-		get() = prefs.getBoolean(KEY_VIDEO_DEBAND_ENABLED, false)
-		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DEBAND_ENABLED, value) }
-
 	var videoVolumeBoostEnabled: Boolean
 		get() = prefs.getBoolean(KEY_VIDEO_VOLUME_BOOST, false)
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_VOLUME_BOOST, value) }
@@ -1091,7 +1087,6 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_VIDEO_DEFAULT_SPEED = "video_default_speed"
 		const val KEY_VIDEO_SEEK_FORWARD_MS = "video_seek_forward_ms"
 		const val KEY_VIDEO_SEEK_BACKWARD_MS = "video_seek_backward_ms"
-		const val KEY_VIDEO_DEBAND_ENABLED = "video_deband_enabled"
 		const val KEY_VIDEO_VOLUME_BOOST = "video_volume_boost"
 		const val KEY_VIDEO_AUTO_NEXT = "video_auto_next"
 		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"

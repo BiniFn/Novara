@@ -50,6 +50,14 @@ android {
 			localProperties.load(new FileInputStream(localPropertiesFile))
 		}
 		resValue 'string', 'tg_backup_bot_token', localProperties.getProperty('tg_backup_bot_token', '')
+		def dandanAppId = (project.findProperty('dandanplay.appId')
+			?: localProperties.getProperty('dandanplay.appId')
+			?: 'demo_app_id').toString()
+		def dandanAppSecret = (project.findProperty('dandanplay.appSecret')
+			?: localProperties.getProperty('dandanplay.appSecret')
+			?: 'demo_app_secret').toString()
+		buildConfigField 'String', 'DANDANPLAY_APP_ID', "\"${dandanAppId}\""
+		buildConfigField 'String', 'DANDANPLAY_APP_SECRET', "\"${dandanAppSecret}\""
 	}
 	buildTypes {
 		debug {
@@ -265,7 +273,7 @@ dependencies {
 	implementation libs.androidx.media3.ui
 	implementation libs.androidx.media3.exoplayer.hls
 	implementation libs.androidx.media3.datasource.okhttp
-	implementation "io.github.abdallahmehiz:mpv-android-lib:0.1.10"
+	implementation libs.mpv.android.lib
 	implementation libs.bytedance.danmaku.render.engine
 
 	implementation libs.acra.http

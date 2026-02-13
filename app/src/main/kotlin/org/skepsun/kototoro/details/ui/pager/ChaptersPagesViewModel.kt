@@ -123,35 +123,39 @@ abstract class ChaptersPagesViewModel(
 		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, emptyList())
 
+	private val downloadInvalidation = MutableStateFlow(0)
+
+	private val baseChaptersFlow = combine(
+		mangaDetails,
+		readingState.map { it?.chapterId ?: 0L }.distinctUntilChanged(),
+		selectedBranch,
+		newChaptersCount,
+		bookmarks,
+		isChaptersInGridView,
+		isDownloadedOnly,
+	) { manga, currentChapterId, branch, news, bookmarks, grid, downloadedOnly ->
+		val baseChapters = manga?.mapChapters(
+			currentChapterId = currentChapterId,
+			newCount = news,
+			branch = branch,
+			bookmarks = bookmarks,
+			isGrid = grid,
+			isDownloadedOnly = downloadedOnly,
+		).orEmpty()
+		expandEpubChaptersIfNeeded(baseChapters)
+	}
+
 	val chapters = combine(
-		combine(
-			mangaDetails,
-			readingState.map { it?.chapterId ?: 0L }.distinctUntilChanged(),
-			selectedBranch,
-			newChaptersCount,
-			bookmarks,
-			isChaptersInGridView,
-			isDownloadedOnly,
-		) { manga, currentChapterId, branch, news, bookmarks, grid, downloadedOnly ->
-			// First get the base chapters
-			val baseChapters = manga?.mapChapters(
-				currentChapterId = currentChapterId,
-				newCount = news,
-				branch = branch,
-				bookmarks = bookmarks,
-				isGrid = grid,
-				isDownloadedOnly = downloadedOnly,
-			).orEmpty()
-			
-			// Then expand EPUB chapters if this is a DetailsViewModel with EPUB support
-			// This will be overridden in DetailsViewModel to provide actual expansion
-			expandEpubChaptersIfNeeded(baseChapters)
-		},
+		combine(baseChaptersFlow, downloadInvalidation) { list, _ -> list },
 		isChaptersReversed,
 		chaptersQuery,
 	) { list, reversed, query ->
 		(if (reversed) list.asReversed() else list).filterSearch(query)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+
+	protected fun notifyDownloadChanged() {
+		downloadInvalidation.value = downloadInvalidation.value + 1
+	}
 	
 	/**
 	 * Expand EPUB chapters by loading mappings from database.

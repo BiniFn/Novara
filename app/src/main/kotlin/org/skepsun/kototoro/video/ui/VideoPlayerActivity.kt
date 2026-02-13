@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.view.View
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.content.res.ColorStateList
 import android.content.ContentValues
 import android.os.Build
 import androidx.core.view.isVisible
@@ -36,6 +38,7 @@ import org.skepsun.kototoro.databinding.ActivityVideoPlayerBinding
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import androidx.core.net.toUri
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.parsers.model.MangaSource as ParsersMangaSource
 import javax.inject.Inject
@@ -101,6 +104,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     @Inject
     lateinit var danmakuSourceManager: DanmakuSourceManager
+
+    @Inject
+    lateinit var videoDownloadIndex: org.skepsun.kototoro.video.data.VideoDownloadIndex
 
     // ReaderState（用于历史保存时提供章节与页信息）
     private var readerState: ReaderState? = null
@@ -641,9 +647,23 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 VideoDanmakuSettingsSheet().show(fm, tag)
             }
         }
-        val danmakuInput = ctl?.findViewById<com.google.android.material.textfield.TextInputEditText>(
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle)?.setOnClickListener {
+            appSettings.videoDanmakuEnabled = !appSettings.videoDanmakuEnabled
+            applyDanmakuSettings()
+            updateDanmakuToggleState()
+        }
+        val danmakuInput = ctl?.findViewById<android.widget.EditText>(
             org.skepsun.kototoro.R.id.edit_danmaku_input
         )
+        danmakuInput?.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                setUiIsVisible(true)
+                viewBinding.root.removeCallbacks(hideUiRunnable)
+            } else if (isUiVisible) {
+                viewBinding.root.removeCallbacks(hideUiRunnable)
+                viewBinding.root.postDelayed(hideUiRunnable, autoHideDelayMs.toLong())
+            }
+        }
         ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_send)?.setOnClickListener {
             val text = danmakuInput?.text?.toString()?.trim().orEmpty()
             if (text.isBlank()) return@setOnClickListener
@@ -695,6 +715,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             lastSegment.endsWith(".mp4", ignoreCase = true)
         val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
         val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+        val localUrl = resolveLocalVideoUrl(manga, currentState, url)
+        if (localUrl != null) {
+            currentVideoSource = manga?.source
+            availableVideos = emptyList()
+            currentVideoIndex = 0
+            updateQualityButtonVisibility()
+            startMpvPlayback(localUrl, manga?.source, headers = null)
+            return
+        }
 
         android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$url, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState, isDirectStream=$isDirectStream")
 
@@ -703,7 +732,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             availableVideos = emptyList()
             currentVideoIndex = 0
             updateQualityButtonVisibility()
-            startMpvPlayback(url, source, headers)
+            val mergedHeaders = if (headers.isNullOrEmpty() && source != null) {
+                runCatching { mangaRepositoryFactory.create(source).getRequestHeaders() }.getOrDefault(emptyMap())
+            } else {
+                headers
+            }
+            startMpvPlayback(url, source, mergedHeaders)
             return
         }
 
@@ -731,10 +765,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                     currentVideoIndex = videos.indexOfFirst { it.preferred }
                                         .takeIf { it >= 0 } ?: 0
                                     val selected = videos[currentVideoIndex]
+                                    val mergedHeaders = mergeHeaders(repo.getRequestHeaders(), headersToMap(selected.headers))
                                     startMpvPlayback(
                                         selected.videoUrl,
                                         manga.source,
-                                        headersToMap(selected.headers),
+                                        mergedHeaders,
                                     )
                                     return@runCatching true
                                 }
@@ -743,7 +778,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             val page = pages.firstOrNull()
                             if (page != null) {
                                 val streamUrl = repo.getPageUrl(page)
-                                val streamHeaders = page.headers
+                                val streamHeaders = mergeHeaders(repo.getRequestHeaders(), page.headers)
                                 availableVideos = emptyList()
                                 currentVideoIndex = 0
                                 updateQualityButtonVisibility()
@@ -795,6 +830,21 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
+    private fun resolveLocalVideoUrl(
+        manga: org.skepsun.kototoro.parsers.model.Manga?,
+        state: ReaderState?,
+        url: String,
+    ): String? {
+        val chapters = manga?.chapters ?: return null
+        val currentChapter = if (state != null) {
+            chapters.find { it.id == state.chapterId }
+        } else {
+            chapters.find { it.url == url }
+        } ?: return null
+        val file = videoDownloadIndex.getFile(manga.id, currentChapter.id) ?: return null
+        return file.toUri().toString()
+    }
+
     private fun startMpvPlayback(
         url: String,
         source: ParsersMangaSource?,
@@ -807,9 +857,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         currentVideoSource = source
         currentMediaHeaders = headers
         maybeLoadDanmaku()
-        val mergedHeaders = mutableMapOf(CommonHeaders.MANGA_SOURCE to (source?.name ?: "")).apply {
-            headers?.let { putAll(it) }
-        }
+        val mergedHeaders = headers.orEmpty()
         val initialStartMs = startMs ?: resolveSavedPlaybackProgress(url)
         skipHistorySeekForCurrentMedia = initialStartMs != null
         mpvPlayer?.setVideoOutput(resolveVideoRenderer())
@@ -852,6 +900,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             map[headers.name(i)] = headers.value(i)
         }
         return map
+    }
+
+    private fun mergeHeaders(
+        base: Map<String, String>?,
+        extra: Map<String, String>?,
+    ): Map<String, String> {
+        if (base.isNullOrEmpty()) return extra.orEmpty()
+        if (extra.isNullOrEmpty()) return base
+        return base.toMutableMap().apply { putAll(extra) }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -926,11 +983,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.isVisible = showTopBar
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.isVisible = showTopBar
         if (visible) {
-            // 当显示 UI 时，将遮罩与工具栏一并置顶，避免被底部控制层或视频内容覆盖
-            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.bringToFront()
-            viewBinding.toolbar.bringToFront()
+            // 确保渐变在视频之上，但在控件之下，避免遮住底部控件导致变暗
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.bringToFront()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.bringToFront()
+            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.bringToFront()
+            viewBinding.toolbar.bringToFront()
+            findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.bringToFront()
         }
         // 播放器控件显隐与系统栏解耦，避免折叠屏任务栏随下工具栏一起唤出并重叠
         systemUiController.setSystemUiVisible(false)
@@ -944,9 +1002,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
             if (visible) {
                 ctl.visibility = View.VISIBLE
-                ctl.show()
+                ctl.alpha = 1f
+                applyControllerTint(ctl)
             } else {
-                ctl.hide()
                 ctl.visibility = View.GONE
             }
         }
@@ -1012,6 +1070,56 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             if (isPlaying) org.skepsun.kototoro.R.string.pause
             else org.skepsun.kototoro.R.string.play
         )
+    }
+
+    private fun applyControllerTint(ctl: PlayerControlView) {
+        val white = Color.WHITE
+        val whiteList = ColorStateList.valueOf(white)
+        ctl.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)?.setTextColor(white)
+        ctl.findViewById<TextView>(androidx.media3.ui.R.id.exo_duration)?.setTextColor(white)
+        ctl.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.let { timeBar ->
+            timeBar.setPlayedColor(white)
+            timeBar.setBufferedColor(0x99FFFFFF.toInt())
+            timeBar.setUnplayedColor(0x55FFFFFF.toInt())
+            timeBar.setScrubberColor(white)
+        }
+        ctl.findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_play_pause)
+            ?.setColorFilter(white)
+        val iconButtons = listOf(
+            org.skepsun.kototoro.R.id.button_prev_chapter,
+            org.skepsun.kototoro.R.id.button_next_chapter,
+            org.skepsun.kototoro.R.id.button_pages_thumbs,
+            org.skepsun.kototoro.R.id.button_danmaku_send,
+            org.skepsun.kototoro.R.id.button_rotate_screen,
+            org.skepsun.kototoro.R.id.button_quality,
+        )
+        iconButtons.forEach { id ->
+            val view = ctl.findViewById<View>(id)
+            when (view) {
+                is android.widget.ImageButton -> view.setColorFilter(white)
+                is com.google.android.material.button.MaterialButton -> view.iconTint = whiteList
+            }
+        }
+        ctl.findViewById<TextView>(
+            org.skepsun.kototoro.R.id.button_danmaku_toggle,
+        )?.setTextColor(white)
+        ctl.findViewById<TextView>(
+            org.skepsun.kototoro.R.id.button_danmaku_settings,
+        )?.setTextColor(white)
+        updateDanmakuToggleState()
+    }
+
+    private fun updateDanmakuToggleState() {
+        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
+        val btn = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle) ?: return
+        val enabled = appSettings.videoDanmakuEnabled
+        btn.alpha = if (enabled) 1f else 0.45f
+        val bgRes = if (enabled) {
+            org.skepsun.kototoro.R.drawable.bg_danmaku_circle
+        } else {
+            org.skepsun.kototoro.R.drawable.bg_danmaku_circle_off
+        }
+        btn.setBackgroundResource(bgRes)
     }
 
     private fun updateToolbarProgress() {
@@ -1303,6 +1411,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             maxScreenNum = appSettings.videoDanmakuMaxScreenNum,
         )
         danmakuController.applySettings(settings)
+        updateDanmakuToggleState()
         if (!settings.enabled) {
             danmakuController.setVisible(false)
         } else {
@@ -1320,7 +1429,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     fun applyPlaybackOptions() {
-        mpvPlayer?.setDeband(appSettings.videoDebandEnabled)
         val volume = if (appSettings.videoVolumeBoostEnabled) 130.0 else 100.0
         mpvPlayer?.setVolume(volume)
         val cacheBase = externalCacheDir ?: cacheDir
@@ -1509,7 +1617,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         danmakuLoadJob = lifecycleScope.launch {
             android.util.Log.d(
                 "Danmaku",
-                "Load start: title=$title episode=$episode url=$url sources=dandan:${appSettings.videoDanmakuSourceDanDan} bili:${appSettings.videoDanmakuSourceBilibili} qq:${appSettings.videoDanmakuSourceQq}",
+                "Load start: title=$title episode=$episode url=$url filters=dandan:${appSettings.videoDanmakuSourceDanDan} bili:${appSettings.videoDanmakuSourceBilibili} qq:${appSettings.videoDanmakuSourceQq}",
             )
             val items = loadDanmakuFromSources(title, episode, url, cacheKey, keywords)
             if (items.isEmpty()) {
@@ -1938,6 +2046,17 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
 	private fun maybeAutoPlayNext() {
 		if (!appSettings.videoAutoNextEnabled || autoNextTriggered) return
+		val duration = mpvPlayer?.durationMs ?: 0L
+		val position = mpvPlayer?.positionMs ?: 0L
+		if (duration <= 0L) {
+			android.util.Log.d("VideoPlayer", "AutoNext skipped: duration=0")
+			return
+		}
+		val ratio = position.toDouble() / duration.toDouble()
+		if (ratio < 0.98) {
+			android.util.Log.d("VideoPlayer", "AutoNext skipped: ratio=$ratio pos=$position dur=$duration")
+			return
+		}
 		val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga ?: return
 		val chapters = manga.chapters ?: return
 		if (chapters.isEmpty()) return

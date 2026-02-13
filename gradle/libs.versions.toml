@@ -68,6 +68,7 @@ rxjava2 = "2.2.21"
 rxjava3 = "3.1.10"
 mockk = "1.13.13"
 ucrop = "2.2.8"
+mpvAndroidLib = "0.1.10"
 
 [libraries]
 acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acra" }
@@ -143,6 +144,7 @@ androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "medi
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 androidx-media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "media3" }
 libmpv = { module = "dev.jdtech.mpv:libmpv", version.ref = "libmpv" }
+mpv-android-lib = { module = "io.github.abdallahmehiz:mpv-android-lib", version.ref = "mpvAndroidLib" }
 bytedance-danmaku-render-engine = { module = "com.github.bytedance:danmaku-render-engine", version.ref = "danmakuRenderEngine" }
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }

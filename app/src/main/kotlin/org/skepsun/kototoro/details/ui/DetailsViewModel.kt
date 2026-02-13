@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.nav.MangaIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -40,6 +41,7 @@ import org.skepsun.kototoro.details.domain.ReadingTimeUseCase
 import org.skepsun.kototoro.details.domain.RelatedMangaUseCase
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.details.ui.model.MangaBranch
+import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_DOWNLOADED
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
@@ -56,7 +58,10 @@ import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.stats.data.StatsRepository
+import org.skepsun.kototoro.video.data.VideoDownloadIndex
 import javax.inject.Inject
+import kotlin.experimental.or
+import org.skepsun.kototoro.parsers.model.ContentType
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
@@ -78,6 +83,7 @@ class DetailsViewModel @Inject constructor(
 	private val epubChapterMappingDao: org.skepsun.kototoro.core.db.dao.EpubChapterMappingDao,
 	private val localEpubSource: org.skepsun.kototoro.local.epub.LocalEpubSource,
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
+	private val videoDownloadIndex: VideoDownloadIndex,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -94,6 +100,13 @@ class DetailsViewModel @Inject constructor(
 
 	init {
 		mangaDetails.value = intent.manga?.let { MangaDetails(it) }
+		videoDownloadIndex.changes
+			.onEach { changedMangaId ->
+				if (changedMangaId == mangaId) {
+					notifyDownloadChanged()
+				}
+			}
+			.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0L)
 	}
 
 	val history = historyRepository.observeOne(mangaId)
@@ -308,8 +321,24 @@ class DetailsViewModel @Inject constructor(
 	 */
 	override suspend fun expandEpubChaptersIfNeeded(chapters: List<org.skepsun.kototoro.details.ui.model.ChapterListItem>): List<org.skepsun.kototoro.details.ui.model.ChapterListItem> {
 		android.util.Log.d("DetailsViewModel", "expandEpubChaptersIfNeeded: NEW ARCHITECTURE - returning chapters as-is (${chapters.size} chapters)")
-		// In new architecture, EPUB chapters are already loaded by LocalEpubSource
-		// No expansion needed
-		return chapters
+		val manga = mangaDetails.value?.toManga() ?: return chapters
+		val contentType = manga.source.getContentType()
+		if (contentType != ContentType.VIDEO && contentType != ContentType.HENTAI_VIDEO) {
+			return chapters
+		}
+		val downloadedIds = videoDownloadIndex.getDownloadedChapterIds(manga.id)
+		if (downloadedIds.isEmpty()) return chapters
+		val downloadedOnly = isDownloadedOnly.value
+		return chapters.mapNotNull { item ->
+			val isDownloaded = item.chapter.id in downloadedIds || item.isDownloaded
+			if (downloadedOnly && !isDownloaded) {
+				return@mapNotNull null
+			}
+			if (isDownloaded && !item.isDownloaded) {
+				item.copy(flags = item.flags or FLAG_DOWNLOADED)
+			} else {
+				item
+			}
+		}
 	}
 }

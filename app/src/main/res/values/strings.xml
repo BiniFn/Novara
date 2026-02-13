@@ -245,6 +245,7 @@
     <string name="video_super_resolution_submode_performance">性能子模式</string>
     <string name="video_danmaku_settings">弹幕设置</string>
     <string name="video_danmaku_enabled">显示弹幕</string>
+    <string name="video_danmaku_badge">弹</string>
     <string name="video_danmaku_size">弹幕大小</string>
     <string name="video_danmaku_speed">弹幕速度</string>
     <string name="video_danmaku_opacity">弹幕透明度</string>
@@ -256,7 +257,7 @@
     <string name="video_danmaku_max_top_lines">顶部弹幕最大行数</string>
     <string name="video_danmaku_max_bottom_lines">底部弹幕最大行数</string>
     <string name="video_danmaku_max_screen">同屏最大弹幕数</string>
-    <string name="video_danmaku_sources">弹幕来源</string>
+    <string name="video_danmaku_sources">来源过滤</string>
     <string name="video_danmaku_source_dandan">DanDanPlay</string>
     <string name="video_danmaku_source_bilibili">Bilibili</string>
     <string name="video_danmaku_source_qq">QQ 弹幕</string>
@@ -269,7 +270,6 @@
     <string name="video_default_speed">默认倍速</string>
     <string name="video_seek_forward_time">快进时间</string>
     <string name="video_seek_backward_time">快退时间</string>
-    <string name="video_deband">消除色带</string>
     <string name="video_volume_boost">音量增强</string>
     <string name="video_auto_next">自动续播</string>
     <string name="video_send_danmaku_hint">发送弹幕</string>

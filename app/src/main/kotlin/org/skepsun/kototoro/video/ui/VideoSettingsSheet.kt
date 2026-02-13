@@ -123,11 +123,6 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
             appSettings.videoVolumeBoostEnabled = checked
             (activity as? VideoPlayerActivity)?.applyPlaybackOptions()
         }
-        binding.switchDeband.isChecked = appSettings.videoDebandEnabled
-        binding.switchDeband.setOnCheckedChangeListener { _, checked ->
-            appSettings.videoDebandEnabled = checked
-            (activity as? VideoPlayerActivity)?.applyPlaybackOptions()
-        }
         binding.switchAutoNext.isChecked = appSettings.videoAutoNextEnabled
         binding.switchAutoNext.setOnCheckedChangeListener { _, checked ->
             appSettings.videoAutoNextEnabled = checked
@@ -231,4 +226,3 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
         return insets.consume(v, typeMask, bottom = true)
     }
 }
-

@@ -5,6 +5,7 @@ data class DanmakuItem(
     val timeMs: Long,
     val type: DanmakuType,
     val color: Int,
+    val source: String = "DanDanPlay",
 )
 
 enum class DanmakuType {

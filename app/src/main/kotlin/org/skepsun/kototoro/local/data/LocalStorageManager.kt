@@ -33,6 +33,7 @@ import javax.inject.Inject
 
 private const val DIR_NAME = "manga"
 private const val DIR_NAME_NOVEL = "novel"
+private const val DIR_NAME_VIDEO = "video"
 private const val NOMEDIA = ".nomedia"
 private const val CACHE_DISK_PERCENTAGE = 0.02
 private const val CACHE_SIZE_MIN: Long = 10 * 1024 * 1024 // 10MB
@@ -195,6 +196,16 @@ class LocalStorageManager @Inject constructor(
 	@WorkerThread
 	fun getNovelRoot(): File? {
 		return File(context.filesDir, DIR_NAME_NOVEL).takeIf { it.exists() || it.mkdirs() }
+	}
+
+	/**
+	 * 返回视频下载根目录（files/video）
+	 */
+	@WorkerThread
+	fun getVideoRoot(): File? {
+		return context.getExternalFilesDir(DIR_NAME_VIDEO) ?: File(context.filesDir, DIR_NAME_VIDEO).takeIf {
+			it.exists() || it.mkdirs()
+		}
 	}
 
 	@WorkerThread

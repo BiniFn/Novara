@@ -106,6 +106,7 @@
 		<item name="rippleColor">?attr/colorControlHighlight</item>
 	</style>
 
+
 	<style name="Widget.Kototoro.Slider.Wide" parent="Widget.Material3.Slider">
 		<item name="thumbHeight">48dp</item>
 		<item name="trackCornerSize">12dp</item>
@@ -227,6 +228,7 @@
 		<item name="colorOutline">#4DFFFFFF</item>
 		<item name="colorPrimary">@android:color/white</item>
 		<item name="colorSurfaceContainerHigh">#33000000</item>
+		<item name="colorControlNormal">@android:color/white</item>
 	</style>
 
 	<style name="ThemeOverlay.Kototoro.VideoInfoDialog" parent="ThemeOverlay.Material3.Dialog.Alert">

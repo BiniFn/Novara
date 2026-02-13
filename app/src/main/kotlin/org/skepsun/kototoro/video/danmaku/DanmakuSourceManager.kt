@@ -35,11 +35,16 @@ class DanmakuSourceManager @Inject constructor(
             return localItems
         }
 
-        if (enableDanDan) {
+        if (!enableDanDan && !enableBilibili && !enableQq) {
+            Log.d("Danmaku", "DanDanPlay filter disabled: all sources off")
+            return emptyList()
+        }
+
+        if (enableDanDan || enableBilibili || enableQq) {
             val cached = danmakuCache.loadDanmaku(cacheKey, episode)
             if (!cached.isNullOrEmpty()) {
                 Log.d("Danmaku", "DanDanPlay cache hit: ${cached.size}")
-                return cached
+                return filterBySource(cached, enableDanDan, enableBilibili, enableQq)
             }
             val cachedAnimeId = danmakuCache.getDanDanAnimeId(cacheKey)
             val items = if (cachedAnimeId != null) {
@@ -63,36 +68,45 @@ class DanmakuSourceManager @Inject constructor(
                         }
                 }
             }
-            Log.d("Danmaku", "DanDanPlay result: ${items.size}")
+            val filtered = filterBySource(items, enableDanDan, enableBilibili, enableQq)
+            Log.d("Danmaku", "DanDanPlay result: raw=${items.size} filtered=${filtered.size}")
             if (items.isNotEmpty()) {
                 danmakuCache.saveDanmaku(cacheKey, episode, items)
-                return items
+                return filtered
             }
         }
 
-        if (enableBilibili && url.contains("bilibili.com")) {
-            Log.d("Danmaku", "Trying Bilibili: url=$url episode=$episode")
-            val items = runCatching { bilibiliDanmakuRepository.fetchDanmakuByUrl(url, episode) }
-                .getOrElse {
-                    Log.w("Danmaku", "Bilibili failed", it)
-                    emptyList()
-                }
-            Log.d("Danmaku", "Bilibili result: ${items.size}")
-            if (items.isNotEmpty()) return items
-        }
-
-        if (enableQq && (url.contains("v.qq.com") || url.contains("qq.com"))) {
-            Log.d("Danmaku", "Trying QQ: url=$url")
-            val items = runCatching { qqDanmakuRepository.fetchDanmakuByUrl(url) }
-                .getOrElse {
-                    Log.w("Danmaku", "QQ failed", it)
-                    emptyList()
-                }
-            Log.d("Danmaku", "QQ result: ${items.size}")
-            if (items.isNotEmpty()) return items
-        }
-
         return emptyList()
+    }
+
+    private fun filterBySource(
+        items: List<DanmakuItem>,
+        enableDanDan: Boolean,
+        enableBilibili: Boolean,
+        enableQq: Boolean,
+    ): List<DanmakuItem> {
+        return items.filter { item ->
+            when (classifySource(item.source)) {
+                DanmakuSource.BILIBILI -> enableBilibili
+                DanmakuSource.QQ -> enableQq
+                DanmakuSource.DANDAN -> enableDanDan
+            }
+        }
+    }
+
+    private fun classifySource(source: String): DanmakuSource {
+        val lower = source.trim().lowercase()
+        return when {
+            lower.contains("bili") -> DanmakuSource.BILIBILI
+            lower.contains("qq") || lower.contains("tencent") -> DanmakuSource.QQ
+            else -> DanmakuSource.DANDAN
+        }
+    }
+
+    private enum class DanmakuSource {
+        DANDAN,
+        BILIBILI,
+        QQ,
     }
 
     private suspend fun resolveDanDanAnimeId(keywords: List<String>): Int? {
@@ -184,4 +198,3 @@ class DanmakuSourceManager @Inject constructor(
         }
     }
 }
-

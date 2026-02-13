@@ -33,7 +33,7 @@
                 android:minEms="4"
                 android:gravity="end"
                 android:textAppearance="?textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="@android:color/white"
                 android:fontFeatureSettings="tnum" />
 
             <TextView
@@ -41,7 +41,7 @@
                 android:layout_height="wrap_content"
                 android:text="/"
                 android:textAppearance="?textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textColor="@android:color/white"
                 android:paddingHorizontal="2dp" />
 
             <TextView
@@ -52,7 +52,7 @@
                 android:minEms="4"
                 android:gravity="start"
                 android:textAppearance="?textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="@android:color/white"
                 android:fontFeatureSettings="tnum" />
 
             <androidx.media3.ui.DefaultTimeBar
@@ -61,10 +61,10 @@
                 android:layout_height="24dp"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                app:unplayed_color="?attr/colorOutline"
-                app:played_color="?attr/colorPrimary"
-                app:buffered_color="?attr/colorOutline"
-                app:scrubber_color="?attr/colorPrimary" />
+                app:unplayed_color="#55FFFFFF"
+                app:played_color="@android:color/white"
+                app:buffered_color="#99FFFFFF"
+                app:scrubber_color="@android:color/white" />
 
         </LinearLayout>
 
@@ -83,7 +83,7 @@
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/play"
                 android:src="@drawable/ic_play"
-                android:tint="?attr/colorOnSurface" />
+                android:tint="@android:color/white" />
 
             <ImageButton
                 android:id="@+id/button_prev_chapter"
@@ -92,7 +92,7 @@
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/prev_chapter"
                 android:src="@drawable/ic_prev"
-                android:tint="?attr/colorOnSurface" />
+                android:tint="@android:color/white" />
 
             <ImageButton
                 android:id="@+id/button_next_chapter"
@@ -101,7 +101,7 @@
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/next_chapter"
                 android:src="@drawable/ic_next"
-                android:tint="?attr/colorOnSurface" />
+                android:tint="@android:color/white" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_pages_thumbs"
@@ -115,70 +115,77 @@
                 android:insetRight="0dp"
                 android:insetBottom="0dp"
                 android:contentDescription="@string/pages"
+                app:iconTint="@android:color/white"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:icon="@drawable/ic_grid"
                 app:iconSize="18dp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/button_danmaku_settings"
-                style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:contentDescription="@string/video_danmaku_settings"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:icon="@drawable/ic_interaction_large"
-                app:iconSize="18dp" />
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/button_danmaku_toggle"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/video_danmaku_enabled"
+                android:background="@drawable/bg_danmaku_circle"
+                android:foreground="?attr/selectableItemBackgroundBorderless"
+                android:gravity="center"
+                android:text="@string/video_danmaku_badge"
+                android:textColor="@android:color/white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true" />
 
-            <com.google.android.material.textfield.TextInputLayout
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/button_danmaku_settings"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/video_danmaku_settings"
+                android:background="@drawable/bg_danmaku_circle_settings"
+                android:foreground="?attr/selectableItemBackgroundBorderless"
+                android:gravity="center"
+                android:text="@string/video_danmaku_badge"
+                android:textColor="@android:color/white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="36dp"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                app:boxBackgroundMode="outline"
-                app:boxStrokeColor="#66FFFFFF"
-                app:boxStrokeWidth="1dp"
-                app:boxStrokeWidthFocused="1dp"
-                app:boxCornerRadiusTopStart="10dp"
-                app:boxCornerRadiusTopEnd="10dp"
-                app:boxCornerRadiusBottomStart="10dp"
-                app:boxCornerRadiusBottomEnd="10dp"
-                app:hintTextColor="?attr/colorOnSurfaceVariant">
+                android:background="@drawable/bg_danmaku_input"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
 
-                <com.google.android.material.textfield.TextInputEditText
+                <ImageButton
+                    android:id="@+id/button_danmaku_send"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/video_send_danmaku_hint"
+                    android:src="@drawable/ic_play"
+                    android:tint="@android:color/white" />
+
+                <androidx.appcompat.widget.AppCompatEditText
                     android:id="@+id/edit_danmaku_input"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
                     android:hint="@string/video_send_danmaku_hint"
                     android:imeOptions="actionSend"
                     android:inputType="text"
                     android:maxLines="1"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textColorHint="?attr/colorOnSurfaceVariant" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/button_danmaku_send"
-                style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginStart="6dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:contentDescription="@string/video_send_danmaku_hint"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:icon="@drawable/ic_arrow_forward"
-                app:iconSize="18dp" />
+                    android:textColor="@android:color/white"
+                    android:textColorHint="#CCFFFFFF" />
+            </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_rotate_screen"
@@ -192,6 +199,7 @@
                 android:insetRight="0dp"
                 android:insetBottom="0dp"
                 android:contentDescription="@string/rotate_screen"
+                app:iconTint="@android:color/white"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:icon="@drawable/ic_screen_rotation"
@@ -209,6 +217,7 @@
                 android:insetRight="0dp"
                 android:insetBottom="0dp"
                 android:contentDescription="@string/video_quality"
+                app:iconTint="@android:color/white"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:icon="@drawable/ic_content_video"

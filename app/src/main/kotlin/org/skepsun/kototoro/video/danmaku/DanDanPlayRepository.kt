@@ -10,7 +10,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import org.skepsun.kototoro.core.network.BaseHttpClient
+import org.skepsun.kototoro.BuildConfig
 import kotlin.math.max
+import java.security.MessageDigest
+import android.util.Base64
 
 class DanDanPlayRepository @Inject constructor(
     @BaseHttpClient private val okHttpClient: OkHttpClient,
@@ -56,11 +59,26 @@ class DanDanPlayRepository @Inject constructor(
     private fun searchAnimeId(title: String): Int? {
         val url = buildUrl(
             "https://api.dandanplay.net",
-            "/api/v2/search/anime",
-            mapOf("keyword" to title),
+            "/api/v2/search/episodes",
+            mapOf("anime" to title),
         )
-        val json = getJson(url) ?: return null
-        val animes = json.optJSONArray("animes") ?: return null
+        val json = getJson(url) ?: run {
+            Log.d("Danmaku", "DanDanPlay search failed: empty response title=$title")
+            return null
+        }
+        val animes = json.optJSONArray("animes") ?: run {
+            Log.d("Danmaku", "DanDanPlay search failed: no animes title=$title")
+            return null
+        }
+        Log.d("Danmaku", "DanDanPlay search animes=${animes.length()} title=$title")
+        for (i in 0 until minOf(5, animes.length())) {
+            val obj = animes.optJSONObject(i) ?: continue
+            val animeId = obj.optInt("animeId")
+            val animeTitle = obj.optString("animeTitle")
+            if (animeId > 0 && animeTitle.isNotBlank()) {
+                Log.d("Danmaku", "DanDanPlay candidate[$i]: id=$animeId title=$animeTitle")
+            }
+        }
         var bestId: Int? = null
         var bestScore = 0.0
         for (i in 0 until animes.length()) {
@@ -125,6 +143,7 @@ class DanDanPlayRepository @Inject constructor(
                 else -> DanmakuType.SCROLL
             }
             val colorValue = parts[2].toIntOrNull() ?: 0xFFFFFF
+            val source = extractSource(item, parts)
             val color = Color.rgb(
                 (colorValue shr 16) and 0xFF,
                 (colorValue shr 8) and 0xFF,
@@ -136,6 +155,7 @@ class DanDanPlayRepository @Inject constructor(
                     timeMs = timeMs.toLong(),
                     type = type,
                     color = color,
+                    source = source,
                 )
             )
         }
@@ -143,12 +163,49 @@ class DanDanPlayRepository @Inject constructor(
     }
 
     private fun getJson(url: String): JSONObject? {
-        val request = Request.Builder().url(url).get().build()
+        val httpUrl = url.toHttpUrl()
+        val path = httpUrl.encodedPath
+        val timestamp = System.currentTimeMillis() / 1000
+        val appId = BuildConfig.DANDANPLAY_APP_ID
+        val appSecret = BuildConfig.DANDANPLAY_APP_SECRET
+        val signature = generateSignature(appId, appSecret, timestamp, path)
+        val request = Request.Builder()
+            .url(httpUrl)
+            .get()
+            .header("User-Agent", "DandanPlay/1.0 (Android)")
+            .header("Accept", "application/json")
+            .header("Accept-Encoding", "gzip, deflate")
+            .header("Referer", "https://www.dandanplay.com/")
+            .header("Origin", "https://www.dandanplay.com")
+            .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,ja;q=0.7")
+            .header("X-Auth", "1")
+            .header("X-AppId", appId)
+            .header("X-Timestamp", timestamp.toString())
+            .header("X-Signature", signature)
+            .build()
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
+            val body = response.body?.string()
+            if (!response.isSuccessful || body.isNullOrBlank()) {
+                val snippet = body?.take(200).orEmpty()
+                Log.d(
+                    "Danmaku",
+                    "DanDanPlay http failed: code=${response.code} msg=${response.message} url=$url body=$snippet"
+                )
+                return null
+            }
             return JSONObject(body)
         }
+    }
+
+    private fun generateSignature(
+        appId: String,
+        appSecret: String,
+        timestamp: Long,
+        path: String,
+    ): String {
+        val data = appId + timestamp.toString() + path + appSecret
+        val digest = MessageDigest.getInstance("SHA-256").digest(data.toByteArray())
+        return Base64.encodeToString(digest, Base64.NO_WRAP)
     }
 
     private fun buildUrl(base: String, path: String, params: Map<String, String>): String {
@@ -165,7 +222,15 @@ class DanDanPlayRepository @Inject constructor(
     private fun normalizeTitle(title: String): String {
         return title.lowercase()
             .replace(Regex("\\s+"), "")
-            .replace(Regex("[^a-z0-9\\u4e00-\\u9fa5]"), "")
+            .replace(Regex("[^a-z0-9\\u4e00-\\u9fff\\u3040-\\u30ff\\u31f0-\\u31ff\\uff66-\\uff9d]"), "")
+    }
+
+    private fun extractSource(item: JSONObject, parts: List<String>): String {
+        val source = item.optString("source")
+            .ifBlank { item.optString("src") }
+            .ifBlank { parts.getOrNull(3).orEmpty() }
+            .trim()
+        return if (source.isBlank()) "DanDanPlay" else source
     }
 
     private fun similarity(a: String, b: String): Double {

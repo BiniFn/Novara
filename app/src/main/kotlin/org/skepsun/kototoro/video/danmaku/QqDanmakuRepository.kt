@@ -16,6 +16,7 @@ class QqDanmakuRepository @Inject constructor(
 ) {
     suspend fun fetchDanmakuByUrl(url: String): List<DanmakuItem> = withContext(Dispatchers.IO) {
         val vid = extractVid(url) ?: return@withContext emptyList()
+        Log.d("Danmaku", "QQ vid: $vid url=$url")
         val baseInfo = getJson("https://dm.video.qq.com/barrage/base/$vid") ?: return@withContext emptyList()
         val segments = baseInfo.optJSONArray("segment_index") ?: JSONArray()
         val result = mutableListOf<DanmakuItem>()
@@ -23,6 +24,7 @@ class QqDanmakuRepository @Inject constructor(
             val segment = segments.optInt(i)
             if (segment <= 0) continue
             val segmentUrl = "https://dm.video.qq.com/barrage/segment/$vid/t/v1/$segment"
+            Log.d("Danmaku", "QQ segment url: $segmentUrl")
             val segmentJson = getJson(segmentUrl) ?: continue
             val list = segmentJson.optJSONArray("barrage_list") ?: continue
             parseSegment(list, result)
@@ -69,6 +71,7 @@ class QqDanmakuRepository @Inject constructor(
                     timeMs = timeMs,
                     type = type,
                     color = color,
+                    source = "QQ",
                 )
             )
         }
@@ -77,8 +80,12 @@ class QqDanmakuRepository @Inject constructor(
     private fun getJson(url: String): JSONObject? {
         val request = Request.Builder().url(url).get().build()
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
+            val body = response.body?.string()
+            if (!response.isSuccessful || body.isNullOrBlank()) {
+                val snippet = body?.take(200).orEmpty()
+                Log.d("Danmaku", "QQ json failed: code=${response.code} msg=${response.message} url=$url body=$snippet")
+                return null
+            }
             return JSONObject(body)
         }
     }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/bg_danmaku_circle" />
+    <item android:gravity="center">
+        <rotate android:fromDegrees="-45" android:toDegrees="-45">
+            <shape android:shape="rectangle">
+                <size android:width="22dp" android:height="2dp" />
+                <solid android:color="@android:color/white" />
+            </shape>
+        </rotate>
+    </item>
+</layer-list>

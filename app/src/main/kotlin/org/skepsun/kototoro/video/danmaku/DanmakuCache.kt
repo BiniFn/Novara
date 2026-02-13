@@ -43,6 +43,7 @@ class DanmakuCache @Inject constructor(
                     val timeMs = obj.optLong(KEY_TIME)
                     val type = parseType(obj.optString(KEY_TYPE))
                     val color = obj.optInt(KEY_COLOR, 0xFFFFFF)
+                    val source = obj.optString(KEY_SOURCE, "DanDanPlay")
                     if (message.isBlank() || timeMs <= 0L) continue
                     result.add(
                         DanmakuItem(
@@ -50,6 +51,7 @@ class DanmakuCache @Inject constructor(
                             timeMs = timeMs,
                             type = type,
                             color = color,
+                            source = source,
                         )
                     )
                 }
@@ -76,6 +78,7 @@ class DanmakuCache @Inject constructor(
                     obj.put(KEY_TIME, item.timeMs)
                     obj.put(KEY_TYPE, item.type.name)
                     obj.put(KEY_COLOR, item.color)
+                    obj.put(KEY_SOURCE, item.source)
                     arr.put(obj)
                 }
                 file.writeText(arr.toString())
@@ -108,5 +111,6 @@ class DanmakuCache @Inject constructor(
         private const val KEY_TIME = "t"
         private const val KEY_TYPE = "y"
         private const val KEY_COLOR = "c"
+        private const val KEY_SOURCE = "s"
     }
 }

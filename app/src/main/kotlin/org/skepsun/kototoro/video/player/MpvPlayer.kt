@@ -112,10 +112,6 @@ class MpvPlayer : MPVLib.EventObserver {
 		MPVLib.setPropertyDouble("volume", volume)
 	}
 
-	fun setDeband(enabled: Boolean) {
-		MPVLib.setPropertyBoolean("deband", enabled)
-	}
-
 	fun applyCacheSettings(sizeMb: Int, cacheDir: File) {
 		val clampedMb = sizeMb.coerceAtLeast(64)
 		val bytes = clampedMb.toLong() * 1024L * 1024L

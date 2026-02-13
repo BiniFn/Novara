@@ -25,6 +25,10 @@ import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.DeleteLocalMangaUseCase
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.reader.ui.ReaderState
+import org.skepsun.kototoro.video.data.VideoDownloadIndex
+import org.skepsun.kototoro.details.ui.model.ChapterListItem
+import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_DOWNLOADED
+import kotlin.experimental.or
 
 @HiltViewModel
 class VideoChaptersViewModel @Inject constructor(
@@ -38,6 +42,7 @@ class VideoChaptersViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
     private val detailsLoadUseCase: DetailsLoadUseCase,
+    private val videoDownloadIndex: VideoDownloadIndex,
 ) : ChaptersPagesViewModel(
     settings = settings,
     interactor = interactor,
@@ -61,6 +66,14 @@ class VideoChaptersViewModel @Inject constructor(
             .stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
         loadingJob = doLoad(false)
+
+        videoDownloadIndex.changes
+            .onEach { changedMangaId ->
+                if (changedMangaId == mangaId) {
+                    notifyDownloadChanged()
+                }
+            }
+            .stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0L)
     }
 
     fun reload(force: Boolean = true) {
@@ -74,6 +87,24 @@ class VideoChaptersViewModel @Inject constructor(
                 val manga = details.toManga()
                 val hist = historyRepository.getOne(manga)
                 selectedBranch.value = manga.getPreferredBranch(hist)
+            }
+        }
+    }
+
+    override suspend fun expandEpubChaptersIfNeeded(chapters: List<ChapterListItem>): List<ChapterListItem> {
+        val manga = mangaDetails.value?.toManga() ?: return chapters
+        val downloadedIds = videoDownloadIndex.getDownloadedChapterIds(manga.id)
+        if (downloadedIds.isEmpty()) return chapters
+        val downloadedOnly = isDownloadedOnly.value
+        return chapters.mapNotNull { item ->
+            val isDownloaded = item.chapter.id in downloadedIds || item.isDownloaded
+            if (downloadedOnly && !isDownloaded) {
+                return@mapNotNull null
+            }
+            if (isDownloaded && !item.isDownloaded) {
+                item.copy(flags = item.flags or FLAG_DOWNLOADED)
+            } else {
+                item
             }
         }
     }

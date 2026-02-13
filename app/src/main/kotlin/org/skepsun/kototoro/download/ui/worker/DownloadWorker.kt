@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -49,6 +50,7 @@ import okio.sink
 import okio.use
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.ids
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.network.MangaHttpClient
@@ -73,6 +75,7 @@ import org.skepsun.kototoro.core.util.ext.getWorkSpec
 import org.skepsun.kototoro.core.util.ext.openSource
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
+import org.skepsun.kototoro.core.util.ext.toFileNameSafe
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.core.util.ext.withTicker
@@ -91,6 +94,7 @@ import org.skepsun.kototoro.local.data.output.LocalMangaOutput
 import org.skepsun.kototoro.local.data.output.LocalMangaDirOutput
 import org.skepsun.kototoro.local.domain.MangaLock
 import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.video.data.VideoDownloadIndex
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
 import org.skepsun.kototoro.parsers.model.Manga
 import org.skepsun.kototoro.parsers.model.MangaChapter
@@ -113,6 +117,10 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 @HiltWorker
 class DownloadWorker @AssistedInject constructor(
@@ -132,6 +140,7 @@ class DownloadWorker @AssistedInject constructor(
 	private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 	private val localStorageManager: org.skepsun.kototoro.local.data.LocalStorageManager,
+	private val videoDownloadIndex: VideoDownloadIndex,
 ) : CoroutineWorker(appContext, params) {
 
 	private val task = DownloadTask(params.inputData)
@@ -220,6 +229,11 @@ class DownloadWorker @AssistedInject constructor(
 		excludedIds: Set<Long>,
 	) {
 		var manga = subject
+		val contentType = manga.source.getContentType()
+		if (contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) {
+			downloadVideoImpl(manga, task, excludedIds)
+			return
+		}
 		Log.d("DownloadWorker", "downloadMangaImpl start: mangaId=${manga.id} title=${manga.title} excluded=${excludedIds.size}")
 		val chaptersToSkip = excludedIds.toMutableSet()
 		val pausingReceiver = PausingReceiver(id, PausingHandle.current())
@@ -1153,6 +1167,422 @@ class DownloadWorker @AssistedInject constructor(
 		}
 	}
 
+	private suspend fun downloadVideoImpl(
+		manga: Manga,
+		task: DownloadTask,
+		excludedIds: Set<Long>,
+	) {
+		val chapters = getChapters(manga, task)
+		val totalChapters = chapters.size
+		var downloaded = 0
+		val videoRoot = localStorageManager.getVideoRoot()
+		checkNotNull(videoRoot) { applicationContext.getString(R.string.cannot_find_available_storage) }
+		val mangaDir = File(videoRoot, manga.title.toFileNameSafe()).apply { mkdirs() }
+		val repo = mangaRepositoryFactory.create(manga.source)
+		for ((index, chapter) in chapters.withIndex()) {
+			if (chapter.value.id in excludedIds) {
+				downloaded += 1
+				continue
+			}
+			publishState(
+				currentState.copy(
+					isIndeterminate = false,
+					totalChapters = totalChapters,
+					currentChapter = index,
+					totalPages = 1,
+					currentPage = 0,
+					downloadedChapters = downloaded,
+				),
+			)
+			val target = resolveVideoTarget(repo, chapter.value) ?: continue
+			val fileName = buildVideoFileName(chapter, target.extension)
+			val outputFile = File(mangaDir, fileName)
+			if (outputFile.exists() && outputFile.length() > 0L) {
+				videoDownloadIndex.put(manga.id, chapter.value.id, outputFile.absolutePath)
+				downloaded += 1
+				continue
+			}
+			outputFile.parentFile?.mkdirs()
+			try {
+				val progress: suspend (Int, Int) -> Unit = { cur, total ->
+					publishState(
+						currentState.copy(
+							isIndeterminate = false,
+							totalChapters = totalChapters,
+							currentChapter = index,
+							totalPages = total,
+							currentPage = cur.coerceAtLeast(0),
+							downloadedChapters = downloaded,
+						),
+					)
+				}
+				if (target.isHls) {
+					downloadHls(repo.source, target.url, target.headers, outputFile, progress)
+				} else {
+					downloadDirectVideo(repo.source, target.url, target.headers, outputFile, progress)
+				}
+				videoDownloadIndex.put(manga.id, chapter.value.id, outputFile.absolutePath)
+				scanDownloadedFile(outputFile)
+				downloaded += 1
+				publishState(currentState.copy(downloadedChapters = downloaded))
+			} catch (e: Exception) {
+				outputFile.delete()
+				throw e
+			}
+		}
+		publishState(currentState.copy(isIndeterminate = true, eta = -1L, isStuck = false))
+	}
+
+	private suspend fun resolveVideoTarget(
+		repo: MangaRepository,
+		chapter: MangaChapter,
+	): VideoDownloadTarget? {
+		val aniyomiRepo = repo as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
+		if (aniyomiRepo != null) {
+			val videos = aniyomiRepo.getVideoListForChapter(chapter)
+				.filter { it.videoUrl.isNotBlank() }
+			val selected = videos.firstOrNull { it.preferred } ?: videos.firstOrNull() ?: return null
+			val headerMap = selected.headers
+				?.toMultimap()
+				?.mapValues { it.value.firstOrNull().orEmpty() }
+				?.filterValues { it.isNotBlank() }
+			return VideoDownloadTarget(
+				url = selected.videoUrl,
+				headers = headerMap,
+			)
+		}
+		val pages = repo.getPages(chapter, nextChapterUrl = null)
+		val page = pages.firstOrNull() ?: return null
+		val url = repo.getPageUrl(page)
+		return VideoDownloadTarget(
+			url = url,
+			headers = page.headers,
+		)
+	}
+
+	private fun buildVideoFileName(chapter: IndexedValue<MangaChapter>, ext: String): String {
+		val title = chapter.value.title.ifNullOrEmpty {
+			val num = chapter.value.numberString() ?: (chapter.index + 1).toString()
+			"Episode $num"
+		}
+		val safeTitle = title.toFileNameSafe()
+		return "$safeTitle.$ext"
+	}
+
+	private suspend fun downloadDirectVideo(
+		source: MangaSource,
+		url: String,
+		headers: Map<String, String>?,
+		outputFile: File,
+		onProgress: suspend (Int, Int) -> Unit,
+	) {
+		val request = PageLoader.createPageRequest(url, source, headers)
+			.newBuilder()
+			.build()
+		val response = okHttp.newCall(request).await().ensureSuccess()
+		response.use { resp ->
+			val body = resp.body ?: error("Response body is null")
+			val totalBytes = body.contentLength().takeIf { it > 0 } ?: -1L
+			body.use {
+				outputFile.sink(append = false).buffer().use { sink ->
+					val sourceStream = body.source()
+					val buffer = okio.Buffer()
+					var written = 0L
+					var lastNotify = 0L
+					while (true) {
+						val read = sourceStream.read(buffer, 64 * 1024)
+						if (read == -1L) break
+						sink.write(buffer, read)
+						written += read
+						if (totalBytes > 0) {
+							if (written - lastNotify >= 256 * 1024) {
+								lastNotify = written
+								val percent = ((written * 100) / totalBytes).toInt().coerceIn(0, 100)
+								onProgress(percent, 100)
+							}
+						}
+					}
+					if (totalBytes > 0) {
+						onProgress(100, 100)
+					}
+				}
+			}
+		}
+	}
+
+	private suspend fun downloadHls(
+		source: MangaSource,
+		url: String,
+		headers: Map<String, String>?,
+		outputFile: File,
+		onProgress: suspend (Int, Int) -> Unit,
+	) {
+		val masterText = fetchText(source, url, headers)
+		val mediaUrl = resolveHlsMediaPlaylist(url, masterText)
+		val mediaText = fetchText(source, mediaUrl, headers)
+		val lines = mediaText.lineSequence().map { it.trim() }.toList()
+		val mediaSequence = parseHlsMediaSequence(lines)
+		val segments = parseHlsSegments(mediaUrl, lines, mediaSequence)
+		android.util.Log.d(
+			"DownloadWorker",
+			"HLS parsed: mediaUrl=$mediaUrl segments=${segments.size} keys=${
+				segments.mapNotNull { it.key?.method }.distinct().joinToString()
+			}",
+		)
+		segments.firstOrNull()?.let {
+			android.util.Log.d("DownloadWorker", "HLS first segment: url=${it.url} seq=${it.sequence}")
+		}
+		android.util.Log.i("DownloadWorker", "HLS output file: ${outputFile.absolutePath}")
+		val keyCache = HashMap<String, ByteArray>()
+		var writtenTotal = 0L
+		outputFile.sink(append = false).buffer().use { sink ->
+			val total = segments.size.coerceAtLeast(1)
+			segments.forEachIndexed { index, segment ->
+				val req = PageLoader.createPageRequest(segment.url, source, headers)
+					.newBuilder()
+					.apply { segment.range?.let { header("Range", it) } }
+					.build()
+				val response = okHttp.newCall(req).await().ensureSuccess()
+				response.use { resp ->
+					val body = resp.body ?: error("Response body is null")
+					body.use {
+						val bytes = body.bytes()
+						val decrypted = decryptIfNeeded(
+							source = source,
+							baseUrl = mediaUrl,
+							key = segment.key,
+							headers = headers,
+							keyCache = keyCache,
+							sequence = segment.sequence,
+							data = bytes,
+						)
+						sink.write(decrypted)
+						writtenTotal += decrypted.size.toLong()
+						if (index < 3 || index == total - 1) {
+							android.util.Log.d(
+								"DownloadWorker",
+								"HLS seg[$index/$total] bytes=${bytes.size} decrypted=${decrypted.size} out=${outputFile.length()}",
+							)
+						}
+						if (index % 5 == 0) {
+							sink.flush()
+						}
+						if (index % 25 == 0) {
+							android.util.Log.d(
+								"DownloadWorker",
+								"HLS progress[$index/$total] written=$writtenTotal out=${outputFile.length()}",
+							)
+						}
+					}
+				}
+				onProgress(index + 1, total)
+			}
+		}
+		android.util.Log.i(
+			"DownloadWorker",
+			"HLS complete: written=$writtenTotal out=${outputFile.length()} segments=${segments.size}",
+		)
+	}
+
+	private suspend fun fetchText(source: MangaSource, url: String, headers: Map<String, String>?): String {
+		val request = PageLoader.createPageRequest(url, source, headers)
+			.newBuilder()
+			.build()
+		val response = okHttp.newCall(request).await().ensureSuccess()
+		return response.use { resp ->
+			resp.body?.string().orEmpty()
+		}
+	}
+
+	private fun resolveHlsMediaPlaylist(baseUrl: String, masterText: String): String {
+		if (!masterText.contains("#EXT-X-STREAM-INF")) {
+			return baseUrl
+		}
+		val lines = masterText.lineSequence().map { it.trim() }.toList()
+		var bestUrl: String? = null
+		var bestBandwidth = -1
+		for (i in lines.indices) {
+			val line = lines[i]
+			if (line.startsWith("#EXT-X-STREAM-INF")) {
+				val bandwidth = line.substringAfter("BANDWIDTH=", "")
+					.substringBefore(",")
+					.toIntOrNull() ?: 0
+				val next = lines.getOrNull(i + 1).orEmpty()
+				if (next.isNotBlank() && !next.startsWith("#")) {
+					if (bandwidth >= bestBandwidth) {
+						bestBandwidth = bandwidth
+						bestUrl = next
+					}
+				}
+			}
+		}
+		val resolved = bestUrl ?: return baseUrl
+		return resolveUrl(baseUrl, resolved)
+	}
+
+	private fun parseHlsSegments(baseUrl: String, lines: List<String>, mediaSequence: Int): List<HlsSegment> {
+		val result = ArrayList<HlsSegment>()
+		var pendingRange: String? = null
+		var lastUri: String? = null
+		var seq = mediaSequence
+		var currentKey: HlsKey? = null
+		lines.forEach { line ->
+			when {
+				line.startsWith("#EXT-X-KEY") -> {
+					currentKey = parseHlsKey(baseUrl, line)
+				}
+				line.startsWith("#EXT-X-MAP") -> {
+					val uri = parseHlsAttribute(line, "URI") ?: return@forEach
+					val range = parseHlsAttribute(line, "BYTERANGE")
+					val resolved = resolveUrl(baseUrl, uri)
+					result.add(HlsSegment(resolved, range?.toRangeHeader(), seq, currentKey))
+					lastUri = resolved
+				}
+				line.startsWith("#EXT-X-BYTERANGE") -> {
+					// 如果连续出现 BYTERANGE，表示复用上一个 URI
+					if (pendingRange != null && lastUri != null) {
+						result.add(HlsSegment(lastUri!!, pendingRange, seq, currentKey))
+						seq += 1
+					}
+					pendingRange = line.substringAfter(":").trim().toRangeHeader()
+				}
+				line.isNotEmpty() && !line.startsWith("#") -> {
+					val resolved = resolveUrl(baseUrl, line)
+					result.add(HlsSegment(resolved, pendingRange, seq, currentKey))
+					lastUri = resolved
+					pendingRange = null
+					seq += 1
+				}
+			}
+		}
+		// 如果最后一个 BYTERANGE 没有 URI，复用上一个 URI
+		if (pendingRange != null && lastUri != null) {
+			result.add(HlsSegment(lastUri!!, pendingRange, seq, currentKey))
+		}
+		return result
+	}
+
+	private fun parseHlsMediaSequence(lines: List<String>): Int {
+		val line = lines.firstOrNull { it.startsWith("#EXT-X-MEDIA-SEQUENCE") } ?: return 0
+		return line.substringAfter(":").trim().toIntOrNull() ?: 0
+	}
+
+	private fun parseHlsKey(baseUrl: String, line: String): HlsKey? {
+		if (!line.startsWith("#EXT-X-KEY")) return null
+		val method = parseHlsAttribute(line, "METHOD") ?: return null
+		if (method == "NONE") return null
+		val uri = parseHlsAttribute(line, "URI") ?: return null
+		val ivRaw = parseHlsAttribute(line, "IV")
+		val iv = ivRaw?.let { parseHexIv(it) }
+		return HlsKey(method = method, uri = resolveUrl(baseUrl, uri), iv = iv)
+	}
+
+	private suspend fun fetchHlsKey(
+		source: MangaSource,
+		baseUrl: String,
+		key: HlsKey,
+		headers: Map<String, String>?,
+	): ByteArray {
+		val keyUrl = resolveUrl(baseUrl, key.uri)
+		val request = PageLoader.createPageRequest(keyUrl, source, headers)
+			.newBuilder()
+			.build()
+		val response = okHttp.newCall(request).await().ensureSuccess()
+		return response.use { resp ->
+			resp.body?.bytes() ?: error("Key response body is null")
+		}
+	}
+
+	private fun parseHexIv(raw: String): ByteArray {
+		val hex = raw.removePrefix("0x").removePrefix("0X")
+		val padded = hex.padStart(32, '0')
+		val bytes = ByteArray(16)
+		for (i in 0 until 16) {
+			val idx = i * 2
+			bytes[i] = padded.substring(idx, idx + 2).toInt(16).toByte()
+		}
+		return bytes
+	}
+
+	private fun buildHlsIv(sequence: Int): ByteArray {
+		val bytes = ByteArray(16)
+		val value = sequence.toLong()
+		for (i in 0 until 8) {
+			bytes[15 - i] = ((value shr (i * 8)) and 0xFF).toByte()
+		}
+		return bytes
+	}
+
+	private fun decryptHlsSegment(data: ByteArray, key: ByteArray, iv: ByteArray): ByteArray {
+		val mode = if (data.size % 16 == 0) "AES/CBC/NoPadding" else "AES/CBC/PKCS5Padding"
+		val cipher = Cipher.getInstance(mode)
+		val keySpec = SecretKeySpec(key, "AES")
+		val ivSpec = IvParameterSpec(iv)
+		cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+		return cipher.doFinal(data)
+	}
+
+	private suspend fun decryptIfNeeded(
+		source: MangaSource,
+		baseUrl: String,
+		key: HlsKey?,
+		headers: Map<String, String>?,
+		keyCache: MutableMap<String, ByteArray>,
+		sequence: Int,
+		data: ByteArray,
+	): ByteArray {
+		if (key == null || key.method != "AES-128") return data
+		val keyBytes = keyCache.getOrPut(key.uri) { fetchHlsKey(source, baseUrl, key, headers) }
+		val iv = key.iv ?: buildHlsIv(sequence)
+		return decryptHlsSegment(data, keyBytes, iv)
+	}
+
+	private fun parseHlsAttribute(line: String, key: String): String? {
+		val token = "$key="
+		val index = line.indexOf(token)
+		if (index < 0) return null
+		val raw = line.substring(index + token.length)
+		return raw.trim().trim('"').substringBefore(',').trim('"')
+	}
+
+	private fun String.toRangeHeader(): String {
+		val value = trim().trim('"')
+		val size = value.substringBefore("@").toLongOrNull() ?: return "bytes=0-"
+		val offset = value.substringAfter("@", "0").toLongOrNull() ?: 0L
+		return "bytes=$offset-${offset + size - 1}"
+	}
+
+	private fun resolveUrl(baseUrl: String, relative: String): String {
+		val base = baseUrl.toHttpUrlOrNull() ?: return relative
+		return base.resolve(relative)?.toString() ?: relative
+	}
+
+	private data class HlsSegment(
+		val url: String,
+		val range: String? = null,
+		val sequence: Int = 0,
+		val key: HlsKey? = null,
+	)
+
+	private data class HlsKey(
+		val method: String,
+		val uri: String,
+		val iv: ByteArray?,
+	)
+
+	private data class VideoDownloadTarget(
+		val url: String,
+		val headers: Map<String, String>?,
+	) {
+		val isHls: Boolean = url.contains(".m3u8", ignoreCase = true)
+		val extension: String = if (isHls) "ts" else guessExt(url)
+
+		private fun guessExt(u: String): String {
+			val ext = u.substringAfterLast('.', "").lowercase()
+			return if (ext.isNotBlank() && ext.length <= 5) ext else "mp4"
+		}
+	}
+
 	private suspend fun publishState(state: DownloadState) {
 		val previousState = currentState
 		lastPublishedState = state
@@ -1175,8 +1605,27 @@ class DownloadWorker @AssistedInject constructor(
 		setProgress(state.toWorkData())
 	}
 
+	private fun scanDownloadedFile(file: File) {
+		runCatching {
+			MediaScannerConnection.scanFile(
+				applicationContext,
+				arrayOf(file.absolutePath),
+				null,
+				null,
+			)
+		}.onFailure { e ->
+			Log.w("DownloadWorker", "scanDownloadedFile failed: ${file.absolutePath}", e)
+		}
+	}
+
 	private suspend fun getDoneChapters(manga: Manga) = runCatchingCancellable {
 		val start = System.currentTimeMillis()
+		val contentType = manga.source.getContentType()
+		if (contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) {
+			val ids = videoDownloadIndex.getDownloadedChapterIds(manga.id)
+			Log.i("DownloadWorker", "getDoneChapters(video): mangaId=${manga.id} count=${ids.size}")
+			return@runCatchingCancellable ids
+		}
 		val result = withTimeoutOrNull(3000L) {
 			localMangaRepository.getDetails(manga).chapters
 				?.filter { it.source.isLocal }
