@@ -25,6 +25,7 @@ import android.app.PictureInPictureParams
 import android.provider.MediaStore
 import android.util.Rational
 import android.view.PixelCopy
+import android.util.Log
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -218,7 +219,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun stopLongSeek() {
         longSeekDirection = 0
         longSeekHandler.removeCallbacks(longSeekRunnable)
-        hideLongSeekOverlay()
+        // do not hide immediately, let the handler do it for better UX
+        overlayHandler.removeCallbacks(hideLeftRunnable)
+        overlayHandler.removeCallbacks(hideRightRunnable)
+        overlayHandler.postDelayed(hideLeftRunnable, 1500)
+        overlayHandler.postDelayed(hideRightRunnable, 1500)
         longSeekAccumulatedMs = 0L
     }
 
@@ -531,12 +536,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 detector.onTouchEvent(ev)
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        stopLongSeek()
+                        if (longSeekDirection != 0) {
+                            stopLongSeek()
+                        }
                         verticalAdjustMode = 0
                         overlayHandler.removeCallbacks(hideLeftRunnable)
                         overlayHandler.removeCallbacks(hideRightRunnable)
-                        overlayHandler.postDelayed(hideLeftRunnable, 1000)
-                        overlayHandler.postDelayed(hideRightRunnable, 1000)
+                        overlayHandler.postDelayed(hideLeftRunnable, 1500)
+                        overlayHandler.postDelayed(hideRightRunnable, 1500)
                     }
                 }
                 true
@@ -866,11 +873,17 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         } else {
             mpvPlayer?.setHardwareDecodingMode("auto")
         }
+        
+        // Apply optimized streaming options for network stability
+        mpvPlayer?.setStreamingOptions(appSettings.videoCacheSizeMb)
+        
         applyPlaybackOptions()
         applyGradientAlpha()
         val defaultSpeed = appSettings.videoDefaultSpeed
         appSettings.videoPlaybackSpeed = defaultSpeed
         mpvPlayer?.setRate(defaultSpeed.toDouble())
+
+        Log.d("VideoPlayerActivity", "Loading media. URL: $url, Headers: ${mergedHeaders.keys}")
         mpvPlayer?.load(url, mergedHeaders, initialStartMs)
         mpvPlayer?.play()
         updateTitleAndSubtitle()
@@ -1105,7 +1118,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         )?.setTextColor(white)
         ctl.findViewById<TextView>(
             org.skepsun.kototoro.R.id.button_danmaku_settings,
-        )?.setTextColor(white)
+        )?.apply {
+            setTextColor(white)
+            setBackgroundResource(org.skepsun.kototoro.R.drawable.bg_danmaku_tv)
+        }
         updateDanmakuToggleState()
     }
 
@@ -1114,12 +1130,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val btn = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle) ?: return
         val enabled = appSettings.videoDanmakuEnabled
         btn.alpha = if (enabled) 1f else 0.45f
-        val bgRes = if (enabled) {
-            org.skepsun.kototoro.R.drawable.bg_danmaku_circle
-        } else {
-            org.skepsun.kototoro.R.drawable.bg_danmaku_circle_off
-        }
-        btn.setBackgroundResource(bgRes)
+        btn.setBackgroundResource(org.skepsun.kototoro.R.drawable.bg_danmaku_tv)
     }
 
     private fun updateToolbarProgress() {

@@ -65,13 +65,53 @@ class MpvPlayer : MPVLib.EventObserver {
 	fun load(url: String, headers: Map<String, String>, startMs: Long? = null) {
 		pendingSeekMs = startMs
 		shouldAutoPlayAfterLoad = true
-		val headerValue = if (headers.isNotEmpty()) {
-			headers.entries.joinToString(",") { "${it.key}: ${it.value}" }
+		
+		// Handle special headers separately for better compatibility
+		val userAgent = headers.entries.find { it.key.equals("User-Agent", ignoreCase = true) }?.value
+		val referer = headers.entries.find { it.key.equals("Referer", ignoreCase = true) }?.value
+		
+		if (!userAgent.isNullOrBlank()) {
+			MPVLib.setOptionString("user-agent", userAgent)
+		}
+		if (!referer.isNullOrBlank()) {
+			MPVLib.setOptionString("referrer", referer)
+		}
+
+		val otherHeaders = headers.filter { 
+			!it.key.equals("User-Agent", ignoreCase = true) && !it.key.equals("Referer", ignoreCase = true) 
+		}
+
+		val headerValue = if (otherHeaders.isNotEmpty()) {
+			// Each header must be in "Header: Value" format, and multiple headers are separated by ","
+			// Note: MPV parsing of this string is tricky with commas, but this is the standard way.
+			otherHeaders.entries.joinToString(",") { "${it.key}: ${it.value}" }
 		} else {
 			""
 		}
 		MPVLib.setOptionString("http-header-fields", headerValue)
+		
+		Log.d("MpvPlayer", "load: $url with headers count=${headers.size}")
 		MPVLib.command("loadfile", url, "replace")
+	}
+
+	fun setStreamingOptions(cacheSizeMb: Int? = null) {
+		// Optimize for network streaming and seeking
+		MPVLib.setOptionString("cache", "yes")
+		MPVLib.setOptionString("demuxer-max-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024}")
+		MPVLib.setOptionString("demuxer-max-back-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024 / 2}")
+		
+		// Readahead and buffer settings
+		MPVLib.setOptionString("cache-secs", "30")
+		MPVLib.setOptionString("demuxer-readahead-secs", "20")
+		
+		// Network timeout and retries
+		MPVLib.setOptionString("network-timeout", "30")
+		MPVLib.setOptionString("tls-verify", "no") // Some sources have cert issues
+		
+		// Faster seeking
+		MPVLib.setOptionString("hr-seek", "default")
+		
+		Log.d("MpvPlayer", "setStreamingOptions applied")
 	}
 
 	fun setHardwareDecoding(enabled: Boolean) {
@@ -139,8 +179,11 @@ class MpvPlayer : MPVLib.EventObserver {
 	}
 
 	override fun event(eventId: Int) {
+		Log.v("MpvPlayer", "MPV Event: $eventId")
 		when (eventId) {
+			MPVLib.MpvEvent.MPV_EVENT_START_FILE -> Log.d("MpvPlayer", "EVENT_START_FILE")
 			MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+				Log.d("MpvPlayer", "EVENT_FILE_LOADED")
 				if (shouldAutoPlayAfterLoad) {
 					MPVLib.setPropertyBoolean("pause", false)
 					shouldAutoPlayAfterLoad = false
@@ -149,7 +192,12 @@ class MpvPlayer : MPVLib.EventObserver {
 				pendingSeekMs?.let { seekTo(it) }
 				pendingSeekMs = null
 			}
-			MPVLib.MpvEvent.MPV_EVENT_END_FILE -> listeners.forEach { it.onPlaybackEnded() }
+			MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
+				Log.d("MpvPlayer", "EVENT_END_FILE")
+				listeners.forEach { it.onPlaybackEnded() }
+			}
+			MPVLib.MpvEvent.MPV_EVENT_IDLE -> Log.d("MpvPlayer", "EVENT_IDLE")
+			MPVLib.MpvEvent.MPV_EVENT_SHUTDOWN -> Log.d("MpvPlayer", "EVENT_SHUTDOWN")
 		}
 	}
 
