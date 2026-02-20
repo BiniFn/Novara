@@ -19,6 +19,28 @@
 			android:layout_height="wrap_content"
 			app:layout_scrollFlags="scroll|enterAlways" />
 
+		<com.google.android.material.textfield.TextInputLayout
+			android:id="@+id/layout_query_input"
+			style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="@dimen/list_spacing_normal"
+			android:layout_marginEnd="@dimen/list_spacing_normal"
+			android:layout_marginBottom="@dimen/list_spacing_small"
+			app:layout_scrollFlags="scroll|enterAlways"
+			app:startIconDrawable="@android:drawable/ic_menu_search">
+
+			<com.google.android.material.textfield.TextInputEditText
+				android:id="@+id/edit_query_input"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:singleLine="true"
+				android:hint="@string/search"
+				android:imeOptions="actionSearch"
+				android:inputType="text" />
+
+		</com.google.android.material.textfield.TextInputLayout>
+
 	</com.google.android.material.appbar.AppBarLayout>
 
 	<org.skepsun.kototoro.core.ui.list.fastscroll.FastScrollRecyclerView

@@ -1,24 +1,27 @@
-package org.skepsun.kototoro.scrobbling.kitsu.domain
+package org.skepsun.kototoro.scrobbling.bangumi.domain
 
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
-import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
 import javax.inject.Inject
+import javax.inject.Singleton
 
-class KitsuScrobbler @Inject constructor(
-	private val repository: KitsuRepository,
+@Singleton
+class BangumiScrobbler @Inject constructor(
+	private val repository: BangumiRepository,
 	db: MangaDatabase,
 	mangaRepositoryFactory: MangaRepository.Factory,
-) : Scrobbler(db, ScrobblerService.KITSU, repository, mangaRepositoryFactory) {
+) : Scrobbler(db, ScrobblerService.BANGUMI, repository, mangaRepositoryFactory) {
 
 	init {
-		statuses[ScrobblingStatus.PLANNED] = "planned"
-		statuses[ScrobblingStatus.READING] = "current"
-		statuses[ScrobblingStatus.COMPLETED] = "completed"
+		statuses[ScrobblingStatus.PLANNED] = "wish"
+		statuses[ScrobblingStatus.READING] = "do"
+		statuses[ScrobblingStatus.RE_READING] = "do"
+		statuses[ScrobblingStatus.COMPLETED] = "collect"
 		statuses[ScrobblingStatus.ON_HOLD] = "on_hold"
 		statuses[ScrobblingStatus.DROPPED] = "dropped"
 	}
@@ -27,7 +30,7 @@ class KitsuScrobbler @Inject constructor(
 		mangaId: Long,
 		rating: Float,
 		status: ScrobblingStatus?,
-		comment: String?
+		comment: String?,
 	) {
 		val entity = db.getScrobblingDao().find(scrobblerService.id, mangaId)
 		requireNotNull(entity) { "Scrobbling info for manga $mangaId not found" }
@@ -40,8 +43,8 @@ class KitsuScrobbler @Inject constructor(
 		)
 	}
 
-	protected override suspend fun onAuthorized(user: ScrobblerUser) {
+	override suspend fun onAuthorized(user: ScrobblerUser) {
 		repository.syncLibraryFromRemote()
 	}
-
 }
+

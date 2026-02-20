@@ -7,7 +7,7 @@ import androidx.room.Entity
 	tableName = "scrobblings",
 	primaryKeys = ["scrobbler", "id", "manga_id"],
 )
-class ScrobblingEntity(
+data class ScrobblingEntity(
 	@ColumnInfo(name = "scrobbler") val scrobbler: Int,
 	@ColumnInfo(name = "id") val id: Int,
 	@ColumnInfo(name = "manga_id") val mangaId: Long,
@@ -16,20 +16,4 @@ class ScrobblingEntity(
 	@ColumnInfo(name = "chapter") val chapter: Int,
 	@ColumnInfo(name = "comment") val comment: String?,
 	@ColumnInfo(name = "rating") val rating: Float,
-) {
-
-	fun copy(
-		status: String?,
-		comment: String?,
-		rating: Float,
-	) = ScrobblingEntity(
-		scrobbler = scrobbler,
-		id = id,
-		mangaId = mangaId,
-		targetId = targetId,
-		status = status,
-		chapter = chapter,
-		comment = comment,
-		rating = rating,
-	)
-}
+)

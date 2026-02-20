@@ -32,6 +32,9 @@ import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.MangaSearchRepository
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
+import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
+import org.skepsun.kototoro.search.domain.SearchContentKind
+import org.skepsun.kototoro.search.domain.matches
 import org.skepsun.kototoro.search.domain.sourceTypesFromTags
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 import javax.inject.Inject
@@ -59,6 +62,7 @@ class SearchSuggestionViewModel @Inject constructor(
 	private val sourceTypes = MutableStateFlow(
 		sourceTypesFromTags(globalFavoritesState.selectedSourceTags.value),
 	)
+	private val contentKinds = MutableStateFlow(ALL_SEARCH_CONTENT_KINDS)
 
 	private val enabledSourcesSnapshot: Flow<EnabledSourcesSnapshot> = sourcesRepository.observeEnabledSources()
 		.map { infos -> infos.toEnabledSourcesSnapshot() }
@@ -70,19 +74,31 @@ class SearchSuggestionViewModel @Inject constructor(
 		valueProducer = { isIncognitoModeEnabled },
 	)
 
-	val suggestion: Flow<List<SearchSuggestionItem>> = combine(
+	private val suggestionParams = combine(
 		query.debounce(DEBOUNCE_TIMEOUT),
 		enabledSourcesSnapshot,
 		settings.observeAsFlow(AppSettings.KEY_SEARCH_SUGGESTION_TYPES) { searchSuggestionTypes },
 		sourceTypes,
-		invalidationTrigger,
-	)
-	{ a, b, c, d, _ ->
-		Triple(a, b, c) to d
-	}.mapLatest { (triple, activeTypes) ->
-		val (searchQuery, enabledSources, types) = triple
-		val filteredSources = enabledSources.filterByTypes(activeTypes, sourceTypeIdentifier)
-		buildSearchSuggestion(searchQuery, filteredSources, types)
+		contentKinds,
+	) { searchQuery, enabledSources, types, activeSourceTypes, activeContentKinds ->
+		SuggestionParams(
+			searchQuery = searchQuery,
+			enabledSources = enabledSources,
+			types = types,
+			activeSourceTypes = activeSourceTypes,
+			activeContentKinds = activeContentKinds,
+		)
+	}
+
+	val suggestion: Flow<List<SearchSuggestionItem>> = combine(suggestionParams, invalidationTrigger) { params, _ ->
+		params
+	}.mapLatest { params ->
+		val filteredSources = params.enabledSources.filterByTypes(
+			sourceTypes = params.activeSourceTypes,
+			contentKinds = params.activeContentKinds,
+			identifier = sourceTypeIdentifier,
+		)
+		buildSearchSuggestion(params.searchQuery, filteredSources, params.types)
 	}.distinctUntilChanged()
 		.withErrorHandling()
 		.flowOn(Dispatchers.Default)
@@ -99,6 +115,15 @@ class SearchSuggestionViewModel @Inject constructor(
 	}
 
 	fun getSourceTypes(): Set<SourceType> = sourceTypes.value
+
+	fun setContentKinds(kinds: Set<SearchContentKind>) {
+		val resolved = if (kinds.isEmpty()) ALL_SEARCH_CONTENT_KINDS else kinds
+		if (contentKinds.value != resolved) {
+			contentKinds.value = resolved
+		}
+	}
+
+	fun getContentKinds(): Set<SearchContentKind> = contentKinds.value
 
 	fun saveQuery(query: String) {
 		if (!settings.isIncognitoModeEnabled) {
@@ -211,6 +236,7 @@ class SearchSuggestionViewModel @Inject constructor(
 
 	private suspend fun getManga(searchQuery: String): List<SearchSuggestionItem> = runCatchingCancellable {
 		val manga = repository.getMangaSuggestion(searchQuery, MAX_MANGA_ITEMS, null)
+			.filter { item -> contentKinds.value.any { kind -> kind.matches(item) } }
 		if (manga.isEmpty()) {
 			emptyList()
 		} else {
@@ -259,12 +285,22 @@ private data class EnabledSourcesSnapshot(
 	val names: Set<String>,
 )
 
+private data class SuggestionParams(
+	val searchQuery: String,
+	val enabledSources: EnabledSourcesSnapshot,
+	val types: Set<SearchSuggestionType>,
+	val activeSourceTypes: Set<SourceType>,
+	val activeContentKinds: Set<SearchContentKind>,
+)
+
 private fun EnabledSourcesSnapshot.filterByTypes(
-	types: Set<SourceType>,
+	sourceTypes: Set<SourceType>,
+	contentKinds: Set<SearchContentKind>,
 	identifier: SourceTypeIdentifier,
 ): EnabledSourcesSnapshot {
 	val filtered = sources.filter { source ->
-		identifier.getSourceType(source.name) in types
+		identifier.getSourceType(source.name) in sourceTypes &&
+			contentKinds.any { kind -> kind.matches(source) }
 	}
 	return EnabledSourcesSnapshot(
 		sources = filtered,

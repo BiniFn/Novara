@@ -18,11 +18,17 @@ abstract class ScrobblingDao {
 	@Query("SELECT * FROM scrobblings WHERE scrobbler = :scrobbler")
 	abstract fun observe(scrobbler: Int): Flow<List<ScrobblingEntity>>
 
+	@Query("SELECT * FROM scrobblings WHERE scrobbler = :scrobbler")
+	abstract suspend fun findAllByScrobbler(scrobbler: Int): List<ScrobblingEntity>
+
 	@Upsert
 	abstract suspend fun upsert(entity: ScrobblingEntity)
 
 	@Query("DELETE FROM scrobblings WHERE scrobbler = :scrobbler AND manga_id = :mangaId")
 	abstract suspend fun delete(scrobbler: Int, mangaId: Long)
+
+	@Query("DELETE FROM scrobblings WHERE scrobbler = :scrobbler")
+	abstract suspend fun deleteByScrobbler(scrobbler: Int)
 
 	@Query("SELECT * FROM scrobblings ORDER BY scrobbler LIMIT :limit OFFSET :offset")
 	protected abstract suspend fun findAll(offset: Int, limit: Int): List<ScrobblingEntity>

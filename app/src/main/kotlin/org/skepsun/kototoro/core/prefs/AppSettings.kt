@@ -1040,6 +1040,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_ANILIST = "anilist"
 		const val KEY_MAL = "mal"
 		const val KEY_KITSU = "kitsu"
+		const val KEY_BANGUMI = "bangumi"
 		const val KEY_DOWNLOADS_METERED_NETWORK = "downloads_metered_network"
 		const val KEY_DOWNLOADS_FORMAT = "downloads_format"
 		const val KEY_DOWNLOADS_ALIGN_READER = "downloads_align_reader"

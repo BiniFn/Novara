@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.search.ui.multi
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
@@ -93,6 +94,23 @@ class SearchActivity :
 
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 		supportActionBar?.setSubtitle(R.string.search_results)
+		viewBinding.editQueryInput.setText(viewModel.query)
+		viewBinding.editQueryInput.setOnEditorActionListener { _, actionId, event ->
+			val isSubmit = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+				actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
+				(event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
+			if (!isSubmit) return@setOnEditorActionListener false
+			submitEditedQuery()
+			true
+		}
+		viewBinding.editQueryInput.setOnKeyListener { _, keyCode, event ->
+			if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN) {
+				submitEditedQuery()
+				true
+			} else {
+				false
+			}
+		}
 
 		addMenuProvider(SearchMenuProvider(this, viewModel))
 
@@ -199,5 +217,24 @@ class SearchActivity :
 
 	private fun collectSelectedItems(): Set<Manga> {
 		return viewModel.getItems(selectionController.peekCheckedIds())
+	}
+
+	private fun submitEditedQuery() {
+		val newQuery = viewBinding.editQueryInput.text?.toString()?.trim().orEmpty()
+		if (newQuery.isEmpty() || newQuery == viewModel.query) {
+			return
+		}
+		router.openSearch(
+			query = newQuery,
+			kind = viewModel.kind,
+			sourceTypes = viewModel.getSourceTypes(),
+			contentKinds = viewModel.getContentKinds(),
+		)
+		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+			overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out, 0)
+		} else {
+			overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+		}
+		finishAfterTransition()
 	}
 }

@@ -29,6 +29,9 @@ import org.skepsun.kototoro.scrobbling.mal.domain.MALScrobbler
 import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriAuthenticator
 import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriInterceptor
 import org.skepsun.kototoro.scrobbling.shikimori.domain.ShikimoriScrobbler
+import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiAuthenticator
+import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiInterceptor
+import org.skepsun.kototoro.scrobbling.bangumi.domain.BangumiScrobbler
 import javax.inject.Singleton
 
 @Module
@@ -118,11 +121,31 @@ object ScrobblingModule {
 	): ScrobblerStorage = ScrobblerStorage(context, ScrobblerService.KITSU)
 
 	@Provides
+	@Singleton
+	@ScrobblerType(ScrobblerService.BANGUMI)
+	fun provideBangumiStorage(
+		@ApplicationContext context: Context,
+	): ScrobblerStorage = ScrobblerStorage(context, ScrobblerService.BANGUMI)
+
+	@Provides
+	@Singleton
+	@ScrobblerType(ScrobblerService.BANGUMI)
+	fun provideBangumiHttpClient(
+		@BaseHttpClient baseHttpClient: OkHttpClient,
+		authenticator: BangumiAuthenticator,
+		@ScrobblerType(ScrobblerService.BANGUMI) storage: ScrobblerStorage,
+	): OkHttpClient = baseHttpClient.newBuilder().apply {
+		authenticator(authenticator)
+		addInterceptor(BangumiInterceptor(storage))
+	}.build()
+
+	@Provides
 	@ElementsIntoSet
 	fun provideScrobblers(
 		shikimoriScrobbler: ShikimoriScrobbler,
 		aniListScrobbler: AniListScrobbler,
 		malScrobbler: MALScrobbler,
-		kitsuScrobbler: KitsuScrobbler
-	): Set<@JvmSuppressWildcards Scrobbler> = setOf(shikimoriScrobbler, aniListScrobbler, malScrobbler, kitsuScrobbler)
+		kitsuScrobbler: KitsuScrobbler,
+		bangumiScrobbler: BangumiScrobbler
+	): Set<@JvmSuppressWildcards Scrobbler> = setOf(shikimoriScrobbler, aniListScrobbler, malScrobbler, kitsuScrobbler, bangumiScrobbler)
 }

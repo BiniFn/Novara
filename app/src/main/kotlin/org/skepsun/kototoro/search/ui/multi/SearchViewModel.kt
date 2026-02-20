@@ -45,8 +45,12 @@ import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
+import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchV2Helper
+import org.skepsun.kototoro.search.domain.matches
+import org.skepsun.kototoro.search.domain.searchContentKindsFromNames
 import org.skepsun.kototoro.search.domain.sourceTypesFromNames
 import org.skepsun.kototoro.search.domain.sourceTypesFromTags
 import java.util.Locale
@@ -75,6 +79,10 @@ class SearchViewModel @Inject constructor(
 	private var sourceTypes = MutableStateFlow(
 		sourceTypesFromNames(savedStateHandle.get<ArrayList<String>>(AppRouter.KEY_SOURCE_TYPES))
 			?: sourceTypesFromTags(globalFavoritesState.selectedSourceTags.value),
+	)
+	private var contentKinds = MutableStateFlow(
+		searchContentKindsFromNames(savedStateHandle.get<ArrayList<String>>(AppRouter.KEY_CONTENT_KINDS))
+			?: ALL_SEARCH_CONTENT_KINDS,
 	)
 	private val results = MutableStateFlow<List<SearchResultsListModel>>(emptyList())
 
@@ -166,6 +174,18 @@ class SearchViewModel @Inject constructor(
 
 	fun getSourceTypes(): Set<SourceType> {
 		return sourceTypes.value
+	}
+
+	fun setContentKinds(kinds: Set<SearchContentKind>) {
+		val resolved = if (kinds.isEmpty()) ALL_SEARCH_CONTENT_KINDS else kinds
+		if (resolved != contentKinds.value) {
+			contentKinds.value = resolved
+			retry()
+		}
+	}
+
+	fun getContentKinds(): Set<SearchContentKind> {
+		return contentKinds.value
 	}
 
 	fun continueSearch() {
@@ -360,21 +380,26 @@ class SearchViewModel @Inject constructor(
 	}
 
 	private fun filterSourcesByType(sources: Collection<MangaSource>): List<MangaSource> {
-		val allowed = sourceTypes.value
+		val allowedSourceTypes = sourceTypes.value
+		val allowedContentKinds = contentKinds.value
 		return sources.filter { source ->
-			sourceTypeIdentifier.getSourceType(source.name) in allowed
+			sourceTypeIdentifier.getSourceType(source.name) in allowedSourceTypes &&
+				allowedContentKinds.any { it.matches(source) }
 		}
 	}
 
 	private fun filterMangaBySourceType(manga: List<Manga>): List<Manga> {
-		val allowed = sourceTypes.value
+		val allowedSourceTypes = sourceTypes.value
+		val allowedContentKinds = contentKinds.value
 		return manga.filter { item ->
-			sourceTypeIdentifier.getSourceType(item.source.name) in allowed
+			sourceTypeIdentifier.getSourceType(item.source.name) in allowedSourceTypes &&
+				allowedContentKinds.any { it.matches(item) }
 		}
 	}
 
 	private fun isSourceTypeAllowed(source: MangaSource): Boolean {
-		return sourceTypeIdentifier.getSourceType(source.name) in sourceTypes.value
+		return sourceTypeIdentifier.getSourceType(source.name) in sourceTypes.value &&
+			contentKinds.value.any { it.matches(source) }
 	}
 
 	private fun MangaSource.priority(): Int {

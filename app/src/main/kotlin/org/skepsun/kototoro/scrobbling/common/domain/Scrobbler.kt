@@ -56,8 +56,12 @@ abstract class Scrobbler(
 
 	suspend fun authorize(authCode: String): ScrobblerUser {
 		repository.authorize(authCode)
-		return repository.loadUser()
+		return repository.loadUser().also { user ->
+			onAuthorized(user)
+		}
 	}
+
+	protected open suspend fun onAuthorized(user: ScrobblerUser) = Unit
 
 	fun logout() {
 		repository.logout()

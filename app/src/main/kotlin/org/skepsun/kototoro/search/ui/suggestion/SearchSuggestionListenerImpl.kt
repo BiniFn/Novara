@@ -27,7 +27,12 @@ class SearchSuggestionListenerImpl(
 			if (kind == SearchKind.SIMPLE && MangaLinkResolver.isValidLink(query)) {
 				router.openDetails(query.toUri())
 			} else {
-				router.openSearch(query, kind, viewModel.getSourceTypes())
+				router.openSearch(
+					query = query,
+					kind = kind,
+					sourceTypes = viewModel.getSourceTypes(),
+					contentKinds = viewModel.getContentKinds(),
+				)
 				if (kind != SearchKind.TAG) {
 					viewModel.saveQuery(query)
 				}
@@ -39,7 +44,12 @@ class SearchSuggestionListenerImpl(
 	}
 
 	override fun onTagClick(tag: MangaTag) {
-		router.openSearch(tag.title, SearchKind.TAG, viewModel.getSourceTypes())
+		router.openSearch(
+			query = tag.title,
+			kind = SearchKind.TAG,
+			sourceTypes = viewModel.getSourceTypes(),
+			contentKinds = viewModel.getContentKinds(),
+		)
 	}
 
 	override fun onSourceToggle(source: MangaSource, isEnabled: Boolean) {

@@ -6,8 +6,13 @@ import android.view.View
 import androidx.activity.viewModels
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
@@ -81,7 +86,16 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 	}
 
 	override fun onItemClick(item: ScrobblingInfo, view: View) {
-		router.openDetails(item.mangaId)
+		lifecycleScope.launch {
+			val hasLocal = withContext(Dispatchers.Default) {
+				viewModel.hasLocalManga(item.mangaId)
+			}
+			if (hasLocal) {
+				router.openDetails(item.mangaId)
+			} else if (!router.openExternalBrowser(item.externalUrl, item.title)) {
+				Snackbar.make(viewBinding.recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+			}
+		}
 	}
 
 	override fun onClick(v: View) {
@@ -128,5 +142,6 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 		const val HOST_ANILIST_AUTH = "anilist-auth"
 		const val HOST_MAL_AUTH = "mal-auth"
 		const val HOST_KITSU_AUTH = "kitsu-auth"
+		const val HOST_BANGUMI_AUTH = "bangumi-auth"
 	}
 }

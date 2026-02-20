@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -33,6 +34,7 @@ import javax.inject.Inject
 class ScrobblerConfigViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
+	private val db: MangaDatabase,
 ) : BaseViewModel() {
 
 	private val scrobblerService = getScrobblerService(savedStateHandle)
@@ -69,6 +71,11 @@ class ScrobblerConfigViewModel @Inject constructor(
 			user.value = null
 			onLoggedOut.call(Unit)
 		}
+	}
+
+	suspend fun hasLocalManga(mangaId: Long): Boolean {
+		if (mangaId <= 0L) return false
+		return db.getMangaDao().find(mangaId) != null
 	}
 
 	private fun buildContentList(list: List<ScrobblingInfo>): List<ListModel> {
@@ -109,6 +116,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 			ScrobblerConfigActivity.HOST_ANILIST_AUTH -> ScrobblerService.ANILIST
 			ScrobblerConfigActivity.HOST_MAL_AUTH -> ScrobblerService.MAL
 			ScrobblerConfigActivity.HOST_KITSU_AUTH -> ScrobblerService.KITSU
+			ScrobblerConfigActivity.HOST_BANGUMI_AUTH -> ScrobblerService.BANGUMI
 			else -> error("Wrong scrobbler uri: $uri")
 		}
 	}

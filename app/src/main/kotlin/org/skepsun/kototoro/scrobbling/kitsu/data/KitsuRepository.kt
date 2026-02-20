@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.scrobbling.kitsu.data
 
 import android.content.Context
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
@@ -195,6 +196,57 @@ class KitsuRepository(
 			.patch(payload.toKitsuRequestBody())
 		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().getJSONObject("data")
 		saveRate(response, mangaId)
+	}
+
+	suspend fun syncLibraryFromRemote() {
+		val userId = (cachedUser ?: loadUser()).id
+		val oldMappings = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.KITSU.id)
+			.groupBy { it.targetId }
+			.mapValues { (_, values) ->
+				values.firstOrNull { it.mangaId > 0L }?.mangaId ?: 0L
+			}
+
+		val synced = ArrayList<ScrobblingEntity>()
+		var offset = 0
+		while (true) {
+			val request = Request.Builder()
+				.get()
+				.url("$BASE_WEB_URL/api/edge/library-entries?page[limit]=20&page[offset]=$offset&filter[userId]=$userId&include=manga")
+			val data = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().optJSONArray("data") ?: break
+			if (data.length() == 0) {
+				break
+			}
+			for (i in 0 until data.length()) {
+				val json = data.optJSONObject(i) ?: continue
+				val attrs = json.optJSONObject("attributes") ?: continue
+				val manga = json.optJSONObject("relationships")
+					?.optJSONObject("manga")
+					?.optJSONObject("data")
+				val targetId = manga?.optString("id")?.toLongOrNull() ?: continue
+				val mappedMangaId = oldMappings[targetId] ?: 0L
+				synced.add(
+					ScrobblingEntity(
+						scrobbler = ScrobblerService.KITSU.id,
+						id = json.optString("id").toIntOrNull() ?: continue,
+						mangaId = mappedMangaId,
+						targetId = targetId,
+						status = attrs.getStringOrNull("status"),
+						chapter = attrs.getIntOrDefault("progress", 0),
+						comment = attrs.getStringOrNull("notes"),
+						rating = (attrs.getFloatOrDefault("ratingTwenty", 0f) / 20f).coerceIn(0f, 1f),
+					),
+				)
+			}
+			offset += data.length()
+		}
+
+		db.withTransaction {
+			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.KITSU.id)
+			synced.forEach { entity ->
+				db.getScrobblingDao().upsert(entity)
+			}
+		}
 	}
 
 	private fun JSONObject.valuesToStringList(): List<String> {

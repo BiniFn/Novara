@@ -102,6 +102,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.ui.config.ScrobblerConfigActivity
 import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorSheet
 import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.ui.MangaListActivity
 import org.skepsun.kototoro.search.ui.multi.SearchActivity
 import org.skepsun.kototoro.settings.SettingsActivity
@@ -153,12 +154,16 @@ class AppRouter private constructor(
         query: String,
         kind: SearchKind = SearchKind.SIMPLE,
         sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
+        contentKinds: Set<SearchContentKind>? = null,
     ) {
         val intent = Intent(contextOrNull() ?: return, SearchActivity::class.java)
             .putExtra(KEY_QUERY, query)
             .putExtra(KEY_KIND, kind)
         if (!sourceTypes.isNullOrEmpty()) {
             intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
+        }
+        if (!contentKinds.isNullOrEmpty()) {
+            intent.putExtra(KEY_CONTENT_KINDS, org.skepsun.kototoro.search.domain.searchContentKindsToNames(contentKinds))
         }
         startActivity(intent)
     }
@@ -1084,6 +1089,7 @@ class AppRouter private constructor(
         const val KEY_SORT_ORDER = "sort_order"
         const val KEY_SOURCE = "source"
         const val KEY_SOURCE_TYPES = "source_types"
+        const val KEY_CONTENT_KINDS = "content_kinds"
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"
         const val KEY_URL = "url"

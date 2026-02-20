@@ -67,6 +67,12 @@
 			android:title="@string/shikimori"
 			app:icon="@drawable/ic_shikimori" />
 
+		<Preference
+			android:key="bangumi"
+			android:summary="@string/loading_"
+			android:title="@string/bangumi"
+			app:icon="@drawable/ic_bangumi" />
+
 	</PreferenceCategory>
 
 	<Preference

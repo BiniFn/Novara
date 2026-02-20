@@ -38,6 +38,10 @@
 				android:id="@+id/action_source_types"
 				android:title="@string/source_type" />
 
+			<item
+				android:id="@+id/action_content_types"
+				android:title="@string/type" />
+
 			<group android:id="@+id/group_search_filters">
 
 				<item

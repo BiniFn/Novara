@@ -8,6 +8,7 @@ import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.ui.showContentTypeDialog
 import org.skepsun.kototoro.search.ui.showSourceTypeDialog
 
 class SearchMenuProvider(
@@ -39,6 +40,12 @@ class SearchMenuProvider(
 				}
 				return true
 			}
+			R.id.action_content_types -> {
+				showContentTypeDialog(activity, viewModel.getContentKinds()) { kinds ->
+					viewModel.setContentKinds(kinds)
+				}
+				return true
+			}
 
 			R.id.action_filter_pinned_only -> {
 				menuItem.isChecked = !menuItem.isChecked
@@ -64,6 +71,8 @@ class SearchMenuProvider(
 			activity.router.openSearch(
 				query = viewModel.query,
 				kind = newKind,
+				sourceTypes = viewModel.getSourceTypes(),
+				contentKinds = viewModel.getContentKinds(),
 			)
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 				activity.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out, 0)

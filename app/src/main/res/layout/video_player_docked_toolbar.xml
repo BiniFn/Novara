@@ -170,7 +170,7 @@
                     android:layout_height="28dp"
                     android:background="@android:color/transparent"
                     android:contentDescription="@string/video_send_danmaku_hint"
-                    android:src="@drawable/ic_send"
+                    android:src="@drawable/ic_send_tilted"
                     android:tint="@android:color/white" />
 
                 <androidx.appcompat.widget.AppCompatEditText

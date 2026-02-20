@@ -10,6 +10,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.resolve
 import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.search.ui.showContentTypeDialog
 import org.skepsun.kototoro.search.ui.showSourceTypeDialog
 
 class SearchSuggestionMenuProvider(
@@ -32,6 +33,12 @@ class SearchSuggestionMenuProvider(
 			R.id.action_source_types -> {
 				showSourceTypeDialog(context, viewModel.getSourceTypes()) { types ->
 					viewModel.setSourceTypes(types)
+				}
+				true
+			}
+			R.id.action_content_types -> {
+				showContentTypeDialog(context, viewModel.getContentKinds()) { kinds ->
+					viewModel.setContentKinds(kinds)
 				}
 				true
 			}
