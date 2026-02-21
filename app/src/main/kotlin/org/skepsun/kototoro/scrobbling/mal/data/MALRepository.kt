@@ -2,6 +2,7 @@ package org.skepsun.kototoro.scrobbling.mal.data
 
 import android.content.Context
 import android.util.Base64
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -163,6 +164,68 @@ class MALRepository @Inject constructor(
 			.build()
 		val response = okHttp.newCall(request).await().parseJson()
 		saveRate(response, mangaId, rateId.toLong())
+	}
+
+	/**
+	 * Sync all manga list from MAL to local database.
+	 * Uses MAL API: GET /v2/users/@me/mangalist?fields=list_status&limit=100
+	 */
+	suspend fun syncLibraryFromRemote(): Int {
+		val oldMappings = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.MAL.id)
+			.groupBy { it.targetId }
+			.mapValues { (_, values) ->
+				values.firstOrNull { it.mangaId > 0L }?.mangaId ?: 0L
+			}
+
+		val synced = ArrayList<ScrobblingEntity>()
+		var nextUrl: String? = BASE_API_URL.toHttpUrl().newBuilder()
+			.addPathSegment("users")
+			.addPathSegment("@me")
+			.addPathSegment("mangalist")
+			.addQueryParameter("fields", "list_status{status,score,num_chapters_read,comments}")
+			.addQueryParameter("limit", "100")
+			.addQueryParameter("nsfw", "true")
+			.build()
+			.toString()
+
+		while (nextUrl != null) {
+			val request = Request.Builder().url(nextUrl).get().build()
+			val response = okHttp.newCall(request).await().parseJson()
+			val data = response.optJSONArray("data") ?: break
+
+			for (i in 0 until data.length()) {
+				val entry = data.optJSONObject(i) ?: continue
+				val node = entry.optJSONObject("node") ?: continue
+				val listStatus = entry.optJSONObject("list_status") ?: continue
+				val mangaId = node.optLong("id", 0L)
+				if (mangaId == 0L) continue
+				val mappedMangaId = oldMappings[mangaId] ?: 0L
+				synced.add(
+					ScrobblingEntity(
+						scrobbler = ScrobblerService.MAL.id,
+						id = mangaId.toInt(),
+						mangaId = mappedMangaId,
+						targetId = mangaId,
+						status = listStatus.optString("status", ""),
+						chapter = listStatus.optInt("num_chapters_read", 0),
+						comment = listStatus.optString("comments", ""),
+						rating = (listStatus.optDouble("score", 0.0).toFloat() / 10f).coerceIn(0f, 1f),
+					),
+				)
+			}
+
+			// MAL uses "paging.next" for pagination
+			nextUrl = response.optJSONObject("paging")?.getStringOrNull("next")
+		}
+
+		db.withTransaction {
+			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.MAL.id)
+			synced.forEach { entity ->
+				db.getScrobblingDao().upsert(entity)
+			}
+		}
+		return synced.size
 	}
 
 	private suspend fun saveRate(json: JSONObject, mangaId: Long, scrobblerMangaId: Long) {

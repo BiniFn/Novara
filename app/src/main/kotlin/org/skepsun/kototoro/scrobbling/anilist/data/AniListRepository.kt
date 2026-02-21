@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.scrobbling.anilist.data
 
 import android.content.Context
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
@@ -92,7 +93,7 @@ class AniListRepository @Inject constructor(
 					}
 				}
 			}
-		""",
+			""",
 		)
 		val jo = response.getJSONObject("data").getJSONObject("AniChartUser").getJSONObject("user")
 		storage[KEY_SCORE_FORMAT] = jo.getJSONObject("mediaListOptions").getString("scoreFormat")
@@ -130,7 +131,7 @@ class AniListRepository @Inject constructor(
 					siteUrl
 				}
 			}
-		""",
+			""",
 		)
 		val data = response.getJSONObject("data").getJSONObject("Page").getJSONArray("media")
 		return data.mapJSON { ScrobblerManga(it, query) }
@@ -208,6 +209,76 @@ class AniListRepository @Inject constructor(
 			""",
 		)
 		return ScrobblerMangaInfo(response.getJSONObject("data").getJSONObject("Media"))
+	}
+
+	/**
+	 * Sync all manga list entries from AniList to local database.
+	 * Uses AniList GraphQL query to fetch the user's MANGA media list.
+	 */
+	suspend fun syncLibraryFromRemote(): Int {
+		val user = cachedUser ?: loadUser()
+		val scoreFormat = ScoreFormat.of(storage[KEY_SCORE_FORMAT])
+		val oldMappings = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.ANILIST.id)
+			.groupBy { it.targetId }
+			.mapValues { (_, values) ->
+				values.firstOrNull { it.mangaId > 0L }?.mangaId ?: 0L
+			}
+
+		val synced = ArrayList<ScrobblingEntity>()
+		var page = 1
+		while (true) {
+			val response = doRequest(
+				REQUEST_QUERY,
+				"""
+				Page(page: $page, perPage: 50) {
+					pageInfo {
+						hasNextPage
+					}
+					mediaList(userId: ${user.id}, type: MANGA) {
+						id
+						mediaId
+						status
+						notes
+						score
+						progress
+					}
+				}
+				""",
+			)
+			val pageData = response.getJSONObject("data").getJSONObject("Page")
+			val mediaList = pageData.getJSONArray("mediaList")
+			val hasNextPage = pageData.getJSONObject("pageInfo").getBoolean("hasNextPage")
+
+			for (i in 0 until mediaList.length()) {
+				val json = mediaList.optJSONObject(i) ?: continue
+				val mediaId = json.optLong("mediaId", 0L)
+				if (mediaId == 0L) continue
+				val mappedMangaId = oldMappings[mediaId] ?: 0L
+				synced.add(
+					ScrobblingEntity(
+						scrobbler = ScrobblerService.ANILIST.id,
+						id = json.getInt("id"),
+						mangaId = mappedMangaId,
+						targetId = mediaId,
+						status = json.getString("status"),
+						chapter = json.getInt("progress"),
+						comment = json.optString("notes", ""),
+						rating = scoreFormat.normalize(json.getDouble("score").toFloat()),
+					),
+				)
+			}
+			if (!hasNextPage) break
+			page++
+		}
+
+		db.withTransaction {
+			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.ANILIST.id)
+			synced.forEach { entity ->
+				db.getScrobblingDao().upsert(entity)
+			}
+		}
+		return synced.size
 	}
 
 	private suspend fun saveRate(json: JSONObject, mangaId: Long) {

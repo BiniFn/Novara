@@ -198,7 +198,7 @@ class KitsuRepository(
 		saveRate(response, mangaId)
 	}
 
-	suspend fun syncLibraryFromRemote() {
+	suspend fun syncLibraryFromRemote(): Int {
 		val userId = (cachedUser ?: loadUser()).id
 		val oldMappings = db.getScrobblingDao()
 			.findAllByScrobbler(ScrobblerService.KITSU.id)
@@ -247,6 +247,7 @@ class KitsuRepository(
 				db.getScrobblingDao().upsert(entity)
 			}
 		}
+		return synced.size
 	}
 
 	private fun JSONObject.valuesToStringList(): List<String> {

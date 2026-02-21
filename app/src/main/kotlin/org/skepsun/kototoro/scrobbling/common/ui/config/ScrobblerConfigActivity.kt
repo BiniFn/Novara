@@ -51,12 +51,24 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 		}
 		viewBinding.imageViewAvatar.setOnClickListener(this)
 
+		viewBinding.swipeRefreshLayout.setOnRefreshListener {
+			viewModel.syncLibrary()
+		}
+
 		viewModel.content.observe(this, listAdapter)
 		viewModel.user.observe(this, this::onUserChanged)
 		viewModel.isLoading.observe(this, this::onLoadingStateChanged)
 		viewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.recyclerView, null))
 		viewModel.onLoggedOut.observeEvent(this) {
 			finishAfterTransition()
+		}
+		viewModel.onSyncResult.observeEvent(this) { count ->
+			viewBinding.swipeRefreshLayout.isRefreshing = false
+			if (count > 0) {
+				Snackbar.make(viewBinding.recyclerView, getString(R.string.sync_complete, count), Snackbar.LENGTH_SHORT).show()
+			} else {
+				Snackbar.make(viewBinding.recyclerView, R.string.sync_not_supported, Snackbar.LENGTH_SHORT).show()
+			}
 		}
 
 		processIntent(intent)
@@ -125,6 +137,9 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 
 	private fun onLoadingStateChanged(isLoading: Boolean) {
 		viewBinding.progressBar.showOrHide(isLoading)
+		if (!isLoading) {
+			viewBinding.swipeRefreshLayout.isRefreshing = false
+		}
 	}
 
 	private fun showUserDialog() {

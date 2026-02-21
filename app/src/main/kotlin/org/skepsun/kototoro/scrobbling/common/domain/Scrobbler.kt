@@ -63,6 +63,12 @@ abstract class Scrobbler(
 
 	protected open suspend fun onAuthorized(user: ScrobblerUser) = Unit
 
+	/**
+	 * Sync library from remote service. Returns the count of synced items.
+	 * Override in subclasses that support remote library sync.
+	 */
+	open suspend fun syncLibrary(): Int = 0
+
 	fun logout() {
 		repository.logout()
 	}

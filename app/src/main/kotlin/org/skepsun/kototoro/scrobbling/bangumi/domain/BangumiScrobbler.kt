@@ -46,5 +46,9 @@ class BangumiScrobbler @Inject constructor(
 	override suspend fun onAuthorized(user: ScrobblerUser) {
 		repository.syncLibraryFromRemote()
 	}
+
+	override suspend fun syncLibrary(): Int {
+		return repository.syncLibraryFromRemote()
+	}
 }
 

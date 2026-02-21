@@ -5,6 +5,7 @@ import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.scrobbling.anilist.data.AniListRepository
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,5 +41,13 @@ class AniListScrobbler @Inject constructor(
 			status = statuses[status],
 			comment = comment,
 		)
+	}
+
+	override suspend fun onAuthorized(user: ScrobblerUser) {
+		repository.syncLibraryFromRemote()
+	}
+
+	override suspend fun syncLibrary(): Int {
+		return repository.syncLibraryFromRemote()
 	}
 }

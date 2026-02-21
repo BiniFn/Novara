@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.scrobbling.shikimori.data
 
 import android.content.Context
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -179,6 +180,67 @@ class ShikimoriRepository @Inject constructor(
 			.url("${BASE_URL}api/mangas/$id")
 		val response = okHttp.newCall(request.build()).await().parseJson()
 		return ScrobblerMangaInfo(response)
+	}
+
+	/**
+	 * Sync all manga rates from Shikimori to local database.
+	 * Uses Shikimori API: GET /api/v2/user_rates?user_id={id}&target_type=Manga
+	 */
+	suspend fun syncLibraryFromRemote(): Int {
+		val user = cachedUser ?: loadUser()
+		val oldMappings = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.SHIKIMORI.id)
+			.groupBy { it.targetId }
+			.mapValues { (_, values) ->
+				values.firstOrNull { it.mangaId > 0L }?.mangaId ?: 0L
+			}
+
+		val synced = ArrayList<ScrobblingEntity>()
+		var page = 1
+		val limit = 50
+		while (true) {
+			val url = BASE_URL.toHttpUrl().newBuilder()
+				.addPathSegment("api")
+				.addPathSegment("v2")
+				.addPathSegment("user_rates")
+				.addEncodedQueryParameter("user_id", user.id.toString())
+				.addEncodedQueryParameter("target_type", "Manga")
+				.addEncodedQueryParameter("page", page.toString())
+				.addEncodedQueryParameter("limit", limit.toString())
+				.build()
+			val request = Request.Builder().url(url).get().build()
+			val data = okHttp.newCall(request).await().parseJsonArray()
+			if (data.length() == 0) break
+
+			for (i in 0 until data.length()) {
+				val json = data.optJSONObject(i) ?: continue
+				val targetId = json.optLong("target_id", 0L)
+				if (targetId == 0L) continue
+				val mappedMangaId = oldMappings[targetId] ?: 0L
+				synced.add(
+					ScrobblingEntity(
+						scrobbler = ScrobblerService.SHIKIMORI.id,
+						id = json.getInt("id"),
+						mangaId = mappedMangaId,
+						targetId = targetId,
+						status = json.getString("status"),
+						chapter = json.getInt("chapters"),
+						comment = json.optString("text", ""),
+						rating = (json.getDouble("score").toFloat() / 10f).coerceIn(0f, 1f),
+					),
+				)
+			}
+			if (data.length() < limit) break
+			page++
+		}
+
+		db.withTransaction {
+			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.SHIKIMORI.id)
+			synced.forEach { entity ->
+				db.getScrobblingDao().upsert(entity)
+			}
+		}
+		return synced.size
 	}
 
 	private suspend fun saveRate(json: JSONObject, mangaId: Long) {

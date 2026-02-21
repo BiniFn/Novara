@@ -44,4 +44,8 @@ class KitsuScrobbler @Inject constructor(
 		repository.syncLibraryFromRemote()
 	}
 
+	override suspend fun syncLibrary(): Int {
+		return repository.syncLibraryFromRemote()
+	}
+
 }

@@ -73,6 +73,15 @@ class ScrobblerConfigViewModel @Inject constructor(
 		}
 	}
 
+	val onSyncResult = MutableEventFlow<Int>()
+
+	fun syncLibrary() {
+		launchLoadingJob(Dispatchers.Default) {
+			val count = scrobbler.syncLibrary()
+			onSyncResult.call(count)
+		}
+	}
+
 	suspend fun hasLocalManga(mangaId: Long): Boolean {
 		if (mangaId <= 0L) return false
 		return db.getMangaDao().find(mangaId) != null

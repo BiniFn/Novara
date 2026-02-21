@@ -193,7 +193,7 @@ class BangumiRepository @Inject constructor(
 	 * Called after authorization to pull the user's existing tracking data.
 	 * Uses Bangumi API: GET /v0/users/{username}/collections?subject_type=1
 	 */
-	suspend fun syncLibraryFromRemote() {
+	suspend fun syncLibraryFromRemote(): Int {
 		val user = cachedUser ?: loadUser()
 		val oldMappings = db.getScrobblingDao()
 			.findAllByScrobbler(ScrobblerService.BANGUMI.id)
@@ -207,7 +207,7 @@ class BangumiRepository @Inject constructor(
 		val limit = 50
 		while (true) {
 			val request = Request.Builder()
-				.url("${API_URL}v0/users/${user.nickname}/collections?subject_type=1&limit=$limit&offset=$offset")
+				.url("${API_URL}v0/users/${user.id}/collections?subject_type=1&limit=$limit&offset=$offset")
 				.get()
 			val response = okHttp.newCall(request.build()).await().parseJson()
 			val data = response.optJSONArray("data") ?: break
@@ -249,5 +249,6 @@ class BangumiRepository @Inject constructor(
 				db.getScrobblingDao().upsert(entity)
 			}
 		}
+		return synced.size
 	}
 }
