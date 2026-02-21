@@ -39,6 +39,8 @@ import org.skepsun.kototoro.core.util.ext.setTextAndVisible
 import org.skepsun.kototoro.databinding.FragmentFavouritesContainerBinding
 import org.skepsun.kototoro.databinding.ItemEmptyStateBinding
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -362,13 +364,57 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 				}
 				.setNegativeButton(android.R.string.cancel, null)
 				.setPositiveButton(R.string.import_favourites) { _, _ ->
-					val selected = candidates.indices
-						.filter { checked[it] }
-						.map { candidates[it] }
-					viewModel.importFavorites(selected)
+					val selectedIndices = candidates.indices.filter { checked[it] }
+					if (selectedIndices.isEmpty()) return@setPositiveButton
+					
+					viewLifecycleOwner.lifecycleScope.launch {
+						val finalSelected = mutableListOf<FavouritesContainerViewModel.ImportSource>()
+						for (i in selectedIndices) {
+							val candidate = candidates[i]
+							val folders = viewModel.loadFavoriteFolders(candidate.source)
+							if (folders.size > 1) {
+								val folderTitles = folders.map { it.title }.toTypedArray()
+								val folderChecked = BooleanArray(folderTitles.size) { true }
+								val chosen = showFolderDialog(candidate.title, folderTitles, folderChecked)
+								if (chosen != null) {
+									val selectedFolders = folders.filterIndexed { index, _ -> chosen[index] }
+									if (selectedFolders.isNotEmpty()) {
+										finalSelected.add(candidate.copy(folders = selectedFolders))
+									}
+								}
+							} else {
+								finalSelected.add(candidate)
+							}
+						}
+						if (finalSelected.isNotEmpty()) {
+							viewModel.importFavorites(finalSelected)
+						}
+					}
 				}
 				.show()
 		}
+	}
+
+	private suspend fun showFolderDialog(
+		sourceTitle: String,
+		titles: Array<String>,
+		checked: BooleanArray,
+	): BooleanArray? = suspendCancellableCoroutine { continuation ->
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(sourceTitle)
+			.setMultiChoiceItems(titles, checked) { _, which, isChecked ->
+				checked[which] = isChecked
+			}
+			.setPositiveButton(android.R.string.ok) { _, _ ->
+				continuation.resume(checked)
+			}
+			.setNegativeButton(android.R.string.cancel) { _, _ ->
+				continuation.resume(null)
+			}
+			.setOnCancelListener {
+				continuation.resume(null)
+			}
+			.show()
 	}
 
 	private fun showSyncDialog() {

@@ -298,14 +298,14 @@ class MihonExtensionLoader @Inject constructor(
                 appInfo.nativeLibraryDir,
                 context.classLoader
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             return MihonLoadResult.Error(pkgName, "Failed to create ClassLoader", e)
         }
         
         // Load source classes
         val sources = try {
             loadSources(pkgName, sourceClassName, classLoader)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             android.util.Log.e(TAG, "Failed to load sources from $pkgName", e)
             return MihonLoadResult.Error(pkgName, "Failed to load sources: ${e.message}", e)
         }

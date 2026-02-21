@@ -24,10 +24,12 @@ import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.core.model.unwrap
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.parsers.MangaFavoriteFolder
+import org.skepsun.kototoro.parsers.CategorizedFavoritesProvider
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.favourites.domain.FavoritesListQuickFilter
@@ -83,6 +85,7 @@ class FavouritesContainerViewModel @Inject constructor(
 	data class ImportSource(
 		val source: MangaParserSource,
 		val title: String,
+		val folders: List<MangaFavoriteFolder>? = null,
 	)
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
@@ -174,10 +177,19 @@ val importMessages = MutableEventFlow<String>()
 				logImport("skip ${parserSource.name}: unauthorized")
 				continue
 			}
-			candidates.add(ImportSource(parserSource, parserSource.getTitle(appContext)))
+			val categorizedProvider = repository.categorizedFavoritesProvider()
+			val folders = organizedFolders(categorizedProvider)
+			logImport("candidate ${parserSource.name}: folders=${folders?.size ?: "null"}")
+			candidates.add(ImportSource(parserSource, parserSource.getTitle(appContext), folders))
 		}
 		logImport("loadImportCandidates: final=${candidates.size}, names=${candidates.joinToString { it.source.name }}")
 		return candidates.sortedBy { it.title.lowercase() }
+	}
+
+	suspend fun loadFavoriteFolders(source: MangaParserSource): List<MangaFavoriteFolder> {
+		val repository = mangaRepositoryFactory.create(source) as? ParserMangaRepository ?: return emptyList()
+		val catProvider = repository.categorizedFavoritesProvider() ?: return emptyList()
+		return runCatching { catProvider.fetchFavoriteFolders() }.getOrDefault(emptyList())
 	}
 
 	fun importFavorites(sources: List<ImportSource>) {
@@ -190,23 +202,33 @@ val importMessages = MutableEventFlow<String>()
 				importMessages.call(appContext.getString(R.string.import_favourites_progress, item.title))
 				logImport("import start source=${item.source.name}")
 				val repository = mangaRepositoryFactory.create(item.source) as? ParserMangaRepository ?: continue
+				val catProvider = repository.categorizedFavoritesProvider()
 				val favProvider = repository.favoritesProvider() ?: continue
 				try {
-					val category = ensureCategory(item.title) // 即使没有收藏也先创建分组
-					val favs = favProvider.fetchFavorites()
-					logImport("import fetched source=${item.source.name} count=${favs.size}")
-					if (favs.isEmpty()) {
-						logImport("import empty favourites for source=${item.source.name}, category=${category.title}")
-						continue
+					if (catProvider != null && !item.folders.isNullOrEmpty()) {
+						for (folder in item.folders) {
+							val categoryTitle = if (item.folders.size == 1 && folder.id == "0") item.title else "${item.title}/${folder.title}"
+							val category = ensureCategory(categoryTitle)
+							importMessages.call(appContext.getString(R.string.import_favourites_progress, categoryTitle))
+							val favs = catProvider.fetchFavorites(folder.id)
+							logImport("import fetched source=${item.source.name} folder=${folder.title} count=${favs.size}")
+							if (favs.isNotEmpty()) {
+								favouritesRepository.addToCategory(category.id, favs)
+							}
+						}
+					} else {
+						val category = ensureCategory(item.title)
+						val favs = favProvider.fetchFavorites()
+						logImport("import fetched source=${item.source.name} count=${favs.size}")
+						if (favs.isNotEmpty()) {
+							favouritesRepository.addToCategory(category.id, favs)
+						}
 					}
-					favouritesRepository.addToCategory(category.id, favs)
-					logImport("import saved source=${item.source.name} into category=${category.title}")
-				} catch (e: AuthRequiredException) {
-					importMessages.call(appContext.getString(R.string.import_favourites_auth_expired))
-					logImport("import auth required source=${item.source.name}")
-				} catch (_: Exception) {
-					logImport("import failed source=${item.source.name} with generic exception")
-					// 忽略单个来源失败，继续下一个
+				} catch (e: Exception) {
+					logImport("import failed source=${item.source.name} with exception: ${e.message}")
+					if (e is AuthRequiredException) {
+						importMessages.call(appContext.getString(R.string.import_favourites_auth_expired))
+					}
 				}
 			}
 			importMessages.call(appContext.getString(R.string.import_favourites_done))
@@ -303,5 +325,10 @@ val importMessages = MutableEventFlow<String>()
 				isTrackerEnabled = false,
 				isVisibleOnShelf = true,
 			)
+	}
+
+	private suspend fun organizedFolders(provider: CategorizedFavoritesProvider?): List<MangaFavoriteFolder>? {
+		if (provider == null) return null
+		return runCatching { provider.fetchFavoriteFolders() }.getOrNull()
 	}
 }

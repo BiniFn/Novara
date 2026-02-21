@@ -9,6 +9,7 @@ import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.exceptions.ProxyConfigException
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.parsers.MangaParser
+import org.skepsun.kototoro.parsers.CategorizedFavoritesProvider
 import org.skepsun.kototoro.parsers.FavoritesProvider
 import org.skepsun.kototoro.parsers.FavoritesSyncProvider
 import org.skepsun.kototoro.parsers.MangaParserAuthProvider
@@ -126,6 +127,9 @@ class ParserMangaRepository(
 	fun favoritesSyncProvider(): FavoritesSyncProvider? =
 		resolveFavoritesSyncProvider(parser)
 
+	fun categorizedFavoritesProvider(): CategorizedFavoritesProvider? =
+		resolveCategorizedFavoritesProvider(parser)
+
 	private fun allFields(clazz: Class<*>): Sequence<java.lang.reflect.Field> = sequence {
 		var current: Class<*>? = clazz
 		while (current != null && current != Any::class.java) {
@@ -160,6 +164,21 @@ class ParserMangaRepository(
 			if (value is FavoritesSyncProvider) return value
 			if (value is MangaParser) {
 				resolveFavoritesSyncProvider(value, visited)?.let { return it }
+			}
+		}
+		return null
+	}
+
+	private fun resolveCategorizedFavoritesProvider(p: MangaParser, visited: MutableSet<Any> = mutableSetOf()): CategorizedFavoritesProvider? {
+		if (p in visited) return null
+		visited += p
+		if (p is CategorizedFavoritesProvider) return p
+		for (field in allFields(p.javaClass)) {
+			field.isAccessible = true
+			val value = runCatching { field.get(p) }.getOrNull() ?: continue
+			if (value is CategorizedFavoritesProvider) return value
+			if (value is MangaParser) {
+				resolveCategorizedFavoritesProvider(value, visited)?.let { return it }
 			}
 		}
 		return null
