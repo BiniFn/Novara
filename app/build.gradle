@@ -281,6 +281,7 @@ dependencies {
 	implementation libs.androidx.media3.datasource.okhttp
 	implementation libs.mpv.android.lib
 	implementation libs.bytedance.danmaku.render.engine
+	implementation libs.nanohttpd
 
 	implementation libs.acra.http
 	implementation libs.acra.dialog

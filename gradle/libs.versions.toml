@@ -69,6 +69,7 @@ rxjava3 = "3.1.10"
 mockk = "1.13.13"
 ucrop = "2.2.8"
 mpvAndroidLib = "0.1.10"
+nanohttpd = "2.3.1"
 
 [libraries]
 acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acra" }
@@ -161,6 +162,7 @@ rxjava2 = { module = "io.reactivex.rxjava2:rxjava", version.ref = "rxjava2" }
 rxjava3 = { module = "io.reactivex.rxjava3:rxjava", version.ref = "rxjava3" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
+nanohttpd = { module = "org.nanohttpd:nanohttpd", version.ref = "nanohttpd" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "gradle" }

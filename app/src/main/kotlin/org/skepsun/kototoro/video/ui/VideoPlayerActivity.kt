@@ -73,6 +73,7 @@ import org.skepsun.kototoro.core.prefs.VideoSuperResolutionShader
 import org.skepsun.kototoro.video.player.CustomMpvView
 import org.skepsun.kototoro.video.player.MpvPlayer
 import org.skepsun.kototoro.video.player.MpvShaderManager
+import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
 import org.skepsun.kototoro.video.danmaku.VideoDanmakuController
 import org.skepsun.kototoro.video.danmaku.DanmakuSettings
 import org.skepsun.kototoro.video.danmaku.DanmakuSourceManager
@@ -84,6 +85,10 @@ import kotlin.math.roundToInt
 
 @AndroidEntryPoint
 class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>(), ReaderNavigationCallback {
+    companion object {
+        // 全局开关：m3u8 代理缓存默认开启
+        private const val ENABLE_M3U8_PROXY_CACHE = true
+    }
 
 
     @Inject
@@ -108,6 +113,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     @Inject
     lateinit var videoDownloadIndex: org.skepsun.kototoro.video.data.VideoDownloadIndex
+
+    @Inject
+    lateinit var videoLocalCacheProxy: VideoLocalCacheProxy
 
     // ReaderState（用于历史保存时提供章节与页信息）
     private var readerState: ReaderState? = null
@@ -865,6 +873,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         currentMediaHeaders = headers
         maybeLoadDanmaku()
         val mergedHeaders = headers.orEmpty()
+        videoLocalCacheProxy.resetSessionStats("startMpvPlayback")
         val initialStartMs = startMs ?: resolveSavedPlaybackProgress(url)
         skipHistorySeekForCurrentMedia = initialStartMs != null
         mpvPlayer?.setVideoOutput(resolveVideoRenderer())
@@ -884,7 +893,22 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         mpvPlayer?.setRate(defaultSpeed.toDouble())
 
         Log.d("VideoPlayerActivity", "Loading media. URL: $url, Headers: ${mergedHeaders.keys}")
-        mpvPlayer?.load(url, mergedHeaders, initialStartMs)
+        val isHttpSource = url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
+        val useProxy = shouldUseLocalProxy(url, isHttpSource)
+        val (playUrl, playHeaders) = if (useProxy) {
+            runCatching {
+                val proxyUrl = videoLocalCacheProxy.getProxyUrl(url, mergedHeaders)
+                proxyUrl to emptyMap<String, String>()
+            }.getOrElse {
+                Log.w("VideoPlayerActivity", "Proxy cache unavailable, fallback to origin URL", it)
+                url to mergedHeaders
+            }
+        } else {
+            Log.d("VideoPlayerActivity", "Bypass local proxy for URL: $url")
+            url to mergedHeaders
+        }
+        Log.d("VideoPlayerActivity", "Resolved playback URL: $playUrl")
+        mpvPlayer?.load(playUrl, playHeaders, initialStartMs)
         mpvPlayer?.play()
         updateTitleAndSubtitle()
         updatePlaybackMenu()
@@ -893,6 +917,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 restoreInitialSeekPercentFromHistory()
             }
         }
+    }
+
+    private fun shouldUseLocalProxy(url: String, isHttpSource: Boolean): Boolean {
+        if (!isHttpSource) return false
+        val lower = url.lowercase()
+        val isMpd = lower.contains(".mpd")
+        if (isMpd) return false
+        val isM3u8 = lower.contains(".m3u8")
+        if (isM3u8 && !ENABLE_M3U8_PROXY_CACHE) {
+            Log.d("VideoPlayerActivity", "m3u8 proxy cache disabled by feature flag")
+            return false
+        }
+        return true
     }
 
     private fun resolveVideoRenderer(): String {
@@ -1386,6 +1423,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 保存当前播放进度（本地与历史）
         savePlaybackProgress()
         saveHistoryProgressAsync()
+        videoLocalCacheProxy.logSessionStats("onStop")
         mpvPlayer?.pause()
         danmakuController.pause()
     }
@@ -1442,8 +1480,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     fun applyPlaybackOptions() {
         val volume = if (appSettings.videoVolumeBoostEnabled) 130.0 else 100.0
         mpvPlayer?.setVolume(volume)
-        val cacheBase = externalCacheDir ?: cacheDir
-        val mpvCacheDir = File(cacheBase, "mpv_cache")
+        val mpvCacheDir = getExternalFilesDir("mpv_cache") ?: File(filesDir, "mpv_cache")
         mpvPlayer?.applyCacheSettings(appSettings.videoCacheSizeMb, mpvCacheDir)
     }
 
@@ -1472,6 +1509,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun buildVideoDetailsText(): String {
         fun String?.orDash(): String = this?.takeIf { it.isNotBlank() } ?: "-"
+        fun formatBytes(bytes: Long): String {
+            if (bytes < 1024) return "${bytes} B"
+            val kb = bytes / 1024.0
+            if (kb < 1024) return String.format("%.1f KB", kb)
+            val mb = kb / 1024.0
+            if (mb < 1024) return String.format("%.1f MB", mb)
+            val gb = mb / 1024.0
+            return String.format("%.2f GB", gb)
+        }
 
         val (title, chapter) = extractChapterInfo()
         val decoderSetting = when (appSettings.videoDecoderMode) {
@@ -1496,6 +1542,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 ?: mpvPlayer?.getPropertyString("container-fps")
             ).orDash()
         val sourceName = currentVideoSource?.name.orDash()
+        val proxyStats = videoLocalCacheProxy.getSessionStatsSnapshot()
 
         val resolution = if (videoWidth != "-" && videoHeight != "-") {
             "${videoWidth}x${videoHeight}"
@@ -1517,7 +1564,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             appendLine("视频编码: $videoCodec")
             appendLine("音频编码: $audioCodec")
             appendLine("分辨率: $resolution")
-            append("帧率: $fps")
+            appendLine("帧率: $fps")
+            appendLine()
+            appendLine("本地代理缓存统计:")
+            appendLine("命中: ${proxyStats.hit}")
+            appendLine("回源: ${proxyStats.miss}")
+            appendLine("写入次数: ${proxyStats.writeCount}")
+            append("写入流量: ${formatBytes(proxyStats.writeBytes)}")
         }
     }
 

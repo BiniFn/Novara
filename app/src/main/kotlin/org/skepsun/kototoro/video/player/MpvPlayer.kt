@@ -97,6 +97,8 @@ class MpvPlayer : MPVLib.EventObserver {
 	fun setStreamingOptions(cacheSizeMb: Int? = null) {
 		// Optimize for network streaming and seeking
 		MPVLib.setOptionString("cache", "yes")
+		MPVLib.setOptionString("cache-on-disk", "yes")
+		MPVLib.setOptionString("demuxer-seekable-cache", "yes")
 		MPVLib.setOptionString("demuxer-max-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024}")
 		MPVLib.setOptionString("demuxer-max-back-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024 / 2}")
 		
@@ -159,6 +161,8 @@ class MpvPlayer : MPVLib.EventObserver {
 			cacheDir.mkdirs()
 		}
 		MPVLib.setOptionString("cache", "yes")
+		MPVLib.setOptionString("cache-on-disk", "yes")
+		MPVLib.setOptionString("demuxer-seekable-cache", "yes")
 		MPVLib.setOptionString("demuxer-cache-dir", cacheDir.absolutePath)
 		MPVLib.setOptionString("demuxer-max-bytes", bytes.toString())
 		MPVLib.setOptionString("demuxer-max-back-bytes", (bytes / 2).toString())
