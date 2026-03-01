@@ -1069,6 +1069,27 @@ class AppRouter private constructor(
             .appendQueryParameter("id", mangaId.toString())
             .build()
 
+        fun searchIntent(
+            context: Context,
+            query: String,
+            kind: SearchKind = SearchKind.SIMPLE,
+            sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
+            contentKinds: Set<SearchContentKind>? = null,
+            pickMode: Boolean = false,
+        ): Intent {
+            val intent = Intent(context, SearchActivity::class.java)
+                .putExtra(KEY_QUERY, query)
+                .putExtra(KEY_KIND, kind)
+                .putExtra(KEY_PICK_MODE, pickMode)
+            if (!sourceTypes.isNullOrEmpty()) {
+                intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
+            }
+            if (!contentKinds.isNullOrEmpty()) {
+                intent.putExtra(KEY_CONTENT_KINDS, org.skepsun.kototoro.search.domain.searchContentKindsToNames(contentKinds))
+            }
+            return intent
+        }
+
         const val KEY_DATA = "data"
         const val KEY_ENTRIES = "entries"
         const val KEY_ERROR = "error"
@@ -1084,6 +1105,7 @@ class AppRouter private constructor(
         const val KEY_MANGA_LIST = "manga_list"
         const val KEY_PAGES = "pages"
         const val KEY_PREVIEW = "preview"
+        const val KEY_PICK_MODE = "pick_mode"
         const val KEY_QUERY = "query"
         const val KEY_READER_MODE = "reader_mode"
         const val KEY_SORT_ORDER = "sort_order"

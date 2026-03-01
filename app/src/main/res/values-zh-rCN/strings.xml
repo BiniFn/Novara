@@ -1153,4 +1153,8 @@
     <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_m">基于 CNN 的 2 倍放大（中等配置）</string>
     <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_s">基于 CNN 的 2 倍放大（低等配置，速度较快）</string>
     <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_vl">基于 CNN 的 2 倍放大（最高配置，速度较慢）</string>
+    <!-- 追踪器绑定 -->
+    <string name="search_and_bind_local">在本地搜索并关联</string>
+    <string name="search_content_kind">选择搜索范围</string>
+    <string name="bind_manga_success">已成功关联到「%s」</string>
 </resources>

@@ -1352,4 +1352,8 @@
     <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_m">CNN based x2 upscaler (Medium configuration)</string>
     <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_s">CNN based x2 upscaler (Small configuration, faster)</string>
     <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_vl">CNN based x2 upscaler (Very Large configuration, slowest)</string>
+    <!-- Tracker binding -->
+    <string name="search_and_bind_local">Search and bind locally</string>
+    <string name="search_content_kind">Select search scope</string>
+    <string name="bind_manga_success">Bound to \"%s\" successfully</string>
 </resources>

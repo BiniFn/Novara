@@ -19,8 +19,11 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.core.util.ext.showOrHide
 import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.databinding.ActivityScrobblerConfigBinding
@@ -35,6 +38,22 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 	OnListItemClickListener<ScrobblingInfo>, View.OnClickListener {
 
 	private val viewModel: ScrobblerConfigViewModel by viewModels()
+	private var pendingBindInfo: ScrobblingInfo? = null
+
+	private val pickMangaLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+		android.util.Log.d("ScrobblerConfig", "pickMangaLauncher: resultCode=${result.resultCode}, hasData=${result.data != null}")
+		if (result.resultCode == android.app.Activity.RESULT_OK) {
+			val manga = result.data?.getParcelableExtraCompat<org.skepsun.kototoro.core.model.parcelable.ParcelableManga>(AppRouter.KEY_MANGA)?.manga
+			val scrobblingInfo = pendingBindInfo
+			android.util.Log.d("ScrobblerConfig", "pickMangaLauncher: manga=${manga?.title}, scrobblingInfo=${scrobblingInfo?.title}")
+			if (manga != null && scrobblingInfo != null) {
+				pendingBindInfo = null
+				viewModel.bindManga(scrobblingInfo, manga)
+			} else {
+				android.util.Log.w("ScrobblerConfig", "pickMangaLauncher: manga or scrobblingInfo is null!")
+			}
+		}
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -71,6 +90,9 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 			}
 			// count < 0 means sync is not applicable for this service, just dismiss silently
 		}
+		viewModel.onBindResult.observeEvent(this) { title ->
+			Snackbar.make(viewBinding.recyclerView, getString(R.string.bind_manga_success, title), Snackbar.LENGTH_SHORT).show()
+		}
 
 		processIntent(intent)
 	}
@@ -105,10 +127,53 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 			}
 			if (hasLocal) {
 				router.openDetails(item.mangaId)
-			} else if (!router.openExternalBrowser(item.externalUrl, item.title)) {
-				Snackbar.make(viewBinding.recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+			} else {
+				MaterialAlertDialogBuilder(this@ScrobblerConfigActivity)
+					.setTitle(item.title)
+					.setItems(
+						arrayOf(
+							getString(R.string.open_in_browser), // "在外部浏览器打开"
+							getString(R.string.search_and_bind_local) // "在本地搜索并关联"
+						)
+					) { _, which ->
+						if (which == 0) {
+							if (!router.openExternalBrowser(item.externalUrl, item.title)) {
+								Snackbar.make(viewBinding.recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+							}
+						} else {
+							showSearchContentKindDialog(item)
+						}
+					}.show()
 			}
 		}
+	}
+
+	private fun showSearchContentKindDialog(item: ScrobblingInfo) {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.search_content_kind) 
+			.setItems(
+				arrayOf(
+					getString(R.string.all),
+					getString(R.string.manga),
+					getString(R.string.novel),
+					getString(R.string.video)
+				)
+			) { _, which ->
+				pendingBindInfo = item
+				val contentKinds = when (which) {
+					1 -> setOf(SearchContentKind.MANGA)
+					2 -> setOf(SearchContentKind.NOVEL)
+					3 -> setOf(SearchContentKind.VIDEO)
+					else -> null
+				}
+				val intent = AppRouter.searchIntent(
+					context = this,
+					query = item.title,
+					contentKinds = contentKinds,
+					pickMode = true
+				)
+				pickMangaLauncher.launch(intent)
+			}.show()
 	}
 
 	override fun onClick(v: View) {

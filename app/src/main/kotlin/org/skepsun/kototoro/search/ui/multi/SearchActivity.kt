@@ -15,6 +15,9 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
+import android.content.Intent
+import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
@@ -50,6 +53,7 @@ class SearchActivity :
 
 	private val viewModel by viewModels<SearchViewModel>()
 	private lateinit var selectionController: ListSelectionController
+	private val isPickMode by lazy { intent.getBooleanExtra(AppRouter.KEY_PICK_MODE, false) }
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -136,7 +140,13 @@ class SearchActivity :
 
 	override fun onItemClick(item: MangaListModel, view: View) {
 		if (!selectionController.onItemClick(item.id)) {
-			router.openDetails(item.toMangaWithOverride())
+			val manga = item.toMangaWithOverride()
+			if (isPickMode) {
+				setResult(RESULT_OK, Intent().putExtra(AppRouter.KEY_MANGA, ParcelableManga(manga)))
+				finish()
+			} else {
+				router.openDetails(manga)
+			}
 		}
 	}
 
