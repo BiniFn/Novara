@@ -49,11 +49,10 @@
 			android:title="@string/video_super_resolution_submode_performance"
 			app:useSimpleSummaryProvider="true" />
 
-		<ListPreference
-			android:entries="@array/video_super_resolution_shaders"
-			android:key="video_super_resolution_shader"
-			android:title="@string/video_super_resolution_advanced_shader"
-			app:useSimpleSummaryProvider="true" />
+		<Preference
+			android:key="video_super_resolution_advanced_settings_button"
+			android:title="@string/video_super_resolution_advanced_settings"
+			android:summary="@string/video_super_resolution_advanced_shader" />
 
 	</PreferenceCategory>
 

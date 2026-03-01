@@ -57,9 +57,11 @@ class PlaybackSettingsFragment : BasePreferenceFragment(R.string.playback_settin
 			setDefaultValueCompat(VideoSuperResolutionShader.MODE_C.name)
 		}
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_SHADER)?.run {
-			entryValues = VideoSuperResolutionShader.entries.names()
-			setDefaultValueCompat(VideoSuperResolutionShader.MODE_A.name)
+		findPreference<Preference>("video_super_resolution_advanced_settings_button")?.setOnPreferenceClickListener {
+			org.skepsun.kototoro.video.ui.VideoSuperResolutionAdvancedSheet().show(
+				parentFragmentManager, "VideoSuperResolutionAdvancedSheet"
+			)
+			true
 		}
 
 		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_CACHE_MB)?.run {

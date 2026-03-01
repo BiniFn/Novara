@@ -1144,4 +1144,13 @@
     <string name="filter_no_group">未分组</string>
     <string name="filter_explore_enabled">已启用发现</string>
     <string name="filter_explore_disabled">已禁用发现</string>
+    <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x2">自动将高于 1080p 的视频降采样至 1080p</string>
+    <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x4">自动将高于 720p 的视频降采样至 720p</string>
+    <string name="video_super_resolution_shader_desc_anime4k_clamp_highlights">钳制高光，防止在修复或超分时出现过曝或颜色溢出</string>
+    <string name="video_super_resolution_shader_desc_anime4k_restore_cnn_m">基于 CNN 的线条修复和去模糊、降噪（中等配置）</string>
+    <string name="video_super_resolution_shader_desc_anime4k_restore_cnn_s">基于 CNN 的线条修复和去模糊、降噪（低等配置，速度较快）</string>
+    <string name="video_super_resolution_shader_desc_anime4k_restore_cnn_vl">基于 CNN 的线条修复和去模糊、降噪（最高配置，速度较慢）</string>
+    <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_m">基于 CNN 的 2 倍放大（中等配置）</string>
+    <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_s">基于 CNN 的 2 倍放大（低等配置，速度较快）</string>
+    <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_vl">基于 CNN 的 2 倍放大（最高配置，速度较慢）</string>
 </resources>

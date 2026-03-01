@@ -1343,4 +1343,13 @@
     <string name="filter_no_group">No group</string>
     <string name="filter_explore_enabled">Explore enabled</string>
     <string name="filter_explore_disabled">Explore disabled</string>
+    <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x2">Automatically downscale to 1080p if resolution is higher</string>
+    <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x4">Automatically downscale to 720p if resolution is higher</string>
+    <string name="video_super_resolution_shader_desc_anime4k_clamp_highlights">Clamp highlights to prevent clipping when restoring or upscaling</string>
+    <string name="video_super_resolution_shader_desc_anime4k_restore_cnn_m">CNN based line restoration and blur/noise reduction (Medium configuration)</string>
+    <string name="video_super_resolution_shader_desc_anime4k_restore_cnn_s">CNN based line restoration and blur/noise reduction (Small configuration, faster)</string>
+    <string name="video_super_resolution_shader_desc_anime4k_restore_cnn_vl">CNN based line restoration and blur/noise reduction (Very Large configuration, slowest)</string>
+    <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_m">CNN based x2 upscaler (Medium configuration)</string>
+    <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_s">CNN based x2 upscaler (Small configuration, faster)</string>
+    <string name="video_super_resolution_shader_desc_anime4k_upscale_cnn_x2_vl">CNN based x2 upscaler (Very Large configuration, slowest)</string>
 </resources>

@@ -45,16 +45,37 @@ class VideoSuperResolutionAdvancedSheet : BaseAdaptiveSheet<SheetVideoSuperResol
 
 		binding.shadersContainer.removeAllViews()
 		for (file in glslFiles) {
-			val switch = com.google.android.material.materialswitch.MaterialSwitch(requireContext()).apply {
-				text = file
-				isChecked = customShaders.contains(file)
+			val frame = android.widget.LinearLayout(requireContext()).apply {
+				orientation = android.widget.LinearLayout.VERTICAL
 				layoutParams = android.widget.LinearLayout.LayoutParams(
 					android.view.ViewGroup.LayoutParams.MATCH_PARENT, 
 					android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 				).apply {
-					topMargin = (8 * resources.displayMetrics.density).toInt()
-					bottomMargin = (8 * resources.displayMetrics.density).toInt()
+					topMargin = (12 * resources.displayMetrics.density).toInt()
+					bottomMargin = (12 * resources.displayMetrics.density).toInt()
 				}
+			}
+			
+			val titleContainer = android.widget.LinearLayout(requireContext()).apply {
+				orientation = android.widget.LinearLayout.HORIZONTAL
+				layoutParams = android.widget.LinearLayout.LayoutParams(
+					android.view.ViewGroup.LayoutParams.MATCH_PARENT, 
+					android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+				)
+			}
+
+			val titleText = android.widget.TextView(requireContext()).apply {
+				text = file
+				setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
+				layoutParams = android.widget.LinearLayout.LayoutParams(
+					0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+				)
+			}
+			val materialSwitch = com.google.android.material.materialswitch.MaterialSwitch(requireContext()).apply {
+				isChecked = customShaders.contains(file)
+				layoutParams = android.widget.LinearLayout.LayoutParams(
+					android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+				)
 				setOnCheckedChangeListener { _, isChecked ->
 					if (isUpdating) return@setOnCheckedChangeListener
 					
@@ -70,7 +91,31 @@ class VideoSuperResolutionAdvancedSheet : BaseAdaptiveSheet<SheetVideoSuperResol
 					(activity as? VideoPlayerActivity)?.applySuperResolutionFromSettings()
 				}
 			}
-			binding.shadersContainer.addView(switch)
+			titleContainer.addView(titleText)
+			titleContainer.addView(materialSwitch)
+			frame.addView(titleContainer)
+
+			val descResName = "video_super_resolution_shader_desc_" + file.removeSuffix(".glsl").lowercase()
+			val descResId = resources.getIdentifier(descResName, "string", requireContext().packageName)
+			val descText = if (descResId != 0) getString(descResId) else null
+			
+			if (descText != null) {
+				val subText = android.widget.TextView(requireContext()).apply {
+					text = descText
+					setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+					setTextColor(com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+					layoutParams = android.widget.LinearLayout.LayoutParams(
+						android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+					)
+				}
+				frame.addView(subText)
+			}
+
+			frame.setOnClickListener {
+				materialSwitch.isChecked = !materialSwitch.isChecked
+			}
+
+			binding.shadersContainer.addView(frame)
 			
 			// Add a divider
 			val divider = View(requireContext()).apply {
