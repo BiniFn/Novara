@@ -102,6 +102,7 @@
 -keepclassmembers class org.jsoup.** {
     public <init>(...);
 }
+-dontwarn com.google.re2j.**
 
 # Gson (some extensions may use it)
 -keep class com.google.gson.** { *; }
