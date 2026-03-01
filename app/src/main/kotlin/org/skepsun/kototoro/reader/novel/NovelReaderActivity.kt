@@ -368,9 +368,9 @@ class NovelReaderActivity :
         } else {
             // 已经是第一章或最后一章
             val message = if (delta > 0) {
-                "已经是最后一章"
+                getString(R.string.novel_last_chapter)
             } else {
-                "已经是第一章"
+                getString(R.string.novel_first_chapter)
             }
             viewBinding.toastView.showTemporary(message, 1500L)
         }
@@ -416,7 +416,7 @@ class NovelReaderActivity :
     override fun onBookmarkClick() {
         val chapter = chapters.getOrNull(currentChapterIndex)
         if (chapter == null) {
-            viewBinding.toastView.showTemporary("无法添加书签", 1500L)
+            viewBinding.toastView.showTemporary(getString(R.string.novel_cannot_add_bookmark), 1500L)
             return
         }
         
@@ -433,7 +433,7 @@ class NovelReaderActivity :
                 if (existingBookmark != null) {
                     // 删除书签
                     bookmarksRepository.removeBookmark(manga.id, chapter.id, currentPage)
-                    viewBinding.toastView.showTemporary("已移除书签", 1500L)
+                    viewBinding.toastView.showTemporary(getString(R.string.novel_bookmark_removed), 1500L)
                 } else {
                     // 添加书签 - 保存当前页面的文本预览
                     val pageText = viewBinding.readerView.getCurrentPageText()
@@ -450,11 +450,11 @@ class NovelReaderActivity :
                         percent = percent,
                     )
                     bookmarksRepository.addBookmark(bookmark)
-                    viewBinding.toastView.showTemporary("已添加书签", 1500L)
+                    viewBinding.toastView.showTemporary(getString(R.string.novel_bookmark_added), 1500L)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Failed to toggle bookmark", e)
-                viewBinding.toastView.showTemporary("书签操作失败: ${e.message}", 2000L)
+                viewBinding.toastView.showTemporary(getString(R.string.novel_bookmark_failed, e.message ?: ""), 2000L)
             }
         }
     }
@@ -582,7 +582,7 @@ class NovelReaderActivity :
                     
                     android.widget.Toast.makeText(
                         this@NovelReaderActivity,
-                        "正在从网络加载未下载的章节",
+                        getString(R.string.novel_loading_online_chapter),
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 } else {
@@ -594,7 +594,7 @@ class NovelReaderActivity :
                     if (state != null && state.chapterId != 0L) {
                         android.widget.Toast.makeText(
                             this@NovelReaderActivity,
-                            "该章节尚未下载，请先下载后再阅读",
+                            getString(R.string.novel_chapter_not_downloaded),
                             android.widget.Toast.LENGTH_LONG
                         ).show()
                     }
@@ -699,7 +699,7 @@ class NovelReaderActivity :
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Failed to load chapters", e)
                 showLoading(false)
-                showError("加载章节列表失败: ${e.message}")
+                showError(getString(R.string.novel_load_chapters_failed, e.message ?: ""))
             }
         }
     }
@@ -730,7 +730,7 @@ class NovelReaderActivity :
                     android.util.Log.d("NovelReaderActivity", "Detected EPUB internal chapter: ${chapter.url}")
                     
                     // Show progress indicator for large files (Requirement 11.4)
-                    viewBinding.toolbar.subtitle = "正在加载EPUB章节..."
+                    viewBinding.toolbar.subtitle = getString(R.string.novel_loading_epub_chapter)
                     
                     // Load EPUB internal chapter using the dedicated loader
                     val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
@@ -746,11 +746,11 @@ class NovelReaderActivity :
                         showLoading(false)  // Dismiss loading indicator even on error
                         // Display user-friendly error message (Requirement 6.7)
                         val errorMessage = when {
-                            error.message?.contains("not found") == true -> "EPUB文件未找到，可能已被删除"
-                            error.message?.contains("out of bounds") == true -> "章节索引无效"
-                            error.message?.contains("Invalid chapter URL") == true -> "章节URL格式错误"
-                            error.message?.contains("Failed to parse") == true -> "EPUB文件解析失败"
-                            else -> "无法加载EPUB章节: ${error.message}"
+                            error.message?.contains("not found") == true -> getString(R.string.novel_epub_not_found)
+                            error.message?.contains("out of bounds") == true -> getString(R.string.novel_epub_index_invalid)
+                            error.message?.contains("Invalid chapter URL") == true -> getString(R.string.novel_epub_url_invalid)
+                            error.message?.contains("Failed to parse") == true -> getString(R.string.novel_epub_parse_failed)
+                            else -> getString(R.string.novel_epub_load_failed, error.message ?: "")
                         }
                         viewBinding.toastView.showTemporary(errorMessage, 3000L)
                     }
@@ -868,7 +868,7 @@ class NovelReaderActivity :
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Failed to load chapter", e)
                 showLoading(false)
-                showError("加载章节失败: ${e.message}")
+                showError(getString(R.string.novel_load_chapter_failed, e.message ?: ""))
             }
         }
     }

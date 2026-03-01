@@ -37,48 +37,60 @@ class VideoSuperResolutionAdvancedSheet : BaseAdaptiveSheet<SheetVideoSuperResol
 		super.onViewBindingCreated(binding, savedInstanceState)
 		binding.headerBar.setTitle(R.string.video_super_resolution_advanced)
 
-		binding.switchModeA.setOnCheckedChangeListener { _, isChecked ->
-			if (isUpdating || !isChecked) return@setOnCheckedChangeListener
-			updateShader(VideoSuperResolutionShader.MODE_A)
-		}
-		binding.switchModeB.setOnCheckedChangeListener { _, isChecked ->
-			if (isUpdating || !isChecked) return@setOnCheckedChangeListener
-			updateShader(VideoSuperResolutionShader.MODE_B)
-		}
-		binding.switchModeC.setOnCheckedChangeListener { _, isChecked ->
-			if (isUpdating || !isChecked) return@setOnCheckedChangeListener
-			updateShader(VideoSuperResolutionShader.MODE_C)
-		}
-		binding.switchModeAa.setOnCheckedChangeListener { _, isChecked ->
-			if (isUpdating || !isChecked) return@setOnCheckedChangeListener
-			updateShader(VideoSuperResolutionShader.MODE_AA)
-		}
-		binding.switchModeBb.setOnCheckedChangeListener { _, isChecked ->
-			if (isUpdating || !isChecked) return@setOnCheckedChangeListener
-			updateShader(VideoSuperResolutionShader.MODE_BB)
-		}
-		binding.switchModeCa.setOnCheckedChangeListener { _, isChecked ->
-			if (isUpdating || !isChecked) return@setOnCheckedChangeListener
-			updateShader(VideoSuperResolutionShader.MODE_CA)
+		val shadersDir = org.skepsun.kototoro.video.player.MpvShaderManager.ensureShadersCopied(requireContext())
+		val glslFiles = shadersDir.listFiles { _, name -> name.endsWith(".glsl", true) }?.map { it.name }?.sorted() ?: emptyList()
+		
+		val customShadersStr = appSettings.videoSuperResolutionCustomShaders
+		val customShaders = customShadersStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet()
+
+		binding.shadersContainer.removeAllViews()
+		for (file in glslFiles) {
+			val switch = com.google.android.material.materialswitch.MaterialSwitch(requireContext()).apply {
+				text = file
+				isChecked = customShaders.contains(file)
+				layoutParams = android.widget.LinearLayout.LayoutParams(
+					android.view.ViewGroup.LayoutParams.MATCH_PARENT, 
+					android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+				).apply {
+					topMargin = (8 * resources.displayMetrics.density).toInt()
+					bottomMargin = (8 * resources.displayMetrics.density).toInt()
+				}
+				setOnCheckedChangeListener { _, isChecked ->
+					if (isUpdating) return@setOnCheckedChangeListener
+					
+					val current = appSettings.videoSuperResolutionCustomShaders.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+					if (isChecked && !current.contains(file)) {
+						current.add(file)
+					} else if (!isChecked) {
+						current.remove(file)
+					}
+					appSettings.videoSuperResolutionCustomShaders = current.joinToString(",")
+					appSettings.videoSuperResolutionShader = VideoSuperResolutionShader.CUSTOM
+					
+					(activity as? VideoPlayerActivity)?.applySuperResolutionFromSettings()
+				}
+			}
+			binding.shadersContainer.addView(switch)
+			
+			// Add a divider
+			val divider = View(requireContext()).apply {
+				layoutParams = android.widget.LinearLayout.LayoutParams(
+					android.view.ViewGroup.LayoutParams.MATCH_PARENT, 
+					1
+				)
+				setBackgroundColor(com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorOutline))
+			}
+			binding.shadersContainer.addView(divider)
 		}
 
-		updateShader(appSettings.videoSuperResolutionShader)
+		// Ensure we are using custom shader mode if we are doing this
+		if (appSettings.videoSuperResolutionShader != VideoSuperResolutionShader.CUSTOM) {
+			appSettings.videoSuperResolutionShader = VideoSuperResolutionShader.CUSTOM
+			(activity as? VideoPlayerActivity)?.applySuperResolutionFromSettings()
+		}
+
+		binding.buttonCustomSettings.visibility = View.GONE
 	}
-
-    private fun updateShader(shader: VideoSuperResolutionShader) {
-        isUpdating = true
-        appSettings.videoSuperResolutionShader = shader
-        requireViewBinding().apply {
-            switchModeA.isChecked = shader == VideoSuperResolutionShader.MODE_A
-			switchModeB.isChecked = shader == VideoSuperResolutionShader.MODE_B
-			switchModeC.isChecked = shader == VideoSuperResolutionShader.MODE_C
-			switchModeAa.isChecked = shader == VideoSuperResolutionShader.MODE_AA
-			switchModeBb.isChecked = shader == VideoSuperResolutionShader.MODE_BB
-            switchModeCa.isChecked = shader == VideoSuperResolutionShader.MODE_CA
-        }
-        isUpdating = false
-        (activity as? VideoPlayerActivity)?.applySuperResolutionFromSettings()
-    }
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val typeMask = WindowInsetsCompat.Type.systemBars()

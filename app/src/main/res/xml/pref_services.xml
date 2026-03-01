@@ -71,7 +71,13 @@
 			android:key="bangumi"
 			android:summary="@string/loading_"
 			android:title="@string/bangumi"
-			app:icon="@drawable/ic_bangumi" />
+			app:icon="@drawable/ic_bangumi_outline" />
+
+		<Preference
+			android:key="mangaupdates"
+			android:summary="@string/loading_"
+			android:title="@string/mangaupdates"
+			app:icon="@drawable/ic_mangaupdates_outline" />
 
 	</PreferenceCategory>
 

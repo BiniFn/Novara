@@ -140,12 +140,36 @@ object ScrobblingModule {
 	}.build()
 
 	@Provides
+	@Singleton
+	@ScrobblerType(ScrobblerService.MANGAUPDATES)
+	fun provideMangaUpdatesStorage(
+		@ApplicationContext context: Context,
+	): ScrobblerStorage = ScrobblerStorage(context, ScrobblerService.MANGAUPDATES)
+
+	@Provides
+	@Singleton
+	fun provideMangaUpdatesRepository(
+		@ApplicationContext context: Context,
+		@ScrobblerType(ScrobblerService.MANGAUPDATES) storage: ScrobblerStorage,
+		database: MangaDatabase,
+	): org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository {
+		val okHttp = OkHttpClient.Builder().apply {
+			addInterceptor(org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesInterceptor(storage))
+			if (BuildConfig.DEBUG) {
+				addInterceptor(CurlLoggingInterceptor())
+			}
+		}.build()
+		return org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository(context, okHttp, storage, database)
+	}
+
+	@Provides
 	@ElementsIntoSet
 	fun provideScrobblers(
 		shikimoriScrobbler: ShikimoriScrobbler,
 		aniListScrobbler: AniListScrobbler,
 		malScrobbler: MALScrobbler,
 		kitsuScrobbler: KitsuScrobbler,
-		bangumiScrobbler: BangumiScrobbler
-	): Set<@JvmSuppressWildcards Scrobbler> = setOf(shikimoriScrobbler, aniListScrobbler, malScrobbler, kitsuScrobbler, bangumiScrobbler)
+		bangumiScrobbler: BangumiScrobbler,
+		mangaUpdatesScrobbler: org.skepsun.kototoro.scrobbling.mangaupdates.domain.MangaUpdatesScrobbler
+	): Set<@JvmSuppressWildcards Scrobbler> = setOf(shikimoriScrobbler, aniListScrobbler, malScrobbler, kitsuScrobbler, bangumiScrobbler, mangaUpdatesScrobbler)
 }

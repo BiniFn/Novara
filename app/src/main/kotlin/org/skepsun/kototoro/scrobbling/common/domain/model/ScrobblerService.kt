@@ -14,5 +14,6 @@ enum class ScrobblerService(
 	ANILIST(2, R.string.anilist, R.drawable.ic_anilist),
 	MAL(3, R.string.mal, R.drawable.ic_mal),
 	KITSU(4, R.string.kitsu, R.drawable.ic_kitsu),
-	BANGUMI(5, R.string.bangumi, R.drawable.ic_bangumi)
+	BANGUMI(5, R.string.bangumi, R.drawable.ic_bangumi_outline),
+	MANGAUPDATES(6, R.string.mangaupdates, R.drawable.ic_mangaupdates_outline)
 }

@@ -142,6 +142,7 @@ class ReaderConfigSheet :
         binding.switchDoubleReader.setOnCheckedChangeListener(this)
         binding.switchDoubleFoldable.setOnCheckedChangeListener(this)
         binding.sliderDoubleSensitivity.addOnChangeListener(this)
+        binding.buttonOpenInBrowser.setOnClickListener(this)
 
         viewModel.isBookmarkAdded.observe(viewLifecycleOwner) {
             binding.buttonBookmark.setText(if (it) R.string.bookmark_remove else R.string.bookmark_add)
@@ -196,6 +197,34 @@ class ReaderConfigSheet :
                 val page = viewModel.getCurrentPage() ?: return
                 val manga = viewModel.getMangaOrNull() ?: return
                 router.openColorFilterConfig(manga, page)
+            }
+
+            R.id.button_open_in_browser -> {
+                val manga = viewModel.getMangaOrNull() ?: return
+                val chapter = viewModel.uiState.value?.chapter
+                if (chapter != null) {
+                    val url = kotlin.runCatching {
+                        if (chapter.url.startsWith("http", ignoreCase = true)) {
+                            chapter.url
+                        } else if (manga.publicUrl.startsWith("http", ignoreCase = true)) {
+                            // Resolve relative chapter path against manga's absolute public URL
+                            java.net.URL(java.net.URL(manga.publicUrl), chapter.url).toString()
+                        } else {
+                            // publicUrl is not a valid HTTP URL, fall back to manga.publicUrl itself
+                            null
+                        }
+                    }.getOrNull()
+                    val resolvedUrl = url?.takeIf { it.startsWith("http", ignoreCase = true) }
+                        ?: manga.publicUrl.takeIf { it.startsWith("http", ignoreCase = true) }
+                    if (resolvedUrl != null) {
+                        router.openBrowser(resolvedUrl, manga.source, chapter.title)
+                    } else {
+                        router.openBrowser(manga)
+                    }
+                } else {
+                    router.openBrowser(manga)
+                }
+                dismissAllowingStateLoss()
             }
 
             R.id.button_image_server -> viewLifecycleScope.launch {

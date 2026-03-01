@@ -269,6 +269,7 @@
 				<data android:host="mal-auth" />
 				<data android:host="kitsu-auth" />
 				<data android:host="bangumi-auth" />
+				<data android:host="mangaupdates-auth" />
 			</intent-filter>
 
 		</activity>
@@ -292,6 +293,17 @@
 				<action android:name="android.intent.action.VIEW" />
 				<category android:name="android.intent.category.DEFAULT" />
 				<data android:scheme="kototoro+kitsu" />
+			</intent-filter>
+		</activity>
+		<activity
+			android:name="org.skepsun.kototoro.scrobbling.mangaupdates.ui.MangaUpdatesAuthActivity"
+			android:exported="false"
+			android:label="@string/mangaupdates"
+			tools:ignore="AppLinkUrlError">
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:scheme="kototoro+mangaupdates" />
 			</intent-filter>
 		</activity>
 		<activity

@@ -7,4 +7,5 @@ enum class VideoSuperResolutionShader {
 	MODE_AA,
 	MODE_BB,
 	MODE_CA,
+	CUSTOM,
 }

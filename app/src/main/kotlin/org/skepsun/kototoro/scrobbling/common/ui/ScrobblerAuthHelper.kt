@@ -28,6 +28,8 @@ class ScrobblerAuthHelper @Inject constructor(
 	fun startAuth(context: Context, scrobbler: ScrobblerService) = runCatching {
 		if (scrobbler == ScrobblerService.KITSU) {
 			launchKitsuAuth(context)
+		} else if (scrobbler == ScrobblerService.MANGAUPDATES) {
+			context.startActivity(Intent(context, org.skepsun.kototoro.scrobbling.mangaupdates.ui.MangaUpdatesAuthActivity::class.java))
 		} else {
 			val repository = repositoriesMap[scrobbler]
 			val intent = Intent(Intent.ACTION_VIEW)

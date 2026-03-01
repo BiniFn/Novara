@@ -503,7 +503,12 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 		val isExtFilterEnabled = args[4] as Boolean
 		val isKotatsuEnabled = args[5] as Boolean
 
-		dao.observeAll(!allEnabled, order).map { entities ->
+		combine(
+			dao.observeAll(!allEnabled, order),
+			mihonExtensionManager.installedExtensions,
+			aniyomiExtensionManager.installedExtensions,
+			jsonSourceManager.observeEnabledJsonSources()
+		) { entities, _, _, _ ->
 			// Map entities to sources and filter by NSFW and language
 			entities.toSources(skipNsfw, order).filter { info ->
 				val source = info.mangaSource
@@ -906,6 +911,7 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 			// Allow native sources, Mihon sources, and JSON sources
 			val isKnownSource = source in allMangaSources || 
 								source is org.skepsun.kototoro.mihon.model.MihonMangaSource ||
+								source is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource ||
 								source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 								
 			if (isKnownSource) {

@@ -66,9 +66,10 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 			viewBinding.swipeRefreshLayout.isRefreshing = false
 			if (count > 0) {
 				Snackbar.make(viewBinding.recyclerView, getString(R.string.sync_complete, count), Snackbar.LENGTH_SHORT).show()
-			} else {
+			} else if (count == 0) {
 				Snackbar.make(viewBinding.recyclerView, R.string.sync_not_supported, Snackbar.LENGTH_SHORT).show()
 			}
+			// count < 0 means sync is not applicable for this service, just dismiss silently
 		}
 
 		processIntent(intent)
@@ -132,7 +133,11 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 			viewBinding.imageViewAvatar.setImageResource(appcompatR.drawable.abc_ic_menu_overflow_material)
 			return
 		}
-		viewBinding.imageViewAvatar.setImageAsync(user.avatar)
+		if (!user.avatar.isNullOrEmpty()) {
+			viewBinding.imageViewAvatar.setImageAsync(user.avatar)
+		} else {
+			viewBinding.imageViewAvatar.setImageResource(user.service.iconResId)
+		}
 	}
 
 	private fun onLoadingStateChanged(isLoading: Boolean) {
@@ -158,5 +163,6 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 		const val HOST_MAL_AUTH = "mal-auth"
 		const val HOST_KITSU_AUTH = "kitsu-auth"
 		const val HOST_BANGUMI_AUTH = "bangumi-auth"
+		const val HOST_MANGAUPDATES_AUTH = "mangaupdates-auth"
 	}
 }

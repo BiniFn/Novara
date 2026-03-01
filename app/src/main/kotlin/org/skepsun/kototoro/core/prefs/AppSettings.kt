@@ -256,6 +256,10 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		get() = prefs.getEnumValue(KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER, VideoSuperResolutionShader.MODE_C)
 		set(value) = prefs.edit { putEnumValue(KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER, value) }
 
+	var videoSuperResolutionCustomShaders: String
+		get() = prefs.getString(KEY_VIDEO_SUPER_RES_CUSTOM_SHADERS, "") ?: ""
+		set(value) = prefs.edit { putString(KEY_VIDEO_SUPER_RES_CUSTOM_SHADERS, value) }
+
 	var videoDanmakuEnabled: Boolean
 		get() = prefs.getBoolean(KEY_VIDEO_DANMAKU_ENABLED, false)
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_ENABLED, value) }
@@ -1041,6 +1045,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_MAL = "mal"
 		const val KEY_KITSU = "kitsu"
 		const val KEY_BANGUMI = "bangumi"
+		const val KEY_MANGAUPDATES = "mangaupdates"
 		const val KEY_DOWNLOADS_METERED_NETWORK = "downloads_metered_network"
 		const val KEY_DOWNLOADS_FORMAT = "downloads_format"
 		const val KEY_DOWNLOADS_ALIGN_READER = "downloads_align_reader"
@@ -1069,6 +1074,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_VIDEO_SUPER_RES_QUALITY_SHADER = "video_super_resolution_quality_shader"
 		const val KEY_VIDEO_SUPER_RES_BALANCED_SHADER = "video_super_resolution_balanced_shader"
 		const val KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER = "video_super_resolution_performance_shader"
+		const val KEY_VIDEO_SUPER_RES_CUSTOM_SHADERS = "video_super_resolution_custom_shaders"
 		const val KEY_VIDEO_DANMAKU_ENABLED = "video_danmaku_enabled"
 		const val KEY_VIDEO_DANMAKU_SIZE = "video_danmaku_size"
 		const val KEY_VIDEO_DANMAKU_SPEED = "video_danmaku_speed"

@@ -27,6 +27,7 @@ import android.util.Rational
 import android.view.PixelCopy
 import android.util.Log
 import org.skepsun.kototoro.core.util.ext.consumeAll
+import org.skepsun.kototoro.R
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.core.model.MangaSource
@@ -207,9 +208,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 longSeekAccumulatedMs += abs(longSeekStepMs.toLong())
                 val sec = (longSeekAccumulatedMs / 1000).toInt()
                 if (longSeekDirection < 0) {
-                    overlaySeekLeft.text = "快退 ${sec} 秒"
+                    overlaySeekLeft.text = getString(R.string.video_rewind_time, sec.toString())
                 } else {
-                    overlaySeekRight.text = "快进 ${sec} 秒"
+                    overlaySeekRight.text = getString(R.string.video_fast_forward_time, sec.toString())
                 }
                 longSeekHandler.postDelayed(this, longSeekIntervalMs.toLong())
             }
@@ -266,11 +267,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         overlayHandler.removeCallbacks(hideRightRunnable)
         if (direction < 0) {
             overlaySeekRight.visibility = View.GONE
-            overlaySeekLeft.text = "快退 0 秒"
+            overlaySeekLeft.text = getString(R.string.video_rewind_time, "0")
             overlaySeekLeft.visibility = View.VISIBLE
         } else if (direction > 0) {
             overlaySeekLeft.visibility = View.GONE
-            overlaySeekRight.text = "快进 0 秒"
+            overlaySeekRight.text = getString(R.string.video_fast_forward_time, "0")
             overlaySeekRight.visibility = View.VISIBLE
         }
     }
@@ -302,7 +303,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         lp.screenBrightness = currentBrightnessNormalized
         window.attributes = lp
         val pct = (currentBrightnessNormalized * 100).toInt()
-        showOverlayLeft("亮度 ${pct}%")
+        showOverlayLeft(getString(R.string.video_brightness, pct.toString()))
     }
     private fun adjustVolumeByStep(increase: Boolean) {
         val dir = if (increase) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
@@ -310,7 +311,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val curr = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         val pct = if (max > 0) ((curr * 100f) / max).toInt() else 0
-        showOverlayRight("音量 ${pct}%")
+        showOverlayRight(getString(R.string.video_volume, pct.toString()))
     }
     
     @Inject
@@ -453,19 +454,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                 val newPos = (p.positionMs - quickTapBackMs).coerceAtLeast(0)
                                 p.seekTo(newPos)
                                 val sec = (appSettings.videoSeekBackwardMs / 1000).coerceAtLeast(1)
-                                showOverlayLeft("快退 ${sec} 秒")
+                                showOverlayLeft(getString(R.string.video_rewind_time, sec.toString()))
                             }
                             x > right -> {
                                 val dur = p.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE
                                 val newPos = (p.positionMs + quickTapJumpMs).coerceAtMost(dur)
                                 p.seekTo(newPos)
                                 val sec = (appSettings.videoSeekForwardMs / 1000).coerceAtLeast(1)
-                                showOverlayRight("快进 ${sec} 秒")
+                                showOverlayRight(getString(R.string.video_fast_forward_time, sec.toString()))
                             }
                             else -> {
                                 val wasPlaying = p.isPlaying
                                 if (wasPlaying) p.pause() else p.play()
-                                showPlayPauseOverlay(if (wasPlaying) "暂停" else "播放")
+                                showPlayPauseOverlay(getString(if (wasPlaying) R.string.video_pause else R.string.video_play))
                             }
                         }
                         updatePlaybackMenu()
@@ -475,7 +476,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     mpvPlayer?.let { p ->
                         val wasPlaying = p.isPlaying
                         if (wasPlaying) p.pause() else p.play()
-                        showPlayPauseOverlay(if (wasPlaying) "暂停" else "播放")
+                        showPlayPauseOverlay(getString(if (wasPlaying) R.string.video_pause else R.string.video_play))
                         updatePlaybackMenu()
                     }
                     return true
@@ -509,12 +510,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             // 初始提示
                             if (verticalAdjustMode < 0) {
                                 val pct = (currentBrightnessNormalized.coerceIn(0f, 1f) * 100).toInt()
-                                showOverlayLeft("亮度 ${pct}%")
+                                showOverlayLeft(getString(R.string.video_brightness, pct.toString()))
                             } else {
                                 val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                                 val curr = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                                 val pct = if (max > 0) ((curr * 100f) / max).toInt() else 0
-                                showOverlayRight("音量 ${pct}%")
+                                showOverlayRight(getString(R.string.video_volume, pct.toString()))
                             }
                         }
                     }
@@ -1153,12 +1154,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         ctl.findViewById<TextView>(
             org.skepsun.kototoro.R.id.button_danmaku_toggle,
         )?.setTextColor(white)
-        ctl.findViewById<TextView>(
+        ctl.findViewById<android.widget.ImageView>(
             org.skepsun.kototoro.R.id.button_danmaku_settings,
-        )?.apply {
-            setTextColor(white)
-            setBackgroundResource(org.skepsun.kototoro.R.drawable.bg_danmaku_tv)
-        }
+        )?.setColorFilter(white)
         updateDanmakuToggleState()
     }
 
@@ -1361,6 +1359,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 VideoSuperResolutionShader.MODE_BB -> VideoSuperResolutionShader.MODE_C
                 VideoSuperResolutionShader.MODE_C,
                 VideoSuperResolutionShader.MODE_CA -> VideoSuperResolutionShader.MODE_C
+                else -> shader
             }
             VideoSuperResolutionMode.ADVANCED -> shader
         }
@@ -1374,6 +1373,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             VideoSuperResolutionShader.MODE_AA -> MpvShaderManager.modeAPlusPreset
             VideoSuperResolutionShader.MODE_BB -> MpvShaderManager.modeBPlusPreset
             VideoSuperResolutionShader.MODE_CA -> MpvShaderManager.modeCAPlusPreset
+            VideoSuperResolutionShader.CUSTOM -> appSettings.videoSuperResolutionCustomShaders.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         }
     }
 
@@ -1521,11 +1521,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         val (title, chapter) = extractChapterInfo()
         val decoderSetting = when (appSettings.videoDecoderMode) {
-            VideoDecoderMode.HARDWARE -> "硬件解码"
-            VideoDecoderMode.SOFTWARE -> "软件解码"
+            VideoDecoderMode.HARDWARE -> getString(org.skepsun.kototoro.R.string.video_info_hw_decoding)
+            VideoDecoderMode.SOFTWARE -> getString(org.skepsun.kototoro.R.string.video_info_sw_decoding)
         }
         val rendererSetting = when (appSettings.videoRendererMode) {
-            VideoRendererMode.AUTO -> "自动"
+            VideoRendererMode.AUTO -> getString(org.skepsun.kototoro.R.string.video_info_auto)
             VideoRendererMode.GPU -> "GPU"
             VideoRendererMode.GPU_NEXT -> "GPU Next"
             VideoRendererMode.MEDIACODEC_EMBED -> "MediaCodec Embed"
@@ -1551,26 +1551,26 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
 
         return buildString {
-            appendLine("标题: ${title.ifBlank { "-" }}")
-            appendLine("章节: ${chapter.ifBlank { "-" }}")
-            appendLine("来源: $sourceName")
-            appendLine("URL: ${currentMediaUrl.orDash()}")
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_title, title.ifBlank { "-" }))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_chapter, chapter.ifBlank { "-" }))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_source, sourceName))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_url, currentMediaUrl.orDash()))
             appendLine()
-            appendLine("解码设置: $decoderSetting")
-            appendLine("当前解码器: $hwdecCurrent")
-            appendLine("渲染设置: $rendererSetting")
-            appendLine("当前渲染器: $voCurrent")
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_decoding_setting, decoderSetting))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_current_decoder, hwdecCurrent))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_renderer_setting, rendererSetting))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_current_renderer, voCurrent))
             appendLine()
-            appendLine("视频编码: $videoCodec")
-            appendLine("音频编码: $audioCodec")
-            appendLine("分辨率: $resolution")
-            appendLine("帧率: $fps")
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_video_codec, videoCodec))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_audio_codec, audioCodec))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_resolution, resolution))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_fps, fps))
             appendLine()
-            appendLine("本地代理缓存统计:")
-            appendLine("命中: ${proxyStats.hit}")
-            appendLine("回源: ${proxyStats.miss}")
-            appendLine("写入次数: ${proxyStats.writeCount}")
-            append("写入流量: ${formatBytes(proxyStats.writeBytes)}")
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_proxy_stats))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_hits, proxyStats.hit))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_misses, proxyStats.miss))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_writes, proxyStats.writeCount))
+            append(getString(org.skepsun.kototoro.R.string.video_info_write_bytes, formatBytes(proxyStats.writeBytes)))
         }
     }
 

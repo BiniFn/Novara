@@ -40,7 +40,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
         callback = parentFragment as? Callback ?: activity as? Callback
 
         // 设置章节数量
-        binding.textChapterCount.text = "共 ${chapters.size} 章"
+        binding.textChapterCount.text = getString(org.skepsun.kototoro.R.string.novel_chapters_count, chapters.size)
 
         // 设置 RecyclerView
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -226,7 +226,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
                     val chapter = item.chapter
                     val isCurrent = item.originalIndex == currentIndex
 
-                    chapterHolder.binding.textTitle.text = chapter.title ?: "未命名章节"
+                    chapterHolder.binding.textTitle.text = chapter.title ?: chapterHolder.binding.root.context.getString(org.skepsun.kototoro.R.string.unnamed_chapter)
                     chapterHolder.binding.indicator.visibility = if (isCurrent) View.VISIBLE else View.INVISIBLE
 
                     // 当前章节高亮

@@ -125,6 +125,7 @@ class VideoSuperResolutionSheet : BaseAdaptiveSheet<SheetVideoSuperResolutionBin
 			VideoSuperResolutionShader.MODE_AA,
 			VideoSuperResolutionShader.MODE_BB,
 			VideoSuperResolutionShader.MODE_CA,
+			VideoSuperResolutionShader.CUSTOM,
 		)
 		val labels = options.map { getShaderLabel(it) }.toTypedArray()
 		val current = getShaderForMode(mode)
@@ -139,10 +140,13 @@ class VideoSuperResolutionSheet : BaseAdaptiveSheet<SheetVideoSuperResolutionBin
 		MaterialAlertDialogBuilder(requireContext())
 			.setTitle(titleRes)
 			.setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
-				setShaderForMode(mode, options[which])
+				val selectedShader = options[which]
+				setShaderForMode(mode, selectedShader)
 				updateSubModeLabels()
 				(activity as? VideoPlayerActivity)?.applySuperResolutionFromSettings()
 				dialog.dismiss()
+				// If custom is selected, maybe open the advanced sheet to configure it?
+				// But let's keep it simple for now. 
 			}
 			.setNegativeButton(android.R.string.cancel, null)
 			.show()
@@ -176,6 +180,7 @@ class VideoSuperResolutionSheet : BaseAdaptiveSheet<SheetVideoSuperResolutionBin
 			VideoSuperResolutionShader.MODE_AA -> getString(R.string.video_super_resolution_mode_aa)
 			VideoSuperResolutionShader.MODE_BB -> getString(R.string.video_super_resolution_mode_bb)
 			VideoSuperResolutionShader.MODE_CA -> getString(R.string.video_super_resolution_mode_ca)
+			VideoSuperResolutionShader.CUSTOM -> getString(R.string.video_super_resolution_mode_custom)
 		}
 	}
 
