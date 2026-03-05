@@ -33,8 +33,8 @@ android {
 		applicationId 'org.skepsun.kototoro'
 		minSdk = 26
 		targetSdk = 36
-        versionCode = 1088
-        versionName = '0.5.3'
+        versionCode = 1089
+        versionName = '0.5.4'
 		generatedDensities = []
 		testInstrumentationRunner 'org.skepsun.kototoro.HiltTestRunner'
 		ksp {
