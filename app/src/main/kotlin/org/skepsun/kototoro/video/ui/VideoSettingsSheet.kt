@@ -128,6 +128,33 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
             appSettings.videoAutoNextEnabled = checked
         }
 
+        binding.buttonAspectRatio.setOnClickListener {
+            val options = arrayOf(
+                R.string.video_aspect_ratio_fit,
+                R.string.video_aspect_ratio_fill,
+                R.string.video_aspect_ratio_16_9,
+                R.string.video_aspect_ratio_4_3
+            )
+            val labels = options.map { getString(it) }.toTypedArray()
+            val checked = appSettings.videoAspectRatio.coerceIn(0, 3)
+            
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.video_aspect_ratio)
+                .setSingleChoiceItems(labels, checked) { dialog, which ->
+                    appSettings.videoAspectRatio = which
+                    (activity as? VideoPlayerActivity)?.applyAspectRatio()
+                    updateSpeedLabels()
+                    dialog.dismiss()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+
+        binding.switchDoubleTapSeek.isChecked = appSettings.videoDoubleTapSeekEnabled
+        binding.switchDoubleTapSeek.setOnCheckedChangeListener { _, checked ->
+            appSettings.videoDoubleTapSeekEnabled = checked
+        }
+
         binding.buttonScreenRotate.setOnClickListener {
             orientationHelper.isLandscape = !orientationHelper.isLandscape
         }
@@ -178,6 +205,14 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
         binding.buttonSeekBackwardTime.text = getString(
             R.string.video_seek_backward_time,
         ) + " ${backward}s"
+        
+        val aspectRatioRes = when(appSettings.videoAspectRatio) {
+            1 -> R.string.video_aspect_ratio_fill
+            2 -> R.string.video_aspect_ratio_16_9
+            3 -> R.string.video_aspect_ratio_4_3
+            else -> R.string.video_aspect_ratio_fit
+        }
+        binding.buttonAspectRatio.text = getString(R.string.video_aspect_ratio) + " - " + getString(aspectRatioRes)
     }
 
     private fun showSpeedDialog(

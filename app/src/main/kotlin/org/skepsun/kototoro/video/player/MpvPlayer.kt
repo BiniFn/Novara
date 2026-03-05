@@ -150,6 +150,27 @@ class MpvPlayer : MPVLib.EventObserver {
 		MPVLib.setPropertyDouble("speed", speed)
 	}
 
+
+	fun setAspectRatio(type: Int) {
+		when (type) {
+			1 -> { // Fill
+				MPVLib.setPropertyDouble("panscan", 1.0)
+				MPVLib.setOptionString("video-aspect-override", "-1")
+			}
+			2 -> { // 16:9
+				MPVLib.setPropertyDouble("panscan", 0.0)
+				MPVLib.setOptionString("video-aspect-override", "16/9")
+			}
+			3 -> { // 4:3
+				MPVLib.setPropertyDouble("panscan", 0.0)
+				MPVLib.setOptionString("video-aspect-override", "4/3")
+			}
+			else -> { // Default / Fit
+				MPVLib.setPropertyDouble("panscan", 0.0)
+				MPVLib.setOptionString("video-aspect-override", "-1")
+			}
+		}
+	}
 	fun setVolume(volume: Double) {
 		MPVLib.setPropertyDouble("volume", volume)
 	}

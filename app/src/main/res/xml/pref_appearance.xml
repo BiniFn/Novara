@@ -72,6 +72,19 @@
 
         <SwitchPreferenceCompat
             android:defaultValue="true"
+            android:key="panorama_cover_enabled"
+            android:summary="@string/pref_panorama_cover_summary"
+            android:title="@string/pref_panorama_cover" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="panorama_cover_enabled"
+            android:key="panorama_cover_blurred"
+            android:summary="@string/pref_panorama_cover_blurred_summary"
+            android:title="@string/pref_panorama_cover_blurred" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
             android:key="pages_tab"
             android:summary="@string/show_pages_thumbs_summary"
             android:title="@string/show_pages_thumbs" />

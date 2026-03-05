@@ -19,6 +19,8 @@ import android.os.Looper
 import android.widget.TextView
 import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.TimeBar
+import androidx.media3.ui.DefaultTimeBar
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.view.ViewGroup
 import android.view.SurfaceView
 import android.app.PictureInPictureParams
@@ -97,7 +99,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private var mpvPlayer: MpvPlayer? = null
     private var isUiVisible: Boolean = false
+    private var autoNextTriggered: Boolean = false
     private var isFoldUnfolded: Boolean = false
+    private var isHorizontalScrubbing: Boolean = false
+    private var verticalAdjustMode: Int = 0 // 0: none, 1: brightness, 2: volume
+    private var initialTouchX: Float = 0f
+    private var initialScrubPositionStart: Long = 0L
+    private var lastScrubPosition: Long = 0L
     private var originalToolbarHeightPx: Int = 0
     private var availableVideos: List<Video> = emptyList()
     private var currentVideoIndex: Int = 0
@@ -152,6 +160,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
 
         override fun onFileLoaded() {
+            autoNextTriggered = false
             applySuperResolutionFromSettings()
             danmakuController.start()
         }
@@ -186,8 +195,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             viewBinding.root.postDelayed(this, progressSaveIntervalMs)
         }
     }
-	// 自动连播标记，防止重复触发
-	private var autoNextTriggered: Boolean = false
     // 长按持续快进/快退配置与状态
     private val longSeekIntervalMs = 200
     private val longSeekStepMs = 2000
@@ -282,7 +289,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     // 垂直手势：亮度/音量调整
     private lateinit var audioManager: AudioManager
-    private var verticalAdjustMode: Int = 0 // -1: 亮度（左侧），+1: 音量（右侧），0: 无
     private var verticalAdjustAccum: Float = 0f
     private var currentBrightnessNormalized: Float = -1f
     private fun initCurrentBrightness() {
@@ -441,22 +447,35 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         findViewById<View>(org.skepsun.kototoro.R.id.player_view)?.let { pv ->
             pv.isClickable = true
 
+            // State variables for gestures
+            var isHorizontalScrubbing = false
+            var isLongPressSpeeding = false
+            var initialScrubPositionStart = 0L
+            var initialTouchX = 0f
+            var lastScrubPosition = 0L
+
             val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean {
+                    isHorizontalScrubbing = false
+                    isLongPressSpeeding = false
+                    return true
+                }
                 override fun onDoubleTap(e: MotionEvent): Boolean {
                     val w = pv.width.takeIf { it > 0 } ?: -1
                     val x = e.x
                     val p = mpvPlayer
+                    val allowDoubleTapSeek = appSettings.videoDoubleTapSeekEnabled
                     if (w > 0 && p != null) {
                         val left = w * 0.33f
                         val right = w * 0.67f
                         when {
-                            x < left -> {
+                            allowDoubleTapSeek && x < left -> {
                                 val newPos = (p.positionMs - quickTapBackMs).coerceAtLeast(0)
                                 p.seekTo(newPos)
                                 val sec = (appSettings.videoSeekBackwardMs / 1000).coerceAtLeast(1)
                                 showOverlayLeft(getString(R.string.video_rewind_time, sec.toString()))
                             }
-                            x > right -> {
+                            allowDoubleTapSeek && x > right -> {
                                 val dur = p.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE
                                 val newPos = (p.positionMs + quickTapJumpMs).coerceAtMost(dur)
                                 p.seekTo(newPos)
@@ -472,7 +491,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         updatePlaybackMenu()
                         return true
                     }
-                    // 兜底：视图宽度不可用时，保持原有切换播放/暂停行为
                     mpvPlayer?.let { p ->
                         val wasPlaying = p.isPlaying
                         if (wasPlaying) p.pause() else p.play()
@@ -488,9 +506,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 }
 
                 override fun onLongPress(e: MotionEvent) {
-                    val w = pv.width.takeIf { it > 0 } ?: return
-                    val dir = if (e.x >= w / 2f) +1 else -1
-                    startLongSeek(dir)
+                    val p = mpvPlayer ?: return
+                    isLongPressSpeeding = true
+                    p.setRate(2.0)
+                    showPlayPauseOverlay("2.0x", 2000)
                 }
 
                 override fun onScroll(
@@ -501,9 +520,21 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 ): Boolean {
                     val w = pv.width.takeIf { it > 0 } ?: return false
                     val h = pv.height.takeIf { it > 0 } ?: return false
-                    // 首次判定：竖向位移显著大于横向位移时进入垂直调整模式
-                    if (verticalAdjustMode == 0) {
-                        if (kotlin.math.abs(distanceY) > kotlin.math.abs(distanceX)) {
+                    
+                    if (isLongPressSpeeding) return false
+
+                    // 首次判定：竖向位移显著大于横向位移时进入垂直调整模式，反之进入水平进度调整模式
+                    if (verticalAdjustMode == 0 && !isHorizontalScrubbing) {
+                        if (kotlin.math.abs(distanceX) > kotlin.math.abs(distanceY)) {
+                            isHorizontalScrubbing = true
+                            isUserScrubbing = true
+                            // Capture actual start position and touch X when horizontal drag is confirmed
+                            initialScrubPositionStart = mpvPlayer?.positionMs ?: 0L
+                            initialTouchX = e2.x
+                            lastScrubPosition = initialScrubPositionStart
+                            // Auto-show controller when scrubbing starts
+                            setUiIsVisible(true)
+                        } else if (kotlin.math.abs(distanceY) > kotlin.math.abs(distanceX)) {
                             val startX = e1?.x ?: e2.x
                             verticalAdjustMode = if (startX < w / 2f) -1 else +1
                             verticalAdjustAccum = 0f
@@ -519,13 +550,27 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             }
                         }
                     }
+
+                    if (isHorizontalScrubbing) {
+                        val duration = mpvPlayer?.durationMs ?: return true
+                        if (duration <= 0) return true
+                        
+                        // Proportional Seek: One screen width equals the entire video duration
+                        // This makes the dot on the seek bar track the finger 1:1
+                        val deltaX = e2.x - initialTouchX
+                        val seekOffset = (deltaX / w * duration).toLong()
+                        lastScrubPosition = (initialScrubPositionStart + seekOffset).coerceIn(0L, duration)
+                        
+                        showSeekFeedback(lastScrubPosition, duration, seekOffset)
+                        
+                        return true
+                    }
+
                     if (verticalAdjustMode != 0) {
-                        // 避免与长按快进/快退提示冲突
                         hideLongSeekOverlay()
-                        // 上滑增加，下滑减少；按屏幕高度归一化
                         val ratioChange = (distanceY) / h.toFloat()
                         verticalAdjustAccum += ratioChange
-                        val unit = 0.02f // 每累计 2% 高度触发一次调整，更灵敏
+                        val unit = 0.02f
                         while (kotlin.math.abs(verticalAdjustAccum) >= unit) {
                             val increase = verticalAdjustAccum > 0
                             if (verticalAdjustMode < 0) adjustBrightnessByStep(increase) else adjustVolumeByStep(increase)
@@ -535,27 +580,43 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     }
                     return false
                 }
-                override fun onDown(e: MotionEvent): Boolean {
-                    // 返回 true 以确保后续的 onScroll 能被触发
-                    return true
-                }
             })
 
-            pv.setOnTouchListener { _, ev ->
-                detector.onTouchEvent(ev)
-                when (ev.actionMasked) {
+            pv.setOnTouchListener { v, event ->
+                val handled = detector.onTouchEvent(event)
+                when (event.actionMasked) {
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        // Restore from long press speed
+                        if (isLongPressSpeeding) {
+                            val originalSpeed = appSettings.videoPlaybackSpeed.toDouble()
+                            mpvPlayer?.setRate(originalSpeed)
+                            isLongPressSpeeding = false
+                        }
+                        
+                        // Action final horizontal scrub seek
+                        if (isHorizontalScrubbing) {
+                            mpvPlayer?.seekTo(lastScrubPosition)
+                            isHorizontalScrubbing = false
+                            isUserScrubbing = false
+                            hideSeekFeedback()
+                            // Auto-hide controller after scrubbing ends
+                            setUiIsVisible(false)
+                        }
+                        
                         if (longSeekDirection != 0) {
                             stopLongSeek()
                         }
                         verticalAdjustMode = 0
+                        verticalAdjustAccum = 0f
+                        v.performClick()
+                        
                         overlayHandler.removeCallbacks(hideLeftRunnable)
                         overlayHandler.removeCallbacks(hideRightRunnable)
                         overlayHandler.postDelayed(hideLeftRunnable, 1500)
                         overlayHandler.postDelayed(hideRightRunnable, 1500)
                     }
                 }
-                true
+                handled || true
             }
         }
 
@@ -627,10 +688,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         findViewById<View>(org.skepsun.kototoro.R.id.button_quality)?.setOnClickListener {
             showQualityDialog()
         }
-        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_rew)?.setOnClickListener {
-            mpvPlayer?.let { p ->
-                val pos = (p.positionMs - appSettings.videoSeekBackwardMs).coerceAtLeast(0)
-                p.seekTo(pos)
+        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_rew)?.apply {
+            isVisible = appSettings.videoDoubleTapSeekEnabled
+            setOnClickListener {
+                mpvPlayer?.let { p ->
+                    val pos = (p.positionMs - appSettings.videoSeekBackwardMs).coerceAtLeast(0)
+                    p.seekTo(pos)
+                }
             }
         }
         ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)?.setOnClickListener {
@@ -644,10 +708,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             isClickable = true
             alpha = 1f
         }
-        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_ffwd)?.setOnClickListener {
-            mpvPlayer?.let { p ->
-                val pos = (p.positionMs + appSettings.videoSeekForwardMs).coerceAtMost(p.durationMs.coerceAtLeast(0))
-                p.seekTo(pos)
+        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_ffwd)?.apply {
+            isVisible = appSettings.videoDoubleTapSeekEnabled
+            setOnClickListener {
+                mpvPlayer?.let { p ->
+                    val pos = (p.positionMs + appSettings.videoSeekForwardMs).coerceAtMost(p.durationMs.coerceAtLeast(0))
+                    p.seekTo(pos)
+                }
             }
         }
         ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)?.setOnClickListener {
@@ -868,7 +935,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         startMs: Long? = null,
     ) {
         hasRestoredProgress = false
-        autoNextTriggered = false
         currentMediaUrl = url
         currentVideoSource = source
         currentMediaHeaders = headers
@@ -888,6 +954,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         mpvPlayer?.setStreamingOptions(appSettings.videoCacheSizeMb)
         
         applyPlaybackOptions()
+        applyAspectRatio()
         applyGradientAlpha()
         val defaultSpeed = appSettings.videoDefaultSpeed
         appSettings.videoPlaybackSpeed = defaultSpeed
@@ -1040,6 +1107,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.bringToFront()
             viewBinding.toolbar.bringToFront()
             findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.bringToFront()
+            // Make sure feedback overlays are on top of everything including the controller
+            findViewById<View>(org.skepsun.kototoro.R.id.seek_feedback_layout)?.bringToFront()
+            findViewById<View>(org.skepsun.kototoro.R.id.overlay_seek_left)?.bringToFront()
+            findViewById<View>(org.skepsun.kototoro.R.id.overlay_seek_right)?.bringToFront()
+            findViewById<View>(org.skepsun.kototoro.R.id.overlay_play_pause)?.bringToFront()
         }
         // 播放器控件显隐与系统栏解耦，避免折叠屏任务栏随下工具栏一起唤出并重叠
         systemUiController.setSystemUiVisible(false)
@@ -1063,7 +1135,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.root.requestApplyInsets()
         if (visible) {
             viewBinding.root.removeCallbacks(hideUiRunnable)
-            viewBinding.root.postDelayed(hideUiRunnable, autoHideDelayMs.toLong())
+            // If user is scrubbing (either horizontal or vertical), DON'T start auto-hide timer
+            if (!isHorizontalScrubbing && !isUserScrubbing && verticalAdjustMode == 0) {
+                viewBinding.root.postDelayed(hideUiRunnable, autoHideDelayMs.toLong())
+            }
             viewBinding.root.removeCallbacks(progressUpdateRunnable)
             updateToolbarProgress()
             viewBinding.root.postDelayed(progressUpdateRunnable, progressUpdateIntervalMs.toLong())
@@ -1482,6 +1557,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         mpvPlayer?.setVolume(volume)
         val mpvCacheDir = getExternalFilesDir("mpv_cache") ?: File(filesDir, "mpv_cache")
         mpvPlayer?.applyCacheSettings(appSettings.videoCacheSizeMb, mpvCacheDir)
+    }
+
+    fun applyAspectRatio() {
+        mpvPlayer?.setAspectRatio(appSettings.videoAspectRatio)
     }
 
     fun reloadPlayback() {
@@ -2127,6 +2206,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 		val currentId = readerState?.chapterId ?: chapters.first().id
 		val currentIndex = chapters.indexOfFirst { it.id == currentId }.takeIf { it >= 0 } ?: return
 		if (currentIndex < chapters.lastIndex) {
+			android.util.Log.i("VideoPlayerActivity", "AutoNext successfully triggered. Navigating to index ${currentIndex + 1}.")
 			autoNextTriggered = true
 			navigateChapter(+1)
 		}
@@ -2135,5 +2215,48 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     override fun onBookmarkSelected(bookmark: Bookmark): Boolean {
         // Video player doesn't support bookmarks
         return false
+    }
+
+    private fun showSeekFeedback(posMs: Long, durationMs: Long, seekOffsetMs: Long) {
+        val layout = viewBinding.seekFeedbackLayout ?: return
+        val textTv = viewBinding.seekFeedbackText ?: return
+        val progressInd = viewBinding.seekFeedbackProgress ?: return
+
+        val showHours = durationMs >= 3600_000L
+        val timeStr = formatTimeMs(posMs, showHours) + " / " + formatTimeMs(durationMs, showHours)
+        
+        val offsetSec = (kotlin.math.abs(seekOffsetMs) / 1000).toInt()
+        val deltaStr = if (seekOffsetMs > 0) {
+            getString(org.skepsun.kototoro.R.string.video_fast_forward_time, offsetSec.toString())
+        } else if (seekOffsetMs < 0) {
+            getString(org.skepsun.kototoro.R.string.video_rewind_time, offsetSec.toString())
+        } else {
+            ""
+        }
+        
+        textTv.text = if (deltaStr.isNotEmpty()) "$deltaStr\n$timeStr" else timeStr
+        textTv.gravity = android.view.Gravity.CENTER
+
+        progressInd.max = 1000
+        progressInd.progress = if (durationMs > 0) ((posMs * 1000) / durationMs).toInt() else 0
+
+        layout.alpha = 1f
+        layout.visibility = android.view.View.VISIBLE
+
+        // Explicitly update the bottom TimeBar during gesture.
+        // We use viewBinding since PlayerControlView is not strictly tied to an ExoPlayer here.
+        val progressView = viewBinding.controller.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress) as? androidx.media3.ui.TimeBar
+        if (progressView != null && durationMs > 0) {
+            progressView.setDuration(durationMs)
+            progressView.setPosition(posMs)
+        }
+        val posView = viewBinding.controller.findViewById<android.widget.TextView>(androidx.media3.ui.R.id.exo_position)
+        if (posView != null) {
+            posView.text = formatTimeMs(posMs, showHours)
+        }
+    }
+
+    private fun hideSeekFeedback() {
+        viewBinding.seekFeedbackLayout?.isVisible = false
     }
 }

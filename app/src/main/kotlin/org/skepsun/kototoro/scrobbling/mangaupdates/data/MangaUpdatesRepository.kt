@@ -151,15 +151,22 @@ class MangaUpdatesRepository(
 	}
 
 	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
-		val payload = JSONArray().apply {
-			put(JSONObject().apply {
-				put("series", JSONObject().apply { put("id", scrobblerMangaId) })
-				put("list_id", 0) // default READING
-			})
-		}
+		val payloadStr = """
+			[
+			  {
+			    "series": {
+			      "id": $scrobblerMangaId
+			    },
+			    "list_id": 0,
+			    "status": {
+			      "chapter": 0
+			    }
+			  }
+			]
+		""".trimIndent()
 
 		val request = Request.Builder()
-			.post(payload.toString().toRequestBody(CONTENT_TYPE))
+			.post(payloadStr.toRequestBody(CONTENT_TYPE))
 			.url("$BASE_API_URL/lists/series")
 
 		val response = okHttp.newCall(request.build()).await()
@@ -176,7 +183,8 @@ class MangaUpdatesRepository(
 			)
 			db.getScrobblingDao().upsert(entity)
 		} else {
-			throw IOException("Failed to create rate: ${response.code}")
+			val responseBodyStr = response.body?.string() ?: "Empty body"
+			throw IOException("Failed to create rate: ${response.code}, body: $responseBodyStr")
 		}
 	}
 

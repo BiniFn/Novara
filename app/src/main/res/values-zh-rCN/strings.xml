@@ -584,6 +584,9 @@
     <string name="tap_action">点按操作</string>
     <string name="video_play">播放</string>
     <string name="video_pause">暂停</string>
+    <string name="video_seek_forward_10s">快进 10 秒</string>
+    <string name="video_seek_rewind_10s">快退 10 秒</string>
+    <string name="video_play_pause">播放/暂停</string>
     <string name="video_fast_forward_time">快进 %1$s 秒</string>
     <string name="video_rewind_time">快退 %1$s 秒</string>
     <string name="video_brightness">亮度 %1$s%%</string>
@@ -1157,4 +1160,9 @@
     <string name="search_and_bind_local">在本地搜索并关联</string>
     <string name="search_content_kind">选择搜索范围</string>
     <string name="bind_manga_success">已成功关联到「%s」</string>
+    <string name="video_double_tap_seek">双击快进快退</string>
+    <string name="pref_panorama_cover">全景封面</string>
+    <string name="pref_panorama_cover_summary">在详情页顶部标题后方显示横幅式的封面背景图</string>
+    <string name="pref_panorama_cover_blurred">模糊全景封面</string>
+    <string name="pref_panorama_cover_blurred_summary">为全景封面背景开启虚化效果</string>
 </resources>

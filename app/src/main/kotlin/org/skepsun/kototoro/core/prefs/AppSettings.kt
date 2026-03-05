@@ -108,6 +108,14 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 	val isDescriptionExpanded: Boolean
 		get() = !prefs.getBoolean(KEY_COLLAPSE_DESCRIPTION, true)
 
+	var isPanoramaCoverEnabled: Boolean
+		get() = prefs.getBoolean(KEY_PANORAMA_COVER_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_COVER_ENABLED, value) }
+
+	var isPanoramaCoverBlurred: Boolean
+		get() = prefs.getBoolean(KEY_PANORAMA_COVER_BLURRED, false)
+		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_COVER_BLURRED, value) }
+
 	var historyListMode: ListMode
 		get() = prefs.getEnumValue(KEY_LIST_MODE_HISTORY, listMode)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_HISTORY, value) }
@@ -347,6 +355,14 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 	var videoCacheSizeMb: Int
 		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
+
+	var videoAspectRatio: Int
+		get() = prefs.getInt(KEY_VIDEO_ASPECT_RATIO, 0)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_ASPECT_RATIO, value) }
+
+	var videoDoubleTapSeekEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED, value) }
 
 	@get:FloatRange(0.3, 1.0)
 	var videoControlsAlpha: Float
@@ -1097,6 +1113,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_VIDEO_VOLUME_BOOST = "video_volume_boost"
 		const val KEY_VIDEO_AUTO_NEXT = "video_auto_next"
 		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"
+		const val KEY_VIDEO_ASPECT_RATIO = "video_aspect_ratio"
+		const val KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED = "video_double_tap_seek_enabled"
 		const val KEY_VIDEO_CONTROLS_ALPHA = "video_controls_alpha"
 		const val KEY_VIDEO_GRADIENT_ALPHA = "video_gradient_alpha"
 		const val KEY_READER_SCREEN_ON = "reader_screen_on"
@@ -1164,6 +1182,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_ANIYOMI_EXTENSIONS = "aniyomi_extensions"
 		const val KEY_QUICK_FILTER = "quick_filter"
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
+		const val KEY_PANORAMA_COVER_ENABLED = "panorama_cover_enabled"
+		const val KEY_PANORAMA_COVER_BLURRED = "panorama_cover_blurred"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"
 		const val KEY_BACKUP_TG_CHAT = "backup_periodic_tg_chat_id"
 		// WebDAV backup keys

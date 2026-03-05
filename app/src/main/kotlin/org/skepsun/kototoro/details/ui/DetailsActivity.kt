@@ -2,14 +2,18 @@ package org.skepsun.kototoro.details.ui
 
 import android.app.assist.AssistContent
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.text.SpannedString
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.graphics.Color
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.core.graphics.ColorUtils
 import androidx.core.text.buildSpannedString
 import androidx.core.text.inSpans
 import androidx.core.text.method.LinkMovementMethodCompat
@@ -22,6 +26,7 @@ import androidx.core.view.updatePaddingRelative
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.transition.TransitionManager
 import coil3.ImageLoader
+import coil3.asDrawable
 import coil3.request.ImageRequest
 import coil3.request.allowRgb565
 import coil3.request.crossfade
@@ -31,6 +36,7 @@ import coil3.size.Precision
 import coil3.transform.RoundedCornersTransformation
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.chip.Chip
+import androidx.constraintlayout.widget.Guideline
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -81,6 +87,8 @@ import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.core.util.ext.isTextTruncated
 import org.skepsun.kototoro.core.util.ext.joinToStringWithLimit
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.util.ext.getThemeDimensionPixelSize
+import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.parentView
@@ -155,6 +163,19 @@ class DetailsActivity :
 		infoBinding = LayoutDetailsTableBinding.bind(viewBinding.root)
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 		supportActionBar?.setDisplayShowTitleEnabled(false)
+		// Make toolbar and appbar immersive/transparent
+		val surfaceColor = getThemeColor(com.google.android.material.R.attr.colorSurface)
+		viewBinding.appbar.setBackgroundColor(Color.TRANSPARENT)
+		viewBinding.appbar.outlineProvider = null
+		val toolbar = viewBinding.root.findViewById<View>(R.id.toolbar)
+		toolbar?.setBackgroundColor(Color.TRANSPARENT)
+		
+		val titleCoordinator = TitleScrollCoordinator(viewBinding.textViewTitle)
+		viewBinding.scrollView.setOnScrollChangeListener { v, scrollX, scrollY, oldScrollX, oldScrollY ->
+			titleCoordinator.onScrollChange(v as androidx.core.widget.NestedScrollView, scrollX, scrollY, oldScrollX, oldScrollY)
+			val alpha = (scrollY.toFloat() / 200f).coerceIn(0f, 1f)
+			viewBinding.appbar.setBackgroundColor(ColorUtils.setAlphaComponent(surfaceColor, (alpha * 255).toInt()))
+		}
 		viewBinding.chipFavorite.setOnClickListener(this)
 		infoBinding.textViewLocal.setOnClickListener(this)
 		infoBinding.textViewSource.setOnClickListener(this)
@@ -169,7 +190,8 @@ class DetailsActivity :
 		infoBinding.textViewAuthor.movementMethod = LinkMovementMethodCompat.getInstance()
 		viewBinding.textViewDescription.movementMethod = LinkMovementMethodCompat.getInstance()
 		viewBinding.chipsTags.onChipClickListener = this
-		TitleScrollCoordinator(viewBinding.textViewTitle).attach(viewBinding.scrollView)
+		// TitleScrollCoordinator is now handled by the custom scroll listener above
+		// TitleScrollCoordinator(viewBinding.textViewTitle).attach(viewBinding.scrollView)
 		if (settings.isDescriptionExpanded) {
 			viewBinding.textViewDescription.maxLines = Int.MAX_VALUE - 1
 		}
@@ -356,8 +378,15 @@ class DetailsActivity :
 			viewBinding.appbar.updatePaddingRelative(
 				start = barsInsets.start(v),
 			)
+			viewBinding.appbar.updatePadding(top = barsInsets.top)
+			val totalTopOffset = barsInsets.top + v.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize)
+			viewBinding.scrollView.findViewById<Guideline>(R.id.guideline_status_bar)?.setGuidelineBegin(totalTopOffset)
 			return insets.consume(v, typeMask, bottom = true, end = true)
 		} else {
+			// portrait: immersive toolbar
+			viewBinding.appbar.updatePadding(top = barsInsets.top)
+			val totalTopOffset = barsInsets.top + v.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize)
+			viewBinding.scrollView.findViewById<Guideline>(R.id.guideline_status_bar)?.setGuidelineBegin(totalTopOffset)
 			viewBinding.navbarDim?.updateLayoutParams {
 				height = barsInsets.bottom
 			}
@@ -550,6 +579,63 @@ class DetailsActivity :
 	private fun loadCover(imageUrl: String?) {
 		android.util.Log.d("DetailsActivity", "loadCover: $imageUrl")
 		viewBinding.imageViewCover.setImageAsync(imageUrl, viewModel.getMangaOrNull())
+		loadPanoramaCover(imageUrl)
+	}
+
+	private fun loadPanoramaCover(imageUrl: String?) {
+		val panoramaView = viewBinding.root.findViewById<android.widget.ImageView>(R.id.imageView_panorama)
+			?: return
+		val scrimView = viewBinding.root.findViewById<View>(R.id.view_panorama_scrim)
+		val bottomGradientView = viewBinding.root.findViewById<View>(R.id.view_panorama_bottom_gradient)
+
+		if (!settings.isPanoramaCoverEnabled || imageUrl.isNullOrEmpty()) {
+			panoramaView.isVisible = false
+			scrimView?.isVisible = false
+			bottomGradientView?.isVisible = false
+			return
+		}
+
+		panoramaView.isVisible = true
+		scrimView?.isVisible = true
+		bottomGradientView?.isVisible = true
+
+		val blurEnabled = settings.isPanoramaCoverBlurred
+
+		val request = ImageRequest.Builder(this)
+			.data(imageUrl)
+			.lifecycle(this)
+			.crossfade(true)
+			.allowRgb565(true)
+			.mangaSourceExtra(viewModel.getMangaOrNull()?.source)
+			.target(
+				onSuccess = { result ->
+					panoramaView.setImageDrawable(result.asDrawable(resources))
+					if (blurEnabled) {
+						applyBlurEffect(panoramaView)
+					}
+				},
+				onError = {
+					panoramaView.isVisible = false
+					scrimView?.isVisible = false
+					bottomGradientView?.isVisible = false
+				},
+			)
+			.build()
+		coil.enqueue(request)
+	}
+
+	private fun applyBlurEffect(imageView: android.widget.ImageView) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+			imageView.setRenderEffect(
+				android.graphics.RenderEffect.createBlurEffect(
+					25f, 25f,
+					android.graphics.Shader.TileMode.CLAMP,
+				),
+			)
+		} else {
+			// Fallback: increase alpha to make it more subtle without blur
+			imageView.alpha = 0.3f
+		}
 	}
 
 	/**

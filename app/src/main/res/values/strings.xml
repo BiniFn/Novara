@@ -216,6 +216,12 @@
     <string name="suggestions_info">All data is only analyzed locally on this device and never sent anywhere.</string>
     <string name="text_suggestion_holder">Start reading manga and you will get personalized suggestions</string>
     <string name="exclude_nsfw_from_suggestions">Do not suggest NSFW manga</string>
+    <string name="video_aspect_ratio">Aspect Ratio</string>
+    <string name="video_aspect_ratio_fit">Fit</string>
+    <string name="video_aspect_ratio_fill">Fill</string>
+    <string name="video_aspect_ratio_16_9">16:9</string>
+    <string name="video_aspect_ratio_4_3">4:3</string>
+    <string name="video_double_tap_seek">Double Tap Seek</string>
     <string name="video_quality">Quality</string>
     <string name="video_super_resolution">Super resolution</string>
     <string name="video_super_resolution_mode">Mode</string>
@@ -278,6 +284,9 @@
     <string name="video_send_danmaku_hint">Send Danmaku…</string>
     <string name="video_play">Play</string>
     <string name="video_pause">Pause</string>
+    <string name="video_seek_forward_10s">Fast forward 10 seconds</string>
+    <string name="video_seek_rewind_10s">Rewind 10 seconds</string>
+    <string name="video_play_pause">Play/Pause</string>
     <string name="video_fast_forward_time">Fast forward %1$s s</string>
     <string name="video_rewind_time">Rewind %1$s s</string>
     <string name="video_brightness">Brightness %1$s%%</string>
@@ -1356,4 +1365,8 @@
     <string name="search_and_bind_local">Search and bind locally</string>
     <string name="search_content_kind">Select search scope</string>
     <string name="bind_manga_success">Bound to \"%s\" successfully</string>
+    <string name="pref_panorama_cover">Panorama cover</string>
+    <string name="pref_panorama_cover_summary">Show the item cover as a background banner spanning the top of the screen</string>
+    <string name="pref_panorama_cover_blurred">Blur panorama cover</string>
+    <string name="pref_panorama_cover_blurred_summary">Apply a heavy blur effect to the background banner</string>
 </resources>
