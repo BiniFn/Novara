@@ -24,6 +24,8 @@ import org.skepsun.kototoro.core.parser.MangaDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderBackground
 import org.skepsun.kototoro.core.prefs.ReaderMode
+import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
+import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
 import org.skepsun.kototoro.core.util.MediatorStateFlow
 import org.skepsun.kototoro.core.util.ext.isLowRamDevice
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
@@ -38,6 +40,28 @@ data class ReaderSettings(
 	val isPagesNumbersEnabled: Boolean,
 	val isPagesCropEnabledStandard: Boolean,
 	val isPagesCropEnabledWebtoon: Boolean,
+	val isTranslationEnabled: Boolean,
+	val isTranslationShowTranslated: Boolean,
+	val translationSourceLanguage: String,
+	val translationTargetLanguage: String,
+	val translationOcrEngine: ReaderOcrEngine,
+	val translationMode: ReaderTranslationMode,
+	val translationApiEndpoint: String,
+	val translationPaddleModelPath: String,
+	val translationPaddleOfficialModelId: String,
+	val translationPaddleModelUrl: String,
+	val translationPaddleModelVersion: String,
+	val translationPaddleModelSha256: String,
+	val translationPaddleDetModelUrl: String,
+	val translationPaddleDetModelVersion: String,
+	val translationPaddleDetModelSha256: String,
+	val translationPaddleRecModelUrl: String,
+	val translationPaddleRecModelVersion: String,
+	val translationPaddleRecModelSha256: String,
+	val translationPaddleClsModelUrl: String,
+	val translationPaddleClsModelVersion: String,
+	val translationPaddleClsModelSha256: String,
+	val translationNcnnModelId: String,
 ) {
 
 	private constructor(settings: AppSettings, colorFilterOverride: ReaderColorFilter?) : this(
@@ -53,6 +77,28 @@ data class ReaderSettings(
 		isPagesNumbersEnabled = settings.isPagesNumbersEnabled,
 		isPagesCropEnabledStandard = settings.isPagesCropEnabled(ReaderMode.STANDARD),
 		isPagesCropEnabledWebtoon = settings.isPagesCropEnabled(ReaderMode.WEBTOON),
+		isTranslationEnabled = settings.isReaderTranslationEnabled,
+		isTranslationShowTranslated = settings.isReaderTranslationShowTranslated,
+		translationSourceLanguage = settings.readerTranslationSourceLanguage,
+		translationTargetLanguage = settings.readerTranslationTargetLanguage,
+		translationOcrEngine = settings.readerTranslationOcrEngine,
+		translationMode = settings.readerTranslationMode,
+		translationApiEndpoint = settings.readerTranslationApiEndpoint,
+		translationPaddleModelPath = settings.readerTranslationPaddleModelPath,
+		translationPaddleOfficialModelId = settings.readerTranslationPaddleOfficialModelId,
+		translationPaddleModelUrl = settings.readerTranslationPaddleModelUrl,
+		translationPaddleModelVersion = settings.readerTranslationPaddleModelVersion,
+		translationPaddleModelSha256 = settings.readerTranslationPaddleModelSha256,
+		translationPaddleDetModelUrl = settings.readerTranslationPaddleDetModelUrl,
+		translationPaddleDetModelVersion = settings.readerTranslationPaddleDetModelVersion,
+		translationPaddleDetModelSha256 = settings.readerTranslationPaddleDetModelSha256,
+		translationPaddleRecModelUrl = settings.readerTranslationPaddleRecModelUrl,
+		translationPaddleRecModelVersion = settings.readerTranslationPaddleRecModelVersion,
+		translationPaddleRecModelSha256 = settings.readerTranslationPaddleRecModelSha256,
+		translationPaddleClsModelUrl = settings.readerTranslationPaddleClsModelUrl,
+		translationPaddleClsModelVersion = settings.readerTranslationPaddleClsModelVersion,
+		translationPaddleClsModelSha256 = settings.readerTranslationPaddleClsModelSha256,
+		translationNcnnModelId = settings.readerTranslationNcnnModelId,
 	)
 
 	fun applyBackground(view: View) {
@@ -68,6 +114,52 @@ data class ReaderSettings(
 		isPagesCropEnabledWebtoon
 	} else {
 		isPagesCropEnabledStandard
+	}
+
+	fun translationSignature(): String = buildString {
+		append(isTranslationEnabled)
+		append('|')
+		append(isTranslationShowTranslated)
+		append('|')
+		append(translationSourceLanguage)
+		append('|')
+		append(translationTargetLanguage)
+		append('|')
+		append(translationOcrEngine.name)
+		append('|')
+		append(translationMode.name)
+		append('|')
+		append(translationApiEndpoint)
+		append('|')
+		append(translationPaddleModelPath)
+		append('|')
+		append(translationPaddleOfficialModelId)
+		append('|')
+		append(translationPaddleModelUrl)
+		append('|')
+		append(translationPaddleModelVersion)
+		append('|')
+		append(translationPaddleModelSha256)
+		append('|')
+		append(translationPaddleDetModelUrl)
+		append('|')
+		append(translationPaddleDetModelVersion)
+		append('|')
+		append(translationPaddleDetModelSha256)
+		append('|')
+		append(translationPaddleRecModelUrl)
+		append('|')
+		append(translationPaddleRecModelVersion)
+		append('|')
+		append(translationPaddleRecModelSha256)
+		append('|')
+		append(translationPaddleClsModelUrl)
+		append('|')
+		append(translationPaddleClsModelVersion)
+		append('|')
+		append(translationPaddleClsModelSha256)
+		append('|')
+		append(translationNcnnModelId)
 	}
 
 	@CheckResult
@@ -103,6 +195,29 @@ data class ReaderSettings(
 			AppSettings.KEY_CF_INVERTED,
 			AppSettings.KEY_CF_GRAYSCALE,
 			AppSettings.KEY_READER_CROP,
+			AppSettings.KEY_READER_TRANSLATION_ENABLED,
+			AppSettings.KEY_READER_TRANSLATION_SHOW_TRANSLATED,
+			AppSettings.KEY_READER_TRANSLATION_SOURCE_LANG,
+			AppSettings.KEY_READER_TRANSLATION_TARGET_LANG,
+			AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE,
+			AppSettings.KEY_READER_TRANSLATION_MODE,
+			AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT,
+			AppSettings.KEY_READER_TRANSLATION_API_KEY,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_PATH,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_URL,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_VERSION,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_SHA256,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_REC_MODEL_URL,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_REC_MODEL_VERSION,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_REC_MODEL_SHA256,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_URL,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION,
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256,
+			AppSettings.KEY_READER_TRANSLATION_NCNN_MODEL_ID,
 		)
 		private var job: Job? = null
 

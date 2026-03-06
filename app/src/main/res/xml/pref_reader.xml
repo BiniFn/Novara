@@ -106,6 +106,102 @@
 		android:summary="@string/reader_optimize_summary"
 		android:title="@string/reader_optimize" />
 
+	<SwitchPreferenceCompat
+		android:defaultValue="false"
+		android:key="reader_translation_enabled"
+		android:summary="@string/reader_translation_enabled_summary"
+		android:title="@string/reader_translation_enabled"
+		app:allowDividerAbove="true" />
+
+	<SwitchPreferenceCompat
+		android:defaultValue="true"
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_show_translated"
+		android:summary="@string/reader_translation_show_translated_summary"
+		android:title="@string/reader_translation_show_translated" />
+
+	<SwitchPreferenceCompat
+		android:defaultValue="false"
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_debug_logs"
+		android:summary="@string/reader_translation_debug_logs_summary"
+		android:title="@string/reader_translation_debug_logs" />
+
+	<ListPreference
+		android:defaultValue="MLKIT"
+		android:dependency="reader_translation_enabled"
+		android:entries="@array/reader_translation_ocr_engines"
+		android:entryValues="@array/values_reader_translation_ocr_engines"
+		android:key="reader_translation_ocr_engine"
+		android:title="@string/reader_translation_ocr_engine"
+		app:useSimpleSummaryProvider="true" />
+
+	<Preference
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_manage_ocr_models"
+		android:title="@string/reader_translation_manage_ocr_models"
+		android:summary="@string/reader_translation_manage_ocr_models_summary"
+		android:fragment="org.skepsun.kototoro.settings.OcrModelsFragment" />
+
+	<ListPreference
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_tflite_model_id"
+		android:title="@string/reader_translation_ocr_model_mangaocr_selection" />
+
+	<ListPreference
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_paddle_official_model_id"
+		android:title="@string/reader_translation_ocr_model_paddle_selection" />
+
+	<ListPreference
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_ncnn_model_id"
+		android:title="@string/reader_translation_ocr_model_ncnn_selection" />
+
+
+	<ListPreference
+		android:defaultValue="LOCAL_FIRST"
+		android:dependency="reader_translation_enabled"
+		android:entries="@array/reader_translation_modes"
+		android:entryValues="@array/values_reader_translation_modes"
+		android:key="reader_translation_mode"
+		android:title="@string/reader_translation_mode"
+		app:useSimpleSummaryProvider="true" />
+
+	<EditTextPreference
+		android:defaultValue="ja"
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_source_lang"
+		android:singleLine="true"
+		android:title="@string/reader_translation_source_lang"
+		app:useSimpleSummaryProvider="true" />
+
+	<EditTextPreference
+		android:defaultValue="zh"
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_target_lang"
+		android:singleLine="true"
+		android:title="@string/reader_translation_target_lang"
+		app:useSimpleSummaryProvider="true" />
+
+	<EditTextPreference
+		android:defaultValue=""
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_api_endpoint"
+		android:singleLine="true"
+		android:summary="@string/reader_translation_api_endpoint_summary"
+		android:title="@string/reader_translation_api_endpoint"
+		app:useSimpleSummaryProvider="true" />
+
+	<EditTextPreference
+		android:defaultValue=""
+		android:dependency="reader_translation_enabled"
+		android:key="reader_translation_api_key"
+		android:singleLine="true"
+		android:summary="@string/reader_translation_api_key_summary"
+		android:title="@string/reader_translation_api_key"
+		app:useSimpleSummaryProvider="true" />
+
 	<MultiSelectListPreference
 		android:entries="@array/reader_crop"
 		android:entryValues="@array/values_reader_crop"

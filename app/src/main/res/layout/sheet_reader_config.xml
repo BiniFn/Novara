@@ -205,6 +205,33 @@
                 android:text="@string/color_correction"
                 app:drawableStartCompat="@drawable/ic_appearance" />
 
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_translation_enabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/margin_small"
+                android:drawablePadding="?android:listPreferredItemPaddingStart"
+                android:minHeight="?android:listPreferredItemHeightSmall"
+                android:paddingStart="?android:listPreferredItemPaddingStart"
+                android:paddingEnd="?android:listPreferredItemPaddingEnd"
+                android:text="@string/reader_translation_enabled"
+                android:textAppearance="?textAppearanceListItem"
+                android:textColor="?colorOnSurfaceVariant"
+                app:drawableStartCompat="@drawable/ic_language" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_translation_show_translated"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:drawablePadding="?android:listPreferredItemPaddingStart"
+                android:minHeight="?android:listPreferredItemHeightSmall"
+                android:paddingStart="?android:listPreferredItemPaddingStart"
+                android:paddingEnd="?android:listPreferredItemPaddingEnd"
+                android:text="@string/reader_translation_show_translated"
+                android:textAppearance="?textAppearanceListItem"
+                android:textColor="?colorOnSurfaceVariant"
+                app:drawableStartCompat="@drawable/ic_auto_fix" />
+
             <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
                 android:id="@+id/button_open_in_browser"
                 android:layout_width="match_parent"

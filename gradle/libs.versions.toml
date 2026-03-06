@@ -30,6 +30,7 @@ kizzyRpc = "ad8f2e32eb"
 ksp = "2.2.10-2.0.2"
 leakcanary = "3.0-alpha-8"
 lifecycle = "2.9.4"
+litert = "2.1.0"
 markwon = "4.6.2"
 material = "1.14.0-alpha05"
 moshi = "1.15.2"
@@ -56,6 +57,7 @@ media3 = "1.8.0"
 kotest = "5.9.1"
 xsoup = "0.3.7"
 jsonpath = "2.8.0"
+commonsCompress = "1.28.0"
 rhino = "1.7.15"
 libmpv = "0.4.1"
 danmakuRenderEngine = "0.1.0"
@@ -70,6 +72,10 @@ mockk = "1.13.13"
 ucrop = "2.2.8"
 mpvAndroidLib = "0.1.10"
 nanohttpd = "2.3.1"
+mlkitText = "16.0.1"
+mlkitTranslate = "17.0.3"
+paddleocr4android = "v1.2.9"
+ncnnandroidppocr = "v1.3.0"
 
 [libraries]
 acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acra" }
@@ -128,6 +134,7 @@ leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", ve
 lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
 lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycle" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+litert = { module = "com.google.ai.edge.litert:litert", version.ref = "litert" }
 markwon = { module = "io.noties.markwon:core", version.ref = "markwon" }
 material = { module = "com.google.android.material:material", version.ref = "material" }
 moshi-kotlin = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshi" }
@@ -152,6 +159,7 @@ kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref 
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 xsoup = { module = "us.codecraft:xsoup", version.ref = "xsoup" }
 jsonpath = { module = "com.jayway.jsonpath:json-path", version.ref = "jsonpath" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
 quickjsAndroid = { module = "com.github.seven332:quickjs-android", version.ref = "quickjsAndroid" }
 quickjsKt = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjsKt" }
@@ -163,6 +171,12 @@ rxjava3 = { module = "io.reactivex.rxjava3:rxjava", version.ref = "rxjava3" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
 nanohttpd = { module = "org.nanohttpd:nanohttpd", version.ref = "nanohttpd" }
+mlkit-text-recognition-japanese = { module = "com.google.mlkit:text-recognition-japanese", version.ref = "mlkitText" }
+mlkit-text-recognition-chinese = { module = "com.google.mlkit:text-recognition-chinese", version.ref = "mlkitText" }
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }
+mlkit-translate = { module = "com.google.mlkit:translate", version.ref = "mlkitTranslate" }
+paddleocr4android = { module = "com.github.equationl.paddleocr4android:paddleocr4android", version.ref = "paddleocr4android" }
+ncnnandroidppocr = { module = "com.github.equationl.paddleocr4android:ncnnandroidppocr", version.ref = "ncnnandroidppocr" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "gradle" }

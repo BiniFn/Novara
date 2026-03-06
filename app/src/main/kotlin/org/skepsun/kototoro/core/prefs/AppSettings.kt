@@ -50,7 +50,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AppSettings @Inject constructor(@ApplicationContext context: Context) {
+class AppSettings @Inject constructor(@ApplicationContext private val context: Context) {
 
 	private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 	private val connectivityManager = context.connectivityManager
@@ -508,6 +508,93 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 
 	val isPagesNumbersEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PAGES_NUMBERS, false)
+
+	var isReaderTranslationEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_TRANSLATION_ENABLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_ENABLED, value) }
+
+	var isReaderTranslationShowTranslated: Boolean
+		get() = prefs.getBoolean(KEY_READER_TRANSLATION_SHOW_TRANSLATED, true)
+		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_SHOW_TRANSLATED, value) }
+
+	val isReaderTranslationDebugLogsEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_TRANSLATION_DEBUG_LOGS, false)
+
+	val readerTranslationSourceLanguage: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_SOURCE_LANG, "ja") ?: "ja"
+
+	val readerTranslationTargetLanguage: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_TARGET_LANG, "zh") ?: "zh"
+
+	val readerTranslationOcrEngine: ReaderOcrEngine
+		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)
+
+	val readerTranslationMode: ReaderTranslationMode
+		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_MODE, ReaderTranslationMode.LOCAL_FIRST)
+
+	val readerTranslationApiEndpoint: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_API_ENDPOINT, "") ?: ""
+
+	val readerTranslationApiKey: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_API_KEY, "") ?: ""
+
+	val readerTranslationPaddleModelPath: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_MODEL_PATH, "") ?: ""
+
+	val readerTranslationPaddleOfficialModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "") ?: ""
+
+	val readerTranslationPaddleModelUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_MODEL_URL, null) 
+			?: context.getString(R.string.reader_translation_paddle_model_url_default)
+
+	val readerTranslationPaddleModelVersion: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION, null)
+			?: context.getString(R.string.reader_translation_paddle_model_version_default)
+
+	val readerTranslationPaddleModelSha256: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256, null)
+			?: context.getString(R.string.reader_translation_paddle_model_sha256_default)
+
+	val readerTranslationPaddleDetModelUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_DET_MODEL_URL, "") ?: ""
+
+	val readerTranslationPaddleDetModelVersion: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_DET_MODEL_VERSION, "") ?: ""
+
+	val readerTranslationPaddleDetModelSha256: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_DET_MODEL_SHA256, "") ?: ""
+
+	val readerTranslationPaddleRecModelUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_REC_MODEL_URL, "") ?: ""
+
+	val readerTranslationPaddleRecModelVersion: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_REC_MODEL_VERSION, "") ?: ""
+
+	val readerTranslationPaddleRecModelSha256: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_REC_MODEL_SHA256, "") ?: ""
+
+	val readerTranslationPaddleClsModelUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_URL, "") ?: ""
+
+	val readerTranslationPaddleClsModelVersion: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION, "") ?: ""
+
+	val readerTranslationPaddleClsModelSha256: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256, "") ?: ""
+
+	val readerTranslationTfliteModelUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_TFLITE_MODEL_URL, null)
+			?: context.getString(R.string.reader_translation_tflite_model_url_default)
+
+	val readerTranslationTfliteModelPath: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_TFLITE_MODEL_PATH, "") ?: ""
+
+	val readerTranslationTfliteModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_TFLITE_MODEL_ID, "") ?: ""
+
+	val readerTranslationNcnnModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_NCNN_MODEL_ID, "") ?: ""
 
 	var readerThreads: Int
 		get() = prefs.getInt(KEY_READER_THREADS, 3)
@@ -1046,6 +1133,36 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 		const val KEY_GRID_VIEW_CHAPTERS = "grid_view_chapters"
 		const val KEY_INCOGNITO_NSFW = "incognito_nsfw"
 		const val KEY_PAGES_NUMBERS = "pages_numbers"
+		const val KEY_READER_TRANSLATION_ENABLED = "reader_translation_enabled"
+		const val KEY_READER_TRANSLATION_SHOW_TRANSLATED = "reader_translation_show_translated"
+		const val KEY_READER_TRANSLATION_DEBUG_LOGS = "reader_translation_debug_logs"
+		const val KEY_READER_TRANSLATION_SOURCE_LANG = "reader_translation_source_lang"
+		const val KEY_READER_TRANSLATION_TARGET_LANG = "reader_translation_target_lang"
+		const val KEY_READER_TRANSLATION_OCR_ENGINE = "reader_translation_ocr_engine"
+		const val KEY_READER_TRANSLATION_MODE = "reader_translation_mode"
+		const val KEY_READER_TRANSLATION_API_ENDPOINT = "reader_translation_api_endpoint"
+		const val KEY_READER_TRANSLATION_API_KEY = "reader_translation_api_key"
+		const val KEY_READER_TRANSLATION_PADDLE_MODEL_PATH = "reader_translation_paddle_model_path"
+		const val KEY_READER_TRANSLATION_PADDLE_OCR_ONLY = "reader_translation_paddle_ocr_only"
+		const val KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID = "reader_translation_paddle_official_model_id"
+		const val KEY_READER_TRANSLATION_PADDLE_MODEL_URL = "reader_translation_paddle_model_url"
+		const val KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION = "reader_translation_paddle_model_version"
+		const val KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256 = "reader_translation_paddle_model_sha256"
+		const val KEY_READER_TRANSLATION_PADDLE_DET_MODEL_URL = "reader_translation_paddle_det_model_url"
+		const val KEY_READER_TRANSLATION_PADDLE_DET_MODEL_VERSION = "reader_translation_paddle_det_model_version"
+		const val KEY_READER_TRANSLATION_PADDLE_DET_MODEL_SHA256 = "reader_translation_paddle_det_model_sha256"
+		const val KEY_READER_TRANSLATION_PADDLE_REC_MODEL_URL = "reader_translation_paddle_rec_model_url"
+		const val KEY_READER_TRANSLATION_PADDLE_REC_MODEL_VERSION = "reader_translation_paddle_rec_model_version"
+		const val KEY_READER_TRANSLATION_PADDLE_REC_MODEL_SHA256 = "reader_translation_paddle_rec_model_sha256"
+		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_URL = "reader_translation_paddle_cls_model_url"
+		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION = "reader_translation_paddle_cls_model_version"
+		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256 = "reader_translation_paddle_cls_model_sha256"
+		const val KEY_READER_TRANSLATION_PADDLE_DOWNLOAD_NOW = "reader_translation_paddle_download_now"
+		const val KEY_READER_TRANSLATION_TFLITE_MODEL_URL = "reader_translation_tflite_model_url"
+		const val KEY_READER_TRANSLATION_TFLITE_MODEL_PATH = "reader_translation_tflite_model_path"
+		const val KEY_READER_TRANSLATION_TFLITE_MODEL_ID = "reader_translation_tflite_model_id"
+		const val KEY_READER_TRANSLATION_TFLITE_DOWNLOAD_NOW = "reader_translation_tflite_download_now"
+		const val KEY_READER_TRANSLATION_NCNN_MODEL_ID = "reader_translation_ncnn_model_id"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"
 		const val KEY_READER_THREADS = "reader_threads"
 		const val KEY_READER_PREFETCH_LIMIT = "reader_prefetch_limit"

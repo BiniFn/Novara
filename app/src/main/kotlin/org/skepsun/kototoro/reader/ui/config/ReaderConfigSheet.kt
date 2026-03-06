@@ -127,6 +127,9 @@ class ReaderConfigSheet :
         binding.switchDoubleReader.isEnabled = mode == ReaderMode.STANDARD || mode == ReaderMode.REVERSED
         binding.switchDoubleFoldable.isChecked = settings.isReaderDoubleOnFoldable
         binding.switchDoubleFoldable.isEnabled = binding.switchDoubleReader.isEnabled
+        binding.switchTranslationEnabled.isChecked = settings.isReaderTranslationEnabled
+        binding.switchTranslationShowTranslated.isChecked = settings.isReaderTranslationShowTranslated
+        binding.switchTranslationShowTranslated.isEnabled = settings.isReaderTranslationEnabled
         binding.sliderDoubleSensitivity.setValueRounded(settings.readerDoublePagesSensitivity * 100f)
         binding.sliderDoubleSensitivity.setLabelFormatter(IntPercentLabelFormatter(binding.root.context))
         binding.adjustSensitivitySlider(withAnimation = false)
@@ -141,6 +144,8 @@ class ReaderConfigSheet :
         binding.buttonBookmark.setOnClickListener(this)
         binding.switchDoubleReader.setOnCheckedChangeListener(this)
         binding.switchDoubleFoldable.setOnCheckedChangeListener(this)
+        binding.switchTranslationEnabled.setOnCheckedChangeListener(this)
+        binding.switchTranslationShowTranslated.setOnCheckedChangeListener(this)
         binding.sliderDoubleSensitivity.addOnChangeListener(this)
         binding.buttonOpenInBrowser.setOnClickListener(this)
 
@@ -253,6 +258,15 @@ class ReaderConfigSheet :
                 settings.isReaderDoubleOnFoldable = isChecked
                 // Re-evaluate double-page considering foldable state and current manual toggle
                 findParentCallback(Callback::class.java)?.onDoubleModeChanged(settings.isReaderDoubleOnLandscape)
+            }
+
+            R.id.switch_translation_enabled -> {
+                settings.isReaderTranslationEnabled = isChecked
+                viewBinding?.switchTranslationShowTranslated?.isEnabled = isChecked
+            }
+
+            R.id.switch_translation_show_translated -> {
+                settings.isReaderTranslationShowTranslated = isChecked
             }
         }
     }

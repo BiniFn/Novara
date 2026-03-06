@@ -160,6 +160,30 @@
 		<item>@string/automatic_scroll</item>
 		<item>@string/bookmark_add</item>
 	</string-array>
+	<string-array name="reader_translation_modes" translatable="false">
+		<item>@string/reader_translation_mode_local_only</item>
+		<item>@string/reader_translation_mode_local_first</item>
+		<item>@string/reader_translation_mode_api_only</item>
+	</string-array>
+	<string-array name="reader_translation_ocr_engines" translatable="false">
+		<item>@string/reader_translation_ocr_engine_mlkit</item>
+		<item>@string/reader_translation_ocr_engine_paddle</item>
+		<item>@string/reader_translation_ocr_engine_tflite</item>
+		<item>@string/reader_translation_ocr_engine_hybrid</item>
+		<item>@string/reader_translation_ocr_engine_ncnn</item>
+	</string-array>
+	<string-array name="values_reader_translation_modes" translatable="false">
+		<item>LOCAL_ONLY</item>
+		<item>LOCAL_FIRST</item>
+		<item>API_ONLY</item>
+	</string-array>
+	<string-array name="values_reader_translation_ocr_engines" translatable="false">
+		<item>MLKIT</item>
+		<item>PADDLE</item>
+		<item>TFLITE</item>
+		<item>HYBRID</item>
+		<item>NCNN</item>
+	</string-array>
 	<string-array name="list_badges" translatable="false">
 		<item>@string/favourites</item>
 		<item>@string/saved_manga</item>

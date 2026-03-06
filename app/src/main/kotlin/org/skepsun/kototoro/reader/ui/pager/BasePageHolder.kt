@@ -59,6 +59,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	var boundData: ReaderPage? = null
 		private set
+	private var lastTranslationSignature: String? = null
 
 	init {
 		lifecycleScope.launch(Dispatchers.Main) {
@@ -83,8 +84,12 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	@CallSuper
 	protected open fun onConfigChanged(settings: ReaderSettings) {
+		val translationSignature = settings.translationSignature()
+		val shouldReloadTranslation = lastTranslationSignature != null &&
+			lastTranslationSignature != translationSignature
+		lastTranslationSignature = translationSignature
 		settings.applyBackground(itemView)
-		if (settings.applyBitmapConfig(ssiv)) {
+		if (settings.applyBitmapConfig(ssiv) || shouldReloadTranslation) {
 			reloadImage()
 		} else if (viewModel.state.value is PageState.Shown) {
 			onReady()

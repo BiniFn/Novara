@@ -76,6 +76,7 @@ import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.requireBody
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
+import org.skepsun.kototoro.reader.translate.domain.ReaderPageTranslationProcessor
 import java.io.File
 import java.util.LinkedList
 import java.util.concurrent.atomic.AtomicInteger
@@ -95,6 +96,7 @@ class PageLoader @Inject constructor(
 	private val mangaRepositoryFactory: MangaRepository.Factory,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 	private val downloadSlowdownDispatcher: DownloadSlowdownDispatcher,
+	private val translationProcessor: ReaderPageTranslationProcessor,
 ) {
 
 	val loaderScope = lifecycle.lifecycleScope + InternalErrorHandler() + Dispatchers.Default
@@ -292,7 +294,7 @@ class PageLoader @Inject constructor(
 			cache.get(pageUrl)?.let { return it.toUri() }
 		}
 		val uri = pageUrl.toUri()
-		return when {
+		val sourceUri = when {
 			uri.isZipUri() -> if (uri.scheme == URI_SCHEME_ZIP) {
 				uri
 			} else { // legacy uri
@@ -336,6 +338,12 @@ class PageLoader @Inject constructor(
 				}.toUri()
 			}
 		}
+		val readyUri = if (settings.isReaderTranslationEnabled && sourceUri.isZipUri()) {
+			convertBimap(sourceUri)
+		} else {
+			sourceUri
+		}
+		translationProcessor.process(page, readyUri)
 	}
 
 	private fun isLowRam(): Boolean {

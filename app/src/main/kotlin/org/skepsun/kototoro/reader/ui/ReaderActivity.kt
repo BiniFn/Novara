@@ -57,6 +57,7 @@ import org.skepsun.kototoro.core.util.ext.hasGlobalPoint
 import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.util.ext.postDelayed
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.zipWithPrevious
@@ -131,6 +132,7 @@ class ReaderActivity :
         viewBinding.zoomControl.listener = this
         viewBinding.actionsView.listener = this
         viewBinding.buttonTimer?.setOnClickListener(this)
+        viewBinding.buttonTranslationToggle.setOnClickListener(this)
         idlingDetector.bindToLifecycle(this)
         screenOrientationHelper.applySettings()
         viewModel.isBookmarkAdded.observe(this) { viewBinding.actionsView.isBookmarkAdded = it }
@@ -195,6 +197,16 @@ class ReaderActivity :
         viewModel.isZoomControlsEnabled.observe(this) {
             viewBinding.zoomControl.isVisible = it
         }
+        settings.observeAsFlow(AppSettings.KEY_READER_TRANSLATION_ENABLED) {
+            isReaderTranslationEnabled
+        }.onEach {
+            updateTranslationToggleButton()
+        }.launchIn(lifecycleScope)
+        settings.observeAsFlow(AppSettings.KEY_READER_TRANSLATION_SHOW_TRANSLATED) {
+            isReaderTranslationShowTranslated
+        }.onEach {
+            updateTranslationToggleButton()
+        }.launchIn(lifecycleScope)
         addMenuProvider(ReaderMenuProvider(viewModel))
 
         observeWindowLayout()
@@ -258,6 +270,7 @@ class ReaderActivity :
     override fun onClick(v: View) {
         when (v.id) {
             R.id.button_timer -> onScrollTimerClick(isLongClick = false)
+            R.id.button_translation_toggle -> toggleTranslationLayer()
         }
     }
 
@@ -328,7 +341,8 @@ class ReaderActivity :
             viewBinding.toolbarDocked?.hasGlobalPoint(rawX, rawY) == true ||
             viewBinding.zoomControl.hasGlobalPoint(rawX, rawY) ||
             viewBinding.timerControl.hasGlobalPoint(rawX, rawY) ||
-            viewBinding.buttonTimer?.hasGlobalPoint(rawX, rawY) == true
+            viewBinding.buttonTimer?.hasGlobalPoint(rawX, rawY) == true ||
+            viewBinding.buttonTranslationToggle.hasGlobalPoint(rawX, rawY)
         ) {
             false
         } else {
@@ -443,6 +457,7 @@ class ReaderActivity :
             viewBinding.infoBar.isGone = isUiVisible || (!viewModel.isInfoBarEnabled.value)
             viewBinding.infoBar.isTimeVisible = isFullscreen
             updateScrollTimerButton()
+            updateTranslationToggleButton()
             systemUiController.setSystemUiVisible(isUiVisible || !isFullscreen)
             viewBinding.root.requestApplyInsets()
         }
@@ -592,6 +607,32 @@ class ReaderActivity :
             TransitionManager.beginDelayedTransition(viewBinding.root, transition)
             button.isVisible = isButtonVisible
         }
+    }
+
+    private fun updateTranslationToggleButton() {
+        val button = viewBinding.buttonTranslationToggle
+        val shouldShow = settings.isReaderTranslationEnabled && !viewBinding.appbarTop.isVisible
+        button.isVisible = shouldShow
+        val showTranslated = settings.isReaderTranslationShowTranslated
+        button.setIconResource(if (showTranslated) R.drawable.ic_language else R.drawable.ic_images)
+        button.contentDescription = getString(
+            if (showTranslated) R.string.reader_translation_toggle_show_original
+            else R.string.reader_translation_toggle_show_translated,
+        )
+    }
+
+    private fun toggleTranslationLayer() {
+        if (!settings.isReaderTranslationEnabled) {
+            return
+        }
+        val showTranslated = !settings.isReaderTranslationShowTranslated
+        settings.isReaderTranslationShowTranslated = showTranslated
+        Snackbar.make(
+            viewBinding.container,
+            if (showTranslated) R.string.reader_translation_mode_switched_translated
+            else R.string.reader_translation_mode_switched_original,
+            Snackbar.LENGTH_SHORT,
+        ).setAnchorView(viewBinding.toolbarDocked).show()
     }
 
     // Observe foldable window layout to auto-enable double-page if configured
