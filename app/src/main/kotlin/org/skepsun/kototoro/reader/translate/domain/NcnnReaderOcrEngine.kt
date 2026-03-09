@@ -90,7 +90,7 @@ class NcnnReaderOcrEngine @Inject constructor(
 	}
 
 	private suspend fun resolveModelPath(): String {
-		val model = NcnnOfficialModelCatalog.findById(settings.readerTranslationNcnnModelId)
+		val model = NcnnOfficialModelCatalog.findById(settings.readerTranslationDetModelId)
 			?: NcnnOfficialModelCatalog.models.first()
 		return modelManager.ensureModelReady(
 			version = model.version,

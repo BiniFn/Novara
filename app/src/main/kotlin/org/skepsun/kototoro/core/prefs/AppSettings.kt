@@ -528,7 +528,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerTranslationOcrEngine: ReaderOcrEngine
 		get() = when (val engine = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)) {
-			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
+			ReaderOcrEngine.PADDLE,
+			ReaderOcrEngine.TFLITE,
+			ReaderOcrEngine.NCNN,
+			-> ReaderOcrEngine.HYBRID
 			else -> engine
 		}
 
@@ -598,21 +601,26 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationPaddleClsModelSha256: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256, "") ?: ""
 
-	val readerTranslationTfliteModelUrl: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_TFLITE_MODEL_URL, null)
-			?: context.getString(R.string.reader_translation_tflite_model_url_default)
+	var readerTranslationRecModelUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_URL, null)
+			?: context.getString(R.string.reader_translation_rec_model_url_default)
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_URL, value) }
 
-	val readerTranslationTfliteModelPath: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_TFLITE_MODEL_PATH, "") ?: ""
+	var readerTranslationRecModelPath: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_PATH, "") ?: ""
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_PATH, value) }
 
-	val readerTranslationTfliteModelId: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_TFLITE_MODEL_ID, "") ?: ""
+	var readerTranslationRecModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_ID, "") ?: ""
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_ID, value) }
 
-	val readerTranslationNcnnModelId: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_NCNN_MODEL_ID, "") ?: ""
+	var readerTranslationDetModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_DET_MODEL_ID, "") ?: ""
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_DET_MODEL_ID, value) }
 
-	val readerTranslationOnnxModelId: String
+	var readerTranslationOnnxModelId: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_ONNX_MODEL_ID, "") ?: ""
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_ONNX_MODEL_ID, value) }
 
 	var readerThreads: Int
 		get() = prefs.getInt(KEY_READER_THREADS, 3)
@@ -1181,11 +1189,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION = "reader_translation_paddle_cls_model_version"
 		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256 = "reader_translation_paddle_cls_model_sha256"
 		const val KEY_READER_TRANSLATION_PADDLE_DOWNLOAD_NOW = "reader_translation_paddle_download_now"
-		const val KEY_READER_TRANSLATION_TFLITE_MODEL_URL = "reader_translation_tflite_model_url"
-		const val KEY_READER_TRANSLATION_TFLITE_MODEL_PATH = "reader_translation_tflite_model_path"
-		const val KEY_READER_TRANSLATION_TFLITE_MODEL_ID = "reader_translation_tflite_model_id"
-		const val KEY_READER_TRANSLATION_TFLITE_DOWNLOAD_NOW = "reader_translation_tflite_download_now"
-		const val KEY_READER_TRANSLATION_NCNN_MODEL_ID = "reader_translation_ncnn_model_id"
+		const val KEY_READER_TRANSLATION_REC_MODEL_URL = "reader_translation_rec_model_url"
+		const val KEY_READER_TRANSLATION_REC_MODEL_PATH = "reader_translation_rec_model_path"
+		const val KEY_READER_TRANSLATION_REC_MODEL_ID = "reader_translation_rec_model_id"
+		const val KEY_READER_TRANSLATION_REC_DOWNLOAD_NOW = "reader_translation_rec_download_now"
+		const val KEY_READER_TRANSLATION_DET_MODEL_ID = "reader_translation_det_model_id"
 		const val KEY_READER_TRANSLATION_ONNX_MODEL_ID = "reader_translation_onnx_model_id"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"
 		const val KEY_READER_THREADS = "reader_threads"

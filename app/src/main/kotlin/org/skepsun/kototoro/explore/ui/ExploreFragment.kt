@@ -121,9 +121,11 @@ class ExploreFragment :
 		// Observe filter changes
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
 			updateContentTypeChipsSelection(binding, tab)
+			updateSourceTagChipsEnabled(binding, tab)
 		}
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
-			updateSourceTagChipsSelection(binding, tags)
+			updateSourceTagChipsSelection(binding, tags ?: emptySet())
+			updateContentTypeChipsEnabled(binding, tags ?: emptySet())
 		}
 		viewModel.availableTabs.observe(viewLifecycleOwner) { tabs ->
 			rebuildContentTypeChips(binding, tabs)
@@ -208,6 +210,9 @@ class ExploreFragment :
 			contentTypeChipIds[tab] = chip.id
 			chipGroup.addView(chip)
 		}
+
+		updateContentTypeChipsSelection(binding, viewModel.getSelectedGroupTab())
+		updateContentTypeChipsEnabled(binding, viewModel.currentSourceTags.value ?: emptySet())
 	}
 	
 	private fun rebuildSourceTagChips(binding: FragmentExploreBinding) {
@@ -236,6 +241,9 @@ class ExploreFragment :
 			sourceTagChipIds[tag] = chip.id
 			chipGroup.addView(chip)
 		}
+
+		updateSourceTagChipsSelection(binding, currentTags)
+		updateSourceTagChipsEnabled(binding, viewModel.getSelectedGroupTab())
 	}
 	
 	private data class ChipColors(
@@ -247,15 +255,27 @@ class ExploreFragment :
 	private fun createChipColors(): ChipColors {
 		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
 		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
+		val bgDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurface, 0)
+		
 		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
+		val textDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0).let {
+			ColorStateList.valueOf(it).withAlpha(97).defaultColor // ~38% alpha
+		}
 		
+		val stateDisabled = intArrayOf(-android.R.attr.state_enabled)
 		val stateChecked = intArrayOf(android.R.attr.state_checked)
-		val stateDefault = intArrayOf(-android.R.attr.state_checked)
+		val stateDefault = intArrayOf()
 		
 		return ChipColors(
-			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
-			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
+			bg = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(bgDisabled, bgChecked, bgUnchecked)
+			),
+			text = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(textDisabled, textChecked, textUnchecked)
+			),
 			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
 		)
 	}
@@ -307,6 +327,22 @@ class ExploreFragment :
 	private fun updateSourceTagChipsSelection(binding: FragmentExploreBinding, tags: Set<SourceTag>) {
 		sourceTagChipIds.forEach { (tag, id) ->
 			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
+		}
+	}
+
+	private fun updateContentTypeChipsEnabled(binding: FragmentExploreBinding, selectedTags: Set<SourceTag>) {
+		contentTypeChipIds.forEach { (tab, id) ->
+			val chip = binding.chipGroupContentType.findViewById<Chip>(id) ?: return@forEach
+			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
+	private fun updateSourceTagChipsEnabled(binding: FragmentExploreBinding, selectedTab: BrowseGroupTab) {
+		sourceTagChipIds.forEach { (tag, id) ->
+			val chip = binding.chipGroupSourceTag.findViewById<Chip>(id) ?: return@forEach
+			chip.isEnabled = selectedTab.supportsSourceTag(tag)
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
 		}
 	}
 

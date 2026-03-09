@@ -109,13 +109,16 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		rebuildContentTypeChips(binding)
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
 			updateContentTypeChipsSelection(binding, tab)
+			updateSourceTagChipsEnabled(binding, tab)
 		}
 		viewModel.availableSourceTags.observe(viewLifecycleOwner) { 
 			rebuildSourceTagChips(binding)
 			updateSourceTagChipsSelection(binding, viewModel.selectedSourceTags.value)
+			updateContentTypeChipsEnabled(binding, viewModel.selectedSourceTags.value)
 		}
 		viewModel.selectedSourceTags.observe(viewLifecycleOwner) { tags ->
 			updateSourceTagChipsSelection(binding, tags)
+			updateContentTypeChipsEnabled(binding, tags)
 		}
 
 		// Register for appbar offset changes
@@ -191,6 +194,9 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 			contentTypeChipIds[tab] = chip.id
 			binding.chipGroupContentType.addView(chip)
 		}
+
+		updateContentTypeChipsSelection(binding, viewModel.currentGroupTab.value)
+		updateContentTypeChipsEnabled(binding, viewModel.selectedSourceTags.value)
 	}
 
 	private fun updateContentTypeChipsSelection(binding: FragmentFavouritesContainerBinding, selectedTab: BrowseGroupTab) {
@@ -228,11 +234,30 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 			sourceTagChipIds[tag] = chip.id
 			binding.chipGroupSourceTag.addView(chip)
 		}
+
+		updateSourceTagChipsSelection(binding, viewModel.selectedSourceTags.value)
+		updateSourceTagChipsEnabled(binding, viewModel.currentGroupTab.value)
 	}
 
 	private fun updateSourceTagChipsSelection(binding: FragmentFavouritesContainerBinding, tags: Set<SourceTag>) {
 		sourceTagChipIds.forEach { (tag, id) ->
 			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
+		}
+	}
+
+	private fun updateContentTypeChipsEnabled(binding: FragmentFavouritesContainerBinding, selectedTags: Set<SourceTag>) {
+		contentTypeChipIds.forEach { (tab, id) ->
+			val chip = binding.chipGroupContentType.findViewById<Chip>(id) ?: return@forEach
+			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
+	private fun updateSourceTagChipsEnabled(binding: FragmentFavouritesContainerBinding, selectedTab: BrowseGroupTab) {
+		sourceTagChipIds.forEach { (tag, id) ->
+			val chip = binding.chipGroupSourceTag.findViewById<Chip>(id) ?: return@forEach
+			chip.isEnabled = selectedTab.supportsSourceTag(tag)
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
 		}
 	}
 
@@ -246,15 +271,27 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		val context = requireContext()
 		val bgUnchecked = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurfaceVariant, 0)
 		val bgChecked = MaterialColors.getColor(context, com.google.android.material.R.attr.colorPrimaryContainer, 0)
+		val bgDisabled = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurface, 0)
+		
 		val textUnchecked = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 		val textChecked = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
+		val textDisabled = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurface, 0).let {
+			ColorStateList.valueOf(it).withAlpha(97).defaultColor // ~38% alpha
+		}
 
+		val stateDisabled = intArrayOf(-android.R.attr.state_enabled)
 		val stateChecked = intArrayOf(android.R.attr.state_checked)
-		val stateDefault = intArrayOf(-android.R.attr.state_checked)
+		val stateDefault = intArrayOf()
 
 		return ChipColors(
-			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
-			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
+			bg = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(bgDisabled, bgChecked, bgUnchecked)
+			),
+			text = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(textDisabled, textChecked, textUnchecked)
+			),
 			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
 		)
 	}

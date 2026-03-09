@@ -3,6 +3,7 @@ package org.skepsun.kototoro.reader.ui.config
 import android.os.Bundle
 import android.app.Dialog
 import android.content.res.Configuration
+import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -31,6 +32,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
 import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.util.ext.copyToClipboard
 import org.skepsun.kototoro.core.util.ext.findParentCallback
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.setValueRounded
@@ -38,6 +40,7 @@ import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.core.util.progress.IntPercentLabelFormatter
 import org.skepsun.kototoro.databinding.SheetReaderConfigBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
 import org.skepsun.kototoro.reader.ui.ReaderViewModel
 import org.skepsun.kototoro.reader.ui.ScreenOrientationHelper
 import javax.inject.Inject
@@ -63,6 +66,7 @@ class ReaderConfigSheet :
 
     private lateinit var mode: ReaderMode
     private lateinit var imageServerDelegate: ImageServerDelegate
+    private var taskFilter: TranslationTaskFilter = TranslationTaskFilter.ALL
 
     @Inject
     lateinit var settings: AppSettings
@@ -133,6 +137,7 @@ class ReaderConfigSheet :
         binding.switchTranslationShowTranslated.isEnabled = settings.isReaderTranslationEnabled
         binding.buttonRetranslate.isEnabled = settings.isReaderTranslationEnabled
         binding.buttonTranslationLog.isEnabled = settings.isReaderTranslationEnabled
+        updateTranslationBypassHint(binding)
         binding.sliderDoubleSensitivity.setValueRounded(settings.readerDoublePagesSensitivity * 100f)
         binding.sliderDoubleSensitivity.setLabelFormatter(IntPercentLabelFormatter(binding.root.context))
         binding.adjustSensitivitySlider(withAnimation = false)
@@ -239,25 +244,12 @@ class ReaderConfigSheet :
 
             R.id.button_retranslate -> {
                 if (settings.isReaderTranslationEnabled) {
-                    viewModel.retranslateCurrent()
-                    dismissAllowingStateLoss()
+                    showRetranslateActionDialog()
                 }
             }
 
             R.id.button_translation_log -> {
-                val page = viewModel.getCurrentPage()
-                val pageNumber = (viewModel.getCurrentState()?.page ?: 0) + 1
-                val logText = page?.let { pageLoader.getTranslationDebugLog(it.id) }.orEmpty()
-                val message = if (logText.isBlank()) {
-                    getString(R.string.reader_translation_page_log_empty)
-                } else {
-                    logText
-                }
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(getString(R.string.reader_translation_page_log_title, pageNumber))
-                    .setMessage(message)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
+                showTranslationTaskPanel()
             }
 
             R.id.button_image_server -> viewLifecycleScope.launch {
@@ -293,6 +285,7 @@ class ReaderConfigSheet :
                 viewBinding?.switchTranslationShowTranslated?.isEnabled = isChecked
                 viewBinding?.buttonRetranslate?.isEnabled = isChecked
                 viewBinding?.buttonTranslationLog?.isEnabled = isChecked
+                viewBinding?.let { updateTranslationBypassHint(it) }
             }
 
             R.id.switch_translation_show_translated -> {
@@ -348,6 +341,275 @@ class ReaderConfigSheet :
         switch.setOnCheckedChangeListener(null)
         switch.isChecked = orientationHelper.isLocked
         switch.setOnCheckedChangeListener(this)
+    }
+
+    private fun updateTranslationBypassHint(binding: SheetReaderConfigBinding) {
+        val hint = viewModel.getTranslationBypassHint(requireContext())
+        val visible = settings.isReaderTranslationEnabled && !hint.isNullOrBlank()
+        binding.textTranslationBypassHint.isVisible = visible
+        if (visible) {
+            binding.textTranslationBypassHint.text = hint
+        }
+    }
+
+    private fun showRetranslateActionDialog() {
+        val options = arrayOf(
+            getString(R.string.reader_translation_retranslate_current_page),
+            getString(R.string.reader_translation_retry_failed_pages),
+            getString(R.string.reader_translation_retranslate_current_chapter),
+        )
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.reader_translation_retranslate)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> viewModel.retranslateCurrent()
+                    1 -> viewModel.retranslateFailedInCurrentChapter()
+                    2 -> viewModel.retranslateCurrentChapter()
+                }
+                dismissAllowingStateLoss()
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun showTranslationTaskPanel() {
+        val snapshots = viewModel.getCurrentChapterTranslationTaskSnapshots()
+        if (snapshots.isEmpty()) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.reader_translation_task_panel_title)
+                .setMessage(R.string.reader_translation_task_panel_empty)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        val filtered = snapshots.filter { taskFilter.matches(it) }
+        if (filtered.isEmpty()) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.reader_translation_task_panel_title)
+                .setMessage(
+                    getString(
+                        R.string.reader_translation_task_panel_empty_for_filter,
+                        taskFilter.label(requireContext()),
+                    ),
+                )
+                .setPositiveButton(R.string.reader_translation_task_filter) { _, _ ->
+                    showTaskFilterDialog()
+                }
+                .setNegativeButton(R.string.close, null)
+                .show()
+            return
+        }
+        val failed = filtered.count { it.state == TranslationLayerState.FAILED }
+        val generating = filtered.count { it.state == TranslationLayerState.GENERATING }
+        val ready = filtered.count { it.state == TranslationLayerState.READY }
+        val summary = getString(
+            R.string.reader_translation_task_panel_summary,
+            filtered.size,
+            ready,
+            generating,
+            failed,
+        )
+        val items = filtered.map { item ->
+            val timeText = item.updatedAtMs?.let { updated ->
+                DateUtils.getRelativeTimeSpanString(
+                    updated,
+                    System.currentTimeMillis(),
+                    DateUtils.MINUTE_IN_MILLIS,
+                    DateUtils.FORMAT_ABBREV_RELATIVE,
+                ).toString()
+            } ?: getString(R.string.reader_translation_task_time_unknown)
+            val preview = item.log.lineSequence().lastOrNull().orEmpty().ifBlank {
+                getString(R.string.reader_translation_page_log_empty)
+            }
+            getString(
+                R.string.reader_translation_task_item,
+                item.pageIndex + 1,
+                translationStateLabel(item.state),
+                timeText,
+                preview,
+            )
+        }.toTypedArray()
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.reader_translation_task_panel_title)
+            .setMessage("$summary\n${getString(R.string.reader_translation_task_filter_current, taskFilter.label(requireContext()))}")
+            .setItems(items) { _, which ->
+                showTranslationPageDetail(filtered[which])
+            }
+            .setPositiveButton(R.string.reader_translation_retry_failed_pages) { _, _ ->
+                viewModel.retranslateFailedInCurrentChapter()
+            }
+            .setNeutralButton(R.string.reader_translation_task_filter) { _, _ ->
+                showTaskFilterDialog()
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun showTaskFilterDialog() {
+        val filters = TranslationTaskFilter.entries
+        val labels = filters.map { it.label(requireContext()) }.toTypedArray()
+        val selected = filters.indexOf(taskFilter).coerceAtLeast(0)
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.reader_translation_task_filter_title)
+            .setSingleChoiceItems(labels, selected) { dialog, which ->
+                taskFilter = filters[which]
+                dialog.dismiss()
+                showTranslationTaskPanel()
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun showTranslationPageDetail(item: ReaderViewModel.TranslationPageTaskSnapshot) {
+        val title = getString(
+            R.string.reader_translation_task_detail_title,
+            item.pageIndex + 1,
+            translationStateLabel(item.state),
+        )
+        val rawLog = item.log.ifBlank {
+            getString(R.string.reader_translation_page_log_empty)
+        }
+        val report = buildTranslationDetailReport(item.log)
+        val message = if (report.isBlank()) rawLog else "$report\n\n----------------\n$rawLog"
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(R.string.reader_translation_retry_this_page) { _, _ ->
+                viewModel.retryTranslationForPage(item.pageId)
+            }
+            .setNeutralButton(androidx.preference.R.string.copy) { _, _ ->
+                requireContext().copyToClipboard(title, message)
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun buildTranslationDetailReport(log: String): String {
+        if (log.isBlank()) return ""
+        var sourceLang = "?"
+        var targetLang = "?"
+        var configuredOcr = "?"
+        val ocrAttempts = linkedMapOf<String, Int>()
+        var localRequested = -1
+        var localDoneTranslated = -1
+        var localDoneTotal = -1
+        var renderedBubbles = -1
+        var failedReason: String? = null
+        var failCode: String? = null
+        val timeline = ArrayList<String>(8)
+        val pairs = ArrayList<Pair<String, String>>(10)
+
+        log.lineSequence().forEach { line ->
+            if (line.contains("process start ")) {
+                Regex("""sourceLang=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { sourceLang = it }
+                Regex("""targetLang=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { targetLang = it }
+                Regex("""ocr=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { configuredOcr = it }
+                timeline.add("开始处理")
+            }
+            if (line.contains("process failed:")) {
+                failedReason = line.substringAfter("process failed:", "").trim()
+                timeline.add("处理失败")
+            }
+            Regex("""fail_code=([A-Z_]+)""").find(line)?.groupValues?.getOrNull(1)?.let {
+                failCode = it
+            }
+            Regex("""ocr engine=([A-Z_]+) blocks=(\d+)""").find(line)?.let { m ->
+                val engine = m.groupValues[1]
+                val blocks = m.groupValues[2].toIntOrNull() ?: 0
+                ocrAttempts[engine] = blocks
+                timeline.add("OCR[$engine]=$blocks")
+            }
+            Regex("""translate local requested size=(\d+)""").find(line)?.let { m ->
+                localRequested = m.groupValues[1].toIntOrNull() ?: -1
+                timeline.add("本地翻译请求=$localRequested")
+            }
+            Regex("""translate local batch done translated=(\d+)/(\d+)""").find(line)?.let { m ->
+                localDoneTranslated = m.groupValues[1].toIntOrNull() ?: -1
+                localDoneTotal = m.groupValues[2].toIntOrNull() ?: -1
+                timeline.add("本地翻译完成=$localDoneTranslated/$localDoneTotal")
+            }
+            Regex("""render done translatedBubbles=(\d+)""").find(line)?.let { m ->
+                renderedBubbles = m.groupValues[1].toIntOrNull() ?: -1
+                timeline.add("渲染完成=$renderedBubbles")
+            }
+            Regex("""bubble translate src=(.*?) out=(.*?) box=""").find(line)?.let { m ->
+                if (pairs.size < 8) {
+                    pairs.add(m.groupValues[1].trim() to m.groupValues[2].trim())
+                }
+            }
+        }
+
+        return buildString {
+            appendLine("【翻译诊断】")
+            appendLine("语言: $sourceLang -> $targetLang")
+            appendLine("配置 OCR: $configuredOcr")
+            if (ocrAttempts.isNotEmpty()) {
+                appendLine("OCR 尝试: ${ocrAttempts.entries.joinToString { "${it.key}:${it.value}" }}")
+            }
+            if (localRequested >= 0) {
+                appendLine("本地翻译: 请求 $localRequested, 完成 $localDoneTranslated/$localDoneTotal")
+            }
+            if (renderedBubbles >= 0) {
+                appendLine("渲染气泡: $renderedBubbles")
+            }
+            failCode?.let {
+                appendLine("失败代码: $it")
+            }
+            failedReason?.let {
+                appendLine("失败原因: $it")
+            }
+            if (timeline.isNotEmpty()) {
+                appendLine("阶段时间线: ${timeline.joinToString(" -> ")}")
+            }
+            if (pairs.isNotEmpty()) {
+                appendLine()
+                appendLine("示例识别/翻译:")
+                pairs.forEachIndexed { idx, (src, out) ->
+                    appendLine("${idx + 1}. 原: ${src.ifBlank { "<空>" }}")
+                    appendLine("   译: ${out.ifBlank { "<空>" }}")
+                }
+            }
+        }.trim()
+    }
+
+    private fun translationStateLabel(state: TranslationLayerState): String {
+        return when (state) {
+            TranslationLayerState.IDLE -> getString(R.string.reader_translation_task_state_idle)
+            TranslationLayerState.GENERATING -> getString(R.string.reader_translation_task_state_generating)
+            TranslationLayerState.READY -> getString(R.string.reader_translation_task_state_ready)
+            TranslationLayerState.FAILED -> getString(R.string.reader_translation_task_state_failed)
+        }
+    }
+
+    private enum class TranslationTaskFilter {
+        ALL,
+        FAILED,
+        OCR_EMPTY,
+        TRANSLATE_EMPTY,
+        RENDER_FILTERED,
+        PROCESS_EXCEPTION;
+
+        fun matches(item: ReaderViewModel.TranslationPageTaskSnapshot): Boolean {
+            return when (this) {
+                ALL -> true
+                FAILED -> item.state == TranslationLayerState.FAILED
+                OCR_EMPTY -> item.failCode == "OCR_EMPTY"
+                TRANSLATE_EMPTY -> item.failCode == "TRANSLATE_EMPTY"
+                RENDER_FILTERED -> item.failCode == "RENDER_FILTERED"
+                PROCESS_EXCEPTION -> item.failCode == "PROCESS_EXCEPTION"
+            }
+        }
+
+        fun label(context: android.content.Context): String {
+            return when (this) {
+                ALL -> context.getString(R.string.reader_translation_task_filter_all)
+                FAILED -> context.getString(R.string.reader_translation_task_filter_failed)
+                OCR_EMPTY -> context.getString(R.string.reader_translation_task_filter_ocr_empty)
+                TRANSLATE_EMPTY -> context.getString(R.string.reader_translation_task_filter_translate_empty)
+                RENDER_FILTERED -> context.getString(R.string.reader_translation_task_filter_render_filtered)
+                PROCESS_EXCEPTION -> context.getString(R.string.reader_translation_task_filter_exception)
+            }
+        }
     }
 
     private suspend fun bindImageServerTitle() {

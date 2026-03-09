@@ -21,12 +21,6 @@
         android:title="@string/reader_settings" />
 
     <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.TranslationSettingsFragment"
-        android:icon="@drawable/ic_language"
-        android:key="translation"
-        android:title="@string/translation_settings" />
-
-    <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.PlaybackSettingsFragment"
         android:icon="@drawable/ic_play"
         android:key="playback"

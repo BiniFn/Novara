@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.reader.translate.data.NcnnModelManager
 import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.PaddleOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
@@ -64,9 +65,7 @@ class TranslationSettingsFragment :
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE)?.run {
 			entryValues = arrayOf(
 				ReaderOcrEngine.MLKIT.name,
-				ReaderOcrEngine.TFLITE.name,
 				ReaderOcrEngine.HYBRID.name,
-				ReaderOcrEngine.NCNN.name,
 			)
 			setDefaultValue(ReaderOcrEngine.MLKIT.name)
 		}
@@ -125,11 +124,11 @@ class TranslationSettingsFragment :
 				applyOfficialPaddleModel()
 				updatePaddleOfficialModelEntries()
 			}
-			AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_ID -> {
+			AppSettings.KEY_READER_TRANSLATION_REC_MODEL_ID -> {
 				applyOfficialTfliteModel()
 				updateTfliteOfficialModelEntries()
 			}
-			AppSettings.KEY_READER_TRANSLATION_NCNN_MODEL_ID -> {
+			AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID -> {
 				updateNcnnOfficialModelEntries()
 			}
 			AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID -> {
@@ -149,16 +148,15 @@ class TranslationSettingsFragment :
 	}
 
 	private fun updateOcrEngineDependency() {
-		val isTflite = settings.readerTranslationOcrEngine == ReaderOcrEngine.TFLITE
 		val isHybrid = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
 		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
 
-		if (isHybrid || isTflite) {
-			if (sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_URL, "").isNullOrBlank()) {
+		if (isHybrid) {
+			if (sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL, "").isNullOrBlank()) {
 				sharedPreferences.edit {
 					putString(
-						AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_URL,
-						getString(R.string.reader_translation_tflite_model_url_default),
+						AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL,
+						getString(R.string.reader_translation_rec_model_url_default),
 					)
 				}
 			}
@@ -198,49 +196,46 @@ class TranslationSettingsFragment :
 	}
 
 	private fun updateTfliteOfficialModelEntries() {
-		val isTflite = settings.readerTranslationOcrEngine == ReaderOcrEngine.TFLITE
 		val isHybrid = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
 		val models = TfliteOfficialModelCatalog.models
 
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_ID)?.run {
-			entries = arrayOf(getString(R.string.disabled)) + models.map { model ->
+		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_ID)?.run {
+			entries = arrayOf(
+				getString(R.string.reader_translation_ocr_model_rec_ppocr_v5),
+				getString(R.string.reader_translation_ocr_model_rec_autodetect),
+			) + models.map { model ->
 				val suffix = if (tfliteModelManager.isModelDownloaded(model.version)) ""
 				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
 				model.title + suffix
 			}.toTypedArray()
-			entryValues = arrayOf("") + models.map { it.id }.toTypedArray()
-			setDefaultValue("")
+			entryValues = arrayOf("PPOCR_V5_REC", "AUTO") + models.map { it.id }.toTypedArray()
+			setDefaultValue("PPOCR_V5_REC")
 			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 			val values = entryValues?.map { it.toString() }.orEmpty()
 			if (value != null && value !in values) {
-				value = ""
+				value = "PPOCR_V5_REC"
 				applyOfficialTfliteModel()
 			}
-			isVisible = isTflite || isHybrid
+			isVisible = isHybrid
 		}
 	}
 
 	private fun updateNcnnOfficialModelEntries() {
-		val isNcnnFamily = when (settings.readerTranslationOcrEngine) {
-			ReaderOcrEngine.HYBRID,
-			ReaderOcrEngine.NCNN,
-			-> true
-			else -> false
-		}
+		val isNcnnFamily = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
 		val models = NcnnOfficialModelCatalog.models
 
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_NCNN_MODEL_ID)?.run {
-			entries = arrayOf(getString(R.string.disabled)) + models.map { model ->
+		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID)?.run {
+			entries = arrayOf(getString(R.string.reader_translation_ocr_model_det_autodetect)) + models.map { model ->
 				val suffix = if (ncnnModelManager.isModelDownloaded(model.version)) ""
 				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
 				model.title + suffix
 			}.toTypedArray()
-			entryValues = arrayOf("") + models.map { it.id }.toTypedArray()
-			setDefaultValue("")
+			entryValues = arrayOf("AUTO") + models.map { it.id }.toTypedArray()
+			setDefaultValue("AUTO")
 			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 			val values = entryValues?.map { it.toString() }.orEmpty()
 			if (value != null && value !in values) {
-				value = ""
+					value = "AUTO"
 			}
 			isVisible = isNcnnFamily
 		}
@@ -249,10 +244,14 @@ class TranslationSettingsFragment :
 	private fun updateOnnxOfficialModelEntries() {
 		val models = OnnxOfficialModelCatalog.models
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID)?.run {
-			entries = arrayOf(getString(R.string.disabled)) + models.map { model ->
+			entries = arrayOf(getString(R.string.reader_translation_local_model_mlkit)) + models.map { model ->
 				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
 				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				model.title + suffix
+				val title = when (model.category) {
+					OnnxModelCategory.GENERAL_LLM -> "${model.title} [LLM]"
+					OnnxModelCategory.CLASSIC_TRANSLATION -> model.title
+				}
+				title + suffix
 			}.toTypedArray()
 			entryValues = arrayOf("") + models.map { it.id }.toTypedArray()
 			setDefaultValue("")
@@ -268,23 +267,23 @@ class TranslationSettingsFragment :
 	private fun normalizeDeprecatedOcrEngineSelection() {
 		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
 		val raw = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT.name)
-		if (raw == ReaderOcrEngine.PADDLE.name) {
+		if (raw == ReaderOcrEngine.PADDLE.name || raw == ReaderOcrEngine.TFLITE.name || raw == ReaderOcrEngine.NCNN.name) {
 			sharedPreferences.edit {
-				putString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.NCNN.name)
+				putString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.HYBRID.name)
 			}
 		}
 	}
 
 	private fun applyOfficialTfliteModel() {
 		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		val modelId = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_ID, null)
+		val modelId = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_ID, null)
 		val model = TfliteOfficialModelCatalog.findById(modelId)
 		sharedPreferences.edit {
-			if (model == null) {
-				remove(AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_URL)
-				remove(AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_PATH)
+			if (model == null || modelId == "PPOCR_V5_REC") {
+				remove(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL)
+				remove(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_PATH)
 			} else {
-				putString(AppSettings.KEY_READER_TRANSLATION_TFLITE_MODEL_URL, model.encoderUrl)
+				putString(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL, model.encoderUrl)
 			}
 		}
 	}
@@ -294,7 +293,12 @@ class TranslationSettingsFragment :
 		val preset = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM")
 		val endpointAndModel = when (preset) {
 			"OPENAI" -> "https://api.openai.com/v1/chat/completions" to "gpt-4o-mini"
-			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-chat"
+			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-v3"
+			"ZHIPU" -> "https://open.bigmodel.cn/api/paas/v4/chat/completions" to "glm-4-plus"
+			"ALIBABA" -> "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" to "qwen-plus"
+			"MOONSHOT" -> "https://api.moonshot.cn/v1/chat/completions" to "moonshot-v1-8k"
+			"MINIMAX" -> "https://api.minimax.chat/v1/text/chatcompletion_v2" to "minimax-m2.5"
+			"BAIDU" -> "https://qianfan.baidubce.com/v2/chat/completions" to "ernie-4.0-8k"
 			"ANTHROPIC" -> "https://api.anthropic.com/v1/chat/completions" to "claude-sonnet-4-6"
 			"GEMINI" -> "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" to "gemini-3-flash-preview"
 			"OPENROUTER" -> "https://openrouter.ai/api/v1/chat/completions" to "openai/gpt-4o-mini"

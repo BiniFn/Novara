@@ -5,6 +5,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -28,6 +29,7 @@ import androidx.transition.TransitionSet
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -135,6 +137,7 @@ class ReaderActivity :
         viewBinding.actionsView.listener = this
         viewBinding.buttonTimer?.setOnClickListener(this)
         viewBinding.buttonTranslationToggle.setOnClickListener(this)
+        viewBinding.buttonTranslationLogPanel?.setOnClickListener(this)
         idlingDetector.bindToLifecycle(this)
         screenOrientationHelper.applySettings()
         viewModel.isBookmarkAdded.observe(this) { viewBinding.actionsView.isBookmarkAdded = it }
@@ -276,6 +279,7 @@ class ReaderActivity :
         when (v.id) {
             R.id.button_timer -> onScrollTimerClick(isLongClick = false)
             R.id.button_translation_toggle -> toggleTranslationLayer()
+            R.id.button_translation_log_panel -> showTranslationTaskPanelQuick()
         }
     }
 
@@ -347,7 +351,8 @@ class ReaderActivity :
             viewBinding.zoomControl.hasGlobalPoint(rawX, rawY) ||
             viewBinding.timerControl.hasGlobalPoint(rawX, rawY) ||
             viewBinding.buttonTimer?.hasGlobalPoint(rawX, rawY) == true ||
-            viewBinding.buttonTranslationToggle.hasGlobalPoint(rawX, rawY)
+            viewBinding.buttonTranslationToggle.hasGlobalPoint(rawX, rawY) ||
+            viewBinding.buttonTranslationLogPanel?.hasGlobalPoint(rawX, rawY) == true
         ) {
             false
         } else {
@@ -616,8 +621,9 @@ class ReaderActivity :
 
     private fun updateTranslationToggleButton() {
         val button = viewBinding.buttonTranslationToggle
-        val shouldShow = settings.isReaderTranslationEnabled && !viewBinding.appbarTop.isVisible
+        val shouldShow = viewModel.shouldShowTranslationToggle() && !viewBinding.appbarTop.isVisible
         button.isVisible = shouldShow
+        viewBinding.buttonTranslationLogPanel?.isVisible = shouldShow
         val showTranslated = settings.isReaderTranslationShowTranslated
         val iconRes = when (currentTranslationLayerState) {
             TranslationLayerState.GENERATING -> R.drawable.ic_sync
@@ -639,6 +645,14 @@ class ReaderActivity :
 
     private fun toggleTranslationLayer() {
         if (!settings.isReaderTranslationEnabled) {
+            return
+        }
+        viewModel.getTranslationBypassHint(this)?.let { hint ->
+            Snackbar.make(
+                viewBinding.container,
+                hint,
+                Snackbar.LENGTH_SHORT,
+            ).setAnchorView(viewBinding.toolbarDocked).show()
             return
         }
         val showTranslated = settings.isReaderTranslationShowTranslated
@@ -681,6 +695,67 @@ class ReaderActivity :
             else R.string.reader_translation_mode_switched_original,
             Snackbar.LENGTH_SHORT,
         ).setAnchorView(viewBinding.toolbarDocked).show()
+    }
+
+    private fun showTranslationTaskPanelQuick() {
+        val snapshots = viewModel.getCurrentChapterTranslationTaskSnapshots()
+        if (snapshots.isEmpty()) {
+            Snackbar.make(viewBinding.container, R.string.reader_translation_task_panel_empty, Snackbar.LENGTH_SHORT)
+                .setAnchorView(viewBinding.toolbarDocked)
+                .show()
+            return
+        }
+        val items = snapshots.map { item ->
+            val timeText = item.updatedAtMs?.let { updated ->
+                DateUtils.getRelativeTimeSpanString(
+                    updated,
+                    System.currentTimeMillis(),
+                    DateUtils.MINUTE_IN_MILLIS,
+                    DateUtils.FORMAT_ABBREV_RELATIVE,
+                ).toString()
+            } ?: getString(R.string.reader_translation_task_time_unknown)
+            val preview = item.log.lineSequence().lastOrNull().orEmpty().ifBlank {
+                getString(R.string.reader_translation_page_log_empty)
+            }
+            getString(
+                R.string.reader_translation_task_item,
+                item.pageIndex + 1,
+                when (item.state) {
+                    TranslationLayerState.IDLE -> getString(R.string.reader_translation_task_state_idle)
+                    TranslationLayerState.GENERATING -> getString(R.string.reader_translation_task_state_generating)
+                    TranslationLayerState.READY -> getString(R.string.reader_translation_task_state_ready)
+                    TranslationLayerState.FAILED -> getString(R.string.reader_translation_task_state_failed)
+                },
+                timeText,
+                preview,
+            )
+        }.toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.reader_translation_task_panel_title)
+            .setItems(items) { _, which ->
+                val task = snapshots[which]
+                val stateLabel = when (task.state) {
+                    TranslationLayerState.IDLE -> getString(R.string.reader_translation_task_state_idle)
+                    TranslationLayerState.GENERATING -> getString(R.string.reader_translation_task_state_generating)
+                    TranslationLayerState.READY -> getString(R.string.reader_translation_task_state_ready)
+                    TranslationLayerState.FAILED -> getString(R.string.reader_translation_task_state_failed)
+                }
+                val title = getString(R.string.reader_translation_task_detail_title, task.pageIndex + 1, stateLabel)
+                val message = task.log.ifBlank { getString(R.string.reader_translation_page_log_empty) }
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton(R.string.reader_translation_retry_this_page) { _, _ ->
+                        viewModel.retryTranslationForPage(task.pageId)
+                    }
+                    .setNegativeButton(R.string.close, null)
+                    .show()
+            }
+            .setPositiveButton(R.string.reader_translation_retry_failed_pages) { _, _ ->
+                viewModel.retranslateFailedInCurrentChapter()
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
     }
 
     // Observe foldable window layout to auto-enable double-page if configured

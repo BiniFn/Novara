@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.reader.ui
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.annotation.AnyThread
@@ -32,6 +33,7 @@ import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.exceptions.EmptyMangaException
 import org.skepsun.kototoro.core.model.getPreferredBranch
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.nav.MangaIntent
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.core.os.AppShortcutManager
@@ -108,6 +110,15 @@ class ReaderViewModel @Inject constructor(
     deleteLocalMangaUseCase = deleteLocalMangaUseCase,
     localStorageChanges = localStorageChanges,
 ) {
+    data class TranslationPageTaskSnapshot(
+        val pageId: Long,
+        val pageIndex: Int,
+        val state: TranslationLayerState,
+        val updatedAtMs: Long?,
+        val log: String,
+        val failCode: String?,
+    )
+
     private val intent = MangaIntent(savedStateHandle)
 
     private var loadingJob: Job? = null
@@ -128,6 +139,7 @@ class ReaderViewModel @Inject constructor(
     val targetPagePosition = MutableStateFlow<Int?>(null)
     val translationLayerState = MutableStateFlow(TranslationLayerState.IDLE)
     private val translationStateByPageId = linkedMapOf<Long, TranslationLayerState>()
+    private val translationStateUpdatedAtByPageId = linkedMapOf<Long, Long>()
 
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
@@ -228,10 +240,97 @@ class ReaderViewModel @Inject constructor(
 
     fun retranslateCurrent() {
         launchJob(Dispatchers.Default) {
-            pageLoader.invalidateTranslationCaches()
+            val page = getCurrentPage() ?: return@launchJob
+            pageLoader.invalidateTranslationTask(page.id)
+            pageLoader.invalidateTranslationCacheForPage(page.id)
             reload()
             onShowToast.call(R.string.reader_translation_retranslate_started)
         }
+    }
+
+    fun retranslateFailedInCurrentChapter() {
+        launchJob(Dispatchers.Default) {
+            val pages = getCurrentChapterPages().orEmpty()
+            if (pages.isEmpty()) return@launchJob
+            var retries = 0
+            pages.forEach { page ->
+                if (translationStateByPageId[page.id] == TranslationLayerState.FAILED) {
+                    pageLoader.invalidateTranslationTask(page.id)
+                    pageLoader.invalidateTranslationCacheForPage(page.id)
+                    retries++
+                }
+            }
+            if (retries == 0) {
+                onShowToast.call(R.string.reader_translation_retry_failed_none)
+                return@launchJob
+            }
+            reload()
+            onShowToast.call(R.string.reader_translation_retry_failed_started)
+        }
+    }
+
+    fun retranslateCurrentChapter() {
+        launchJob(Dispatchers.Default) {
+            val chapterPages = getCurrentChapterPages().orEmpty()
+            if (chapterPages.isEmpty()) return@launchJob
+            chapterPages.forEach { page ->
+                pageLoader.invalidateTranslationTask(page.id)
+                pageLoader.invalidateTranslationCacheForPage(page.id)
+            }
+            reload()
+            onShowToast.call(R.string.reader_translation_retranslate_chapter_started)
+        }
+    }
+
+    fun retryTranslationForPage(pageId: Long) {
+        launchJob(Dispatchers.Default) {
+            pageLoader.invalidateTranslationTask(pageId)
+            pageLoader.invalidateTranslationCacheForPage(pageId)
+            val currentPageId = getCurrentPage()?.id
+            if (currentPageId == pageId) {
+                reload()
+            }
+        }
+    }
+
+    fun getCurrentChapterTranslationTaskSnapshots(): List<TranslationPageTaskSnapshot> {
+        val pages = getCurrentChapterPages().orEmpty()
+        return pages.mapIndexed { index, page ->
+            val log = pageLoader.getTranslationDebugLog(page.id)
+            TranslationPageTaskSnapshot(
+                pageId = page.id,
+                pageIndex = index,
+                state = translationStateByPageId[page.id] ?: TranslationLayerState.IDLE,
+                updatedAtMs = translationStateUpdatedAtByPageId[page.id],
+                log = log,
+                failCode = Regex("""fail_code=([A-Z_]+)""")
+                    .findAll(log)
+                    .lastOrNull()
+                    ?.groupValues
+                    ?.getOrNull(1),
+            )
+        }
+    }
+
+    fun isTranslationBypassedForCurrentManga(): Boolean {
+        if (!settings.isReaderTranslationEnabled) return false
+        val sourceLang = getMangaOrNull()?.source?.getLocale()?.language?.lowercase().orEmpty()
+        if (sourceLang.isBlank()) return false
+        val targetLang = settings.readerTranslationTargetLanguage
+            .lowercase()
+            .substringBefore('-')
+            .substringBefore('_')
+        return sourceLang == targetLang
+    }
+
+    fun getTranslationBypassHint(context: Context): String? {
+        if (!isTranslationBypassedForCurrentManga()) return null
+        val targetLang = settings.readerTranslationTargetLanguage
+        return context.getString(R.string.reader_translation_bypass_hint, targetLang)
+    }
+
+    fun shouldShowTranslationToggle(): Boolean {
+        return settings.isReaderTranslationEnabled && !isTranslationBypassedForCurrentManga()
     }
 
     fun onPause() {
@@ -594,6 +693,7 @@ class ReaderViewModel @Inject constructor(
         launchJob(Dispatchers.Default) {
             pageLoader.observeTranslationStatusUpdates().collect { event ->
                 translationStateByPageId[event.pageId] = event.state
+                translationStateUpdatedAtByPageId[event.pageId] = System.currentTimeMillis()
                 val currentPageId = getCurrentPage()?.id
                 if (currentPageId == event.pageId) {
                     translationLayerState.value = event.state

@@ -65,7 +65,7 @@ data class ReaderSettings(
 	val translationPaddleClsModelUrl: String,
 	val translationPaddleClsModelVersion: String,
 	val translationPaddleClsModelSha256: String,
-	val translationNcnnModelId: String,
+	val translationDetModelId: String,
 	val translationOnnxModelId: String,
 ) {
 
@@ -107,7 +107,7 @@ data class ReaderSettings(
 		translationPaddleClsModelUrl = settings.readerTranslationPaddleClsModelUrl,
 		translationPaddleClsModelVersion = settings.readerTranslationPaddleClsModelVersion,
 		translationPaddleClsModelSha256 = settings.readerTranslationPaddleClsModelSha256,
-		translationNcnnModelId = settings.readerTranslationNcnnModelId,
+		translationDetModelId = settings.readerTranslationDetModelId,
 		translationOnnxModelId = settings.readerTranslationOnnxModelId,
 	)
 
@@ -177,7 +177,7 @@ data class ReaderSettings(
 		append('|')
 		append(translationPaddleClsModelSha256)
 		append('|')
-		append(translationNcnnModelId)
+		append(translationDetModelId)
 	}
 
 	fun translationDisplaySignature(): String = buildString {
@@ -235,7 +235,7 @@ data class ReaderSettings(
 		append('|')
 		append(translationPaddleClsModelSha256)
 		append('|')
-		append(translationNcnnModelId)
+		append(translationDetModelId)
 		append('|')
 		append(translationOnnxModelId)
 	}
@@ -299,7 +299,7 @@ data class ReaderSettings(
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_URL,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256,
-			AppSettings.KEY_READER_TRANSLATION_NCNN_MODEL_ID,
+			AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID,
 		)
 		private var job: Job? = null
 

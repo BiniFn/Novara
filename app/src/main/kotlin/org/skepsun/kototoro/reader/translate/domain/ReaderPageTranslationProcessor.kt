@@ -50,6 +50,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import okio.source
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -77,8 +78,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val pageLogLock = Any()
 	private val renderedSourceMap = LruCache<String, String>(512)
 	private val pageDebugLogs = LongSparseArray<ArrayDeque<String>>()
+	private val pageRenderEpochs = LongSparseArray<Int>()
 	@Volatile
-	private var currentLoggingPageId: Long = -1L
+	private var currentLoggingPageId: Long = NO_LOGGING_PAGE_ID
+	@Volatile
+	private var renderCacheEpoch: Int = 0
 	private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 		color = Color.WHITE
 		style = Paint.Style.FILL
@@ -91,7 +95,21 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 	fun clearAllCaches() {
 		textCache.clear()
-		log { "translation caches cleared" }
+		synchronized(pageLogLock) {
+			pageDebugLogs.clear()
+			pageRenderEpochs.clear()
+		}
+		renderCacheEpoch += 1
+		log { "translation caches cleared epoch=$renderCacheEpoch" }
+	}
+
+	fun clearPageCaches(pageId: Long) {
+		synchronized(pageLogLock) {
+			pageDebugLogs.remove(pageId)
+			val current = pageRenderEpochs[pageId] ?: 0
+			pageRenderEpochs.put(pageId, current + 1)
+		}
+		log { "translation page cache cleared page=$pageId" }
 	}
 
 	suspend fun peekRendered(page: MangaPage, sourceUri: Uri): Uri? {
@@ -103,7 +121,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		if (sourceLang == targetLang) {
 			return null
 		}
-		val renderCacheKey = buildRenderedCacheKey(page.url, sourceUri.toString(), sourceLang, targetLang)
+		val renderCacheKey = buildRenderedCacheKey(
+			pageUrl = page.url,
+			sourceUri = sourceUri.toString(),
+			sourceLang = sourceLang,
+			targetLang = targetLang,
+			pageEpoch = getPageRenderEpoch(page.id),
+		)
 		return cache[renderCacheKey]?.toUri()?.also {
 			rememberRenderedSource(it, sourceUri)
 		}
@@ -126,7 +150,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			log { "process skip: cannot localize uri=$sourceUri" }
 			return sourceUri
 		}
-		val renderCacheKey = buildRenderedCacheKey(page.url, sourceUri.toString(), sourceLang, targetLang)
+		val renderCacheKey = buildRenderedCacheKey(
+			pageUrl = page.url,
+			sourceUri = sourceUri.toString(),
+			sourceLang = sourceLang,
+			targetLang = targetLang,
+			pageEpoch = getPageRenderEpoch(page.id),
+		)
 		cache[renderCacheKey]?.let {
 			return it.toUri().also { rendered ->
 				rememberRenderedSource(rendered, localUri)
@@ -146,9 +176,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			}.onFailure {
 				it.printStackTraceDebug()
 				appendPageLog(page.id, "process failed: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
+				appendPageLog(page.id, "fail_code=$FAIL_CODE_PROCESS_EXCEPTION")
 			}.getOrDefault(sourceUri)
 		}.also {
-			currentLoggingPageId = -1L
+			currentLoggingPageId = NO_LOGGING_PAGE_ID
 		}
 	}
 
@@ -180,6 +211,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		log { "ocr done blocks=${textBlocks.size}" }
 		if (textBlocks.isEmpty()) {
+			log { "fail_code=$FAIL_CODE_OCR_EMPTY" }
 			return sourceUri
 		}
 		val sourceBitmap = runInterruptible(Dispatchers.IO) {
@@ -199,17 +231,18 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			)
 		}
 		val groupedFragments = groupFragmentsByBubble(sourceFragments, bitmap)
-		val bubbleInputs = groupedFragments.mapNotNull { group ->
-			val mergedRect = mergeRects(group.map { it.rect }) ?: return@mapNotNull null
-			val sourceText = composeGroupedText(group, sourceLang).trim()
-			if (sourceText.isBlank()) {
-				return@mapNotNull null
-			}
-			val verticalPreferred = sourceLang.startsWith("ja") &&
-				(isLikelyColumnLayout(group) || mergedRect.height() > mergedRect.width() * 13 / 10)
-			BubbleInput(
-				rect = mergedRect,
-				sourceText = sourceText,
+			val bubbleInputs = groupedFragments.mapNotNull { group ->
+				val mergedRect = mergeRects(group.map { it.rect }) ?: return@mapNotNull null
+				val sourceText = composeGroupedText(group, sourceLang).trim()
+				if (sourceText.isBlank()) {
+					return@mapNotNull null
+				}
+				val verticalPreferred = isVerticalTargetLanguage(targetLang) &&
+					sourceLang.startsWith("ja") &&
+					(isLikelyColumnLayout(group) || mergedRect.height() > mergedRect.width() * 13 / 10)
+				BubbleInput(
+					rect = mergedRect,
+					sourceText = sourceText,
 				verticalPreferred = verticalPreferred,
 			)
 		}
@@ -219,12 +252,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			targetLang = targetLang,
 		)
 		val preparedBubbles = mutableListOf<PreparedBubble>()
+		var nonEmptyTranslatedCount = 0
 		for (bubble in bubbleInputs) {
 			val translated = translatedMap[bubble.sourceText].orEmpty().trim()
 			log {
 				"bubble translate src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
 			}
 			if (translated.isBlank()) continue
+			nonEmptyTranslatedCount++
 			if (isLikelyGarbledText(translated)) continue
 			val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
 			prepareTranslatedBubble(
@@ -244,6 +279,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			drawBubbleText(canvas, bubble)
 		}
 		log { "render done translatedBubbles=${preparedBubbles.size}" }
+		if (preparedBubbles.isEmpty()) {
+			val failCode = if (nonEmptyTranslatedCount == 0) {
+				FAIL_CODE_TRANSLATE_EMPTY
+			} else {
+				FAIL_CODE_RENDER_FILTERED
+			}
+			log { "fail_code=$failCode" }
+			bitmap.recycle()
+			return sourceUri
+		}
 		val output = cache.set(renderCacheKey, bitmap).toUri()
 		rememberRenderedSource(output, sourceUri)
 		bitmap.recycle()
@@ -259,6 +304,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
 			else -> settings.readerTranslationOcrEngine
 		}
+		val minAcceptableBlocks = when {
+			sourceLang.startsWith("ja") -> 3
+			sourceLang.startsWith("zh") || sourceLang.startsWith("ko") -> 2
+			else -> 1
+		}
 		val order = linkedSetOf<ReaderOcrEngine>().apply {
 			add(primary)
 			add(ReaderOcrEngine.NCNN)
@@ -266,6 +316,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			add(ReaderOcrEngine.TFLITE)
 			add(ReaderOcrEngine.MLKIT)
 		}
+		var bestResult: List<OcrTextBlock> = emptyList()
+		var bestEngine: ReaderOcrEngine? = null
 		for (engine in order) {
 			val result = runCatching {
 				recognizeTextByEngine(engine, sourceUri, sourceLang)
@@ -273,12 +325,25 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				it.printStackTraceDebug()
 			}.getOrDefault(emptyList())
 			if (result.isNotEmpty()) {
-				log { "ocr engine=$engine blocks=${result.size}" }
-				return result
+				if (result.size > bestResult.size) {
+					bestResult = result
+					bestEngine = engine
+				}
+				if (result.size >= minAcceptableBlocks || engine == ReaderOcrEngine.MLKIT) {
+					log { "ocr engine=$engine blocks=${result.size}" }
+					return result
+				}
+				log {
+					"ocr engine=$engine blocks=${result.size}, below threshold=$minAcceptableBlocks, trying fallback"
+				}
+				continue
 			}
 			log { "ocr engine=$engine blocks=0, trying fallback" }
 		}
-		return emptyList()
+		if (bestResult.isNotEmpty()) {
+			log { "ocr fallback use best engine=$bestEngine blocks=${bestResult.size}" }
+		}
+		return bestResult
 	}
 
 	private suspend fun recognizeTextByEngine(
@@ -341,15 +406,27 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 		if (mode != ReaderTranslationMode.API_ONLY) {
 			val needLocal = misses.filter { translated[it].isNullOrBlank() }
-			val localResults = coroutineScope {
-				needLocal.map { text ->
-					async {
-						val local = runCatching {
-							translateLocal(text, sourceLang, targetLang)
-						}.getOrNull()?.trim().orEmpty()
-						text to local
-					}
-				}.awaitAll()
+			log { "translate local requested size=${needLocal.size}" }
+			var localResults = runCatching {
+				translateLocalBatch(needLocal, sourceLang, targetLang)
+			}.onFailure {
+				it.printStackTraceDebug()
+				log { "translate local batch failed: ${it.message.orEmpty()}" }
+			}.getOrDefault(emptyMap())
+			if (needLocal.isNotEmpty() && localResults.values.none { it.isNotBlank() }) {
+				log { "translate local batch empty, fallback to per-item translation" }
+				localResults = coroutineScope {
+					needLocal.map { text ->
+						async {
+							val local = runCatching {
+								translateLocal(text, sourceLang, targetLang)
+							}.onFailure {
+								log { "translate local fallback failed src=${oneLine(text)} err=${it.message.orEmpty()}" }
+							}.getOrDefault("").trim()
+							text to local
+						}
+					}.awaitAll().toMap()
+				}
 			}
 			for ((text, local) in localResults) {
 				if (local.isNotBlank()) {
@@ -527,6 +604,43 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return try {
 			translator.downloadModelIfNeeded().awaitCancellable()
 			translator.translate(text).awaitCancellable()
+		} finally {
+			translator.close()
+		}
+	}
+
+	private suspend fun translateLocalBatch(
+		texts: List<String>,
+		sourceLang: String,
+		targetLang: String,
+	): Map<String, String> {
+		if (texts.isEmpty()) return emptyMap()
+		val source = TranslateLanguage.fromLanguageTag(sourceLang)
+		val target = TranslateLanguage.fromLanguageTag(targetLang)
+		if (source == null || target == null) {
+			return texts.associateWith { "" }
+		}
+		val options = TranslatorOptions.Builder()
+			.setSourceLanguage(source)
+			.setTargetLanguage(target)
+			.build()
+		val translator = Translation.getClient(options)
+		return try {
+			log { "translate local batch start size=${texts.size} source=$sourceLang target=$targetLang" }
+			translator.downloadModelIfNeeded().awaitCancellable()
+			val results = LinkedHashMap<String, String>(texts.size)
+			for (text in texts) {
+				val out = runCatching {
+					withTimeout(15_000) {
+						translator.translate(text).awaitCancellable()
+					}
+				}.onFailure {
+					log { "translate local item failed src=${oneLine(text)} err=${it.message.orEmpty()}" }
+				}.getOrDefault("").trim()
+				results[text] = out
+			}
+			log { "translate local batch done translated=${results.count { it.value.isNotBlank() }}/${texts.size}" }
+			results
 		} finally {
 			translator.close()
 		}
@@ -923,6 +1037,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return avgHeight > avgWidth * 1.2 && xBuckets >= 2
 	}
 
+	private fun isVerticalTargetLanguage(targetLang: String): Boolean {
+		val normalized = targetLang.trim().lowercase()
+		return normalized.startsWith("zh") || normalized.startsWith("ja")
+	}
+
 	private fun mergeRects(rects: List<Rect>): Rect? {
 		if (rects.isEmpty()) return null
 		var left = rects[0].left
@@ -950,6 +1069,9 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		verticalPreferred: Boolean,
 		bubbleLikeRegion: Boolean,
 	): PreparedBubble? {
+		if (bitmapWidth <= 1 || bitmapHeight <= 1) {
+			return null
+		}
 		val padding = dp(4f)
 		val baseRect = Rect(
 			rect.left.coerceIn(0, bitmapWidth - 1),
@@ -1084,8 +1206,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			TuningLevel.BALANCED -> dp(12f)
 			TuningLevel.RELAXED -> dp(16f)
 		}
-		val targetW = ((contentWidth + padding * 2) * extraScale).toInt().coerceIn(minSide, outer.width())
-		val targetH = ((contentHeight + padding * 2) * extraScale).toInt().coerceIn(minSide, outer.height())
+		val minTargetW = min(minSide, outer.width()).coerceAtLeast(1)
+		val minTargetH = min(minSide, outer.height()).coerceAtLeast(1)
+		val targetW = ((contentWidth + padding * 2) * extraScale).toInt().coerceIn(minTargetW, outer.width())
+		val targetH = ((contentHeight + padding * 2) * extraScale).toInt().coerceIn(minTargetH, outer.height())
 		val cx = outer.centerX()
 		val cy = outer.centerY()
 		var left = cx - targetW / 2
@@ -1306,7 +1430,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private inline fun log(message: () -> String) {
 		val msg = message()
 		val pageId = currentLoggingPageId
-		if (pageId > 0L) {
+		if (pageId != NO_LOGGING_PAGE_ID) {
 			appendPageLog(pageId, msg)
 		}
 		if (settings.isReaderTranslationDebugLogsEnabled) {
@@ -1324,12 +1448,26 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 	}
 
-	private fun buildRenderedCacheKey(pageUrl: String, sourceUri: String, sourceLang: String, targetLang: String): String {
+	private fun getPageRenderEpoch(pageId: Long): Int {
+		synchronized(pageLogLock) {
+			return pageRenderEpochs[pageId] ?: 0
+		}
+	}
+
+	private fun buildRenderedCacheKey(
+		pageUrl: String,
+		sourceUri: String,
+		sourceLang: String,
+		targetLang: String,
+		pageEpoch: Int,
+	): String {
 		val raw = listOf(
 			pageUrl,
 			sourceUri,
 			sourceLang,
 			targetLang,
+			renderCacheEpoch.toString(),
+			pageEpoch.toString(),
 			settings.readerTranslationMode.name,
 			settings.readerTranslationApiEndpoint,
 			settings.readerTranslationApiModel,
@@ -1424,5 +1562,10 @@ Rules:
 		const val OCR_CACHE_PREFIX = "reader_translate_ocr_"
 		const val LOG_TAG = "ReaderTranslate"
 		const val MAX_PAGE_LOG_LINES = 500
+		const val NO_LOGGING_PAGE_ID = -1L
+		const val FAIL_CODE_OCR_EMPTY = "OCR_EMPTY"
+		const val FAIL_CODE_TRANSLATE_EMPTY = "TRANSLATE_EMPTY"
+		const val FAIL_CODE_RENDER_FILTERED = "RENDER_FILTERED"
+		const val FAIL_CODE_PROCESS_EXCEPTION = "PROCESS_EXCEPTION"
 	}
 }

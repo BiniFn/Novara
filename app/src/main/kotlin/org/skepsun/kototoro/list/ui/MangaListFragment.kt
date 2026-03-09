@@ -172,9 +172,11 @@ abstract class MangaListFragment :
 		}
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
 			updateContentTypeChipsSelection(binding, tab)
+			updateSourceTagChipsEnabled(binding, tab)
 		}
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
 			updateSourceTagChipsSelection(binding, tags)
+			updateContentTypeChipsEnabled(binding, tags)
 		}
 		viewModel.availableCategories.observe(viewLifecycleOwner) { categories ->
 			rebuildCategoryChips(binding, categories)
@@ -533,6 +535,9 @@ abstract class MangaListFragment :
 			contentTypeChipIds[tab] = chip.id
 			chipGroup.addView(chip)
 		}
+		
+		updateContentTypeChipsSelection(binding, viewModel.currentGroupTab.value)
+		updateContentTypeChipsEnabled(binding, viewModel.currentSourceTags.value)
 	}
 
 	private fun rebuildSourceTagChips(binding: FragmentListBinding) {
@@ -561,6 +566,9 @@ abstract class MangaListFragment :
 			sourceTagChipIds[tag] = chip.id
 			chipGroup.addView(chip)
 		}
+
+		updateSourceTagChipsSelection(binding, currentTags)
+		updateSourceTagChipsEnabled(binding, viewModel.currentGroupTab.value)
 	}
 
 	private fun updateContentTypeChipsSelection(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
@@ -572,6 +580,22 @@ abstract class MangaListFragment :
 	private fun updateSourceTagChipsSelection(binding: FragmentListBinding, tags: Set<SourceTag>) {
 		sourceTagChipIds.forEach { (tag, id) ->
 			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
+		}
+	}
+
+	private fun updateContentTypeChipsEnabled(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
+		contentTypeChipIds.forEach { (tab, id) ->
+			val chip = binding.chipGroupContentType.findViewById<Chip>(id) ?: return@forEach
+			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
+	private fun updateSourceTagChipsEnabled(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+		sourceTagChipIds.forEach { (tag, id) ->
+			val chip = binding.chipGroupSourceTag.findViewById<Chip>(id) ?: return@forEach
+			chip.isEnabled = selectedTab.supportsSourceTag(tag)
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
 		}
 	}
 
@@ -635,15 +659,27 @@ abstract class MangaListFragment :
 	private fun createChipColors(): ChipColors {
 		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
 		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
+		val bgDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurface, 0)
+		
 		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
+		val textDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0).let {
+			ColorStateList.valueOf(it).withAlpha(97).defaultColor // ~38% alpha
+		}
 
+		val stateDisabled = intArrayOf(-android.R.attr.state_enabled)
 		val stateChecked = intArrayOf(android.R.attr.state_checked)
-		val stateDefault = intArrayOf(-android.R.attr.state_checked)
+		val stateDefault = intArrayOf()
 
 		return ChipColors(
-			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
-			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
+			bg = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(bgDisabled, bgChecked, bgUnchecked)
+			),
+			text = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(textDisabled, textChecked, textUnchecked)
+			),
 			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
 		)
 	}

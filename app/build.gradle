@@ -77,6 +77,14 @@ android {
 			applicationIdSuffix = '.nightly'
 		}
 	}
+	splits {
+		abi {
+			enable true
+			reset()
+			include 'arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'
+			universalApk true
+		}
+	}
 	buildFeatures {
 		viewBinding true
 		buildConfig true
@@ -103,7 +111,11 @@ android {
 				'META-INF/LICENSE-notice.md',
 				'META-INF/versions/9/OSGI-INF/MANIFEST.MF',
 				'META-INF/AL2.0',
-				'META-INF/LGPL2.1'
+				'META-INF/LGPL2.1',
+				// djl/tokenizers ships desktop binaries that are useless for Android APK.
+				'native/lib/osx-aarch64/**',
+				'native/lib/win-x86_64/**',
+				'native/lib/linux-x86_64/**'
 			]
 		}
 	}
@@ -293,6 +305,7 @@ dependencies {
 	implementation libs.mlkit.translate
 	implementation libs.onnxruntime.android
 	implementation libs.djl.tokenizers
+	implementation files('libs/tokenizer-native-0.33.0.aar')
 	implementation libs.djl.sentencepiece
 	implementation libs.paddleocr4android
 	implementation libs.ncnnandroidppocr

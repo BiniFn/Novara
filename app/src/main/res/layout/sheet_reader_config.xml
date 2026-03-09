@@ -232,6 +232,16 @@
                 android:textColor="?colorOnSurfaceVariant"
                 app:drawableStartCompat="@drawable/ic_auto_fix" />
 
+            <TextView
+                android:id="@+id/text_translation_bypass_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="@dimen/margin_normal"
+                android:layout_marginTop="@dimen/margin_small"
+                android:text="@string/reader_translation_bypass_hint_default"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:visibility="gone" />
+
             <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
                 android:id="@+id/button_retranslate"
                 android:layout_width="match_parent"
@@ -243,7 +253,7 @@
                 android:id="@+id/button_translation_log"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/reader_translation_view_page_log"
+                android:text="@string/reader_translation_task_panel_title"
                 app:drawableStartCompat="@drawable/ic_info_outline" />
 
             <org.skepsun.kototoro.core.ui.widgets.ListItemTextView

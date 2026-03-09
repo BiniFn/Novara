@@ -48,6 +48,7 @@ import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
 import org.skepsun.kototoro.core.parser.CachingMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.ui.image.TrimTransformation
 import org.skepsun.kototoro.core.util.FileSize
 import org.skepsun.kototoro.core.util.MimeTypes
@@ -269,6 +270,19 @@ class PageLoader @Inject constructor(
 		}
 	}
 
+	fun invalidateTranslationTask(pageId: Long) {
+		invalidateTask(pageId)
+		synchronized(translationLock) {
+			translationJobs[pageId]?.cancel()
+			translationJobs.remove(pageId)
+		}
+		translationStatusUpdates.tryEmit(TranslationLayerStateEvent(pageId, TranslationLayerState.IDLE))
+	}
+
+	suspend fun invalidateTranslationCacheForPage(pageId: Long) {
+		translationProcessor.clearPageCaches(pageId)
+	}
+
 	suspend fun invalidateTranslationCaches() {
 		translationProcessor.clearAllCaches()
 	}
@@ -399,6 +413,10 @@ class PageLoader @Inject constructor(
 		} else {
 			sourceUri
 		}
+		if (settings.isReaderTranslationEnabled && isTranslationBypassedForSource(page.source)) {
+			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.IDLE))
+			return readyUri
+		}
 		if (!settings.isReaderTranslationEnabled) {
 			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.IDLE))
 			return readyUri
@@ -425,6 +443,7 @@ class PageLoader @Inject constructor(
 		synchronized(translationLock) {
 			val existing = translationJobs[page.id]
 			if (existing?.isActive == true) {
+				Log.d("ReaderTranslate", "schedule skip active job page=${page.id}")
 				return
 			}
 			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.GENERATING))
@@ -452,6 +471,16 @@ class PageLoader @Inject constructor(
 
 	private fun isLowRam(): Boolean {
 		return context.ramAvailable <= FileSize.MEGABYTES.convert(PREFETCH_MIN_RAM_MB, FileSize.BYTES)
+	}
+
+	private fun isTranslationBypassedForSource(source: MangaSource): Boolean {
+		val sourceLang = source.getLocale()?.language?.lowercase().orEmpty()
+		if (sourceLang.isBlank()) return false
+		val targetLang = settings.readerTranslationTargetLanguage
+			.lowercase()
+			.substringBefore('-')
+			.substringBefore('_')
+		return sourceLang == targetLang
 	}
 
 	private fun Image.toImageSource(): ImageSource = if (this is BitmapImage) {

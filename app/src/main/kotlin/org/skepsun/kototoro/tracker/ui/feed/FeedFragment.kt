@@ -111,9 +111,11 @@ class FeedFragment :
 
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { 
 			updateContentTypeChipsSelection(binding, it)
+			updateSourceTagChipsEnabled(binding, it)
 		}
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) {
 			updateSourceTagChipsSelection(binding, it)
+			updateContentTypeChipsEnabled(binding, it)
 		}
 
 		// Register for appbar offset changes
@@ -178,6 +180,9 @@ class FeedFragment :
 			}
 			group.addView(chip)
 		}
+
+		updateContentTypeChipsSelection(binding, viewModel.currentGroupTab.value)
+		updateContentTypeChipsEnabled(binding, viewModel.currentSourceTags.value)
 	}
 
 	private fun rebuildSourceTagChips(binding: FragmentListBinding) {
@@ -201,6 +206,9 @@ class FeedFragment :
 			}
 			group.addView(chip)
 		}
+
+		updateSourceTagChipsSelection(binding, viewModel.currentSourceTags.value)
+		updateSourceTagChipsEnabled(binding, viewModel.currentGroupTab.value)
 	}
 
 	private fun updateContentTypeChipsSelection(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
@@ -227,6 +235,28 @@ class FeedFragment :
 		}
 	}
 
+	private fun updateContentTypeChipsEnabled(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
+		val group = binding.chipGroupContentType
+		for (tabId in contentTypeChipIds.keys) {
+			val viewId = contentTypeChipIds[tabId] ?: continue
+			val chip = group.findViewById<Chip>(viewId) ?: continue
+			val tab = BrowseGroupTab.fromId(tabId)
+			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
+	private fun updateSourceTagChipsEnabled(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+		val group = binding.chipGroupSourceTag
+		for (tagId in sourceTagChipIds.keys) {
+			val viewId = sourceTagChipIds[tagId] ?: continue
+			val chip = group.findViewById<Chip>(viewId) ?: continue
+			val tag = SourceTag.entries.find { it.id == tagId } ?: continue
+			chip.isEnabled = selectedTab.supportsSourceTag(tag)
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
 	private data class ChipColors(
 		val bg: ColorStateList,
 		val text: ColorStateList,
@@ -236,15 +266,27 @@ class FeedFragment :
 	private fun createChipColors(): ChipColors {
 		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
 		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
+		val bgDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurface, 0)
+		
 		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
-		
+		val textDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0).let {
+			ColorStateList.valueOf(it).withAlpha(97).defaultColor // ~38% alpha
+		}
+
+		val stateDisabled = intArrayOf(-android.R.attr.state_enabled)
 		val stateChecked = intArrayOf(android.R.attr.state_checked)
-		val stateDefault = intArrayOf(-android.R.attr.state_checked)
-		
+		val stateDefault = intArrayOf()
+
 		return ChipColors(
-			bg = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(bgChecked, bgUnchecked)),
-			text = ColorStateList(arrayOf(stateChecked, stateDefault), intArrayOf(textChecked, textUnchecked)),
+			bg = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(bgDisabled, bgChecked, bgUnchecked)
+			),
+			text = ColorStateList(
+				arrayOf(stateDisabled, stateChecked, stateDefault),
+				intArrayOf(textDisabled, textChecked, textUnchecked)
+			),
 			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
 		)
 	}

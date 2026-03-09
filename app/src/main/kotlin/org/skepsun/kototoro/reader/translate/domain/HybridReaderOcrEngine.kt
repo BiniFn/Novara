@@ -326,9 +326,9 @@ class HybridReaderOcrEngine @Inject constructor(
 	// ---- Path Resolution ----
 
 	private suspend fun resolveTfliteModelPath(): String {
-		val customPath = settings.readerTranslationTfliteModelPath.trim()
+		val customPath = settings.readerTranslationRecModelPath.trim()
 		if (customPath.isNotBlank()) return customPath
-		val modelId = settings.readerTranslationTfliteModelId
+		val modelId = settings.readerTranslationRecModelId
 		val model = TfliteOfficialModelCatalog.findById(modelId) ?: TfliteOfficialModelCatalog.models.first()
 		
 		return tfliteModelManager.ensureModelReady(

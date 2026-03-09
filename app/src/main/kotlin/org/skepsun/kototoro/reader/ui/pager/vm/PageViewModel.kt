@@ -45,13 +45,19 @@ class PageViewModel(
 	private var job: Job? = null
 	private var cachedBounds: Rect? = null
 	private var boundPage: MangaPage? = null
+	@Volatile
+	private var pendingLayerSwitchPageId: Long? = null
 	private val boundsCache = LinkedHashMap<String, Rect?>(64, 0.75f, true)
 
 	init {
 		loader.observeTranslationUpdates()
 			.onEach { pageId ->
 				val page = boundPage ?: return@onEach
-				if (page.id != pageId || isLoading()) return@onEach
+				if (page.id != pageId) return@onEach
+				if (isLoading()) {
+					pendingLayerSwitchPageId = pageId
+					return@onEach
+				}
 				switchDisplayLayer(page)
 			}.launchIn(scope)
 	}
@@ -62,6 +68,7 @@ class PageViewModel(
 
 	fun onBind(page: MangaPage) {
 		boundPage = page
+		pendingLayerSwitchPageId = null
 		val prevJob = job
 		job = scope.launch(Dispatchers.Default) {
 			prevJob?.cancelAndJoin()
@@ -94,6 +101,7 @@ class PageViewModel(
 		state.value = PageState.Empty
 		cachedBounds = null
 		boundPage = null
+		pendingLayerSwitchPageId = null
 		boundsCache.clear()
 		job?.cancel()
 	}
@@ -196,8 +204,14 @@ class PageViewModel(
 			val uri = task.await()
 			progressObserver.cancelAndJoin()
 			previewJob.cancel()
-			cachedBounds = resolveTrimmedBounds(uri)
-			state.value = PageState.Loaded(uri.toImageSource(cachedBounds), isConverted = false)
+			val displayUri = loader.resolveDisplayVariant(
+				page = data,
+				currentUri = uri,
+				showTranslated = settingsProducer.value.isTranslationShowTranslated,
+			) ?: uri
+			cachedBounds = resolveTrimmedBounds(displayUri)
+			state.value = PageState.Loaded(displayUri.toImageSource(cachedBounds), isConverted = false)
+			applyPendingLayerSwitchIfNeeded(data, displayUri)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Throwable) {
@@ -230,6 +244,23 @@ class PageViewModel(
 		} else {
 			source
 		}
+	}
+
+	private suspend fun applyPendingLayerSwitchIfNeeded(page: MangaPage, currentUri: Uri) {
+		if (pendingLayerSwitchPageId != page.id) {
+			return
+		}
+		pendingLayerSwitchPageId = null
+		val targetUri = loader.resolveDisplayVariant(
+			page = page,
+			currentUri = currentUri,
+			showTranslated = settingsProducer.value.isTranslationShowTranslated,
+		)
+		if (targetUri == null || targetUri == currentUri) {
+			return
+		}
+		cachedBounds = resolveTrimmedBounds(targetUri)
+		state.value = PageState.Loaded(targetUri.toImageSource(cachedBounds), isConverted = false)
 	}
 
 	suspend fun resolveLayerSources(page: MangaPage): LayerSources? {

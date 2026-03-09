@@ -63,6 +63,13 @@
 		android:summary="@string/reader_actions_summary"
 		android:title="@string/reader_actions" />
 
+	<PreferenceScreen
+		android:key="reader_translation_settings_entry"
+		android:fragment="org.skepsun.kototoro.settings.TranslationSettingsFragment"
+		android:summary="@string/reader_translation_settings_entry_summary"
+		android:title="@string/translation_settings"
+		app:allowDividerAbove="true" />
+
 	<SwitchPreferenceCompat
 		android:defaultValue="false"
 		android:key="reader_taps_ltr"

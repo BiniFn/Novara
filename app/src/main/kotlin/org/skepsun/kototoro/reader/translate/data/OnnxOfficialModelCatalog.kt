@@ -4,11 +4,17 @@ data class OnnxOfficialModel(
 	val id: String,
 	val title: String,
 	val version: String,
+	val category: OnnxModelCategory = OnnxModelCategory.CLASSIC_TRANSLATION,
 	val archiveUrl: String? = null,
 	val sha256: String? = null,
 	val files: List<OnnxModelFile> = emptyList(),
 	val description: String,
 )
+
+enum class OnnxModelCategory {
+	CLASSIC_TRANSLATION,
+	GENERAL_LLM,
+}
 
 data class OnnxModelFile(
 	val fileName: String,
@@ -71,6 +77,47 @@ object OnnxOfficialModelCatalog {
 			archiveUrl = "https://github.com/niedev/OnnxModelsEnhancer/releases/download/v1.0.0-beta/Mozilla.zip",
 			sha256 = "05e7187ff86e267e559d3b126efeb6152d1107e6650ffc56aa6cae05a54e674e",
 			description = "Mozilla translation model pack mirrored for RTranslator compatibility.",
+		),
+		OnnxOfficialModel(
+			id = "qwen3_5_0_8b_onnx_q4",
+			title = "Qwen3.5-0.8B ONNX (q4)",
+			version = "onnx-community",
+			category = OnnxModelCategory.GENERAL_LLM,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "decoder_model_merged_q4.onnx",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/decoder_model_merged_q4.onnx",
+				),
+				OnnxModelFile(
+					fileName = "decoder_model_merged_q4.onnx_data",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/decoder_model_merged_q4.onnx_data",
+				),
+				OnnxModelFile(
+					fileName = "embed_tokens_q4.onnx",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/embed_tokens_q4.onnx",
+				),
+				OnnxModelFile(
+					fileName = "embed_tokens_q4.onnx_data",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/embed_tokens_q4.onnx_data",
+				),
+				OnnxModelFile(
+					fileName = "tokenizer.json",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/tokenizer.json",
+				),
+				OnnxModelFile(
+					fileName = "tokenizer_config.json",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/tokenizer_config.json",
+				),
+				OnnxModelFile(
+					fileName = "config.json",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/config.json",
+				),
+				OnnxModelFile(
+					fileName = "generation_config.json",
+					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/generation_config.json",
+				),
+			),
+			description = "General small LLM for translation fallback, based on Qwen3.5-0.8B ONNX q4.",
 		),
 	)
 

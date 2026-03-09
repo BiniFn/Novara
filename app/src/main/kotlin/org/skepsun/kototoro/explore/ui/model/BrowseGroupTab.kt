@@ -83,4 +83,14 @@ sealed class BrowseGroupTab(
 		All -> true
 		else -> true // Content-based tabs don't filter by origin
 	}
+
+	/**
+	 * Check if this tab supports the given source tag.
+	 */
+	fun supportsSourceTag(tag: SourceTag): Boolean = when (this) {
+		All -> true
+		Manga -> tag == SourceTag.BUILTIN || tag == SourceTag.MIHON || tag == SourceTag.LEGADO
+		Novel -> tag == SourceTag.BUILTIN || tag == SourceTag.LEGADO
+		Video -> tag == SourceTag.BUILTIN || tag == SourceTag.ANIYOMI
+	}
 }

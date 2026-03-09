@@ -31,23 +31,19 @@
 
         <ListPreference
             android:dependency="reader_translation_enabled"
-            android:key="reader_translation_tflite_model_id"
-            android:title="@string/reader_translation_ocr_model_mangaocr_selection" />
+            android:key="reader_translation_det_model_id"
+            android:title="@string/reader_translation_ocr_model_det_selection" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_rec_model_id"
+            android:title="@string/reader_translation_ocr_model_rec_selection" />
 
         <ListPreference
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_paddle_official_model_id"
             android:title="@string/reader_translation_ocr_model_paddle_selection" />
 
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_ncnn_model_id"
-            android:title="@string/reader_translation_ocr_model_ncnn_selection" />
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_onnx_model_id"
-            android:title="@string/reader_translation_onnx_model_selection" />
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -94,6 +90,11 @@
             android:key="reader_translation_target_lang"
             android:title="@string/reader_translation_target_lang"
             app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_onnx_model_id"
+            android:title="@string/reader_translation_onnx_model_selection" />
 
         <ListPreference
             android:defaultValue="BALANCED"

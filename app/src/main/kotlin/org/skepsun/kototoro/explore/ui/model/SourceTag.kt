@@ -34,6 +34,16 @@ enum class SourceTag(
         LEGADO -> originGroup == OriginGroup.LEGADO_JSON
     }
 
+    /**
+     * Check if this tag supports the given content tab.
+     */
+    fun supportsContentTab(tab: BrowseGroupTab): Boolean = when (this) {
+        BUILTIN -> true
+        MIHON -> tab == BrowseGroupTab.Manga || tab == BrowseGroupTab.All
+        ANIYOMI -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
+        LEGADO -> tab == BrowseGroupTab.Manga || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
+    }
+
     companion object {
         fun fromIds(ids: Collection<String>): Set<SourceTag> =
             ids.mapNotNull { id -> entries.find { it.id == id } }.toSet()

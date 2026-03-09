@@ -5,10 +5,13 @@ import ai.djl.sentencepiece.SpTokenizer
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.TensorInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONObject
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
 import java.io.File
 import java.nio.FloatBuffer
@@ -61,6 +64,28 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 	}
 
+	private data class Qwen35Runtime(
+		override val modelId: String,
+		val tokenizer: HuggingFaceTokenizer,
+		val embedSession: OrtSession,
+		val decoderSession: OrtSession,
+		val decoderInputNames: Set<String>,
+		val decoderInputInfo: Map<String, TensorInfo>,
+		val stopTokenIds: Set<Long>,
+	) : RuntimeHolder {
+		override fun close() {
+			runCatching { embedSession.close() }
+			runCatching { decoderSession.close() }
+			runCatching { tokenizer.close() }
+		}
+	}
+
+	private data class QwenStepResult(
+		val nextToken: Long,
+		val decoderRun: OrtSession.Result,
+		val totalSequenceLength: Int,
+	)
+
 	private val lock = Mutex()
 	@Volatile
 	private var runtime: RuntimeHolder? = null
@@ -82,12 +107,13 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			val map = LinkedHashMap<String, String>(texts.size)
 			for (text in texts) {
 				map[text] = runCatching {
-					when (rt) {
-						is NllbRuntime -> translateOneNllb(rt, text, sourceLang, targetLang)
-						is GenericRuntime -> translateOneGeneric(rt, text, sourceLang, targetLang)
-					}
-				}.onFailure { it.printStackTrace() }.getOrDefault("")
-			}
+						when (rt) {
+							is NllbRuntime -> translateOneNllb(rt, text, sourceLang, targetLang)
+							is GenericRuntime -> translateOneGeneric(rt, text, sourceLang, targetLang)
+							is Qwen35Runtime -> translateOneQwen35(rt, text, sourceLang, targetLang)
+						}
+					}.onFailure { it.printStackTrace() }.getOrDefault("")
+				}
 			map
 		}
 	}
@@ -105,16 +131,21 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			if (again != null && again.modelId == modelId) return@withLock again
 			runtime?.close()
 			val modelDir = onnxModelManager.getModelDir(modelId)
-			val cacheRt = tryCreateNllbRuntime(modelId, modelDir) ?: tryCreateMadladLikeRuntime(modelId, modelDir)
-			if (cacheRt != null) {
-				runtime = cacheRt
-				return@withLock cacheRt
+				val cacheRt = tryCreateNllbRuntime(modelId, modelDir) ?: tryCreateMadladLikeRuntime(modelId, modelDir)
+				if (cacheRt != null) {
+					runtime = cacheRt
+					return@withLock cacheRt
+				}
+				val qwenRt = tryCreateQwen35Runtime(modelId, modelDir)
+				if (qwenRt != null) {
+					runtime = qwenRt
+					return@withLock qwenRt
+				}
+				val genericRt = tryCreateGenericRuntime(modelId, modelDir)
+				runtime = genericRt
+				genericRt
 			}
-			val genericRt = tryCreateGenericRuntime(modelId, modelDir)
-			runtime = genericRt
-			genericRt
 		}
-	}
 
 	private fun tryCreateNllbRuntime(modelId: String, modelDir: File): NllbRuntime? {
 		val encoder = modelDir.walkTopDown().firstOrNull { it.isFile && it.name.equals("NLLB_encoder.onnx", ignoreCase = true) }
@@ -229,6 +260,47 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		return GenericRuntime(modelId, tokenizer, session, inputNames, logitsOutputName)
 	}
 
+	private fun tryCreateQwen35Runtime(modelId: String, modelDir: File): Qwen35Runtime? {
+		val tokenizerPath = findTokenizerPath(modelDir) ?: return null
+		val decoderPath = findQwenDecoderOnnxPath(modelDir) ?: return null
+		val embedPath = findQwenEmbedOnnxPath(modelDir) ?: return null
+		val tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath.toPath())
+		val env = OrtEnvironment.getEnvironment()
+		val options = OrtSession.SessionOptions().apply {
+			setMemoryPatternOptimization(false)
+			setCPUArenaAllocator(false)
+			setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
+		}
+		return try {
+			val embedSession = env.createSession(embedPath.absolutePath, options)
+			val decoderSession = env.createSession(decoderPath.absolutePath, options)
+			val inputNames = decoderSession.inputNames
+			if ("inputs_embeds" !in inputNames) {
+				runCatching { embedSession.close() }
+				runCatching { decoderSession.close() }
+				runCatching { tokenizer.close() }
+				return null
+			}
+			val inputInfo = decoderSession.inputInfo.mapNotNull { (name, nodeInfo) ->
+				(name to (nodeInfo.info as? TensorInfo))
+			}.filter { it.second != null }.associate { it.first to it.second!! }
+			Qwen35Runtime(
+				modelId = modelId,
+				tokenizer = tokenizer,
+				embedSession = embedSession,
+				decoderSession = decoderSession,
+				decoderInputNames = inputNames,
+				decoderInputInfo = inputInfo,
+				stopTokenIds = loadStopTokens(modelDir),
+			)
+		} catch (_: Throwable) {
+			runCatching { tokenizer.close() }
+			null
+		} finally {
+			runCatching { options.close() }
+		}
+	}
+
 	private fun translateOneGeneric(runtime: GenericRuntime, text: String, sourceLang: String, targetLang: String): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
@@ -245,6 +317,105 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 		if (generated.isEmpty()) return ""
 		return runtime.tokenizer.decode(generated.toLongArray()).trim()
+	}
+
+	private fun translateOneQwen35(
+		runtime: Qwen35Runtime,
+		text: String,
+		sourceLang: String,
+		targetLang: String,
+	): String {
+		val input = text.trim()
+		if (input.isEmpty()) return ""
+		val prompt = "Translate from $sourceLang to $targetLang. Return only the translated result.\n\n$input"
+		val promptIds = runtime.tokenizer.encode(prompt).ids
+		if (promptIds.isEmpty()) return ""
+		val generated = ArrayList<Long>(MAX_NEW_TOKENS)
+		var prevRun: OrtSession.Result? = null
+		var nextInputIds = promptIds.map { it.toLong() }.toLongArray()
+		var pastSequenceLength = 0
+		var step = 0
+		try {
+			while (step < MAX_NEW_TOKENS) {
+				val result = runQwen35Step(runtime, nextInputIds, pastSequenceLength, prevRun) ?: break
+				runCatching { prevRun?.close() }
+				prevRun = result.decoderRun
+				pastSequenceLength = result.totalSequenceLength
+				val nextToken = result.nextToken
+				if (nextToken in runtime.stopTokenIds) {
+					break
+				}
+				generated += nextToken
+				nextInputIds = longArrayOf(nextToken)
+				step++
+			}
+		} finally {
+			runCatching { prevRun?.close() }
+		}
+		if (generated.isEmpty()) return ""
+		return runtime.tokenizer.decode(generated.toLongArray()).trim()
+	}
+
+	private fun runQwen35Step(
+		runtime: Qwen35Runtime,
+		inputTokenIds: LongArray,
+		pastSequenceLength: Int,
+		prevRun: OrtSession.Result?,
+	): QwenStepResult? {
+		if (inputTokenIds.isEmpty()) return null
+		val inputIdsTensor = createInt64Tensor(inputTokenIds)
+		var embedRun: OrtSession.Result? = null
+		val created = mutableListOf<OnnxTensor>()
+		try {
+			embedRun = runtime.embedSession.run(mapOf("input_ids" to inputIdsTensor))
+			val embedTensor = (embedRun.get("inputs_embeds").orElse(null) as? OnnxTensor)
+				?: (runtime.embedSession.outputNames.firstOrNull()?.let { name ->
+					embedRun.get(name).orElse(null) as? OnnxTensor
+				})
+				?: return null
+			val seqLen = inputTokenIds.size
+			val totalLen = pastSequenceLength + seqLen
+			val attentionMask = createInt64Tensor(LongArray(totalLen) { 1L }).also { created += it }
+			val positionIds = createQwenPositionIds(pastSequenceLength, seqLen).also { created += it }
+			val decoderInputs = mutableMapOf<String, OnnxTensor>()
+			decoderInputs["inputs_embeds"] = embedTensor
+			decoderInputs["attention_mask"] = attentionMask
+			decoderInputs["position_ids"] = positionIds
+			for (name in runtime.decoderInputNames) {
+				if (name == "inputs_embeds" || name == "attention_mask" || name == "position_ids") continue
+				if (name.startsWith("past_")) {
+					if (prevRun == null) {
+						val info = runtime.decoderInputInfo[name] ?: return null
+						val zero = createZeroTensorForInput(name, info, pastSequenceLength = 0)
+						decoderInputs[name] = zero
+						created += zero
+					} else {
+						val presentName = mapPastInputToPresentOutput(name)
+						decoderInputs[name] = prevRun.get(presentName).orElse(null) as? OnnxTensor ?: return null
+					}
+				} else {
+					return null
+				}
+			}
+			val decoderRun = runtime.decoderSession.run(decoderInputs)
+			val logits = (decoderRun.get("logits").orElse(null) as? OnnxTensor)
+				?: (runtime.decoderSession.outputNames.firstOrNull()?.let { name ->
+					decoderRun.get(name).orElse(null) as? OnnxTensor
+				})
+				?: run {
+					decoderRun.close()
+					return null
+				}
+			val nextToken = argmaxLastToken(logits.value) ?: run {
+				decoderRun.close()
+				return null
+			}
+			return QwenStepResult(nextToken, decoderRun, totalLen)
+		} finally {
+			runCatching { inputIdsTensor.close() }
+			created.forEach { runCatching { it.close() } }
+			runCatching { embedRun?.close() }
+		}
 	}
 
 	private fun runGenericDecoderStep(runtime: GenericRuntime, inputIds: LongArray): Long? {
@@ -464,6 +635,47 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		return OnnxTensor.createTensor(OrtEnvironment.getEnvironment(), LongBuffer.wrap(values), longArrayOf(1L, values.size.toLong()))
 	}
 
+	private fun createQwenPositionIds(pastSequenceLength: Int, sequenceLength: Int): OnnxTensor {
+		val values = LongArray(3 * sequenceLength)
+		for (i in 0 until sequenceLength) {
+			val pos = (pastSequenceLength + i).toLong()
+			values[i] = pos
+			values[sequenceLength + i] = pos
+			values[sequenceLength * 2 + i] = pos
+		}
+		return OnnxTensor.createTensor(
+			OrtEnvironment.getEnvironment(),
+			LongBuffer.wrap(values),
+			longArrayOf(3L, 1L, sequenceLength.toLong()),
+		)
+	}
+
+	private fun createZeroTensorForInput(name: String, info: TensorInfo, pastSequenceLength: Int): OnnxTensor {
+		val shape = info.shape.mapIndexed { index, dim ->
+			when {
+				dim > 0L -> dim
+				index == 0 -> 1L
+				name.startsWith("past_key_values.") && index == 2 -> pastSequenceLength.toLong()
+				else -> 1L
+			}
+		}.toLongArray()
+		val size = shape.fold(1L) { acc, dim -> acc * dim }.toInt().coerceAtLeast(0)
+		return OnnxTensor.createTensor(
+			OrtEnvironment.getEnvironment(),
+			FloatBuffer.wrap(FloatArray(size)),
+			shape,
+		)
+	}
+
+	private fun mapPastInputToPresentOutput(name: String): String {
+		return when {
+			name.startsWith("past_key_values.") -> name.replaceFirst("past_key_values.", "present.")
+			name.startsWith("past_conv.") -> name.replaceFirst("past_conv.", "present_conv.")
+			name.startsWith("past_recurrent.") -> name.replaceFirst("past_recurrent.", "present_recurrent.")
+			else -> name
+		}
+	}
+
 	private fun createBooleanTensor(value: Boolean): OnnxTensor {
 		return OnnxTensor.createTensor(OrtEnvironment.getEnvironment(), booleanArrayOf(value))
 	}
@@ -532,6 +744,41 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			.firstOrNull()
 	}
 
+	private fun findQwenDecoderOnnxPath(modelDir: File): File? {
+		if (!modelDir.exists()) return null
+		return modelDir.walkTopDown()
+			.filter { it.isFile && it.extension.equals("onnx", true) && it.name.contains("decoder_model_merged", true) }
+			.sortedWith(compareByDescending<File> { it.name.contains("_q4", true) }.thenByDescending { it.length() })
+			.firstOrNull()
+	}
+
+	private fun findQwenEmbedOnnxPath(modelDir: File): File? {
+		if (!modelDir.exists()) return null
+		return modelDir.walkTopDown()
+			.filter { it.isFile && it.extension.equals("onnx", true) && it.name.contains("embed_tokens", true) }
+			.sortedWith(compareByDescending<File> { it.name.contains("_q4", true) }.thenByDescending { it.length() })
+			.firstOrNull()
+	}
+
+	private fun loadStopTokens(modelDir: File): Set<Long> {
+		val defaults = mutableSetOf(0L, 1L, 2L, QWEN_EOS_TOKEN_ID, QWEN_ALT_EOS_TOKEN_ID)
+		val generationConfig = File(modelDir, "generation_config.json")
+		if (!generationConfig.isFile) return defaults
+		return runCatching {
+			val root = JSONObject(generationConfig.readText())
+			when (val eos = root.opt("eos_token_id")) {
+				is Number -> defaults += eos.toLong()
+				is JSONArray -> {
+					for (i in 0 until eos.length()) {
+						val value = eos.opt(i)
+						if (value is Number) defaults += value.toLong()
+					}
+				}
+			}
+			defaults
+		}.getOrDefault(defaults)
+	}
+
 	private fun toNllbCode(lang: String): String? {
 		val raw = lang.trim().lowercase()
 		val key = raw.substringBefore('-')
@@ -562,9 +809,11 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	companion object {
 		private const val MAX_NEW_TOKENS = 200
 		private const val NLLB_DICTIONARY_LENGTH = 256000
-		private const val NLLB_DECODER_START_TOKEN = 2
-		private const val MADLAD_DECODER_START_TOKEN = 0
-		private val STOP_TOKEN_IDS = setOf(0L, 1L, 2L)
+			private const val NLLB_DECODER_START_TOKEN = 2
+			private const val MADLAD_DECODER_START_TOKEN = 0
+			private const val QWEN_EOS_TOKEN_ID = 248044L
+			private const val QWEN_ALT_EOS_TOKEN_ID = 248046L
+			private val STOP_TOKEN_IDS = setOf(0L, 1L, 2L)
 
 		private val BCP47_TO_NLLB = mapOf(
 			"ar" to "arb_Arab", "bg" to "bul_Cyrl", "ca" to "cat_Latn", "zh" to "zho_Hans",

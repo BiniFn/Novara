@@ -629,7 +629,7 @@ class DetailsActivity :
 			imageView.setRenderEffect(
 				android.graphics.RenderEffect.createBlurEffect(
 					25f, 25f,
-					android.graphics.Shader.TileMode.CLAMP,
+					android.graphics.Shader.TileMode.MIRROR,
 				),
 			)
 		} else {

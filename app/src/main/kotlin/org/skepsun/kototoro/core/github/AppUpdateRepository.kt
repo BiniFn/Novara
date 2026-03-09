@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.github
 
 import android.content.Context
+import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,11 @@ import javax.inject.Singleton
 
 private const val CONTENT_TYPE_APK = "application/vnd.android.package-archive"
 private const val BUILD_TYPE_RELEASE = "release"
+private const val ABI_ARM64_V8A = "arm64-v8a"
+private const val ABI_ARMEABI_V7A = "armeabi-v7a"
+private const val ABI_X86_64 = "x86_64"
+private const val ABI_X86 = "x86"
+private const val ABI_UNIVERSAL = "universal"
 
 @Singleton
 class AppUpdateRepository @Inject constructor(
@@ -54,9 +60,13 @@ class AppUpdateRepository @Inject constructor(
 			.url(releasesUrl)
 		val jsonArray = okHttp.newCall(request.build()).await().parseJsonArray()
 		return jsonArray.mapJSONNotNull { json ->
-			val asset = json.optJSONArray("assets")?.find { jo ->
-				jo.optString("content_type") == CONTENT_TYPE_APK
-			} ?: return@mapJSONNotNull null
+			val assets = json.optJSONArray("assets")
+				?.toApkAssets()
+				.orEmpty()
+			if (assets.isEmpty()) {
+				return@mapJSONNotNull null
+			}
+			val asset = assets.findBestAssetForCurrentDevice() ?: assets.first()
 			AppVersion(
 				id = json.getLong("id"),
 				url = json.getString("html_url"),
@@ -93,14 +103,54 @@ class AppUpdateRepository @Inject constructor(
 		return BuildConfig.BUILD_TYPE != BUILD_TYPE_RELEASE || appValidator.isOriginalApp.getOrNull() == true
 	}
 
-	private inline fun JSONArray.find(predicate: (JSONObject) -> Boolean): JSONObject? {
+	private fun JSONArray.toApkAssets(): List<JSONObject> {
+		val apkAssets = ArrayList<JSONObject>(length())
 		val size = length()
 		for (i in 0 until size) {
 			val jo = getJSONObject(i)
-			if (predicate(jo)) {
-				return jo
+			if (jo.isApkAsset()) {
+				apkAssets += jo
 			}
 		}
-		return null
+		return apkAssets
+	}
+
+	private fun JSONObject.isApkAsset(): Boolean {
+		val contentType = optString("content_type")
+		if (contentType == CONTENT_TYPE_APK) {
+			return true
+		}
+		return optString("name").endsWith(".apk", ignoreCase = true)
+	}
+
+	private fun List<JSONObject>.findBestAssetForCurrentDevice(): JSONObject? {
+		val supportedAbis = Build.SUPPORTED_ABIS
+			.mapNotNull { it.normalizeAbi() }
+			.distinct()
+		for (abi in supportedAbis) {
+			firstOrNull { it.detectAssetAbi() == abi }?.let { return it }
+		}
+		return firstOrNull { it.detectAssetAbi() == ABI_UNIVERSAL }
+			?: firstOrNull { it.detectAssetAbi() == null }
+	}
+
+	private fun String.normalizeAbi(): String? = when (lowercase()) {
+		ABI_ARM64_V8A -> ABI_ARM64_V8A
+		ABI_ARMEABI_V7A -> ABI_ARMEABI_V7A
+		ABI_X86_64 -> ABI_X86_64
+		ABI_X86 -> ABI_X86
+		else -> null
+	}
+
+	private fun JSONObject.detectAssetAbi(): String? {
+		val name = optString("name").lowercase()
+		return when {
+			"-$ABI_ARM64_V8A-" in name -> ABI_ARM64_V8A
+			"-$ABI_ARMEABI_V7A-" in name -> ABI_ARMEABI_V7A
+			"-$ABI_X86_64-" in name -> ABI_X86_64
+			"-$ABI_X86-" in name -> ABI_X86
+			"-$ABI_UNIVERSAL-" in name -> ABI_UNIVERSAL
+			else -> null
+		}
 	}
 }

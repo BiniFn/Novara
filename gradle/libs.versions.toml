@@ -76,7 +76,7 @@ mlkitText = "16.0.1"
 mlkitTranslate = "17.0.3"
 paddleocr4android = "v1.2.9"
 ncnnandroidppocr = "v1.3.0"
-onnxruntime = "1.19.0"
+onnxruntime = "1.24.3"
 djlTokenizers = "0.33.0"
 djlSentencepiece = "0.33.0"
 

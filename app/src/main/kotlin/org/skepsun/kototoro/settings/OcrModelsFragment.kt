@@ -13,6 +13,7 @@ import org.skepsun.kototoro.reader.translate.data.NcnnModelManager
 import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModel
 import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
@@ -38,7 +39,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
 
         // Recognition Models (e.g. MangaOCR)
         val recCategory = PreferenceCategory(requireContext()).apply {
-            title = getString(R.string.reader_translation_ocr_model_mangaocr_title)
+            title = getString(R.string.reader_translation_ocr_model_rec_title)
         }
         screen.addPreference(recCategory)
 
@@ -53,7 +54,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
         }
 
         val ncnnCategory = PreferenceCategory(requireContext()).apply {
-            title = getString(R.string.reader_translation_ocr_model_ncnn_title)
+            title = getString(R.string.reader_translation_ocr_model_det_title)
         }
         screen.addPreference(ncnnCategory)
 
@@ -72,7 +73,9 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
         }
         screen.addPreference(onnxCategory)
 
-        OnnxOfficialModelCatalog.models.forEach { model ->
+        OnnxOfficialModelCatalog.models
+            .filter { it.category == OnnxModelCategory.CLASSIC_TRANSLATION }
+            .forEach { model ->
             val pref = Preference(requireContext()).apply {
                 title = model.title
                 summary = model.description
@@ -81,6 +84,23 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
             onnxCategory.addPreference(pref)
             updateOnnxStatus(pref, model)
         }
+
+        val onnxLlmCategory = PreferenceCategory(requireContext()).apply {
+            title = getString(R.string.reader_translation_onnx_general_llm_models_title)
+        }
+        screen.addPreference(onnxLlmCategory)
+
+        OnnxOfficialModelCatalog.models
+            .filter { it.category == OnnxModelCategory.GENERAL_LLM }
+            .forEach { model ->
+                val pref = Preference(requireContext()).apply {
+                    title = model.title
+                    summary = model.description
+                    key = "onnx_${model.id}"
+                }
+                onnxLlmCategory.addPreference(pref)
+                updateOnnxStatus(pref, model)
+            }
     }
 
     private fun updateMangaOcrStatus(pref: Preference, model: TfliteOfficialModel) {
@@ -123,7 +143,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                     }
                 )
                 updateMangaOcrStatus(pref, model)
-                Toast.makeText(context, R.string.reader_translation_tflite_download_success, Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.reader_translation_rec_download_success, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 pref.summary = "Error: ${e.message}"
             } finally {
@@ -171,7 +191,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                     },
                 )
                 updateNcnnStatus(pref, model)
-                Toast.makeText(context, R.string.reader_translation_ncnn_download_success, Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.reader_translation_det_download_success, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 pref.summary = "Error: ${e.message}"
             } finally {

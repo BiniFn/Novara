@@ -92,17 +92,44 @@ jobs:
         echo "Listing APK outputs:"
         find app/build/outputs/apk -name "*.apk" -type f
     
-    - name: Rename APK
+    - name: Collect Release APKs
+      id: assets
       run: |
         mkdir -p release
-        # Find the release APK (handles different naming patterns)
-        APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
-        if [ -z "$APK_FILE" ]; then
+        shopt -s nullglob
+        APK_FILES=(app/build/outputs/apk/release/*.apk)
+        if [ ${#APK_FILES[@]} -eq 0 ]; then
           echo "Error: No APK file found in app/build/outputs/apk/release"
           exit 1
         fi
-        echo "Found APK: $APK_FILE"
-        cp "$APK_FILE" release/Kototoro-${{ steps.version.outputs.version_name }}-release.apk
+
+        DOWNLOAD_NOTES=""
+        for apk in "${APK_FILES[@]}"; do
+          filename=$(basename "$apk")
+          abi="${filename#app-}"
+          abi="${abi%-release-unsigned.apk}"
+          abi="${abi%-release.apk}"
+          if [ "$abi" = "$filename" ] || [ -z "$abi" ]; then
+            abi="universal"
+          fi
+          if [ "$abi" = "universal" ]; then
+            # Keep legacy filename for compatibility with old update clients.
+            target="release/Kototoro-${{ steps.version.outputs.version_name }}-release.apk"
+          else
+            target="release/Kototoro-${{ steps.version.outputs.version_name }}-${abi}-release.apk"
+          fi
+          cp "$apk" "$target"
+          line="- \`$(basename "$target")\` - ${abi} 架构"
+          if [ -z "$DOWNLOAD_NOTES" ]; then
+            DOWNLOAD_NOTES="$line"
+          else
+            DOWNLOAD_NOTES="${DOWNLOAD_NOTES}"$'\n'"$line"
+          fi
+        done
+
+        echo "download_notes<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$DOWNLOAD_NOTES" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -117,7 +144,7 @@ jobs:
           ${{ inputs.release_notes }}
           
           ### 下载说明
-          - `Kototoro-${{ steps.version.outputs.version_name }}-release.apk` - 正式版本
+          ${{ steps.assets.outputs.download_notes }}
           
           ### 版本信息
           - Version Name: ${{ steps.version.outputs.version_name }}
