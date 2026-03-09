@@ -9,11 +9,12 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.reader.translate.data.PaddleModelManager
-import org.skepsun.kototoro.reader.translate.data.PaddleOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.NcnnModelManager
 import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModel
 import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModelCatalog
+import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel
+import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
 import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModel
 import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModelCatalog
@@ -26,10 +27,10 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
     lateinit var tfliteModelManager: TfliteModelManager
 
     @Inject
-    lateinit var paddleModelManager: PaddleModelManager
+    lateinit var ncnnModelManager: NcnnModelManager
 
     @Inject
-    lateinit var ncnnModelManager: NcnnModelManager
+    lateinit var onnxModelManager: OnnxModelManager
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val screen = preferenceManager.createPreferenceScreen(requireContext())
@@ -51,22 +52,6 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
             updateMangaOcrStatus(pref, model)
         }
 
-        // General OCR Models (PaddleOCR Presets)
-        val generalCategory = PreferenceCategory(requireContext()).apply {
-            title = "PaddleOCR Presets"
-        }
-        screen.addPreference(generalCategory)
-
-        PaddleOfficialModelCatalog.ocrModels.forEach { model ->
-            val pref = Preference(requireContext()).apply {
-                title = model.title
-                summary = "Version: ${model.version}"
-                key = "paddle_${model.id}"
-            }
-            generalCategory.addPreference(pref)
-            updatePaddleStatus(pref, model.id, model.version)
-        }
-
         val ncnnCategory = PreferenceCategory(requireContext()).apply {
             title = getString(R.string.reader_translation_ocr_model_ncnn_title)
         }
@@ -80,6 +65,21 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
             }
             ncnnCategory.addPreference(pref)
             updateNcnnStatus(pref, model)
+        }
+
+        val onnxCategory = PreferenceCategory(requireContext()).apply {
+            title = getString(R.string.reader_translation_onnx_models_title)
+        }
+        screen.addPreference(onnxCategory)
+
+        OnnxOfficialModelCatalog.models.forEach { model ->
+            val pref = Preference(requireContext()).apply {
+                title = model.title
+                summary = model.description
+                key = "onnx_${model.id}"
+            }
+            onnxCategory.addPreference(pref)
+            updateOnnxStatus(pref, model)
         }
     }
 
@@ -132,53 +132,6 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
         }
     }
 
-    private fun updatePaddleStatus(pref: Preference, id: String, version: String) {
-        val downloaded = paddleModelManager.isModelDownloaded(version)
-        pref.summary = if (downloaded) {
-            "${getString(R.string.reader_translation_ocr_model_status_downloaded)} (Version: $version)"
-        } else {
-            "${getString(R.string.reader_translation_ocr_model_status_not_downloaded)} (Version: $version)"
-        }
-
-        pref.setOnPreferenceClickListener {
-            val model = PaddleOfficialModelCatalog.findById(id) ?: return@setOnPreferenceClickListener true
-            downloadPaddleModel(pref, model)
-            true
-        }
-    }
-
-    private fun downloadPaddleModel(pref: Preference, model: org.skepsun.kototoro.reader.translate.data.PaddleOfficialModel) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                pref.isEnabled = false
-                pref.summary = getString(R.string.loading_)
-                paddleModelManager.ensureModelReady(
-                    version = model.version,
-                    zipUrl = model.downloadUrl,
-                    zipSha256 = "",
-                    onProgress = { progress ->
-                        viewLifecycleOwner.lifecycleScope.launch {
-                             val percent = if (progress.totalBytes > 0) {
-                                (progress.downloadedBytes * 100 / progress.totalBytes).toInt()
-                            } else -1
-                            pref.summary = if (percent >= 0) {
-                                "Downloading... $percent%"
-                            } else {
-                                "Downloading... ${progress.downloadedBytes / 1024} KB"
-                            }
-                        }
-                    }
-                )
-                updatePaddleStatus(pref, model.id, model.version)
-                Toast.makeText(context, R.string.reader_translation_paddle_download_success, Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                pref.summary = "Error: ${e.message}"
-            } finally {
-                pref.isEnabled = true
-            }
-        }
-    }
-
     private fun updateNcnnStatus(pref: Preference, model: NcnnOfficialModel) {
         val downloaded = ncnnModelManager.isModelDownloaded(model.version)
         pref.summary = if (downloaded) {
@@ -219,6 +172,49 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                 )
                 updateNcnnStatus(pref, model)
                 Toast.makeText(context, R.string.reader_translation_ncnn_download_success, Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                pref.summary = "Error: ${e.message}"
+            } finally {
+                pref.isEnabled = true
+            }
+        }
+    }
+
+    private fun updateOnnxStatus(pref: Preference, model: OnnxOfficialModel) {
+        val downloaded = onnxModelManager.isModelDownloaded(model.id)
+        pref.summary = if (downloaded) {
+            "${getString(R.string.reader_translation_ocr_model_status_downloaded)} (${model.version})"
+        } else {
+            "${getString(R.string.reader_translation_ocr_model_status_not_downloaded)} (${model.version})"
+        }
+        pref.setOnPreferenceClickListener {
+            downloadOnnxModel(pref, model)
+            true
+        }
+    }
+
+    private fun downloadOnnxModel(pref: Preference, model: OnnxOfficialModel) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                pref.isEnabled = false
+                pref.summary = getString(R.string.loading_)
+                onnxModelManager.ensureModelReady(
+                    model = model,
+                    onProgress = { progress ->
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            val percent = if (progress.totalBytes > 0) {
+                                (progress.downloadedBytes * 100 / progress.totalBytes).toInt()
+                            } else -1
+                            pref.summary = if (percent >= 0) {
+                                "Downloading package... $percent%"
+                            } else {
+                                "Downloading package... ${progress.downloadedBytes / 1024} KB"
+                            }
+                        }
+                    },
+                )
+                updateOnnxStatus(pref, model)
+                Toast.makeText(context, R.string.reader_translation_onnx_download_success, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 pref.summary = "Error: ${e.message}"
             } finally {

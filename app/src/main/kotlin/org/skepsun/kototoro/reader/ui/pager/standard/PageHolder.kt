@@ -17,12 +17,20 @@ import androidx.core.view.isVisible
 import androidx.core.view.setMargins
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import com.davemorrissey.labs.subscaleview.OnStateChangedListener
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.model.ZoomMode
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.ui.widgets.ZoomControl
+import org.skepsun.kototoro.core.util.ext.isLowRamDevice
 import org.skepsun.kototoro.databinding.ItemPageBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
@@ -46,9 +54,41 @@ open class PageHolder(
 ), ZoomControl.ZoomControlListener, OnApplyWindowInsetsListener {
 
 	override val ssiv = binding.ssiv
+	private val holderScope: CoroutineScope = owner.lifecycleScope
+	private val ssivOriginal = binding.ssivOriginal
+	private var dualLayerLoadJob: Job? = null
+	private var translatedLayerReady = false
+	private var suppressLayerSync = false
 
 	init {
 		ViewCompat.setOnApplyWindowInsetsListener(binding.root, this)
+		holderScope.launch(Dispatchers.Main) {
+			ssivOriginal.bindToLifecycle(this@PageHolder)
+			ssivOriginal.isEagerLoadingEnabled = !context.isLowRamDevice()
+			ssivOriginal.onStateChangedListener = object : OnStateChangedListener {
+				override fun onScaleChanged(newScale: Float, origin: Int) = Unit
+				override fun onScaleChanged(view: SubsamplingScaleImageView, newScale: Float, origin: Int) = Unit
+				override fun onCenterChanged(newCenter: PointF, origin: Int) = Unit
+				override fun onCenterChanged(view: SubsamplingScaleImageView, newCenter: PointF, origin: Int) = Unit
+			}
+			ssiv.onStateChangedListener = object : OnStateChangedListener {
+				override fun onScaleChanged(newScale: Float, origin: Int) {
+					syncOriginalLayerState()
+				}
+
+				override fun onScaleChanged(view: SubsamplingScaleImageView, newScale: Float, origin: Int) {
+					syncOriginalLayerState()
+				}
+
+				override fun onCenterChanged(newCenter: PointF, origin: Int) {
+					syncOriginalLayerState()
+				}
+
+				override fun onCenterChanged(view: SubsamplingScaleImageView, newCenter: PointF, origin: Int) {
+					syncOriginalLayerState()
+				}
+			}
+		}
 	}
 
 	override fun onApplyWindowInsets(
@@ -66,12 +106,25 @@ open class PageHolder(
 	override fun onConfigChanged(settings: ReaderSettings) {
 		super.onConfigChanged(settings)
 		binding.textViewNumber.isVisible = settings.isPagesNumbersEnabled
+		ssivOriginal.colorFilter = settings.colorFilter?.toColorFilter()
+		applyDualLayerVisibility()
 	}
 
 	@SuppressLint("SetTextI18n")
 	override fun onBind(data: ReaderPage) {
 		super.onBind(data)
 		binding.textViewNumber.text = (data.index + 1).toString()
+	}
+
+	override fun onStateChanged(state: org.skepsun.kototoro.reader.ui.pager.vm.PageState) {
+		super.onStateChanged(state)
+		when (state) {
+			is org.skepsun.kototoro.reader.ui.pager.vm.PageState.Loaded,
+			is org.skepsun.kototoro.reader.ui.pager.vm.PageState.Shown,
+			-> refreshDualLayers()
+
+			else -> Unit
+		}
 	}
 
 	override fun onReady() {
@@ -112,6 +165,15 @@ open class PageHolder(
 				)
 			}
 		}
+		ssivOriginal.colorFilter = settings.colorFilter?.toColorFilter()
+		syncOriginalLayerState()
+		applyDualLayerVisibility()
+	}
+
+	override fun onRecycled() {
+		dualLayerLoadJob?.cancel()
+		ssivOriginal.recycle()
+		super.onRecycled()
 	}
 
 	override fun onZoomIn() {
@@ -154,5 +216,48 @@ open class PageHolder(
 			withInterpolator(DecelerateInterpolator())
 			start()
 		}
+	}
+
+	private fun refreshDualLayers() {
+		val page = boundData?.toMangaPage() ?: return
+		val prev = dualLayerLoadJob
+		dualLayerLoadJob = holderScope.launch(Dispatchers.Default) {
+			prev?.cancelAndJoin()
+			val layers = viewModel.resolveLayerSources(page) ?: return@launch
+			val currentState = ssiv.getState()
+			holderScope.launch(Dispatchers.Main) {
+				suppressLayerSync = true
+				ssivOriginal.setImage(layers.original, null, currentState)
+				if (layers.translated != null) {
+					ssiv.setImage(layers.translated, null, currentState)
+					translatedLayerReady = true
+				} else {
+					translatedLayerReady = false
+				}
+				suppressLayerSync = false
+				syncOriginalLayerState()
+				applyDualLayerVisibility()
+			}
+		}
+	}
+
+	private fun applyDualLayerVisibility() {
+		if (!translatedLayerReady) {
+			ssiv.alpha = 1f
+			ssivOriginal.isVisible = false
+			return
+		}
+		ssivOriginal.isVisible = true
+		ssiv.alpha = if (settings.isTranslationShowTranslated) 1f else 0f
+	}
+
+	private fun syncOriginalLayerState() {
+		if (suppressLayerSync || !translatedLayerReady || !ssiv.isReady || !ssivOriginal.isReady) {
+			return
+		}
+		val center = ssiv.getCenter() ?: return
+		suppressLayerSync = true
+		ssivOriginal.setScaleAndCenter(ssiv.scale, PointF(center.x, center.y))
+		suppressLayerSync = false
 	}
 }

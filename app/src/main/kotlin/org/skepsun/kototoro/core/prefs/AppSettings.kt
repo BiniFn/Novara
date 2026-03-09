@@ -527,7 +527,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getString(KEY_READER_TRANSLATION_TARGET_LANG, "zh") ?: "zh"
 
 	val readerTranslationOcrEngine: ReaderOcrEngine
-		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)
+		get() = when (val engine = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)) {
+			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
+			else -> engine
+		}
 
 	val readerTranslationMode: ReaderTranslationMode
 		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_MODE, ReaderTranslationMode.LOCAL_FIRST)
@@ -537,6 +540,18 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerTranslationApiKey: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_API_KEY, "") ?: ""
+
+	val readerTranslationApiModel: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_API_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini"
+
+	val readerTranslationApiProviderPreset: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM") ?: "CUSTOM"
+
+	val readerTranslationBubbleGroupingTuning: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING, "BALANCED") ?: "BALANCED"
+
+	val readerTranslationOverlayCompactness: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS, "BALANCED") ?: "BALANCED"
 
 	val readerTranslationPaddleModelPath: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_MODEL_PATH, "") ?: ""
@@ -595,6 +610,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerTranslationNcnnModelId: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_NCNN_MODEL_ID, "") ?: ""
+
+	val readerTranslationOnnxModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_ONNX_MODEL_ID, "") ?: ""
 
 	var readerThreads: Int
 		get() = prefs.getInt(KEY_READER_THREADS, 3)
@@ -1142,6 +1160,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_MODE = "reader_translation_mode"
 		const val KEY_READER_TRANSLATION_API_ENDPOINT = "reader_translation_api_endpoint"
 		const val KEY_READER_TRANSLATION_API_KEY = "reader_translation_api_key"
+		const val KEY_READER_TRANSLATION_API_MODEL = "reader_translation_api_model"
+		const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
+		const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
+		const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING = "reader_translation_bubble_grouping_tuning"
+		const val KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS = "reader_translation_overlay_compactness"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_PATH = "reader_translation_paddle_model_path"
 		const val KEY_READER_TRANSLATION_PADDLE_OCR_ONLY = "reader_translation_paddle_ocr_only"
 		const val KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID = "reader_translation_paddle_official_model_id"
@@ -1163,6 +1186,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_TFLITE_MODEL_ID = "reader_translation_tflite_model_id"
 		const val KEY_READER_TRANSLATION_TFLITE_DOWNLOAD_NOW = "reader_translation_tflite_download_now"
 		const val KEY_READER_TRANSLATION_NCNN_MODEL_ID = "reader_translation_ncnn_model_id"
+		const val KEY_READER_TRANSLATION_ONNX_MODEL_ID = "reader_translation_onnx_model_id"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"
 		const val KEY_READER_THREADS = "reader_threads"
 		const val KEY_READER_PREFETCH_LIMIT = "reader_prefetch_limit"

@@ -23,10 +23,17 @@ dependencyResolutionManagement {
 		google()
 		mavenCentral()
 		maven {
-			url 'https://jitpack.io'
+			url 'https://artifact.bytedance.com/repository/releases/'
+			content {
+				includeGroup("com.github.bytedance")
+			}
 		}
 		maven {
-			url 'https://artifact.bytedance.com/repository/releases/'
+			url 'https://jitpack.io'
+			content {
+				includeGroupByRegex("com\\.github\\..*")
+				excludeGroup("com.github.bytedance")
+			}
 		}
 	}
 }

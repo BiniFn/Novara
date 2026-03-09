@@ -70,17 +70,17 @@ class FastOcrEngine(
     private val selfKCache = FloatArray(SELF_CACHE_FLOATS)
     private val selfVCache = FloatArray(SELF_CACHE_FLOATS)
 
-    private val crossKCache = FloatArray(NUM_LAYERS * NUM_HEADS * ENCODER_SEQ_LEN * HEAD_DIM)
-    private val crossVCache = FloatArray(NUM_LAYERS * NUM_HEADS * ENCODER_SEQ_LEN * HEAD_DIM)
     private val scalarLong = LongArray(1)
     private val scalarPosLong = LongArray(1)
     private val textBuilder = StringBuilder(MAX_SEQUENCE_LENGTH * 2)
 
     // Reused maps to avoid per-inference/per-step allocations
-    private lateinit var initInputs: Map<String, TensorBuffer>
-    private lateinit var initOutputs: Map<String, TensorBuffer>
-    private lateinit var stepInputs: Map<String, TensorBuffer>
-    private lateinit var stepOutputs: Map<String, TensorBuffer>
+    private var initSignature: String? = INIT_SIGNATURE
+    private var stepSignature: String? = STEP_SIGNATURE
+    private lateinit var initInputsNamed: Map<String, TensorBuffer>
+    private lateinit var initOutputsNamed: Map<String, TensorBuffer>
+    private lateinit var stepInputsNamed: Map<String, TensorBuffer>
+    private lateinit var stepOutputsNamed: Map<String, TensorBuffer>
 
     private val inferenceMutex = Mutex()
 
@@ -91,11 +91,12 @@ class FastOcrEngine(
         private const val LOG_TAG = "FastOcrEngine"
         private const val IMAGE_SIZE = 224
         private const val MAX_SEQUENCE_LENGTH = 256
-        private const val ENCODER_SEQ_LEN = 196
+        private const val MAX_DECODE_TOKENS = 96
         private const val VOCAB_SIZE = 9415
         private const val START_TOKEN_ID = 2
         private const val END_TOKEN_ID = 3
         private const val SPECIAL_TOKEN_THRESHOLD = 5
+        private const val MAX_REPEAT_TOKEN_STREAK = 8
 
         private const val NUM_LAYERS = 4
         private const val NUM_HEADS = 4
@@ -103,6 +104,8 @@ class FastOcrEngine(
 
         private const val INIT_SIGNATURE = "init"
         private const val STEP_SIGNATURE = "step"
+        private val INIT_SIGNATURE_CANDIDATES = listOf("init", "serving_default", "decode_init", "init_1")
+        private val STEP_SIGNATURE_CANDIDATES = listOf("step", "serving_default", "decode_step", "step_1")
 
         // Init signature I/O names
         private const val INIT_INPUT_ENCODER_STATES = "args_0"
@@ -129,7 +132,16 @@ class FastOcrEngine(
 
         // 0..255 -> 0.0..1.0 conversion table (precomputed to avoid per-pixel division).
         private val BYTE_TO_UNIT_FLOAT = FloatArray(256) { it * (1f / 255f) }
+
+        @Volatile
+        private var gpuDisabledInProcess = false
     }
+
+    private data class SignatureBinding(
+        val signature: String?,
+        val inputBuffers: List<TensorBuffer>,
+        val outputBuffers: List<TensorBuffer>,
+    )
 
     suspend fun ensureInitialized() {
         if (initialized) return
@@ -143,14 +155,27 @@ class FastOcrEngine(
 
     private fun init(): Boolean {
         return try {
-            // Try GPU first for ~3.5x speedup, fall back to CPU if not available
-            val gpuOk = runCatching { initWithAccelerator(Accelerator.GPU) }.getOrDefault(false)
+            // Try GPU first for speedup; if GPU compile fails once, skip GPU in this process.
+            val gpuOk = if (gpuDisabledInProcess) {
+                false
+            } else {
+                runCatching { initWithAccelerator(Accelerator.GPU, suppressInitErrorLog = true) }
+                    .onFailure { error ->
+                        gpuDisabledInProcess = true
+                        Log.w(LOG_TAG, "GPU init failed once, disable GPU for current process", error)
+                    }
+                    .getOrDefault(false)
+            }
             if (gpuOk) {
                 Log.i(LOG_TAG, "OCR (fast) using GPU accelerator")
                 return true
             }
-            Log.i(LOG_TAG, "GPU not available, falling back to CPU")
-            initWithAccelerator(Accelerator.CPU)
+            Log.i(
+                LOG_TAG,
+                if (gpuDisabledInProcess) "GPU disabled in process, using CPU"
+                else "GPU not available, falling back to CPU"
+            )
+            initWithAccelerator(Accelerator.CPU, suppressInitErrorLog = false)
         } catch (e: Throwable) {
             Log.e(LOG_TAG, "Failed to initialize OCR (fast) models", e)
             closeInternal()
@@ -158,7 +183,10 @@ class FastOcrEngine(
         }
     }
 
-    private fun initWithAccelerator(accelerator: Accelerator): Boolean {
+    private fun initWithAccelerator(
+        accelerator: Accelerator,
+        suppressInitErrorLog: Boolean,
+    ): Boolean {
         return try {
             val cpuThreads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
             val options = CompiledModel.Options(accelerator).apply {
@@ -184,41 +212,78 @@ class FastOcrEngine(
             encoderImageInput = encInputs[0]
             encoderHiddenStatesOutput = encOutputs[0]
 
-            // Init signature buffers
-            initEncoderStatesInput = createNamedInputBuffer(decoderModel, INIT_SIGNATURE, INIT_INPUT_ENCODER_STATES)
-            initInputIdsInput = createNamedInputBuffer(decoderModel, INIT_SIGNATURE, INIT_INPUT_IDS)
-            initLogitsOutput = createNamedOutputBuffer(decoderModel, INIT_SIGNATURE, INIT_OUTPUT_LOGITS)
-            initSelfKSliceOutput = createNamedOutputBuffer(decoderModel, INIT_SIGNATURE, INIT_OUTPUT_SELF_K_SLICE)
-            initSelfVSliceOutput = createNamedOutputBuffer(decoderModel, INIT_SIGNATURE, INIT_OUTPUT_SELF_V_SLICE)
-            initCrossKOutput = createNamedOutputBuffer(decoderModel, INIT_SIGNATURE, INIT_OUTPUT_CROSS_K)
-            initCrossVOutput = createNamedOutputBuffer(decoderModel, INIT_SIGNATURE, INIT_OUTPUT_CROSS_V)
+            val initBinding = resolveSignatureBinding(
+                model = decoderModel,
+                preferredCandidates = INIT_SIGNATURE_CANDIDATES,
+                expectedInputCount = 2,
+                expectedOutputCount = 5,
+            )
+            initSignature = initBinding.signature
+            initEncoderStatesInput = initBinding.inputBuffers[0]
+            initInputIdsInput = initBinding.inputBuffers[1]
+            initLogitsOutput = initBinding.outputBuffers[0]
+            initSelfKSliceOutput = initBinding.outputBuffers[1]
+            initSelfVSliceOutput = initBinding.outputBuffers[2]
+            initCrossKOutput = initBinding.outputBuffers[3]
+            initCrossVOutput = initBinding.outputBuffers[4]
 
-            // Step signature buffers
-            stepEncoderStatesInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_ENCODER_STATES)
-            stepInputIdsInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_IDS)
-            stepPositionIdsInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_POSITION_IDS)
-            stepSelfKCacheInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_SELF_K_CACHE)
-            stepSelfVCacheInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_SELF_V_CACHE)
-            stepCrossKInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_CROSS_K)
-            stepCrossVInput = createNamedInputBuffer(decoderModel, STEP_SIGNATURE, STEP_INPUT_CROSS_V)
-            stepLogitsOutput = createNamedOutputBuffer(decoderModel, STEP_SIGNATURE, STEP_OUTPUT_LOGITS)
-            stepSelfKSliceOutput = createNamedOutputBuffer(decoderModel, STEP_SIGNATURE, STEP_OUTPUT_SELF_K_SLICE)
-            stepSelfVSliceOutput = createNamedOutputBuffer(decoderModel, STEP_SIGNATURE, STEP_OUTPUT_SELF_V_SLICE)
+            val stepBinding = resolveSignatureBinding(
+                model = decoderModel,
+                preferredCandidates = STEP_SIGNATURE_CANDIDATES,
+                expectedInputCount = 7,
+                expectedOutputCount = 3,
+            )
+            stepSignature = stepBinding.signature
+            stepEncoderStatesInput = stepBinding.inputBuffers[0]
+            stepInputIdsInput = stepBinding.inputBuffers[1]
+            stepPositionIdsInput = stepBinding.inputBuffers[2]
+            stepSelfKCacheInput = stepBinding.inputBuffers[3]
+            stepSelfVCacheInput = stepBinding.inputBuffers[4]
+            stepCrossKInput = stepBinding.inputBuffers[5]
+            stepCrossVInput = stepBinding.inputBuffers[6]
+            stepLogitsOutput = stepBinding.outputBuffers[0]
+            stepSelfKSliceOutput = stepBinding.outputBuffers[1]
+            stepSelfVSliceOutput = stepBinding.outputBuffers[2]
 
-            // Cache I/O maps once (TensorBuffers are reused; contents are overwritten each call)
-            initInputs = mapOf(
+            // Prefer deterministic named binding when decoder exposes expected names.
+            // This avoids potential input-order ambiguity across model exports.
+            if (initSignature != null && stepSignature != null) {
+                runCatching {
+                    initEncoderStatesInput = createNamedInputBuffer(decoderModel, initSignature!!, INIT_INPUT_ENCODER_STATES)
+                    initInputIdsInput = createNamedInputBuffer(decoderModel, initSignature!!, INIT_INPUT_IDS)
+                    initLogitsOutput = createNamedOutputBuffer(decoderModel, initSignature!!, INIT_OUTPUT_LOGITS)
+                    initSelfKSliceOutput = createNamedOutputBuffer(decoderModel, initSignature!!, INIT_OUTPUT_SELF_K_SLICE)
+                    initSelfVSliceOutput = createNamedOutputBuffer(decoderModel, initSignature!!, INIT_OUTPUT_SELF_V_SLICE)
+                    initCrossKOutput = createNamedOutputBuffer(decoderModel, initSignature!!, INIT_OUTPUT_CROSS_K)
+                    initCrossVOutput = createNamedOutputBuffer(decoderModel, initSignature!!, INIT_OUTPUT_CROSS_V)
+
+                    stepEncoderStatesInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_ENCODER_STATES)
+                    stepInputIdsInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_IDS)
+                    stepPositionIdsInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_POSITION_IDS)
+                    stepSelfKCacheInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_SELF_K_CACHE)
+                    stepSelfVCacheInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_SELF_V_CACHE)
+                    stepCrossKInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_CROSS_K)
+                    stepCrossVInput = createNamedInputBuffer(decoderModel, stepSignature!!, STEP_INPUT_CROSS_V)
+                    stepLogitsOutput = createNamedOutputBuffer(decoderModel, stepSignature!!, STEP_OUTPUT_LOGITS)
+                    stepSelfKSliceOutput = createNamedOutputBuffer(decoderModel, stepSignature!!, STEP_OUTPUT_SELF_K_SLICE)
+                    stepSelfVSliceOutput = createNamedOutputBuffer(decoderModel, stepSignature!!, STEP_OUTPUT_SELF_V_SLICE)
+                }.onFailure {
+                    Log.w(LOG_TAG, "Named decoder buffer binding failed, fallback to index binding", it)
+                }
+            }
+
+            initInputsNamed = mapOf(
                 INIT_INPUT_ENCODER_STATES to initEncoderStatesInput,
                 INIT_INPUT_IDS to initInputIdsInput,
             )
-            initOutputs = mapOf(
+            initOutputsNamed = mapOf(
                 INIT_OUTPUT_LOGITS to initLogitsOutput,
                 INIT_OUTPUT_SELF_K_SLICE to initSelfKSliceOutput,
                 INIT_OUTPUT_SELF_V_SLICE to initSelfVSliceOutput,
                 INIT_OUTPUT_CROSS_K to initCrossKOutput,
                 INIT_OUTPUT_CROSS_V to initCrossVOutput,
             )
-
-            stepInputs = mapOf(
+            stepInputsNamed = mapOf(
                 STEP_INPUT_ENCODER_STATES to stepEncoderStatesInput,
                 STEP_INPUT_IDS to stepInputIdsInput,
                 STEP_INPUT_POSITION_IDS to stepPositionIdsInput,
@@ -227,10 +292,15 @@ class FastOcrEngine(
                 STEP_INPUT_CROSS_K to stepCrossKInput,
                 STEP_INPUT_CROSS_V to stepCrossVInput,
             )
-            stepOutputs = mapOf(
+            stepOutputsNamed = mapOf(
                 STEP_OUTPUT_LOGITS to stepLogitsOutput,
                 STEP_OUTPUT_SELF_K_SLICE to stepSelfKSliceOutput,
                 STEP_OUTPUT_SELF_V_SLICE to stepSelfVSliceOutput,
+            )
+
+            Log.i(
+                LOG_TAG,
+                "OCR (fast) decoder signatures resolved: init=${initSignature ?: "<default>"} step=${stepSignature ?: "<default>"}"
             )
 
             // Preprocessing scratch
@@ -244,7 +314,9 @@ class FastOcrEngine(
             Log.i(LOG_TAG, "OCR (fast) models initialized (CPU threads=$cpuThreads)")
             true
         } catch (e: Throwable) {
-            Log.e(LOG_TAG, "Failed to initialize OCR (fast) models", e)
+            if (!suppressInitErrorLog) {
+                Log.e(LOG_TAG, "Failed to initialize OCR (fast) models", e)
+            }
             closeInternal()
             false
         }
@@ -256,6 +328,64 @@ class FastOcrEngine(
 
     private fun createNamedOutputBuffer(model: CompiledModel, signature: String, name: String): TensorBuffer {
         return model.createOutputBuffer(name, signature)
+    }
+
+    private fun resolveSignatureBinding(
+        model: CompiledModel,
+        preferredCandidates: List<String>,
+        expectedInputCount: Int,
+        expectedOutputCount: Int,
+    ): SignatureBinding {
+        val attempts = linkedSetOf<String?>().apply {
+            preferredCandidates.forEach { add(it) }
+            add(null)
+        }
+        var lastError: Throwable? = null
+        for (candidate in attempts) {
+            val result = runCatching {
+                val inputs = if (candidate == null) model.createInputBuffers() else model.createInputBuffers(candidate)
+                val outputs = if (candidate == null) model.createOutputBuffers() else model.createOutputBuffers(candidate)
+                SignatureBinding(
+                    signature = candidate,
+                    inputBuffers = inputs,
+                    outputBuffers = outputs,
+                )
+            }
+            if (result.isFailure) {
+                lastError = result.exceptionOrNull()
+                continue
+            }
+            val binding = result.getOrThrow()
+            if (binding.inputBuffers.size == expectedInputCount && binding.outputBuffers.size == expectedOutputCount) {
+                return binding
+            }
+        }
+        throw IllegalStateException(
+            "No compatible decoder signature found (expected in/out=$expectedInputCount/$expectedOutputCount)",
+            lastError,
+        )
+    }
+
+    private fun runDecoderModel(
+        model: CompiledModel,
+        inputBuffers: List<TensorBuffer>,
+        outputBuffers: List<TensorBuffer>,
+        signature: String?,
+        inputMap: Map<String, TensorBuffer>? = null,
+        outputMap: Map<String, TensorBuffer>? = null,
+    ) {
+        if (signature != null && inputMap != null && outputMap != null) {
+            runCatching {
+                model.run(inputMap, outputMap, signature)
+            }.recoverCatching {
+                model.run(inputBuffers, outputBuffers, signature)
+            }.recoverCatching {
+                model.run(inputBuffers, outputBuffers)
+            }.getOrThrow()
+            return
+        }
+        if (signature == null) model.run(inputBuffers, outputBuffers)
+        else model.run(inputBuffers, outputBuffers, signature)
     }
 
     suspend fun recognizeText(image: Bitmap): String {
@@ -345,6 +475,7 @@ class FastOcrEngine(
         val tokenIds = tokenBuffer
         tokenIds[0] = START_TOKEN_ID
         var tokenCount = 1
+        val decodeTokenLimit = minOf(MAX_SEQUENCE_LENGTH, MAX_DECODE_TOKENS)
 
         selfKCache.fill(0f)
         selfVCache.fill(0f)
@@ -354,7 +485,20 @@ class FastOcrEngine(
         scalarLong[0] = START_TOKEN_ID.toLong()
         initInputIdsInput.writeLong(scalarLong)
 
-        decoderModel.run(initInputs, initOutputs, INIT_SIGNATURE)
+        runDecoderModel(
+            model = decoderModel,
+            inputBuffers = listOf(initEncoderStatesInput, initInputIdsInput),
+            outputBuffers = listOf(
+                initLogitsOutput,
+                initSelfKSliceOutput,
+                initSelfVSliceOutput,
+                initCrossKOutput,
+                initCrossVOutput,
+            ),
+            signature = initSignature,
+            inputMap = initInputsNamed,
+            outputMap = initOutputsNamed,
+        )
 
         val logits0 = initLogitsOutput.readFloat()
         val initSelfKSlice = initSelfKSliceOutput.readFloat()
@@ -365,19 +509,10 @@ class FastOcrEngine(
         insertKvSlice(selfKCache, initSelfKSlice, seqIndex = 0)
         insertKvSlice(selfVCache, initSelfVSlice, seqIndex = 0)
 
-        // Cache cross-attention tensors for the step signature
-        if (crossK.size == crossKCache.size) {
-            stepCrossKInput.writeFloat(crossK)
-        } else {
-            System.arraycopy(crossK, 0, crossKCache, 0, minOf(crossK.size, crossKCache.size))
-            stepCrossKInput.writeFloat(crossKCache)
-        }
-        if (crossV.size == crossVCache.size) {
-            stepCrossVInput.writeFloat(crossV)
-        } else {
-            System.arraycopy(crossV, 0, crossVCache, 0, minOf(crossV.size, crossVCache.size))
-            stepCrossVInput.writeFloat(crossVCache)
-        }
+        // Cross-attention tensors from init are written directly to step inputs.
+        // This avoids shape mismatch when model-export dimensions differ from hardcoded constants.
+        stepCrossKInput.writeFloat(crossK)
+        stepCrossVInput.writeFloat(crossV)
 
         // Encoder hidden states are constant for all decoder steps
         stepEncoderStatesInput.writeFloat(encoderHiddenStates)
@@ -391,9 +526,11 @@ class FastOcrEngine(
 
         var cacheLen = 1 // start token already cached at seqIndex 0
         var currentToken = nextToken
+        var lastGeneratedToken = nextToken
+        var repeatTokenStreak = 1
 
         // Decoder step signature (subsequent inferences w/ KV cache for speed)
-        while (tokenCount < MAX_SEQUENCE_LENGTH && cacheLen < MAX_SEQUENCE_LENGTH) {
+        while (tokenCount < decodeTokenLimit && cacheLen < decodeTokenLimit) {
             scalarLong[0] = currentToken.toLong()
             stepInputIdsInput.writeLong(scalarLong)
 
@@ -403,7 +540,26 @@ class FastOcrEngine(
             stepSelfKCacheInput.writeFloat(selfKCache)
             stepSelfVCacheInput.writeFloat(selfVCache)
 
-            decoderModel.run(stepInputs, stepOutputs, STEP_SIGNATURE)
+            runDecoderModel(
+                model = decoderModel,
+                inputBuffers = listOf(
+                    stepEncoderStatesInput,
+                    stepInputIdsInput,
+                    stepPositionIdsInput,
+                    stepSelfKCacheInput,
+                    stepSelfVCacheInput,
+                    stepCrossKInput,
+                    stepCrossVInput,
+                ),
+                outputBuffers = listOf(
+                    stepLogitsOutput,
+                    stepSelfKSliceOutput,
+                    stepSelfVSliceOutput,
+                ),
+                signature = stepSignature,
+                inputMap = stepInputsNamed,
+                outputMap = stepOutputsNamed,
+            )
 
             val stepSelfKSlice = stepSelfKSliceOutput.readFloat()
             val stepSelfVSlice = stepSelfVSliceOutput.readFloat()
@@ -416,6 +572,15 @@ class FastOcrEngine(
             nextToken = findMaxToken(logits)
             if (nextToken == END_TOKEN_ID) {
                 break
+            }
+            if (nextToken == lastGeneratedToken) {
+                repeatTokenStreak++
+                if (repeatTokenStreak >= MAX_REPEAT_TOKEN_STREAK) {
+                    break
+                }
+            } else {
+                lastGeneratedToken = nextToken
+                repeatTokenStreak = 1
             }
 
             tokenIds[tokenCount++] = nextToken

@@ -45,7 +45,7 @@ class TfliteModelManager @Inject constructor(
 		version: String,
 		encoderUrl: String,
 		decoderUrl: String,
-		vocabUrl: String,
+		vocabUrl: String? = null,
 		embeddingsUrl: String? = null,
 		onProgress: ((String, DownloadProgress) -> Unit)? = null,
 	): String = mutex.withLock {
@@ -57,7 +57,11 @@ class TfliteModelManager @Inject constructor(
 		val vocabFile = File(modelDir, "vocab.csv")
 		val embeddingsFile = embeddingsUrl?.let { File(modelDir, "embeddings.bin") }
 		
-		val isReady = encoderFile.exists() && decoderFile.exists() && vocabFile.exists() && (embeddingsFile == null || embeddingsFile.exists())
+		val requiresVocab = !vocabUrl.isNullOrBlank()
+		val isReady = encoderFile.exists() &&
+			decoderFile.exists() &&
+			(!requiresVocab || vocabFile.exists()) &&
+			(embeddingsFile == null || embeddingsFile.exists())
 
 		if (!isReady) {
 			if (!encoderFile.exists()) {
@@ -66,7 +70,7 @@ class TfliteModelManager @Inject constructor(
 			if (!decoderFile.exists()) {
 				downloadFile(decoderUrl, decoderFile) { onProgress?.invoke("Decoder", it) }
 			}
-			if (!vocabFile.exists()) {
+			if (requiresVocab && !vocabFile.exists()) {
 				downloadFile(vocabUrl, vocabFile) { onProgress?.invoke("Vocab", it) }
 			}
 			if (embeddingsUrl != null && embeddingsFile != null && !embeddingsFile.exists()) {

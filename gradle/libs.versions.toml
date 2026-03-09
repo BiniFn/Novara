@@ -76,6 +76,9 @@ mlkitText = "16.0.1"
 mlkitTranslate = "17.0.3"
 paddleocr4android = "v1.2.9"
 ncnnandroidppocr = "v1.3.0"
+onnxruntime = "1.19.0"
+djlTokenizers = "0.33.0"
+djlSentencepiece = "0.33.0"
 
 [libraries]
 acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acra" }
@@ -177,6 +180,9 @@ mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version
 mlkit-translate = { module = "com.google.mlkit:translate", version.ref = "mlkitTranslate" }
 paddleocr4android = { module = "com.github.equationl.paddleocr4android:paddleocr4android", version.ref = "paddleocr4android" }
 ncnnandroidppocr = { module = "com.github.equationl.paddleocr4android:ncnnandroidppocr", version.ref = "ncnnandroidppocr" }
+onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
+djl-tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "djlTokenizers" }
+djl-sentencepiece = { module = "ai.djl.sentencepiece:sentencepiece", version.ref = "djlSentencepiece" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "gradle" }

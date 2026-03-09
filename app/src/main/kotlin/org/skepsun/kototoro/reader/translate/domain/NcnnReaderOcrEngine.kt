@@ -31,14 +31,7 @@ class NcnnReaderOcrEngine @Inject constructor(
 
 	override suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
 		log { "recognize start lang=$sourceLang uri=$sourceUri" }
-		val modelPath = resolveModelPath()
-		mutex.withLock {
-			if (modelPathInitialized != modelPath) {
-				initModel(modelPath)
-				modelPathInitialized = modelPath
-				log { "model initialized path=$modelPath" }
-			}
-		}
+		ensureModelInitialized()
 		val result = runInterruptible(Dispatchers.IO) {
 			ocr.detectImagePath(sourceUri.toFile().absolutePath, DrawModel.None)
 		} ?: return emptyList()
@@ -60,6 +53,40 @@ class NcnnReaderOcrEngine @Inject constructor(
 		}
 		log { "recognize done blocks=${blocks.size}" }
 		return blocks
+	}
+
+	suspend fun detectBoxes(sourceUri: Uri): List<Rect> {
+		ensureModelInitialized()
+		val result = runInterruptible(Dispatchers.IO) {
+			ocr.detectImagePath(sourceUri.toFile().absolutePath, DrawModel.None)
+		} ?: return emptyList()
+		return result.textLines.mapNotNull { line ->
+			val points = line.points
+			if (points.isEmpty()) {
+				null
+			} else {
+				val minX = points.minOf { it.x }
+				val minY = points.minOf { it.y }
+				val maxX = points.maxOf { it.x }
+				val maxY = points.maxOf { it.y }
+				if (maxX <= minX || maxY <= minY) {
+					null
+				} else {
+					Rect(minX, minY, maxX, maxY)
+				}
+			}
+		}
+	}
+
+	private suspend fun ensureModelInitialized() {
+		val modelPath = resolveModelPath()
+		mutex.withLock {
+			if (modelPathInitialized != modelPath) {
+				initModel(modelPath)
+				modelPathInitialized = modelPath
+				log { "model initialized path=$modelPath" }
+			}
+		}
 	}
 
 	private suspend fun resolveModelPath(): String {

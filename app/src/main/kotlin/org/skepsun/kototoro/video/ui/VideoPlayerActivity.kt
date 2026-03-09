@@ -251,17 +251,17 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private val hideLeftRunnable = Runnable { overlaySeekLeft.visibility = View.GONE }
     private val hideRightRunnable = Runnable { overlaySeekRight.visibility = View.GONE }
     private val hideCenterRunnable = Runnable { overlayPlayPause.visibility = View.GONE }
-    private fun showOverlayLeft(text: String, durationMs: Long = 1200) {
+    private fun showOverlayLeft(text: String, durationMs: Long? = 1200) {
         overlaySeekLeft.text = text
         overlaySeekLeft.visibility = View.VISIBLE
         overlayHandler.removeCallbacks(hideLeftRunnable)
-        overlayHandler.postDelayed(hideLeftRunnable, durationMs)
+        durationMs?.let { overlayHandler.postDelayed(hideLeftRunnable, it) }
     }
-    private fun showOverlayRight(text: String, durationMs: Long = 1200) {
+    private fun showOverlayRight(text: String, durationMs: Long? = 1200) {
         overlaySeekRight.text = text
         overlaySeekRight.visibility = View.VISIBLE
         overlayHandler.removeCallbacks(hideRightRunnable)
-        overlayHandler.postDelayed(hideRightRunnable, durationMs)
+        durationMs?.let { overlayHandler.postDelayed(hideRightRunnable, it) }
     }
     private fun showPlayPauseOverlay(text: String, durationMs: Long = 800) {
         overlayPlayPause.text = text
@@ -282,11 +282,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             overlaySeekRight.visibility = View.VISIBLE
         }
     }
-    private fun hideLongSeekOverlay() {
-        overlaySeekLeft.visibility = View.GONE
-        overlaySeekRight.visibility = View.GONE
-    }
-
     // 垂直手势：亮度/音量调整
     private lateinit var audioManager: AudioManager
     private var verticalAdjustAccum: Float = 0f
@@ -309,7 +304,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         lp.screenBrightness = currentBrightnessNormalized
         window.attributes = lp
         val pct = (currentBrightnessNormalized * 100).toInt()
-        showOverlayLeft(getString(R.string.video_brightness, pct.toString()))
+        showOverlayLeft(getString(R.string.video_brightness, pct.toString()), durationMs = null)
     }
     private fun adjustVolumeByStep(increase: Boolean) {
         val dir = if (increase) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
@@ -317,7 +312,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val curr = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         val pct = if (max > 0) ((curr * 100f) / max).toInt() else 0
-        showOverlayRight(getString(R.string.video_volume, pct.toString()))
+        showOverlayRight(getString(R.string.video_volume, pct.toString()), durationMs = null)
     }
     
     @Inject
@@ -541,12 +536,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                             // 初始提示
                             if (verticalAdjustMode < 0) {
                                 val pct = (currentBrightnessNormalized.coerceIn(0f, 1f) * 100).toInt()
-                                showOverlayLeft(getString(R.string.video_brightness, pct.toString()))
+                                showOverlayLeft(getString(R.string.video_brightness, pct.toString()), durationMs = null)
                             } else {
                                 val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                                 val curr = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                                 val pct = if (max > 0) ((curr * 100f) / max).toInt() else 0
-                                showOverlayRight(getString(R.string.video_volume, pct.toString()))
+                                showOverlayRight(getString(R.string.video_volume, pct.toString()), durationMs = null)
                             }
                         }
                     }
@@ -567,7 +562,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     }
 
                     if (verticalAdjustMode != 0) {
-                        hideLongSeekOverlay()
                         val ratioChange = (distanceY) / h.toFloat()
                         verticalAdjustAccum += ratioChange
                         val unit = 0.02f
@@ -586,6 +580,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 val handled = detector.onTouchEvent(event)
                 when (event.actionMasked) {
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        val wasVerticalAdjusting = verticalAdjustMode != 0
                         // Restore from long press speed
                         if (isLongPressSpeeding) {
                             val originalSpeed = appSettings.videoPlaybackSpeed.toDouble()
@@ -609,11 +604,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         verticalAdjustMode = 0
                         verticalAdjustAccum = 0f
                         v.performClick()
-                        
-                        overlayHandler.removeCallbacks(hideLeftRunnable)
-                        overlayHandler.removeCallbacks(hideRightRunnable)
-                        overlayHandler.postDelayed(hideLeftRunnable, 1500)
-                        overlayHandler.postDelayed(hideRightRunnable, 1500)
+
+                        if (wasVerticalAdjusting) {
+                            // Keep the last brightness/volume feedback visible briefly after finger release.
+                            overlayHandler.removeCallbacks(hideLeftRunnable)
+                            overlayHandler.removeCallbacks(hideRightRunnable)
+                            overlayHandler.postDelayed(hideLeftRunnable, 1500)
+                            overlayHandler.postDelayed(hideRightRunnable, 1500)
+                        }
                     }
                 }
                 handled || true

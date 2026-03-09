@@ -19,6 +19,7 @@ import org.skepsun.kototoro.settings.PlaybackSettingsFragment
 import org.skepsun.kototoro.settings.ServicesSettingsFragment
 import org.skepsun.kototoro.settings.StorageAndNetworkSettingsFragment
 import org.skepsun.kototoro.settings.SuggestionsSettingsFragment
+import org.skepsun.kototoro.settings.TranslationSettingsFragment
 import org.skepsun.kototoro.settings.about.AboutSettingsFragment
 import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
@@ -40,6 +41,7 @@ class SettingsSearchHelper @Inject constructor(
 		preferenceManager.inflateTo(result, R.xml.pref_playback, emptyList(), PlaybackSettingsFragment::class.java)
 		preferenceManager.inflateTo(result, R.xml.pref_sources, emptyList(), SourcesSettingsFragment::class.java)
 		preferenceManager.inflateTo(result, R.xml.pref_reader, emptyList(), ReaderSettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_translation, emptyList(), TranslationSettingsFragment::class.java)
         preferenceManager.inflateTo(
             result,
             R.xml.pref_network_storage,

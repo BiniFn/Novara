@@ -66,6 +66,7 @@ import org.skepsun.kototoro.parsers.util.sizeOrZero
 import org.skepsun.kototoro.reader.domain.ChaptersLoader
 import org.skepsun.kototoro.reader.domain.DetectReaderModeUseCase
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordRpc
@@ -125,6 +126,8 @@ class ReaderViewModel @Inject constructor(
     val onAskNsfwIncognito = MutableEventFlow<Unit>()
     val uiState = MutableStateFlow<ReaderUiState?>(null)
     val targetPagePosition = MutableStateFlow<Int?>(null)
+    val translationLayerState = MutableStateFlow(TranslationLayerState.IDLE)
+    private val translationStateByPageId = linkedMapOf<Long, TranslationLayerState>()
 
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
@@ -208,6 +211,7 @@ class ReaderViewModel @Inject constructor(
 
     init {
         initIncognitoMode()
+        observeTranslationLayerState()
         loadImpl()
         launchJob(Dispatchers.Default) {
             val mangaId = manga.filterNotNull().first().id
@@ -220,6 +224,14 @@ class ReaderViewModel @Inject constructor(
     fun reload() {
         loadingJob?.cancel()
         loadImpl()
+    }
+
+    fun retranslateCurrent() {
+        launchJob(Dispatchers.Default) {
+            pageLoader.invalidateTranslationCaches()
+            reload()
+            onShowToast.call(R.string.reader_translation_retranslate_started)
+        }
     }
 
     fun onPause() {
@@ -379,6 +391,7 @@ class ReaderViewModel @Inject constructor(
                 readingState.update { cs ->
                     cs?.copy(chapterId = page.chapterId, page = page.index)
                 }
+                updateTranslationStateForCurrentPage(page.id)
             }
             notifyStateChanged()
             val currentLoadingJob = loadingJob
@@ -575,6 +588,22 @@ class ReaderViewModel @Inject constructor(
         } else {
             subList(fromIndexBounded, toIndexBounded)
         }
+    }
+
+    private fun observeTranslationLayerState() {
+        launchJob(Dispatchers.Default) {
+            pageLoader.observeTranslationStatusUpdates().collect { event ->
+                translationStateByPageId[event.pageId] = event.state
+                val currentPageId = getCurrentPage()?.id
+                if (currentPageId == event.pageId) {
+                    translationLayerState.value = event.state
+                }
+            }
+        }
+    }
+
+    private fun updateTranslationStateForCurrentPage(pageId: Long) {
+        translationLayerState.value = translationStateByPageId[pageId] ?: TranslationLayerState.IDLE
     }
 
     @WorkerThread

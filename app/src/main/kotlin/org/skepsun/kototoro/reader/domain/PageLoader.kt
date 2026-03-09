@@ -23,8 +23,11 @@ import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.runInterruptible
@@ -102,9 +105,13 @@ class PageLoader @Inject constructor(
 	val loaderScope = lifecycle.lifecycleScope + InternalErrorHandler() + Dispatchers.Default
 
 	private val tasks = LongSparseArray<ProgressDeferred<Uri, Float>>()
+	private val translationUpdates = MutableSharedFlow<Long>(extraBufferCapacity = 64)
+	private val translationStatusUpdates = MutableSharedFlow<TranslationLayerStateEvent>(extraBufferCapacity = 128)
 	private val semaphore = Semaphore(settings.readerThreads)
 	private val convertLock = Mutex()
 	private val prefetchLock = Mutex()
+	private val translationLock = Any()
+	private val translationJobs = LongSparseArray<Job>()
 
 	@Volatile
 	private var repository: MangaRepository? = null
@@ -112,6 +119,18 @@ class PageLoader @Inject constructor(
 	private val counter = AtomicInteger(0)
 	private var prefetchQueueLimit = settings.readerPrefetchLimit
 	private val edgeDetector = EdgeDetector(context)
+
+	data class TranslationLayerStateEvent(
+		val pageId: Long,
+		val state: TranslationLayerState,
+	)
+
+	enum class TranslationLayerState {
+		IDLE,
+		GENERATING,
+		READY,
+		FAILED,
+	}
 
 	fun isPrefetchApplicable(): Boolean {
 		return repository is CachingMangaRepository
@@ -231,9 +250,42 @@ class PageLoader @Inject constructor(
 
 	suspend fun invalidate(clearCache: Boolean) {
 		tasks.clear()
+		synchronized(translationLock) {
+			for (i in 0 until translationJobs.size()) {
+				translationJobs.valueAt(i).cancel()
+			}
+			translationJobs.clear()
+		}
 		loaderScope.cancelChildrenAndJoin()
 		if (clearCache) {
 			cache.clear()
+		}
+	}
+
+	fun invalidateTask(pageId: Long) {
+		synchronized(tasks) {
+			tasks[pageId]?.cancel()
+			tasks.remove(pageId)
+		}
+	}
+
+	suspend fun invalidateTranslationCaches() {
+		translationProcessor.clearAllCaches()
+	}
+
+	fun observeTranslationUpdates(): Flow<Long> = translationUpdates
+	fun observeTranslationStatusUpdates(): Flow<TranslationLayerStateEvent> = translationStatusUpdates
+	fun getTranslationDebugLog(pageId: Long): String = translationProcessor.getPageDebugLog(pageId)
+
+	suspend fun resolveDisplayVariant(
+		page: MangaPage,
+		currentUri: Uri,
+		showTranslated: Boolean,
+	): Uri? {
+		return if (showTranslated) {
+			translationProcessor.peekRendered(page, currentUri)
+		} else {
+			translationProcessor.peekSourceOfRendered(currentUri) ?: currentUri
 		}
 	}
 
@@ -290,52 +342,56 @@ class PageLoader @Inject constructor(
 	): Uri = semaphore.withPermit {
 		val pageUrl = getPageUrl(page)
 		check(pageUrl.isNotBlank()) { "Cannot obtain full image url for $page" }
-		if (!skipCache) {
-			cache.get(pageUrl)?.let { return it.toUri() }
-		}
-		val uri = pageUrl.toUri()
-		val sourceUri = when {
-			uri.isZipUri() -> if (uri.scheme == URI_SCHEME_ZIP) {
-				uri
-			} else { // legacy uri
-				uri.buildUpon().scheme(URI_SCHEME_ZIP).build()
-			}
+		val sourceUri = if (!skipCache) {
+			cache.get(pageUrl)?.toUri()
+		} else {
+			null
+		} ?: run {
+			val uri = pageUrl.toUri()
+			when {
+				uri.isZipUri() -> if (uri.scheme == URI_SCHEME_ZIP) {
+					uri
+				} else { // legacy uri
+					uri.buildUpon().scheme(URI_SCHEME_ZIP).build()
+				}
 
-			uri.isFileUri() -> uri
-			uri.scheme == "data" -> {
-				val dataUrl = pageUrl
-				val commaIndex = dataUrl.indexOf(',')
-				if (commaIndex == -1) error("Invalid data URL: $dataUrl")
-				
-				val header = dataUrl.substring(0, commaIndex)
-				val data = dataUrl.substring(commaIndex + 1)
-				val isBase64 = header.contains(";base64")
-				val contentType = header.substringAfter("data:").substringBefore(";")
-				
-				val bytes = if (isBase64) {
-					android.util.Base64.decode(data, android.util.Base64.DEFAULT)
-				} else {
-					java.net.URLDecoder.decode(data, "UTF-8").toByteArray()
-				}
-				
-				cache.set(pageUrl, bytes.inputStream().source(), contentType.toMimeTypeOrNull()).toUri()
-			}
-			else -> {
-				if (isPrefetch) {
-					downloadSlowdownDispatcher.delay(page.source)
-				}
-				val repo = getRepository(page.source)
-				val request = repo.createPageRequest(pageUrl, page)
-				val response = imageProxyInterceptor.interceptPageRequest(request, okHttp)
-				Log.d(
-					"JsPageResponse",
-					"resp code=${response.code} protocol=${response.protocol} redirected=${response.priorResponse != null} reqUrl=${response.request.url} prior=${response.priorResponse?.code}"
-				)
-				response.ensureSuccess().use { resp ->
-					resp.requireBody().withProgress(progress).use {
-						cache.set(pageUrl, it.source(), it.contentType()?.toMimeType())
+				uri.isFileUri() -> uri
+				uri.scheme == "data" -> {
+					val dataUrl = pageUrl
+					val commaIndex = dataUrl.indexOf(',')
+					if (commaIndex == -1) error("Invalid data URL: $dataUrl")
+
+					val header = dataUrl.substring(0, commaIndex)
+					val data = dataUrl.substring(commaIndex + 1)
+					val isBase64 = header.contains(";base64")
+					val contentType = header.substringAfter("data:").substringBefore(";")
+
+					val bytes = if (isBase64) {
+						android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+					} else {
+						java.net.URLDecoder.decode(data, "UTF-8").toByteArray()
 					}
-				}.toUri()
+
+					cache.set(pageUrl, bytes.inputStream().source(), contentType.toMimeTypeOrNull()).toUri()
+				}
+
+				else -> {
+					if (isPrefetch) {
+						downloadSlowdownDispatcher.delay(page.source)
+					}
+					val repo = getRepository(page.source)
+					val request = repo.createPageRequest(pageUrl, page)
+					val response = imageProxyInterceptor.interceptPageRequest(request, okHttp)
+					Log.d(
+						"JsPageResponse",
+						"resp code=${response.code} protocol=${response.protocol} redirected=${response.priorResponse != null} reqUrl=${response.request.url} prior=${response.priorResponse?.code}"
+					)
+					response.ensureSuccess().use { resp ->
+						resp.requireBody().withProgress(progress).use {
+							cache.set(pageUrl, it.source(), it.contentType()?.toMimeType())
+						}
+					}.toUri()
+				}
 			}
 		}
 		val readyUri = if (settings.isReaderTranslationEnabled && sourceUri.isZipUri()) {
@@ -343,7 +399,55 @@ class PageLoader @Inject constructor(
 		} else {
 			sourceUri
 		}
-		translationProcessor.process(page, readyUri)
+		if (!settings.isReaderTranslationEnabled) {
+			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.IDLE))
+			return readyUri
+		}
+		if (!settings.isReaderTranslationShowTranslated) {
+			val cached = translationProcessor.peekRendered(page, readyUri)
+			translationStatusUpdates.tryEmit(
+				TranslationLayerStateEvent(
+					page.id,
+					if (cached != null) TranslationLayerState.READY else TranslationLayerState.IDLE,
+				),
+			)
+			return readyUri
+		}
+		translationProcessor.peekRendered(page, readyUri)?.let {
+			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.READY))
+			return it
+		}
+		scheduleTranslation(page, readyUri)
+		readyUri
+	}
+
+	private fun scheduleTranslation(page: MangaPage, sourceUri: Uri) {
+		synchronized(translationLock) {
+			val existing = translationJobs[page.id]
+			if (existing?.isActive == true) {
+				return
+			}
+			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.GENERATING))
+			translationJobs[page.id] = loaderScope.launch {
+				val translated = runCatching {
+					translationProcessor.process(page, sourceUri)
+				}.onFailure {
+					it.printStackTraceDebug()
+				}.getOrDefault(sourceUri)
+				if (translated != sourceUri) {
+					translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.READY))
+					synchronized(tasks) {
+						tasks.remove(page.id)
+					}
+					translationUpdates.tryEmit(page.id)
+				} else {
+					translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.FAILED))
+				}
+				synchronized(translationLock) {
+					translationJobs.remove(page.id)
+				}
+			}
+		}
 	}
 
 	private fun isLowRam(): Boolean {

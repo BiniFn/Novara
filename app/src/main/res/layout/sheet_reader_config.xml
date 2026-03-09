@@ -233,6 +233,20 @@
                 app:drawableStartCompat="@drawable/ic_auto_fix" />
 
             <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_retranslate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/reader_translation_retranslate"
+                app:drawableStartCompat="@drawable/ic_retry" />
+
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_translation_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/reader_translation_view_page_log"
+                app:drawableStartCompat="@drawable/ic_info_outline" />
+
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
                 android:id="@+id/button_open_in_browser"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

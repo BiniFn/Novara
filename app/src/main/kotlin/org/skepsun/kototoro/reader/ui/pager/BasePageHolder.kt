@@ -59,7 +59,8 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	var boundData: ReaderPage? = null
 		private set
-	private var lastTranslationSignature: String? = null
+	private var lastTranslationDisplaySignature: String? = null
+	private var lastTranslationContentSignature: String? = null
 
 	init {
 		lifecycleScope.launch(Dispatchers.Main) {
@@ -84,12 +85,27 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	@CallSuper
 	protected open fun onConfigChanged(settings: ReaderSettings) {
-		val translationSignature = settings.translationSignature()
-		val shouldReloadTranslation = lastTranslationSignature != null &&
-			lastTranslationSignature != translationSignature
-		lastTranslationSignature = translationSignature
+		val translationDisplaySignature = settings.translationDisplaySignature()
+		val translationContentSignature = settings.translationContentSignature()
+		val translationDisplayChanged = lastTranslationDisplaySignature != null &&
+			lastTranslationDisplaySignature != translationDisplaySignature
+		val translationContentChanged = lastTranslationContentSignature != null &&
+			lastTranslationContentSignature != translationContentSignature
+		lastTranslationDisplaySignature = translationDisplaySignature
+		lastTranslationContentSignature = translationContentSignature
 		settings.applyBackground(itemView)
-		if (settings.applyBitmapConfig(ssiv) || shouldReloadTranslation) {
+		if (translationDisplayChanged || translationContentChanged) {
+			val page = boundData?.toMangaPage()
+			if (page != null) {
+				if (translationDisplayChanged && !translationContentChanged) {
+					viewModel.switchDisplayLayer(page)
+				} else {
+					viewModel.refreshDisplayVariant(page)
+				}
+			} else {
+				reloadImage()
+			}
+		} else if (settings.applyBitmapConfig(ssiv)) {
 			reloadImage()
 		} else if (viewModel.state.value is PageState.Shown) {
 			onReady()

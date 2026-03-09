@@ -12,7 +12,7 @@ data class NcnnOfficialModel(
 
 object NcnnOfficialModelCatalog {
 
-	private const val BASE_URL = "https://raw.githubusercontent.com/equationl/ncnn-android-ppocrv5/master/app/src/main/assets/"
+	private const val BASE_URL = "https://github.com/equationl/ncnn-android-ppocrv5/raw/refs/heads/master/app/src/main/assets/"
 
 	val models = listOf(
 		NcnnOfficialModel(

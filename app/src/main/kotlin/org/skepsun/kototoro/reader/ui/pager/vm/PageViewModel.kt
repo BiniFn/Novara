@@ -36,15 +36,32 @@ class PageViewModel(
 	private val isWebtoon: Boolean,
 ) : DefaultOnImageEventListener {
 
+	data class LayerSources(
+		val original: ImageSource,
+		val translated: ImageSource?,
+	)
+
 	private val scope = loader.loaderScope + Dispatchers.Main.immediate
 	private var job: Job? = null
 	private var cachedBounds: Rect? = null
+	private var boundPage: MangaPage? = null
+	private val boundsCache = LinkedHashMap<String, Rect?>(64, 0.75f, true)
+
+	init {
+		loader.observeTranslationUpdates()
+			.onEach { pageId ->
+				val page = boundPage ?: return@onEach
+				if (page.id != pageId || isLoading()) return@onEach
+				switchDisplayLayer(page)
+			}.launchIn(scope)
+	}
 
 	val state = MutableStateFlow<PageState>(PageState.Empty)
 
 	fun isLoading() = job?.isActive == true
 
 	fun onBind(page: MangaPage) {
+		boundPage = page
 		val prevJob = job
 		job = scope.launch(Dispatchers.Default) {
 			prevJob?.cancelAndJoin()
@@ -76,7 +93,45 @@ class PageViewModel(
 	fun onRecycle() {
 		state.value = PageState.Empty
 		cachedBounds = null
+		boundPage = null
+		boundsCache.clear()
 		job?.cancel()
+	}
+
+	fun refreshDisplayVariant(page: MangaPage) {
+		val prevJob = job
+		job = scope.launch(Dispatchers.Default) {
+			prevJob?.cancelAndJoin()
+			loader.invalidateTask(page.id)
+			doLoad(page, force = false)
+		}
+	}
+
+	fun switchDisplayLayer(page: MangaPage) {
+		val currentState = state.value
+		val source = when (currentState) {
+			is PageState.Shown -> currentState.source
+			is PageState.Loaded -> currentState.source
+			else -> null
+		}
+		val currentUri = (source as? ImageSource.Uri)?.uri
+		if (currentUri == null) {
+			return
+		}
+		val prevJob = job
+		job = scope.launch(Dispatchers.Default) {
+			prevJob?.cancelAndJoin()
+			val targetUri = loader.resolveDisplayVariant(
+				page = page,
+				currentUri = currentUri,
+				showTranslated = settingsProducer.value.isTranslationShowTranslated,
+			)
+			if (targetUri == null || targetUri == currentUri) {
+				return@launch
+			}
+			cachedBounds = resolveTrimmedBounds(targetUri)
+			state.value = PageState.Shown(targetUri.toImageSource(cachedBounds), isConverted = false)
+		}
 	}
 
 	override fun onImageLoaded() {
@@ -114,11 +169,7 @@ class PageViewModel(
 			state.value = PageState.Converting()
 			try {
 				val newUri = loader.convertBimap(uri)
-				cachedBounds = if (settingsProducer.value.isPagesCropEnabled(isWebtoon)) {
-					loader.getTrimmedBounds(newUri)
-				} else {
-					null
-				}
+				cachedBounds = resolveTrimmedBounds(newUri)
 				state.value = PageState.Loaded(newUri.toImageSource(cachedBounds), isConverted = true)
 			} catch (ce: CancellationException) {
 				throw ce
@@ -145,11 +196,7 @@ class PageViewModel(
 			val uri = task.await()
 			progressObserver.cancelAndJoin()
 			previewJob.cancel()
-			cachedBounds = if (settingsProducer.value.isPagesCropEnabled(isWebtoon)) {
-				loader.getTrimmedBounds(uri)
-			} else {
-				null
-			}
+			cachedBounds = resolveTrimmedBounds(uri)
 			state.value = PageState.Loaded(uri.toImageSource(cachedBounds), isConverted = false)
 		} catch (e: CancellationException) {
 			throw e
@@ -183,5 +230,37 @@ class PageViewModel(
 		} else {
 			source
 		}
+	}
+
+	suspend fun resolveLayerSources(page: MangaPage): LayerSources? {
+		val currentState = state.value
+		val source = when (currentState) {
+			is PageState.Shown -> currentState.source
+			is PageState.Loaded -> currentState.source
+			else -> null
+		}
+		val currentUri = (source as? ImageSource.Uri)?.uri ?: return null
+		val originalUri = loader.resolveDisplayVariant(page, currentUri, showTranslated = false) ?: currentUri
+		val translatedUri = loader.resolveDisplayVariant(page, currentUri, showTranslated = true)
+		val original = originalUri.toImageSource(resolveTrimmedBounds(originalUri))
+		val translated = translatedUri?.let { it.toImageSource(resolveTrimmedBounds(it)) }
+		return LayerSources(original = original, translated = translated)
+	}
+
+	private suspend fun resolveTrimmedBounds(uri: Uri): Rect? {
+		if (!settingsProducer.value.isPagesCropEnabled(isWebtoon)) {
+			return null
+		}
+		val key = uri.toString()
+		if (boundsCache.containsKey(key)) {
+			return boundsCache[key]
+		}
+		val bounds = loader.getTrimmedBounds(uri)
+		boundsCache[key] = bounds
+		if (boundsCache.size > 64) {
+			val eldest = boundsCache.entries.iterator().next().key
+			boundsCache.remove(eldest)
+		}
+		return bounds
 	}
 }

@@ -291,6 +291,9 @@ dependencies {
 	implementation libs.mlkit.text.recognition.japanese
 	implementation libs.mlkit.text.recognition.chinese
 	implementation libs.mlkit.translate
+	implementation libs.onnxruntime.android
+	implementation libs.djl.tokenizers
+	implementation libs.djl.sentencepiece
 	implementation libs.paddleocr4android
 	implementation libs.ncnnandroidppocr
 	implementation libs.litert

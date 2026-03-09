@@ -14,6 +14,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.activityViewModels
 import androidx.transition.TransitionManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.sidesheet.SideSheetDialog
 import com.google.android.material.sidesheet.SideSheetBehavior
 import com.google.android.material.button.MaterialButtonToggleGroup
@@ -130,6 +131,8 @@ class ReaderConfigSheet :
         binding.switchTranslationEnabled.isChecked = settings.isReaderTranslationEnabled
         binding.switchTranslationShowTranslated.isChecked = settings.isReaderTranslationShowTranslated
         binding.switchTranslationShowTranslated.isEnabled = settings.isReaderTranslationEnabled
+        binding.buttonRetranslate.isEnabled = settings.isReaderTranslationEnabled
+        binding.buttonTranslationLog.isEnabled = settings.isReaderTranslationEnabled
         binding.sliderDoubleSensitivity.setValueRounded(settings.readerDoublePagesSensitivity * 100f)
         binding.sliderDoubleSensitivity.setLabelFormatter(IntPercentLabelFormatter(binding.root.context))
         binding.adjustSensitivitySlider(withAnimation = false)
@@ -146,6 +149,8 @@ class ReaderConfigSheet :
         binding.switchDoubleFoldable.setOnCheckedChangeListener(this)
         binding.switchTranslationEnabled.setOnCheckedChangeListener(this)
         binding.switchTranslationShowTranslated.setOnCheckedChangeListener(this)
+        binding.buttonRetranslate.setOnClickListener(this)
+        binding.buttonTranslationLog.setOnClickListener(this)
         binding.sliderDoubleSensitivity.addOnChangeListener(this)
         binding.buttonOpenInBrowser.setOnClickListener(this)
 
@@ -232,6 +237,29 @@ class ReaderConfigSheet :
                 dismissAllowingStateLoss()
             }
 
+            R.id.button_retranslate -> {
+                if (settings.isReaderTranslationEnabled) {
+                    viewModel.retranslateCurrent()
+                    dismissAllowingStateLoss()
+                }
+            }
+
+            R.id.button_translation_log -> {
+                val page = viewModel.getCurrentPage()
+                val pageNumber = (viewModel.getCurrentState()?.page ?: 0) + 1
+                val logText = page?.let { pageLoader.getTranslationDebugLog(it.id) }.orEmpty()
+                val message = if (logText.isBlank()) {
+                    getString(R.string.reader_translation_page_log_empty)
+                } else {
+                    logText
+                }
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(getString(R.string.reader_translation_page_log_title, pageNumber))
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
+
             R.id.button_image_server -> viewLifecycleScope.launch {
                 if (imageServerDelegate.showDialog(v.context)) {
                     bindImageServerTitle()
@@ -263,6 +291,8 @@ class ReaderConfigSheet :
             R.id.switch_translation_enabled -> {
                 settings.isReaderTranslationEnabled = isChecked
                 viewBinding?.switchTranslationShowTranslated?.isEnabled = isChecked
+                viewBinding?.buttonRetranslate?.isEnabled = isChecked
+                viewBinding?.buttonTranslationLog?.isEnabled = isChecked
             }
 
             R.id.switch_translation_show_translated -> {

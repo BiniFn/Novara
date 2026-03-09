@@ -30,6 +30,11 @@ class ReaderTranslationTextCache @Inject constructor(
 		prefs.edit { putString(key, value) }
 	}
 
+	fun clear() {
+		memoryCache.evictAll()
+		prefs.edit { clear() }
+	}
+
 	private companion object {
 
 		const val PREFS_NAME = "reader_translation_text_cache"

@@ -67,6 +67,7 @@ import org.skepsun.kototoro.parsers.model.MangaChapter
 import org.skepsun.kototoro.reader.data.TapGridSettings
 import org.skepsun.kototoro.reader.domain.TapGridArea
 import org.skepsun.kototoro.reader.ui.config.ReaderConfigSheet
+import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.reader.ui.tapgrid.TapGridDispatcher
@@ -115,6 +116,7 @@ class ReaderActivity :
     private var gestureInsets: Insets = Insets.NONE
     private lateinit var readerManager: ReaderManager
     private val hideUiRunnable = Runnable { setUiIsVisible(false) }
+    private var currentTranslationLayerState: TranslationLayerState = TranslationLayerState.IDLE
 
     // Tracks whether the foldable device is in an unfolded state (half-opened or flat)
     private var isFoldUnfolded: Boolean = false
@@ -201,14 +203,17 @@ class ReaderActivity :
             isReaderTranslationEnabled
         }.onEach {
             updateTranslationToggleButton()
+            invalidateOptionsMenu()
         }.launchIn(lifecycleScope)
         settings.observeAsFlow(AppSettings.KEY_READER_TRANSLATION_SHOW_TRANSLATED) {
             isReaderTranslationShowTranslated
         }.onEach {
             updateTranslationToggleButton()
         }.launchIn(lifecycleScope)
-        addMenuProvider(ReaderMenuProvider(viewModel))
-
+        viewModel.translationLayerState.onEach {
+            currentTranslationLayerState = it
+            updateTranslationToggleButton()
+        }.launchIn(lifecycleScope)
         observeWindowLayout()
 
         // Apply initial double-mode considering foldable setting
@@ -614,22 +619,65 @@ class ReaderActivity :
         val shouldShow = settings.isReaderTranslationEnabled && !viewBinding.appbarTop.isVisible
         button.isVisible = shouldShow
         val showTranslated = settings.isReaderTranslationShowTranslated
-        button.setIconResource(if (showTranslated) R.drawable.ic_language else R.drawable.ic_images)
-        button.contentDescription = getString(
-            if (showTranslated) R.string.reader_translation_toggle_show_original
-            else R.string.reader_translation_toggle_show_translated,
-        )
+        val iconRes = when (currentTranslationLayerState) {
+            TranslationLayerState.GENERATING -> R.drawable.ic_sync
+            TranslationLayerState.FAILED -> R.drawable.ic_error_small
+            TranslationLayerState.READY -> if (showTranslated) R.drawable.ic_language else R.drawable.ic_images
+            TranslationLayerState.IDLE -> if (showTranslated) R.drawable.ic_error_small else R.drawable.ic_images
+        }
+        button.setIconResource(iconRes)
+        button.contentDescription = when (currentTranslationLayerState) {
+            TranslationLayerState.GENERATING -> getString(R.string.reader_translation_layer_generating)
+            TranslationLayerState.FAILED -> getString(R.string.reader_translation_layer_failed)
+            TranslationLayerState.READY -> getString(
+                if (showTranslated) R.string.reader_translation_toggle_show_original
+                else R.string.reader_translation_toggle_show_translated,
+            )
+            TranslationLayerState.IDLE -> getString(R.string.reader_translation_layer_not_ready)
+        }
     }
 
     private fun toggleTranslationLayer() {
         if (!settings.isReaderTranslationEnabled) {
             return
         }
-        val showTranslated = !settings.isReaderTranslationShowTranslated
-        settings.isReaderTranslationShowTranslated = showTranslated
+        val showTranslated = settings.isReaderTranslationShowTranslated
+        if (!showTranslated) {
+            when (currentTranslationLayerState) {
+                TranslationLayerState.READY -> {
+                    settings.isReaderTranslationShowTranslated = true
+                }
+                TranslationLayerState.GENERATING -> {
+                    Snackbar.make(
+                        viewBinding.container,
+                        R.string.reader_translation_layer_generating,
+                        Snackbar.LENGTH_SHORT,
+                    ).setAnchorView(viewBinding.toolbarDocked).show()
+                    return
+                }
+                TranslationLayerState.FAILED -> {
+                    Snackbar.make(
+                        viewBinding.container,
+                        R.string.reader_translation_layer_failed,
+                        Snackbar.LENGTH_SHORT,
+                    ).setAnchorView(viewBinding.toolbarDocked).show()
+                    return
+                }
+                TranslationLayerState.IDLE -> {
+                    Snackbar.make(
+                        viewBinding.container,
+                        R.string.reader_translation_layer_not_ready,
+                        Snackbar.LENGTH_SHORT,
+                    ).setAnchorView(viewBinding.toolbarDocked).show()
+                    return
+                }
+            }
+        } else {
+            settings.isReaderTranslationShowTranslated = false
+        }
         Snackbar.make(
             viewBinding.container,
-            if (showTranslated) R.string.reader_translation_mode_switched_translated
+            if (!showTranslated) R.string.reader_translation_mode_switched_translated
             else R.string.reader_translation_mode_switched_original,
             Snackbar.LENGTH_SHORT,
         ).setAnchorView(viewBinding.toolbarDocked).show()

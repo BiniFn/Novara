@@ -10,4 +10,9 @@
 		android:visible="false"
 		app:showAsAction="always" />
 
+	<item
+		android:id="@+id/action_retranslate"
+		android:title="@string/reader_translation_retranslate"
+		app:showAsAction="never" />
+
 </menu>

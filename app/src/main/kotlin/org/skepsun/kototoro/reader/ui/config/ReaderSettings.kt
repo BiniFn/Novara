@@ -46,7 +46,11 @@ data class ReaderSettings(
 	val translationTargetLanguage: String,
 	val translationOcrEngine: ReaderOcrEngine,
 	val translationMode: ReaderTranslationMode,
+	val translationApiProviderPreset: String,
 	val translationApiEndpoint: String,
+	val translationApiModel: String,
+	val translationBubbleGroupingTuning: String,
+	val translationOverlayCompactness: String,
 	val translationPaddleModelPath: String,
 	val translationPaddleOfficialModelId: String,
 	val translationPaddleModelUrl: String,
@@ -62,6 +66,7 @@ data class ReaderSettings(
 	val translationPaddleClsModelVersion: String,
 	val translationPaddleClsModelSha256: String,
 	val translationNcnnModelId: String,
+	val translationOnnxModelId: String,
 ) {
 
 	private constructor(settings: AppSettings, colorFilterOverride: ReaderColorFilter?) : this(
@@ -83,7 +88,11 @@ data class ReaderSettings(
 		translationTargetLanguage = settings.readerTranslationTargetLanguage,
 		translationOcrEngine = settings.readerTranslationOcrEngine,
 		translationMode = settings.readerTranslationMode,
+		translationApiProviderPreset = settings.readerTranslationApiProviderPreset,
 		translationApiEndpoint = settings.readerTranslationApiEndpoint,
+		translationApiModel = settings.readerTranslationApiModel,
+		translationBubbleGroupingTuning = settings.readerTranslationBubbleGroupingTuning,
+		translationOverlayCompactness = settings.readerTranslationOverlayCompactness,
 		translationPaddleModelPath = settings.readerTranslationPaddleModelPath,
 		translationPaddleOfficialModelId = settings.readerTranslationPaddleOfficialModelId,
 		translationPaddleModelUrl = settings.readerTranslationPaddleModelUrl,
@@ -99,6 +108,7 @@ data class ReaderSettings(
 		translationPaddleClsModelVersion = settings.readerTranslationPaddleClsModelVersion,
 		translationPaddleClsModelSha256 = settings.readerTranslationPaddleClsModelSha256,
 		translationNcnnModelId = settings.readerTranslationNcnnModelId,
+		translationOnnxModelId = settings.readerTranslationOnnxModelId,
 	)
 
 	fun applyBackground(view: View) {
@@ -129,7 +139,15 @@ data class ReaderSettings(
 		append('|')
 		append(translationMode.name)
 		append('|')
+		append(translationApiProviderPreset)
+		append('|')
 		append(translationApiEndpoint)
+		append('|')
+		append(translationApiModel)
+		append('|')
+		append(translationBubbleGroupingTuning)
+		append('|')
+		append(translationOverlayCompactness)
 		append('|')
 		append(translationPaddleModelPath)
 		append('|')
@@ -160,6 +178,66 @@ data class ReaderSettings(
 		append(translationPaddleClsModelSha256)
 		append('|')
 		append(translationNcnnModelId)
+	}
+
+	fun translationDisplaySignature(): String = buildString {
+		append(isTranslationEnabled)
+		append('|')
+		append(isTranslationShowTranslated)
+	}
+
+	fun translationContentSignature(): String = buildString {
+		append(isTranslationEnabled)
+		append('|')
+		append(translationSourceLanguage)
+		append('|')
+		append(translationTargetLanguage)
+		append('|')
+		append(translationOcrEngine.name)
+		append('|')
+		append(translationMode.name)
+		append('|')
+		append(translationApiProviderPreset)
+		append('|')
+		append(translationApiEndpoint)
+		append('|')
+		append(translationApiModel)
+		append('|')
+		append(translationBubbleGroupingTuning)
+		append('|')
+		append(translationOverlayCompactness)
+		append('|')
+		append(translationPaddleModelPath)
+		append('|')
+		append(translationPaddleOfficialModelId)
+		append('|')
+		append(translationPaddleModelUrl)
+		append('|')
+		append(translationPaddleModelVersion)
+		append('|')
+		append(translationPaddleModelSha256)
+		append('|')
+		append(translationPaddleDetModelUrl)
+		append('|')
+		append(translationPaddleDetModelVersion)
+		append('|')
+		append(translationPaddleDetModelSha256)
+		append('|')
+		append(translationPaddleRecModelUrl)
+		append('|')
+		append(translationPaddleRecModelVersion)
+		append('|')
+		append(translationPaddleRecModelSha256)
+		append('|')
+		append(translationPaddleClsModelUrl)
+		append('|')
+		append(translationPaddleClsModelVersion)
+		append('|')
+		append(translationPaddleClsModelSha256)
+		append('|')
+		append(translationNcnnModelId)
+		append('|')
+		append(translationOnnxModelId)
 	}
 
 	@CheckResult
@@ -201,8 +279,12 @@ data class ReaderSettings(
 			AppSettings.KEY_READER_TRANSLATION_TARGET_LANG,
 			AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE,
 			AppSettings.KEY_READER_TRANSLATION_MODE,
+			AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET,
 			AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT,
 			AppSettings.KEY_READER_TRANSLATION_API_KEY,
+			AppSettings.KEY_READER_TRANSLATION_API_MODEL,
+			AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING,
+			AppSettings.KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_PATH,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL,

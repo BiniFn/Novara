@@ -167,10 +167,22 @@
 	</string-array>
 	<string-array name="reader_translation_ocr_engines" translatable="false">
 		<item>@string/reader_translation_ocr_engine_mlkit</item>
-		<item>@string/reader_translation_ocr_engine_paddle</item>
 		<item>@string/reader_translation_ocr_engine_tflite</item>
 		<item>@string/reader_translation_ocr_engine_hybrid</item>
 		<item>@string/reader_translation_ocr_engine_ncnn</item>
+	</string-array>
+	<string-array name="reader_translation_api_provider_presets" translatable="false">
+		<item>@string/reader_translation_api_provider_custom</item>
+		<item>@string/reader_translation_api_provider_openai</item>
+		<item>@string/reader_translation_api_provider_deepseek</item>
+		<item>@string/reader_translation_api_provider_anthropic</item>
+		<item>@string/reader_translation_api_provider_gemini</item>
+		<item>@string/reader_translation_api_provider_openrouter</item>
+	</string-array>
+	<string-array name="reader_translation_tuning_levels" translatable="false">
+		<item>@string/reader_translation_tuning_strict</item>
+		<item>@string/reader_translation_tuning_balanced</item>
+		<item>@string/reader_translation_tuning_relaxed</item>
 	</string-array>
 	<string-array name="values_reader_translation_modes" translatable="false">
 		<item>LOCAL_ONLY</item>
@@ -179,10 +191,80 @@
 	</string-array>
 	<string-array name="values_reader_translation_ocr_engines" translatable="false">
 		<item>MLKIT</item>
-		<item>PADDLE</item>
 		<item>TFLITE</item>
 		<item>HYBRID</item>
 		<item>NCNN</item>
+	</string-array>
+	<string-array name="values_reader_translation_api_provider_presets" translatable="false">
+		<item>CUSTOM</item>
+		<item>OPENAI</item>
+		<item>DEEPSEEK</item>
+		<item>ANTHROPIC</item>
+		<item>GEMINI</item>
+		<item>OPENROUTER</item>
+	</string-array>
+	<string-array name="values_reader_translation_tuning_levels" translatable="false">
+		<item>STRICT</item>
+		<item>BALANCED</item>
+		<item>RELAXED</item>
+	</string-array>
+	<string-array name="reader_translation_languages" translatable="false">
+		<item>Arabic</item>
+		<item>Bulgarian</item>
+		<item>Catalan</item>
+		<item>Chinese (Simplified)</item>
+		<item>Czech</item>
+		<item>Danish</item>
+		<item>German</item>
+		<item>Greek</item>
+		<item>English</item>
+		<item>Spanish</item>
+		<item>Finnish</item>
+		<item>French</item>
+		<item>Croatian</item>
+		<item>Italian</item>
+		<item>Japanese</item>
+		<item>Korean</item>
+		<item>Dutch</item>
+		<item>Polish</item>
+		<item>Portuguese</item>
+		<item>Romanian</item>
+		<item>Russian</item>
+		<item>Slovak</item>
+		<item>Swedish</item>
+		<item>Tagalog</item>
+		<item>Turkish</item>
+		<item>Ukrainian</item>
+		<item>Vietnamese</item>
+	</string-array>
+	<string-array name="values_reader_translation_languages" translatable="false">
+		<item>ar</item>
+		<item>bg</item>
+		<item>ca</item>
+		<item>zh</item>
+		<item>cs</item>
+		<item>da</item>
+		<item>de</item>
+		<item>el</item>
+		<item>en</item>
+		<item>es</item>
+		<item>fi</item>
+		<item>fr</item>
+		<item>hr</item>
+		<item>it</item>
+		<item>ja</item>
+		<item>ko</item>
+		<item>nl</item>
+		<item>pl</item>
+		<item>pt</item>
+		<item>ro</item>
+		<item>ru</item>
+		<item>sk</item>
+		<item>sv</item>
+		<item>tl</item>
+		<item>tr</item>
+		<item>uk</item>
+		<item>vi</item>
 	</string-array>
 	<string-array name="list_badges" translatable="false">
 		<item>@string/favourites</item>
