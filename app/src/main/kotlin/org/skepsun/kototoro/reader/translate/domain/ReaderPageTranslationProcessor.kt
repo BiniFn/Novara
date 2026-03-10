@@ -138,11 +138,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	suspend fun process(page: MangaPage, sourceUri: Uri): Uri {
-		if (!settings.isReaderTranslationEnabled || !settings.isReaderTranslationShowTranslated) {
+		val enabled = settings.isReaderTranslationEnabled
+		val showTranslated = settings.isReaderTranslationShowTranslated
+		Log.d(LOG_TAG, "process debug: page=${page.id} enabled=$enabled showTranslated=$showTranslated")
+		if (!enabled) {
 			return sourceUri
 		}
 		val sourceLang = settings.readerTranslationSourceLanguage.lowercase()
 		val targetLang = settings.readerTranslationTargetLanguage.lowercase()
+		Log.d(LOG_TAG, "process debug: page=${page.id} sourceLang=$sourceLang targetLang=$targetLang")
 		if (sourceLang == targetLang) {
 			return sourceUri
 		}
@@ -370,12 +374,22 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val translated = LinkedHashMap<String, String>(uniqueTexts.size)
 		val misses = ArrayList<String>(uniqueTexts.size)
 
-		for (text in uniqueTexts) {
-			val cacheKey = buildTextCacheKey(text, sourceLang, targetLang)
-			val cached = textCache[cacheKey]
-			if (!cached.isNullOrBlank()) {
-				translated[text] = cached
-				log { "translate cache hit src=${oneLine(text)} out=${oneLine(cached)}" }
+			for (text in uniqueTexts) {
+				val cacheKey = buildTextCacheKey(text, sourceLang, targetLang)
+				val cached = textCache[cacheKey]
+				if (!cached.isNullOrBlank()) {
+					val sanitized = sanitizeTranslation(cached)
+					if (sanitized.isNotBlank()) {
+						translated[text] = sanitized
+						if (sanitized != cached) {
+							textCache[cacheKey] = sanitized
+						}
+						log { "translate cache hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
+				} else {
+					textCache[cacheKey] = ""
+					misses.add(text)
+					log { "translate cache rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
+				}
 			} else {
 				misses.add(text)
 			}
@@ -396,9 +410,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				for (text in needOnnx) {
 					val onnxText = onnxMap[text]?.trim().orEmpty()
 					if (onnxText.isNotBlank()) {
-						translated[text] = onnxText
-						textCache[buildTextCacheKey(text, sourceLang, targetLang)] = onnxText
-						log { "translate onnx hit src=${oneLine(text)} out=${oneLine(onnxText)}" }
+						val sanitized = sanitizeTranslation(onnxText)
+						if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
+							translated[text] = sanitized
+							textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
+							log { "translate onnx hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
+						} else {
+							log { "translate onnx rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
+						}
 					}
 				}
 			}
@@ -429,10 +448,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				}
 			}
 			for ((text, local) in localResults) {
-				if (local.isNotBlank()) {
-					translated[text] = local
-					textCache[buildTextCacheKey(text, sourceLang, targetLang)] = local
-					log { "translate local hit src=${oneLine(text)} out=${oneLine(local)}" }
+				val raw = local.trim()
+				if (raw.isNotBlank()) {
+					val sanitized = sanitizeTranslation(raw)
+					if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
+						translated[text] = sanitized
+						textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
+						log { "translate local hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
+					} else {
+						log { "translate local rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
+					}
 				}
 			}
 		}
@@ -445,16 +470,21 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			return translated
 		}
 
-		if (mode != ReaderTranslationMode.LOCAL_ONLY) {
-			val needApi = misses.filter { translated[it].isNullOrBlank() }
-			if (needApi.isNotEmpty()) {
-				val apiMap = translateBatchByApi(needApi, sourceLang, targetLang)
-				for (text in needApi) {
-					val apiText = apiMap[text]?.trim().orEmpty()
-					if (apiText.isNotBlank()) {
-						translated[text] = apiText
-						textCache[buildTextCacheKey(text, sourceLang, targetLang)] = apiText
-						log { "translate api hit src=${oneLine(text)} out=${oneLine(apiText)}" }
+			if (mode != ReaderTranslationMode.LOCAL_ONLY) {
+				val needApi = misses.filter { translated[it].isNullOrBlank() }
+				if (needApi.isNotEmpty()) {
+					val apiMap = translateBatchByApi(needApi, sourceLang, targetLang)
+					for (text in needApi) {
+						val apiText = apiMap[text]?.trim().orEmpty()
+						if (apiText.isNotBlank()) {
+							val sanitized = sanitizeTranslation(apiText)
+							if (sanitized.isNotBlank()) {
+								translated[text] = sanitized
+								textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
+								log { "translate api hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
+							} else {
+								log { "translate api rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
+						}
 					}
 				}
 			}
@@ -487,81 +517,52 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 	}
 
-	private suspend fun translateBatchByOpenAi(
-		texts: List<String>,
-		sourceLang: String,
-		targetLang: String,
-	): Map<String, String> {
-		fun mapById(input: List<String>, parsed: Map<Int, String>): Map<String, String> {
-			return input.mapIndexed { index, text ->
-				text to parsed[index + 1].orEmpty().trim()
-			}.toMap()
+		private suspend fun translateBatchByOpenAi(
+			texts: List<String>,
+			sourceLang: String,
+			targetLang: String,
+		): Map<String, String> {
+			if (texts.isEmpty()) return emptyMap()
+			log { "openai single requests count=${texts.size}" }
+			val mapped = LinkedHashMap<String, String>(texts.size)
+			for (text in texts) {
+				val translated = requestOpenAiSingle(text, sourceLang, targetLang)
+				mapped[text] = translated
+			}
+			return mapped
 		}
 
-		val firstParsed = requestOpenAiBatch(texts, sourceLang, targetLang)
-		val mapped = mapById(texts, firstParsed).toMutableMap()
-		val missing = texts.filter { mapped[it].isNullOrBlank() }
-		if (missing.isNotEmpty() && missing.size < texts.size) {
-			log { "openai partial missing=${missing.size}, retrying missing batch" }
-			val retryParsed = requestOpenAiBatch(missing, sourceLang, targetLang)
-			val retryMapped = mapById(missing, retryParsed)
-			for ((text, out) in retryMapped) {
-				if (out.isNotBlank()) {
-					mapped[text] = out
-				}
-			}
-		}
-		if (mapped.values.all { it.isBlank() }) {
-			log { "openai parse/translate empty for whole batch" }
-		}
-		return mapped
-	}
-
-	private suspend fun requestOpenAiBatch(
-		texts: List<String>,
+	private suspend fun requestOpenAiSingle(
+		text: String,
 		sourceLang: String,
 		targetLang: String,
-	): Map<Int, String> {
-		if (texts.isEmpty()) return emptyMap()
-		val indexedInput = JSONArray().apply {
-			texts.forEachIndexed { index, text ->
-				put(JSONObject().put("id", index + 1).put("text", text))
-			}
-		}
+	): String {
+		if (text.isBlank()) return ""
 		val endpoint = settings.readerTranslationApiEndpoint.trim()
 		val apiKey = settings.readerTranslationApiKey.trim()
 		val model = settings.readerTranslationApiModel.trim().ifBlank { DEFAULT_OPENAI_MODEL }
 		val userPrompt = buildString {
-			appendLine("Translate from $sourceLang to $targetLang.")
-			appendLine("Keep IDs unchanged.")
-			appendLine("Return JSON object only in this format: {\"items\":[{\"id\":1,\"translation\":\"...\"}]}")
-			appendLine("Input JSON:")
-			append(indexedInput.toString())
+			appendLine("Translate manga OCR text from $sourceLang to $targetLang.")
+			appendLine("Only output the translation itself.")
+			appendLine("If unreadable or uncertain, output nothing.")
+			appendLine("Keep short screams natural.")
+			append(text)
+		}
+		val payload = JSONObject().apply {
+			put("model", model)
+			put("temperature", 0)
+			if (isDeepSeekEndpoint(endpoint)) {
+				put("thinking", JSONObject().put("type", "disabled"))
+			}
+			put(
+				"messages",
+				JSONArray()
+					.put(JSONObject().put("role", "system").put("content", OPENAI_TRANSLATION_SYSTEM_PROMPT))
+					.put(JSONObject().put("role", "user").put("content", userPrompt))
+			)
 		}
 
-		suspend fun requestOnce(useJsonObject: Boolean): String? {
-			val payload = JSONObject().apply {
-				put("model", model)
-				put("temperature", 0)
-				if (isDeepSeekEndpoint(endpoint)) {
-					put("thinking", JSONObject().put("type", "disabled"))
-				}
-				put(
-					"messages",
-					JSONArray()
-						.put(JSONObject().put("role", "system").put("content", OPENAI_TRANSLATION_SYSTEM_PROMPT))
-						.put(JSONObject().put("role", "user").put("content", userPrompt))
-				)
-				if (useJsonObject) {
-					put(
-						"response_format",
-						JSONObject().apply {
-							put("type", "json_object")
-						}
-					)
-				}
-			}
-
+		return runCatching {
 			val requestBuilder = Request.Builder()
 				.url(endpoint)
 				.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
@@ -575,19 +576,18 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				val rawBody = resp.body?.string().orEmpty()
 				if (!resp.isSuccessful) {
 					log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return null
+					return@use ""
 				}
-				if (rawBody.isBlank()) return null
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return null
+				if (rawBody.isBlank()) return@use ""
+				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use ""
 				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return null
+				if (content.isBlank()) return@use ""
 				log { "openai raw reply=${oneLine(content, 400)}" }
-				return stripThinkContent(content).trim().ifBlank { null }
+				sanitizeTranslation(content)
 			}
-		}
-
-		val content = requestOnce(useJsonObject = true) ?: requestOnce(useJsonObject = false)
-		return parseBatchTranslationJson(content.orEmpty(), texts.size)
+		}.onFailure {
+			log { "openai single request failed src=${oneLine(text)} err=${it.message.orEmpty()}" }
+		}.getOrDefault("")
 	}
 
 	private suspend fun translateLocal(text: String, sourceLang: String, targetLang: String): String {
@@ -673,31 +673,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				return ""
 			}
 			val body = resp.body?.string().orEmpty()
-			if (body.isBlank()) {
-				return ""
+			val sanitized = sanitizeTranslation(body)
+			log { "api raw reply=${oneLine(body, 300)} sanitized=${oneLine(sanitized)} src=${oneLine(text)}" }
+			if (sanitized.isNotBlank()) {
+				val cacheKey = buildTextCacheKey(text, sourceLang, targetLang)
+				textCache[cacheKey] = sanitized
 			}
-			val parsed = stripThinkContent(parseTranslatedText(body) ?: "").trim()
-			log { "api raw reply=${oneLine(body, 300)} parsed=${oneLine(parsed)} src=${oneLine(text)}" }
-			return parsed
+			return sanitized
 		}
 	}
 
-	private fun parseTranslatedText(body: String): String? {
-		return runCatching {
-			val json = JSONObject(body)
-			when {
-				json.has("translatedText") -> json.getString("translatedText")
-				json.has("translation") -> json.getString("translation")
-				json.has("data") -> {
-					val data = json.getJSONObject("data")
-					val translations = data.optJSONArray("translations") ?: JSONArray()
-					translations.optJSONObject(0)?.optString("translatedText")
-				}
-
-				else -> null
-			}
-		}.getOrNull()?.trim()?.takeIf { it.isNotBlank() }
-	}
 
 	private fun extractOpenAiMessageContent(responseJson: JSONObject): String? {
 		val choices = responseJson.optJSONArray("choices") ?: return null
@@ -718,74 +703,64 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 	}
 
-	private fun parseBatchTranslationJson(content: String, expectedSize: Int): Map<Int, String> {
-		val clean = normalizeJsonLikeContent(stripThinkContent(content).trim())
-		if (clean.isBlank()) return emptyMap()
+		private fun parseBatchTranslationJson(content: String, expectedSize: Int): Map<Int, String> {
+			val clean = normalizeJsonLikeContent(stripThinkContent(content).trim())
+			if (clean.isBlank()) return emptyMap()
 
-		return runCatching {
-			val map = LinkedHashMap<Int, String>(expectedSize)
-			if (clean.startsWith("[")) {
-				val arr = JSONArray(clean)
-				for (i in 0 until arr.length()) {
-					val obj = arr.optJSONObject(i) ?: continue
-					val id = obj.optInt("id", i + 1)
-					val translation = pickTranslationField(obj)
-					if (id > 0 && translation.isNotBlank()) {
-						map[id] = translation
-					}
+			fun validate(map: Map<Int, String>): Map<Int, String> {
+				if (map.isEmpty() || map.size > expectedSize) {
+					log { "openai parsed invalid mapSize=${map.size} expected<=$expectedSize content=${oneLine(clean, 400)}" }
+					return emptyMap()
 				}
-			} else {
-				val json = JSONObject(clean)
-				val items = json.optJSONArray("items")
-					?: json.optJSONArray("translations")
-					?: json.optJSONArray("data")
-				if (items != null) {
-					for (i in 0 until items.length()) {
-						val obj = items.optJSONObject(i) ?: continue
+				log { "openai parsed items=${map.size}" }
+				return map
+			}
+
+			fun parseStandardJson(raw: String): Map<Int, String> {
+				val map = LinkedHashMap<Int, String>(expectedSize)
+				if (raw.startsWith("[")) {
+					val arr = JSONArray(raw)
+					for (i in 0 until arr.length()) {
+						val obj = arr.optJSONObject(i) ?: continue
 						val id = obj.optInt("id", i + 1)
 						val translation = pickTranslationField(obj)
 						if (id > 0 && translation.isNotBlank()) {
 							map[id] = translation
 						}
 					}
+				} else {
+					val json = JSONObject(raw)
+					val items = json.optJSONArray("items")
+						?: json.optJSONArray("translations")
+						?: json.optJSONArray("data")
+					if (items != null) {
+						for (i in 0 until items.length()) {
+							val obj = items.optJSONObject(i) ?: continue
+							val id = obj.optInt("id", i + 1)
+							val translation = pickTranslationField(obj)
+							if (id > 0 && translation.isNotBlank()) {
+								map[id] = translation
+							}
+						}
+					}
+				}
+				return map
+			}
+
+			return runCatching {
+				validate(parseStandardJson(clean))
+			}.getOrElse {
+				val salvaged = parseMalformedBatchTranslationJson(clean, expectedSize)
+				if (salvaged.isNotEmpty()) {
+					log { "openai parse salvaged items=${salvaged.size}" }
+					validate(salvaged)
+				} else {
+					log { "openai parse exception content=${oneLine(clean, 400)}" }
+					emptyMap()
 				}
 			}
-			if (map.isEmpty() || map.size > expectedSize) {
-				log { "openai parsed invalid mapSize=${map.size} expected<=$expectedSize content=${oneLine(clean, 400)}" }
-				emptyMap()
-			} else {
-				log { "openai parsed items=${map.size}" }
-				map
-			}
-		}.getOrElse {
-			log { "openai parse exception content=${oneLine(clean, 400)}" }
-			emptyMap()
 		}
-	}
 
-	private fun pickTranslationField(obj: JSONObject): String {
-		return listOf("translation", "translatedText", "text", "output")
-			.firstNotNullOfOrNull { key ->
-				obj.optString(key).trim().takeIf { it.isNotBlank() }
-			}.orEmpty()
-	}
-
-	private fun normalizeJsonLikeContent(raw: String): String {
-		val text = raw.trim()
-		if (!text.startsWith("```")) return text
-		val lines = text.lines()
-		if (lines.isEmpty()) return text
-		val body = lines.drop(1).dropLastWhile { it.trim().startsWith("```") }.joinToString("\n").trim()
-		return body.ifBlank { text }
-	}
-
-	private fun stripThinkContent(text: String): String {
-		if (text.isBlank()) return text
-		return THINK_TAG_REGEX.replace(text, "")
-			.replace("<analysis>", "", ignoreCase = true)
-			.replace("</analysis>", "", ignoreCase = true)
-			.trim()
-	}
 
 	private fun isOpenAiCompatibleChatCompletionsEndpoint(endpoint: String): Boolean {
 		val normalized = endpoint.lowercase()
@@ -1407,6 +1382,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val len = text.length
 		val qCount = text.count { it == '?' || it == '？' }
 		if (len >= 4 && qCount * 2 >= len) return true
+		val normalized = normalizeForTranslationCompare(text)
+		if (normalized.length >= 10) {
+			val freq = normalized.groupingBy { it }.eachCount().values.sortedDescending()
+			val top1 = freq.firstOrNull() ?: 0
+			val top2 = freq.take(2).sum()
+			if (top1 * 100 / normalized.length >= 60) return true
+			if (top2 * 100 / normalized.length >= 85) return true
+		}
 		var maxRun = 1
 		var run = 1
 		for (i in 1 until text.length) {
@@ -1420,7 +1403,107 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return len >= 6 && maxRun >= len * 2 / 3
 	}
 
-	private fun oneLine(text: String, limit: Int = 140): String {
+	private fun isAcceptableTranslation(
+		sourceText: String,
+		translatedText: String,
+		sourceLang: String,
+		targetLang: String,
+	): Boolean {
+		if (translatedText.isBlank()) return false
+		if (translatedText == "..." || translatedText == "…") return false
+		return true
+	}
+
+	private fun normalizeForTranslationCompare(text: String): String {
+		return buildString(text.length) {
+			for (ch in text) {
+				if (ch.isLetterOrDigit() || ch.isCjkUnifiedIdeograph() || ch.isJapaneseKana()) {
+					append(ch)
+				}
+			}
+		}.trim()
+	}
+
+	private fun Char.isJapaneseKana(): Boolean {
+		return this in '\u3040'..'\u30ff' || this == 'ー'
+	}
+
+	private fun Char.isAsciiLetter(): Boolean {
+		return this in 'a'..'z' || this in 'A'..'Z'
+	}
+
+	private fun Char.isLatinLetterLike(): Boolean {
+		if (isAsciiLetter()) return true
+		return Character.UnicodeScript.of(code) == Character.UnicodeScript.LATIN
+	}
+
+		private fun Char.isCjkUnifiedIdeograph(): Boolean {
+		val block = Character.UnicodeBlock.of(this)
+			return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
+			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B ||
+			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C ||
+			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D ||
+			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E ||
+			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F ||
+				block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+		}
+
+		private fun isLikelyNoisyOcrSource(text: String): Boolean {
+			if (text.isBlank()) return false
+			val len = text.length
+			if (len < 8) return false
+			val digits = text.count { it.isDigit() }
+			val symbols = text.count {
+				!it.isWhitespace() &&
+					!it.isLetterOrDigit() &&
+					!it.isJapaneseKana() &&
+					!it.isCjkUnifiedIdeograph()
+			}
+			val separators = text.count { it in setOf(':', '：', '/', '／', '.', '．', '…', '-', 'ー') }
+			val ratio = (digits + symbols + separators).toFloat() / len.toFloat()
+			return ratio >= 0.28f || (digits >= 4 && separators >= 4) || Regex("""(?:\d[：:/／．.]){3,}""").containsMatchIn(text)
+		}
+
+		private fun buildOpenAiMicroBatches(texts: List<String>): List<List<String>> {
+			if (texts.isEmpty()) return emptyList()
+			if (texts.size <= MAX_OPENAI_BATCH_SIZE) return listOf(texts)
+			val result = mutableListOf<List<String>>()
+			val current = mutableListOf<String>()
+
+			fun flush() {
+				if (current.isNotEmpty()) {
+					result += current.toList()
+					current.clear()
+				}
+			}
+
+			for (text in texts) {
+				val noisy = isLikelyNoisyOcrSource(text)
+				val longText = text.length >= 28
+				val shortSfxLike = text.length <= 10 && text.count { it.isJapaneseKana() } >= 2
+				val preferSingle = noisy || longText
+				if (preferSingle) {
+					flush()
+					result += listOf(text)
+					continue
+				}
+				if (current.isNotEmpty()) {
+					val hasShortSfxLike = current.any { it.length <= 10 && it.count { ch -> ch.isJapaneseKana() } >= 2 }
+					if ((shortSfxLike && !hasShortSfxLike && current.size >= 2) || current.size >= MAX_OPENAI_BATCH_SIZE) {
+						flush()
+					}
+				}
+				current += text
+				if (current.size >= MAX_OPENAI_BATCH_SIZE) {
+					flush()
+				}
+			}
+			flush()
+			return result
+		}
+
+		private fun oneLine(text: String, limit: Int = 140): String {
 		if (text.isBlank()) return ""
 		return text.replace('\n', ' ').replace('\r', ' ').trim().let {
 			if (it.length <= limit) it else it.take(limit) + "..."
@@ -1462,6 +1545,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		pageEpoch: Int,
 	): String {
 		val raw = listOf(
+			TRANSLATION_PIPELINE_VERSION,
 			pageUrl,
 			sourceUri,
 			sourceLang,
@@ -1479,6 +1563,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 	private fun buildTextCacheKey(text: String, sourceLang: String, targetLang: String): String {
 		val raw = listOf(
+			TRANSLATION_PIPELINE_VERSION,
 			text,
 			sourceLang,
 			targetLang,
@@ -1543,17 +1628,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 
 		val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
-		const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
-You are a professional manga translator.
-Rules:
-- Translate source text to target language accurately and naturally.
-- Keep item ids unchanged.
-- Preserve tone and intent.
-- Do not add explanations.
-- Do not output reasoning, chain-of-thought, or any internal process.
-- Never output tags like <think>...</think>.
-- Output JSON only.
+			const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+			const val MAX_OPENAI_BATCH_SIZE = 3
+			const val TRANSLATION_PIPELINE_VERSION = "2026-03-10-mnn-api-4"
+			const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
+		You translate manga OCR text.
+		Output only the translation.
+		Do not explain.
 """
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
 		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f)
@@ -1567,5 +1648,147 @@ Rules:
 		const val FAIL_CODE_TRANSLATE_EMPTY = "TRANSLATE_EMPTY"
 		const val FAIL_CODE_RENDER_FILTERED = "RENDER_FILTERED"
 		const val FAIL_CODE_PROCESS_EXCEPTION = "PROCESS_EXCEPTION"
+
+			private fun sanitizeTranslation(text: String): String {
+			if (text.isBlank()) return ""
+			val clean = stripThinkContent(text)
+			if (clean.isBlank()) return ""
+			val normalized = normalizeJsonLikeContent(clean)
+			if (normalized.isBlank()) return ""
+			if (
+				normalized.contains("Thinking Process", ignoreCase = true) ||
+				normalized.contains("Analyze the Request", ignoreCase = true)
+			) {
+				return ""
+			}
+
+			val jsonStart = normalized.indexOf('{')
+			val jsonEnd = normalized.lastIndexOf('}')
+			if (jsonStart != -1 && jsonEnd != -1 && (jsonEnd.toInt() > jsonStart.toInt())) {
+				val jsonText = normalized.substring(jsonStart, jsonEnd + 1)
+				runCatching {
+					val json = JSONObject(jsonText)
+					val result = pickTranslationField(json)
+					if (result.isNotBlank()) return result
+				}
+			}
+
+			extractTranslationFromMalformedJson(normalized)?.let { extracted ->
+				if (extracted.isNotBlank()) return extracted
+			}
+
+			return normalized
+				.replace(Regex("^\\{.*\"translation\":\\s*\"", RegexOption.IGNORE_CASE), "")
+				.replace(Regex("\"\\s*\\}$"), "")
+				.removeSurrounding("**")
+				.removeSurrounding("\"")
+				.trim()
+				.takeUnless {
+					it.isBlank() ||
+						it == "..." ||
+						it == "…"
+				}
+				.orEmpty()
+		}
+
+		private fun pickTranslationField(obj: JSONObject): String {
+			val direct = listOf("translation", "translatedText", "text", "output")
+				.firstNotNullOfOrNull { key ->
+					obj.optString(key).trim().takeIf { it.isNotBlank() }
+				}
+			if (!direct.isNullOrBlank()) return direct
+
+			return runCatching {
+				obj.optJSONObject("data")?.optJSONArray("translations")?.optJSONObject(0)?.optString("translatedText")?.trim()
+			}.getOrNull().orEmpty()
+		}
+
+		private fun extractTranslationFromMalformedJson(raw: String): String? {
+			val regexes = listOf(
+				Regex("""(?is)"translation"\s*:\s*"((?:\\.|[^"\\])*)(?:"|$)"""),
+				Regex("""(?is)"translatedText"\s*:\s*"((?:\\.|[^"\\])*)(?:"|$)"""),
+			)
+			for (regex in regexes) {
+				val value = regex.find(raw)?.groupValues?.getOrNull(1).orEmpty()
+				val decoded = decodeJsonStringFragment(value)
+				if (decoded.isNotBlank()) {
+					return decoded
+				}
+			}
+			return null
+		}
+
+			private fun decodeJsonStringFragment(value: String): String {
+			if (value.isBlank()) return ""
+			return value
+				.replace("\\n", "\n")
+				.replace("\\r", "\r")
+				.replace("\\t", "\t")
+				.replace("\\\"", "\"")
+				.replace("\\\\", "\\")
+				.trim()
+				.removeSurrounding("\"")
+		}
+
+			private fun normalizeJsonLikeContent(raw: String): String {
+				val text = raw.trim()
+				if (!text.startsWith("```")) return text
+				val lines = text.lines()
+				if (lines.isEmpty()) return text
+				val body = lines.drop(1).dropLastWhile { it.trim().startsWith("```") }.joinToString("\n").trim()
+				return body.ifBlank { text }
+			}
+
+			private fun normalizeBatchReplyContent(raw: String): String {
+				val clean = stripThinkContent(raw).trim()
+				if (clean.isBlank()) return ""
+				return normalizeJsonLikeContent(clean)
+			}
+
+			private fun parseMalformedBatchTranslationJson(raw: String, expectedSize: Int): Map<Int, String> {
+				val result = LinkedHashMap<Int, String>(expectedSize)
+				val objectRegex = Regex("""(?s)\{[^{}]*}""")
+				val idRegex = Regex("""(?is)"\s*id\s*"\s*:\s*"?(\d+)""")
+				val pairRegex = Regex(
+					"""(?is)"\s*id\s*"\s*:\s*"?(\d+)"?[^{}\[\]]*?"\s*(?:translation|translatedText|output)\s*"\s*:\s*"((?:\\.|[^"\\])*)"""
+				)
+				val translationRegexes = listOf(
+					Regex("""(?is)"\s*translation\s*"\s*:\s*"((?:\\.|[^"\\])*)"""),
+					Regex("""(?is)"\s*translatedText\s*"\s*:\s*"((?:\\.|[^"\\])*)"""),
+					Regex("""(?is)"\s*output\s*"\s*:\s*"((?:\\.|[^"\\])*)"""),
+				)
+
+				for (match in objectRegex.findAll(raw)) {
+					val item = match.value
+					val id = idRegex.find(item)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: continue
+					if (id <= 0 || id > expectedSize || result.containsKey(id)) continue
+					val translation = translationRegexes.firstNotNullOfOrNull { regex ->
+						regex.find(item)?.groupValues?.getOrNull(1)?.let(::decodeJsonStringFragment)?.trim()?.takeIf { it.isNotBlank() }
+					}.orEmpty()
+					if (translation.isNotBlank()) {
+						result[id] = translation
+					}
+				}
+				if (result.size < expectedSize) {
+					for (match in pairRegex.findAll(raw)) {
+						val id = match.groupValues.getOrNull(1)?.toIntOrNull() ?: continue
+						if (id <= 0 || id > expectedSize || result.containsKey(id)) continue
+						val translation = decodeJsonStringFragment(match.groupValues.getOrNull(2).orEmpty()).trim()
+						if (translation.isNotBlank()) {
+							result[id] = translation
+						}
+					}
+				}
+				return result
+			}
+
+			private fun stripThinkContent(text: String): String {
+			if (text.isBlank()) return text
+			return THINK_TAG_REGEX.replace(text, "")
+				.replace(Regex("(?is)<think>.*$"), "")
+				.replace("<analysis>", "", ignoreCase = true)
+				.replace("</analysis>", "", ignoreCase = true)
+				.trim()
+		}
 	}
 }

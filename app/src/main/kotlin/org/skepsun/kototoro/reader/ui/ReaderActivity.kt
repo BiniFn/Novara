@@ -207,11 +207,13 @@ class ReaderActivity :
         }.onEach {
             updateTranslationToggleButton()
             invalidateOptionsMenu()
+            viewModel.reload()
         }.launchIn(lifecycleScope)
         settings.observeAsFlow(AppSettings.KEY_READER_TRANSLATION_SHOW_TRANSLATED) {
             isReaderTranslationShowTranslated
         }.onEach {
             updateTranslationToggleButton()
+            viewModel.reload()
         }.launchIn(lifecycleScope)
         viewModel.translationLayerState.onEach {
             currentTranslationLayerState = it
@@ -657,35 +659,8 @@ class ReaderActivity :
         }
         val showTranslated = settings.isReaderTranslationShowTranslated
         if (!showTranslated) {
-            when (currentTranslationLayerState) {
-                TranslationLayerState.READY -> {
-                    settings.isReaderTranslationShowTranslated = true
-                }
-                TranslationLayerState.GENERATING -> {
-                    Snackbar.make(
-                        viewBinding.container,
-                        R.string.reader_translation_layer_generating,
-                        Snackbar.LENGTH_SHORT,
-                    ).setAnchorView(viewBinding.toolbarDocked).show()
-                    return
-                }
-                TranslationLayerState.FAILED -> {
-                    Snackbar.make(
-                        viewBinding.container,
-                        R.string.reader_translation_layer_failed,
-                        Snackbar.LENGTH_SHORT,
-                    ).setAnchorView(viewBinding.toolbarDocked).show()
-                    return
-                }
-                TranslationLayerState.IDLE -> {
-                    Snackbar.make(
-                        viewBinding.container,
-                        R.string.reader_translation_layer_not_ready,
-                        Snackbar.LENGTH_SHORT,
-                    ).setAnchorView(viewBinding.toolbarDocked).show()
-                    return
-                }
-            }
+            // Allow enabling even if IDLE - this will trigger PageLoader to schedule it if needed
+            settings.isReaderTranslationShowTranslated = true
         } else {
             settings.isReaderTranslationShowTranslated = false
         }

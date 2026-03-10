@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.reader.translate.domain
 
+import android.util.Log
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
 import ai.djl.sentencepiece.SpTokenizer
 import ai.onnxruntime.OnnxTensor
@@ -7,8 +8,13 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,6 +37,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 
 	private data class GenericRuntime(
 		override val modelId: String,
+		val backend: String,
 		val tokenizer: HuggingFaceTokenizer,
 		val session: OrtSession,
 		val inputNames: Set<String>,
@@ -44,6 +51,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 
 	private data class NllbRuntime(
 		override val modelId: String,
+		val backend: String,
 		val modelFamily: ModelFamily,
 		val tokenizer: SpTokenizer,
 		val encoderSession: OrtSession,
@@ -66,11 +74,13 @@ class OnnxReaderTranslationEngine @Inject constructor(
 
 	private data class Qwen35Runtime(
 		override val modelId: String,
+		val backend: String,
 		val tokenizer: HuggingFaceTokenizer,
 		val embedSession: OrtSession,
 		val decoderSession: OrtSession,
 		val decoderInputNames: Set<String>,
 		val decoderInputInfo: Map<String, TensorInfo>,
+		val disableThinkingInputName: String?,
 		val stopTokenIds: Set<Long>,
 	) : RuntimeHolder {
 		override fun close() {
@@ -87,6 +97,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	)
 
 	private val lock = Mutex()
+	private val tokenizerLock = Mutex()
 	@Volatile
 	private var runtime: RuntimeHolder? = null
 
@@ -102,34 +113,99 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		modelId: String,
 	): Map<String, String> {
 		if (texts.isEmpty()) return emptyMap()
-		var rt = ensureRuntime(modelId) ?: return texts.associateWith { "" }
-		return runInterruptible(Dispatchers.Default) {
-			val map = LinkedHashMap<String, String>(texts.size)
+		val rt = ensureRuntime(modelId) ?: return texts.associateWith { "" }
+		val parallelism = minOf(MAX_PARALLEL_TRANSLATIONS, texts.size)
+		Log.d(
+			LOG_TAG,
+			"ONNX translate batch start size=${texts.size} parallel=$parallelism model=${rt.modelId} backend=${runtimeBackend(rt)}"
+		)
+		if (rt is Qwen35Runtime && texts.size > 1) {
+			val batchMap = runCatching {
+				translateBatchQwen35(rt, texts, sourceLang, targetLang)
+			}.onFailure {
+				Log.w(LOG_TAG, "Qwen batch translate failed: ${it.message}", it)
+			}.getOrDefault(emptyMap())
+			val merged = LinkedHashMap<String, String>(texts.size)
 			for (text in texts) {
-				var translated = runCatching {
-					when (rt) {
-						is NllbRuntime -> translateOneNllb(rt, text, sourceLang, targetLang)
-						is GenericRuntime -> translateOneGeneric(rt, text, sourceLang, targetLang)
-						is Qwen35Runtime -> translateOneQwen35(rt, text, sourceLang, targetLang)
-					}
-				}.onFailure { it.printStackTrace() }.getOrDefault("")
+				val out = batchMap[text].orEmpty().trim()
+				if (out.isNotBlank()) {
+					merged[text] = out
+				}
+			}
+			val missing = texts.filter { merged[it].isNullOrBlank() }
+			if (missing.isNotEmpty()) {
+				Log.d(LOG_TAG, "Qwen batch partial hit=${merged.size}/${texts.size}, fallback singles missing=${missing.size}")
+				merged.putAll(
+					translateIndividually(
+						runtime = rt,
+						texts = missing,
+						sourceLang = sourceLang,
+						targetLang = targetLang,
+						parallelism = parallelism,
+						allowForceReload = false,
+						modelId = modelId,
+					)
+				)
+			}
+			return texts.associateWith { merged[it].orEmpty() }
+		}
+		return translateIndividually(
+			runtime = rt,
+			texts = texts,
+			sourceLang = sourceLang,
+			targetLang = targetLang,
+			parallelism = parallelism,
+			allowForceReload = texts.size == 1,
+			modelId = modelId,
+		)
+	}
 
-				if (translated.isBlank() && text.isNotBlank()) {
-					val refreshed = kotlinx.coroutines.runBlocking { ensureRuntime(modelId, forceReload = true) }
-					if (refreshed != null) {
-						rt = refreshed
-						translated = runCatching {
-							when (refreshed) {
-								is NllbRuntime -> translateOneNllb(refreshed, text, sourceLang, targetLang)
-								is GenericRuntime -> translateOneGeneric(refreshed, text, sourceLang, targetLang)
-								is Qwen35Runtime -> translateOneQwen35(refreshed, text, sourceLang, targetLang)
+	private suspend fun translateIndividually(
+		runtime: RuntimeHolder,
+		texts: List<String>,
+		sourceLang: String,
+		targetLang: String,
+		parallelism: Int,
+		allowForceReload: Boolean,
+		modelId: String,
+	): Map<String, String> {
+		val semaphore = Semaphore(parallelism.coerceAtLeast(1))
+		return coroutineScope {
+			texts.map { text ->
+				async(Dispatchers.Default) {
+					semaphore.withPermit {
+						var translated = runCatching {
+							translateWithRuntime(runtime, text, sourceLang, targetLang)
+						}.onFailure {
+							it.printStackTrace()
+						}.getOrDefault("")
+						if (translated.isBlank() && text.isNotBlank() && allowForceReload) {
+							val refreshed = ensureRuntime(modelId, forceReload = true)
+							if (refreshed != null) {
+								translated = runCatching {
+									translateWithRuntime(refreshed, text, sourceLang, targetLang)
+								}.onFailure {
+									it.printStackTrace()
+								}.getOrDefault("")
 							}
-						}.onFailure { it.printStackTrace() }.getOrDefault("")
+						}
+						text to translated
 					}
 				}
-				map[text] = translated
-			}
-			map
+			}.awaitAll().toMap(LinkedHashMap(texts.size))
+		}
+	}
+
+	private suspend fun translateWithRuntime(
+		runtime: RuntimeHolder,
+		text: String,
+		sourceLang: String,
+		targetLang: String,
+	): String {
+		return when (runtime) {
+			is NllbRuntime -> translateOneNllb(runtime, text, sourceLang, targetLang)
+			is GenericRuntime -> translateOneGeneric(runtime, text, sourceLang, targetLang)
+			is Qwen35Runtime -> translateOneQwen35(runtime, text, sourceLang, targetLang)
 		}
 	}
 
@@ -147,23 +223,62 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			runtime?.close()
 			runtime = null
 			val modelDir = onnxModelManager.getModelDir(modelId)
-				val cacheRt = tryCreateNllbRuntime(modelId, modelDir) ?: tryCreateMadladLikeRuntime(modelId, modelDir)
-				if (cacheRt != null) {
-					runtime = cacheRt
-					return@withLock cacheRt
-				}
-				val qwenRt = tryCreateQwen35Runtime(modelId, modelDir)
-				if (qwenRt != null) {
-					runtime = qwenRt
-					return@withLock qwenRt
-				}
-				val genericRt = tryCreateGenericRuntime(modelId, modelDir)
-				runtime = genericRt
-				genericRt
+			runtime = createRuntimeWithFallback(modelId, modelDir)
+			runtime
 			}
 		}
 
-	private fun tryCreateNllbRuntime(modelId: String, modelDir: File): NllbRuntime? {
+	private fun createRuntimeWithFallback(modelId: String, modelDir: File): RuntimeHolder? {
+		val modelType = modelId.lowercase()
+		Log.i(LOG_TAG, "Attempting to create runtime for model: $modelId")
+
+		// Sequential fallback: GPU -> CPU
+		for (useGpu in listOf(true, false)) {
+			val typeLabel = if (useGpu) "GPU(NNAPI)" else "CPU"
+			Log.d(LOG_TAG, "Trying $typeLabel initialization for $modelId")
+			
+			val rt = when {
+				// 1. Check for NLLB specifically
+				modelDir.walkTopDown().any { it.name.equals("NLLB_encoder.onnx", true) } -> {
+					tryCreateNllbRuntime(modelId, modelDir, typeLabel, useGpu)
+				}
+				// 2. Check for Qwen 3.5
+				modelDir.walkTopDown().any { it.name.contains("decoder_model_merged", true) } || modelId.contains("qwen", true) -> {
+					tryCreateQwen35Runtime(modelId, modelDir, typeLabel, useGpu)
+				}
+				// 3. Fallback to Madlad or Generic
+				else -> {
+					tryCreateMadladLikeRuntime(modelId, modelDir, typeLabel, useGpu) 
+						?: tryCreateGenericRuntime(modelId, modelDir, typeLabel, useGpu)
+				}
+			}
+			
+			if (rt != null) {
+				Log.i(LOG_TAG, "Successfully initialized $modelId with $typeLabel")
+				return rt
+			}
+			Log.w(LOG_TAG, "$typeLabel initialization failed for $modelId, trying next fallback...")
+		}
+		return null
+	}
+
+	private fun createSessionOptions(useGpu: Boolean): OrtSession.SessionOptions {
+		val options = OrtSession.SessionOptions()
+		options.setMemoryPatternOptimization(false)
+		options.setCPUArenaAllocator(false)
+		options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
+		if (useGpu) {
+			val result = runCatching { options.addNnapi() }
+			if (result.isSuccess) {
+				Log.i(LOG_TAG, "ONNX NNAPI accelerator added successfully")
+			} else {
+				Log.w(LOG_TAG, "ONNX NNAPI accelerator failed to add: ${result.exceptionOrNull()?.message}")
+			}
+		}
+		return options
+	}
+
+	private fun tryCreateNllbRuntime(modelId: String, modelDir: File, backend: String, useGpu: Boolean): NllbRuntime? {
 		val encoder = modelDir.walkTopDown().firstOrNull { it.isFile && it.name.equals("NLLB_encoder.onnx", ignoreCase = true) }
 		val decoder = modelDir.walkTopDown().firstOrNull { it.isFile && it.name.equals("NLLB_decoder.onnx", ignoreCase = true) }
 		val cacheInit = modelDir.walkTopDown().firstOrNull { it.isFile && it.name.equals("NLLB_cache_initializer.onnx", ignoreCase = true) }
@@ -172,16 +287,13 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		if (encoder == null || decoder == null || cacheInit == null || embedLm == null || spModel == null) {
 			return null
 		}
-		val options = OrtSession.SessionOptions().apply {
-			setMemoryPatternOptimization(false)
-			setCPUArenaAllocator(false)
-			setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
-		}
+		val options = createSessionOptions(useGpu)
 		return try {
 			val env = OrtEnvironment.getEnvironment()
 			val decoderSession = env.createSession(decoder.absolutePath, options)
 			NllbRuntime(
 				modelId = modelId,
+				backend = backend,
 				modelFamily = ModelFamily.NLLB,
 				tokenizer = SpTokenizer(spModel.toPath()),
 				encoderSession = env.createSession(encoder.absolutePath, options),
@@ -201,7 +313,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 	}
 
-	private fun tryCreateMadladLikeRuntime(modelId: String, modelDir: File): NllbRuntime? {
+	private fun tryCreateMadladLikeRuntime(modelId: String, modelDir: File, backend: String, useGpu: Boolean): NllbRuntime? {
 		if (!modelDir.exists()) return null
 		val encoder = modelDir.walkTopDown().firstOrNull { it.isFile && it.extension.equals("onnx", true) && it.name.contains("encoder", true) }
 		val decoder = modelDir.walkTopDown().firstOrNull { it.isFile && it.extension.equals("onnx", true) && it.name.contains("decoder", true) }
@@ -217,16 +329,13 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		if (encoder == null || decoder == null || cacheInit == null || embedLm == null || spModel == null) {
 			return null
 		}
-		val options = OrtSession.SessionOptions().apply {
-			setMemoryPatternOptimization(false)
-			setCPUArenaAllocator(false)
-			setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
-		}
+		val options = createSessionOptions(useGpu)
 		return try {
 			val env = OrtEnvironment.getEnvironment()
 			val decoderSession = env.createSession(decoder.absolutePath, options)
 			NllbRuntime(
 				modelId = modelId,
+				backend = backend,
 				modelFamily = ModelFamily.MADLAD_LIKE,
 				tokenizer = SpTokenizer(spModel.toPath()),
 				encoderSession = env.createSession(encoder.absolutePath, options),
@@ -245,16 +354,12 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 	}
 
-	private fun tryCreateGenericRuntime(modelId: String, modelDir: File): GenericRuntime? {
+	private fun tryCreateGenericRuntime(modelId: String, modelDir: File, backend: String, useGpu: Boolean): GenericRuntime? {
 		val tokenizerPath = findTokenizerPath(modelDir) ?: return null
 		val decoderPath = findDecoderOnnxPath(modelDir) ?: return null
 		val tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath.toPath())
 		val env = OrtEnvironment.getEnvironment()
-		val options = OrtSession.SessionOptions().apply {
-			setMemoryPatternOptimization(false)
-			setCPUArenaAllocator(false)
-			setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
-		}
+		val options = createSessionOptions(useGpu)
 		val session = try {
 			env.createSession(decoderPath.absolutePath, options)
 		} finally {
@@ -273,20 +378,16 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				runCatching { tokenizer.close() }
 				return null
 			}
-		return GenericRuntime(modelId, tokenizer, session, inputNames, logitsOutputName)
+		return GenericRuntime(modelId, backend, tokenizer, session, inputNames, logitsOutputName)
 	}
 
-	private fun tryCreateQwen35Runtime(modelId: String, modelDir: File): Qwen35Runtime? {
+	private fun tryCreateQwen35Runtime(modelId: String, modelDir: File, backend: String, useGpu: Boolean): Qwen35Runtime? {
 		val tokenizerPath = findTokenizerPath(modelDir) ?: return null
 		val decoderPath = findQwenDecoderOnnxPath(modelDir) ?: return null
 		val embedPath = findQwenEmbedOnnxPath(modelDir) ?: return null
 		val tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath.toPath())
 		val env = OrtEnvironment.getEnvironment()
-		val options = OrtSession.SessionOptions().apply {
-			setMemoryPatternOptimization(false)
-			setCPUArenaAllocator(false)
-			setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
-		}
+		val options = createSessionOptions(useGpu)
 		return try {
 			val embedSession = env.createSession(embedPath.absolutePath, options)
 			val decoderSession = env.createSession(decoderPath.absolutePath, options)
@@ -300,15 +401,30 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			val inputInfo = decoderSession.inputInfo.mapNotNull { (name, nodeInfo) ->
 				(name to (nodeInfo.info as? TensorInfo))
 			}.filter { it.second != null }.associate { it.first to it.second!! }
+			val disableThinkingInputName = inputNames.firstOrNull {
+				it.equals("enable_thinking", ignoreCase = true) ||
+					it.equals("disable_thinking", ignoreCase = true)
+			}
 			Qwen35Runtime(
 				modelId = modelId,
+				backend = backend,
 				tokenizer = tokenizer,
 				embedSession = embedSession,
 				decoderSession = decoderSession,
 				decoderInputNames = inputNames,
 				decoderInputInfo = inputInfo,
+				disableThinkingInputName = disableThinkingInputName,
 				stopTokenIds = loadStopTokens(modelDir),
-			)
+			).also {
+				Log.i(
+					LOG_TAG,
+					if (disableThinkingInputName != null) {
+						"Qwen ONNX thinking control input detected: $disableThinkingInputName"
+					} else {
+						"Qwen ONNX thinking control input not found in graph; prompt-level suppression only"
+					}
+				)
+			}
 		} catch (_: Throwable) {
 			runCatching { tokenizer.close() }
 			null
@@ -317,11 +433,11 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 	}
 
-	private fun translateOneGeneric(runtime: GenericRuntime, text: String, sourceLang: String, targetLang: String): String {
+	private suspend fun translateOneGeneric(runtime: GenericRuntime, text: String, sourceLang: String, targetLang: String): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
 		val prompt = "Translate from $sourceLang to $targetLang. Return only translation.\\n\\n$input"
-		val encoded = runtime.tokenizer.encode(prompt).ids
+		val encoded = tokenizerLock.withLock { runtime.tokenizer.encode(prompt).ids }
 		if (encoded.isEmpty()) return ""
 		val ids = encoded.toMutableList()
 		val generated = ArrayList<Long>(MAX_NEW_TOKENS)
@@ -332,10 +448,10 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			ids += next
 		}
 		if (generated.isEmpty()) return ""
-		return runtime.tokenizer.decode(generated.toLongArray()).trim()
+		return tokenizerLock.withLock { runtime.tokenizer.decode(generated.toLongArray()).trim() }
 	}
 
-	private fun translateOneQwen35(
+	private suspend fun translateOneQwen35(
 		runtime: Qwen35Runtime,
 		text: String,
 		sourceLang: String,
@@ -343,18 +459,130 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
-		val prompt = "<|im_start|>system\nYou are a professional translator. Output translation only.\n<|im_end|>\n" +
-			"<|im_start|>user\nTranslate from $sourceLang to $targetLang:\n$input\n<|im_end|>\n" +
-			"<|im_start|>assistant\n"
-		val promptIds = runtime.tokenizer.encode(prompt).ids
-		if (promptIds.isEmpty()) return ""
-		val generated = ArrayList<Long>(MAX_NEW_TOKENS)
+		val primaryPrompt = "<|im_start|>system\nYou are a professional manga translator.\n" +
+			"Translate from $sourceLang to $targetLang.\n" +
+			"Output compact JSON only. No thinking. No explanation. No markdown.\n" +
+			"Do not amplify repeated onomatopoeia or screams.\n" +
+			"Keep the repetition count close to the source and concise in Chinese.\n" +
+			"For long repeated screams like キャアアアアアアア, prefer short natural forms such as 呀啊啊！ rather than dozens of repeated characters.\n<|im_end|>\n" +
+			"<|im_start|>user\nTranslate from ja to zh:\n助けて！\n/no_think\n<|im_end|>\n" +
+			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\"救命！\"}\n<|im_end|>\n" +
+			"<|im_start|>user\nTranslate from ja to zh:\nキャーッ！？\n/no_think\n<|im_end|>\n" +
+			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\"呀啊！？\"}\n<|im_end|>\n" +
+			"<|im_start|>user\nTranslate from ja to zh:\nキャアアアアアアア\n/no_think\n<|im_end|>\n" +
+			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\"呀啊啊！\"}\n<|im_end|>\n" +
+			"<|im_start|>user\nTranslate from $sourceLang to $targetLang:\n$input\n/no_think\n<|im_end|>\n" +
+			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\""
+		val firstAttempt = runQwen35Generation(
+			runtime = runtime,
+			prompt = primaryPrompt,
+			input = input,
+			maxNewTokens = MAX_QWEN_NEW_TOKENS,
+			jsonPrefill = true,
+		)
+		val firstSanitized = extractQwenTranslation(firstAttempt.rawOutput, firstAttempt.jsonPrefill)
+		if (firstSanitized.isNotBlank()) {
+			return firstSanitized
+		}
+		Log.w(
+			LOG_TAG,
+			"Qwen primary decode produced no usable translation, retrying src=${oneLine(input, 80)} raw=${oneLine(firstAttempt.rawOutput, 160)}"
+		)
+		val retryPrompt = "<|im_start|>system\nTranslate from $sourceLang to $targetLang. " +
+			"Return translated text only. No thinking. No explanation. " +
+			"Do not amplify repeated onomatopoeia or screams; keep them concise.\n<|im_end|>\n" +
+			"<|im_start|>user\n$input\n/no_think\n<|im_end|>\n" +
+			"<|im_start|>assistant\n<think> </think>\n"
+		val retryAttempt = runQwen35Generation(
+			runtime = runtime,
+			prompt = retryPrompt,
+			input = input,
+			maxNewTokens = MAX_QWEN_RETRY_NEW_TOKENS,
+			jsonPrefill = false,
+		)
+		return extractQwenTranslation(retryAttempt.rawOutput, retryAttempt.jsonPrefill)
+	}
+
+	private suspend fun translateBatchQwen35(
+		runtime: Qwen35Runtime,
+		texts: List<String>,
+		sourceLang: String,
+		targetLang: String,
+	): Map<String, String> {
+		if (texts.isEmpty()) return emptyMap()
+		val indexedInput = JSONArray().apply {
+			texts.forEachIndexed { index, text ->
+				put(JSONObject().put("id", index + 1).put("text", text))
+			}
+		}
+		val prompt = "<|im_start|>system\n" +
+			"You are a professional manga translator.\n" +
+			"These lines belong to the same manga page and the same chapter flow.\n" +
+			"OCR may contain mistakes, broken characters, repeated sounds, or truncated words.\n" +
+			"Use nearby lines as context to infer the most natural translation, but do not invent new plot details.\n" +
+			"Never return empty translations.\n" +
+			"If a line is mostly an onomatopoeia or scream, translate it into a natural Chinese scream/sound effect.\n" +
+			"Do not amplify repeated onomatopoeia or screams beyond the source.\n" +
+			"Keep repeated screams concise in Chinese, usually one short exclamation instead of many repeated characters.\n" +
+			"If a line contains a person name plus an honorific, keep the name and translate the honorific naturally.\n" +
+			"Return compact JSON only in this format: {\"items\":[{\"id\":1,\"translation\":\"...\"}]}\n" +
+			"No thinking. No explanation. No markdown. No extra fields.\n" +
+			"<|im_end|>\n" +
+			"<|im_start|>user\n" +
+			"Translate from ja to zh. Same page OCR lines:\n" +
+			"{\"items\":[{\"id\":1,\"text\":\"助けて！\"},{\"id\":2,\"text\":\"キャーッ！？\"},{\"id\":3,\"text\":\"冬木くん！？\"},{\"id\":4,\"text\":\"キャアアアアアアア\"}]}\n" +
+			"/no_think\n" +
+			"<|im_end|>\n" +
+			"<|im_start|>assistant\n" +
+			"<think> </think>\n" +
+			"{\"items\":[{\"id\":1,\"translation\":\"救命！\"},{\"id\":2,\"translation\":\"呀啊！？\"},{\"id\":3,\"translation\":\"冬木君！？\"},{\"id\":4,\"translation\":\"呀啊啊！\"}]}\n" +
+			"<|im_end|>\n" +
+			"<|im_start|>user\n" +
+			"Translate from $sourceLang to $targetLang. Same page OCR lines:\n" +
+			indexedInput.toString() + "\n" +
+			"/no_think\n" +
+			"<|im_end|>\n" +
+			"<|im_start|>assistant\n" +
+			"<think> </think>\n" +
+			"{\"items\":["
+		val attempt = runQwen35Generation(
+			runtime = runtime,
+			prompt = prompt,
+			input = texts.joinToString(" | "),
+			maxNewTokens = batchMaxNewTokens(texts),
+			jsonPrefill = false,
+			completionPredicate = ::looksLikeCompletedBatchJsonSuffix,
+		)
+		val parsed = parseQwenBatchTranslations(attempt.rawOutput, texts)
+		if (parsed.isNotEmpty()) {
+			return parsed
+		}
+		Log.w(LOG_TAG, "Qwen batch decode produced no usable translations raw=${oneLine(attempt.rawOutput, 220)}")
+		return emptyMap()
+	}
+
+	private data class QwenGenerationAttempt(
+		val rawOutput: String,
+		val jsonPrefill: Boolean,
+	)
+
+	private suspend fun runQwen35Generation(
+		runtime: Qwen35Runtime,
+		prompt: String,
+		input: String,
+		maxNewTokens: Int,
+		jsonPrefill: Boolean,
+		completionPredicate: ((String) -> Boolean)? = null,
+	): QwenGenerationAttempt {
+		val promptIds = tokenizerLock.withLock { runtime.tokenizer.encode(prompt).ids }
+		if (promptIds.isEmpty()) return QwenGenerationAttempt("", jsonPrefill)
+		val generated = ArrayList<Long>(maxNewTokens)
 		var prevRun: OrtSession.Result? = null
 		var nextInputIds = promptIds.map { it.toLong() }.toLongArray()
 		var pastSequenceLength = 0
 		var step = 0
 		try {
-			while (step < MAX_NEW_TOKENS) {
+			while (step < maxNewTokens) {
 				val result = runQwen35Step(runtime, nextInputIds, pastSequenceLength, prevRun) ?: break
 				runCatching { prevRun?.close() }
 				prevRun = result.decoderRun
@@ -365,13 +593,167 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				}
 				generated += nextToken
 				nextInputIds = longArrayOf(nextToken)
+				if (generated.size >= 6) {
+					val partial = tokenizerLock.withLock { runtime.tokenizer.decode(generated.toLongArray()).trim() }
+					if (completionPredicate != null && completionPredicate(partial)) {
+						break
+					}
+					if (jsonPrefill && looksLikeCompletedTranslationSuffix(partial)) {
+						break
+					}
+					if (!jsonPrefill && looksLikeCompletedTranslationJson(partial)) {
+						break
+					}
+				}
 				step++
 			}
 		} finally {
 			runCatching { prevRun?.close() }
 		}
-		if (generated.isEmpty()) return ""
-		return runtime.tokenizer.decode(generated.toLongArray()).trim()
+		val rawOutput = tokenizerLock.withLock { runtime.tokenizer.decode(generated.toLongArray()).trim() }
+		Log.d(
+			LOG_TAG,
+			"Qwen translate done backend=${runtime.backend} generatedTokens=${generated.size} src=${oneLine(input, 80)} raw=${oneLine(rawOutput, 160)}"
+		)
+		return QwenGenerationAttempt(rawOutput = rawOutput, jsonPrefill = jsonPrefill)
+	}
+
+	private fun extractQwenTranslation(rawOutput: String, jsonPrefill: Boolean): String {
+		if (rawOutput.isBlank()) return ""
+		val normalized = if (jsonPrefill) {
+			val suffix = rawOutput.substringBefore("<|im_end|>").trim()
+			"{\"translation\":\"$suffix"
+		} else {
+			rawOutput
+		}
+		val stripped = normalized
+			.replace(Regex("(?is)<think>.*?</think>"), "")
+			.replace(Regex("(?is)<think>.*$"), "")
+			.trim()
+		return try {
+			val jsonStart = stripped.indexOf('{')
+			val jsonEnd = stripped.lastIndexOf('}')
+			if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+				val json = JSONObject(stripped.substring(jsonStart, jsonEnd + 1))
+				json.optString("translation").ifBlank {
+					json.optString("translatedText").ifBlank {
+						json.optString("output")
+					}
+				}.trim()
+			} else {
+				stripped
+			}
+		} catch (_: Exception) {
+			stripped
+				.substringAfter("\"translation\":\"", "")
+				.substringBeforeLast("\"}")
+				.substringBefore("<|im_end|>")
+				.replace("\\n", "\n")
+				.replace("\\\"", "\"")
+				.trim()
+		}.takeUnless { candidate ->
+			candidate.isBlank() ||
+				candidate.contains("<think>", ignoreCase = true) ||
+				candidate.contains("Thinking Process", ignoreCase = true)
+		}.orEmpty()
+	}
+
+	private fun looksLikeCompletedTranslationJson(text: String): Boolean {
+		if (text.isBlank()) return false
+		return COMPLETED_TRANSLATION_JSON_REGEX.containsMatchIn(text.trim())
+	}
+
+	private fun looksLikeCompletedTranslationSuffix(text: String): Boolean {
+		if (text.isBlank()) return false
+		val trimmed = text.trim()
+		return trimmed.contains("\"}") || trimmed.contains("\"\n}")
+	}
+
+	private fun looksLikeCompletedBatchJsonSuffix(text: String): Boolean {
+		if (text.isBlank()) return false
+		val trimmed = text.trim()
+		return trimmed.contains("]}")
+	}
+
+	private fun batchMaxNewTokens(texts: List<String>): Int {
+		val totalChars = texts.sumOf { it.length }
+		return (80 + totalChars * 2).coerceIn(96, MAX_QWEN_BATCH_NEW_TOKENS)
+	}
+
+	private fun parseQwenBatchTranslations(
+		rawOutput: String,
+		texts: List<String>,
+	): Map<String, String> {
+		if (rawOutput.isBlank() || texts.isEmpty()) return emptyMap()
+		val normalized = rawOutput
+			.replace(Regex("(?is)<think>.*?</think>"), "")
+			.replace(Regex("(?is)<think>.*$"), "")
+			.replace("```json", "", ignoreCase = true)
+			.replace("```", "")
+			.trim()
+		val wrapped = when {
+			normalized.startsWith("{\"items\"") -> completeBatchJson(normalized)
+			normalized.startsWith("[") -> completeBatchJson("{\"items\":$normalized")
+			normalized.startsWith("{\"id\"") -> completeBatchJson("{\"items\":[$normalized")
+			else -> {
+				val firstItem = normalized.indexOf("{\"id\"")
+				if (firstItem != -1) {
+					completeBatchJson("{\"items\":[" + normalized.substring(firstItem))
+				} else {
+					return emptyMap()
+				}
+			}
+		}
+		val jsonStart = wrapped.indexOf('{')
+		val jsonEnd = wrapped.lastIndexOf('}')
+		if (jsonStart == -1 || jsonEnd <= jsonStart) return emptyMap()
+		return runCatching {
+			val root = JSONObject(wrapped.substring(jsonStart, jsonEnd + 1))
+			val items = root.optJSONArray("items") ?: return@runCatching emptyMap<String, String>()
+			buildMap {
+				for (i in 0 until items.length()) {
+					val obj = items.optJSONObject(i) ?: continue
+					val id = obj.optInt("id", -1)
+					if (id !in 1..texts.size) continue
+					val translation = obj.optString("translation").trim().ifBlank {
+						obj.optString("translatedText").trim()
+					}
+					if (translation.isNotBlank()) {
+						put(texts[id - 1], translation)
+					}
+				}
+			}
+		}.getOrElse {
+			emptyMap()
+		}
+	}
+
+	private fun completeBatchJson(text: String): String {
+		var result = text.trim()
+		if (!result.startsWith("{\"items\"")) return result
+		if (!result.contains("\"items\"")) return result
+		if (!result.contains("]")) {
+			result += "]"
+		}
+		if (!result.endsWith("}")) {
+			result += "}"
+		}
+		if (!result.endsWith("]}")) {
+			if (result.endsWith("]")) {
+				result += "}"
+			} else if (!result.contains("]}")) {
+				result += "]}"
+			}
+		}
+		return result
+	}
+
+	private fun runtimeBackend(runtime: RuntimeHolder): String {
+		return when (runtime) {
+			is GenericRuntime -> runtime.backend
+			is NllbRuntime -> runtime.backend
+			is Qwen35Runtime -> runtime.backend
+		}
 	}
 
 	private fun runQwen35Step(
@@ -399,8 +781,18 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			decoderInputs["inputs_embeds"] = embedTensor
 			decoderInputs["attention_mask"] = attentionMask
 			decoderInputs["position_ids"] = positionIds
+			runtime.disableThinkingInputName?.let { inputName ->
+				val value = when {
+					inputName.equals("enable_thinking", ignoreCase = true) -> createBooleanTensor(false)
+					inputName.equals("disable_thinking", ignoreCase = true) -> createBooleanTensor(true)
+					else -> createBooleanTensor(false)
+				}
+				decoderInputs[inputName] = value
+				created += value
+			}
 			for (name in runtime.decoderInputNames) {
 				if (name == "inputs_embeds" || name == "attention_mask" || name == "position_ids") continue
+				if (name == runtime.disableThinkingInputName) continue
 				if (name.startsWith("past_")) {
 					if (prevRun == null) {
 						val info = runtime.decoderInputInfo[name] ?: return null
@@ -456,7 +848,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 	}
 
-	private fun translateOneNllb(runtime: NllbRuntime, text: String, sourceLang: String, targetLang: String): String {
+	private suspend fun translateOneNllb(runtime: NllbRuntime, text: String, sourceLang: String, targetLang: String): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
 		val sp = runtime.tokenizer.getProcessor()
@@ -464,9 +856,11 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		val srcNllb = toNllbCode(sourceLang)
 		val tgtNllb = toNllbCode(targetLang)
 		val tgtLangId = tgtNllb?.let(::languageId)
-		val encoded = when (runtime.modelFamily) {
-			ModelFamily.NLLB -> sp.encode(input)
-			ModelFamily.MADLAD_LIKE -> sp.encode("<2${targetLang.trim().lowercase().substringBefore('-')}> $input")
+		val encoded = tokenizerLock.withLock {
+			when (runtime.modelFamily) {
+				ModelFamily.NLLB -> sp.encode(input)
+				ModelFamily.MADLAD_LIKE -> sp.encode("<2${targetLang.trim().lowercase().substringBefore('-')}> $input")
+			}
 		}
 		val inputIds = when (runtime.modelFamily) {
 			ModelFamily.NLLB -> {
@@ -576,7 +970,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				ModelFamily.MADLAD_LIKE -> outputTokens.filter { it in 4 until NLLB_DICTIONARY_LENGTH }.toIntArray()
 			}
 			if (spIds.isEmpty()) return ""
-			return sp.decode(spIds).replace('▁', ' ').trim()
+			return tokenizerLock.withLock { sp.decode(spIds).replace('▁', ' ').trim() }
 		} finally {
 			runCatching { prevDecoderRun?.close() }
 			runCatching { cacheInitRun?.close() }
@@ -829,7 +1223,12 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	}
 
 	companion object {
+		private const val LOG_TAG = "ReaderTranslate"
 		private const val MAX_NEW_TOKENS = 200
+		private const val MAX_QWEN_NEW_TOKENS = 48
+		private const val MAX_QWEN_RETRY_NEW_TOKENS = 32
+		private const val MAX_QWEN_BATCH_NEW_TOKENS = 224
+		private const val MAX_PARALLEL_TRANSLATIONS = 2
 		private const val NLLB_DICTIONARY_LENGTH = 256000
 			private const val NLLB_DECODER_START_TOKEN = 2
 			private const val MADLAD_DECODER_START_TOKEN = 0
@@ -837,7 +1236,16 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			private const val QWEN_ALT_EOS_TOKEN_ID = 248046L
 			private const val QWEN2_EOS_TOKEN_ID = 151643L
 			private const val QWEN2_ALT_EOS_TOKEN_ID = 151645L
-			private val STOP_TOKEN_IDS = setOf(0L, 1L, 2L)
+		private val STOP_TOKEN_IDS = setOf(0L, 1L, 2L)
+		private val COMPLETED_TRANSLATION_JSON_REGEX =
+			Regex("""\{\s*"translation"\s*:\s*"((?:\\.|[^"\\])*)"\s*\}""", RegexOption.DOT_MATCHES_ALL)
+
+		private fun oneLine(text: String, limit: Int = 140): String {
+			if (text.isBlank()) return ""
+			return text.replace('\n', ' ').replace('\r', ' ').trim().let {
+				if (it.length <= limit) it else it.take(limit) + "..."
+			}
+		}
 
 		private val BCP47_TO_NLLB = mapOf(
 			"ar" to "arb_Arab", "bg" to "bul_Cyrl", "ca" to "cat_Latn", "zh" to "zho_Hans",

@@ -36,6 +36,13 @@ import org.skepsun.kototoro.parsers.util.find
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
+import org.skepsun.kototoro.core.util.ext.connectivityManager
+import org.skepsun.kototoro.core.util.ext.getEnumValue
+import org.skepsun.kototoro.core.util.ext.observeChanges
+import org.skepsun.kototoro.core.util.ext.putAll
+import org.skepsun.kototoro.core.util.ext.putEnumValue
+import org.skepsun.kototoro.core.util.ext.takeIfReadable
+import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.reader.domain.ReaderColorFilter
 import java.io.File
 import java.net.Proxy

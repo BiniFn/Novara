@@ -105,7 +105,7 @@ class PageLoader @Inject constructor(
 
 	val loaderScope = lifecycle.lifecycleScope + InternalErrorHandler() + Dispatchers.Default
 
-	private val tasks = LongSparseArray<ProgressDeferred<Uri, Float>>()
+	private val tasks = LongSparseArray<PageTaskRecord>()
 	private val translationUpdates = MutableSharedFlow<Long>(extraBufferCapacity = 64)
 	private val translationStatusUpdates = MutableSharedFlow<TranslationLayerStateEvent>(extraBufferCapacity = 128)
 	private val semaphore = Semaphore(settings.readerThreads)
@@ -120,6 +120,11 @@ class PageLoader @Inject constructor(
 	private val counter = AtomicInteger(0)
 	private var prefetchQueueLimit = settings.readerPrefetchLimit
 	private val edgeDetector = EdgeDetector(context)
+
+	private data class PageTaskRecord(
+		val task: ProgressDeferred<Uri, Float>,
+		val translationWorkSignature: String,
+	)
 
 	data class TranslationLayerStateEvent(
 		val pageId: Long,
@@ -196,7 +201,11 @@ class PageLoader @Inject constructor(
 	}
 
 	fun loadPageAsync(page: MangaPage, force: Boolean): ProgressDeferred<Uri, Float> {
-		var task = tasks[page.id]?.takeIf { it.isValid() }
+		val currentSignature = currentTranslationWorkSignature()
+		var task = tasks[page.id]
+			?.takeIf { it.translationWorkSignature == currentSignature }
+			?.task
+			?.takeIf { it.isValid() }
 		if (force) {
 			task?.cancel()
 		} else if (task?.isCancelled == false) {
@@ -204,7 +213,10 @@ class PageLoader @Inject constructor(
 		}
 		task = loadPageAsyncImpl(page, skipCache = force, isPrefetch = false)
 		synchronized(tasks) {
-			tasks[page.id] = task
+			tasks[page.id] = PageTaskRecord(
+				task = task,
+				translationWorkSignature = currentSignature,
+			)
 		}
 		return task
 	}
@@ -265,7 +277,7 @@ class PageLoader @Inject constructor(
 
 	fun invalidateTask(pageId: Long) {
 		synchronized(tasks) {
-			tasks[pageId]?.cancel()
+			tasks[pageId]?.task?.cancel()
 			tasks.remove(pageId)
 		}
 	}
@@ -308,9 +320,38 @@ class PageLoader @Inject constructor(
 			while (prefetchQueue.isNotEmpty()) {
 				val page = prefetchQueue.pollFirst() ?: return@launch
 				synchronized(tasks) {
-					tasks[page.id] = loadPageAsyncImpl(page, skipCache = false, isPrefetch = true)
+					tasks[page.id] = PageTaskRecord(
+						task = loadPageAsyncImpl(page, skipCache = false, isPrefetch = true),
+						translationWorkSignature = currentTranslationWorkSignature(),
+					)
 				}
 			}
+		}
+	}
+
+	private fun currentTranslationWorkSignature(): String {
+		return buildString {
+			append(settings.isReaderTranslationEnabled)
+			append('|')
+			append(settings.readerTranslationSourceLanguage)
+			append('|')
+			append(settings.readerTranslationTargetLanguage)
+			append('|')
+			append(settings.readerTranslationOcrEngine.name)
+			append('|')
+			append(settings.readerTranslationMode.name)
+			append('|')
+			append(settings.readerTranslationApiEndpoint)
+			append('|')
+			append(settings.readerTranslationApiModel)
+			append('|')
+			append(settings.readerTranslationBubbleGroupingTuning)
+			append('|')
+			append(settings.readerTranslationOverlayCompactness)
+			append('|')
+			append(settings.readerTranslationDetModelId)
+			append('|')
+			append(settings.readerTranslationOnnxModelId)
 		}
 	}
 
@@ -413,30 +454,23 @@ class PageLoader @Inject constructor(
 		} else {
 			sourceUri
 		}
-		if (settings.isReaderTranslationEnabled && isTranslationBypassedForSource(page.source)) {
-			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.IDLE))
-			return readyUri
-		}
+		
 		if (!settings.isReaderTranslationEnabled) {
+			Log.d("ReaderTranslate", "PageLoader debug: translation disabled page=${page.id}")
 			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.IDLE))
 			return readyUri
 		}
-		if (!settings.isReaderTranslationShowTranslated) {
-			val cached = translationProcessor.peekRendered(page, readyUri)
-			translationStatusUpdates.tryEmit(
-				TranslationLayerStateEvent(
-					page.id,
-					if (cached != null) TranslationLayerState.READY else TranslationLayerState.IDLE,
-				),
-			)
-			return readyUri
-		}
-		translationProcessor.peekRendered(page, readyUri)?.let {
+		
+		val cachedRecord = translationProcessor.peekRendered(page, readyUri)
+		if (cachedRecord != null) {
+			Log.d("ReaderTranslate", "PageLoader debug: cached record found page=${page.id}")
 			translationStatusUpdates.tryEmit(TranslationLayerStateEvent(page.id, TranslationLayerState.READY))
-			return it
+			return if (settings.isReaderTranslationShowTranslated) cachedRecord else readyUri
 		}
+
+		Log.d("ReaderTranslate", "PageLoader debug: scheduling translation for page=${page.id} (show=${settings.isReaderTranslationShowTranslated})")
 		scheduleTranslation(page, readyUri)
-		readyUri
+		return readyUri
 	}
 
 	private fun scheduleTranslation(page: MangaPage, sourceUri: Uri) {
