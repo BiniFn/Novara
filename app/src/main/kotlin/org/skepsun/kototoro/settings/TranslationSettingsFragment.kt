@@ -71,6 +71,10 @@ class TranslationSettingsFragment :
 		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.run {
 			setDefaultValue("CUSTOM")
+			setOnPreferenceChangeListener { _, newValue ->
+				applyApiProviderPreset((newValue as? String).orEmpty())
+				true
+			}
 		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING)?.run {
 			setDefaultValue("BALANCED")
@@ -83,6 +87,7 @@ class TranslationSettingsFragment :
 		}
 
 		normalizeDeprecatedOcrEngineSelection()
+		applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
 		updateOcrEngineDependency()
 		updateApiPreferenceVisibility()
 		updatePaddleOfficialModelEntries()
@@ -139,7 +144,7 @@ class TranslationSettingsFragment :
 				updateOnnxOfficialModelEntries()
 			}
 			AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET -> {
-				applyApiProviderPreset()
+				applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
 			}
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION,
@@ -288,9 +293,10 @@ class TranslationSettingsFragment :
 		}
 	}
 
-	private fun applyApiProviderPreset() {
+	private fun applyApiProviderPreset(presetInput: String) {
 		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		val preset = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM")
+		val preset = presetInput.trim().uppercase()
+		if (preset.isBlank() || preset == "CUSTOM") return
 		val endpointAndModel = when (preset) {
 			"OPENAI" -> "https://api.openai.com/v1/chat/completions" to "gpt-4o-mini"
 			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-v3"

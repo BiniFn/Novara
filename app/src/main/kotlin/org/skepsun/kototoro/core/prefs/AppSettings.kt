@@ -16,20 +16,15 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ZoomMode
 import org.skepsun.kototoro.core.network.DoHProvider
-import org.skepsun.kototoro.core.util.ext.connectivityManager
-import org.skepsun.kototoro.core.util.ext.getEnumValue
-import org.skepsun.kototoro.core.util.ext.observeChanges
-import org.skepsun.kototoro.core.util.ext.putAll
-import org.skepsun.kototoro.core.util.ext.putEnumValue
-import org.skepsun.kototoro.core.util.ext.takeIfReadable
-import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.core.prefs.VideoDecoderMode
@@ -53,7 +48,7 @@ import javax.inject.Singleton
 class AppSettings @Inject constructor(@ApplicationContext private val context: Context) {
 
 	private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-	private val connectivityManager = context.connectivityManager
+	private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 	private val mangaListBadgesDefault = ArraySet(context.resources.getStringArray(R.array.values_list_badges))
 
 	var listMode: ListMode
@@ -1017,6 +1012,43 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	fun upsertAll(m: Map<String, *>) = prefs.edit {
 		clear()
 		putAll(m)
+	}
+
+	private fun String.toUriOrNull(): Uri? = if (isBlank()) null else Uri.parse(this)
+
+	private fun File.takeIfReadable(): File? = takeIf { canRead() }
+
+	private fun <E : Enum<E>> SharedPreferences.getEnumValue(key: String, defaultValue: E): E {
+		val raw = getString(key, null) ?: return defaultValue
+		return defaultValue.javaClass.enumConstants?.firstOrNull { it.name == raw } ?: defaultValue
+	}
+
+	private fun <E : Enum<E>> SharedPreferences.Editor.putEnumValue(key: String, value: E?) {
+		putString(key, value?.name)
+	}
+
+	private fun SharedPreferences.observeChanges(): Flow<String?> = callbackFlow {
+		val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+			trySend(key)
+		}
+		registerOnSharedPreferenceChangeListener(listener)
+		awaitClose { unregisterOnSharedPreferenceChangeListener(listener) }
+	}
+
+	private fun SharedPreferences.Editor.putAll(values: Map<String, *>) {
+		values.forEach { (key, value) ->
+			when (value) {
+				is Boolean -> putBoolean(key, value)
+				is Int -> putInt(key, value)
+				is Long -> putLong(key, value)
+				is Float -> putFloat(key, value)
+				is String -> putString(key, value)
+				is Set<*> -> {
+					@Suppress("UNCHECKED_CAST")
+					putStringSet(key, value as? Set<String>)
+				}
+			}
+		}
 	}
 	
 	/**

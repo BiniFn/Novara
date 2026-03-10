@@ -62,6 +62,12 @@ private const val IMAGE_FORMAT_NOT_SUPPORTED = "Image format not supported"
 
 private val FNFE_MESSAGE_REGEX = Regex("^(/[^\\s:]+)?.+?\\s([A-Z]{2,6})?\\s.+$")
 
+fun Throwable.printStackTraceDebug() {
+	if (BuildConfig.DEBUG) {
+		printStackTrace()
+	}
+}
+
 fun Throwable.getDisplayMessage(resources: Resources): String = getDisplayMessageOrNull(resources)
     ?: resources.getString(R.string.error_occurred)
 

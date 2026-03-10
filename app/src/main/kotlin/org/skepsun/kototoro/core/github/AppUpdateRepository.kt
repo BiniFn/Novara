@@ -16,9 +16,6 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.BaseHttpClient
 import org.skepsun.kototoro.core.os.AppValidator
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.util.ext.asArrayList
-import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
 import org.skepsun.kototoro.parsers.util.parseJsonArray
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -58,7 +55,7 @@ class AppUpdateRepository @Inject constructor(
 		val request = Request.Builder()
 			.get()
 			.url(releasesUrl)
-		val jsonArray = okHttp.newCall(request.build()).await().parseJsonArray()
+		val jsonArray = okHttp.newCall(request.build()).execute().use { it.parseJsonArray() }
 		return jsonArray.mapJSONNotNull { json ->
 			val assets = json.optJSONArray("assets")
 				?.toApkAssets()
@@ -83,16 +80,16 @@ class AppUpdateRepository @Inject constructor(
 			return@withContext null
 		}
 		runCatchingCancellable {
-			val currentVersion = VersionId(BuildConfig.VERSION_NAME)
-			val available = getAvailableVersions().asArrayList()
+			val currentVersion = parseVersionId(BuildConfig.VERSION_NAME)
+			val available = getAvailableVersions().toMutableList()
 			available.sortBy { it.versionId }
-			if (currentVersion.isStable && !settings.isUnstableUpdatesAllowed) {
-				available.retainAll { it.versionId.isStable }
+			if (currentVersion.variantType.isEmpty() && !settings.isUnstableUpdatesAllowed) {
+				available.retainAll { it.versionId.variantType.isEmpty() }
 			}
 			available.maxByOrNull { it.versionId }
 				?.takeIf { it.versionId > currentVersion }
 		}.onFailure {
-			it.printStackTraceDebug()
+			it.printStackTrace()
 		}.onSuccess {
 			availableUpdate.value = it
 		}.getOrNull()
@@ -101,6 +98,23 @@ class AppUpdateRepository @Inject constructor(
 	@Suppress("KotlinConstantConditions")
 	suspend fun isUpdateSupported(): Boolean {
 		return BuildConfig.BUILD_TYPE != BUILD_TYPE_RELEASE || appValidator.isOriginalApp.getOrNull() == true
+	}
+
+	private fun parseVersionId(versionName: String): VersionId {
+		val normalized = versionName.trim()
+		if (normalized.startsWith('n', ignoreCase = true)) {
+			val nightlyBuild = normalized.filter { it.isDigit() }.toIntOrNull() ?: 0
+			return VersionId(0, 0, nightlyBuild, "n", 0)
+		}
+		val parts = normalized.substringBeforeLast('-').split('.')
+		val variant = normalized.substringAfterLast('-', "")
+		return VersionId(
+			major = parts.getOrNull(0)?.toIntOrNull() ?: 0,
+			minor = parts.getOrNull(1)?.toIntOrNull() ?: 0,
+			build = parts.getOrNull(2)?.toIntOrNull() ?: 0,
+			variantType = variant.filter(Char::isLetter),
+			variantNumber = variant.filter(Char::isDigit).toIntOrNull() ?: 0,
+		)
 	}
 
 	private fun JSONArray.toApkAssets(): List<JSONObject> {

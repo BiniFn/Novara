@@ -102,34 +102,50 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		modelId: String,
 	): Map<String, String> {
 		if (texts.isEmpty()) return emptyMap()
-		val rt = ensureRuntime(modelId) ?: return texts.associateWith { "" }
+		var rt = ensureRuntime(modelId) ?: return texts.associateWith { "" }
 		return runInterruptible(Dispatchers.Default) {
 			val map = LinkedHashMap<String, String>(texts.size)
 			for (text in texts) {
-				map[text] = runCatching {
-						when (rt) {
-							is NllbRuntime -> translateOneNllb(rt, text, sourceLang, targetLang)
-							is GenericRuntime -> translateOneGeneric(rt, text, sourceLang, targetLang)
-							is Qwen35Runtime -> translateOneQwen35(rt, text, sourceLang, targetLang)
-						}
-					}.onFailure { it.printStackTrace() }.getOrDefault("")
+				var translated = runCatching {
+					when (rt) {
+						is NllbRuntime -> translateOneNllb(rt, text, sourceLang, targetLang)
+						is GenericRuntime -> translateOneGeneric(rt, text, sourceLang, targetLang)
+						is Qwen35Runtime -> translateOneQwen35(rt, text, sourceLang, targetLang)
+					}
+				}.onFailure { it.printStackTrace() }.getOrDefault("")
+
+				if (translated.isBlank() && text.isNotBlank()) {
+					val refreshed = kotlinx.coroutines.runBlocking { ensureRuntime(modelId, forceReload = true) }
+					if (refreshed != null) {
+						rt = refreshed
+						translated = runCatching {
+							when (refreshed) {
+								is NllbRuntime -> translateOneNllb(refreshed, text, sourceLang, targetLang)
+								is GenericRuntime -> translateOneGeneric(refreshed, text, sourceLang, targetLang)
+								is Qwen35Runtime -> translateOneQwen35(refreshed, text, sourceLang, targetLang)
+							}
+						}.onFailure { it.printStackTrace() }.getOrDefault("")
+					}
 				}
+				map[text] = translated
+			}
 			map
 		}
 	}
 
-	private suspend fun ensureRuntime(modelId: String): RuntimeHolder? {
+	private suspend fun ensureRuntime(modelId: String, forceReload: Boolean = false): RuntimeHolder? {
 		if (modelId.isBlank() || !onnxModelManager.isModelDownloaded(modelId)) {
 			return null
 		}
 		val current = runtime
-		if (current != null && current.modelId == modelId) {
+		if (!forceReload && current != null && current.modelId == modelId) {
 			return current
 		}
 		return lock.withLock {
 			val again = runtime
-			if (again != null && again.modelId == modelId) return@withLock again
+			if (!forceReload && again != null && again.modelId == modelId) return@withLock again
 			runtime?.close()
+			runtime = null
 			val modelDir = onnxModelManager.getModelDir(modelId)
 				val cacheRt = tryCreateNllbRuntime(modelId, modelDir) ?: tryCreateMadladLikeRuntime(modelId, modelDir)
 				if (cacheRt != null) {
@@ -327,7 +343,9 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
-		val prompt = "Translate from $sourceLang to $targetLang. Return only the translated result.\n\n$input"
+		val prompt = "<|im_start|>system\nYou are a professional translator. Output translation only.\n<|im_end|>\n" +
+			"<|im_start|>user\nTranslate from $sourceLang to $targetLang:\n$input\n<|im_end|>\n" +
+			"<|im_start|>assistant\n"
 		val promptIds = runtime.tokenizer.encode(prompt).ids
 		if (promptIds.isEmpty()) return ""
 		val generated = ArrayList<Long>(MAX_NEW_TOKENS)
@@ -761,7 +779,11 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	}
 
 	private fun loadStopTokens(modelDir: File): Set<Long> {
-		val defaults = mutableSetOf(0L, 1L, 2L, QWEN_EOS_TOKEN_ID, QWEN_ALT_EOS_TOKEN_ID)
+		val defaults = mutableSetOf(
+			0L, 1L, 2L,
+			QWEN_EOS_TOKEN_ID, QWEN_ALT_EOS_TOKEN_ID,
+			QWEN2_EOS_TOKEN_ID, QWEN2_ALT_EOS_TOKEN_ID,
+		)
 		val generationConfig = File(modelDir, "generation_config.json")
 		if (!generationConfig.isFile) return defaults
 		return runCatching {
@@ -813,6 +835,8 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			private const val MADLAD_DECODER_START_TOKEN = 0
 			private const val QWEN_EOS_TOKEN_ID = 248044L
 			private const val QWEN_ALT_EOS_TOKEN_ID = 248046L
+			private const val QWEN2_EOS_TOKEN_ID = 151643L
+			private const val QWEN2_ALT_EOS_TOKEN_ID = 151645L
 			private val STOP_TOKEN_IDS = setOf(0L, 1L, 2L)
 
 		private val BCP47_TO_NLLB = mapOf(
