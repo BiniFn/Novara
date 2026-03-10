@@ -348,7 +348,7 @@ class ReaderSettingsFragment :
 		val preset = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM")
 		val endpointAndModel = when (preset) {
 			"OPENAI" -> "https://api.openai.com/v1/chat/completions" to "gpt-4o-mini"
-			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-v3"
+			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-chat"
 			"ZHIPU" -> "https://open.bigmodel.cn/api/paas/v4/chat/completions" to "glm-4-plus"
 			"ALIBABA" -> "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" to "qwen-plus"
 			"MOONSHOT" -> "https://api.moonshot.cn/v1/chat/completions" to "moonshot-v1-8k"

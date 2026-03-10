@@ -72,7 +72,7 @@ class TranslationSettingsFragment :
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.run {
 			setDefaultValue("CUSTOM")
 			setOnPreferenceChangeListener { _, newValue ->
-				applyApiProviderPreset((newValue as? String).orEmpty())
+				applyApiProviderPreset((newValue as? String).orEmpty(), forceOverride = true)
 				true
 			}
 		}
@@ -144,7 +144,7 @@ class TranslationSettingsFragment :
 				updateOnnxOfficialModelEntries()
 			}
 			AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET -> {
-				applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
+				applyApiProviderPreset(settings.readerTranslationApiProviderPreset, forceOverride = true)
 			}
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION,
@@ -293,13 +293,13 @@ class TranslationSettingsFragment :
 		}
 	}
 
-	private fun applyApiProviderPreset(presetInput: String) {
+	private fun applyApiProviderPreset(presetInput: String, forceOverride: Boolean = false) {
 		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
 		val preset = presetInput.trim().uppercase()
 		if (preset.isBlank() || preset == "CUSTOM") return
 		val endpointAndModel = when (preset) {
 			"OPENAI" -> "https://api.openai.com/v1/chat/completions" to "gpt-4o-mini"
-			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-v3"
+			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-chat"
 			"ZHIPU" -> "https://open.bigmodel.cn/api/paas/v4/chat/completions" to "glm-4-plus"
 			"ALIBABA" -> "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" to "qwen-plus"
 			"MOONSHOT" -> "https://api.moonshot.cn/v1/chat/completions" to "moonshot-v1-8k"
@@ -311,9 +311,15 @@ class TranslationSettingsFragment :
 			else -> null
 		}
 		endpointAndModel ?: return
+		val currentEndpoint = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, "").orEmpty().trim()
+		val currentModel = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, "").orEmpty().trim()
 		sharedPreferences.edit {
-			putString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, endpointAndModel.first)
-			putString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, endpointAndModel.second)
+			if (forceOverride || currentEndpoint.isBlank()) {
+				putString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, endpointAndModel.first)
+			}
+			if (forceOverride || currentModel.isBlank()) {
+				putString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, endpointAndModel.second)
+			}
 		}
 	}
 
