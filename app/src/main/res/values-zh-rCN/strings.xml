@@ -1218,6 +1218,9 @@
     <string name="reader_translation_task_panel_empty">当前章节还没有可显示的翻译任务。</string>
     <string name="reader_translation_task_panel_empty_for_filter">筛选条件 %1$s 下没有任务。</string>
     <string name="reader_translation_task_panel_summary">总页数：%1$d | 完成：%2$d | 进行中：%3$d | 失败：%4$d</string>
+    <string name="reader_translation_task_benchmark_title">章节基线</string>
+    <string name="reader_translation_task_benchmark_item">章节基线\n%1$s</string>
+    <string name="reader_translation_task_benchmark_empty">当前还没有可用的基线样本。</string>
     <string name="reader_translation_task_filter_current">当前筛选：%1$s</string>
     <string name="reader_translation_task_filter">筛选</string>
     <string name="reader_translation_task_filter_title">筛选页面任务</string>
@@ -1261,6 +1264,7 @@
     <string name="reader_translation_onnx_model_selection">本地翻译模型</string>
     <string name="reader_translation_onnx_models_title">本地翻译模型</string>
     <string name="reader_translation_onnx_general_llm_models_title">通用大模型（翻译）</string>
+    <string name="reader_translation_onnx_bubble_detector_models_title">气泡检测模型</string>
     <string name="reader_translation_local_model_mlkit">ML Kit（设备端默认）</string>
     <string name="reader_translation_onnx_download_success">ONNX 模型下载完成</string>
     <string name="reader_translation_api_endpoint">翻译 API Endpoint</string>

@@ -50,6 +50,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -77,6 +78,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val tfliteOcrEngine: TfLiteReaderOcrEngine,
 	private val hybridOcrEngine: HybridReaderOcrEngine,
 	private val ncnnOcrEngine: NcnnReaderOcrEngine,
+	private val cvBubbleDetector: CvBubbleDetector,
+	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
 	private val onnxTranslationEngine: OnnxReaderTranslationEngine,
 	private val debugLogStore: ReaderTranslationDebugLogStore,
 ) {
@@ -197,6 +200,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return debugLogStore.get(pageId)
 	}
 
+	fun observeDebugLogUpdates(): Flow<Long> {
+		return debugLogStore.observeUpdates()
+	}
+
 	@WorkerThread
 	private suspend fun processImpl(
 		pageId: Long,
@@ -213,6 +220,26 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		var ocrBlocks = 0
 		var bubbleCount = 0
 		var renderedBubbleCount = 0
+		val bubbleGroupingEnabled = settings.isReaderTranslationBubbleGroupingEnabled
+		var bubbleDetectorCandidates = 0
+		var bubbleDetectorMatchedFragments = 0
+		var bubbleDetectorUsedGroups = 0
+		var bubbleDetectorSubdividedGroups = 0
+		var bubbleDetectorSubdividedFragments = 0
+		var bubbleDetectorCoverageRate = 0f
+		var bubbleDetectorEngine = "cv"
+		var bubbleDetectorModel = ""
+		var bubbleDetectorRawBoxes = 0
+		var bubbleDetectorTotalMs = 0L
+		var bubbleDetectorFallbackReason = ""
+		var bubbleGroupingFallbackFragments = 0
+		var bubbleGroupingFallbackGroups = 0
+		var bubbleGroupingFallbackMode = "heuristic"
+		var roiRequestCount = 0
+		var roiSuccessCount = 0
+		var roiFallbackCount = 0
+		var roiDurationMs = 0L
+		var roiCoverageArea = 0f
 		var processResult = "source"
 		appendPageLog(pageId, "metric.render_cache.hit=0")
 
@@ -254,21 +281,47 @@ class ReaderPageTranslationProcessor @Inject constructor(
 					text = it.text.trim(),
 				)
 			}
-			val groupedFragments = groupFragmentsByBubble(sourceFragments, bitmap)
-			val bubbleInputs = groupedFragments.mapNotNull { group ->
-				val mergedRect = mergeRects(group.map { it.rect }) ?: return@mapNotNull null
-				val sourceText = composeGroupedText(group, sourceLang).trim()
+			val groupingResult = groupFragmentsForTranslation(sourceFragments, bitmap)
+			bubbleDetectorCandidates = groupingResult.detectorCandidateCount
+			bubbleDetectorMatchedFragments = groupingResult.detectorMatchedFragmentCount
+			bubbleDetectorUsedGroups = groupingResult.detectorUsedGroupCount
+			bubbleDetectorSubdividedGroups = groupingResult.detectorSubdividedGroupCount
+			bubbleDetectorSubdividedFragments = groupingResult.detectorSubdividedFragmentCount
+			bubbleDetectorCoverageRate = groupingResult.detectorCoverageRate
+			bubbleDetectorEngine = groupingResult.detectorEngine
+			bubbleDetectorModel = groupingResult.detectorModelId
+			bubbleDetectorRawBoxes = groupingResult.detectorRawBoxCount
+			bubbleDetectorTotalMs = groupingResult.detectorTotalMs
+			bubbleDetectorFallbackReason = groupingResult.detectorFallbackReason
+			bubbleGroupingFallbackFragments = groupingResult.fallbackFragmentCount
+			bubbleGroupingFallbackGroups = groupingResult.fallbackGroupCount
+			bubbleGroupingFallbackMode = groupingResult.fallbackMode
+			val roiResult = recognizeBubbleTextsByRoi(
+				groups = groupingResult.groups,
+				sourceUri = sourceUri,
+				sourceLang = sourceLang,
+				pageId = pageId,
+				bitmap = bitmap,
+			)
+			roiRequestCount = roiResult.requestCount
+			roiSuccessCount = roiResult.successCount
+			roiFallbackCount = roiResult.fallbackCount
+			roiDurationMs = roiResult.totalMs
+			roiCoverageArea = roiResult.coverageArea
+			val bubbleInputs = groupingResult.groups.mapIndexedNotNull { index, group ->
+				val mergedRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: return@mapIndexedNotNull null
+				val sourceText = (roiResult.textsByGroupIndex[index] ?: composeGroupedText(group.fragments, sourceLang)).trim()
 				if (sourceText.isBlank()) {
-					return@mapNotNull null
+					return@mapIndexedNotNull null
 				}
 				val verticalPreferred = isVerticalTargetLanguage(targetLang) &&
 					sourceLang.startsWith("ja") &&
-					(isLikelyColumnLayout(group) || mergedRect.height() > mergedRect.width() * 13 / 10)
+					(isLikelyColumnLayout(group.fragments) || mergedRect.height() > mergedRect.width() * 13 / 10)
 				BubbleInput(
 					rect = mergedRect,
 					sourceText = sourceText,
-				verticalPreferred = verticalPreferred,
-			)
+					verticalPreferred = verticalPreferred,
+				)
 			}
 			bubbleCount = bubbleInputs.size
 			val translateStartMs = SystemClock.elapsedRealtime()
@@ -289,6 +342,12 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				if (translated.isBlank()) continue
 				nonEmptyTranslatedCount++
 				if (isLikelyGarbledText(translated)) continue
+				if (shouldSuppressRenderedBubble(bubble.sourceText, translated, targetLang)) {
+					log {
+						"bubble render suppressed src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
+					}
+					continue
+				}
 				val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
 				prepareTranslatedBubble(
 					rect = bubble.rect,
@@ -330,6 +389,27 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			if (ocrDurationMs >= 0L) log { "metric.ocr.total_ms=$ocrDurationMs" }
 			log { "metric.ocr.blocks=$ocrBlocks" }
 			log { "metric.translation.bubbles=$bubbleCount" }
+			log { "metric.bubble.grouping.enabled=$bubbleGroupingEnabled" }
+			log { "metric.bubble.grouping.detector_groups=$bubbleDetectorUsedGroups" }
+			log { "metric.bubble.grouping.fallback_fragments=$bubbleGroupingFallbackFragments" }
+			log { "metric.bubble.grouping.fallback_groups=$bubbleGroupingFallbackGroups" }
+			log { "metric.bubble.grouping.fallback_mode=$bubbleGroupingFallbackMode" }
+			log { "metric.bubble.detector.candidates=$bubbleDetectorCandidates" }
+			log { "metric.bubble.detector.matched_fragments=$bubbleDetectorMatchedFragments" }
+			log { "metric.bubble.detector.used_groups=$bubbleDetectorUsedGroups" }
+			log { "metric.bubble.detector.subdivided_groups=$bubbleDetectorSubdividedGroups" }
+			log { "metric.bubble.detector.subdivided_fragments=$bubbleDetectorSubdividedFragments" }
+			log { "metric.bubble.detector.coverage_rate=$bubbleDetectorCoverageRate" }
+			log { "metric.bubble.detector.engine=$bubbleDetectorEngine" }
+			log { "metric.bubble.detector.model=${bubbleDetectorModel.ifBlank { "none" }}" }
+			log { "metric.bubble.detector.raw_boxes=$bubbleDetectorRawBoxes" }
+			log { "metric.bubble.detector.total_ms=$bubbleDetectorTotalMs" }
+			log { "metric.bubble.detector.fallback_reason=${bubbleDetectorFallbackReason.ifBlank { "none" }}" }
+			log { "metric.ocr.roi.request_count=$roiRequestCount" }
+			log { "metric.ocr.roi.success_count=$roiSuccessCount" }
+			log { "metric.ocr.roi.fallback_count=$roiFallbackCount" }
+			log { "metric.ocr.roi.total_ms=$roiDurationMs" }
+			log { "metric.ocr.roi.coverage_area=$roiCoverageArea" }
 			if (translateDurationMs >= 0L) log { "metric.translation.total_ms=$translateDurationMs" }
 			if (renderDurationMs >= 0L) log { "metric.render.total_ms=$renderDurationMs" }
 			log { "metric.render.translated_bubbles=$renderedBubbleCount" }
@@ -405,12 +485,28 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		sourceLang: String,
 		pageId: Long,
 	): List<OcrTextBlock> {
+		return recognizeTextByEngine(
+			engine = engine,
+			request = OcrRequest(
+				sourceUri = sourceUri,
+				sourceLang = sourceLang,
+				pageId = pageId,
+				requestType = OcrRequestType.PAGE,
+				debugTag = "page:$pageId:${engine.name.lowercase()}",
+			),
+		)
+	}
+
+	private suspend fun recognizeTextByEngine(
+		engine: ReaderOcrEngine,
+		request: OcrRequest,
+	): List<OcrTextBlock> {
 		return when (engine) {
-			ReaderOcrEngine.MLKIT -> mlKitOcrEngine.recognize(sourceUri, sourceLang, pageId)
+			ReaderOcrEngine.MLKIT -> mlKitOcrEngine.recognize(request)
 			ReaderOcrEngine.PADDLE -> emptyList()
-			ReaderOcrEngine.TFLITE -> tfliteOcrEngine.recognize(sourceUri, sourceLang, pageId)
-			ReaderOcrEngine.HYBRID -> hybridOcrEngine.recognize(sourceUri, sourceLang, pageId)
-			ReaderOcrEngine.NCNN -> ncnnOcrEngine.recognize(sourceUri, sourceLang, pageId)
+			ReaderOcrEngine.TFLITE -> tfliteOcrEngine.recognize(request)
+			ReaderOcrEngine.HYBRID -> hybridOcrEngine.recognize(request)
+			ReaderOcrEngine.NCNN -> ncnnOcrEngine.recognize(request)
 		}
 	}
 
@@ -956,10 +1052,631 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val verticalPreferred: Boolean,
 	)
 
+	private data class GroupedBubbleSource(
+		val fragments: List<TextFragment>,
+		val bubbleRect: Rect?,
+	)
+
+	private data class BubbleGroupingResult(
+		val groups: List<GroupedBubbleSource>,
+		val detectorCandidateCount: Int,
+		val detectorMatchedFragmentCount: Int,
+		val detectorUsedGroupCount: Int,
+		val detectorSubdividedGroupCount: Int,
+		val detectorSubdividedFragmentCount: Int,
+		val detectorCoverageRate: Float,
+		val detectorEngine: String,
+		val detectorModelId: String,
+		val detectorRawBoxCount: Int,
+		val detectorTotalMs: Long,
+		val detectorFallbackReason: String,
+		val fallbackFragmentCount: Int,
+		val fallbackGroupCount: Int,
+		val fallbackMode: String,
+	)
+
+	private data class BubbleDetectorOutcome(
+		val groups: List<GroupedBubbleSource>,
+		val matchedFragmentIndices: Set<Int>,
+		val candidateCount: Int,
+		val matchedFragmentCount: Int,
+		val subdividedGroupCount: Int,
+		val subdividedFragmentCount: Int,
+		val engine: String,
+		val modelId: String,
+		val rawBoxCount: Int,
+		val totalMs: Long,
+		val fallbackReason: String,
+	)
+
+	private data class IndexedFragment(
+		val index: Int,
+		val fragment: TextFragment,
+	)
+
+	private data class DetectedBubbleCandidate(
+		val rect: Rect,
+		val fragmentIndices: List<Int>,
+		val score: Float,
+	) {
+		fun isBetterThan(other: DetectedBubbleCandidate): Boolean {
+			if (score != other.score) return score > other.score
+			return rectArea(rect) < rectArea(other.rect)
+		}
+
+		private fun rectArea(rect: Rect): Float {
+			return (rect.width().coerceAtLeast(0) * rect.height().coerceAtLeast(0)).toFloat()
+		}
+	}
+
+	private data class BubbleRoiOcrResult(
+		val textsByGroupIndex: Map<Int, String>,
+		val requestCount: Int,
+		val successCount: Int,
+		val fallbackCount: Int,
+		val totalMs: Long,
+		val coverageArea: Float,
+	)
+
 	private data class TextFragment(
 		val rect: Rect,
 		val text: String,
 	)
+
+	private suspend fun groupFragmentsForTranslation(
+		fragments: List<TextFragment>,
+		bitmap: Bitmap,
+	): BubbleGroupingResult {
+		if (fragments.isEmpty()) {
+			return BubbleGroupingResult(
+				groups = emptyList(),
+				detectorCandidateCount = 0,
+				detectorMatchedFragmentCount = 0,
+				detectorUsedGroupCount = 0,
+				detectorSubdividedGroupCount = 0,
+				detectorSubdividedFragmentCount = 0,
+				detectorCoverageRate = 0f,
+				detectorEngine = "none",
+				detectorModelId = "",
+				detectorRawBoxCount = 0,
+				detectorTotalMs = 0L,
+				detectorFallbackReason = "",
+				fallbackFragmentCount = 0,
+				fallbackGroupCount = 0,
+				fallbackMode = if (settings.isReaderTranslationBubbleGroupingEnabled) "heuristic" else "individual",
+			)
+		}
+		val detectorOutcome = detectBubbleGroups(bitmap, fragments)
+		val fallbackFragments = fragments.filterIndexed { index, _ -> index !in detectorOutcome.matchedFragmentIndices }
+		val forceHeuristicFallback = !settings.isReaderTranslationBubbleGroupingEnabled &&
+			shouldForceHeuristicFallback(
+				totalFragmentCount = fragments.size,
+				fallbackFragmentCount = fallbackFragments.size,
+			)
+		val fallbackMode = when {
+			settings.isReaderTranslationBubbleGroupingEnabled -> "heuristic"
+			forceHeuristicFallback -> "individual_guarded_to_heuristic"
+			else -> "individual"
+		}
+		val fallbackGroups = if (settings.isReaderTranslationBubbleGroupingEnabled || forceHeuristicFallback) {
+			groupFragmentsByBubble(fallbackFragments, bitmap).map { group ->
+				GroupedBubbleSource(
+					fragments = group,
+					bubbleRect = null,
+				)
+			}
+		} else {
+			fallbackFragments.map { fragment ->
+				GroupedBubbleSource(
+					fragments = listOf(fragment),
+					bubbleRect = null,
+				)
+			}
+		}
+		return BubbleGroupingResult(
+			groups = detectorOutcome.groups + fallbackGroups,
+			detectorCandidateCount = detectorOutcome.candidateCount,
+			detectorMatchedFragmentCount = detectorOutcome.matchedFragmentCount,
+			detectorUsedGroupCount = detectorOutcome.groups.size,
+			detectorSubdividedGroupCount = detectorOutcome.subdividedGroupCount,
+			detectorSubdividedFragmentCount = detectorOutcome.subdividedFragmentCount,
+			detectorCoverageRate = detectorOutcome.matchedFragmentCount.toFloat() / fragments.size.toFloat(),
+			detectorEngine = detectorOutcome.engine,
+			detectorModelId = detectorOutcome.modelId,
+			detectorRawBoxCount = detectorOutcome.rawBoxCount,
+			detectorTotalMs = detectorOutcome.totalMs,
+			detectorFallbackReason = detectorOutcome.fallbackReason,
+			fallbackFragmentCount = fallbackFragments.size,
+			fallbackGroupCount = fallbackGroups.size,
+			fallbackMode = fallbackMode,
+		)
+	}
+
+	private fun shouldForceHeuristicFallback(
+		totalFragmentCount: Int,
+		fallbackFragmentCount: Int,
+	): Boolean {
+		if (fallbackFragmentCount <= 0) return false
+		if (fallbackFragmentCount >= MAX_INDIVIDUAL_FALLBACK_FRAGMENTS) return true
+		if (totalFragmentCount <= 0) return false
+		return fallbackFragmentCount.toFloat() / totalFragmentCount.toFloat() >= MAX_INDIVIDUAL_FALLBACK_RATIO
+	}
+
+	private suspend fun detectBubbleGroups(
+		bitmap: Bitmap,
+		fragments: List<TextFragment>,
+	): BubbleDetectorOutcome {
+		val onnxAttempt = runCatching {
+			onnxBubbleDetectorEngine.detectAttempt(bitmap)
+		}.onFailure {
+			it.printStackTraceDebug()
+		}.getOrNull()
+		if (onnxAttempt != null) {
+			log { "metric.bubble.detector.onnx.status=${onnxAttempt.status.name.lowercase()}" }
+			log { "metric.bubble.detector.onnx.stage=${onnxAttempt.stage.ifBlank { "none" }}" }
+			log { "metric.bubble.detector.onnx.backend=${onnxAttempt.backend.ifBlank { "none" }}" }
+			log { "metric.bubble.detector.onnx.parser=${onnxAttempt.parser.ifBlank { "none" }}" }
+			log { "metric.bubble.detector.onnx.input_name=${onnxAttempt.inputName.ifBlank { "none" }}" }
+			log { "metric.bubble.detector.onnx.input_shape=${onnxAttempt.inputShape.ifBlank { "none" }}" }
+			log { "metric.bubble.detector.onnx.output_names=${onnxAttempt.outputNames.ifBlank { "none" }}" }
+			onnxAttempt.result?.let { result ->
+				log { "metric.bubble.detector.onnx.decoded_boxes=${result.decodedBoxCount}" }
+				log { "metric.bubble.detector.onnx.final_boxes=${result.finalBoxCount}" }
+			}
+			if (onnxAttempt.error.isNotBlank()) {
+				log { "bubble detector onnx error=${oneLine(onnxAttempt.error, 400)}" }
+			}
+		}
+		val onnxResult = onnxAttempt?.result
+		if (onnxResult != null) {
+			val grouped = groupFragmentsByDetectedRects(
+				fragments = fragments,
+				detectedRects = onnxResult.boxes,
+				bitmap = bitmap,
+			)
+			if (grouped.groups.isNotEmpty()) {
+				return BubbleDetectorOutcome(
+					groups = grouped.groups,
+					matchedFragmentIndices = grouped.matchedFragmentIndices,
+					candidateCount = grouped.candidateCount,
+					matchedFragmentCount = grouped.matchedFragmentCount,
+					subdividedGroupCount = grouped.subdividedGroupCount,
+					subdividedFragmentCount = grouped.subdividedFragmentCount,
+					engine = "onnx_${onnxResult.backend.lowercase()}",
+					modelId = onnxResult.modelId,
+					rawBoxCount = onnxResult.rawBoxCount,
+					totalMs = onnxResult.totalMs,
+					fallbackReason = "",
+				)
+			}
+			log {
+				"bubble detector onnx no usable groups model=${onnxResult.modelId} rawBoxes=${onnxResult.rawBoxCount}, fallback=cv"
+			}
+		}
+		val fallbackReason = when (onnxAttempt?.status) {
+			OnnxBubbleDetectorEngine.AttemptStatus.NO_MODEL_DOWNLOADED -> "onnx_no_model_downloaded"
+			OnnxBubbleDetectorEngine.AttemptStatus.RUNTIME_UNAVAILABLE -> "onnx_runtime_unavailable"
+			OnnxBubbleDetectorEngine.AttemptStatus.NO_BOXES -> "onnx_no_boxes"
+			OnnxBubbleDetectorEngine.AttemptStatus.SUCCESS -> "onnx_no_usable_groups"
+			null -> "onnx_attempt_failed"
+		}
+		val attemptedModelId = onnxAttempt?.modelId.orEmpty()
+
+		val cvStartMs = SystemClock.elapsedRealtime()
+		val detectorResult = cvBubbleDetector.detect(bitmap, fragments.map { it.rect })
+		val cvDurationMs = SystemClock.elapsedRealtime() - cvStartMs
+		val detectorMatched = linkedSetOf<Int>()
+		val detectorGroups = detectorResult.groups.mapNotNull { group ->
+			val bubbleFragments = group.fragmentIndices.mapNotNull { index ->
+				fragments.getOrNull(index)
+			}
+			if (bubbleFragments.isEmpty()) {
+				return@mapNotNull null
+			}
+			detectorMatched += group.fragmentIndices
+			GroupedBubbleSource(
+				fragments = bubbleFragments,
+				bubbleRect = group.rect,
+			)
+		}
+		return BubbleDetectorOutcome(
+			groups = detectorGroups,
+			matchedFragmentIndices = detectorMatched,
+			candidateCount = detectorResult.candidateCount,
+			matchedFragmentCount = detectorResult.matchedFragmentCount,
+			subdividedGroupCount = 0,
+			subdividedFragmentCount = 0,
+			engine = "cv",
+			modelId = attemptedModelId,
+			rawBoxCount = detectorResult.candidateCount,
+			totalMs = cvDurationMs,
+			fallbackReason = fallbackReason,
+		)
+	}
+
+	private fun groupFragmentsByDetectedRects(
+		fragments: List<TextFragment>,
+		detectedRects: List<Rect>,
+		bitmap: Bitmap,
+	): BubbleDetectorOutcome {
+		if (detectedRects.isEmpty()) {
+			return BubbleDetectorOutcome(
+				groups = emptyList(),
+				matchedFragmentIndices = emptySet(),
+				candidateCount = 0,
+				matchedFragmentCount = 0,
+				subdividedGroupCount = 0,
+				subdividedFragmentCount = 0,
+				engine = "onnx",
+				modelId = "",
+				rawBoxCount = 0,
+				totalMs = 0L,
+				fallbackReason = "",
+			)
+		}
+		val bitmapArea = (bitmap.width * bitmap.height).toFloat().coerceAtLeast(1f)
+		val uniqueCandidates = linkedMapOf<String, DetectedBubbleCandidate>()
+		for (detectedRect in detectedRects) {
+			val matched = fragments.indices.filter { index ->
+				matchesDetectedBubbleRect(detectedRect, fragments[index].rect)
+			}
+			if (matched.isEmpty()) continue
+			val unionRect = mergeRects(matched.map { fragments[it].rect }) ?: continue
+			val candidate = buildDetectedBubbleCandidate(
+				detectedRect = detectedRect,
+				unionRect = unionRect,
+				fragmentRects = fragments.map { it.rect },
+				matchedIndices = matched,
+				bitmapArea = bitmapArea,
+				bitmapWidth = bitmap.width,
+				bitmapHeight = bitmap.height,
+			) ?: continue
+			val key = candidate.fragmentIndices.joinToString(",")
+			val existing = uniqueCandidates[key]
+			if (existing == null || candidate.isBetterThan(existing)) {
+				uniqueCandidates[key] = candidate
+			}
+		}
+		if (uniqueCandidates.isEmpty()) {
+			return BubbleDetectorOutcome(
+				groups = emptyList(),
+				matchedFragmentIndices = emptySet(),
+				candidateCount = 0,
+				matchedFragmentCount = 0,
+				subdividedGroupCount = 0,
+				subdividedFragmentCount = 0,
+				engine = "onnx",
+				modelId = "",
+				rawBoxCount = detectedRects.size,
+				totalMs = 0L,
+				fallbackReason = "",
+			)
+		}
+			val claimed = linkedSetOf<Int>()
+			var subdividedGroups = 0
+			var subdividedFragments = 0
+			val groups = buildList {
+				for (candidate in uniqueCandidates.values.sortedWith(
+					compareByDescending<DetectedBubbleCandidate> { it.fragmentIndices.size }
+						.thenByDescending { it.score }
+						.thenBy { rectArea(it.rect) }
+				)) {
+					val available = candidate.fragmentIndices.filterNot { it in claimed }
+					if (available.isEmpty()) continue
+					val subdivided = splitDetectedCandidate(
+						candidate = candidate,
+						fragmentIndices = available,
+						fragments = fragments,
+						bitmap = bitmap,
+					)
+					if (subdivided.isEmpty()) continue
+					subdividedGroups += subdivided.size
+					subdividedFragments += subdivided.sumOf { it.indices.size }
+					subdivided.forEach { subgroup ->
+						claimed += subgroup.indices
+						add(
+							GroupedBubbleSource(
+								fragments = subgroup.fragments,
+								bubbleRect = subgroup.bubbleRect,
+							)
+						)
+					}
+				}
+			}
+			return BubbleDetectorOutcome(
+				groups = groups,
+				matchedFragmentIndices = claimed,
+				candidateCount = uniqueCandidates.size,
+				matchedFragmentCount = claimed.size,
+				subdividedGroupCount = subdividedGroups,
+				subdividedFragmentCount = subdividedFragments,
+				engine = "onnx",
+				modelId = "",
+				rawBoxCount = detectedRects.size,
+				totalMs = 0L,
+				fallbackReason = "",
+			)
+	}
+
+	private fun matchesDetectedBubbleRect(candidateRect: Rect, fragmentRect: Rect): Boolean {
+		if (candidateRect.contains(fragmentRect.centerX(), fragmentRect.centerY())) {
+			return true
+		}
+		val fragmentArea = rectArea(fragmentRect).coerceAtLeast(1f)
+		val directOverlap = overlapArea(candidateRect, fragmentRect) / fragmentArea
+		if (directOverlap >= 0.28f) {
+			return true
+		}
+		val padX = max(dp(6f), candidateRect.width() / 10)
+		val padY = max(dp(6f), candidateRect.height() / 10)
+		val expanded = Rect(
+			(candidateRect.left - padX).coerceAtLeast(0),
+			(candidateRect.top - padY).coerceAtLeast(0),
+			candidateRect.right + padX,
+			candidateRect.bottom + padY,
+		)
+		if (!expanded.contains(fragmentRect.centerX(), fragmentRect.centerY())) {
+			return false
+		}
+		val expandedOverlap = overlapArea(expanded, fragmentRect) / fragmentArea
+		return expandedOverlap >= 0.60f
+	}
+
+	private fun buildDetectedBubbleCandidate(
+		detectedRect: Rect,
+		unionRect: Rect,
+		fragmentRects: List<Rect>,
+		matchedIndices: List<Int>,
+		bitmapArea: Float,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): DetectedBubbleCandidate? {
+		val candidateArea = rectArea(detectedRect).coerceAtLeast(1f)
+		if (candidateArea > bitmapArea * 0.45f) return null
+		val touchesEdge = detectedRect.left <= 0 || detectedRect.top <= 0 ||
+			detectedRect.right >= bitmapWidth || detectedRect.bottom >= bitmapHeight
+		if (touchesEdge && candidateArea > bitmapArea * 0.24f) return null
+		val fragmentsArea = matchedIndices.sumOf { rectArea(fragmentRects[it]).toDouble() }.toFloat()
+		val unionArea = rectArea(unionRect).coerceAtLeast(1f)
+		val inflation = candidateArea / unionArea
+		val textCoverage = fragmentsArea / candidateArea
+		val matchedCount = matchedIndices.size
+		if (matchedCount > MAX_DETECTED_GROUP_FRAGMENTS) {
+			return null
+		}
+		val maxInflation = when {
+			matchedCount >= 3 -> 16f
+			matchedCount == 2 -> 20f
+			else -> 26f
+		}
+		val minCoverage = when {
+			matchedCount >= 3 -> 0.006f
+			matchedCount == 2 -> 0.010f
+			else -> 0.015f
+		}
+		if (inflation > maxInflation || textCoverage < minCoverage) {
+			return null
+		}
+		val tightenedRect = tightenDetectedBubbleRect(detectedRect, unionRect)
+		if (tightenedRect.width() <= dp(8f) || tightenedRect.height() <= dp(8f)) {
+			return null
+		}
+		val score = matchedCount * 4f + textCoverage * 120f - inflation - if (touchesEdge) 2f else 0f
+		return DetectedBubbleCandidate(
+			rect = tightenedRect,
+			fragmentIndices = matchedIndices.sorted(),
+			score = score,
+		)
+	}
+
+	private fun tightenDetectedBubbleRect(candidateRect: Rect, unionRect: Rect): Rect {
+		val padX = max(dp(8f), unionRect.width() / 5)
+		val padY = max(dp(8f), unionRect.height() / 5)
+		val left = max(candidateRect.left, unionRect.left - padX)
+		val top = max(candidateRect.top, unionRect.top - padY)
+		val right = min(candidateRect.right, unionRect.right + padX)
+		val bottom = min(candidateRect.bottom, unionRect.bottom + padY)
+		return Rect(
+			left,
+			top,
+			max(left + dp(8f), right),
+			max(top + dp(8f), bottom),
+		)
+	}
+
+	private fun overlapArea(a: Rect, b: Rect): Float {
+		val width = (min(a.right, b.right) - max(a.left, b.left)).coerceAtLeast(0)
+		val height = (min(a.bottom, b.bottom) - max(a.top, b.top)).coerceAtLeast(0)
+		return (width * height).toFloat()
+	}
+
+	private data class DetectedCandidateSubdivision(
+		val indices: List<Int>,
+		val fragments: List<TextFragment>,
+		val bubbleRect: Rect,
+	)
+
+	private fun splitDetectedCandidate(
+		candidate: DetectedBubbleCandidate,
+		fragmentIndices: List<Int>,
+		fragments: List<TextFragment>,
+		bitmap: Bitmap,
+	): List<DetectedCandidateSubdivision> {
+		val indexed = fragmentIndices.mapNotNull { index ->
+			fragments.getOrNull(index)?.let { fragment ->
+				IndexedFragment(index = index, fragment = fragment)
+			}
+		}
+		if (indexed.isEmpty()) return emptyList()
+		val groupedIndices = groupIndexedFragmentsByBubble(indexed, bitmap)
+		return groupedIndices.mapNotNull { subgroup ->
+			val subgroupFragments = subgroup.map { it.fragment }
+			val subgroupRect = mergeRects(subgroupFragments.map { it.rect }) ?: return@mapNotNull null
+			val tightened = tightenDetectedBubbleRect(candidate.rect, subgroupRect)
+			if (tightened.width() <= dp(8f) || tightened.height() <= dp(8f)) {
+				return@mapNotNull null
+			}
+			val pageArea = bitmap.width.toFloat() * bitmap.height.toFloat()
+			val rectArea = tightened.width().toFloat() * tightened.height().toFloat()
+			if (rectArea > pageArea * 0.35f || tightened.width() > bitmap.width * 0.8f || tightened.height() > bitmap.height * 0.8f) {
+				return@mapNotNull null
+			}
+			DetectedCandidateSubdivision(
+				indices = subgroup.map { it.index },
+				fragments = subgroupFragments,
+				bubbleRect = tightened,
+			)
+		}
+	}
+
+	private fun groupIndexedFragmentsByBubble(
+		fragments: List<IndexedFragment>,
+		bitmap: Bitmap,
+	): List<List<IndexedFragment>> {
+		if (fragments.isEmpty()) return emptyList()
+		val parent = IntArray(fragments.size) { it }
+
+		fun find(x: Int): Int {
+			var cur = x
+			while (parent[cur] != cur) {
+				parent[cur] = parent[parent[cur]]
+				cur = parent[cur]
+			}
+			return cur
+		}
+
+		fun union(a: Int, b: Int) {
+			val ra = find(a)
+			val rb = find(b)
+			if (ra != rb) parent[rb] = ra
+		}
+
+		for (i in fragments.indices) {
+			val fA = fragments[i].fragment
+			val aRect = fA.rect
+			for (j in i + 1 until fragments.size) {
+				val fB = fragments[j].fragment
+				val bRect = fB.rect
+
+				val xOverlap = overlapLen(aRect.left, aRect.right, bRect.left, bRect.right)
+				val yOverlap = overlapLen(aRect.top, aRect.bottom, bRect.top, bRect.bottom)
+				val gapX = axisGap(aRect.left, aRect.right, bRect.left, bRect.right)
+				val gapY = axisGap(aRect.top, aRect.bottom, bRect.top, bRect.bottom)
+
+				val minW = min(aRect.width(), bRect.width()).coerceAtLeast(1)
+				val minH = min(aRect.height(), bRect.height()).coerceAtLeast(1)
+
+				val sameCol = xOverlap > minW * 0.3f
+				val sameRow = yOverlap > minH * 0.3f
+
+				val canMerge = if (sameCol) {
+					gapX <= dp(4f) && gapY <= dp(16f)
+				} else if (sameRow) {
+					gapY <= dp(4f) && gapX <= dp(16f)
+				} else {
+					gapX <= dp(2f) && gapY <= dp(2f) && (xOverlap > 0 || yOverlap > 0)
+				}
+
+				if (canMerge && shouldMergeFragments(fA, fB, bitmap)) {
+					union(i, j)
+				}
+			}
+		}
+
+		val groups = linkedMapOf<Int, MutableList<IndexedFragment>>()
+		for (i in fragments.indices) {
+			val root = find(i)
+			groups.getOrPut(root) { mutableListOf() }.add(fragments[i])
+		}
+		return groups.values.toList()
+	}
+
+	private suspend fun recognizeBubbleTextsByRoi(
+		groups: List<GroupedBubbleSource>,
+		sourceUri: Uri,
+		sourceLang: String,
+		pageId: Long,
+		bitmap: Bitmap,
+	): BubbleRoiOcrResult {
+		if (groups.isEmpty()) {
+			return BubbleRoiOcrResult(emptyMap(), 0, 0, 0, 0L, 0f)
+		}
+		val engine = preferredRoiOcrEngine()
+		val textsByIndex = linkedMapOf<Int, String>()
+		var requestCount = 0
+		var successCount = 0
+		var attemptedArea = 0f
+		var successArea = 0f
+		var totalMs = 0L
+		for ((index, group) in groups.withIndex()) {
+			if (requestCount >= MAX_ROI_OCR_REQUESTS_PER_PAGE) break
+			val roiRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: continue
+			if (!shouldTryRoiOcr(roiRect, bitmap)) continue
+			requestCount++
+			attemptedArea += rectArea(roiRect)
+			val request = OcrRequest(
+				sourceUri = sourceUri,
+				sourceLang = sourceLang,
+				roi = roiRect,
+				pageId = pageId,
+				requestType = OcrRequestType.ROI,
+				debugTag = "page:$pageId:bubble:$index",
+			)
+			val startMs = SystemClock.elapsedRealtime()
+			val roiBlocks = runCatching {
+				recognizeTextByEngine(engine, request)
+			}.onFailure {
+				it.printStackTraceDebug()
+			}.getOrDefault(emptyList())
+			totalMs += SystemClock.elapsedRealtime() - startMs
+			val roiText = composeOcrBlocksText(roiBlocks, sourceLang, roiRect).trim()
+			if (roiText.isBlank()) continue
+			successCount++
+			successArea += rectArea(roiRect)
+			textsByIndex[index] = roiText
+			log { "roi ocr hit engine=${engine.name} idx=$index box=$roiRect text=${oneLine(roiText)}" }
+		}
+		return BubbleRoiOcrResult(
+			textsByGroupIndex = textsByIndex,
+			requestCount = requestCount,
+			successCount = successCount,
+			fallbackCount = (requestCount - successCount).coerceAtLeast(0),
+			totalMs = totalMs,
+			coverageArea = if (attemptedArea > 0f) successArea / attemptedArea else 0f,
+		)
+	}
+
+	private fun preferredRoiOcrEngine(): ReaderOcrEngine {
+		return when (settings.readerTranslationOcrEngine) {
+			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
+			else -> settings.readerTranslationOcrEngine
+		}
+	}
+
+	private fun shouldTryRoiOcr(rect: Rect, bitmap: Bitmap): Boolean {
+		if (rect.width() < dp(24f) || rect.height() < dp(24f)) return false
+		val pageArea = (bitmap.width * bitmap.height).toFloat().coerceAtLeast(1f)
+		if (rectArea(rect) / pageArea > 0.22f) return false
+		return isLikelySpeechBubbleRegion(bitmap, rect)
+	}
+
+	private fun composeOcrBlocksText(
+		blocks: List<OcrTextBlock>,
+		sourceLang: String,
+		fallbackRect: Rect,
+	): String {
+		if (blocks.isEmpty()) return ""
+		val fragments = blocks.mapNotNull { block ->
+			val text = block.text.trim()
+			if (text.isBlank()) return@mapNotNull null
+			TextFragment(
+				rect = block.boundingBox ?: fallbackRect,
+				text = text,
+			)
+		}
+		if (fragments.isEmpty()) return ""
+		return composeGroupedText(fragments, sourceLang).trim()
+	}
 
 	private fun groupFragmentsByBubble(fragments: List<TextFragment>, bitmap: Bitmap): List<List<TextFragment>> {
 		if (fragments.isEmpty()) return emptyList()
@@ -1180,11 +1897,17 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			return null
 		}
 		val padding = dp(4f)
-		val baseRect = Rect(
+		val rawRect = Rect(
 			rect.left.coerceIn(0, bitmapWidth - 1),
 			rect.top.coerceIn(0, bitmapHeight - 1),
 			rect.right.coerceIn(1, bitmapWidth),
 			rect.bottom.coerceIn(1, bitmapHeight),
+		)
+		val baseRect = stabilizeRenderRect(
+			rect = rawRect,
+			bitmapWidth = bitmapWidth,
+			bitmapHeight = bitmapHeight,
+			bubbleLikeRegion = bubbleLikeRegion,
 		)
 
 		var best: PreparedBubble? = null
@@ -1224,7 +1947,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				)
 			}
 
-			var textSize = min(safeRect.height() * 0.42f, dp(18f).toFloat())
+			var textSize = initialHorizontalTextSize(width = width, height = height)
 			var layout = buildTextLayout(text, width, textSize)
 			while (layout.height > height && textSize > dp(8f)) {
 				textSize -= 1f
@@ -1299,6 +2022,53 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private fun computeVerticalUsedHeight(plan: VerticalLayoutPlan): Int {
 		val rowsUsed = min(plan.rowCapacity, plan.glyphs.size).coerceAtLeast(1)
 		return rowsUsed * plan.cellSize
+	}
+
+	private fun stabilizeRenderRect(
+		rect: Rect,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+		bubbleLikeRegion: Boolean,
+	): Rect {
+		if (bubbleLikeRegion) return rect
+		val width = rect.width()
+		val height = rect.height()
+		if (width <= 0 || height <= 0) return rect
+		val minRenderColumnWidth = dp(56f)
+		val maxRenderColumnWidth = dp(120f)
+		if (width >= minRenderColumnWidth || height <= width * 2) return rect
+		val targetWidth = max(
+			minRenderColumnWidth,
+			min(maxRenderColumnWidth, (height * MIN_RENDER_COLUMN_WIDTH_RATIO).toInt()),
+		).coerceAtMost(bitmapWidth)
+		if (targetWidth <= width) return rect
+		val cx = rect.centerX()
+		var left = cx - targetWidth / 2
+		var right = left + targetWidth
+		if (left < 0) {
+			left = 0
+			right = targetWidth
+		}
+		if (right > bitmapWidth) {
+			right = bitmapWidth
+			left = right - targetWidth
+		}
+		return Rect(
+			left.coerceIn(0, bitmapWidth - 1),
+			rect.top.coerceIn(0, bitmapHeight - 1),
+			right.coerceIn(1, bitmapWidth),
+			rect.bottom.coerceIn(1, bitmapHeight),
+		)
+	}
+
+	private fun initialHorizontalTextSize(width: Int, height: Int): Float {
+		return min(
+			dp(18f).toFloat(),
+			min(
+				height * 0.42f,
+				width * HORIZONTAL_TEXT_SIZE_WIDTH_RATIO,
+			),
+		).coerceAtLeast(dp(8f).toFloat())
 	}
 
 	private fun centerRectByContent(outer: Rect, contentWidth: Int, contentHeight: Int, padding: Int): Rect {
@@ -1425,7 +2195,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private fun buildVerticalPlan(text: String, width: Int, height: Int): VerticalLayoutPlan? {
 		val glyphs = textToGlyphs(text)
 		if (glyphs.isEmpty()) return null
-		var textSize = min(height * 0.42f, dp(18f).toFloat())
+		var textSize = min(
+			dp(18f).toFloat(),
+			min(
+				height * 0.42f,
+				width * VERTICAL_TEXT_SIZE_WIDTH_RATIO,
+			),
+		)
 		val minSize = dp(8f).toFloat()
 		while (textSize >= minSize) {
 			val cell = max(1, (textSize * 1.1f).toInt())
@@ -1535,6 +2311,39 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return len >= 6 && maxRun >= len * 2 / 3
 	}
 
+	private fun shouldSuppressRenderedBubble(
+		sourceText: String,
+		translatedText: String,
+		targetLang: String,
+	): Boolean {
+		val sourceNoisy = isLikelyNoisyOcrSource(sourceText)
+		if (!sourceNoisy) return false
+		if (isWeakTranslatedNoise(translatedText, targetLang)) return true
+		val sourceNormalized = normalizeForTranslationCompare(sourceText)
+		val translatedNormalized = normalizeForTranslationCompare(translatedText)
+		if (sourceNormalized.isNotBlank() && translatedNormalized.isNotBlank() && sourceNormalized == translatedNormalized) {
+			return true
+		}
+		return false
+	}
+
+	private fun isWeakTranslatedNoise(text: String, targetLang: String): Boolean {
+		if (text.isBlank()) return true
+		val compact = text.filterNot(Char::isWhitespace)
+		if (compact.isBlank()) return true
+		val normalized = normalizeForTranslationCompare(compact)
+		if (normalized.isBlank()) return true
+		val digits = compact.count { it.isDigit() }
+		val latin = compact.count { it.isLatinLetterLike() }
+		val cjk = compact.count { it.isCjkUnifiedIdeograph() }
+		val kana = compact.count { it.isJapaneseKana() }
+		val strongText = cjk + kana
+		if (normalized.length <= 3 && digits + latin >= normalized.length) return true
+		if (normalized.length <= 5 && digits >= 2 && strongText <= 1) return true
+		if (targetLang.startsWith("zh") && normalized.length <= 4 && cjk == 0 && digits + latin >= 2) return true
+		return false
+	}
+
 	private fun isAcceptableTranslation(
 		sourceText: String,
 		translatedText: String,
@@ -1543,6 +2352,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	): Boolean {
 		if (translatedText.isBlank()) return false
 		if (translatedText == "..." || translatedText == "…") return false
+		if (shouldSuppressRenderedBubble(sourceText, translatedText, targetLang)) return false
 		return true
 	}
 
@@ -1682,6 +2492,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			settings.readerTranslationApiEndpoint,
 			settings.readerTranslationApiModel,
 			settings.readerTranslationBubbleGroupingTuning,
+			settings.isReaderTranslationBubbleGroupingEnabled.toString(),
 			settings.readerTranslationOverlayCompactness,
 		).joinToString("|")
 		return "${RENDER_CACHE_PREFIX}${raw.sha256()}"
@@ -1768,15 +2579,22 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 
 		val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
-			const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-			const val MAX_OPENAI_BATCH_SIZE = 3
-			const val TRANSLATION_PIPELINE_VERSION = "2026-03-10-mnn-api-4"
+		const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+		const val MAX_OPENAI_BATCH_SIZE = 3
+			const val TRANSLATION_PIPELINE_VERSION = "2026-03-11-roi-ocr-7"
 		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
 		You translate manga OCR text.
 		Output only the translation.
 		Do not explain.
 """
 		const val MAX_PARALLEL_TRANSLATION_PAGES = 2
+		const val MAX_ROI_OCR_REQUESTS_PER_PAGE = 8
+		const val MAX_INDIVIDUAL_FALLBACK_FRAGMENTS = 8
+		const val MAX_INDIVIDUAL_FALLBACK_RATIO = 0.25f
+		const val MAX_DETECTED_GROUP_FRAGMENTS = 28
+		const val MIN_RENDER_COLUMN_WIDTH_RATIO = 0.22f
+		const val HORIZONTAL_TEXT_SIZE_WIDTH_RATIO = 0.58f
+		const val VERTICAL_TEXT_SIZE_WIDTH_RATIO = 0.78f
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
 		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f)
 		const val TEXT_CACHE_PREFIX = "reader_translate_text_"
@@ -1784,7 +2602,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val OCR_CACHE_PREFIX = "reader_translate_ocr_"
 		const val LOG_TAG = "ReaderTranslate"
 		const val MAX_PAGE_LOG_LINES = 500
-		const val NO_LOGGING_PAGE_ID = -1L
+		const val NO_LOGGING_PAGE_ID = Long.MIN_VALUE
 		const val FAIL_CODE_OCR_EMPTY = "OCR_EMPTY"
 		const val FAIL_CODE_TRANSLATE_EMPTY = "TRANSLATE_EMPTY"
 		const val FAIL_CODE_RENDER_FILTERED = "RENDER_FILTERED"

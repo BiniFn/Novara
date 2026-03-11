@@ -301,6 +301,7 @@ class PageLoader @Inject constructor(
 
 	fun observeTranslationUpdates(): Flow<Long> = translationUpdates
 	fun observeTranslationStatusUpdates(): Flow<TranslationLayerStateEvent> = translationStatusUpdates
+	fun observeTranslationDebugLogUpdates(): Flow<Long> = translationProcessor.observeDebugLogUpdates()
 	fun getTranslationDebugLog(pageId: Long): String = translationProcessor.getPageDebugLog(pageId)
 
 	suspend fun resolveDisplayVariant(
@@ -346,6 +347,8 @@ class PageLoader @Inject constructor(
 			append(settings.readerTranslationApiModel)
 			append('|')
 			append(settings.readerTranslationBubbleGroupingTuning)
+			append('|')
+			append(settings.isReaderTranslationBubbleGroupingEnabled)
 			append('|')
 			append(settings.readerTranslationOverlayCompactness)
 			append('|')

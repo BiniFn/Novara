@@ -96,9 +96,26 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                 val pref = Preference(requireContext()).apply {
                     title = model.title
                     summary = model.description
+                key = "onnx_${model.id}"
+            }
+            onnxLlmCategory.addPreference(pref)
+            updateOnnxStatus(pref, model)
+        }
+
+        val onnxBubbleDetectorCategory = PreferenceCategory(requireContext()).apply {
+            title = getString(R.string.reader_translation_onnx_bubble_detector_models_title)
+        }
+        screen.addPreference(onnxBubbleDetectorCategory)
+
+        OnnxOfficialModelCatalog.models
+            .filter { it.category == OnnxModelCategory.BUBBLE_DETECTION }
+            .forEach { model ->
+                val pref = Preference(requireContext()).apply {
+                    title = model.title
+                    summary = model.description
                     key = "onnx_${model.id}"
                 }
-                onnxLlmCategory.addPreference(pref)
+                onnxBubbleDetectorCategory.addPreference(pref)
                 updateOnnxStatus(pref, model)
             }
     }

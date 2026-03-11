@@ -1,8 +1,8 @@
 package org.skepsun.kototoro.reader.translate.domain
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Rect
-import android.net.Uri
 import android.util.Log
 import androidx.core.net.toFile
 import com.google.ai.edge.litert.Environment
@@ -30,7 +30,10 @@ class TfLiteReaderOcrEngine @Inject constructor(
 	private val mutex = Mutex()
 	private var modelPathInitialized: String? = null
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
+	override suspend fun recognize(request: OcrRequest): List<OcrTextBlock> {
+		val sourceUri = request.sourceUri
+		val sourceLang = request.sourceLang
+		val roi = request.roi
 		log { "recognize start lang=$sourceLang uri=$sourceUri" }
 		
 		val modelPath = resolveModelPath()
@@ -53,9 +56,10 @@ class TfLiteReaderOcrEngine @Inject constructor(
 			}
 		}
 		
-		val bitmap = runInterruptible(Dispatchers.IO) {
+		val decodedBitmap = runInterruptible(Dispatchers.IO) {
 			BitmapDecoderCompat.decode(sourceUri.toFile())
 		}
+		val bitmap = roi?.let { cropBitmap(decodedBitmap, it) } ?: decodedBitmap
 		
 		return try {
 			val recognizedText = engine?.recognizeText(bitmap) ?: ""
@@ -65,12 +69,23 @@ class TfLiteReaderOcrEngine @Inject constructor(
 			listOf(
 				OcrTextBlock(
 					text = recognizedText,
-					boundingBox = null
+					boundingBox = roi
 				)
 			)
 		} finally {
 			bitmap.recycle()
+			if (bitmap !== decodedBitmap) {
+				decodedBitmap.recycle()
+			}
 		}
+	}
+
+	private fun cropBitmap(source: Bitmap, box: Rect): Bitmap {
+		val left = box.left.coerceIn(0, source.width - 1)
+		val top = box.top.coerceIn(0, source.height - 1)
+		val right = box.right.coerceIn(left + 1, source.width)
+		val bottom = box.bottom.coerceIn(top + 1, source.height)
+		return Bitmap.createBitmap(source, left, top, right - left, bottom - top)
 	}
 	private suspend fun resolveModelPath(): String {
 		val customPath = settings.readerTranslationRecModelPath.trim()

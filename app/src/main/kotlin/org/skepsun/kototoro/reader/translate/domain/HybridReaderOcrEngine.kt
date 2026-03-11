@@ -56,12 +56,19 @@ class HybridReaderOcrEngine @Inject constructor(
 	private val featureCache = LruCache<Long, String>(512)
 	private val featureCacheMutex = Mutex()
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
+	override suspend fun recognize(request: OcrRequest): List<OcrTextBlock> {
+		val sourceUri = request.sourceUri
+		val sourceLang = request.sourceLang
+		val pageId = request.pageId
+		if (request.roi != null) {
+			log { "hybrid roi request delegate to ncnn roi=${request.roi}" }
+			return ncnnReaderOcrEngine.recognize(request)
+		}
 		log { "hybrid recognize start lang=$sourceLang uri=$sourceUri" }
 		val totalStartMs = SystemClock.elapsedRealtime()
 		val fallbackThreshold = settings.readerTranslationHybridFallbackThreshold
 		val ncnnStartMs = SystemClock.elapsedRealtime()
-		val ncnnResults = ncnnReaderOcrEngine.recognize(sourceUri, sourceLang, pageId)
+		val ncnnResults = ncnnReaderOcrEngine.recognize(request)
 		val ncnnDurationMs = SystemClock.elapsedRealtime() - ncnnStartMs
 		if (ncnnResults.isEmpty()) {
 			appendMetric(pageId, "hybrid.ncnn_ms", ncnnDurationMs)
@@ -247,7 +254,7 @@ class HybridReaderOcrEngine @Inject constructor(
 	}
 
 	private fun appendMetric(pageId: Long?, key: String, value: Any) {
-		if (pageId != null && pageId > 0L) {
+		if (pageId != null && pageId != Long.MIN_VALUE) {
 			debugLogStore.metric(pageId, key, value)
 		}
 	}
@@ -417,4 +424,3 @@ class HybridReaderOcrEngine @Inject constructor(
 		const val FALLBACK_CONFIDENCE = 1f
 	}
 }
-

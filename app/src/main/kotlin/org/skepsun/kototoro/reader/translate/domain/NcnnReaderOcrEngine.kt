@@ -1,5 +1,7 @@
 package org.skepsun.kototoro.reader.translate.domain
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
 import android.util.Log
@@ -13,7 +15,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.skepsun.kototoro.core.LocalizedAppContext
+import org.skepsun.kototoro.core.image.BitmapDecoderCompat
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.ext.compressToPNG
 import org.skepsun.kototoro.reader.translate.data.NcnnModelManager
 import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModelCatalog
 import java.io.File
@@ -21,6 +26,7 @@ import javax.inject.Inject
 
 @ActivityRetainedScoped
 class NcnnReaderOcrEngine @Inject constructor(
+	@LocalizedAppContext private val context: Context,
 	private val settings: AppSettings,
 	private val modelManager: NcnnModelManager,
 ) : ReaderOcrService {
@@ -29,31 +35,83 @@ class NcnnReaderOcrEngine @Inject constructor(
 	private val mutex = Mutex()
 	private var modelPathInitialized: String? = null
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
-		log { "recognize start lang=$sourceLang uri=$sourceUri" }
+	override suspend fun recognize(request: OcrRequest): List<OcrTextBlock> {
+		val sourceUri = request.sourceUri
+		val sourceLang = request.sourceLang
+		log { "recognize start lang=$sourceLang uri=$sourceUri roi=${request.roi}" }
 		ensureModelInitialized()
-		val result = runInterruptible(Dispatchers.IO) {
-			ocr.detectImagePath(sourceUri.toFile().absolutePath, DrawModel.None)
-		} ?: return emptyList()
-		val blocks = result.textLines.map { line ->
-			val points = line.points
-			val rect = if (points.isEmpty()) {
-				null
-			} else {
-				val minX = points.minOf { it.x }
-				val minY = points.minOf { it.y }
-				val maxX = points.maxOf { it.x }
-				val maxY = points.maxOf { it.y }
-				Rect(minX, minY, maxX, maxY)
+		val roi = request.roi
+		val blocks = if (roi == null) {
+			val result = runInterruptible(Dispatchers.IO) {
+				ocr.detectImagePath(sourceUri.toFile().absolutePath, DrawModel.None)
+			} ?: return emptyList()
+			result.textLines.map { line ->
+				val points = line.points
+				val rect = if (points.isEmpty()) {
+					null
+				} else {
+					val minX = points.minOf { it.x }
+					val minY = points.minOf { it.y }
+					val maxX = points.maxOf { it.x }
+					val maxY = points.maxOf { it.y }
+					Rect(minX, minY, maxX, maxY)
+				}
+				OcrTextBlock(
+					text = line.text,
+					boundingBox = rect,
+					confidence = line.confidence,
+				)
 			}
-			OcrTextBlock(
-				text = line.text,
-				boundingBox = rect,
-				confidence = line.confidence,
-			)
+		} else {
+			detectRoi(sourceUri, roi)
 		}
 		log { "recognize done blocks=${blocks.size}" }
 		return blocks
+	}
+
+	private suspend fun detectRoi(sourceUri: Uri, roi: Rect): List<OcrTextBlock> {
+		val decodedBitmap = runInterruptible(Dispatchers.IO) {
+			BitmapDecoderCompat.decode(sourceUri.toFile())
+		}
+		val crop = cropBitmap(decodedBitmap, roi)
+		val tempFile = File.createTempFile("reader_ocr_roi_", ".png", context.cacheDir)
+		return try {
+			crop.compressToPNG(tempFile)
+			val result = runInterruptible(Dispatchers.IO) {
+				ocr.detectImagePath(tempFile.absolutePath, DrawModel.None)
+			} ?: return emptyList()
+			result.textLines.map { line ->
+				val points = line.points
+				val rect = if (points.isEmpty()) {
+					null
+				} else {
+					val minX = points.minOf { it.x } + roi.left
+					val minY = points.minOf { it.y } + roi.top
+					val maxX = points.maxOf { it.x } + roi.left
+					val maxY = points.maxOf { it.y } + roi.top
+					Rect(minX, minY, maxX, maxY)
+				}
+				OcrTextBlock(
+					text = line.text,
+					boundingBox = rect,
+					confidence = line.confidence,
+				)
+			}
+		} finally {
+			tempFile.delete()
+			crop.recycle()
+			if (crop !== decodedBitmap) {
+				decodedBitmap.recycle()
+			}
+		}
+	}
+
+	private fun cropBitmap(source: Bitmap, box: Rect): Bitmap {
+		val left = box.left.coerceIn(0, source.width - 1)
+		val top = box.top.coerceIn(0, source.height - 1)
+		val right = box.right.coerceIn(left + 1, source.width)
+		val bottom = box.bottom.coerceIn(top + 1, source.height)
+		return Bitmap.createBitmap(source, left, top, right - left, bottom - top)
 	}
 
 	suspend fun detectBoxes(sourceUri: Uri): List<Rect> {

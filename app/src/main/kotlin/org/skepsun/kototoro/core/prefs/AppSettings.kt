@@ -555,6 +555,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationBubbleGroupingTuning: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING, "BALANCED") ?: "BALANCED"
 
+	var isReaderTranslationBubbleGroupingEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED, value) }
+
 	val readerTranslationOverlayCompactness: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS, "BALANCED") ?: "BALANCED"
 
@@ -1217,10 +1221,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_API_ENDPOINT = "reader_translation_api_endpoint"
 		const val KEY_READER_TRANSLATION_API_KEY = "reader_translation_api_key"
 		const val KEY_READER_TRANSLATION_API_MODEL = "reader_translation_api_model"
-		const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
-		const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
-		const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING = "reader_translation_bubble_grouping_tuning"
-		const val KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS = "reader_translation_overlay_compactness"
+			const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
+			const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
+			const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING = "reader_translation_bubble_grouping_tuning"
+			const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED = "reader_translation_bubble_grouping_enabled"
+			const val KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS = "reader_translation_overlay_compactness"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_PATH = "reader_translation_paddle_model_path"
 		const val KEY_READER_TRANSLATION_PADDLE_OCR_ONLY = "reader_translation_paddle_ocr_only"
 		const val KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID = "reader_translation_paddle_official_model_id"

@@ -296,7 +296,10 @@ class ReaderSettingsFragment :
 	}
 
 	private fun updateOnnxOfficialModelEntries() {
-		val models = OnnxOfficialModelCatalog.models
+		val models = OnnxOfficialModelCatalog.models.filter { model ->
+			model.category == OnnxModelCategory.CLASSIC_TRANSLATION ||
+				model.category == OnnxModelCategory.GENERAL_LLM
+		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID)?.run {
 			entries = arrayOf(getString(R.string.reader_translation_local_model_mlkit)) + models.map { model ->
 				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
@@ -304,6 +307,7 @@ class ReaderSettingsFragment :
 				val title = when (model.category) {
 					OnnxModelCategory.GENERAL_LLM -> "${model.title} [LLM]"
 					OnnxModelCategory.CLASSIC_TRANSLATION -> model.title
+					OnnxModelCategory.BUBBLE_DETECTION -> "${model.title} [Detector]"
 				}
 				title + suffix
 			}.toTypedArray()

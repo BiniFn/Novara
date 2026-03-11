@@ -138,6 +138,7 @@ class ReaderViewModel @Inject constructor(
     val uiState = MutableStateFlow<ReaderUiState?>(null)
     val targetPagePosition = MutableStateFlow<Int?>(null)
     val translationLayerState = MutableStateFlow(TranslationLayerState.IDLE)
+    val translationTaskPanelVersion = MutableStateFlow(0L)
     private val translationStateByPageId = linkedMapOf<Long, TranslationLayerState>()
     private val translationStateUpdatedAtByPageId = linkedMapOf<Long, Long>()
 
@@ -224,6 +225,7 @@ class ReaderViewModel @Inject constructor(
     init {
         initIncognitoMode()
         observeTranslationLayerState()
+        observeTranslationDebugLogs()
         loadImpl()
         launchJob(Dispatchers.Default) {
             val mangaId = manga.filterNotNull().first().id
@@ -694,10 +696,19 @@ class ReaderViewModel @Inject constructor(
             pageLoader.observeTranslationStatusUpdates().collect { event ->
                 translationStateByPageId[event.pageId] = event.state
                 translationStateUpdatedAtByPageId[event.pageId] = System.currentTimeMillis()
+                translationTaskPanelVersion.update { it + 1 }
                 val currentPageId = getCurrentPage()?.id
                 if (currentPageId == event.pageId) {
                     translationLayerState.value = event.state
                 }
+            }
+        }
+    }
+
+    private fun observeTranslationDebugLogs() {
+        launchJob(Dispatchers.Default) {
+            pageLoader.observeTranslationDebugLogUpdates().collect {
+                translationTaskPanelVersion.update { it + 1 }
             }
         }
     }

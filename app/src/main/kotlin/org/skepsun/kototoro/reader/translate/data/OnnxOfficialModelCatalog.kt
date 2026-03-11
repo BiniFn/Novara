@@ -14,6 +14,7 @@ data class OnnxOfficialModel(
 enum class OnnxModelCategory {
 	CLASSIC_TRANSLATION,
 	GENERAL_LLM,
+	BUBBLE_DETECTION,
 }
 
 data class OnnxModelFile(
@@ -118,6 +119,60 @@ object OnnxOfficialModelCatalog {
 				),
 			),
 			description = "General small LLM for translation fallback, based on Qwen3.5-0.8B ONNX q4.",
+		),
+		OnnxOfficialModel(
+			id = "manga_bubble_yolo_hf_main",
+			title = "Manga Bubble YOLO",
+			version = "hf-main",
+			category = OnnxModelCategory.BUBBLE_DETECTION,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "yolo26s.onnx",
+					downloadUrl = "https://huggingface.co/Kiuyha/Manga-Bubble-YOLO/resolve/main/onnx/yolo26s.onnx",
+				),
+			),
+			description = "YOLO-based manga bubble/text region detector for ROI OCR pipeline.",
+		),
+		OnnxOfficialModel(
+			id = "translategemma_4b_it_onnx_int4",
+			title = "TranslateGemma 4B ONNX (q4)",
+			version = "int4",
+			category = OnnxModelCategory.GENERAL_LLM,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "chat_template.jinja",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/chat_template.jinja",
+				),
+				OnnxModelFile(
+					fileName = "config.json",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/config.json",
+				),
+				OnnxModelFile(
+					fileName = "genai_config.json",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/genai_config.json",
+				),
+				OnnxModelFile(
+					fileName = "model.onnx",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/model.onnx",
+				),
+				OnnxModelFile(
+					fileName = "model.onnx.data",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/model.onnx.data",
+				),
+				OnnxModelFile(
+					fileName = "special_tokens_map.json",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/special_tokens_map.json",
+				),
+				OnnxModelFile(
+					fileName = "tokenizer.json",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/tokenizer.json",
+				),
+				OnnxModelFile(
+					fileName = "tokenizer_config.json",
+					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/tokenizer_config.json",
+				),
+			),
+			description = "TranslateGemma 4B IT ONNX Int4. Supports text translation and direct image translation (vision-language).",
 		),
 	)
 

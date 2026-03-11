@@ -90,6 +90,24 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		}
 	}
 
+	private data class TranslateGemmaRuntime(
+		override val modelId: String,
+		val backend: String,
+		val tokenizer: HuggingFaceTokenizer,
+		val embedSession: OrtSession?,
+		val decoderSession: OrtSession,
+		val disableThinkingInputName: String?,
+		val decoderInputNames: Set<String>,
+		val decoderInputInfo: Map<String, TensorInfo>,
+		val stopTokenIds: Set<Long>,
+	) : RuntimeHolder {
+		override fun close() {
+			runCatching { embedSession?.close() }
+			runCatching { decoderSession.close() }
+			runCatching { tokenizer.close() }
+		}
+	}
+
 	private data class QwenStepResult(
 		val nextToken: Long,
 		val decoderRun: OrtSession.Result,
@@ -206,6 +224,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			is NllbRuntime -> translateOneNllb(runtime, text, sourceLang, targetLang)
 			is GenericRuntime -> translateOneGeneric(runtime, text, sourceLang, targetLang)
 			is Qwen35Runtime -> translateOneQwen35(runtime, text, sourceLang, targetLang)
+			is TranslateGemmaRuntime -> translateOneTranslateGemma(runtime, text, sourceLang, targetLang)
 		}
 	}
 
@@ -246,7 +265,11 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				modelDir.walkTopDown().any { it.name.contains("decoder_model_merged", true) } || modelId.contains("qwen", true) -> {
 					tryCreateQwen35Runtime(modelId, modelDir, typeLabel, useGpu)
 				}
-				// 3. Fallback to Madlad or Generic
+				// 3. Check for TranslateGemma
+				modelDir.walkTopDown().any { it.name.contains("translategemma", true) } || modelId.contains("translategemma", true) -> {
+					tryCreateTranslateGemmaRuntime(modelId, modelDir, typeLabel, useGpu)
+				}
+				// 4. Fallback to Madlad or Generic
 				else -> {
 					tryCreateMadladLikeRuntime(modelId, modelDir, typeLabel, useGpu) 
 						?: tryCreateGenericRuntime(modelId, modelDir, typeLabel, useGpu)
@@ -425,6 +448,50 @@ class OnnxReaderTranslationEngine @Inject constructor(
 					}
 				)
 			}
+		} catch (_: Throwable) {
+			runCatching { tokenizer.close() }
+			null
+		} finally {
+			runCatching { options.close() }
+		}
+	}
+
+	private fun tryCreateTranslateGemmaRuntime(modelId: String, modelDir: File, backend: String, useGpu: Boolean): TranslateGemmaRuntime? {
+		val tokenizerPath = findTokenizerPath(modelDir) ?: return null
+		val decoderPath = modelDir.walkTopDown().firstOrNull { it.isFile && it.name.equals("model.onnx", true) }
+			?: findQwenDecoderOnnxPath(modelDir) ?: return null
+		val embedPath = findQwenEmbedOnnxPath(modelDir)
+		val tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath.toPath())
+		val env = OrtEnvironment.getEnvironment()
+		val options = createSessionOptions(useGpu)
+		return try {
+			val decoderSession = env.createSession(decoderPath.absolutePath, options)
+			val embedSession = if (embedPath != null) env.createSession(embedPath.absolutePath, options) else null
+			val inputNames = decoderSession.inputNames
+			if ("inputs_embeds" !in inputNames && "input_ids" !in inputNames) {
+				runCatching { embedSession?.close() }
+				runCatching { decoderSession.close() }
+				runCatching { tokenizer.close() }
+				return null
+			}
+			val inputInfo = decoderSession.inputInfo.mapNotNull { (name, nodeInfo) ->
+				(name to (nodeInfo.info as? TensorInfo))
+			}.filter { it.second != null }.associate { it.first to it.second!! }
+			val disableThinkingInputName = inputNames.firstOrNull {
+				it.equals("enable_thinking", ignoreCase = true) ||
+					it.equals("disable_thinking", ignoreCase = true)
+			}
+			TranslateGemmaRuntime(
+				modelId = modelId,
+				backend = backend,
+				tokenizer = tokenizer,
+				embedSession = embedSession,
+				decoderSession = decoderSession,
+				decoderInputNames = inputNames,
+				decoderInputInfo = inputInfo,
+				disableThinkingInputName = disableThinkingInputName,
+				stopTokenIds = loadStopTokens(modelDir),
+			)
 		} catch (_: Throwable) {
 			runCatching { tokenizer.close() }
 			null
@@ -618,6 +685,59 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		return QwenGenerationAttempt(rawOutput = rawOutput, jsonPrefill = jsonPrefill)
 	}
 
+	private suspend fun translateOneTranslateGemma(
+		runtime: TranslateGemmaRuntime,
+		text: String,
+		sourceLang: String,
+		targetLang: String,
+	): String {
+		val input = text.trim()
+		if (input.isEmpty()) return ""
+		
+		val prompt = "<start_of_turn>user\n" +
+			"You are a professional manga translator. Translate from $sourceLang to $targetLang.\n" +
+			"Return translated text only. No explanation.\n" +
+			"Original text:\n$input<end_of_turn>\n<start_of_turn>model\n"
+
+		val promptIds = tokenizerLock.withLock { runtime.tokenizer.encode(prompt).ids }
+		if (promptIds.isEmpty()) return ""
+		
+		val generated = ArrayList<Long>(MAX_NEW_TOKENS)
+		var prevRun: OrtSession.Result? = null
+		var nextInputIds = promptIds.map { it.toLong() }.toLongArray()
+		var pastSequenceLength = 0
+		var step = 0
+		
+		try {
+			while (step < MAX_NEW_TOKENS) {
+				val result = runTranslateGemmaStep(runtime, nextInputIds, pastSequenceLength, prevRun) ?: break
+				runCatching { prevRun?.close() }
+				prevRun = result.decoderRun
+				pastSequenceLength = result.totalSequenceLength
+				val nextToken = result.nextToken
+				if (nextToken in runtime.stopTokenIds || nextToken == 1L || nextToken == 107L) {
+					break
+				}
+				generated += nextToken
+				nextInputIds = longArrayOf(nextToken)
+				
+				if (generated.size >= 6) {
+					val partial = tokenizerLock.withLock { runtime.tokenizer.decode(generated.toLongArray()).trim() }
+					if (partial.contains("<end_of_turn>")) break
+				}
+				step++
+			}
+		} finally {
+			runCatching { prevRun?.close() }
+		}
+		val rawOutput = tokenizerLock.withLock { runtime.tokenizer.decode(generated.toLongArray()).trim() }
+		val stripped = rawOutput
+			.substringBefore("<end_of_turn>")
+			.replace(Regex("(?is)<think>.*?</think>"), "")
+			.trim()
+		return stripped
+	}
+
 	private fun extractQwenTranslation(rawOutput: String, jsonPrefill: Boolean): String {
 		if (rawOutput.isBlank()) return ""
 		val normalized = if (jsonPrefill) {
@@ -753,6 +873,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			is GenericRuntime -> runtime.backend
 			is NllbRuntime -> runtime.backend
 			is Qwen35Runtime -> runtime.backend
+			is TranslateGemmaRuntime -> runtime.backend
 		}
 	}
 
@@ -823,6 +944,79 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			return QwenStepResult(nextToken, decoderRun, totalLen)
 		} finally {
 			runCatching { inputIdsTensor.close() }
+			created.forEach { runCatching { it.close() } }
+			runCatching { embedRun?.close() }
+		}
+	}
+
+	private fun runTranslateGemmaStep(
+		runtime: TranslateGemmaRuntime,
+		inputTokenIds: LongArray,
+		pastSequenceLength: Int,
+		prevRun: OrtSession.Result?,
+	): QwenStepResult? {
+		if (inputTokenIds.isEmpty()) return null
+		val inputIdsTensor = createInt64Tensor(inputTokenIds)
+		var embedRun: OrtSession.Result? = null
+		val created = mutableListOf<OnnxTensor>()
+		created += inputIdsTensor
+		try {
+			val seqLen = inputTokenIds.size
+			val totalLen = pastSequenceLength + seqLen
+			val attentionMask = createInt64Tensor(LongArray(totalLen) { 1L }).also { created += it }
+			val positionIds = createInt64Tensor(LongArray(seqLen) { (pastSequenceLength + it).toLong() }).also { created += it }
+			val decoderInputs = mutableMapOf<String, OnnxTensor>()
+
+			if (runtime.embedSession != null) {
+				embedRun = runtime.embedSession.run(mapOf("input_ids" to inputIdsTensor))
+				val embedTensor = (embedRun.get("inputs_embeds").orElse(null) as? OnnxTensor)
+					?: (runtime.embedSession.outputNames.firstOrNull()?.let { name ->
+						embedRun.get(name).orElse(null) as? OnnxTensor
+					}) ?: return null
+				decoderInputs["inputs_embeds"] = embedTensor
+			} else {
+				if ("input_ids" in runtime.decoderInputNames) {
+					decoderInputs["input_ids"] = inputIdsTensor
+				}
+			}
+
+			if ("attention_mask" in runtime.decoderInputNames) {
+				decoderInputs["attention_mask"] = attentionMask
+			}
+			if ("position_ids" in runtime.decoderInputNames) {
+				decoderInputs["position_ids"] = positionIds
+			}
+
+			for (name in runtime.decoderInputNames) {
+				if (name == "inputs_embeds" || name == "input_ids" || name == "attention_mask" || name == "position_ids") continue
+				if (name.startsWith("past_key_values.")) {
+					if (prevRun == null) {
+						val info = runtime.decoderInputInfo[name] ?: return null
+						val zero = createZeroTensorForInput(name, info, pastSequenceLength = 0)
+						decoderInputs[name] = zero
+						created += zero
+					} else {
+						val presentName = mapPastInputToPresentOutput(name)
+						decoderInputs[name] = prevRun.get(presentName).orElse(null) as? OnnxTensor ?: return null
+					}
+				}
+			}
+			
+			val decoderRun = runtime.decoderSession.run(decoderInputs)
+			val logits = (decoderRun.get("logits").orElse(null) as? OnnxTensor)
+				?: (runtime.decoderSession.outputNames.firstOrNull()?.let { name ->
+					decoderRun.get(name).orElse(null) as? OnnxTensor
+				})
+				?: run {
+					decoderRun.close()
+					return null
+				}
+			val nextToken = argmaxLastToken(logits.value) ?: run {
+				decoderRun.close()
+				return null
+			}
+			return QwenStepResult(nextToken, decoderRun, totalLen)
+		} finally {
 			created.forEach { runCatching { it.close() } }
 			runCatching { embedRun?.close() }
 		}

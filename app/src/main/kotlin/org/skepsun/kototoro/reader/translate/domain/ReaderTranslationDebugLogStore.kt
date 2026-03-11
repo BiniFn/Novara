@@ -2,6 +2,9 @@ package org.skepsun.kototoro.reader.translate.domain
 
 import androidx.collection.LongSparseArray
 import dagger.hilt.android.scopes.ActivityRetainedScoped
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 
 @ActivityRetainedScoped
@@ -9,9 +12,10 @@ class ReaderTranslationDebugLogStore @Inject constructor() {
 
 	private val lock = Any()
 	private val pageLogs = LongSparseArray<ArrayDeque<String>>()
+	private val updates = MutableSharedFlow<Long>(extraBufferCapacity = 256)
 
 	fun append(pageId: Long, message: String) {
-		if (pageId <= 0L || message.isBlank()) return
+		if (pageId == PAGE_ID_ALL || message.isBlank()) return
 		synchronized(lock) {
 			val queue = pageLogs[pageId] ?: ArrayDeque<String>().also { pageLogs.put(pageId, it) }
 			if (queue.size >= MAX_PAGE_LOG_LINES) {
@@ -19,6 +23,7 @@ class ReaderTranslationDebugLogStore @Inject constructor() {
 			}
 			queue.addLast(message)
 		}
+		updates.tryEmit(pageId)
 	}
 
 	fun metric(pageId: Long, key: String, value: Any) {
@@ -35,15 +40,22 @@ class ReaderTranslationDebugLogStore @Inject constructor() {
 		synchronized(lock) {
 			pageLogs.remove(pageId)
 		}
+		if (pageId != PAGE_ID_ALL) {
+			updates.tryEmit(pageId)
+		}
 	}
 
 	fun clearAll() {
 		synchronized(lock) {
 			pageLogs.clear()
 		}
+		updates.tryEmit(PAGE_ID_ALL)
 	}
+
+	fun observeUpdates(): Flow<Long> = updates.asSharedFlow()
 
 	private companion object {
 		const val MAX_PAGE_LOG_LINES = 160
+		const val PAGE_ID_ALL = Long.MIN_VALUE
 	}
 }
