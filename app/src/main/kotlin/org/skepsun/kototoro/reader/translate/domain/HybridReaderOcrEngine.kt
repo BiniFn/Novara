@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.collection.LruCache
 import androidx.core.net.toFile
@@ -23,24 +24,24 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
 import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModelCatalog
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
 /**
- * Hybrid OCR engine: PP-OCRv5 NCNN for text detection (det) + TFLite manga-ocr for recognition (rec).
+ * Hybrid OCR engine: NCNN as the primary OCR backend with TFLite manga-ocr fallback.
  *
  * Pipeline:
- *   1. PP-OCRv5 NCNN det-only 鈫?bounding boxes
- *   2. Crop each text region from the source image
- *   3. Keep crop orientation as-is (manga-ocr supports both horizontal and vertical text)
- *   4. Split horizontal multi-line crops into individual lines via horizontal projection
- *   5. Feed each line into FastOcrEngine (manga-ocr) for recognition (GPU semaphore limited)
- *   6. Return OcrTextBlock list with text + boundingBox
+ *   1. Run NCNN detect + recognize on the full page
+ *   2. Keep high-confidence NCNN text directly
+ *   3. Only crop and re-recognize low-confidence regions with manga-ocr
+ *   4. Return OcrTextBlock list with text + boundingBox
  */
 @ActivityRetainedScoped
 class HybridReaderOcrEngine @Inject constructor(
 	private val settings: AppSettings,
 	private val ncnnReaderOcrEngine: NcnnReaderOcrEngine,
 	private val tfliteModelManager: TfliteModelManager,
+	private val debugLogStore: ReaderTranslationDebugLogStore,
 ) : ReaderOcrService {
 
 	// --- TFLite manga-ocr rec ---
@@ -55,40 +56,67 @@ class HybridReaderOcrEngine @Inject constructor(
 	private val featureCache = LruCache<Long, String>(512)
 	private val featureCacheMutex = Mutex()
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
+	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
 		log { "hybrid recognize start lang=$sourceLang uri=$sourceUri" }
-
-		// 1. Ensure models are ready
-		val tflitePath = resolveTfliteModelPath()
-		ensureRecEngineReady(tflitePath)
-		if (recEngine == null) {
-			log { "hybrid rec unavailable, fallback to ncnn full recognize" }
-			return ncnnReaderOcrEngine.recognize(sourceUri, sourceLang)
+		val totalStartMs = SystemClock.elapsedRealtime()
+		val fallbackThreshold = settings.readerTranslationHybridFallbackThreshold
+		val ncnnStartMs = SystemClock.elapsedRealtime()
+		val ncnnResults = ncnnReaderOcrEngine.recognize(sourceUri, sourceLang, pageId)
+		val ncnnDurationMs = SystemClock.elapsedRealtime() - ncnnStartMs
+		if (ncnnResults.isEmpty()) {
+			appendMetric(pageId, "hybrid.ncnn_ms", ncnnDurationMs)
+			appendMetric(pageId, "hybrid.ncnn_blocks", 0)
+			appendMetric(pageId, "hybrid.total_ms", SystemClock.elapsedRealtime() - totalStartMs)
+			log { "hybrid ncnn returned 0 blocks" }
+			return emptyList()
+		}
+		val fallbackCandidates = ncnnResults.count { shouldFallback(it, fallbackThreshold) }
+		appendMetric(pageId, "hybrid.ncnn_ms", ncnnDurationMs)
+		appendMetric(pageId, "hybrid.ncnn_blocks", ncnnResults.size)
+		appendMetric(pageId, "hybrid.fallback_candidates", fallbackCandidates)
+		log {
+			"hybrid ncnn done blocks=${ncnnResults.size} fallback=$fallbackCandidates threshold=$fallbackThreshold"
+		}
+		if (fallbackCandidates == 0) {
+			appendMetric(pageId, "hybrid.feature_cache_hits", 0)
+			appendMetric(pageId, "hybrid.tflite_fallbacks", 0)
+			appendMetric(pageId, "hybrid.tflite_ms", 0)
+			appendMetric(pageId, "hybrid.fallback_rate", formatRate(0f))
+			appendMetric(pageId, "hybrid.total_ms", SystemClock.elapsedRealtime() - totalStartMs)
+			return ncnnResults.filter { it.text.isNotBlank() }
 		}
 
-		// 2. Load the source bitmap
+		// Load the source bitmap only after fallback is confirmed.
 		val decodedBitmap = runInterruptible(Dispatchers.IO) {
 			BitmapDecoderCompat.decode(sourceUri.toFile())
 		}
 		val bitmap = ensureSoftwareBitmap(decodedBitmap)
+		val featureCacheHits = AtomicInteger(0)
+		val tfliteFallbacks = AtomicInteger(0)
+		val tfliteDurationMs = AtomicInteger(0)
 
 		return try {
-			// 3. Run NCNN det-only to get bounding boxes
-			val boxes = ncnnReaderOcrEngine.detectBoxes(sourceUri)
-			log { "hybrid ncnn-det done boxes=${boxes.size}" }
-			if (boxes.isEmpty()) return emptyList()
-
-			// 4. For each box: crop -> split lines if horizontal -> rec
 			val results = coroutineScope {
-				boxes.map { box ->
+				ncnnResults.map { block ->
 					async {
-						recognizeBox(bitmap, box)
+						if (shouldFallback(block, fallbackThreshold)) {
+							recognizeFallbackBlock(bitmap, block, featureCacheHits, tfliteFallbacks, tfliteDurationMs)
+						} else {
+							block
+						}
 					}
 				}.awaitAll()
 			}
 
 			val filtered = results.filter { it.text.isNotBlank() }
-			log { "hybrid rec done blocks=${filtered.size}" }
+			appendMetric(pageId, "hybrid.feature_cache_hits", featureCacheHits.get())
+			appendMetric(pageId, "hybrid.tflite_fallbacks", tfliteFallbacks.get())
+			appendMetric(pageId, "hybrid.tflite_ms", tfliteDurationMs.get())
+			appendMetric(pageId, "hybrid.fallback_rate", formatRate(tfliteFallbacks.get().toFloat() / ncnnResults.size.toFloat()))
+			appendMetric(pageId, "hybrid.total_ms", SystemClock.elapsedRealtime() - totalStartMs)
+			log {
+				"hybrid rec done blocks=${filtered.size} fallbackCandidates=$fallbackCandidates cacheHits=${featureCacheHits.get()} tfliteFallbacks=${tfliteFallbacks.get()}"
+			}
 			filtered
 		} finally {
 			bitmap.recycle()
@@ -99,33 +127,53 @@ class HybridReaderOcrEngine @Inject constructor(
 	}
 
 	/**
-	 * Process a single detected text box:
+	 * Process a single low-confidence text box:
 	 * crop -> dHash cache check -> split lines (horizontal only) -> recognize -> join text
 	 */
-	private suspend fun recognizeBox(source: Bitmap, box: Rect): OcrTextBlock {
+	private suspend fun recognizeFallbackBlock(
+		source: Bitmap,
+		block: OcrTextBlock,
+		featureCacheHits: AtomicInteger,
+		tfliteFallbacks: AtomicInteger,
+		tfliteDurationMs: AtomicInteger,
+	): OcrTextBlock {
+		val box = block.boundingBox ?: return block
 		val crop = cropBitmap(source, box)
 		try {
 			// Cross-page reuse: check dHash feature cache
 			val hash = dHash(crop)
 			val cached = findInFeatureCache(hash)
 			if (cached != null) {
+				featureCacheHits.incrementAndGet()
 				log { "feature cache hit hash=$hash text=${cached.take(20)}" }
-				return OcrTextBlock(text = cached, boundingBox = box)
+				return block.copy(text = cached, confidence = FALLBACK_CONFIDENCE)
 			}
 
+			if (!ensureRecEngineAvailable()) {
+				log { "hybrid rec unavailable after cache miss, keep ncnn result" }
+				return block
+			}
+			val tfliteStartMs = SystemClock.elapsedRealtime()
+			tfliteFallbacks.incrementAndGet()
 			val text = recognizeOrientedText(crop)
+			tfliteDurationMs.addAndGet((SystemClock.elapsedRealtime() - tfliteStartMs).toInt())
+			if (text.isBlank()) {
+				return block
+			}
 
 			// Store result in feature cache for cross-page reuse
-			if (text.isNotBlank()) {
-				featureCacheMutex.withLock {
-					featureCache.put(hash, text)
-				}
+			featureCacheMutex.withLock {
+				featureCache.put(hash, text)
 			}
 
-			return OcrTextBlock(text = text, boundingBox = box)
+			return block.copy(text = text, confidence = FALLBACK_CONFIDENCE)
 		} finally {
 			crop.recycle()
 		}
+	}
+
+	private fun shouldFallback(block: OcrTextBlock, threshold: Float): Boolean {
+		return block.boundingBox != null && (block.text.isBlank() || block.confidence < threshold)
 	}
 
 	private suspend fun recognizeOrientedText(oriented: Bitmap): String {
@@ -189,6 +237,23 @@ class HybridReaderOcrEngine @Inject constructor(
 				}
 			}
 		}
+	}
+
+	private suspend fun ensureRecEngineAvailable(): Boolean {
+		if (recEngine != null) return true
+		val tflitePath = resolveTfliteModelPath()
+		ensureRecEngineReady(tflitePath)
+		return recEngine != null
+	}
+
+	private fun appendMetric(pageId: Long?, key: String, value: Any) {
+		if (pageId != null && pageId > 0L) {
+			debugLogStore.metric(pageId, key, value)
+		}
+	}
+
+	private fun formatRate(value: Float): String {
+		return String.format(java.util.Locale.US, "%.3f", value)
 	}
 
 	// ---- Image Processing Utilities ----
@@ -349,6 +414,7 @@ class HybridReaderOcrEngine @Inject constructor(
 	private companion object {
 		const val LOG_TAG = "ReaderOcrHybrid"
 		const val HAMMING_THRESHOLD = 5
+		const val FALLBACK_CONFIDENCE = 1f
 	}
 }
 

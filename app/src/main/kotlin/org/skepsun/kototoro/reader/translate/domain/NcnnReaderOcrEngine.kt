@@ -29,7 +29,7 @@ class NcnnReaderOcrEngine @Inject constructor(
 	private val mutex = Mutex()
 	private var modelPathInitialized: String? = null
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
+	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
 		log { "recognize start lang=$sourceLang uri=$sourceUri" }
 		ensureModelInitialized()
 		val result = runInterruptible(Dispatchers.IO) {
@@ -49,6 +49,7 @@ class NcnnReaderOcrEngine @Inject constructor(
 			OcrTextBlock(
 				text = line.text,
 				boundingBox = rect,
+				confidence = line.confidence,
 			)
 		}
 		log { "recognize done blocks=${blocks.size}" }

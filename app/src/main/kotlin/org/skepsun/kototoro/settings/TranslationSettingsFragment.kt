@@ -89,6 +89,7 @@ class TranslationSettingsFragment :
 		normalizeDeprecatedOcrEngineSelection()
 		applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
 		updateOcrEngineDependency()
+		updateHybridFallbackThresholdPreference()
 		updateApiPreferenceVisibility()
 		updatePaddleOfficialModelEntries()
 		updateTfliteOfficialModelEntries()
@@ -112,6 +113,10 @@ class TranslationSettingsFragment :
 				fetchAndPickApiModel()
 				true
 			}
+			AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD -> {
+				showHybridFallbackThresholdDialog()
+				true
+			}
 			else -> super.onPreferenceTreeClick(preference)
 		}
 	}
@@ -120,10 +125,14 @@ class TranslationSettingsFragment :
 		when (key) {
 			AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE -> {
 				updateOcrEngineDependency()
+				updateHybridFallbackThresholdPreference()
 				updatePaddleOfficialModelEntries()
 				updateTfliteOfficialModelEntries()
 				updateNcnnOfficialModelEntries()
 				updateOnnxOfficialModelEntries()
+			}
+			AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD -> {
+				updateHybridFallbackThresholdPreference()
 			}
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID -> {
 				applyOfficialPaddleModel()
@@ -166,6 +175,33 @@ class TranslationSettingsFragment :
 				}
 			}
 		}
+		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD)?.isVisible = isHybrid
+	}
+
+	private fun updateHybridFallbackThresholdPreference() {
+		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD)?.apply {
+			isVisible = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
+			summary = getString(
+				R.string.reader_translation_hybrid_fallback_threshold_summary,
+				(settings.readerTranslationHybridFallbackThreshold * 100).toInt(),
+			)
+		}
+	}
+
+	private fun showHybridFallbackThresholdDialog() {
+		val values = floatArrayOf(0.7f, 0.75f, 0.8f, 0.85f, 0.9f, 0.95f)
+		val labels = values.map { "${(it * 100).toInt()}%" }.toTypedArray()
+		val current = settings.readerTranslationHybridFallbackThreshold
+		val selected = values.indexOfFirst { kotlin.math.abs(it - current) < 0.001f }
+			.takeIf { it >= 0 } ?: values.indices.minBy { kotlin.math.abs(values[it] - current) }
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(R.string.reader_translation_hybrid_fallback_threshold)
+			.setSingleChoiceItems(labels, selected) { dialog, which ->
+				settings.readerTranslationHybridFallbackThreshold = values[which]
+				dialog.dismiss()
+			}
+			.setNegativeButton(android.R.string.cancel, null)
+			.show()
 	}
 
 	private fun updateApiPreferenceVisibility() {

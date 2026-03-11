@@ -30,7 +30,7 @@ class TfLiteReaderOcrEngine @Inject constructor(
 	private val mutex = Mutex()
 	private var modelPathInitialized: String? = null
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
+	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
 		log { "recognize start lang=$sourceLang uri=$sourceUri" }
 		
 		val modelPath = resolveModelPath()

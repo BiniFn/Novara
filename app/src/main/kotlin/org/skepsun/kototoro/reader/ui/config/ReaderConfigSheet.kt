@@ -489,6 +489,7 @@ class ReaderConfigSheet :
         var sourceLang = "?"
         var targetLang = "?"
         var configuredOcr = "?"
+        val metrics = linkedMapOf<String, String>()
         val ocrAttempts = linkedMapOf<String, Int>()
         var localRequested = -1
         var localDoneTranslated = -1
@@ -500,6 +501,12 @@ class ReaderConfigSheet :
         val pairs = ArrayList<Pair<String, String>>(10)
 
         log.lineSequence().forEach { line ->
+            if (line.startsWith("metric.")) {
+                val idx = line.indexOf('=')
+                if (idx > 7 && idx < line.length - 1) {
+                    metrics[line.substring(7, idx)] = line.substring(idx + 1).trim()
+                }
+            }
             if (line.contains("process start ")) {
                 Regex("""sourceLang=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { sourceLang = it }
                 Regex("""targetLang=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { targetLang = it }
@@ -552,6 +559,10 @@ class ReaderConfigSheet :
             if (renderedBubbles >= 0) {
                 appendLine("渲染气泡: $renderedBubbles")
             }
+            buildMetricSummary(metrics).takeIf { it.isNotEmpty() }?.let { metricLines ->
+                appendLine("性能指标:")
+                metricLines.forEach { appendLine(it) }
+            }
             failCode?.let {
                 appendLine("失败代码: $it")
             }
@@ -570,6 +581,60 @@ class ReaderConfigSheet :
                 }
             }
         }.trim()
+    }
+
+    private fun buildMetricSummary(metrics: Map<String, String>): List<String> {
+        if (metrics.isEmpty()) return emptyList()
+        val lines = mutableListOf<String>()
+        metrics["process.total_ms"]?.let { lines += "总耗时: ${it}ms" }
+        metrics["ocr.total_ms"]?.let { lines += "OCR: ${it}ms" }
+        metrics["translation.total_ms"]?.let { lines += "翻译: ${it}ms" }
+        metrics["render.total_ms"]?.let { lines += "渲染: ${it}ms" }
+        metrics["ocr.selected_engine"]?.let { lines += "选中 OCR 引擎: $it" }
+        metrics["ocr.blocks"]?.let { lines += "OCR 文本块: $it" }
+        metrics["translation.bubbles"]?.let { lines += "气泡数: $it" }
+        metrics["render.translated_bubbles"]?.let { lines += "已渲染气泡: $it" }
+        metrics["ocr.cache_hit"]?.let {
+            lines += "OCR 缓存: ${if (it == "1") "命中" else "未命中"}"
+        }
+        metrics["render_cache.hit"]?.let {
+            lines += "渲染缓存: ${if (it == "1") "命中" else "未命中"}"
+        }
+
+        val ncnnBlocks = metrics["hybrid.ncnn_blocks"]?.toIntOrNull()
+        val fallbackCandidates = metrics["hybrid.fallback_candidates"]?.toIntOrNull()
+        val featureCacheHits = metrics["hybrid.feature_cache_hits"]?.toIntOrNull()
+        val tfliteFallbacks = metrics["hybrid.tflite_fallbacks"]?.toIntOrNull()
+        val hybridTotalMs = metrics["hybrid.total_ms"]
+        val hybridNcnnMs = metrics["hybrid.ncnn_ms"]
+        val hybridTfliteMs = metrics["hybrid.tflite_ms"]
+        val fallbackRate = metrics["hybrid.fallback_rate"]
+
+        if (ncnnBlocks != null || fallbackCandidates != null || tfliteFallbacks != null) {
+            lines += buildString {
+                append("Hybrid: ")
+                val parts = listOfNotNull(
+                    ncnnBlocks?.let { "NCNN块=$it" },
+                    fallbackCandidates?.let { "候选=$it" },
+                    featureCacheHits?.let { "特征缓存命中=$it" },
+                    tfliteFallbacks?.let { "TFLite回退=$it" },
+                    fallbackRate?.let { "回退率=$it" },
+                )
+                append(parts.joinToString(" / "))
+            }
+        }
+        if (hybridTotalMs != null || hybridNcnnMs != null || hybridTfliteMs != null) {
+            lines += buildString {
+                append("Hybrid耗时: ")
+                val parts = listOfNotNull(
+                    hybridTotalMs?.let { "总=$it ms" },
+                    hybridNcnnMs?.let { "NCNN=$it ms" },
+                    hybridTfliteMs?.let { "TFLite=$it ms" },
+                )
+                append(parts.joinToString(" / "))
+            }
+        }
+        return lines
     }
 
     private fun translationStateLabel(state: TranslationLayerState): String {

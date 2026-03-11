@@ -13,6 +13,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import android.util.Log
+import android.os.SystemClock
 import androidx.annotation.WorkerThread
 import androidx.collection.LruCache
 import androidx.collection.LongSparseArray
@@ -24,6 +25,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.core.LocalizedAppContext
@@ -45,12 +47,16 @@ import com.google.mlkit.nl.translate.TranslatorOptions
 import org.skepsun.kototoro.core.util.ext.awaitCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
 import okio.source
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -72,15 +78,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val hybridOcrEngine: HybridReaderOcrEngine,
 	private val ncnnOcrEngine: NcnnReaderOcrEngine,
 	private val onnxTranslationEngine: OnnxReaderTranslationEngine,
+	private val debugLogStore: ReaderTranslationDebugLogStore,
 ) {
 
-	private val processingMutex = Mutex()
-	private val pageLogLock = Any()
+	private val processingSemaphore = Semaphore(MAX_PARALLEL_TRANSLATION_PAGES)
+	private val pageStateLock = Any()
 	private val renderedSourceMap = LruCache<String, String>(512)
-	private val pageDebugLogs = LongSparseArray<ArrayDeque<String>>()
 	private val pageRenderEpochs = LongSparseArray<Int>()
-	@Volatile
-	private var currentLoggingPageId: Long = NO_LOGGING_PAGE_ID
+	private val loggingPageId = ThreadLocal<Long?>()
 	@Volatile
 	private var renderCacheEpoch: Int = 0
 	private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -95,8 +100,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 	fun clearAllCaches() {
 		textCache.clear()
-		synchronized(pageLogLock) {
-			pageDebugLogs.clear()
+		debugLogStore.clearAll()
+		synchronized(pageStateLock) {
 			pageRenderEpochs.clear()
 		}
 		renderCacheEpoch += 1
@@ -104,8 +109,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	fun clearPageCaches(pageId: Long) {
-		synchronized(pageLogLock) {
-			pageDebugLogs.remove(pageId)
+		debugLogStore.clearPage(pageId)
+		synchronized(pageStateLock) {
 			val current = pageRenderEpochs[pageId] ?: 0
 			pageRenderEpochs.put(pageId, current + 1)
 		}
@@ -129,6 +134,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			pageEpoch = getPageRenderEpoch(page.id),
 		)
 		return cache[renderCacheKey]?.toUri()?.also {
+			appendPageLog(page.id, "metric.render_cache.hit=1")
 			rememberRenderedSource(it, sourceUri)
 		}
 	}
@@ -167,74 +173,88 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			}
 		}
 		log { "process start page=${page.id} sourceLang=$sourceLang targetLang=$targetLang ocr=${settings.readerTranslationOcrEngine}" }
-		return processingMutex.withLock {
-			currentLoggingPageId = page.id
-			appendPageLog(page.id, "process start page=${page.id}")
-			cache[renderCacheKey]?.let {
-				return@withLock it.toUri().also { rendered ->
-					rememberRenderedSource(rendered, localUri)
+		return withContext(loggingPageId.asContextElement(page.id)) {
+			processingSemaphore.withPermit {
+				appendPageLog(page.id, "process start page=${page.id}")
+				cache[renderCacheKey]?.let {
+					appendPageLog(page.id, "metric.render_cache.hit=1")
+					return@withPermit it.toUri().also { rendered ->
+						rememberRenderedSource(rendered, localUri)
+					}
 				}
+				runCatching {
+					processImpl(page.id, localUri, renderCacheKey, sourceLang, targetLang)
+				}.onFailure {
+					it.printStackTraceDebug()
+					appendPageLog(page.id, "process failed: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
+					appendPageLog(page.id, "fail_code=$FAIL_CODE_PROCESS_EXCEPTION")
+				}.getOrDefault(sourceUri)
 			}
-			runCatching {
-				processImpl(localUri, renderCacheKey, sourceLang, targetLang)
-			}.onFailure {
-				it.printStackTraceDebug()
-				appendPageLog(page.id, "process failed: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
-				appendPageLog(page.id, "fail_code=$FAIL_CODE_PROCESS_EXCEPTION")
-			}.getOrDefault(sourceUri)
-		}.also {
-			currentLoggingPageId = NO_LOGGING_PAGE_ID
 		}
 	}
 
 	fun getPageDebugLog(pageId: Long): String {
-		synchronized(pageLogLock) {
-			val lines = pageDebugLogs[pageId] ?: return ""
-			return lines.joinToString(separator = "\n")
-		}
+		return debugLogStore.get(pageId)
 	}
 
 	@WorkerThread
 	private suspend fun processImpl(
+		pageId: Long,
 		sourceUri: Uri,
 		renderCacheKey: String,
 		sourceLang: String,
 		targetLang: String,
 	): Uri {
+		val totalStartMs = SystemClock.elapsedRealtime()
+		var ocrCacheHit = false
+		var ocrDurationMs = -1L
+		var translateDurationMs = -1L
+		var renderDurationMs = -1L
+		var ocrBlocks = 0
+		var bubbleCount = 0
+		var renderedBubbleCount = 0
+		var processResult = "source"
+		appendPageLog(pageId, "metric.render_cache.hit=0")
+
 		// OCR result caching: skip re-OCR if we already processed this image
 		val ocrCacheKey = buildOcrCacheKey(sourceUri.toString(), sourceLang)
-		val textBlocks = textCache[ocrCacheKey]?.let { cached ->
-			log { "ocr cache hit" }
-			deserializeOcrBlocks(cached)
-		} ?: run {
-			val blocks = recognizeTextWithFallback(sourceUri, sourceLang)
-			if (blocks.isNotEmpty()) {
-				textCache[ocrCacheKey] = serializeOcrBlocks(blocks)
+		try {
+			val ocrStartMs = SystemClock.elapsedRealtime()
+			val textBlocks = textCache[ocrCacheKey]?.let { cached ->
+				ocrCacheHit = true
+				log { "ocr cache hit" }
+				deserializeOcrBlocks(cached)
+			} ?: run {
+				val blocks = recognizeTextWithFallback(sourceUri, sourceLang, pageId)
+				if (blocks.isNotEmpty()) {
+					textCache[ocrCacheKey] = serializeOcrBlocks(blocks)
+				}
+				blocks
 			}
-			blocks
-		}
-		log { "ocr done blocks=${textBlocks.size}" }
-		if (textBlocks.isEmpty()) {
-			log { "fail_code=$FAIL_CODE_OCR_EMPTY" }
-			return sourceUri
-		}
-		val sourceBitmap = runInterruptible(Dispatchers.IO) {
-			BitmapDecoderCompat.decode(sourceUri.toFile())
-		}
-		val bitmap = sourceBitmap.copy(Bitmap.Config.ARGB_8888, true)
-		if (bitmap !== sourceBitmap) {
-			sourceBitmap.recycle()
-		}
-		val canvas = Canvas(bitmap)
+			ocrDurationMs = SystemClock.elapsedRealtime() - ocrStartMs
+			ocrBlocks = textBlocks.size
+			log { "ocr done blocks=${textBlocks.size}" }
+			if (textBlocks.isEmpty()) {
+				log { "fail_code=$FAIL_CODE_OCR_EMPTY" }
+				return sourceUri
+			}
+			val sourceBitmap = runInterruptible(Dispatchers.IO) {
+				BitmapDecoderCompat.decode(sourceUri.toFile())
+			}
+			val bitmap = sourceBitmap.copy(Bitmap.Config.ARGB_8888, true)
+			if (bitmap !== sourceBitmap) {
+				sourceBitmap.recycle()
+			}
+			val canvas = Canvas(bitmap)
 
-		val drawableBlocks = textBlocks.filter { it.boundingBox != null && it.text.trim().isNotBlank() }
-		val sourceFragments = drawableBlocks.map {
-			TextFragment(
-				rect = it.boundingBox!!,
-				text = it.text.trim(),
-			)
-		}
-		val groupedFragments = groupFragmentsByBubble(sourceFragments, bitmap)
+			val drawableBlocks = textBlocks.filter { it.boundingBox != null && it.text.trim().isNotBlank() }
+			val sourceFragments = drawableBlocks.map {
+				TextFragment(
+					rect = it.boundingBox!!,
+					text = it.text.trim(),
+				)
+			}
+			val groupedFragments = groupFragmentsByBubble(sourceFragments, bitmap)
 			val bubbleInputs = groupedFragments.mapNotNull { group ->
 				val mergedRect = mergeRects(group.map { it.rect }) ?: return@mapNotNull null
 				val sourceText = composeGroupedText(group, sourceLang).trim()
@@ -249,61 +269,80 @@ class ReaderPageTranslationProcessor @Inject constructor(
 					sourceText = sourceText,
 				verticalPreferred = verticalPreferred,
 			)
-		}
-		val translatedMap = translateBlocksCached(
-			texts = bubbleInputs.map { it.sourceText },
-			sourceLang = sourceLang,
-			targetLang = targetLang,
-		)
-		val preparedBubbles = mutableListOf<PreparedBubble>()
-		var nonEmptyTranslatedCount = 0
-		for (bubble in bubbleInputs) {
-			val translated = translatedMap[bubble.sourceText].orEmpty().trim()
-			log {
-				"bubble translate src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
 			}
-			if (translated.isBlank()) continue
-			nonEmptyTranslatedCount++
-			if (isLikelyGarbledText(translated)) continue
-			val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
-			prepareTranslatedBubble(
-				rect = bubble.rect,
-				text = translated,
-				bitmapWidth = bitmap.width,
-				bitmapHeight = bitmap.height,
-				verticalPreferred = bubble.verticalPreferred,
-				bubbleLikeRegion = bubbleLikeRegion,
-			)?.let { preparedBubbles.add(it) }
-		}
-		// Two-pass render: draw all bubble backgrounds first, then all texts to avoid later bubbles covering earlier texts.
-		for (bubble in preparedBubbles) {
-			drawBubbleBackground(canvas, bubble)
-		}
-		for (bubble in preparedBubbles) {
-			drawBubbleText(canvas, bubble)
-		}
-		log { "render done translatedBubbles=${preparedBubbles.size}" }
-		if (preparedBubbles.isEmpty()) {
-			val failCode = if (nonEmptyTranslatedCount == 0) {
-				FAIL_CODE_TRANSLATE_EMPTY
-			} else {
-				FAIL_CODE_RENDER_FILTERED
+			bubbleCount = bubbleInputs.size
+			val translateStartMs = SystemClock.elapsedRealtime()
+			val translatedMap = translateBlocksCached(
+				texts = bubbleInputs.map { it.sourceText },
+				sourceLang = sourceLang,
+				targetLang = targetLang,
+			)
+			translateDurationMs = SystemClock.elapsedRealtime() - translateStartMs
+			val renderStartMs = SystemClock.elapsedRealtime()
+			val preparedBubbles = mutableListOf<PreparedBubble>()
+			var nonEmptyTranslatedCount = 0
+			for (bubble in bubbleInputs) {
+				val translated = translatedMap[bubble.sourceText].orEmpty().trim()
+				log {
+					"bubble translate src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
+				}
+				if (translated.isBlank()) continue
+				nonEmptyTranslatedCount++
+				if (isLikelyGarbledText(translated)) continue
+				val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
+				prepareTranslatedBubble(
+					rect = bubble.rect,
+					text = translated,
+					bitmapWidth = bitmap.width,
+					bitmapHeight = bitmap.height,
+					verticalPreferred = bubble.verticalPreferred,
+					bubbleLikeRegion = bubbleLikeRegion,
+				)?.let { preparedBubbles.add(it) }
 			}
-			log { "fail_code=$failCode" }
+			// Two-pass render: draw all bubble backgrounds first, then all texts to avoid later bubbles covering earlier texts.
+			for (bubble in preparedBubbles) {
+				drawBubbleBackground(canvas, bubble)
+			}
+			for (bubble in preparedBubbles) {
+				drawBubbleText(canvas, bubble)
+			}
+			log { "render done translatedBubbles=${preparedBubbles.size}" }
+			renderedBubbleCount = preparedBubbles.size
+			if (preparedBubbles.isEmpty()) {
+				val failCode = if (nonEmptyTranslatedCount == 0) {
+					FAIL_CODE_TRANSLATE_EMPTY
+				} else {
+					FAIL_CODE_RENDER_FILTERED
+				}
+				renderDurationMs = SystemClock.elapsedRealtime() - renderStartMs
+				log { "fail_code=$failCode" }
+				bitmap.recycle()
+				return sourceUri
+			}
+			val output = cache.set(renderCacheKey, bitmap).toUri()
+			rememberRenderedSource(output, sourceUri)
+			renderDurationMs = SystemClock.elapsedRealtime() - renderStartMs
+			processResult = "rendered"
 			bitmap.recycle()
-			return sourceUri
+			return output
+		} finally {
+			log { "metric.ocr.cache_hit=${if (ocrCacheHit) 1 else 0}" }
+			if (ocrDurationMs >= 0L) log { "metric.ocr.total_ms=$ocrDurationMs" }
+			log { "metric.ocr.blocks=$ocrBlocks" }
+			log { "metric.translation.bubbles=$bubbleCount" }
+			if (translateDurationMs >= 0L) log { "metric.translation.total_ms=$translateDurationMs" }
+			if (renderDurationMs >= 0L) log { "metric.render.total_ms=$renderDurationMs" }
+			log { "metric.render.translated_bubbles=$renderedBubbleCount" }
+			log { "metric.process.result=$processResult" }
+			log { "metric.process.total_ms=${SystemClock.elapsedRealtime() - totalStartMs}" }
 		}
-		val output = cache.set(renderCacheKey, bitmap).toUri()
-		rememberRenderedSource(output, sourceUri)
-		bitmap.recycle()
-		return output
 	}
 
 	private fun rememberRenderedSource(renderedUri: Uri, sourceUri: Uri) {
 		renderedSourceMap.put(renderedUri.toString(), sourceUri.toString())
 	}
 
-	private suspend fun recognizeTextWithFallback(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
+	private suspend fun recognizeTextWithFallback(sourceUri: Uri, sourceLang: String, pageId: Long): List<OcrTextBlock> {
 		val primary = when (settings.readerTranslationOcrEngine) {
 			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
 			else -> settings.readerTranslationOcrEngine
@@ -323,17 +362,23 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		var bestResult: List<OcrTextBlock> = emptyList()
 		var bestEngine: ReaderOcrEngine? = null
 		for (engine in order) {
+			val attemptStartMs = SystemClock.elapsedRealtime()
 			val result = runCatching {
-				recognizeTextByEngine(engine, sourceUri, sourceLang)
+				recognizeTextByEngine(engine, sourceUri, sourceLang, pageId)
 			}.onFailure {
 				it.printStackTraceDebug()
 			}.getOrDefault(emptyList())
+			val attemptDurationMs = SystemClock.elapsedRealtime() - attemptStartMs
+			log { "metric.ocr.attempt.${engine.name.lowercase()}.ms=$attemptDurationMs" }
+			log { "metric.ocr.attempt.${engine.name.lowercase()}.blocks=${result.size}" }
 			if (result.isNotEmpty()) {
 				if (result.size > bestResult.size) {
 					bestResult = result
 					bestEngine = engine
 				}
 				if (result.size >= minAcceptableBlocks || engine == ReaderOcrEngine.MLKIT) {
+					log { "metric.ocr.selected_engine=${engine.name.lowercase()}" }
+					log { "metric.ocr.selected_blocks=${result.size}" }
 					log { "ocr engine=$engine blocks=${result.size}" }
 					return result
 				}
@@ -345,6 +390,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			log { "ocr engine=$engine blocks=0, trying fallback" }
 		}
 		if (bestResult.isNotEmpty()) {
+			bestEngine?.let {
+				log { "metric.ocr.selected_engine=${it.name.lowercase()}" }
+			}
+			log { "metric.ocr.selected_blocks=${bestResult.size}" }
 			log { "ocr fallback use best engine=$bestEngine blocks=${bestResult.size}" }
 		}
 		return bestResult
@@ -354,13 +403,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		engine: ReaderOcrEngine,
 		sourceUri: Uri,
 		sourceLang: String,
+		pageId: Long,
 	): List<OcrTextBlock> {
 		return when (engine) {
-			ReaderOcrEngine.MLKIT -> mlKitOcrEngine.recognize(sourceUri, sourceLang)
+			ReaderOcrEngine.MLKIT -> mlKitOcrEngine.recognize(sourceUri, sourceLang, pageId)
 			ReaderOcrEngine.PADDLE -> emptyList()
-			ReaderOcrEngine.TFLITE -> tfliteOcrEngine.recognize(sourceUri, sourceLang)
-			ReaderOcrEngine.HYBRID -> hybridOcrEngine.recognize(sourceUri, sourceLang)
-			ReaderOcrEngine.NCNN -> ncnnOcrEngine.recognize(sourceUri, sourceLang)
+			ReaderOcrEngine.TFLITE -> tfliteOcrEngine.recognize(sourceUri, sourceLang, pageId)
+			ReaderOcrEngine.HYBRID -> hybridOcrEngine.recognize(sourceUri, sourceLang, pageId)
+			ReaderOcrEngine.NCNN -> ncnnOcrEngine.recognize(sourceUri, sourceLang, pageId)
 		}
 	}
 
@@ -523,14 +573,96 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			targetLang: String,
 		): Map<String, String> {
 			if (texts.isEmpty()) return emptyMap()
-			log { "openai single requests count=${texts.size}" }
 			val mapped = LinkedHashMap<String, String>(texts.size)
-			for (text in texts) {
-				val translated = requestOpenAiSingle(text, sourceLang, targetLang)
-				mapped[text] = translated
+			val batches = buildOpenAiMicroBatches(texts)
+			log { "openai batch requests count=${batches.size} texts=${texts.size}" }
+			for (batch in batches) {
+				if (batch.size == 1) {
+					val text = batch.first()
+					mapped[text] = requestOpenAiSingle(text, sourceLang, targetLang)
+					continue
+				}
+				val batchMap = requestOpenAiBatch(batch, sourceLang, targetLang)
+				if (batchMap.isEmpty()) {
+					batch.forEach { text ->
+						mapped[text] = requestOpenAiSingle(text, sourceLang, targetLang)
+					}
+					continue
+				}
+				for (text in batch) {
+					mapped[text] = batchMap[text].orEmpty()
+				}
 			}
 			return mapped
 		}
+
+	private suspend fun requestOpenAiBatch(
+		texts: List<String>,
+		sourceLang: String,
+		targetLang: String,
+	): Map<String, String> {
+		if (texts.isEmpty()) return emptyMap()
+		val endpoint = settings.readerTranslationApiEndpoint.trim()
+		val apiKey = settings.readerTranslationApiKey.trim()
+		val model = settings.readerTranslationApiModel.trim().ifBlank { DEFAULT_OPENAI_MODEL }
+		val userPrompt = buildString {
+			appendLine("Translate manga OCR text from $sourceLang to $targetLang.")
+			appendLine("Return strict JSON only.")
+			appendLine("Use this array format:")
+			appendLine("""[{"id":1,"translation":"..."},{"id":2,"translation":"..."}]""")
+			appendLine("Keep ids unchanged. If unreadable or uncertain, use empty translation.")
+			appendLine()
+			appendLine("Texts:")
+			texts.forEachIndexed { index, text ->
+				appendLine("${index + 1}. $text")
+			}
+		}
+		val payload = JSONObject().apply {
+			put("model", model)
+			put("temperature", 0)
+			if (isDeepSeekEndpoint(endpoint)) {
+				put("thinking", JSONObject().put("type", "disabled"))
+			}
+			put(
+				"messages",
+				JSONArray()
+					.put(JSONObject().put("role", "system").put("content", OPENAI_TRANSLATION_SYSTEM_PROMPT))
+					.put(JSONObject().put("role", "user").put("content", userPrompt))
+			)
+		}
+		return runCatching {
+			val requestBuilder = Request.Builder()
+				.url(endpoint)
+				.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+				.header("Content-Type", "application/json")
+			if (apiKey.isNotBlank()) {
+				requestBuilder.header("Authorization", "Bearer $apiKey")
+				requestBuilder.header("X-API-Key", apiKey)
+			}
+			val response = okHttpClient.newCall(requestBuilder.build()).await()
+			response.use { resp ->
+				val rawBody = resp.body.readJsonTextUtf8()
+				if (!resp.isSuccessful) {
+					log { "openai batch request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
+					return@use emptyMap()
+				}
+				if (rawBody.isBlank()) return@use emptyMap()
+				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use emptyMap()
+				val content = extractOpenAiMessageContent(json).orEmpty()
+				if (content.isBlank()) return@use emptyMap()
+				log { "openai batch raw reply=${oneLine(content, 400)}" }
+				val parsed = parseBatchTranslationJson(content, texts.size)
+				if (parsed.isEmpty()) return@use emptyMap()
+				LinkedHashMap<String, String>(texts.size).apply {
+					texts.forEachIndexed { index, text ->
+						put(text, sanitizeTranslation(parsed[index + 1].orEmpty()))
+					}
+				}
+			}
+		}.onFailure {
+			log { "openai batch request failed size=${texts.size} err=${it.message.orEmpty()}" }
+		}.getOrDefault(emptyMap())
+	}
 
 	private suspend fun requestOpenAiSingle(
 		text: String,
@@ -573,7 +705,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			}
 			val response = okHttpClient.newCall(requestBuilder.build()).await()
 			response.use { resp ->
-				val rawBody = resp.body?.string().orEmpty()
+				val rawBody = resp.body.readJsonTextUtf8()
 				if (!resp.isSuccessful) {
 					log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
 					return@use ""
@@ -672,7 +804,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				log { "api translate failed code=${resp.code} msg=${resp.message}" }
 				return ""
 			}
-			val body = resp.body?.string().orEmpty()
+			val body = resp.body.readJsonTextUtf8()
 			val sanitized = sanitizeTranslation(body)
 			log { "api raw reply=${oneLine(body, 300)} sanitized=${oneLine(sanitized)} src=${oneLine(text)}" }
 			if (sanitized.isNotBlank()) {
@@ -1512,8 +1644,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 	private inline fun log(message: () -> String) {
 		val msg = message()
-		val pageId = currentLoggingPageId
-		if (pageId != NO_LOGGING_PAGE_ID) {
+		val pageId = loggingPageId.get()
+		if (pageId != null && pageId != NO_LOGGING_PAGE_ID) {
 			appendPageLog(pageId, msg)
 		}
 		if (settings.isReaderTranslationDebugLogsEnabled) {
@@ -1522,17 +1654,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	private fun appendPageLog(pageId: Long, message: String) {
-		synchronized(pageLogLock) {
-			val queue = pageDebugLogs[pageId] ?: ArrayDeque<String>().also { pageDebugLogs.put(pageId, it) }
-			if (queue.size >= MAX_PAGE_LOG_LINES) {
-				repeat(queue.size - MAX_PAGE_LOG_LINES + 1) { queue.removeFirstOrNull() }
-			}
-			queue.addLast(message)
-		}
+		debugLogStore.append(pageId, message)
 	}
 
 	private fun getPageRenderEpoch(pageId: Long): Int {
-		synchronized(pageLogLock) {
+		synchronized(pageStateLock) {
 			return pageRenderEpochs[pageId] ?: 0
 		}
 	}
@@ -1588,11 +1714,19 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return "${OCR_CACHE_PREFIX}${raw.sha256()}"
 	}
 
+	private fun ResponseBody?.readJsonTextUtf8(): String {
+		if (this == null) return ""
+		return runCatching {
+			bytes().toString(Charsets.UTF_8)
+		}.getOrDefault("")
+	}
+
 	private fun serializeOcrBlocks(blocks: List<OcrTextBlock>): String {
 		val arr = JSONArray()
 		for (block in blocks) {
 			val obj = JSONObject()
 			obj.put("text", block.text)
+			obj.put("confidence", block.confidence)
 			block.boundingBox?.let { box ->
 				obj.put("left", box.left)
 				obj.put("top", box.top)
@@ -1612,7 +1746,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			val box = if (obj.has("left")) {
 				Rect(obj.getInt("left"), obj.getInt("top"), obj.getInt("right"), obj.getInt("bottom"))
 			} else null
-			result.add(OcrTextBlock(text = obj.getString("text"), boundingBox = box))
+			result.add(
+				OcrTextBlock(
+					text = obj.getString("text"),
+					boundingBox = box,
+					confidence = obj.optDouble("confidence", 1.0).toFloat(),
+				)
+			)
 		}
 		return result
 	}
@@ -1631,11 +1771,12 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 			const val MAX_OPENAI_BATCH_SIZE = 3
 			const val TRANSLATION_PIPELINE_VERSION = "2026-03-10-mnn-api-4"
-			const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
+		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
 		You translate manga OCR text.
 		Output only the translation.
 		Do not explain.
 """
+		const val MAX_PARALLEL_TRANSLATION_PAGES = 2
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
 		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f)
 		const val TEXT_CACHE_PREFIX = "reader_translate_text_"

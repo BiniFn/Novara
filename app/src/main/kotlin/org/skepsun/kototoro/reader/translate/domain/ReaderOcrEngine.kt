@@ -4,5 +4,5 @@ import android.net.Uri
 
 interface ReaderOcrService {
 
-	suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock>
+	suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long? = null): List<OcrTextBlock>
 }

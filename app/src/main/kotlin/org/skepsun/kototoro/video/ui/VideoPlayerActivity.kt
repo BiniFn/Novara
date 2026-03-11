@@ -337,6 +337,28 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         danmakuController.attach(danmakuView)
     }
 
+    private fun initializeMpvRuntime(): Boolean {
+        return runCatching {
+            mpvView.initialize(filesDir.path, cacheDir.path)
+            mpvPlayer = MpvPlayer().also { player ->
+                player.initialize()
+                player.addListener(mpvListener)
+            }
+        }.onFailure { error ->
+            Log.e("VideoPlayerActivity", "Failed to initialize mpv runtime", error)
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.error_occurred)
+                .setMessage(R.string.video_player_native_init_failed)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    finish()
+                }
+                .setOnDismissListener {
+                    if (!isFinishing) finish()
+                }
+                .show()
+        }.isSuccess
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(ActivityVideoPlayerBinding.inflate(layoutInflater))
@@ -352,10 +374,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.toolbar.bringToFront()
         applyPlaybackBackground()
         mpvView = findViewById(org.skepsun.kototoro.R.id.player_view)
-        mpvView.initialize(filesDir.path, cacheDir.path)
-        mpvPlayer = MpvPlayer().also { player ->
-            player.initialize()
-            player.addListener(mpvListener)
+        if (!initializeMpvRuntime()) {
+            return
         }
         bindDanmakuOverlay()
         danmakuController.setPlaybackPositionProvider(

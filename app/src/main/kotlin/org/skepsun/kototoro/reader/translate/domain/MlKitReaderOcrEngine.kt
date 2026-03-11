@@ -20,7 +20,7 @@ class MlKitReaderOcrEngine @Inject constructor(
 	private val settings: AppSettings,
 ) : ReaderOcrService {
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
+	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
 		log { "recognize start lang=$sourceLang uri=$sourceUri" }
 		val image = InputImage.fromFilePath(context, sourceUri)
 		val recognizer = when (sourceLang) {

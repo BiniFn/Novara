@@ -9,7 +9,7 @@ class PaddleReaderOcrEngine @Inject constructor(
 	private val ncnnReaderOcrEngine: NcnnReaderOcrEngine,
 ) : ReaderOcrService {
 
-	override suspend fun recognize(sourceUri: Uri, sourceLang: String): List<OcrTextBlock> {
-		return ncnnReaderOcrEngine.recognize(sourceUri, sourceLang)
+	override suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long?): List<OcrTextBlock> {
+		return ncnnReaderOcrEngine.recognize(sourceUri, sourceLang, pageId)
 	}
 }

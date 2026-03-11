@@ -307,7 +307,6 @@ dependencies {
 	implementation libs.djl.tokenizers
 	implementation files('libs/tokenizer-native-0.33.0.aar')
 	implementation libs.djl.sentencepiece
-	implementation libs.paddleocr4android
 	implementation libs.ncnnandroidppocr
 	implementation libs.litert
 

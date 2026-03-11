@@ -6,6 +6,7 @@
     <string name="favourites">Favorites</string>
     <string name="history">History</string>
     <string name="error_occurred">An error occurred</string>
+    <string name="video_player_native_init_failed">Video playback engine failed to initialize on this device. Check bundled native libraries and C++ runtime packaging.</string>
     <string name="network_error">Network error</string>
     <string name="details">Details</string>
     <string name="chapters">Chapters</string>
@@ -1528,10 +1529,12 @@
     <string name="reader_translation_ocr_model_rec_ppocr_v5">PP-OCRv5 Rec (follow Det model)</string>
 	<string name="reader_translation_ocr_model_paddle_selection">PaddleOCR model selection</string>
 	<string name="reader_translation_settings_advanced">Advanced settings</string>
-	<string name="reader_translation_bubble_grouping_tuning">Bubble grouping strictness</string>
-	<string name="reader_translation_bubble_grouping_tuning_summary">Controls how aggressively nearby text blocks are merged into one bubble</string>
-	<string name="reader_translation_overlay_compactness">Non-bubble overlay compactness</string>
-	<string name="reader_translation_overlay_compactness_summary">Controls how tightly translated overlays fit text outside speech bubbles</string>
+    <string name="reader_translation_bubble_grouping_tuning">Bubble grouping strictness</string>
+    <string name="reader_translation_bubble_grouping_tuning_summary">Controls how aggressively nearby text blocks are merged into one bubble</string>
+    <string name="reader_translation_overlay_compactness">Non-bubble overlay compactness</string>
+    <string name="reader_translation_overlay_compactness_summary">Controls how tightly translated overlays fit text outside speech bubbles</string>
+    <string name="reader_translation_hybrid_fallback_threshold">Hybrid fallback threshold</string>
+    <string name="reader_translation_hybrid_fallback_threshold_summary">NCNN results below %1$d%% confidence fall back to MangaOCR</string>
 	<string name="reader_translation_tuning_strict">Strict</string>
 	<string name="reader_translation_tuning_balanced">Balanced</string>
 	<string name="reader_translation_tuning_relaxed">Relaxed</string>
