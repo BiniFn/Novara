@@ -52,6 +52,9 @@ export default defineConfig({
         items: [
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
           { text: "OCR Pipeline", link: "/architecture/ocr-pipeline-v2" },
+          { text: "Extensions Management Design", link: "/architecture/extensions-management-unification" },
+          { text: "Extensions Management Plan", link: "/architecture/extensions-management-implementation-plan" },
+          { text: "Extensions Management Handoff (2026-03)", link: "/architecture/extensions-management-handoff-2026-03" },
         ],
       },
       {

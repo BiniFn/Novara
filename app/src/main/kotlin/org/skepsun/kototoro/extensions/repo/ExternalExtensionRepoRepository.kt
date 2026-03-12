@@ -25,13 +25,33 @@ class ExternalExtensionRepoRepository @Inject constructor(
 	}
 
 	suspend fun addRepo(type: ExternalExtensionType, indexUrl: String): AddRepoResult {
-		val normalizedIndexUrl = service.normalizeIndexUrl(indexUrl) ?: return AddRepoResult.InvalidUrl
+		return when (val prepared = prepareAddRepo(type, indexUrl)) {
+			is PrepareAddRepoResult.Ready -> confirmAddRepo(prepared.repo)
+			is PrepareAddRepoResult.DuplicateFingerprint -> AddRepoResult.DuplicateFingerprint(prepared.existingRepo)
+			PrepareAddRepoResult.InvalidUrl -> AddRepoResult.InvalidUrl
+			PrepareAddRepoResult.RepoAlreadyExists -> AddRepoResult.RepoAlreadyExists
+		}
+	}
+
+	suspend fun prepareAddRepo(type: ExternalExtensionType, indexUrl: String): PrepareAddRepoResult {
+		val normalizedIndexUrl = service.normalizeIndexUrl(indexUrl) ?: return PrepareAddRepoResult.InvalidUrl
 		val baseUrl = service.baseUrlFromIndexUrl(normalizedIndexUrl)
 		if (dao.get(type, baseUrl) != null) {
+			return PrepareAddRepoResult.RepoAlreadyExists
+		}
+		val repo = service.fetchRepoDetails(baseUrl, type) ?: return PrepareAddRepoResult.InvalidUrl
+		val duplicate = dao.getByFingerprint(type, repo.signingKeyFingerprint)
+		if (duplicate != null) {
+			return PrepareAddRepoResult.DuplicateFingerprint(duplicate.toDomain())
+		}
+		return PrepareAddRepoResult.Ready(repo)
+	}
+
+	suspend fun confirmAddRepo(repo: ExternalExtensionRepo): AddRepoResult {
+		if (dao.get(repo.type, repo.baseUrl) != null) {
 			return AddRepoResult.RepoAlreadyExists
 		}
-		val repo = service.fetchRepoDetails(baseUrl, type) ?: return AddRepoResult.InvalidUrl
-		val duplicate = dao.getByFingerprint(type, repo.signingKeyFingerprint)
+		val duplicate = dao.getByFingerprint(repo.type, repo.signingKeyFingerprint)
 		if (duplicate != null) {
 			return AddRepoResult.DuplicateFingerprint(duplicate.toDomain())
 		}
@@ -67,6 +87,11 @@ class ExternalExtensionRepoRepository @Inject constructor(
 	}
 
 	suspend fun getAvailableExtensions(type: ExternalExtensionType): List<RepoAvailableExtension> = coroutineScope {
+		getCatalogExtensions(type)
+			.filter { it.isCompatible }
+	}
+
+	suspend fun getCatalogExtensions(type: ExternalExtensionType): List<RepoAvailableExtension> = coroutineScope {
 		getByType(type)
 			.map { repo -> async { service.fetchAvailableExtensions(repo) } }
 			.awaitAll()
@@ -80,6 +105,13 @@ class ExternalExtensionRepoRepository @Inject constructor(
 		data class DuplicateFingerprint(val existingRepo: ExternalExtensionRepo) : AddRepoResult
 		data object InvalidUrl : AddRepoResult
 		data object RepoAlreadyExists : AddRepoResult
+	}
+
+	sealed interface PrepareAddRepoResult {
+		data class Ready(val repo: ExternalExtensionRepo) : PrepareAddRepoResult
+		data class DuplicateFingerprint(val existingRepo: ExternalExtensionRepo) : PrepareAddRepoResult
+		data object InvalidUrl : PrepareAddRepoResult
+		data object RepoAlreadyExists : PrepareAddRepoResult
 	}
 }
 

@@ -61,16 +61,10 @@ class SourcesSettingsFragment : BasePreferenceFragment(R.string.remote_sources),
 				pref.summary = getString(R.string.available_sources_count, it)
 			}
 		}
-		findPreference<Preference>(AppSettings.KEY_MIHON_EXTENSIONS)?.let { pref ->
-			pref.setTitle(R.string.mihon_sources_directory)
-			viewModel.mihonSourcesCount.observe(viewLifecycleOwner) {
-				pref.summary = getString(R.string.available_sources_count, it)
-			}
-		}
-		findPreference<Preference>(AppSettings.KEY_ANIYOMI_EXTENSIONS)?.let { pref ->
-			pref.setTitle(R.string.aniyomi_sources_directory)
-			viewModel.aniyomiSourcesCount.observe(viewLifecycleOwner) {
-				pref.summary = getString(R.string.available_sources_count, it)
+		findPreference<Preference>(AppSettings.KEY_EXTENSIONS)?.let { pref ->
+			pref.setTitle(R.string.extensions)
+			viewModel.extensionsSummary.observe(viewLifecycleOwner) {
+				pref.summary = it
 			}
 		}
 		findPreference<TwoStatePreference>(AppSettings.KEY_HANDLE_LINKS)?.let { pref ->

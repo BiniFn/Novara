@@ -21,6 +21,17 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <org.skepsun.kototoro.core.image.CoilImageView
+                android:id="@+id/imageIcon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/colorSurfaceContainer"
+                android:contentDescription="@null"
+                android:padding="6dp"
+                android:scaleType="centerInside"
+                tools:src="@drawable/ic_source_mihon" />
+
             <TextView
                 android:id="@+id/textName"
                 android:layout_width="0dp"
@@ -135,13 +146,31 @@
             android:textColor="?attr/colorOnSurfaceVariant"
             tools:text="Asura Scans, Asura Scans (Spanish)" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/buttonInstall"
-            style="?attr/materialButtonOutlinedStyle"
+        <LinearLayout
+            android:id="@+id/actionsGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            tools:text="Install" />
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonSecondary"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone"
+                tools:text="Remove"
+                tools:visibility="visible" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonPrimary"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="Install" />
+        </LinearLayout>
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

@@ -36,6 +36,7 @@ features:
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, or Legado ecosystems.
 - Read [Automatic Translation](./automatic-translation.md) if you want local OCR + translation inside the reader.
 - Read [Development](./development.md) and [Contributing](./contributing.md) if you want to build or modify the app.
+- Read [Extensions Management Handoff](./architecture/extensions-management-handoff-2026-03.md) if you want to continue the unified Mihon / Aniyomi extension management work.
 
 ## What Makes Kototoro Different
 

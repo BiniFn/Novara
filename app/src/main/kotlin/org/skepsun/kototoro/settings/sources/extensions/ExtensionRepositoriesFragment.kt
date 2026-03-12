@@ -90,6 +90,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		viewModel.onMessage.observeEvent(viewLifecycleOwner) { message ->
 			Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
 		}
+		viewModel.onTrustPrompt.observeEvent(viewLifecycleOwner, ::openTrustDialog)
 	}
 
 	private fun openAddDialog() {
@@ -118,6 +119,27 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 
 	private fun openWebsite(repo: ExternalExtensionRepo) {
 		startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, repo.website.toUri()))
+	}
+
+	private fun openTrustDialog(repo: ExternalExtensionRepo) {
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(R.string.trust_extension_repository)
+			.setMessage(
+				getString(
+					R.string.trust_extension_repository_message,
+					repo.displayName,
+					repo.website,
+					repo.signingKeyFingerprint.formatExtensionFingerprint(),
+				),
+			)
+			.setPositiveButton(R.string.trust_and_add) { _, _ ->
+				viewModel.confirmAddRepo(repo)
+			}
+			.setNeutralButton(R.string.open_website) { _, _ ->
+				openWebsite(repo)
+			}
+			.setNegativeButton(android.R.string.cancel, null)
+			.show()
 	}
 
 	private fun deleteRepo(repo: ExternalExtensionRepo) {

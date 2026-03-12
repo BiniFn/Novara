@@ -77,9 +77,6 @@ class ExtensionRepoService @Inject constructor(
 			ExternalExtensionType.MIHON -> libVersion in MihonExtensionLoader.LIB_VERSION_MIN..MihonExtensionLoader.LIB_VERSION_MAX
 			ExternalExtensionType.ANIYOMI -> libVersion in AniyomiExtensionLoader.LIB_VERSION_MIN..AniyomiExtensionLoader.LIB_VERSION_MAX
 		}
-		if (!supported) {
-			return null
-		}
 		val displayName = when (repo.type) {
 			ExternalExtensionType.MIHON -> name.removePrefix("Tachiyomi: ")
 			ExternalExtensionType.ANIYOMI -> name.removePrefix("Aniyomi: ")
@@ -99,6 +96,7 @@ class ExtensionRepoService @Inject constructor(
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
 			signatureHash = repo.signingKeyFingerprint,
+			isCompatible = supported,
 		)
 	}
 

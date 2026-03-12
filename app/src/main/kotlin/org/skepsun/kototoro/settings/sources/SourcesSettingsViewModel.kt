@@ -12,8 +12,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.explore.data.MangaSourcesRepository
 import javax.inject.Inject
@@ -49,6 +52,10 @@ class SourcesSettingsViewModel @Inject constructor(
 	val aniyomiSourcesCount = sourcesRepository.observeAniyomiSourcesCount()
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
+
+	val extensionsSummary = combine(mihonSourcesCount, aniyomiSourcesCount) { mihonCount, aniyomiCount ->
+		context.getString(R.string.extensions_summary_pattern, mihonCount, aniyomiCount)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, "")
 
 	val isLinksEnabled = MutableStateFlow(isLinksEnabled())
 

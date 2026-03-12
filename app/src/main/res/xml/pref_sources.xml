@@ -52,16 +52,10 @@
         android:title="@string/json_sources_directory" />
 
     <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.sources.mihon.MihonExtensionsFragment"
-        android:key="mihon_extensions"
+        android:fragment="org.skepsun.kototoro.settings.sources.extensions.ExtensionsRootFragment"
+        android:key="extensions"
         android:persistent="false"
-        android:title="@string/mihon_sources_directory" />
-
-    <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.sources.aniyomi.AniyomiExtensionsFragment"
-        android:key="aniyomi_extensions"
-        android:persistent="false"
-        android:title="@string/aniyomi_sources_directory" />
+        android:title="@string/extensions" />
 
     <SwitchPreferenceCompat
         android:defaultValue="false"

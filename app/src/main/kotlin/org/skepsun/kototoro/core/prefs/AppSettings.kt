@@ -1385,6 +1385,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
 		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
 		const val KEY_ENABLE_KOTATSU_SOURCES = "enable_kotatsu_sources"
+		const val KEY_EXTENSIONS = "extensions"
 		const val KEY_JSON_SOURCES = "json_sources"
 		const val KEY_MIHON_EXTENSIONS = "mihon_extensions"
 		const val KEY_ANIYOMI_EXTENSIONS = "aniyomi_extensions"

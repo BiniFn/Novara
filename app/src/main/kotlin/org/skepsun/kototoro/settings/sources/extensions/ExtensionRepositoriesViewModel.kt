@@ -32,10 +32,33 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
 	val onMessage = MutableEventFlow<String>()
+	val onTrustPrompt = MutableEventFlow<ExternalExtensionRepo>()
 
 	fun addRepo(indexUrl: String) {
 		launchLoadingJob(Dispatchers.IO) {
-			when (val result = repoRepository.addRepo(type, indexUrl)) {
+			when (val result = repoRepository.prepareAddRepo(type, indexUrl)) {
+				is ExternalExtensionRepoRepository.PrepareAddRepoResult.Ready -> {
+					onTrustPrompt.call(result.repo)
+				}
+
+				is ExternalExtensionRepoRepository.PrepareAddRepoResult.DuplicateFingerprint -> {
+					onMessage.call("Signing fingerprint already used by ${result.existingRepo.displayName}")
+				}
+
+				ExternalExtensionRepoRepository.PrepareAddRepoResult.InvalidUrl -> {
+					onMessage.call("Invalid repository URL")
+				}
+
+				ExternalExtensionRepoRepository.PrepareAddRepoResult.RepoAlreadyExists -> {
+					onMessage.call("Repository already exists")
+				}
+			}
+		}
+	}
+
+	fun confirmAddRepo(repo: ExternalExtensionRepo) {
+		launchLoadingJob(Dispatchers.IO) {
+			when (val result = repoRepository.confirmAddRepo(repo)) {
 				is ExternalExtensionRepoRepository.AddRepoResult.Success -> {
 					onMessage.call("Added ${result.repo.displayName}")
 				}

@@ -33,6 +33,7 @@ This directory is organized by task, not by internal implementation. Start with 
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
 - [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
 - [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)
+- [Extensions Management Handoff (March 2026)](./architecture/extensions-management-handoff-2026-03.md)
 
 ### For contributors
 

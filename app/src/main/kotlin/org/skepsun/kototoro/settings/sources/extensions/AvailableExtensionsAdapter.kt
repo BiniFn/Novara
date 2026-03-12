@@ -33,20 +33,31 @@ class AvailableExtensionsAdapter(
 			textLanguage.text = extension.lang.uppercase()
 			textPackage.text = extension.pkgName
 			textVersion.text = extension.versionName
+			if (extension.iconUrl.isBlank()) {
+				imageIcon.setImageAsync(getFallbackIcon(extension.type))
+			} else {
+				imageIcon.setImageAsync(extension.iconUrl)
+			}
 			textRepo.text = extension.repoName
 			textSourceCount.text = root.context.getString(R.string.extension_source_count, extension.sourceNames.size)
 			textSources.text = extension.sourceNames.joinToString(", ")
 			badgeNsfw.isVisible = extension.isNsfw
-			buttonInstall.text = when (item.state) {
+			buttonPrimary.text = when (item.state) {
 				AvailableExtensionState.AVAILABLE -> root.context.getString(R.string.install_extension)
 				AvailableExtensionState.UPDATE_AVAILABLE -> root.context.getString(R.string.update_extension)
 				AvailableExtensionState.INSTALLED -> root.context.getString(R.string.installed_extension)
 				AvailableExtensionState.INSTALLING -> root.context.getString(R.string.installing_extension)
 			}
-			buttonInstall.isEnabled = item.state == AvailableExtensionState.AVAILABLE || item.state == AvailableExtensionState.UPDATE_AVAILABLE
+			buttonPrimary.isEnabled = item.state == AvailableExtensionState.AVAILABLE || item.state == AvailableExtensionState.UPDATE_AVAILABLE
+			buttonSecondary.isVisible = false
 			textInstalledVersion.text = item.installedVersionName?.let { root.context.getString(R.string.installed_version_pattern, it) }
 			textInstalledVersion.isVisible = item.installedVersionName != null
-			buttonInstall.setOnClickListener { onInstall(item) }
+			buttonPrimary.setOnClickListener { onInstall(item) }
+		}
+
+		private fun getFallbackIcon(type: org.skepsun.kototoro.extensions.repo.ExternalExtensionType): Int = when (type) {
+			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.MIHON -> R.drawable.ic_source_mihon
+			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.ANIYOMI -> R.drawable.ic_source_aniyomi
 		}
 	}
 

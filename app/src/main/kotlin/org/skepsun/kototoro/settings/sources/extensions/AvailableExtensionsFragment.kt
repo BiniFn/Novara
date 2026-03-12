@@ -105,6 +105,7 @@ class AvailableExtensionsFragment : BaseFragment<FragmentInstalledExtensionsBind
 	private inner class AvailableMenuProvider : MenuProvider {
 		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
 			menuInflater.inflate(R.menu.menu_available_extensions, menu)
+			menu.findItem(R.id.action_search)?.isVisible = false
 		}
 
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {

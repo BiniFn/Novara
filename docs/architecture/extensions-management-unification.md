@@ -1,5 +1,11 @@
 # Unified Mihon / Aniyomi Extensions Management Design
 
+Current implementation status:
+
+- The design is no longer purely aspirational.
+- Repository persistence, remote catalogs, the shared browser screen, trust confirmation, and untrusted / incompatible grouping are already implemented in the app.
+- For the current code state and resume guidance, read [Extensions Management Handoff (March 2026)](./extensions-management-handoff-2026-03.md).
+
 ## Goal
 
 Kototoro should evolve from:

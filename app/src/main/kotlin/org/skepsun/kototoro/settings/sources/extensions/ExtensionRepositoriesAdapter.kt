@@ -34,7 +34,7 @@ class ExtensionRepositoriesAdapter(
 			textName.text = item.displayName
 			textWebsite.text = item.website
 			textUrl.text = "${item.baseUrl}/index.min.json"
-			textFingerprint.text = item.signingKeyFingerprint
+			textFingerprint.text = item.signingKeyFingerprint.formatExtensionFingerprint()
 			textStatus.text = if (item.lastError.isNullOrBlank()) {
 				"Last refreshed ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(item.lastSuccessAt))}"
 			} else {

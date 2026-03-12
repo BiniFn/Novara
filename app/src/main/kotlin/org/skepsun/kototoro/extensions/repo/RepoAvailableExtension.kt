@@ -15,4 +15,5 @@ data class RepoAvailableExtension(
 	val repoUrl: String,
 	val repoName: String,
 	val signatureHash: String,
+	val isCompatible: Boolean,
 )

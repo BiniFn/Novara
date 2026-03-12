@@ -5,6 +5,36 @@ This document turns the unified extensions management design into a practical ex
 Related design:
 
 - [Unified Mihon / Aniyomi Extensions Management Design](./extensions-management-unification.md)
+- [Extensions Management Handoff (March 2026)](./extensions-management-handoff-2026-03.md)
+
+## Status Snapshot (March 2026)
+
+The implementation no longer matches the original empty-plan state. Current progress is:
+
+- Phase 1 is effectively complete:
+  - one shared extensions entry exists
+  - the main navigation now lands on a shared root with `Manga` and `Video` tabs
+- Phase 2 is complete:
+  - repository persistence, normalization, refresh, and duplicate checks are implemented
+- Phase 3 is largely complete:
+  - remote catalog parsing works
+  - installed and remote entries are merged
+  - `updates`, `untrusted`, `incompatible`, `installed`, and `available` sections are rendered
+- Phase 4 is largely complete:
+  - the unified browser screen exists
+  - search, install, update, uninstall, and repository management entry points are wired
+- Phase 5 is partially complete:
+  - APK download and system installation handoff exist
+  - progress / cancellation are not implemented
+- Phase 6 is partially complete:
+  - trust confirmation and installed-signature validation exist
+  - tests and some final UX polish are still missing
+- Phase 7 is not complete:
+  - `Update all`, cleanup of legacy screens, and broader polish are still open
+
+For the practical resume checklist and current product decisions, use the dedicated handoff document:
+
+- [Extensions Management Handoff (March 2026)](./extensions-management-handoff-2026-03.md)
 
 ## Delivery Strategy
 
