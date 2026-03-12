@@ -9,15 +9,16 @@ internal class KotatsuConfigAdapter(
 	private val delegate: MangaSourceConfig,
 ) : KTMangaSourceConfig {
 
-	@Suppress("UNCHECKED_CAST")
 	override fun <T> get(key: KTConfigKey<T>): T {
-		val mapped: ConfigKey<T> = when (key) {
-			is KTConfigKey.Domain -> ConfigKey.Domain(*key.presetValues) as ConfigKey<T>
-			is KTConfigKey.ShowSuspiciousContent -> ConfigKey.ShowSuspiciousContent(key.defaultValue) as ConfigKey<T>
-			is KTConfigKey.UserAgent -> ConfigKey.UserAgent(key.defaultValue) as ConfigKey<T>
-			is KTConfigKey.SplitByTranslations -> ConfigKey.SplitByTranslations(key.defaultValue) as ConfigKey<T>
-			is KTConfigKey.PreferredImageServer -> ConfigKey.PreferredImageServer(key.presetValues, key.defaultValue) as ConfigKey<T>
-		}
-		return delegate[mapped]
+		return delegate[key.toKototoro()]
 	}
+}
+
+@Suppress("UNCHECKED_CAST")
+internal fun <T> KTConfigKey<T>.toKototoro(): ConfigKey<T> = when (this) {
+	is KTConfigKey.Domain -> ConfigKey.Domain(*presetValues) as ConfigKey<T>
+	is KTConfigKey.ShowSuspiciousContent -> ConfigKey.ShowSuspiciousContent(defaultValue) as ConfigKey<T>
+	is KTConfigKey.UserAgent -> ConfigKey.UserAgent(defaultValue) as ConfigKey<T>
+	is KTConfigKey.SplitByTranslations -> ConfigKey.SplitByTranslations(defaultValue) as ConfigKey<T>
+	is KTConfigKey.PreferredImageServer -> ConfigKey.PreferredImageServer(presetValues, defaultValue) as ConfigKey<T>
 }

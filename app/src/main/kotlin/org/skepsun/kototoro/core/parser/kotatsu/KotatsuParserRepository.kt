@@ -69,17 +69,14 @@ class KotatsuParserRepository(
 
 	fun getConfig() = loaderContext.getConfig(source) as org.skepsun.kototoro.core.prefs.SourceSettings
 
-	private val configKeyDomain = ConfigKey.Domain("example.com")
-	private val configKeyUserAgent = ConfigKey.UserAgent(loaderContext.getDefaultUserAgent())
-
 	var domain: String
-		get() = getConfig()[configKeyDomain]
+		get() = parser.domain
 		set(value) {
-			getConfig()[configKeyDomain] = value
+			getConfig()[parser.configKeyDomain.toKototoro()] = value
 		}
 
-	override suspend fun getConfigKeys(): List<ConfigKey<*>> = listOf(
-		configKeyDomain,
-		configKeyUserAgent,
-	)
+	override suspend fun getConfigKeys(): List<ConfigKey<*>> =
+		ArrayList<org.koitharu.kotatsu.parsers.config.ConfigKey<*>>().also {
+			parser.onCreateConfig(it)
+		}.map { it.toKototoro() }
 }
