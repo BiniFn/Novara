@@ -33,8 +33,8 @@ android {
 		applicationId 'org.skepsun.kototoro'
 		minSdk = 26
 		targetSdk = 36
-        versionCode = 1089
-        versionName = '0.5.4'
+        versionCode = 1090
+        versionName = '0.5.5'
 		generatedDensities = []
 		testInstrumentationRunner 'org.skepsun.kototoro.HiltTestRunner'
 		ksp {
@@ -96,11 +96,7 @@ android {
 				'lib/arm64-v8a/libquickjs.so',
 				'lib/armeabi-v7a/libquickjs.so',
 				'lib/x86/libquickjs.so',
-				'lib/x86_64/libquickjs.so',
-				'lib/arm64-v8a/libc++_shared.so',
-				'lib/armeabi-v7a/libc++_shared.so',
-				'lib/x86/libc++_shared.so',
-				'lib/x86_64/libc++_shared.so'
+				'lib/x86_64/libquickjs.so'
 			]
 		}
 		resources {

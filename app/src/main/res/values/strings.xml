@@ -724,6 +724,8 @@
     <string name="reader_translation_show_translated_summary">Toggle between original image and translated rendering</string>
     <string name="reader_translation_debug_logs">Translation debug logs</string>
     <string name="reader_translation_debug_logs_summary">Print concise OCR/translation logs to Logcat</string>
+    <string name="reader_translation_quality_filter_enabled">Translation quality filter</string>
+    <string name="reader_translation_quality_filter_enabled_summary">Hide translations that look garbled, unchanged, or likely OCR noise. Disable to render all non-empty translations.</string>
     <string name="reader_translation_mode">Translation mode</string>
     <string name="reader_translation_ocr_engine">OCR engine</string>
     <string name="reader_translation_ocr_engine_mlkit">ML Kit (default)</string>

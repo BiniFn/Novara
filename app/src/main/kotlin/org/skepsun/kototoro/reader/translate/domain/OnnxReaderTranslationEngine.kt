@@ -1,4 +1,4 @@
-package org.skepsun.kototoro.reader.translate.domain
+﻿package org.skepsun.kototoro.reader.translate.domain
 
 import android.util.Log
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
@@ -22,6 +22,7 @@ import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
 import java.io.File
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,6 +43,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		val session: OrtSession,
 		val inputNames: Set<String>,
 		val logitsOutputName: String,
+		val promptTemplate: PromptTemplateInfo,
 	) : RuntimeHolder {
 		override fun close() {
 			runCatching { session.close() }
@@ -100,6 +102,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		val decoderInputNames: Set<String>,
 		val decoderInputInfo: Map<String, TensorInfo>,
 		val stopTokenIds: Set<Long>,
+		val promptTemplate: PromptTemplateInfo,
 	) : RuntimeHolder {
 		override fun close() {
 			runCatching { embedSession?.close() }
@@ -123,6 +126,16 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		NLLB,
 		MADLAD_LIKE,
 	}
+
+	private enum class PromptTemplateFamily {
+		GENERIC_TRANSLATE_ONLY,
+		TRANSLATE_GEMMA_TEXT,
+	}
+
+	private data class PromptTemplateInfo(
+		val family: PromptTemplateFamily,
+		val source: String,
+	)
 
 	suspend fun translateBatch(
 		texts: List<String>,
@@ -401,7 +414,16 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				runCatching { tokenizer.close() }
 				return null
 			}
-		return GenericRuntime(modelId, backend, tokenizer, session, inputNames, logitsOutputName)
+		val promptTemplate = detectPromptTemplate(
+			modelId = modelId,
+			modelDir = modelDir,
+			fallbackFamily = PromptTemplateFamily.GENERIC_TRANSLATE_ONLY,
+		)
+		Log.i(
+			LOG_TAG,
+			"Generic ONNX prompt template=${promptTemplate.family.name.lowercase()} source=${promptTemplate.source} model=$modelId"
+		)
+		return GenericRuntime(modelId, backend, tokenizer, session, inputNames, logitsOutputName, promptTemplate)
 	}
 
 	private fun tryCreateQwen35Runtime(modelId: String, modelDir: File, backend: String, useGpu: Boolean): Qwen35Runtime? {
@@ -481,6 +503,15 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				it.equals("enable_thinking", ignoreCase = true) ||
 					it.equals("disable_thinking", ignoreCase = true)
 			}
+			val promptTemplate = detectPromptTemplate(
+				modelId = modelId,
+				modelDir = modelDir,
+				fallbackFamily = PromptTemplateFamily.TRANSLATE_GEMMA_TEXT,
+			)
+			Log.i(
+				LOG_TAG,
+				"TranslateGemma prompt template=${promptTemplate.family.name.lowercase()} source=${promptTemplate.source} model=$modelId"
+			)
 			TranslateGemmaRuntime(
 				modelId = modelId,
 				backend = backend,
@@ -491,6 +522,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 				decoderInputInfo = inputInfo,
 				disableThinkingInputName = disableThinkingInputName,
 				stopTokenIds = loadStopTokens(modelDir),
+				promptTemplate = promptTemplate,
 			)
 		} catch (_: Throwable) {
 			runCatching { tokenizer.close() }
@@ -503,7 +535,12 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	private suspend fun translateOneGeneric(runtime: GenericRuntime, text: String, sourceLang: String, targetLang: String): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
-		val prompt = "Translate from $sourceLang to $targetLang. Return only translation.\\n\\n$input"
+		val prompt = buildPromptForTemplateFamily(
+			family = runtime.promptTemplate.family,
+			sourceLang = sourceLang,
+			targetLang = targetLang,
+			input = input,
+		)
 		val encoded = tokenizerLock.withLock { runtime.tokenizer.encode(prompt).ids }
 		if (encoded.isEmpty()) return ""
 		val ids = encoded.toMutableList()
@@ -526,18 +563,13 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	): String {
 		val input = text.trim()
 		if (input.isEmpty()) return ""
+		val targetLangName = translateGemmaLanguageName(normalizeTranslateGemmaLanguageCode(targetLang))
 		val primaryPrompt = "<|im_start|>system\nYou are a professional manga translator.\n" +
 			"Translate from $sourceLang to $targetLang.\n" +
 			"Output compact JSON only. No thinking. No explanation. No markdown.\n" +
 			"Do not amplify repeated onomatopoeia or screams.\n" +
-			"Keep the repetition count close to the source and concise in Chinese.\n" +
-			"For long repeated screams like キャアアアアアアア, prefer short natural forms such as 呀啊啊！ rather than dozens of repeated characters.\n<|im_end|>\n" +
-			"<|im_start|>user\nTranslate from ja to zh:\n助けて！\n/no_think\n<|im_end|>\n" +
-			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\"救命！\"}\n<|im_end|>\n" +
-			"<|im_start|>user\nTranslate from ja to zh:\nキャーッ！？\n/no_think\n<|im_end|>\n" +
-			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\"呀啊！？\"}\n<|im_end|>\n" +
-			"<|im_start|>user\nTranslate from ja to zh:\nキャアアアアアアア\n/no_think\n<|im_end|>\n" +
-			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\"呀啊啊！\"}\n<|im_end|>\n" +
+			"Keep the repetition count close to the source and concise in $targetLangName.\n" +
+			"For long repeated screams like キャアアアアアアア, prefer a short natural $targetLangName sound effect rather than dozens of repeated characters.\n<|im_end|>\n" +
 			"<|im_start|>user\nTranslate from $sourceLang to $targetLang:\n$input\n/no_think\n<|im_end|>\n" +
 			"<|im_start|>assistant\n<think> </think>\n{\"translation\":\""
 		val firstAttempt = runQwen35Generation(
@@ -577,6 +609,7 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		targetLang: String,
 	): Map<String, String> {
 		if (texts.isEmpty()) return emptyMap()
+		val targetLangName = translateGemmaLanguageName(normalizeTranslateGemmaLanguageCode(targetLang))
 		val indexedInput = JSONArray().apply {
 			texts.forEachIndexed { index, text ->
 				put(JSONObject().put("id", index + 1).put("text", text))
@@ -588,21 +621,12 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			"OCR may contain mistakes, broken characters, repeated sounds, or truncated words.\n" +
 			"Use nearby lines as context to infer the most natural translation, but do not invent new plot details.\n" +
 			"Never return empty translations.\n" +
-			"If a line is mostly an onomatopoeia or scream, translate it into a natural Chinese scream/sound effect.\n" +
+			"If a line is mostly an onomatopoeia or scream, translate it into a natural $targetLangName scream or sound effect.\n" +
 			"Do not amplify repeated onomatopoeia or screams beyond the source.\n" +
-			"Keep repeated screams concise in Chinese, usually one short exclamation instead of many repeated characters.\n" +
+			"Keep repeated screams concise in $targetLangName, usually one short exclamation instead of many repeated characters.\n" +
 			"If a line contains a person name plus an honorific, keep the name and translate the honorific naturally.\n" +
 			"Return compact JSON only in this format: {\"items\":[{\"id\":1,\"translation\":\"...\"}]}\n" +
 			"No thinking. No explanation. No markdown. No extra fields.\n" +
-			"<|im_end|>\n" +
-			"<|im_start|>user\n" +
-			"Translate from ja to zh. Same page OCR lines:\n" +
-			"{\"items\":[{\"id\":1,\"text\":\"助けて！\"},{\"id\":2,\"text\":\"キャーッ！？\"},{\"id\":3,\"text\":\"冬木くん！？\"},{\"id\":4,\"text\":\"キャアアアアアアア\"}]}\n" +
-			"/no_think\n" +
-			"<|im_end|>\n" +
-			"<|im_start|>assistant\n" +
-			"<think> </think>\n" +
-			"{\"items\":[{\"id\":1,\"translation\":\"救命！\"},{\"id\":2,\"translation\":\"呀啊！？\"},{\"id\":3,\"translation\":\"冬木君！？\"},{\"id\":4,\"translation\":\"呀啊啊！\"}]}\n" +
 			"<|im_end|>\n" +
 			"<|im_start|>user\n" +
 			"Translate from $sourceLang to $targetLang. Same page OCR lines:\n" +
@@ -694,10 +718,12 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		val input = text.trim()
 		if (input.isEmpty()) return ""
 		
-		val prompt = "<start_of_turn>user\n" +
-			"You are a professional manga translator. Translate from $sourceLang to $targetLang.\n" +
-			"Return translated text only. No explanation.\n" +
-			"Original text:\n$input<end_of_turn>\n<start_of_turn>model\n"
+		val prompt = buildPromptForTemplateFamily(
+			family = runtime.promptTemplate.family,
+			sourceLang = sourceLang,
+			targetLang = targetLang,
+			input = input,
+		)
 
 		val promptIds = tokenizerLock.withLock { runtime.tokenizer.encode(prompt).ids }
 		if (promptIds.isEmpty()) return ""
@@ -736,6 +762,131 @@ class OnnxReaderTranslationEngine @Inject constructor(
 			.replace(Regex("(?is)<think>.*?</think>"), "")
 			.trim()
 		return stripped
+	}
+
+	private fun buildPromptForTemplateFamily(
+		family: PromptTemplateFamily,
+		sourceLang: String,
+		targetLang: String,
+		input: String,
+	): String {
+		return when (family) {
+			PromptTemplateFamily.TRANSLATE_GEMMA_TEXT -> buildTranslateGemmaTextPrompt(
+				sourceLang = sourceLang,
+				targetLang = targetLang,
+				input = input,
+			)
+			PromptTemplateFamily.GENERIC_TRANSLATE_ONLY -> buildGenericTranslatePrompt(
+				sourceLang = sourceLang,
+				targetLang = targetLang,
+				input = input,
+			)
+		}
+	}
+
+	private fun buildGenericTranslatePrompt(
+		sourceLang: String,
+		targetLang: String,
+		input: String,
+	): String {
+		return "Translate from $sourceLang to $targetLang. Return only translation.\n\n$input"
+	}
+
+	private fun buildTranslateGemmaTextPrompt(
+		sourceLang: String,
+		targetLang: String,
+		input: String,
+	): String {
+		val sourceLangCode = normalizeTranslateGemmaLanguageCode(sourceLang)
+		val targetLangCode = normalizeTranslateGemmaLanguageCode(targetLang)
+		val sourceLangName = translateGemmaLanguageName(sourceLangCode)
+		val targetLangName = translateGemmaLanguageName(targetLangCode)
+		return buildString(input.length + 320) {
+			append("<start_of_turn>user\n")
+			append("You are a professional ")
+			append(sourceLangName)
+			append(" (")
+			append(sourceLangCode)
+			append(") to ")
+			append(targetLangName)
+			append(" (")
+			append(targetLangCode)
+			append(") translator. Your goal is to accurately convey the meaning and nuances of the original ")
+			append(sourceLangName)
+			append(" text while adhering to ")
+			append(targetLangName)
+			append(" grammar, vocabulary, and cultural sensitivities.\n")
+			append("Produce only the ")
+			append(targetLangName)
+			append(" translation, without any additional explanations or commentary. Please translate the following ")
+			append(sourceLangName)
+			append(" text into ")
+			append(targetLangName)
+			append(":\n\n\n")
+			append(input)
+			append("<end_of_turn>\n<start_of_turn>model\n")
+		}
+	}
+
+	private fun detectPromptTemplate(
+		modelId: String,
+		modelDir: File,
+		fallbackFamily: PromptTemplateFamily,
+	): PromptTemplateInfo {
+		val chatTemplateFile = File(modelDir, "chat_template.jinja")
+		if (chatTemplateFile.isFile) {
+			val family = detectPromptTemplateFromText(chatTemplateFile.readText(), fallbackFamily)
+			return PromptTemplateInfo(family = family, source = "chat_template.jinja")
+		}
+		val tokenizerConfigFile = File(modelDir, "tokenizer_config.json")
+		if (tokenizerConfigFile.isFile) {
+			val family = runCatching {
+				val root = JSONObject(tokenizerConfigFile.readText())
+				root.optString("chat_template")
+			}.getOrNull()?.takeIf { it.isNotBlank() }?.let { template ->
+				detectPromptTemplateFromText(template, fallbackFamily)
+			}
+			if (family != null) {
+				return PromptTemplateInfo(family = family, source = "tokenizer_config.json")
+			}
+		}
+		if (modelId.contains("translategemma", ignoreCase = true)) {
+			return PromptTemplateInfo(
+				family = PromptTemplateFamily.TRANSLATE_GEMMA_TEXT,
+				source = "model_id_hint",
+			)
+		}
+		return PromptTemplateInfo(family = fallbackFamily, source = "fallback")
+	}
+
+	private fun detectPromptTemplateFromText(
+		templateText: String,
+		fallbackFamily: PromptTemplateFamily,
+	): PromptTemplateFamily {
+		val normalized = templateText.lowercase()
+		if (
+			normalized.contains("source_lang_code") &&
+			normalized.contains("target_lang_code") &&
+			normalized.contains("professional") &&
+			normalized.contains("translation")
+		) {
+			return PromptTemplateFamily.TRANSLATE_GEMMA_TEXT
+		}
+		return fallbackFamily
+	}
+
+	private fun normalizeTranslateGemmaLanguageCode(lang: String): String {
+		return lang.trim().replace('_', '-').ifBlank { "en" }
+	}
+
+	private fun translateGemmaLanguageName(langCode: String): String {
+		val tag = langCode.replace('_', '-')
+		val locale = Locale.forLanguageTag(tag)
+		val displayName = locale.getDisplayLanguage(Locale.ENGLISH).trim()
+		if (displayName.isNotBlank()) return displayName
+		val baseCode = tag.substringBefore('-')
+		val baseLocale = Locale.forLanguageTag(baseCode)
+		return baseLocale.getDisplayLanguage(Locale.ENGLISH).trim().ifBlank { tag }
 	}
 
 	private fun extractQwenTranslation(rawOutput: String, jsonPrefill: Boolean): String {
@@ -1457,3 +1608,5 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		)
 	}
 }
+
+

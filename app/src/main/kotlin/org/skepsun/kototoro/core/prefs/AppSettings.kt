@@ -522,6 +522,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isReaderTranslationDebugLogsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_TRANSLATION_DEBUG_LOGS, false)
 
+	var isReaderTranslationQualityFilterEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_TRANSLATION_QUALITY_FILTER_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_QUALITY_FILTER_ENABLED, value) }
+
 	val readerTranslationSourceLanguage: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_SOURCE_LANG, "ja") ?: "ja"
 
@@ -1214,6 +1218,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_ENABLED = "reader_translation_enabled"
 		const val KEY_READER_TRANSLATION_SHOW_TRANSLATED = "reader_translation_show_translated"
 		const val KEY_READER_TRANSLATION_DEBUG_LOGS = "reader_translation_debug_logs"
+		const val KEY_READER_TRANSLATION_QUALITY_FILTER_ENABLED = "reader_translation_quality_filter_enabled"
 		const val KEY_READER_TRANSLATION_SOURCE_LANG = "reader_translation_source_lang"
 		const val KEY_READER_TRANSLATION_TARGET_LANG = "reader_translation_target_lang"
 		const val KEY_READER_TRANSLATION_OCR_ENGINE = "reader_translation_ocr_engine"

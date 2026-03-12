@@ -69,6 +69,13 @@
             android:summary="@string/reader_translation_debug_logs_summary"
             android:title="@string/reader_translation_debug_logs" />
 
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_quality_filter_enabled"
+            android:summary="@string/reader_translation_quality_filter_enabled_summary"
+            android:title="@string/reader_translation_quality_filter_enabled" />
+
         <ListPreference
             android:defaultValue="LOCAL_FIRST"
             android:dependency="reader_translation_enabled"

@@ -341,7 +341,12 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				}
 				if (translated.isBlank()) continue
 				nonEmptyTranslatedCount++
-				if (isLikelyGarbledText(translated)) continue
+				if (settings.isReaderTranslationQualityFilterEnabled && isLikelyGarbledText(translated)) {
+					log {
+						"bubble render skipped_garbled src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
+					}
+					continue
+				}
 				if (shouldSuppressRenderedBubble(bubble.sourceText, translated, targetLang)) {
 					log {
 						"bubble render suppressed src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
@@ -349,14 +354,21 @@ class ReaderPageTranslationProcessor @Inject constructor(
 					continue
 				}
 				val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
-				prepareTranslatedBubble(
+				val prepared = prepareTranslatedBubble(
 					rect = bubble.rect,
 					text = translated,
 					bitmapWidth = bitmap.width,
 					bitmapHeight = bitmap.height,
 					verticalPreferred = bubble.verticalPreferred,
 					bubbleLikeRegion = bubbleLikeRegion,
-				)?.let { preparedBubbles.add(it) }
+				)
+				if (prepared == null) {
+					log {
+						"bubble render skipped_layout src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect} verticalPreferred=${bubble.verticalPreferred} bubbleLike=${bubbleLikeRegion}"
+					}
+					continue
+				}
+				preparedBubbles.add(prepared)
 			}
 			// Two-pass render: draw all bubble backgrounds first, then all texts to avoid later bubbles covering earlier texts.
 			for (bubble in preparedBubbles) {
@@ -1910,18 +1922,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			bubbleLikeRegion = bubbleLikeRegion,
 		)
 
-		var best: PreparedBubble? = null
-		var bestOverflow = Int.MAX_VALUE
-		for (scale in BUBBLE_EXPAND_SCALES) {
-			val safeRect = if (scale <= 1f) {
-				baseRect
-			} else {
-				expandRectAroundCenter(baseRect, scale, bitmapWidth, bitmapHeight)
-			}
-			val width = max(1, safeRect.width() - padding * 2)
-			val height = max(1, safeRect.height() - padding * 2)
-			if (width <= 1 || height <= 1) continue
-			if (verticalPreferred) {
+		if (verticalPreferred) {
+			for (scale in BUBBLE_EXPAND_SCALES) {
+				val safeRect = if (scale <= 1f) {
+					baseRect
+				} else {
+					expandRectAroundCenter(baseRect, scale, bitmapWidth, bitmapHeight)
+				}
+				val width = max(1, safeRect.width() - padding * 2)
+				val height = max(1, safeRect.height() - padding * 2)
+				if (width <= 1 || height <= 1) continue
 				val vertical = buildVerticalPlan(text, width, height) ?: continue
 				val contentW = computeVerticalUsedWidth(vertical)
 				val contentH = computeVerticalUsedHeight(vertical)
@@ -1946,7 +1956,19 @@ class ReaderPageTranslationProcessor @Inject constructor(
 					verticalPlan = vertical,
 				)
 			}
+		}
 
+		var best: PreparedBubble? = null
+		var bestOverflow = Int.MAX_VALUE
+		for (scale in BUBBLE_EXPAND_SCALES) {
+			val safeRect = if (scale <= 1f) {
+				baseRect
+			} else {
+				expandRectAroundCenter(baseRect, scale, bitmapWidth, bitmapHeight)
+			}
+			val width = max(1, safeRect.width() - padding * 2)
+			val height = max(1, safeRect.height() - padding * 2)
+			if (width <= 1 || height <= 1) continue
 			var textSize = initialHorizontalTextSize(width = width, height = height)
 			var layout = buildTextLayout(text, width, textSize)
 			while (layout.height > height && textSize > dp(8f)) {
@@ -2316,6 +2338,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		translatedText: String,
 		targetLang: String,
 	): Boolean {
+		if (!settings.isReaderTranslationQualityFilterEnabled) return false
 		val sourceNoisy = isLikelyNoisyOcrSource(sourceText)
 		if (!sourceNoisy) return false
 		if (isWeakTranslatedNoise(translatedText, targetLang)) return true
@@ -2352,6 +2375,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	): Boolean {
 		if (translatedText.isBlank()) return false
 		if (translatedText == "..." || translatedText == "…") return false
+		if (!settings.isReaderTranslationQualityFilterEnabled) return true
 		if (shouldSuppressRenderedBubble(sourceText, translatedText, targetLang)) return false
 		return true
 	}
@@ -2489,11 +2513,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			renderCacheEpoch.toString(),
 			pageEpoch.toString(),
 			settings.readerTranslationMode.name,
+			settings.readerTranslationOnnxModelId,
 			settings.readerTranslationApiEndpoint,
 			settings.readerTranslationApiModel,
+			settings.readerTranslationOcrEngine.name,
 			settings.readerTranslationBubbleGroupingTuning,
 			settings.isReaderTranslationBubbleGroupingEnabled.toString(),
 			settings.readerTranslationOverlayCompactness,
+			settings.readerTranslationHybridFallbackThreshold.toString(),
+			settings.isReaderTranslationQualityFilterEnabled.toString(),
 		).joinToString("|")
 		return "${RENDER_CACHE_PREFIX}${raw.sha256()}"
 	}
@@ -2505,8 +2533,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			sourceLang,
 			targetLang,
 			settings.readerTranslationMode.name,
+			settings.readerTranslationOnnxModelId,
 			settings.readerTranslationApiEndpoint,
 			settings.readerTranslationApiModel,
+			settings.isReaderTranslationQualityFilterEnabled.toString(),
 		).joinToString("|")
 		return "${TEXT_CACHE_PREFIX}${raw.sha256()}"
 	}
@@ -2581,7 +2611,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 		const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 		const val MAX_OPENAI_BATCH_SIZE = 3
-			const val TRANSLATION_PIPELINE_VERSION = "2026-03-11-roi-ocr-7"
+			const val TRANSLATION_PIPELINE_VERSION = "2026-03-11-roi-ocr-8"
 		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
 		You translate manga OCR text.
 		Output only the translation.
@@ -2596,7 +2626,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val HORIZONTAL_TEXT_SIZE_WIDTH_RATIO = 0.58f
 		const val VERTICAL_TEXT_SIZE_WIDTH_RATIO = 0.78f
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
-		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f)
+		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f, 1.12f, 1.24f)
 		const val TEXT_CACHE_PREFIX = "reader_translate_text_"
 		const val RENDER_CACHE_PREFIX = "reader_translate_render_"
 		const val OCR_CACHE_PREFIX = "reader_translate_ocr_"
