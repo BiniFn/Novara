@@ -1,174 +1,85 @@
-# Kototoro - 漫画/小说/视频阅读器
+# Kototoro
 
-![应用图标](metadata/en-US/icon.png)
+![App Icon](metadata/en-US/icon.png)
 
-[![中文](https://img.shields.io/badge/语言-中文-blue)](README.md) [![English](https://img.shields.io/badge/Language-English-blue)](README_en.md) ![version](https://img.shields.io/badge/version-0.2.5-blue)
+![version](https://img.shields.io/badge/version-0.2.5-blue)
+[![Docs](https://img.shields.io/badge/docs-hub-blue)](https://skepsun.github.io/Kototoro/)
+[![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](docs/getting-started.md)
+[![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](docs/automatic-translation.md)
 
-## 📖 项目简介
+Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 
-**Kototoro** 是一个基于 **Kotatsu** 的非官方分支项目，专注于为中国用户提供更好的漫画、小说和视频阅读播放体验。
+## Why Kototoro
 
-### 🚀 最近更新 (v0.2.5)
-1. **Mihon / Aniyomi 扩展支持**：完整支持 Mihon (漫画) 和 Aniyomi (动漫/视频) 扩展插件，极大地扩展了内容源。
-2. **漫画源管理系统**：实现了完善的漫画源管理系统，包含网络请求、UI 组件及源导入功能。
-3. **性能与稳定性**：
-    - 改进了视频播放器的兼容性，自动移除导致 400 错误的请求头。
-    - 优化了探索页面的 UI 布局，标签栏更加紧凑美观。
-    - 增强了 ProGuard 混淆规则，提高 Release 版本的稳定性。
-4. **CI/CD 优化**：自动生成 Release 更新日志，支持手动触发发布。
+- One app for manga, novels, and video
+- Local automatic OCR + translation directly inside the reader
+- Video super-resolution support on supported devices and pipelines
+- Reliable multi-device sync through free or self-hosted WebDAV setups
+- External source support for Mihon manga sources, Aniyomi video sources, and Legado reading sources
+- Site favorites import and synchronization for supported services
 
-### 🎯 主要特性
+## Start Here
 
-#### 🌟 核心功能
-- ✅ **中文化优化** - 深度优化对中文漫画、视频和小说站点的适配
-- ✅ **全能阅读器** - 继承 Kotatsu 所有优秀的漫画阅读功能
-- ✅ **视频播放** - 支持在线视频流播放，具备清晰度切换、锁定旋屏等功能
-- ✅ **增强型小说阅读** - 支持在线/本地小说无缝切换阅读、图片显示、插图章节及 EPUB 下载
-- ✅ **下载管理** - 支持自定义下载延迟（规避频率限制），下载过程更加稳定
-- ✅ **折叠屏适配** - 完美适配折叠屏设备，支持双页模式与自适应布局
-- ✅ **WebDAV 同步** - 跨设备自动备份/恢复收藏、历史、分组、登录凭据等数据
-- ✅ **站点收藏导入和同步** - 支持从已登录的站点导入收藏到本地，或将本地收藏同步到站点
-- ✅ **Mihon / Aniyomi 扩展支持** - 完整支持 Mihon 和 Aniyomi 扩展插件，极大地扩展了内容源。
+- Download the latest APK from [Releases](https://github.com/skepsun/kototoro/releases)
+- Read the [Documentation Website](https://skepsun.github.io/Kototoro/)
+- Browse the repository-side [Documentation Hub](docs/README.md)
+- Follow [Getting Started](docs/getting-started.md)
+- Learn the core product surface in [Reader Features](docs/reader-features.md)
+- Set up [Automatic Translation](docs/automatic-translation.md)
+- Set up [Source Integrations](docs/source-integrations.md)
+- Set up [WebDAV Sync](docs/webdav-sync.md)
+- Check [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md) if something does not work
+- See [Development](docs/development.md) and [Contributing](docs/contributing.md) if you want to work on the project
 
-## 应用截图
+## External Source Ecosystems
+
+Kototoro supports several important external source ecosystems. These repositories are a key part of real-world setup for many users.
+
+### Common Mihon source repositories
+
+- [Keiyoushi Extensions](https://github.com/keiyoushi/extensions)
+- [Yuzono Tachiyomi Extensions](https://github.com/yuzono/tachiyomi-extensions)
+- [LittleSurvival CopyManga Copy20](https://github.com/LittleSurvival/copymanga-copy20)
+
+### Common Aniyomi source repositories
+
+- [Kohi-den Extensions Source](https://github.com/Kohi-den/extensions-source)
+- [Yuzono Anime Extensions](https://github.com/yuzono/anime-extensions)
+
+### Common Legado source repository
+
+- [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
+
+For setup details, see [Source Integrations](docs/source-integrations.md).
+
+## Screenshots
+
 <div align="center">
-    <img src="./metadata/en-US/images/tabletScreenshots/1.jpg" alt="All sources" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/2.jpg" alt="Comic list view" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/3.jpg" alt="Video list view" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/4.jpg" alt="Novel list view" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/5.jpg" alt="Comic reading view" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/6.jpg" alt="Video playing view" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/7.jpg" alt="Novel reading view" width="300"/>
-    <img src="./metadata/en-US/images/tabletScreenshots/8.jpg" alt="WebDAV setting view" width="300"/>
+    <img src="./metadata/en-US/images/tabletScreenshots/1.jpg" alt="All sources" width="260"/>
+    <img src="./metadata/en-US/images/tabletScreenshots/3.jpg" alt="Video list view" width="260"/>
+    <img src="./metadata/en-US/images/tabletScreenshots/5.jpg" alt="Comic reading view" width="260"/>
+    <img src="./metadata/en-US/images/tabletScreenshots/7.jpg" alt="Novel reading view" width="260"/>
 </div>
 
-## 🎮 使用指南
+## Contributing
 
-### 🧩 Mihon / Aniyomi 扩展插件指南
+Issues and pull requests are welcome. Start with [Contributing](docs/contributing.md).
 
-Kototoro 现已支持 Mihon (原 Tachiyomi) 和 Aniyomi 的扩展插件系统，您可以按以下步骤添加并使用更多内容源：
+## License
 
-1. **安装并配置相关应用**：
-   - 安装 [Mihon](https://mihon.app/) (用于漫画) 或 [Aniyomi](https://aniyomi.org/) (用于动漫/视频) 官方应用。
-   - 在对应应用中添加扩展插件仓库（如 Mihon 的 [Keiyoushi](https://keiyoushi.github.io/extensions/)）。
-   - 下载并安装您需要的源插件。
-2. **在 Kototoro 中使用**：
-   - 打开 Kototoro，点击底部导航栏的 "浏览"。
-   - 切换到 "Mihon" 或 "Aniyomi" 标签页，应用会自动检测手机中已安装的插件。
-   - 您可以直接在此浏览并使用这些插件源。
-3. **强制刷新检测**：
-   - 如果新安装的插件没有出现，可以进入 "设置" → "内容源" → "Mihon / Aniyomi 扩展"。
-   - 在此页面下拉刷新，强制系统重新检测已安装的插件。
+This project follows the upstream Kotatsu license. See [LICENSE](LICENSE).
 
-> [!NOTE]
-> Kototoro 通过检测系统中安装的插件 APK 来实现兼容，因此请确保插件已正确安装在您的设备上。
+## Acknowledgements
 
-### ☁️ WebDAV同步
+- [Kotatsu](https://github.com/KotatsuApp/Kotatsu)
+- [Mihon](https://github.com/mihonapp/mihon)
+- [Yomihon](https://github.com/yomihon/yomihon)
+- [Venera](https://github.com/venera-app/venera)
+- [Kazumi](https://github.com/Predidit/Kazumi)
+- [Light Novel Yuedu Source](https://github.com/ZWolken/Light-Novel-Yuedu-Source)
+- [legado-with-MD3](https://github.com/HapeLee/legado-with-MD3)
 
-1. **配置WebDAV** - 在"设置 → 备份与恢复"中配置WebDAV服务器
-2. **自动备份** - 阅读进度、收藏、历史记录自动同步到云端
-3. **多设备同步** - 在不同设备间无缝同步阅读状态
-4. **智能合并** - 基于时间戳的智能合并，避免数据冲突
+## Contact
 
-### 📥 站点收藏导入/同步
-
-支持从已登录的站点导入收藏到本地，或将本地收藏同步到站点。
-
-#### 支持的站点
-
-| 站点 | 导入收藏 | 同步收藏 | 备注 |
-| :--- | :---: | :---: | :--- |
-| CopyManga | ✅ | ✅ | 需登录 |
-| 再漫画 | ✅ | ✅ | 需登录 |
-| Komiic | ✅ | ✅ | 需登录 |
-| 包子漫画 | ✅ | ✅ | 需登录 |
-| 漫画柜 | ✅ | ✅ | 需登录 |
-| 绅士漫画 | ✅ | ✅ | 需登录 |
-| 哔咔漫画 | ✅ | ✅ | 需登录 |
-
-#### 使用方法
-
-1. **导入收藏**
-   - 进入 "收藏" 页面 → 点击右上角菜单 → 选择 "从站点导入"
-   - 选择已登录的站点，点击导入
-   - 导入的收藏会自动创建对应的站点分组（如"CopyManga"）
-
-2. **同步收藏**
-   - 进入 "收藏" 页面 → 点击右上角菜单 → 选择 "同步到站点"
-   - 选择目标站点，将本地收藏推送到站点
-
-3. **自动分组**
-   - 从站点导入的收藏会自动归入以站点名称命名的分组
-   - 已存在同名分组时会自动合并，不会创建重复分组
-   - 手动添加收藏时也会根据来源自动归类
-
-
-## 🛠️ 技术栈
-
-- **Kotlin** - 主要开发语言
-- **Android Jetpack** - 现代Android开发架构
-- **Kotatsu Parser** - 漫画/小说解析器框架
-- **WebDAV** - 云同步协议
-- **AI IDEs** - AI IDE辅助开发
-
-## 📦 安装
-
-
-从 [Releases页面](https://github.com/skepsun/kototoro/releases) 下载最新版本的APK文件。
-
-
-## 🔧 开发
-
-### 环境要求
-
-- Android Studio 2022.3+
-- JDK 17+
-- Android SDK 33+
-- Gradle 9.0+
-
-### 项目结构
-
-```
-kototoro_demo/                    # 开发目录
-├── Kototoro/                    # 主应用仓库
-│   ├── app/                     # 主应用模块
-│   ├── gradle/                  # Gradle 配置
-│   ├── .github/workflows/       # CI/CD 配置
-│   └── metadata/                # 应用元数据（截图等）
-│
-└── kototoro-parsers/            # 解析器仓库（独立）
-    └── src/main/kotlin/.../site/  # 各站点解析器
-```
-
-### 贡献指南
-
-欢迎提交Issue和Pull Request！
-
-1. Fork本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启Pull Request
-
-## 📝 许可证
-
-本项目基于 **Kotatsu** 的许可证，详情请查看 [LICENSE](LICENSE) 文件。
-
-## 🤝 致谢
-
-- **[Kotatsu](https://github.com/KotatsuApp/Kotatsu)** - 原始项目的开发者，提供漫画阅读器和解析器框架
-- **[Mihon](https://github.com/mihonapp/mihon)** - 优秀的开源漫画阅读器，本项目集成了其插件系统
-- **[Venera](https://github.com/venera-app/venera)** - 另一个优秀的功能强大的开源漫画阅读器项目，并提供优秀的中文解析器代码
-- **[阅读轻小说源](https://github.com/ZWolken/Light-Novel-Yuedu-Source)** - 提供了一部分轻小说源的参考代码
-- **大模型** - claude、gemini、gpt
-
-## 📞 联系方式
-
-- **GitHub Issues**: [问题反馈](https://github.com/skepsun/kototoro/issues)
-- **Email**: chuxiongsun@gmail.com
-
-
-
----
-
-⭐ 如果这个项目对你有帮助，请给我们一个Star！
+- GitHub Issues: [Issue Tracker](https://github.com/skepsun/kototoro/issues)
+- Email: chuxiongsun@gmail.com
