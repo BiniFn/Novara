@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Kototoro Docs
   text: One Android app for manga, novels, and video
-  tagline: Documentation for setup, OCR translation, source integrations, WebDAV sync, and contributor workflows.
+  tagline: Setup guides, source integration references, OCR translation notes, sync workflows, and contributor documentation for Kototoro.
   image:
     src: /icon.png
     alt: Kototoro
@@ -21,21 +21,29 @@ hero:
 
 features:
   - title: All-in-One Reader
-    details: Learn how Kototoro combines manga, novels, and video in one Android workflow.
+    details: Understand how Kototoro keeps manga, novels, video, history, favorites, and sync in one Android workflow.
   - title: Local OCR + Translation
-    details: Configure on-device OCR, model downloads, translation modes, and practical fallback paths.
+    details: Configure on-device OCR, model downloads, translation modes, and practical fallback paths inside the reader.
   - title: External Source Ecosystems
-    details: Connect Mihon, Aniyomi, and Legado ecosystems, including the repositories most users actually need.
+    details: Connect Mihon, Aniyomi, and Legado ecosystems, including the repositories most users actually need in practice.
   - title: Reliable WebDAV Sync
     details: Set up free or self-hosted WebDAV storage for multi-device backup and synchronization.
 ---
 
-## Documentation Paths
+## Start With The Right Page
 
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, or Legado ecosystems.
 - Read [Automatic Translation](./automatic-translation.md) if you want local OCR + translation inside the reader.
 - Read [Development](./development.md) and [Contributing](./contributing.md) if you want to build or modify the app.
+
+## What Makes Kototoro Different
+
+- One Android app for manga, novels, and video
+- Local OCR + translation directly in the reader
+- Video super-resolution support on supported pipelines
+- WebDAV-based multi-device sync without vendor lock-in
+- Broad source support across built-in parsers and external ecosystems
 
 ## Key External Source Repositories
 

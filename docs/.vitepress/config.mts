@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 
 const base = process.env.GITHUB_ACTIONS ? "/Kototoro/" : "/";
+const editBranch = process.env.DOCS_EDIT_BRANCH || process.env.GITHUB_REF_NAME || "devel";
 
 export default defineConfig({
   title: "Kototoro Docs",
@@ -30,7 +31,7 @@ export default defineConfig({
       { icon: "github", link: "https://github.com/skepsun/Kototoro" },
     ],
     editLink: {
-      pattern: "https://github.com/skepsun/Kototoro/edit/devel/docs/:path",
+      pattern: `https://github.com/skepsun/Kototoro/edit/${editBranch}/docs/:path`,
       text: "Edit this page on GitHub",
     },
     sidebar: [

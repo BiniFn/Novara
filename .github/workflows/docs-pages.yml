@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - devel
+      - main
     paths:
       - "docs/**"
       - "package.json"
@@ -40,6 +41,8 @@ jobs:
         run: npm ci
 
       - name: Build VitePress site
+        env:
+          DOCS_EDIT_BRANCH: ${{ github.ref_name }}
         run: npm run docs:build
 
       - name: Upload Pages artifact
