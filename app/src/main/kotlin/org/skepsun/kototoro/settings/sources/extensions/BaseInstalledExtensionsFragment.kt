@@ -1,17 +1,24 @@
 package org.skepsun.kototoro.settings.sources.extensions
 
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.StringRes
+import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModel
 import androidx.recyclerview.widget.LinearLayoutManager
 import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.settings.SettingsActivity
 
 abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstalledExtensionsBinding>()
 	where VM : ViewModel, VM : InstalledExtensionsScreenModel {
@@ -29,6 +36,11 @@ abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstal
 
 	@get:StringRes
 	protected abstract val sourceCountRes: Int
+
+	@get:StringRes
+	protected abstract val titleRes: Int
+
+	protected abstract val extensionType: ExternalExtensionType
 
 	private var adapter: InstalledExtensionsAdapter? = null
 
@@ -52,9 +64,15 @@ abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstal
 		}
 
 		observeViewModel(binding)
+		addMenuProvider(ExtensionsMenuProvider())
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
+
+	override fun onResume() {
+		super.onResume()
+		activity?.setTitle(titleRes)
+	}
 
 	override fun onDestroyView() {
 		adapter = null
@@ -84,5 +102,34 @@ abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstal
 			binding.textSourceCount.isVisible = count > 0
 			binding.headerGroup.isVisible = count > 0 || viewModel.extensionCount.value > 0
 		}
+	}
+
+	private inner class ExtensionsMenuProvider : MenuProvider {
+
+		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+			menuInflater.inflate(org.skepsun.kototoro.R.menu.menu_extensions, menu)
+		}
+
+		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
+			org.skepsun.kototoro.R.id.action_available_extensions -> {
+				openFragment(AvailableExtensionsFragment::class.java)
+				true
+			}
+
+			org.skepsun.kototoro.R.id.action_manage_repositories -> {
+				openFragment(ExtensionRepositoriesFragment::class.java)
+				true
+			}
+
+			else -> false
+		}
+	}
+
+	private fun openFragment(fragmentClass: Class<out androidx.fragment.app.Fragment>) {
+		(activity as? SettingsActivity)?.openFragment(
+			fragmentClass = fragmentClass,
+			args = Bundle(1).apply { putString(ARG_EXTENSION_TYPE, extensionType.name) },
+			isFromRoot = false,
+		)
 	}
 }

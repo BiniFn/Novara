@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/action_refresh_available_extensions"
+        android:title="@string/refresh_action"
+        android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_manage_repositories"
+        android:title="@string/manage_extension_repositories"
+        android:showAsAction="never" />
+
+</menu>

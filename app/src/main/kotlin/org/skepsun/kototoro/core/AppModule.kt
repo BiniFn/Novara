@@ -108,6 +108,12 @@ interface AppModule {
 
 		@Provides
 		@Singleton
+		fun provideExternalExtensionRepoDao(database: MangaDatabase): org.skepsun.kototoro.core.db.dao.ExternalExtensionRepoDao {
+			return database.getExternalExtensionRepoDao()
+		}
+
+		@Provides
+		@Singleton
 		fun provideJson(): kotlinx.serialization.json.Json = kotlinx.serialization.json.Json {
 			ignoreUnknownKeys = true
 			isLenient = true

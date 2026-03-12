@@ -1,6 +1,10 @@
 package org.skepsun.kototoro.aniyomi
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
 import eu.kanade.tachiyomi.animesource.AnimeSource
@@ -11,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.skepsun.kototoro.core.util.ext.goAsync
 import org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource
 import org.skepsun.kototoro.aniyomi.model.AniyomiLoadResult
 import javax.inject.Inject
@@ -49,11 +54,15 @@ class AniyomiExtensionManager @Inject constructor(
     
     // Cache of source ID -> AniyomiAnimeSource wrapper
     private val animeSourceCache = mutableMapOf<Long, AniyomiAnimeSource>()
+
+    @Volatile
+    private var isPackageObserverRegistered = false
     
     /**
      * Initialize the extension manager and load all extensions.
      */
     fun initialize() {
+        registerPackageObserver()
         scope.launch {
             loadExtensions()
         }
@@ -69,6 +78,9 @@ class AniyomiExtensionManager @Inject constructor(
         
         try {
             android.util.Log.d(TAG, "Loading Aniyomi extensions...")
+
+            sourceCache.clear()
+            animeSourceCache.clear()
             
             val results = loader.loadExtensions(context)
             
@@ -182,4 +194,33 @@ class AniyomiExtensionManager @Inject constructor(
      * Check if any Aniyomi extensions are loaded.
      */
     fun hasExtensions(): Boolean = _installedExtensions.value.isNotEmpty()
+
+    private fun registerPackageObserver() {
+        if (isPackageObserverRegistered) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                goAsync {
+                    loadExtensions()
+                }
+            }
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.RECEIVER_EXPORTED
+        } else {
+            0
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addAction(Intent.ACTION_PACKAGE_REPLACED)
+                addAction(Intent.ACTION_PACKAGE_REMOVED)
+                addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
+                addDataScheme("package")
+            },
+            flags,
+        )
+        isPackageObserverRegistered = true
+    }
 }

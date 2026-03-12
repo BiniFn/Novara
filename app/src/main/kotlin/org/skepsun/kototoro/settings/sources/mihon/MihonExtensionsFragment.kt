@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.fragment.app.viewModels
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.settings.sources.extensions.BaseInstalledExtensionsFragment
 
 /**
@@ -20,4 +21,6 @@ class MihonExtensionsFragment : BaseInstalledExtensionsFragment<MihonExtensionsV
 	override val emptyTextRes: Int = R.string.no_mihon_extensions_text
 	override val extensionCountRes: Int = R.string.mihon_extension_count
 	override val sourceCountRes: Int = R.string.mihon_source_count
+	override val titleRes: Int = R.string.mihon_extensions
+	override val extensionType: ExternalExtensionType = ExternalExtensionType.MIHON
 }
