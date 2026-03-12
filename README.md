@@ -4,8 +4,8 @@
 
 ![version](https://img.shields.io/badge/version-0.2.5-blue)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://skepsun.github.io/Kototoro/)
-[![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](docs/getting-started.md)
-[![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](docs/automatic-translation.md)
+[![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://skepsun.github.io/Kototoro/getting-started)
+[![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://skepsun.github.io/Kototoro/automatic-translation)
 
 Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 
@@ -22,14 +22,13 @@ Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels,
 
 - Download the latest APK from [Releases](https://github.com/skepsun/kototoro/releases)
 - Read the [Documentation Website](https://skepsun.github.io/Kototoro/)
-- Browse the repository-side [Documentation Hub](docs/README.md)
-- Follow [Getting Started](docs/getting-started.md)
-- Learn the core product surface in [Reader Features](docs/reader-features.md)
-- Set up [Automatic Translation](docs/automatic-translation.md)
-- Set up [Source Integrations](docs/source-integrations.md)
-- Set up [WebDAV Sync](docs/webdav-sync.md)
-- Check [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md) if something does not work
-- See [Development](docs/development.md) and [Contributing](docs/contributing.md) if you want to work on the project
+- Follow [Getting Started](https://skepsun.github.io/Kototoro/getting-started)
+- Learn the core product surface in [Reader Features](https://skepsun.github.io/Kototoro/reader-features)
+- Set up [Automatic Translation](https://skepsun.github.io/Kototoro/automatic-translation)
+- Set up [Source Integrations](https://skepsun.github.io/Kototoro/source-integrations)
+- Set up [WebDAV Sync](https://skepsun.github.io/Kototoro/webdav-sync)
+- Check [FAQ](https://skepsun.github.io/Kototoro/faq) and [Troubleshooting](https://skepsun.github.io/Kototoro/troubleshooting) if something does not work
+- See [Development](https://skepsun.github.io/Kototoro/development) and [Contributing](https://skepsun.github.io/Kototoro/contributing) if you want to work on the project
 
 ## External Source Ecosystems
 
@@ -50,7 +49,7 @@ Kototoro supports several important external source ecosystems. These repositori
 
 - [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
 
-For setup details, see [Source Integrations](docs/source-integrations.md).
+For setup details, see [Source Integrations](https://skepsun.github.io/Kototoro/source-integrations).
 
 ## Screenshots
 
@@ -63,7 +62,7 @@ For setup details, see [Source Integrations](docs/source-integrations.md).
 
 ## Contributing
 
-Issues and pull requests are welcome. Start with [Contributing](docs/contributing.md).
+Issues and pull requests are welcome. Start with [Contributing](https://skepsun.github.io/Kototoro/contributing).
 
 ## License
 
