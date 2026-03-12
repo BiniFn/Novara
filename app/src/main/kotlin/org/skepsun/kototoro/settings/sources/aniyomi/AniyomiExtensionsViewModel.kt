@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.aniyomi.model.AniyomiLoadResult
+import org.skepsun.kototoro.settings.sources.extensions.InstalledExtensionItem
+import org.skepsun.kototoro.settings.sources.extensions.InstalledExtensionsScreenModel
 import javax.inject.Inject
 
 /**
@@ -21,15 +23,15 @@ import javax.inject.Inject
 @HiltViewModel
 class AniyomiExtensionsViewModel @Inject constructor(
     private val extensionManager: AniyomiExtensionManager,
-) : ViewModel() {
+) : ViewModel(), InstalledExtensionsScreenModel {
     
     private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
-    val extensions: StateFlow<List<AniyomiExtensionItem>> = extensionManager.installedExtensions
+    override val extensions: StateFlow<List<InstalledExtensionItem>> = extensionManager.installedExtensions
         .map { list ->
             list.map { ext ->
-                AniyomiExtensionItem(
+                InstalledExtensionItem(
                     pkgName = ext.pkgName,
                     appName = ext.appName,
                     versionName = ext.versionName,
@@ -42,11 +44,11 @@ class AniyomiExtensionsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     
-    val extensionCount: StateFlow<Int> = extensionManager.installedExtensions
+    override val extensionCount: StateFlow<Int> = extensionManager.installedExtensions
         .map { it.size }
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
     
-    val sourceCount: StateFlow<Int> = extensionManager.installedExtensions
+    override val sourceCount: StateFlow<Int> = extensionManager.installedExtensions
         .map { list -> list.sumOf { it.sources.size } }
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
     
@@ -59,7 +61,7 @@ class AniyomiExtensionsViewModel @Inject constructor(
         }
     }
     
-    fun refresh() {
+    override fun refresh() {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             try {
@@ -70,16 +72,3 @@ class AniyomiExtensionsViewModel @Inject constructor(
         }
     }
 }
-
-/**
- * UI model for an Aniyomi extension.
- */
-data class AniyomiExtensionItem(
-    val pkgName: String,
-    val appName: String,
-    val versionName: String,
-    val lang: String,
-    val isNsfw: Boolean,
-    val sourceCount: Int,
-    val sourceNames: List<String>,
-)

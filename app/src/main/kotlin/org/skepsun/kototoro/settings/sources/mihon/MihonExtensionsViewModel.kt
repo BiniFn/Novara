@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.mihon.MihonExtensionManager
 import org.skepsun.kototoro.mihon.model.MihonLoadResult
+import org.skepsun.kototoro.settings.sources.extensions.InstalledExtensionItem
+import org.skepsun.kototoro.settings.sources.extensions.InstalledExtensionsScreenModel
 import javax.inject.Inject
 
 /**
@@ -21,15 +23,15 @@ import javax.inject.Inject
 @HiltViewModel
 class MihonExtensionsViewModel @Inject constructor(
     private val extensionManager: MihonExtensionManager,
-) : ViewModel() {
+) : ViewModel(), InstalledExtensionsScreenModel {
     
     private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
-    val extensions: StateFlow<List<MihonExtensionItem>> = extensionManager.installedExtensions
+    override val extensions: StateFlow<List<InstalledExtensionItem>> = extensionManager.installedExtensions
         .map { list ->
             list.map { ext ->
-                MihonExtensionItem(
+                InstalledExtensionItem(
                     pkgName = ext.pkgName,
                     appName = ext.appName,
                     versionName = ext.versionName,
@@ -42,11 +44,11 @@ class MihonExtensionsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     
-    val extensionCount: StateFlow<Int> = extensionManager.installedExtensions
+    override val extensionCount: StateFlow<Int> = extensionManager.installedExtensions
         .map { it.size }
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
     
-    val sourceCount: StateFlow<Int> = extensionManager.installedExtensions
+    override val sourceCount: StateFlow<Int> = extensionManager.installedExtensions
         .map { list -> list.sumOf { it.sources.size } }
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
     
@@ -59,7 +61,7 @@ class MihonExtensionsViewModel @Inject constructor(
         }
     }
     
-    fun refresh() {
+    override fun refresh() {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             try {
@@ -70,16 +72,3 @@ class MihonExtensionsViewModel @Inject constructor(
         }
     }
 }
-
-/**
- * UI model for a Mihon extension.
- */
-data class MihonExtensionItem(
-    val pkgName: String,
-    val appName: String,
-    val versionName: String,
-    val lang: String,
-    val isNsfw: Boolean,
-    val sourceCount: Int,
-    val sourceNames: List<String>,
-)

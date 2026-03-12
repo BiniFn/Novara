@@ -72,6 +72,8 @@ Deployment model:
 - [Contributing](./contributing.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
+- [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
+- [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)
 
 ## Development Expectations
 
@@ -93,3 +95,5 @@ For contribution expectations, see [Contributing](./contributing.md).
 
 - [Mihon Integration Reference](./reference/mihon-integration.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
+- [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
+- [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)

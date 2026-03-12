@@ -31,6 +31,8 @@ This directory is organized by task, not by internal implementation. Start with 
 
 - [Mihon Integration Reference](./reference/mihon-integration.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
+- [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
+- [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)
 
 ### For contributors
 
