@@ -19,6 +19,10 @@
 -keep class org.skepsun.kototoro.settings.NotificationSettingsLegacyFragment
 -keep class org.skepsun.kototoro.settings.about.changelog.ChangelogFragment
 
+# Preference XML and FragmentManager may instantiate fragments by class name.
+# Keep all Fragment classes in the app to avoid release-only ClassNotFoundException.
+-keep class org.skepsun.kototoro.**Fragment { *; }
+
 -keep class org.skepsun.kototoro.core.exceptions.* { *; }
 -keep class org.skepsun.kototoro.core.prefs.ScreenshotsPolicy { *; }
 -keep class org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsFragment { *; }
@@ -172,4 +176,3 @@
 -keep class io.reactivex.** { *; }
 -keep interface io.reactivex.** { *; }
 -dontwarn io.reactivex.**
-

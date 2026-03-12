@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings
 
 import android.os.Bundle
 import android.widget.Toast
+import androidx.annotation.Keep
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
@@ -21,6 +22,7 @@ import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModel
 import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModelCatalog
 import javax.inject.Inject
 
+@Keep
 @AndroidEntryPoint
 class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr_models_title) {
 
