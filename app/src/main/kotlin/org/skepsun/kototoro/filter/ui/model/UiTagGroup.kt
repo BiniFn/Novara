@@ -6,4 +6,5 @@ data class UiTagGroup(
     val title: String,
     val tags: Set<MangaTag>,
     val selected: Set<MangaTag> = emptySet(),
+    val isExclusive: Boolean = false,
 )

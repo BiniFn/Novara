@@ -40,6 +40,7 @@ import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
 import org.skepsun.kototoro.parsers.model.MangaParserSource
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.MangaTagGroup
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.model.MangaTag
 import org.skepsun.kototoro.parsers.model.SortOrder
@@ -71,11 +72,11 @@ class FilterCoordinator @Inject constructor(
 
     private val availableSortOrders = repository.sortOrders
     private val filterRefreshTrigger = MutableStateFlow(0)
-    private val filterOptions: Flow<Result<MangaListFilterOptions>> = filterRefreshTrigger.flatMapLatest {
+    private val filterOptions: StateFlow<Result<MangaListFilterOptions>> = filterRefreshTrigger.flatMapLatest {
         flow {
             emit(runCatchingCancellable { repository.getFilterOptions() })
         }
-    }.shareIn(coroutineScope, SharingStarted.Lazily, replay = 1)
+    }.stateIn(coroutineScope, SharingStarted.Lazily, Result.success(MangaListFilterOptions()))
 
     val capabilities = repository.filterCapabilities
 
@@ -103,7 +104,7 @@ class FilterCoordinator @Inject constructor(
             onSuccess = { opts ->
                 val groups = opts.effectiveTagGroups.map { group ->
                     val selectedInGroup = group.tags.intersect(selected.tags)
-                    UiTagGroup(group.title, group.tags, selectedInGroup)
+                    UiTagGroup(group.title, group.tags, selectedInGroup, group.isExclusive)
                 }
                 FilterProperty(
                     availableItems = groups,
@@ -124,7 +125,7 @@ class FilterCoordinator @Inject constructor(
                     onSuccess = { opts ->
                         val groups = opts.effectiveTagGroups.map { group ->
                             val selectedInGroup = group.tags.intersect(selected.tagsExclude)
-                            UiTagGroup(group.title, group.tags, selectedInGroup)
+                            UiTagGroup(group.title, group.tags, selectedInGroup, group.isExclusive)
                         }
                         FilterProperty(
                             availableItems = groups,
@@ -492,10 +493,18 @@ class FilterCoordinator @Inject constructor(
 
     fun toggleTag(value: MangaTag, isSelected: Boolean) {
         currentListFilter.update { oldValue ->
-            val newTags = if (capabilities.isMultipleTagsSupported) {
-                if (isSelected) oldValue.tags + value else oldValue.tags - value
-            } else {
-                if (isSelected) setOf(value) else emptySet()
+            val tagGroup = findTagGroup(value)
+            val newTags = when {
+                tagGroup?.isExclusive == true -> {
+                    val tagsWithoutGroup = oldValue.tags - tagGroup.tags
+                    if (isSelected) tagsWithoutGroup + value else oldValue.tags - value
+                }
+                capabilities.isMultipleTagsSupported -> {
+                    if (isSelected) oldValue.tags + value else oldValue.tags - value
+                }
+                else -> {
+                    if (isSelected) setOf(value) else emptySet()
+                }
             }
             oldValue.copy(
                 tags = newTags,
@@ -507,10 +516,18 @@ class FilterCoordinator @Inject constructor(
 
     fun toggleTagExclude(value: MangaTag, isSelected: Boolean) {
         currentListFilter.update { oldValue ->
-            val newTagsExclude = if (capabilities.isMultipleTagsSupported) {
-                if (isSelected) oldValue.tagsExclude + value else oldValue.tagsExclude - value
-            } else {
-                if (isSelected) setOf(value) else emptySet()
+            val tagGroup = findTagGroup(value)
+            val newTagsExclude = when {
+                tagGroup?.isExclusive == true -> {
+                    val tagsWithoutGroup = oldValue.tagsExclude - tagGroup.tags
+                    if (isSelected) tagsWithoutGroup + value else oldValue.tagsExclude - value
+                }
+                capabilities.isMultipleTagsSupported -> {
+                    if (isSelected) oldValue.tagsExclude + value else oldValue.tagsExclude - value
+                }
+                else -> {
+                    if (isSelected) setOf(value) else emptySet()
+                }
             }
             oldValue.copy(
                 tags = oldValue.tags - newTagsExclude,
@@ -518,6 +535,12 @@ class FilterCoordinator @Inject constructor(
                 query = oldValue.takeQueryIfSupported(),
             )
         }
+    }
+
+    private fun findTagGroup(tag: MangaTag): MangaTagGroup? {
+        return filterOptions.value.getOrNull()
+            ?.effectiveTagGroups
+            ?.firstOrNull { tag in it.tags }
     }
 
     fun getAllTagGroups(): Flow<Result<List<UiTagGroup>>> = filterOptions.map { opts ->
