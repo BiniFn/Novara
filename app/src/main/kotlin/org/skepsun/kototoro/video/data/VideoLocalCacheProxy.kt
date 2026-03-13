@@ -6,6 +6,7 @@ import fi.iki.elonen.NanoHTTPD
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.skepsun.kototoro.core.network.MangaHttpClient
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FilterInputStream
@@ -24,6 +25,26 @@ class VideoLocalCacheProxy @Inject constructor(
     @ApplicationContext context: Context,
     @MangaHttpClient private val okHttpClient: OkHttpClient,
 ) {
+    fun interface DynamicSourceHandler {
+        fun handle(request: DynamicRequest): DynamicResponse
+    }
+
+    data class DynamicRequest(
+        val url: String,
+        val pathSegments: List<String>,
+        val queryParameters: Map<String, String>,
+        val headers: Map<String, String>,
+        val method: String,
+    )
+
+    data class DynamicResponse(
+        val statusCode: Int = 200,
+        val contentType: String = "application/octet-stream",
+        val headers: Map<String, String> = emptyMap(),
+        val body: ByteArray = ByteArray(0),
+        val redirectUrl: String? = null,
+    )
+
     data class SessionStats(
         val hit: Long,
         val miss: Long,
@@ -37,6 +58,7 @@ class VideoLocalCacheProxy @Inject constructor(
     private val cacheRoot: File = context.getExternalFilesDir("video_proxy_cache")
         ?: File(context.filesDir, "video_proxy_cache")
     private val sourceMap = ConcurrentHashMap<String, SourceEntry>()
+    private val dynamicSourceMap = ConcurrentHashMap<String, DynamicSourceEntry>()
     private val fileLocks = ConcurrentHashMap<String, Any>()
     private val sessionCacheHitCount = AtomicLong(0)
     private val sessionCacheMissCount = AtomicLong(0)
@@ -58,6 +80,14 @@ class VideoLocalCacheProxy @Inject constructor(
         val runningServer = ensureServer()
         Log.d(TAG, "register source key=$key url=$url")
         return "http://127.0.0.1:${runningServer.listeningPort}/video/$key"
+    }
+
+    fun getDynamicProxyUrl(id: String, handler: DynamicSourceHandler): String {
+        val key = sha256("dynamic:$id")
+        dynamicSourceMap[key] = DynamicSourceEntry(handler = handler)
+        val runningServer = ensureServer()
+        Log.d(TAG, "register dynamic source key=$key id=$id")
+        return "http://127.0.0.1:${runningServer.listeningPort}/dynamic/$key"
     }
 
     fun resetSessionStats(reason: String) {
@@ -197,6 +227,9 @@ class VideoLocalCacheProxy @Inject constructor(
                     "text/plain",
                     "Method not allowed",
                 )
+            }
+            if (session.uri.startsWith("/dynamic/")) {
+                return serveDynamic(session)
             }
             if (!session.uri.startsWith("/video/")) {
                 return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
@@ -346,6 +379,28 @@ class VideoLocalCacheProxy @Inject constructor(
             }
             return response
         }
+
+        private fun serveDynamic(session: IHTTPSession): Response {
+            val key = session.uri.removePrefix("/dynamic/")
+            val dynamicSource = dynamicSourceMap[key]
+                ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Dynamic key not found")
+            val request = DynamicRequest(
+                url = session.uri,
+                pathSegments = session.uri.split('/').filter { it.isNotBlank() },
+                queryParameters = session.parameters.mapValues { (_, values) -> values.firstOrNull().orEmpty() },
+                headers = session.headers.toMap(),
+                method = session.method.name,
+            )
+            val dynamicResponse = runCatching { dynamicSource.handler.handle(request) }.getOrElse { error ->
+                Log.w(TAG, "dynamic source failed key=$key", error)
+                DynamicResponse(
+                    statusCode = 500,
+                    contentType = "text/plain; charset=utf-8",
+                    body = (error.message ?: error.toString()).toByteArray(Charsets.UTF_8),
+                )
+            }
+            return buildDynamicResponse(dynamicResponse, session.method == Method.HEAD)
+        }
     }
 
     private fun buildCachedResponse(
@@ -378,6 +433,10 @@ class VideoLocalCacheProxy @Inject constructor(
     private data class SourceEntry(
         val url: String,
         val headers: Map<String, String>,
+    )
+
+    private data class DynamicSourceEntry(
+        val handler: DynamicSourceHandler,
     )
 
     private data class RangeRequest(
@@ -510,6 +569,60 @@ class VideoLocalCacheProxy @Inject constructor(
             closed = true
             runCatching { super.close() }
             onClosed(totalWritten)
+        }
+    }
+
+    private fun buildDynamicResponse(
+        response: DynamicResponse,
+        isHead: Boolean,
+    ): NanoHTTPD.Response {
+        val status = responseStatus(response.statusCode)
+        val output = when {
+            response.redirectUrl != null -> {
+                NanoHTTPD.newFixedLengthResponse(status, response.contentType, "")
+            }
+            isHead -> {
+                NanoHTTPD.newFixedLengthResponse(status, response.contentType, "")
+            }
+            else -> {
+                NanoHTTPD.newFixedLengthResponse(
+                    status,
+                    response.contentType,
+                    ByteArrayInputStream(response.body),
+                    response.body.size.toLong(),
+                )
+            }
+        }
+        response.redirectUrl?.let { output.addHeader("Location", it) }
+        response.headers.forEach { (key, value) -> output.addHeader(key, value) }
+        output.addHeader("Content-Length", response.body.size.toString())
+        return output
+    }
+
+    private fun responseStatus(code: Int): NanoHTTPD.Response.IStatus {
+        return object : NanoHTTPD.Response.IStatus {
+            override fun getRequestStatus(): Int = code
+
+            override fun getDescription(): String = "$code ${reasonPhrase(code)}"
+        }
+    }
+
+    private fun reasonPhrase(code: Int): String {
+        return when (code) {
+            200 -> "OK"
+            206 -> "Partial Content"
+            301 -> "Moved Permanently"
+            302 -> "Found"
+            307 -> "Temporary Redirect"
+            308 -> "Permanent Redirect"
+            400 -> "Bad Request"
+            403 -> "Forbidden"
+            404 -> "Not Found"
+            405 -> "Method Not Allowed"
+            500 -> "Internal Server Error"
+            502 -> "Bad Gateway"
+            504 -> "Gateway Timeout"
+            else -> "OK"
         }
     }
 }

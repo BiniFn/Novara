@@ -24,6 +24,8 @@ import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
 import org.skepsun.kototoro.settings.utils.validation.DomainValidator
 import org.skepsun.kototoro.settings.utils.validation.HeaderValidator
 import org.skepsun.kototoro.core.model.getDomainTitleResId
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.getUnsupportedSourceTitleResId
 import org.skepsun.kototoro.core.model.unwrap
 
 fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: MangaRepository) {
@@ -66,7 +68,7 @@ private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(
 							validator = DomainValidator(),
 						),
 					)
-					val contentType = (repository.source.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
+					val contentType = repository.source.getContentType()
 					val domainTitleResId = contentType.getDomainTitleResId()
 					setTitle(domainTitleResId)
 					setDialogTitle(domainTitleResId)
@@ -157,7 +159,10 @@ private fun PreferenceFragmentCompat.addPreferencesFromEmptyRepository() {
 	preference.isPersistent = false
 	preference.isSelectable = false
 	preference.order = 200
-	preference.setSummary(R.string.unsupported_source)
+	val sourceName = arguments?.getString(org.skepsun.kototoro.core.nav.AppRouter.KEY_SOURCE)
+	val source = sourceName?.let { org.skepsun.kototoro.core.model.MangaSource(it) }
+	val contentType = source?.getContentType() ?: ContentType.MANGA
+	preference.setSummary(contentType.getUnsupportedSourceTitleResId())
 	preferenceScreen.addPreference(preference)
 }
 

@@ -229,21 +229,6 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
     }
 
 	private fun getContentType(source: org.skepsun.kototoro.parsers.model.MangaSource): org.skepsun.kototoro.parsers.model.ContentType {
-		if (source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) return source.getContentType()
-		if (source.name.startsWith("JSON_")) {
-			if (source.name.startsWith("JSON_LEGADO_M_")) return org.skepsun.kototoro.parsers.model.ContentType.MANGA
-			if (source.name.startsWith("JSON_LEGADO_")) {
-				val entity = kotlinx.coroutines.runBlocking { jsonSourceManager.getById(source.name) }
-				if (entity != null) {
-					return try {
-						val jsonObj = org.json.JSONObject(entity.config)
-						if (jsonObj.optInt("bookSourceType", 0) == 2) org.skepsun.kototoro.parsers.model.ContentType.MANGA else org.skepsun.kototoro.parsers.model.ContentType.NOVEL
-					} catch (e: Exception) {
-						org.skepsun.kototoro.parsers.model.ContentType.NOVEL
-					}
-				}
-			}
-		}
 		return source.getContentType()
 	}
 

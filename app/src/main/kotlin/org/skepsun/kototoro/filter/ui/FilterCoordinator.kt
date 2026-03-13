@@ -653,3 +653,7 @@ class FilterCoordinator @Inject constructor(
         }
     }
 }
+
+// 当前 parser 模型不再暴露 tag group 的独占元信息，过滤 UI 统一回退为非独占。
+private val MangaTagGroup.isExclusive: Boolean
+    get() = false

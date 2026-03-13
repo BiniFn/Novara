@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import okhttp3.tls.HandshakeCertificates
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import java.io.ByteArrayInputStream
 import java.security.SecureRandom
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
@@ -16,6 +17,9 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
+
+private const val EXTRA_CERTS_TAG = "ExtraCerts"
+private const val PEM_CERTIFICATE_BEGIN_MARKER = "-----BEGIN CERTIFICATE-----"
 
 @SuppressLint("CustomX509TrustManager")
 fun OkHttpClient.Builder.disableCertificateVerification() = also { builder ->
@@ -43,26 +47,35 @@ fun OkHttpClient.Builder.installExtraCertificates(context: Context) = also { bui
 	val assets = context.assets.list("").orEmpty()
 	for (path in assets) {
 		if (path.endsWith(".pem")) {
-			val cert = loadCert(context, path) ?: continue
-			certificatesBuilder.addTrustedCertificate(cert)
+			loadCertificates(context, path).forEach(certificatesBuilder::addTrustedCertificate)
 		}
 	}
 	val certificates = certificatesBuilder.build()
 	builder.sslSocketFactory(SniBypassSSLSocketFactory(certificates.sslSocketFactory()), certificates.trustManager)
 }
 
-private fun loadCert(context: Context, path: String): X509Certificate? = runCatching {
+private fun loadCertificates(context: Context, path: String): List<X509Certificate> = runCatching {
+	val pemText = context.assets.open(path, AssetManager.ACCESS_STREAMING).bufferedReader().use { reader ->
+		reader.readText()
+	}
+	if (!pemText.contains(PEM_CERTIFICATE_BEGIN_MARKER)) {
+		Log.w(EXTRA_CERTS_TAG, "Skipping non-certificate PEM asset: $path")
+		return emptyList()
+	}
 	val cf = CertificateFactory.getInstance("X.509")
-	context.assets.open(path, AssetManager.ACCESS_STREAMING).use {
-		cf.generateCertificate(it)
-	} as X509Certificate
+	ByteArrayInputStream(pemText.toByteArray()).use { input ->
+		cf.generateCertificates(input).filterIsInstance<X509Certificate>()
+	}
 }.onFailure { e ->
-	e.printStackTraceDebug()
+	Log.w(
+		EXTRA_CERTS_TAG,
+		"Skipping invalid extra certificate asset: $path (${e.javaClass.simpleName}: ${e.message.orEmpty()})",
+	)
 }.onSuccess {
 	if (BuildConfig.DEBUG) {
-		Log.i("ExtraCerts", "Loaded cert $path")
+		Log.i(EXTRA_CERTS_TAG, "Loaded ${it.size} cert(s) from $path")
 	}
-}.getOrNull()
+}.getOrDefault(emptyList())
 
 internal class SniBypassSSLSocketFactory(
 	private val delegate: SSLSocketFactory,

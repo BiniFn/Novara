@@ -42,6 +42,8 @@ class ImportJsonViewModel @Inject constructor(
 
 	private val _fetchedContent = MutableStateFlow<String?>(null)
 	val fetchedContent = _fetchedContent.asStateFlow()
+	private val _lastFetchedUrl = MutableStateFlow<String?>(null)
+	val lastFetchedUrl = _lastFetchedUrl.asStateFlow()
 	
 	/**
 	 * Fetches JSON content from a URL.
@@ -57,6 +59,7 @@ class ImportJsonViewModel @Inject constructor(
 					val content = response.body?.string()
 					if (content != null) {
 						_fetchedContent.value = content
+						_lastFetchedUrl.value = url
 						_uiState.value = ImportUiState.Idle
 					} else {
 						_uiState.value = ImportUiState.Error("Empty response body")
@@ -64,6 +67,7 @@ class ImportJsonViewModel @Inject constructor(
 				} else {
 					_uiState.value = ImportUiState.Error("HTTP Error ${response.code}")
 				}
+				response.close()
 			} catch (e: Exception) {
 				_uiState.value = ImportUiState.Error(e.message ?: "Unknown error occurred")
 			}
@@ -72,6 +76,7 @@ class ImportJsonViewModel @Inject constructor(
 
 	fun clearFetchedContent() {
 		_fetchedContent.value = null
+		_lastFetchedUrl.value = null
 	}
 	
 	/**
@@ -94,7 +99,11 @@ class ImportJsonViewModel @Inject constructor(
 	 * @param jsonContent The JSON content to import
 	 * @param sourceType The type of source (LEGADO or TVBOX)
 	 */
-	fun importJson(jsonContent: String, sourceType: JsonSourceType) {
+	fun importJson(
+		jsonContent: String,
+		sourceType: JsonSourceType,
+		sourceLocator: String? = null,
+	) {
 		viewModelScope.launch(Dispatchers.Default) {
 			_uiState.value = ImportUiState.Loading
 			
@@ -116,9 +125,7 @@ class ImportJsonViewModel @Inject constructor(
 						skipUnreachable = skipUnreachableSources,
 						skipNoExplore = skipNoExploreSources
 					)
-					JsonSourceType.TVBOX -> {
-						Result.failure(UnsupportedOperationException("TVBox import not yet implemented"))
-					}
+					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(jsonContent, sourceLocator)
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
 				}
 				
@@ -155,8 +162,8 @@ class ImportJsonViewModel @Inject constructor(
 						skipUnreachable = skipUnreachableSources,
 						skipNoExplore = skipNoExploreSources
 					)
+					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(jsonContent, uri.toString())
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
-					else -> Result.failure(UnsupportedOperationException("Unsupported type"))
 				}
 				
 				handleImportResult(result)

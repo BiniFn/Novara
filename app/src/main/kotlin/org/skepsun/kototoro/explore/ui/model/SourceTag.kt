@@ -22,7 +22,8 @@ enum class SourceTag(
     BUILTIN(R.string.built_in_sources, R.drawable.ic_source_builtin, "builtin"),
     MIHON(R.string.mihon_sources, R.drawable.ic_source_mihon, "mihon"),
     ANIYOMI(R.string.aniyomi_sources, R.drawable.ic_source_aniyomi, "aniyomi"),
-    LEGADO(R.string.source_type_legado, R.drawable.ic_source_legado, "json");
+    LEGADO(R.string.source_type_legado, R.drawable.ic_source_legado, "legado"),
+    TVBOX(R.string.source_type_tvbox, R.drawable.ic_source_tvbox, "tvbox");
 
     /**
      * Whether this tag matches the given content and origin group.
@@ -32,6 +33,7 @@ enum class SourceTag(
         MIHON -> originGroup == OriginGroup.MIHON
         ANIYOMI -> originGroup == OriginGroup.ANIYOMI
         LEGADO -> originGroup == OriginGroup.LEGADO_JSON
+        TVBOX -> originGroup == OriginGroup.TVBOX_JSON
     }
 
     /**
@@ -42,10 +44,16 @@ enum class SourceTag(
         MIHON -> tab == BrowseGroupTab.Manga || tab == BrowseGroupTab.All
         ANIYOMI -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
         LEGADO -> tab == BrowseGroupTab.Manga || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
+        TVBOX -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
     }
 
     companion object {
         fun fromIds(ids: Collection<String>): Set<SourceTag> =
-            ids.mapNotNull { id -> entries.find { it.id == id } }.toSet()
+            ids.mapNotNull { id ->
+                when (id) {
+                    "json" -> LEGADO
+                    else -> entries.find { it.id == id }
+                }
+            }.toSet()
     }
 }

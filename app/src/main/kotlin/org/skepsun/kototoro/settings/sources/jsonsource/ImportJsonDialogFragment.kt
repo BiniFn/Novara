@@ -2,7 +2,6 @@ package org.skepsun.kototoro.settings.sources.jsonsource
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -17,12 +16,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
-import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.ui.AlertDialogFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.DialogImportJsonBinding
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 /**
  * Dialog fragment for importing JSON source configurations.
@@ -37,8 +33,10 @@ import java.io.InputStreamReader
  */
 @AndroidEntryPoint
 class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(), View.OnClickListener {
-	
+
 	private val viewModel: ImportJsonViewModel by viewModels()
+	private lateinit var sourceTypeOptions: List<SourceTypeEntry>
+	private var selectedSourceType: JsonSourceType = JsonSourceType.LEGADO
 	
 	/**
 	 * File picker launcher for selecting JSON files.
@@ -60,9 +58,8 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 	
 	override fun onViewBindingCreated(binding: DialogImportJsonBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		
+		setupSourceTypeDropdown(binding)
 
-		
 		// Set up button listeners
 		binding.buttonSelectFile.setOnClickListener(this)
 		binding.buttonImportUrl.setOnClickListener(this)
@@ -72,9 +69,11 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		// Observe fetched content from URL
 		viewModel.fetchedContent.observe(viewLifecycleOwner) { content ->
 			if (content != null) {
-				// Automatic import for fetched content from URL
-				val sourceType = determineSourceType()
-				viewModel.importJson(content, sourceType)
+				viewModel.importJson(
+					jsonContent = content,
+					sourceType = determineSourceType(),
+					sourceLocator = viewModel.lastFetchedUrl.value,
+				)
 				viewModel.clearFetchedContent()
 			}
 		}
@@ -112,11 +111,45 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 			R.id.button_import -> performImport()
 		}
 	}
-	
+
 	/**
 	 * Sets up the source type dropdown with available options.
 	 */
+	private fun setupSourceTypeDropdown(binding: DialogImportJsonBinding) {
+		sourceTypeOptions = listOf(
+			SourceTypeEntry(JsonSourceType.LEGADO, getString(R.string.source_type_legado)),
+			SourceTypeEntry(JsonSourceType.TVBOX, getString(R.string.source_type_tvbox)),
+			SourceTypeEntry(JsonSourceType.JS, getString(R.string.source_type_js)),
+		)
+		val adapter = ArrayAdapter(
+			requireContext(),
+			android.R.layout.simple_list_item_1,
+			sourceTypeOptions.map { it.label },
+		)
+		binding.autoCompleteSourceType.setAdapter(adapter)
+		binding.autoCompleteSourceType.setText(sourceTypeOptions.first().label, false)
+		selectedSourceType = sourceTypeOptions.first().type
+		updateUiForSourceType(binding, selectedSourceType)
 
+		binding.autoCompleteSourceType.setOnItemClickListener { _, _, position, _ ->
+			selectedSourceType = sourceTypeOptions[position].type
+			updateUiForSourceType(binding, selectedSourceType)
+		}
+	}
+
+	private fun updateUiForSourceType(
+		binding: DialogImportJsonBinding,
+		sourceType: JsonSourceType,
+	) {
+		val isLegado = sourceType == JsonSourceType.LEGADO
+		binding.checkboxSkipUnreachable.isVisible = isLegado
+		binding.checkboxSkipNoExplore.isVisible = isLegado
+		binding.textInputLayoutJson.hint = when (sourceType) {
+			JsonSourceType.LEGADO -> getString(R.string.paste_legado_content)
+			JsonSourceType.TVBOX -> getString(R.string.paste_tvbox_content)
+			JsonSourceType.JS -> getString(R.string.paste_js_content)
+		}
+	}
 	
 	/**
 	 * Shows a dialog to input a URL for fetching JSON content.
@@ -185,15 +218,18 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 			// Prefer file import
 			viewModel.importJsonFromFile(uri, sourceType, requireContext().contentResolver)
 		} else if (jsonContent.isNotBlank()) {
-			// Falls back to pasted text (even if hidden, it might have been set by URL fetch before)
-			viewModel.importJson(jsonContent, sourceType)
+			viewModel.importJson(
+				jsonContent = jsonContent,
+				sourceType = sourceType,
+				sourceLocator = null,
+			)
 		} else {
 			Toast.makeText(requireContext(), R.string.select_file_or_enter_url, Toast.LENGTH_SHORT).show()
 		}
 	}
 
 	private fun determineSourceType(): JsonSourceType {
-		return JsonSourceType.LEGADO
+		return selectedSourceType
 	}
 	
 	/**
@@ -281,4 +317,9 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 			return ImportJsonDialogFragment()
 		}
 	}
+
+	private data class SourceTypeEntry(
+		val type: JsonSourceType,
+		val label: String,
+	)
 }

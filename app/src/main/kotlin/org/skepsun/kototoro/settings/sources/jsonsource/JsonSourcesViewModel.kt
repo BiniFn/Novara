@@ -14,6 +14,8 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.json.JSONObject
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.jsonsource.GroupedSourceList
 import org.skepsun.kototoro.core.jsonsource.GroupingStrategy
@@ -64,7 +66,7 @@ class JsonSourcesViewModel @Inject constructor(
 	private val parsedSources = jsonSources.map { sources ->
 		sources.associate { entity ->
 			entity.id to runCatching {
-				json.decodeFromString<LegadoBookSource>(entity.config)
+				parseSourceMeta(entity)
 			}.getOrNull()
 		}
 	}.stateIn(
@@ -75,9 +77,7 @@ class JsonSourcesViewModel @Inject constructor(
 
 	val availableGroups: StateFlow<List<String>> = parsedSources.map { sourceMap ->
 		sourceMap.values.filterNotNull()
-			.flatMap { it.bookSourceGroup?.split(Regex("[,;，；]")) ?: emptyList() }
-			.map { it.trim() }
-			.filter { it.isNotBlank() }
+			.flatMap { it.groups }
 			.distinct()
 			.sorted()
 	}.stateIn(
@@ -152,23 +152,22 @@ class JsonSourcesViewModel @Inject constructor(
 			}
 			is FilterOption.NO_GROUP -> {
 				searchedEntities.filter { entity ->
-					parsedSources.value[entity.id]?.bookSourceGroup.isNullOrBlank()
+					parsedSources.value[entity.id]?.groups.isNullOrEmpty()
 				}
 			}
 			is FilterOption.EXPLORE_ENABLED -> {
 				searchedEntities.filter { entity ->
-					parsedSources.value[entity.id]?.exploreUrl?.isNotBlank() == true
+					parsedSources.value[entity.id]?.hasExplore == true
 				}
 			}
 			is FilterOption.EXPLORE_DISABLED -> {
 				searchedEntities.filter { entity ->
-					parsedSources.value[entity.id]?.exploreUrl.isNullOrBlank()
+					parsedSources.value[entity.id]?.hasExplore == false
 				}
 			}
 			is FilterOption.GROUP -> {
 				searchedEntities.filter { entity ->
-					val groups = parsedSources.value[entity.id]?.bookSourceGroup?.split(Regex("[,;，；]"))?.map { it.trim() }
-					groups?.contains(filter.name) == true
+					parsedSources.value[entity.id]?.groups?.contains(filter.name) == true
 				}
 			}
 		}
@@ -259,6 +258,11 @@ class JsonSourcesViewModel @Inject constructor(
 			_testResult.value = TestResult.Testing(sourceId)
 			
 			try {
+				val entity = jsonSources.value.firstOrNull { it.id == sourceId }
+				if (entity?.type != JsonSourceType.LEGADO) {
+					_testResult.value = TestResult.Error(sourceId, "Validation is only supported for Legado sources")
+					return@launch
+				}
 				val ok = jsonSourceManager.validateSourceBySearch(sourceId, searchKey = "我的")
 				if (ok) {
 					_testResult.value = TestResult.Success(sourceId, "Search test passed")
@@ -335,10 +339,15 @@ class JsonSourcesViewModel @Inject constructor(
 					launch {
 						semaphore.withPermit {
 							try {
-								val ok = jsonSourceManager.validateSourceBySearch(id, searchKey = "我的")
-								updated[id] = ok
-								if (!ok) {
-									invalidIds.add(id)
+								val entity = jsonSources.value.firstOrNull { it.id == id }
+								if (entity?.type == JsonSourceType.LEGADO) {
+									val ok = jsonSourceManager.validateSourceBySearch(id, searchKey = "我的")
+									updated[id] = ok
+									if (!ok) {
+										invalidIds.add(id)
+									}
+								} else {
+									updated[id] = null
 								}
 							} catch (e: Exception) {
 								if (e is kotlinx.coroutines.CancellationException) throw e
@@ -452,6 +461,44 @@ class JsonSourcesViewModel @Inject constructor(
 	fun setSearchQuery(query: String) {
 		_searchQuery.value = query
 	}
+
+	private fun parseSourceMeta(entity: JsonSourceEntity): JsonSourceMeta = when (entity.type) {
+		JsonSourceType.LEGADO -> {
+			val source = json.decodeFromString<LegadoBookSource>(entity.config)
+			JsonSourceMeta(
+				loginUrl = source.loginUrl,
+				groups = source.bookSourceGroup
+					?.split(Regex("[,;，；]"))
+					?.map { it.trim() }
+					?.filter { it.isNotBlank() }
+					.orEmpty(),
+				hasExplore = !source.exploreUrl.isNullOrBlank(),
+			)
+		}
+		JsonSourceType.TVBOX -> {
+			val root = JSONObject(entity.config)
+			val site = root.optJSONObject("site")
+			val categories = site?.optJSONArray("categories")
+			val groups = buildList {
+				if (categories != null) {
+					for (i in 0 until categories.length()) {
+						val value = categories.optString(i).trim()
+						if (value.isNotBlank()) add(value)
+					}
+				}
+			}
+			JsonSourceMeta(
+				loginUrl = null,
+				groups = groups,
+				hasExplore = null,
+			)
+		}
+		JsonSourceType.JS -> JsonSourceMeta(
+			loginUrl = null,
+			groups = emptyList(),
+			hasExplore = null,
+		)
+	}
 }
 
 /**
@@ -473,8 +520,14 @@ sealed class TestResult {
 	/**
 	 * Test failed with error.
 	 */
-	data class Error(override val sourceId: String, val message: String) : TestResult()
+data class Error(override val sourceId: String, val message: String) : TestResult()
 }
+
+private data class JsonSourceMeta(
+	val loginUrl: String?,
+	val groups: List<String>,
+	val hasExplore: Boolean?,
+)
 
 enum class SortOption {
 	NAME, ENABLED

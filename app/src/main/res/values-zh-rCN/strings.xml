@@ -914,6 +914,8 @@
     <string name="enable_source_manga">启用图源</string>
     <string name="enable_source_novel">启用小说源</string>
     <string name="enable_source_video">启用视频源</string>
+    <string name="unsupported_novel_source">不支持此小说源</string>
+    <string name="unsupported_video_source">不支持此视频源</string>
 
     <string name="domain_manga">图源域名</string>
     <string name="domain_novel">小说源域名</string>
@@ -1011,6 +1013,23 @@
 	<string name="source_type_aniyomi">Aniyomi 扩展</string>
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
+	<string name="tvbox_site_key_title">站点 Key</string>
+	<string name="tvbox_site_api_title">站点 API</string>
+	<string name="tvbox_site_type_title">站点类型</string>
+	<string name="tvbox_root_spider_title">根 Spider</string>
+	<string name="tvbox_site_jar_title">站点 Jar</string>
+	<string name="tvbox_source_locator_title">导入来源</string>
+	<string name="tvbox_runtime_strategy_title">运行时方案</string>
+	<string name="tvbox_runtime_strategy_none">当前没有可用的本地 TVBox spider 运行时；仅能依赖直链、播放列表或 CMS fallback。</string>
+	<string name="tvbox_runtime_candidates_title">运行时候选</string>
+	<string name="tvbox_support_status_title">支持状态</string>
+	<string name="tvbox_support_status_direct">当前版本支持直链和播放列表类 TVBox 源。</string>
+	<string name="tvbox_support_status_partial_runtime">当前版本可尝试该站点的直链、播放列表和部分 CMS 接口；spider/csp 运行时能力仍不支持。</string>
+	<string name="tvbox_support_status_quickjs_partial">当前版本已为 TVBox type=4 提供基础 QuickJS bridge，可尝试首页、分类、详情和播放解析，但高级 JS 运行时能力仍不完整。</string>
+	<string name="tvbox_support_status_spider">该 TVBox 站点依赖 spider 或 csp 运行时，当前版本暂不支持。</string>
+	<string name="tvbox_support_status_bridgeable">当前版本可尝试该站点的直链、播放列表或部分 CMS 候选；若要完整兼容 spider/jar/csp，仍需要额外运行时或外部桥接。</string>
+	<string name="tvbox_support_status_spider_bridge">该 TVBox 站点依赖 spider、jar 或 csp。当前客户端未接入本地运行时；如需兼容，应通过额外运行时或类似 DecoTV 的外部桥接方案。</string>
+	<string name="not_specified">未指定</string>
 	<string name="source_type_js">JavaScript 源（Venera）</string>
 
     <!-- 播放设置 -->
@@ -1083,8 +1102,12 @@
     <string name="enable_kotatsu_sources_summary">启用来自 kotatsu-parsers 仓库的内容源</string>
     
     <string name="available_sources_count">%1$d 个可用</string>
-    <string name="import_json_sources">导入 Legado 内容源</string>
-    <string name="import_json_sources_summary">导入 Legado 内容源配置</string>
+    <string name="import_json_sources">导入 JSON 内容源</string>
+    <string name="import_json_sources_summary">导入 Legado、TVBox 或 JavaScript 内容源配置</string>
+    <string name="paste_json_content">粘贴内容源配置</string>
+    <string name="paste_legado_content">粘贴 Legado 内容源配置</string>
+    <string name="paste_tvbox_content">粘贴 TVBox 内容源配置</string>
+    <string name="paste_js_content">粘贴 JavaScript 内容源配置</string>
     <string name="native_sources">原生内容源</string>
     <string name="setup_wizard">设置向导</string>
     <string name="setup_wizard_summary">选择内容语言和类型。这重置已启用的图源列表。</string>

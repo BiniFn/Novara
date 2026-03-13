@@ -121,33 +121,11 @@ class GroupedJsonSourcesAdapter(
 			}
 			
 			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
-				// Parse config to extract base URL, explore rule status, group and sub-type
-				val (bookSourceUrl, hasExplore, groups, type) = if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO) {
-					try {
-						val jsonObj = JSONObject(mangaSource.entity.config)
-						val url = jsonObj.optString("bookSourceUrl")
-						val exploreRule = jsonObj.optJSONObject("ruleExplore")
-						val exploreStatus = exploreRule != null && !exploreRule.optString("bookList").isNullOrBlank()
-						val groupStr = jsonObj.optString("bookSourceGroup", "")
-						val bookSourceType = jsonObj.optInt("bookSourceType", 0)
-						android.util.Log.d("JsonSourcesAdapter", "Source ${mangaSource.displayName} has type $bookSourceType")
-						Quadruple(url, exploreStatus, groupStr, bookSourceType)
-					} catch (e: Exception) {
-						Quadruple(null, true, "", 0)
-					}
-				} else {
-					Quadruple(null, true, "", if (mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.JS) 2 else 0)
-				}
+				val meta = parseSourceMeta(mangaSource.entity)
 				
 				// Set URL with content type and groups
-				val contentType = when {
-					mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> if (type == 2) "漫画" else "小说"
-					mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> "视频"
-					mangaSource.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> "漫画"
-					else -> getContentTypeLabel(sourceInfo)
-				}
-				val groupsDisplay = if (groups.isNotBlank()) " [$groups]" else ""
-				binding.textViewUrl.text = "${bookSourceUrl ?: mangaSource.entity.id} · $contentType$groupsDisplay"
+				val groupsDisplay = if (meta.groups.isNotBlank()) " [${meta.groups}]" else ""
+				binding.textViewUrl.text = "${meta.reference} · ${meta.contentTypeLabel}$groupsDisplay"
 				
 				// Selection checkbox
 				binding.checkboxSelect.visibility = View.VISIBLE
@@ -168,12 +146,12 @@ class GroupedJsonSourcesAdapter(
 				// More menu button
 				binding.buttonMore.visibility = View.VISIBLE
 				binding.buttonMore.setOnClickListener { view ->
-					showPopupMenu(view, mangaSource.entity.id)
+					showPopupMenu(view, mangaSource.entity.id, meta)
 				}
 				
 				// Badges - compact version
 				var badgesVisible = false
-				if (!hasExplore) {
+				if (meta.hasExplore == false) {
 					binding.chipSearchOnly.visibility = View.VISIBLE
 					binding.chipSearchOnly.text = "搜"
 					badgesVisible = true
@@ -214,9 +192,11 @@ class GroupedJsonSourcesAdapter(
 			}
 		}
 		
-		private fun showPopupMenu(anchor: View, sourceId: String) {
+		private fun showPopupMenu(anchor: View, sourceId: String, meta: JsonSourceItemMeta) {
 			val popup = androidx.appcompat.widget.PopupMenu(anchor.context, anchor)
 			popup.menuInflater.inflate(R.menu.menu_source_item, popup.menu)
+			popup.menu.findItem(R.id.menu_edit)?.isVisible = meta.canEdit
+			popup.menu.findItem(R.id.menu_test)?.isVisible = meta.canTest
 			popup.setOnMenuItemClickListener { menuItem ->
 				when (menuItem.itemId) {
 					R.id.menu_edit -> {
@@ -235,6 +215,64 @@ class GroupedJsonSourcesAdapter(
 				}
 			}
 			popup.show()
+		}
+
+		private fun parseSourceMeta(entity: JsonSourceEntity): JsonSourceItemMeta {
+			return when (entity.type) {
+				org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
+					try {
+						val jsonObj = JSONObject(entity.config)
+						val url = jsonObj.optString("bookSourceUrl").ifBlank { entity.id }
+						val exploreRule = jsonObj.optJSONObject("ruleExplore")
+						val hasExplore = exploreRule != null && !exploreRule.optString("bookList").isNullOrBlank()
+						val groupStr = jsonObj.optString("bookSourceGroup", "")
+						val bookSourceType = jsonObj.optInt("bookSourceType", 0)
+						JsonSourceItemMeta(
+							reference = url,
+							hasExplore = hasExplore,
+							groups = groupStr,
+							contentTypeLabel = if (bookSourceType == 2) "漫画" else "小说",
+							canEdit = true,
+							canTest = true,
+						)
+					} catch (e: Exception) {
+						JsonSourceItemMeta(
+							reference = entity.id,
+							hasExplore = null,
+							groups = "",
+							contentTypeLabel = "小说",
+							canEdit = true,
+							canTest = true,
+						)
+					}
+				}
+				org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
+					val jsonObj = runCatching { JSONObject(entity.config) }.getOrNull()
+					val site = jsonObj?.optJSONObject("site")
+					val sourceLocator = jsonObj?.optJSONObject("meta")?.optString("sourceLocator").orEmpty()
+					val reference = listOf(
+						sourceLocator.takeIf { it.isNotBlank() },
+						site?.optString("key")?.takeIf { !it.isNullOrBlank() },
+						site?.optString("api")?.takeIf { !it.isNullOrBlank() },
+					).joinToString(" · ").ifBlank { entity.id }
+					JsonSourceItemMeta(
+						reference = reference,
+						hasExplore = null,
+						groups = "",
+						contentTypeLabel = "视频",
+						canEdit = false,
+						canTest = false,
+					)
+				}
+				org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> JsonSourceItemMeta(
+					reference = entity.id,
+					hasExplore = null,
+					groups = "",
+					contentTypeLabel = "漫画",
+					canEdit = false,
+					canTest = false,
+				)
+			}
 		}
 		
 		private fun getContentTypeLabel(sourceInfo: MangaSourceInfo): String {
@@ -356,4 +394,13 @@ data class Quadruple<out A, out B, out C, out D>(
 	val second: B,
 	val third: C,
 	val fourth: D
+)
+
+private data class JsonSourceItemMeta(
+	val reference: String,
+	val hasExplore: Boolean?,
+	val groups: String,
+	val contentTypeLabel: String,
+	val canEdit: Boolean,
+	val canTest: Boolean,
 )

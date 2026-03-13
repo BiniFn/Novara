@@ -22,6 +22,7 @@ import org.skepsun.kototoro.settings.utils.EditTextBindListener
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.getEnableSourceTitleResId
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getRecommendationTermResId
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.unwrap
@@ -54,7 +55,10 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
 import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @AndroidEntryPoint
 class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenceChangeListener {
@@ -87,7 +91,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		addPreferencesFromRepository(viewModel.repository)
 		val isValidSource = viewModel.repository !is EmptyMangaRepository
 
-		val contentType = (viewModel.source.unwrap() as? MangaParserSource)?.contentType ?: ContentType.MANGA
+		val contentType = viewModel.source.getContentType()
 		findPreference<SwitchPreferenceCompat>(KEY_ENABLE)?.run {
 			isVisible = isValidSource && !settings.isAllSourcesEnabled
 			onPreferenceChangeListener = this@SourceSettingsFragment
@@ -110,6 +114,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
             addCredentialsPreferences()
         }
 		findPreference<Preference>(SourceSettings.KEY_SLOWDOWN)?.isVisible = isValidSource
+		tryAddTvBoxPreferences()
 		tryAddLegadoVariablePreferences()
 		tryAddLegadoAuthPreferences()
 	}
@@ -185,6 +190,217 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			}
 		}
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(listView))
+	}
+
+	private fun tryAddTvBoxPreferences() {
+		val (repo, config) = getTvBoxRepoAndConfigOrNull() ?: return
+		val screen = preferenceScreen ?: return
+		val candidates = buildTvBoxResourceCandidates(config)
+		val runtimeSummary = buildTvBoxRuntimeSummary(repo, config)
+		val category = findPreference<PreferenceCategory>(KEY_TVBOX_CATEGORY)
+			?: PreferenceCategory(requireContext()).apply {
+				key = KEY_TVBOX_CATEGORY
+				title = getString(R.string.source_type_tvbox)
+				order = 30
+				isIconSpaceReserved = false
+				screen.addPreference(this)
+			}
+
+		fun addInfoPreference(key: String, title: String, summary: String, order: Int) {
+			val preference = findPreference<Preference>(key) ?: Preference(requireContext()).apply {
+				this.key = key
+				this.title = title
+				this.order = order
+				isIconSpaceReserved = false
+				isPersistent = false
+				category.addPreference(this)
+			}
+			preference.summary = summary
+		}
+
+		addInfoPreference(
+			key = KEY_TVBOX_SITE_KEY,
+			title = getString(R.string.tvbox_site_key_title),
+			summary = config.site.key.ifBlank { getString(R.string.not_specified) },
+			order = 31,
+		)
+		addInfoPreference(
+			key = KEY_TVBOX_SITE_API,
+			title = getString(R.string.tvbox_site_api_title),
+			summary = config.site.api.ifBlank { getString(R.string.not_specified) },
+			order = 32,
+		)
+		addInfoPreference(
+			key = KEY_TVBOX_SITE_TYPE,
+			title = getString(R.string.tvbox_site_type_title),
+			summary = getTvBoxTypeSummary(config),
+			order = 33,
+		)
+		config.root.spider?.takeIf { it.isNotBlank() }?.let { spider ->
+			addInfoPreference(
+				key = KEY_TVBOX_ROOT_SPIDER,
+				title = getString(R.string.tvbox_root_spider_title),
+				summary = spider,
+				order = 34,
+			)
+		}
+		config.site.jar?.takeIf { it.isNotBlank() }?.let { jar ->
+			addInfoPreference(
+				key = KEY_TVBOX_SITE_JAR,
+				title = getString(R.string.tvbox_site_jar_title),
+				summary = jar,
+				order = 35,
+			)
+		}
+
+		config.meta.sourceLocator?.takeIf { it.isNotBlank() }?.let { locator ->
+			addInfoPreference(
+				key = KEY_TVBOX_SOURCE_LOCATOR,
+				title = getString(R.string.tvbox_source_locator_title),
+				summary = locator,
+				order = 36,
+			)
+		}
+		runtimeSummary?.let { summary ->
+			addInfoPreference(
+				key = KEY_TVBOX_RUNTIME_STRATEGY,
+				title = getString(R.string.tvbox_runtime_strategy_title),
+				summary = summary,
+				order = 37,
+			)
+		}
+
+		if (candidates.isNotEmpty()) {
+			addInfoPreference(
+				key = KEY_TVBOX_RUNTIME_CANDIDATES,
+				title = getString(R.string.tvbox_runtime_candidates_title),
+				summary = candidates.joinToString(separator = "\n"),
+				order = 38,
+			)
+		}
+
+		if (findPreference<Preference>(KEY_TVBOX_STATUS) == null) {
+			Preference(requireContext()).apply {
+				key = KEY_TVBOX_STATUS
+				title = getString(R.string.tvbox_support_status_title)
+				order = 39
+				isIconSpaceReserved = false
+				isPersistent = false
+				category.addPreference(this)
+			}
+		}
+		findPreference<Preference>(KEY_TVBOX_STATUS)?.summary = getTvBoxSupportStatusSummary(config, candidates)
+	}
+
+	private fun getTvBoxSupportStatusSummary(config: TVBoxStoredConfig, candidates: List<String>): String {
+		val hasPlayableCandidate = candidates.any(::looksLikeTvBoxPlayableCandidate)
+		val hasCmsCandidate = candidates.any(::looksLikeTvBoxCmsCandidate)
+		val hasSpiderArtifacts = hasTvBoxSpiderArtifacts(config)
+		if (config.site.type == 4) {
+			return getString(R.string.tvbox_support_status_quickjs_partial)
+		}
+		if (hasPlayableCandidate || hasCmsCandidate) {
+			return if (hasSpiderArtifacts) {
+				getString(R.string.tvbox_support_status_bridgeable)
+			} else {
+				getString(R.string.tvbox_support_status_partial_runtime)
+			}
+		}
+		return when {
+			hasSpiderArtifacts -> getString(R.string.tvbox_support_status_spider_bridge)
+			else -> getString(R.string.tvbox_support_status_direct)
+		}
+	}
+
+	private fun buildTvBoxRuntimeSummary(repo: TVBoxRepository, config: TVBoxStoredConfig): String? {
+		val capability = repo.getRuntimeCapabilitySummary()
+		val note = repo.getRuntimeUnavailabilitySummary()
+		if (capability == null && note == null) {
+			return if (hasTvBoxSpiderArtifacts(config)) {
+				getString(R.string.tvbox_runtime_strategy_none)
+			} else {
+				null
+			}
+		}
+		return buildString {
+			capability?.let { append(it) }
+			note?.takeIf { it.isNotBlank() }?.let {
+				if (isNotEmpty()) {
+					append('\n')
+				}
+				append(it)
+			}
+		}.ifBlank { null }
+	}
+
+	private fun hasTvBoxSpiderArtifacts(config: TVBoxStoredConfig): Boolean {
+		return !config.root.spider.isNullOrBlank() ||
+			!config.site.jar.isNullOrBlank() ||
+			config.site.type == 3 ||
+			config.site.type == 4 ||
+			config.site.api.startsWith("csp_", ignoreCase = true)
+	}
+
+	private fun buildTvBoxResourceCandidates(config: TVBoxStoredConfig): List<String> {
+		val dedup = linkedSetOf<String>()
+
+		fun add(rawValue: String?) {
+			resolveTvBoxCandidateUrl(config, rawValue)?.let(dedup::add)
+		}
+
+		add(config.site.api)
+		add(config.site.playUrl)
+		when (val ext = config.site.ext) {
+			is String -> add(ext)
+			is org.json.JSONObject -> {
+				listOf("url", "api", "playUrl", "link", "file", "m3u", "m3u8")
+					.forEach { key -> add(ext.optString(key).trim().ifBlank { null }) }
+			}
+		}
+		return dedup.toList()
+	}
+
+	private fun resolveTvBoxCandidateUrl(config: TVBoxStoredConfig, rawValue: String?): String? {
+		val value = rawValue?.trim().orEmpty()
+		if (value.isBlank()) {
+			return null
+		}
+		if (value.startsWith("http://", ignoreCase = true) ||
+			value.startsWith("https://", ignoreCase = true) ||
+			value.startsWith("content://", ignoreCase = true) ||
+			value.startsWith("file://", ignoreCase = true)
+		) {
+			return value
+		}
+		if (value.startsWith("//")) {
+			return "https:$value"
+		}
+		val baseUrl = config.meta.sourceLocator
+		val baseHttpUrl = baseUrl?.toHttpUrlOrNull()
+		if (baseHttpUrl != null) {
+			return baseHttpUrl.resolve(value)?.toString()
+		}
+		return null
+	}
+
+	private fun looksLikeTvBoxPlayableCandidate(url: String): Boolean {
+		val normalized = url.lowercase()
+		return normalized.contains(".m3u8") ||
+			normalized.contains(".mp4") ||
+			normalized.contains(".flv") ||
+			normalized.contains(".mpd") ||
+			normalized.contains(".mkv") ||
+			normalized.contains(".webm") ||
+			normalized.contains(".avi") ||
+			normalized.contains(".mov") ||
+			normalized.endsWith(".m3u")
+	}
+
+	private fun looksLikeTvBoxCmsCandidate(url: String): Boolean {
+		val normalized = url.lowercase()
+		return normalized.contains("provide/vod") ||
+			normalized.contains("api.php") ||
+			normalized.contains(".php")
 	}
 
 	private fun tryAddLegadoVariablePreferences() {
@@ -454,6 +670,24 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		return repo to config
 	}
 
+	private fun getTvBoxRepoAndConfigOrNull(): Pair<TVBoxRepository, TVBoxStoredConfig>? {
+		val repo = viewModel.repository as? TVBoxRepository ?: return null
+		val jsonSource = repo.source as? JsonMangaSource ?: return null
+		val config = runCatching { TVBoxStoredConfig.parse(jsonSource.entity.config) }.getOrNull() ?: return null
+		return repo to config
+	}
+
+	private fun getTvBoxTypeSummary(config: TVBoxStoredConfig): String {
+		val typeLabel = when (config.site.type) {
+			0 -> "XML"
+			1 -> "JSON"
+			3 -> "Spider"
+			4 -> "JS"
+			else -> getString(R.string.not_specified)
+		}
+		return "$typeLabel (${config.site.type})"
+	}
+
 	private fun sourceVariableKey(sourceKey: String): String = "sourceVariable_$sourceKey"
 
 	private fun loginInfoKey(sourceKey: String): String = "userInfo_$sourceKey"
@@ -697,6 +931,16 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		private const val KEY_JS_COOKIE_PREFIX = "js_cookie_"
 		private const val KEY_JS_COOKIE_SUBMIT = "js_cookie_submit"
 		private const val KEY_JS_WEB_LOGIN = "js_web_login"
+		private const val KEY_TVBOX_CATEGORY = "tvbox_info"
+		private const val KEY_TVBOX_SITE_KEY = "tvbox_site_key"
+		private const val KEY_TVBOX_SITE_API = "tvbox_site_api"
+		private const val KEY_TVBOX_SITE_TYPE = "tvbox_site_type"
+		private const val KEY_TVBOX_ROOT_SPIDER = "tvbox_root_spider"
+		private const val KEY_TVBOX_SITE_JAR = "tvbox_site_jar"
+		private const val KEY_TVBOX_SOURCE_LOCATOR = "tvbox_source_locator"
+		private const val KEY_TVBOX_RUNTIME_STRATEGY = "tvbox_runtime_strategy"
+		private const val KEY_TVBOX_RUNTIME_CANDIDATES = "tvbox_runtime_candidates"
+		private const val KEY_TVBOX_STATUS = "tvbox_support_status"
 		private const val KEY_LEGADO_VARIABLES_CATEGORY = "legado_variables"
 		private const val KEY_LEGADO_SOURCE_VARIABLE = "legado_source_variable"
 		private const val KEY_LEGADO_BOOK_DEFAULT_CUSTOM = "legado_book_default_custom"

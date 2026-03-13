@@ -18,6 +18,7 @@ import org.skepsun.kototoro.core.parser.JsMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.js.JSSourceParser
@@ -31,6 +32,7 @@ import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.ParseException
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.parser.legado.LegadoRepository
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -86,6 +88,24 @@ class SourceSettingsViewModel @Inject constructor(
 				}.getOrNull()
 				browserUrl.value = url
 			}
+			is TVBoxRepository -> {
+				val url = runCatching {
+					val jsonSource = repository.source as? JsonMangaSource ?: return@runCatching null
+					val config = TVBoxStoredConfig.parse(jsonSource.entity.config)
+					listOf(
+						config.meta.sourceLocator,
+						config.site.api,
+						config.site.playUrl,
+						config.site.ext as? String,
+					).firstOrNull { candidate ->
+						!candidate.isNullOrBlank() && (
+							candidate.startsWith("http://", ignoreCase = true) ||
+								candidate.startsWith("https://", ignoreCase = true)
+							)
+					}
+				}.getOrNull()
+				browserUrl.value = url
+			}
 			is JsMangaRepository -> {
 				val url = runCatching {
 					val config = (repository.source as? JsonMangaSource)?.entity?.config ?: return@runCatching null
@@ -133,9 +153,6 @@ class SourceSettingsViewModel @Inject constructor(
 		launchLoadingJob(Dispatchers.IO) {
 			val ok = runCatching { repo.jsLogin(username, password) }.getOrDefault(false)
 			_jsLoginState.call(ok)
-			if (ok && repository is CachingMangaRepository) {
-				(repository as CachingMangaRepository).invalidateCache()
-			}
 		}
 	}
 
@@ -145,9 +162,6 @@ class SourceSettingsViewModel @Inject constructor(
 			val ok = runCatching { repo.jsLogout() }.getOrDefault(false)
 			_jsLoginState.call(!ok)
 			browserUrl.value?.toHttpUrlOrNull()?.let { cookieJar.removeCookies(it) { true } }
-			if (repository is CachingMangaRepository) {
-				(repository as CachingMangaRepository).invalidateCache()
-			}
 		}
 	}
 
@@ -193,9 +207,6 @@ class SourceSettingsViewModel @Inject constructor(
 				)
 			}.getOrDefault(false)
 			_jsWebLoginState.call(ok)
-			if (ok && repository is CachingMangaRepository) {
-				(repository as CachingMangaRepository).invalidateCache()
-			}
 		}
 		return true
 	}

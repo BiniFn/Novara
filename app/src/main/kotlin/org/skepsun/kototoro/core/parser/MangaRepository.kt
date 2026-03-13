@@ -32,6 +32,7 @@ import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
+import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
 import java.lang.ref.WeakReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -133,6 +134,7 @@ interface MangaRepository {
 		private val jsEngine: org.skepsun.kototoro.core.javascript.JavaScriptEngine,
 		private val mihonExtensionManager: MihonExtensionManager,
 		private val aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager,
+		private val videoLocalCacheProxy: VideoLocalCacheProxy,
 	) {
 
 		private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
@@ -276,8 +278,13 @@ interface MangaRepository {
 							)
 					}
 					org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> {
-						android.util.Log.w("MangaRepository", "TVBox JSON source is video; no parser available in MangaRepository. Returning EmptyMangaRepository for ${source.name}")
-						EmptyMangaRepository(source)
+						android.util.Log.d("MangaRepository", "Creating TVBoxRepository for JSON source: ${source.name}")
+						org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository(
+							source = source,
+							context = context,
+							httpClient = legadoHttpClient,
+							videoLocalCacheProxy = videoLocalCacheProxy,
+						)
 					}
 					org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> {
 						android.util.Log.d("MangaRepository", "Creating JsMangaRepository for JS source: ${source.name}")

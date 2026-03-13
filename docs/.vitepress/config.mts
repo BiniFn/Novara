@@ -51,6 +51,7 @@ export default defineConfig({
         text: "Reference",
         items: [
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
+          { text: "TVBox Integration Plan", link: "/architecture/tvbox-integration-implementation-plan" },
           { text: "OCR Pipeline", link: "/architecture/ocr-pipeline-v2" },
           { text: "Extensions Management Design", link: "/architecture/extensions-management-unification" },
           { text: "Extensions Management Plan", link: "/architecture/extensions-management-implementation-plan" },

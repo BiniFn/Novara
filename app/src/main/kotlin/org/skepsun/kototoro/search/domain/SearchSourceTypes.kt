@@ -8,6 +8,7 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 val ALL_SOURCE_TYPES: Set<SourceType> = setOf(
 	SourceType.NATIVE,
 	SourceType.JSON_LEGADO,
+	SourceType.JSON_TVBOX,
 	SourceType.MIHON,
 	SourceType.ANIYOMI,
 )
@@ -22,6 +23,7 @@ val SOURCE_TYPE_OPTIONS: List<SourceTypeOption> = listOf(
 	SourceTypeOption(SourceType.MIHON, R.string.source_type_mihon),
 	SourceTypeOption(SourceType.ANIYOMI, R.string.source_type_aniyomi),
 	SourceTypeOption(SourceType.JSON_LEGADO, R.string.source_type_legado),
+	SourceTypeOption(SourceType.JSON_TVBOX, R.string.source_type_tvbox),
 )
 
 fun sourceTypesFromTags(tags: Set<SourceTag>): Set<SourceType> {
@@ -35,6 +37,7 @@ fun sourceTypesFromTags(tags: Set<SourceTag>): Set<SourceType> {
 			SourceTag.MIHON -> result.add(SourceType.MIHON)
 			SourceTag.ANIYOMI -> result.add(SourceType.ANIYOMI)
 			SourceTag.LEGADO -> result.add(SourceType.JSON_LEGADO)
+			SourceTag.TVBOX -> result.add(SourceType.JSON_TVBOX)
 		}
 	}
 	return if (result.isEmpty()) ALL_SOURCE_TYPES else result

@@ -14,6 +14,22 @@
 		android:orientation="vertical"
 		android:paddingVertical="?dialogPreferredPadding">
 
+		<com.google.android.material.textfield.TextInputLayout
+			android:id="@+id/textInputLayout_source_type"
+			style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginHorizontal="?dialogPreferredPadding"
+			android:hint="@string/source_type">
+
+			<com.google.android.material.textfield.MaterialAutoCompleteTextView
+				android:id="@+id/autoComplete_source_type"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:inputType="none" />
+
+		</com.google.android.material.textfield.TextInputLayout>
+
 		<!-- File selection button -->
 		<Button
 			android:id="@+id/button_select_file"
@@ -21,6 +37,7 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:layout_marginHorizontal="?dialogPreferredPadding"
+			android:layout_marginTop="@dimen/margin_small"
 			android:text="@string/select_file"
 			app:icon="@drawable/ic_file_zip" />
 

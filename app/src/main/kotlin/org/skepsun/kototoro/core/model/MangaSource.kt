@@ -121,6 +121,12 @@ fun ContentType.getEnableSourceTitleResId(): Int = when (this) {
 	else -> R.string.enable_source_manga
 }
 
+fun ContentType.getUnsupportedSourceTitleResId(): Int = when (this) {
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.unsupported_novel_source
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.unsupported_video_source
+	else -> R.string.unsupported_source
+}
+
 fun ContentType.getDomainTitleResId(): Int = when (this) {
 	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> R.string.domain_novel
 	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> R.string.domain_video

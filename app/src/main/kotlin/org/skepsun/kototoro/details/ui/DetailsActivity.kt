@@ -668,23 +668,7 @@ class DetailsActivity :
     }
 
 	private fun getContentType(source: org.skepsun.kototoro.parsers.model.MangaSource): org.skepsun.kototoro.parsers.model.ContentType {
-		val unwrapped = source.unwrap()
-		if (unwrapped is JsonMangaSource) return unwrapped.getContentType()
-		if (unwrapped.name.startsWith("JSON_")) {
-			if (unwrapped.name.startsWith("JSON_LEGADO_M_")) return org.skepsun.kototoro.parsers.model.ContentType.MANGA
-			if (unwrapped.name.startsWith("JSON_LEGADO_")) {
-				val entity = kotlinx.coroutines.runBlocking { jsonSourceManager.getById(unwrapped.name) }
-				if (entity != null) {
-					return try {
-						val jsonObj = org.json.JSONObject(entity.config)
-						if (jsonObj.optInt("bookSourceType", 0) == 2) org.skepsun.kototoro.parsers.model.ContentType.MANGA else org.skepsun.kototoro.parsers.model.ContentType.NOVEL
-					} catch (e: Exception) {
-						org.skepsun.kototoro.parsers.model.ContentType.NOVEL
-					}
-				}
-			}
-		}
-		return unwrapped.getContentType()
+		return source.getContentType()
 	}
 
 	private fun String.withEstimatedTime(time: ReadingTime?): String {

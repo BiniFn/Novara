@@ -34,11 +34,14 @@ import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
 import org.skepsun.kototoro.core.exceptions.WrapperIOException
 import org.skepsun.kototoro.core.exceptions.WrongPasswordException
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.getUnsupportedSourceTitleResId
 import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_BOTH_LOCALE_GENRES_NOT_SUPPORTED
 import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_BOTH_STATES_GENRES_NOT_SUPPORTED
 import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_MULTIPLE_GENRES_NOT_SUPPORTED
 import org.skepsun.kototoro.parsers.ErrorMessages.FILTER_MULTIPLE_STATES_NOT_SUPPORTED
 import org.skepsun.kototoro.parsers.ErrorMessages.SEARCH_NOT_SUPPORTED
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.ContentUnavailableException
 import org.skepsun.kototoro.parsers.exception.NotFoundException
@@ -147,7 +150,15 @@ private fun Throwable.getDisplayMessageOrNull(resources: Resources): String? = w
 
     is WrongPasswordException -> resources.getString(R.string.wrong_password)
     is NotFoundException -> resources.getString(R.string.not_found_404)
-    is UnsupportedSourceException -> resources.getString(R.string.unsupported_source)
+    is UnsupportedSourceException -> {
+        val explicitMessage = message?.takeIf { it.contains("TVBox", ignoreCase = true) }
+        if (explicitMessage != null) {
+            explicitMessage
+        } else {
+        val contentType = manga?.source?.getContentType() ?: ContentType.MANGA
+            resources.getString(contentType.getUnsupportedSourceTitleResId())
+        }
+    }
 
     is HttpException -> getHttpDisplayMessage(response.code, resources)
     is HttpStatusException -> getHttpDisplayMessage(statusCode, resources)
@@ -291,4 +302,3 @@ fun FileNotFoundException.parseMessage(resources: Resources): String? {
         )
     }
 }
-

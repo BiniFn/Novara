@@ -839,27 +839,6 @@ class AppRouter private constructor(
     }
 
     private fun getContentType(source: MangaSource): ContentType {
-        if (source is JsonMangaSource) return source.getContentType()
-        
-        // Handle anonymous JSON sources
-        if (source.name.startsWith("JSON_")) {
-            // Check for manga-specific prefix first
-            if (source.name.startsWith("JSON_LEGADO_M_")) return ContentType.MANGA
-            
-            // For general JSON_LEGADO_ prefix, try to resolve from DB
-            if (source.name.startsWith("JSON_LEGADO_")) {
-                val entity = kotlinx.coroutines.runBlocking { jsonSourceManager.getById(source.name) }
-                if (entity != null) {
-                    return try {
-                        val jsonObj = org.json.JSONObject(entity.config)
-                        if (jsonObj.optInt("bookSourceType", 0) == 2) ContentType.MANGA else ContentType.NOVEL
-                    } catch (e: Exception) {
-                        ContentType.NOVEL
-                    }
-                }
-            }
-        }
-        
         return source.getContentType()
     }
 

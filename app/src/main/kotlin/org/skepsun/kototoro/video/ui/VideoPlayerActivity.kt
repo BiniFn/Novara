@@ -1007,6 +1007,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun shouldUseLocalProxy(url: String, isHttpSource: Boolean): Boolean {
         if (!isHttpSource) return false
+        val host = runCatching { Uri.parse(url).host.orEmpty().lowercase() }.getOrDefault("")
+        if (host == "127.0.0.1" || host == "localhost") {
+            Log.d("VideoPlayerActivity", "Bypass local proxy for loopback URL: $url")
+            return false
+        }
         val lower = url.lowercase()
         val isMpd = lower.contains(".mpd")
         if (isMpd) return false

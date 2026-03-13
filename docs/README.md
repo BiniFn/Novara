@@ -30,6 +30,7 @@ This directory is organized by task, not by internal implementation. Start with 
 ### For advanced users
 
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [TVBox Integration Implementation Plan](./architecture/tvbox-integration-implementation-plan.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
 - [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
 - [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)

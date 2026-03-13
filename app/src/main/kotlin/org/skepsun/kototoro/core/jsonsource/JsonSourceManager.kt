@@ -3,6 +3,9 @@ package org.skepsun.kototoro.core.jsonsource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
+import org.json.JSONArray
+import org.json.JSONObject
+import org.json.JSONTokener
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
@@ -517,6 +520,56 @@ class JsonSourceManager @Inject constructor(
 			Result.failure(e)
 		}
 	}
+
+	/**
+	 * Imports TVBox JSON.
+	 *
+	 * Supported shapes:
+	 * - repository JSON with `sites`
+	 * - multi-repository JSON with `urls`
+	 */
+	suspend fun importTvBoxJson(
+		jsonContent: String,
+		sourceLocator: String? = null,
+	): Result<Int> {
+		val startTime = System.currentTimeMillis()
+		JsonSourceLogger.logImportStart("TVBOX", jsonContent.length)
+
+		return try {
+			val entities = mutableListOf<JsonSourceEntity>()
+			val visitedUrls = linkedSetOf<String>()
+			val errors = mutableListOf<String>()
+
+			processTvBoxDocument(
+				rawContent = jsonContent,
+				sourceLocator = sourceLocator,
+				depth = 0,
+				visitedUrls = visitedUrls,
+				entities = entities,
+				errors = errors,
+			)
+
+			if (entities.isEmpty()) {
+				val message = if (errors.isNotEmpty()) {
+					"No valid TVBox sites found. Errors:\n${errors.joinToString("\n")}"
+				} else {
+					"No valid TVBox sites found"
+				}
+				return Result.failure(IllegalArgumentException(message))
+			}
+
+			jsonSourceDao.insertAll(entities)
+			val duration = System.currentTimeMillis() - startTime
+			JsonSourceLogger.logImportSuccess("TVBOX", entities.size, duration)
+			if (errors.isNotEmpty()) {
+				JsonSourceLogger.logWarning("TVBox import completed with ${errors.size} warning(s):\n${errors.joinToString("\n")}")
+			}
+			Result.success(entities.size)
+		} catch (e: Exception) {
+			JsonSourceLogger.logImportError("TVBOX", e)
+			Result.failure(e)
+		}
+	}
 	
 	/**
 	 * Process a single source (validation, ID generation, entity creation)
@@ -683,7 +736,205 @@ class JsonSourceManager @Inject constructor(
 	private fun validateUrl(url: String): ValidationResult {
 		return SecurityValidator.validateUrl(url)
 	}
-	
+
+	private suspend fun processTvBoxDocument(
+		rawContent: String,
+		sourceLocator: String?,
+		depth: Int,
+		visitedUrls: MutableSet<String>,
+		entities: MutableList<JsonSourceEntity>,
+		errors: MutableList<String>,
+	) {
+		val normalizedContent = preprocessTvBoxJson(rawContent)
+		val root = try {
+			parseTvBoxRootObject(normalizedContent)
+		} catch (e: Exception) {
+			errors += "${sourceLocator ?: "inline"}: ${e.message ?: "invalid TVBox JSON"}"
+			return
+		}
+
+		when {
+			root.has("sites") -> {
+				entities += buildTvBoxSiteEntities(root, sourceLocator)
+			}
+			root.has("urls") -> {
+				if (depth >= 1) {
+					errors += "${sourceLocator ?: "inline"}: nested multi-repository depth exceeds limit"
+					return
+				}
+				val childUrls = root.optJSONArray("urls") ?: JSONArray()
+				for (index in 0 until childUrls.length()) {
+					val child = childUrls.optJSONObject(index) ?: continue
+					val childUrl = child.optString("url").trim()
+					if (childUrl.isBlank()) {
+						errors += "${sourceLocator ?: "inline"}: child repository at index $index is missing url"
+						continue
+					}
+					if (!visitedUrls.add(childUrl)) {
+						continue
+					}
+					val childContent = fetchTvBoxChildRepository(childUrl)
+					if (childContent == null) {
+						errors += "$childUrl: fetch failed"
+						continue
+					}
+					processTvBoxDocument(
+						rawContent = childContent,
+						sourceLocator = childUrl,
+						depth = depth + 1,
+						visitedUrls = visitedUrls,
+						entities = entities,
+						errors = errors,
+					)
+				}
+			}
+			else -> {
+				errors += "${sourceLocator ?: "inline"}: unsupported TVBox JSON, expected 'sites' or 'urls'"
+			}
+		}
+	}
+
+	private fun preprocessTvBoxJson(rawContent: String): String {
+		val withoutBom = rawContent.removePrefix("\uFEFF")
+		val lines = withoutBom.lines()
+		var started = false
+		val builder = StringBuilder()
+		for (line in lines) {
+			val trimmed = line.trim()
+			if (!started) {
+				if (trimmed.isBlank()) {
+					continue
+				}
+				if (trimmed.startsWith("//")) {
+					continue
+				}
+				started = true
+			}
+			if (builder.isNotEmpty()) {
+				builder.append('\n')
+			}
+			builder.append(line)
+		}
+		return builder.toString().trim()
+	}
+
+	private fun parseTvBoxRootObject(content: String): JSONObject {
+		val tokenized = JSONTokener(content).nextValue()
+		return when (tokenized) {
+			is JSONObject -> tokenized
+			is JSONArray -> throw IllegalArgumentException("TVBox root must be a JSON object, not array")
+			else -> throw IllegalArgumentException("TVBox root must be a JSON object")
+		}
+	}
+
+	private suspend fun buildTvBoxSiteEntities(
+		root: JSONObject,
+		sourceLocator: String?,
+	): List<JsonSourceEntity> {
+		val sites = root.optJSONArray("sites") ?: JSONArray()
+		if (sites.length() == 0) {
+			return emptyList()
+		}
+
+		val rootContext = JSONObject().apply {
+			copyIfPresent(root, this, "spider")
+			copyIfPresent(root, this, "wallpaper")
+			copyIfPresent(root, this, "logo")
+			copyIfPresent(root, this, "lives")
+			copyIfPresent(root, this, "parses")
+			copyIfPresent(root, this, "flags")
+			copyIfPresent(root, this, "ijk")
+			copyIfPresent(root, this, "ads")
+			copyIfPresent(root, this, "rules")
+			copyIfPresent(root, this, "headers")
+			copyIfPresent(root, this, "doh")
+		}
+
+		val entities = ArrayList<JsonSourceEntity>(sites.length())
+		val timestamp = System.currentTimeMillis()
+		for (index in 0 until sites.length()) {
+			val site = sites.optJSONObject(index) ?: continue
+			val name = site.optString("name").trim().ifBlank { site.optString("key").trim() }
+			if (name.isBlank()) {
+				JsonSourceLogger.logWarning("Skipping TVBox site at index $index: missing name/key")
+				continue
+			}
+			val sourceId = generateTvBoxSourceId(sourceLocator, site)
+			val configJson = JSONObject().apply {
+				put("schemaVersion", 1)
+				put("importType", "tvbox_site")
+				put("site", JSONObject(site.toString()))
+				put("root", JSONObject(rootContext.toString()))
+				put("meta", JSONObject().apply {
+					put("sourceLocator", sourceLocator ?: JSONObject.NULL)
+					put("siteIndex", index)
+					put("siteKey", site.optString("key"))
+					put("siteApi", site.optString("api"))
+				})
+			}.toString()
+
+			entities += JsonSourceEntity(
+				id = sourceId,
+				name = name,
+				type = JsonSourceType.TVBOX,
+				config = configJson,
+				enabled = true,
+				createdAt = timestamp,
+				updatedAt = timestamp,
+				lastUsedAt = 0,
+				isPinned = false,
+			)
+		}
+		return entities
+	}
+
+	private suspend fun generateTvBoxSourceId(
+		sourceLocator: String?,
+		site: JSONObject,
+	): String {
+		val fingerprint = buildString {
+			append(sourceLocator?.trim().orEmpty())
+			append('|')
+			append(site.optString("key").trim())
+			append('|')
+			append(site.optString("name").trim())
+			append('|')
+			append(site.optString("api").trim())
+			append('|')
+			append(site.opt("ext")?.toString()?.trim().orEmpty())
+		}
+		return generateSourceId(fingerprint, JsonSourceType.TVBOX)
+	}
+
+	private suspend fun fetchTvBoxChildRepository(url: String): String? {
+		val validation = SecurityValidator.validateUrl(url)
+		if (!validation.isValid) {
+			JsonSourceLogger.logWarning("Skipping TVBox child repository $url: ${validation.errors.joinToString(", ")}")
+			return null
+		}
+		val client = legadoHttpClient ?: return null
+		return try {
+			val response = client.get(url)
+			if (!response.isSuccessful) {
+				JsonSourceLogger.logWarning("Failed to fetch TVBox child repository $url: HTTP ${response.code}")
+				response.close()
+				return null
+			}
+			val body = response.body?.string()
+			response.close()
+			body
+		} catch (e: Exception) {
+			JsonSourceLogger.logNetworkError(url, e)
+			null
+		}
+	}
+
+	private fun copyIfPresent(from: JSONObject, to: JSONObject, key: String) {
+		if (from.has(key)) {
+			to.put(key, from.get(key))
+		}
+	}
+
 	/**
 	 * Generates a unique source identifier from source URL and name.
 	 * 
