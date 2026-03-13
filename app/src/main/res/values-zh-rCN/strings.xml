@@ -1096,8 +1096,14 @@
     <string name="mihon_extensions_summary">管理 Mihon 扩展源</string>
     <string name="aniyomi_extensions">Aniyomi 扩展</string>
     <string name="aniyomi_extensions_summary">管理 Aniyomi 扩展源</string>
+    <string name="extensions">扩展</string>
+    <string name="extensions_summary_pattern">漫画 %1$d · 动画 %2$d</string>
     <string name="filter_extensions_by_language">按语言过滤扩展</string>
     <string name="filter_extensions_by_language_summary">仅显示与您选择的内容语言相匹配的 Mihon 和 Aniyomi 扩展</string>
+    <string name="filter_extensions_by_selected_content_languages">按语言过滤扩展：已选内容语言</string>
+    <string name="filter_extensions_by_language_with_value">按语言过滤扩展：%1$s</string>
+    <string name="show_extensions_in_grid">扩展以双列显示</string>
+    <string name="show_extensions_in_list">扩展以单列显示</string>
     <string name="no_mihon_extensions">未安装 Mihon 扩展</string>
     <string name="no_mihon_extensions_text">从 Keiyoushi 仓库安装 Mihon 扩展 APK 以添加源</string>
     <string name="mihon_extension_count">已加载 %d 个扩展</string>
@@ -1108,6 +1114,9 @@
     <string name="no_aniyomi_extensions_text">安装 Aniyomi 扩展以在线观看动漫</string>
     <string name="loading_mihon_extensions">正在加载 Mihon 扩展…</string>
     <string name="mihon_extension_error">加载扩展失败：%s</string>
+    <string name="selected_content_languages">已选内容语言</string>
+    <string name="no_available_extensions_language_filtered_text">当前语言过滤条件下没有匹配的扩展。</string>
+    <string name="multi_language_short">多语</string>
     <string name="invert_selection">反选</string>
     <string name="select_count_format">共 %d 项</string>
     <string name="enable_selected">启用所选</string>

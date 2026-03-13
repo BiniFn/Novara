@@ -1,26 +1,9 @@
 package org.skepsun.kototoro.settings.sources.aniyomi
 
-import android.os.Bundle
-import androidx.fragment.app.viewModels
-import dagger.hilt.android.AndroidEntryPoint
-import org.skepsun.kototoro.R
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
-import org.skepsun.kototoro.settings.sources.extensions.BaseInstalledExtensionsFragment
+import org.skepsun.kototoro.settings.sources.extensions.LegacyExtensionsRedirectFragment
 
-/**
- * Fragment for managing Aniyomi extensions.
- * 
- * Shows a list of installed Aniyomi extensions and their sources,
- * allowing users to see which extensions are loaded.
- */
-@AndroidEntryPoint
-class AniyomiExtensionsFragment : BaseInstalledExtensionsFragment<AniyomiExtensionsViewModel>() {
+class AniyomiExtensionsFragment : LegacyExtensionsRedirectFragment() {
 
-	override val viewModel by viewModels<AniyomiExtensionsViewModel>()
-	override val emptyTitleRes: Int = R.string.no_aniyomi_extensions
-	override val emptyTextRes: Int = R.string.no_aniyomi_extensions_text
-	override val extensionCountRes: Int = R.string.aniyomi_extension_count
-	override val sourceCountRes: Int = R.string.aniyomi_source_count
-	override val titleRes: Int = R.string.aniyomi_extensions
 	override val extensionType: ExternalExtensionType = ExternalExtensionType.ANIYOMI
 }

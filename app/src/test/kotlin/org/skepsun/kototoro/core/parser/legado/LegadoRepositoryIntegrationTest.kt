@@ -38,7 +38,13 @@ class LegadoRepositoryIntegrationTest {
 		mockServer.start()
 		
 		val okHttpClient = OkHttpClient.Builder().build()
-		httpClient = LegadoHttpClient(okHttpClient, mockk(relaxed = true), UserAgentManager())
+		httpClient = LegadoHttpClient(
+			okHttpClient = okHttpClient,
+			cookieJar = mockk(relaxed = true),
+			persistentCookieJar = mockk(relaxed = true),
+			userAgentManager = UserAgentManager(),
+			webViewExecutor = mockk(relaxed = true),
+		)
 		
 		mockJsEngine = object : JavaScriptEngine {
 			override fun execute(script: String, context: JavaScriptContext): Any? {

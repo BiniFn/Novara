@@ -504,6 +504,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_EXTENSIONS_FILTER_LANG, false)
 		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_FILTER_LANG, value) }
 
+	var isExtensionsGridMode: Boolean
+		get() = prefs.getBoolean(KEY_EXTENSIONS_GRID, false)
+		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_GRID, value) }
+
 	var isKotatsuSourcesEnabled: Boolean
 		get() = prefs.getBoolean(KEY_ENABLE_KOTATSU_SOURCES, true)
 		set(value) = prefs.edit { putBoolean(KEY_ENABLE_KOTATSU_SOURCES, value) }
@@ -1384,6 +1388,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SOURCES_VERSION = "sources_version"
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
 		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
+		const val KEY_EXTENSIONS_GRID = "extensions_grid"
 		const val KEY_ENABLE_KOTATSU_SOURCES = "enable_kotatsu_sources"
 		const val KEY_EXTENSIONS = "extensions"
 		const val KEY_JSON_SOURCES = "json_sources"

@@ -214,8 +214,17 @@
     </plurals>
     <string name="select_all">全选</string>
     <string name="deselect_all">全不选</string>
+    <string name="extensions">插件</string>
+    <string name="extensions_summary_pattern">漫画 %1$d · 动画 %2$d</string>
     <string name="filter_extensions_by_language">按照语言过滤插件</string>
     <string name="filter_extensions_by_language_summary">仅显示符合应用所选内容语言的 Mihon 和 Aniyomi 插件</string>
+    <string name="filter_extensions_by_selected_content_languages">按照语言过滤插件：已选内容语言</string>
+    <string name="filter_extensions_by_language_with_value">按照语言过滤插件：%1$s</string>
+    <string name="show_extensions_in_grid">插件以双列显示</string>
+    <string name="show_extensions_in_list">插件以单列显示</string>
+    <string name="selected_content_languages">已选内容语言</string>
+    <string name="no_available_extensions_language_filtered_text">当前语言过滤条件下没有匹配的插件。</string>
+    <string name="multi_language_short">多语</string>
     <string name="setup_wizard">设置向导</string>
     <string name="setup_wizard_summary">选择内容语言和类型。这将重新初始化已启用源列表。</string>
     <string name="invert_selection">反选</string>

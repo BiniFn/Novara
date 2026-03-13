@@ -69,7 +69,7 @@ class LegadoJavaAPITest : FunSpec({
             "headers" to mapOf("Content-Type" to "application/x-www-form-urlencoded")
         )
         
-        coEvery { httpClient.post(url, any(), any(), any()) } returns mockResponse
+        coEvery { httpClient.post(url, any<Map<String, String>>(), any(), any()) } returns mockResponse
         
         // When
         val result = api.ajax(url, options)

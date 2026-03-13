@@ -7,28 +7,42 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.util.ext.getDisplayName
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.settings.SettingsActivity
+import java.util.Locale
 
 @AndroidEntryPoint
 class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBinding>() {
 
+	@Inject
+	lateinit var settings: AppSettings
+
 	private val viewModel by viewModels<ExtensionsBrowserViewModel>()
 	private var adapter: ExtensionsBrowserAdapter? = null
+	private val installLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+		viewModel.onInstallActivityResult()
+	}
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
@@ -39,9 +53,14 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 
 	override fun onViewBindingCreated(binding: FragmentInstalledExtensionsBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		adapter = ExtensionsBrowserAdapter(viewModel::onPrimaryAction, viewModel::uninstall)
+		adapter = ExtensionsBrowserAdapter(
+			viewModel::toggleLanguageGroup,
+			viewModel::onPrimaryAction,
+			viewModel::uninstall,
+			viewModel::cancelInstall,
+		)
 		with(binding) {
-			recyclerView.layoutManager = LinearLayoutManager(context)
+			recyclerView.layoutManager = createLayoutManager()
 			recyclerView.adapter = adapter
 			textEmptyTitle.setText(R.string.no_available_extensions)
 			textEmptyText.setText(R.string.no_available_extensions_text)
@@ -87,18 +106,34 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		viewModel.currentSearchQuery.observe(viewLifecycleOwner) {
 			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
 		}
+		viewModel.currentLanguageFilter.observe(viewLifecycleOwner) {
+			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
+			activity?.invalidateOptionsMenu()
+		}
+		viewModel.currentCollapsedLanguageGroups.observe(viewLifecycleOwner) {
+			binding.recyclerView.layoutManager?.requestLayout()
+		}
 		viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
 			binding.swipeRefresh.isRefreshing = isLoading
 			binding.progressBar.isVisible = isLoading && adapter?.currentList.isNullOrEmpty()
 			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
 		}
 		viewModel.onInstallIntent.observeEvent(viewLifecycleOwner) { intent ->
-			startActivity(intent)
+			installLauncher.launch(intent)
 		}
 		viewModel.onUninstallIntent.observeEvent(viewLifecycleOwner) { intent ->
 			startActivity(intent)
 		}
 		viewModel.onStateDetails.observeEvent(viewLifecycleOwner, ::openStateDetailsDialog)
+		viewModel.onMessage.observeEvent(viewLifecycleOwner) { message ->
+			Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+		}
+		viewModel.updateAllInProgress.observe(viewLifecycleOwner) {
+			activity?.invalidateOptionsMenu()
+		}
+		viewModel.updateCount.observe(viewLifecycleOwner) {
+			activity?.invalidateOptionsMenu()
+		}
 	}
 
 	private fun openStateDetailsDialog(item: ExtensionsBrowserListItem.Entry) {
@@ -164,9 +199,72 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 				binding.textEmptyText.setText(R.string.no_available_extensions_no_repo_text)
 			}
 
+			viewModel.currentLanguageFilter.value != ExtensionsLanguageFilter.All -> {
+				binding.textEmptyTitle.setText(R.string.no_available_extensions)
+				binding.textEmptyText.setText(R.string.no_available_extensions_language_filtered_text)
+			}
+
 			else -> {
 				binding.textEmptyTitle.setText(R.string.no_available_extensions)
 				binding.textEmptyText.setText(R.string.no_available_extensions_text)
+			}
+		}
+	}
+
+	private fun openLanguageFilterDialog() {
+		val options = buildLanguageFilterOptions()
+		val labels = options.map { it.label }.toTypedArray()
+		val checkedIndex = options.indexOfFirst { it.filter == viewModel.currentLanguageFilter.value }
+			.takeIf { it >= 0 } ?: 0
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(R.string.filter_extensions_by_language)
+			.setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+				options.getOrNull(which)?.let { option ->
+					viewModel.setLanguageFilter(option.filter)
+				}
+				dialog.dismiss()
+			}
+			.setNegativeButton(android.R.string.cancel, null)
+			.show()
+	}
+
+	private fun buildLanguageFilterOptions(): List<LanguageFilterOption> {
+		val languageOptions = viewModel.availableLanguageCodes.value
+			.distinct()
+			.map { code ->
+				val locale = if (code.isBlank()) Locale.ROOT else code.toLocaleOrNull()
+				LanguageFilterOption(
+					filter = ExtensionsLanguageFilter.Single(code),
+					label = locale.getDisplayName(requireContext()),
+				)
+			}
+			.sortedBy { it.label.lowercase() }
+
+		return buildList {
+			add(LanguageFilterOption(ExtensionsLanguageFilter.All, getString(R.string.all_languages)))
+			add(
+				LanguageFilterOption(
+					ExtensionsLanguageFilter.SelectedContent,
+					getString(R.string.selected_content_languages),
+				),
+			)
+			addAll(languageOptions)
+		}
+	}
+
+	private fun toggleLayoutMode() {
+		settings.isExtensionsGridMode = !settings.isExtensionsGridMode
+		requireViewBinding().recyclerView.layoutManager = createLayoutManager()
+		activity?.invalidateOptionsMenu()
+	}
+
+	private fun createLayoutManager(): androidx.recyclerview.widget.RecyclerView.LayoutManager {
+		val spanCount = if (settings.isExtensionsGridMode) 2 else 1
+		return GridLayoutManager(requireContext(), spanCount).apply {
+			spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+				override fun getSpanSize(position: Int): Int {
+					return adapter?.getSpanSize(position, spanCount) ?: spanCount
+				}
 			}
 		}
 	}
@@ -183,9 +281,52 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			}
 		}
 
+		override fun onPrepareMenu(menu: Menu) {
+			menu.findItem(R.id.action_update_all_extensions)?.apply {
+				isVisible = viewModel.updateCount.value > 0 || viewModel.updateAllInProgress.value
+				title = getString(
+					if (viewModel.updateAllInProgress.value) {
+						R.string.cancel_update_all_extensions
+					} else {
+						R.string.update_all_extensions
+					},
+				)
+			}
+			menu.findItem(R.id.action_filter_languages)?.title = when (val filter = viewModel.currentLanguageFilter.value) {
+				ExtensionsLanguageFilter.All -> getString(R.string.filter_extensions_by_language)
+				ExtensionsLanguageFilter.SelectedContent -> getString(R.string.filter_extensions_by_selected_content_languages)
+				is ExtensionsLanguageFilter.Single -> {
+					val locale = if (filter.languageCode.isBlank()) Locale.ROOT else filter.languageCode.toLocaleOrNull()
+					getString(R.string.filter_extensions_by_language_with_value, locale.getDisplayName(requireContext()))
+				}
+			}
+			menu.findItem(R.id.action_toggle_extensions_layout)?.title = getString(
+				if (settings.isExtensionsGridMode) {
+					R.string.show_extensions_in_list
+				} else {
+					R.string.show_extensions_in_grid
+				},
+			)
+		}
+
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
 			R.id.action_refresh_available_extensions -> {
 				viewModel.refresh()
+				true
+			}
+
+			R.id.action_update_all_extensions -> {
+				viewModel.onUpdateAllAction()
+				true
+			}
+
+			R.id.action_filter_languages -> {
+				openLanguageFilterDialog()
+				true
+			}
+
+			R.id.action_toggle_extensions_layout -> {
+				toggleLayoutMode()
 				true
 			}
 
@@ -217,4 +358,9 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			return true
 		}
 	}
+
+	private data class LanguageFilterOption(
+		val filter: ExtensionsLanguageFilter,
+		val label: String,
+	)
 }

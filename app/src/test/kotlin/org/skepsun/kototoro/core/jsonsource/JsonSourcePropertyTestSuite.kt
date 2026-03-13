@@ -262,6 +262,14 @@ private class MockJsonSourceDao : JsonSourceDao {
         this.sources.addAll(sources)
         flowState.value = this.sources.toList()
     }
+
+    override suspend fun update(source: JsonSourceEntity) {
+        val index = sources.indexOfFirst { it.id == source.id }
+        if (index >= 0) {
+            sources[index] = source
+            flowState.value = sources.toList()
+        }
+    }
     
     override suspend fun setEnabled(id: String, enabled: Boolean, timestamp: Long) {
         val index = sources.indexOfFirst { it.id == id }

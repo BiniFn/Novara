@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ToastErrorObserver
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
@@ -90,6 +91,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		viewModel.onMessage.observeEvent(viewLifecycleOwner) { message ->
 			Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
 		}
+		viewModel.onError.observeEvent(viewLifecycleOwner, ToastErrorObserver(binding.root, this))
 		viewModel.onTrustPrompt.observeEvent(viewLifecycleOwner, ::openTrustDialog)
 	}
 
@@ -107,7 +109,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
 				val value = input.text?.toString().orEmpty()
 				if (value.isBlank()) {
-					input.error = getString(R.string.extension_repository_url_hint)
+					input.error = getString(R.string.extension_repository_url_required)
 				} else {
 					viewModel.addRepo(value)
 					dialog.dismiss()

@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.databinding.ItemExtensionRepositoryBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import java.text.DateFormat
@@ -36,7 +37,10 @@ class ExtensionRepositoriesAdapter(
 			textUrl.text = "${item.baseUrl}/index.min.json"
 			textFingerprint.text = item.signingKeyFingerprint.formatExtensionFingerprint()
 			textStatus.text = if (item.lastError.isNullOrBlank()) {
-				"Last refreshed ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(item.lastSuccessAt))}"
+				root.context.getString(
+					R.string.extension_repository_last_refreshed_message,
+					DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(item.lastSuccessAt)),
+				)
 			} else {
 				item.lastError
 			}

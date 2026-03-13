@@ -20,10 +20,7 @@ class InstalledExtensionSignatureValidator @Inject constructor(
 	private val cache = ConcurrentHashMap<String, Set<String>>()
 
 	fun isTrusted(packageName: String, expectedFingerprint: String): Boolean {
-		if (expectedFingerprint.isBlank()) return true
-		val normalizedExpectedFingerprint = expectedFingerprint.normalizeFingerprint()
-		if (normalizedExpectedFingerprint.isEmpty()) return true
-		return getFingerprints(packageName).contains(normalizedExpectedFingerprint)
+		return ExtensionFingerprintTrust.isTrusted(expectedFingerprint, getFingerprints(packageName))
 	}
 
 	private fun getFingerprints(packageName: String): Set<String> {
@@ -64,8 +61,4 @@ class InstalledExtensionSignatureValidator @Inject constructor(
 			getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
 		}
 	}
-}
-
-private fun String.normalizeFingerprint(): String {
-	return lowercase().replace(":", "").replace(" ", "")
 }

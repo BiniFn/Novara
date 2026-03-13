@@ -9,7 +9,7 @@ Use it together with:
 
 ## Current Status
 
-As of March 12, 2026, the unified extensions management work is beyond repository persistence and remote catalog fetching, and most of the new screen flow is already implemented.
+As of March 12, 2026, the unified extensions management work has moved past repository persistence and remote catalog fetching and now covers the full intended shared management flow, including batch updates, installer download progress, and core logic test coverage.
 
 What is already working in code:
 
@@ -28,10 +28,20 @@ What is already working in code:
   - available
 - Search works on the merged list.
 - Install, update, and uninstall actions are wired.
+- `Update all` now runs as a serialized queue through the shared browser flow.
+- Installer downloads now expose live progress and allow cancellation before the system installer is launched.
 - Extension icons are loaded from repository icon URLs, with Mihon / Aniyomi fallback icons.
 - `UNTRUSTED` and `INCOMPATIBLE` entries open explanatory dialogs instead of pretending they are installable.
 - State dialogs can jump directly to repository management.
 - Repository trust and mismatch dialogs now show grouped SHA-256 fingerprints for easier manual verification.
+- Repository management messages have been moved into Android string resources.
+- Dedicated unit tests now cover:
+  - repository URL normalization
+  - repo metadata parsing
+  - remote catalog parsing
+  - merged state grouping
+  - signature trust decisions
+- Legacy `Available` / Mihon / Aniyomi extension screens now redirect into the unified browser flow instead of maintaining their own installed-only path.
 
 ## Verified Build State
 
@@ -39,9 +49,13 @@ The current implementation has been verified with:
 
 ```bash
 ./gradlew :app:compileDebugKotlin --no-daemon
+./gradlew :app:testDebugUnitTest --no-daemon \
+  --tests "org.skepsun.kototoro.extensions.repo.ExtensionFingerprintTrustTest" \
+  --tests "org.skepsun.kototoro.extensions.repo.ExtensionRepoServiceTest" \
+  --tests "org.skepsun.kototoro.settings.sources.extensions.ExtensionsBrowserModelsTest"
 ```
 
-This is the only verification that has been run in the current workstream. There are still no dedicated tests covering the new repository / merge / trust logic.
+These are the verifications that have been run in the current workstream. There is still no dedicated instrumentation coverage for the system installer round-trip itself.
 
 ## Main User Flow
 
@@ -111,39 +125,29 @@ Primary files for the current implementation:
 
 ## Transitional / Legacy Files
 
-These files still exist, but they are no longer the main path users should enter from settings:
+These files still exist for compatibility, but they are no longer a distinct user flow:
 
 - [`app/src/main/kotlin/org/skepsun/kototoro/settings/sources/extensions/BaseInstalledExtensionsFragment.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/settings/sources/extensions/BaseInstalledExtensionsFragment.kt)
 - [`app/src/main/kotlin/org/skepsun/kototoro/settings/sources/extensions/AvailableExtensionsFragment.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/settings/sources/extensions/AvailableExtensionsFragment.kt)
 - [`app/src/main/kotlin/org/skepsun/kototoro/settings/sources/mihon/MihonExtensionsFragment.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/settings/sources/mihon/MihonExtensionsFragment.kt)
 - [`app/src/main/kotlin/org/skepsun/kototoro/settings/sources/aniyomi/AniyomiExtensionsFragment.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/settings/sources/aniyomi/AniyomiExtensionsFragment.kt)
 
-Treat them as transitional compatibility code unless a concrete navigation path still depends on them.
+Treat them as transitional compatibility code only. New work should stay on the shared browser / repository flow.
 
-## Known Gaps
+## Remaining Risks
 
-The feature is not finished yet. The biggest remaining gaps are:
+The original March 2026 gap list has been addressed in code. The main residual risks are:
 
-- No `Update all` workflow yet.
-- No dedicated tests for:
-  - repository URL normalization
-  - repo metadata parsing
-  - remote catalog parsing
-  - merged state grouping
-  - signature trust decisions
-- Some new user-facing messages in `ExtensionRepositoriesViewModel` are still hardcoded English strings instead of Android resources.
-- The install flow downloads the APK and opens the system installer, but does not expose download progress or cancellation yet.
-- Legacy installed-only fragments still exist and should eventually be removed or fully rerouted.
+- The batch updater still depends on the Android system installer returning control between packages; there is no instrumentation test covering that full platform interaction.
+- Compatibility scaffolding files still exist in the tree for old fragment entry points, even though the actual navigation path is now rerouted to the shared browser.
 
 ## Recommended Next Steps
 
 If development resumes on another machine, the recommended order is:
 
-1. Move remaining hardcoded repository messages into string resources.
-2. Add tests around repository parsing, merge logic, and trust logic.
-3. Implement `Update all` on top of the current grouped browser.
-4. Decide whether to delete or fully deprecate the legacy installed-only fragments.
-5. Add installer progress / cancellation only after the current state model is stable.
+1. Add instrumentation or UI automation around the system installer callback path if you want stronger regression protection for `Update all`.
+2. Delete the remaining dead legacy scaffolding files once you are comfortable dropping compatibility with restored old fragment stacks.
+3. Add polish only after the current queue / trust / installer lifecycle proves stable under manual QA.
 
 ## Manual QA Checklist
 

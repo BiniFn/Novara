@@ -3,51 +3,88 @@ package org.skepsun.kototoro.settings.sources.extensions
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.view.isVisible
+import androidx.core.view.updatePaddingRelative
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getDisplayName
+import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.databinding.ItemAvailableExtensionBinding
+import org.skepsun.kototoro.databinding.ItemExtensionLanguageHeaderBinding
 import org.skepsun.kototoro.databinding.ItemExtensionSectionHeaderBinding
+import java.util.Locale
 
 class ExtensionsBrowserAdapter(
+	private val onToggleLanguageGroup: (ExtensionsBrowserListItem.LanguageHeader) -> Unit,
 	private val onPrimaryAction: (ExtensionsBrowserListItem.Entry) -> Unit,
 	private val onRemove: (ExtensionsBrowserListItem.Entry) -> Unit,
+	private val onCancelInstall: (ExtensionsBrowserListItem.Entry) -> Unit,
 ) : ListAdapter<ExtensionsBrowserListItem, RecyclerView.ViewHolder>(DIFF_CALLBACK) {
 
 	override fun getItemViewType(position: Int): Int = when (getItem(position)) {
-		is ExtensionsBrowserListItem.Header -> VIEW_TYPE_HEADER
+		is ExtensionsBrowserListItem.SectionHeader -> VIEW_TYPE_SECTION_HEADER
+		is ExtensionsBrowserListItem.LanguageHeader -> VIEW_TYPE_LANGUAGE_HEADER
 		is ExtensionsBrowserListItem.Entry -> VIEW_TYPE_ENTRY
 	}
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
 		return when (viewType) {
-			VIEW_TYPE_HEADER -> HeaderViewHolder(
+			VIEW_TYPE_SECTION_HEADER -> SectionHeaderViewHolder(
 				ItemExtensionSectionHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+			)
+
+			VIEW_TYPE_LANGUAGE_HEADER -> LanguageHeaderViewHolder(
+				ItemExtensionLanguageHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+				onToggleLanguageGroup,
 			)
 
 			else -> EntryViewHolder(
 				ItemAvailableExtensionBinding.inflate(LayoutInflater.from(parent.context), parent, false),
 				onPrimaryAction,
 				onRemove,
+				onCancelInstall,
 			)
 		}
 	}
 
 	override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 		when (val item = getItem(position)) {
-			is ExtensionsBrowserListItem.Header -> (holder as HeaderViewHolder).bind(item)
+			is ExtensionsBrowserListItem.SectionHeader -> (holder as SectionHeaderViewHolder).bind(item)
+			is ExtensionsBrowserListItem.LanguageHeader -> (holder as LanguageHeaderViewHolder).bind(item)
 			is ExtensionsBrowserListItem.Entry -> (holder as EntryViewHolder).bind(item)
 		}
 	}
 
-	private class HeaderViewHolder(
+	fun getSpanSize(position: Int, spanCount: Int): Int {
+		return when (getItem(position)) {
+			is ExtensionsBrowserListItem.Entry -> 1
+			else -> spanCount
+		}
+	}
+
+	private class SectionHeaderViewHolder(
 		private val binding: ItemExtensionSectionHeaderBinding,
 	) : RecyclerView.ViewHolder(binding.root) {
 
-		fun bind(item: ExtensionsBrowserListItem.Header) {
+		fun bind(item: ExtensionsBrowserListItem.SectionHeader) {
+			binding.root.updatePaddingRelative(start = binding.root.paddingStart, end = binding.root.paddingEnd)
 			binding.textTitle.text = binding.root.context.getString(item.section.titleRes)
 			binding.textCount.text = item.count.toString()
+		}
+	}
+
+	private class LanguageHeaderViewHolder(
+		private val binding: ItemExtensionLanguageHeaderBinding,
+		private val onToggleLanguageGroup: (ExtensionsBrowserListItem.LanguageHeader) -> Unit,
+	) : RecyclerView.ViewHolder(binding.root) {
+
+		fun bind(item: ExtensionsBrowserListItem.LanguageHeader) {
+			val locale = if (item.language.isBlank()) Locale.ROOT else item.language.toLocaleOrNull()
+			val prefix = if (item.isCollapsed) "\u25b6" else "\u25bc"
+			binding.textTitle.text = "$prefix ${locale.getDisplayName(binding.root.context)}"
+			binding.textCount.text = item.count.toString()
+			binding.root.setOnClickListener { onToggleLanguageGroup(item) }
 		}
 	}
 
@@ -55,11 +92,15 @@ class ExtensionsBrowserAdapter(
 		private val binding: ItemAvailableExtensionBinding,
 		private val onPrimaryAction: (ExtensionsBrowserListItem.Entry) -> Unit,
 		private val onRemove: (ExtensionsBrowserListItem.Entry) -> Unit,
+		private val onCancelInstall: (ExtensionsBrowserListItem.Entry) -> Unit,
 	) : RecyclerView.ViewHolder(binding.root) {
 
 		fun bind(item: ExtensionsBrowserListItem.Entry) = with(binding) {
 			textName.text = item.name
-			textLanguage.text = item.language.uppercase()
+			textLanguage.text = when {
+				item.language.isBlank() -> root.context.getString(R.string.multi_language_short)
+				else -> item.language.uppercase()
+			}
 			textPackage.text = item.pkgName
 			textVersion.text = item.versionName
 			if (item.extension.iconUrl.isBlank()) {
@@ -81,7 +122,9 @@ class ExtensionsBrowserAdapter(
 				ExtensionsBrowserEntryState.AVAILABLE -> root.context.getString(R.string.install_extension)
 				ExtensionsBrowserEntryState.UPDATE_AVAILABLE -> root.context.getString(R.string.update_extension)
 				ExtensionsBrowserEntryState.INSTALLED -> root.context.getString(R.string.remove)
-				ExtensionsBrowserEntryState.INSTALLING -> root.context.getString(R.string.installing_extension)
+				ExtensionsBrowserEntryState.INSTALLING -> item.installProgressPercent?.let {
+					root.context.getString(R.string.extension_download_progress, it)
+				} ?: root.context.getString(R.string.extension_download_in_progress)
 				ExtensionsBrowserEntryState.UNTRUSTED -> root.context.getString(R.string.details)
 				ExtensionsBrowserEntryState.INCOMPATIBLE -> root.context.getString(R.string.details)
 			}
@@ -105,18 +148,28 @@ class ExtensionsBrowserAdapter(
 					ExtensionsBrowserEntryState.INSTALLING -> Unit
 				}
 			}
-			buttonSecondary.isVisible = item.installedVersionName != null && when (item.state) {
+			buttonSecondary.isVisible = when (item.state) {
+				ExtensionsBrowserEntryState.INSTALLING -> true
 				ExtensionsBrowserEntryState.UPDATE_AVAILABLE,
 				ExtensionsBrowserEntryState.UNTRUSTED,
 				ExtensionsBrowserEntryState.INCOMPATIBLE -> true
 
 				ExtensionsBrowserEntryState.AVAILABLE,
-				ExtensionsBrowserEntryState.INSTALLED,
-				ExtensionsBrowserEntryState.INSTALLING -> false
+				ExtensionsBrowserEntryState.INSTALLED -> false
 			}
-			buttonSecondary.text = root.context.getString(R.string.remove)
-			buttonSecondary.isEnabled = item.state != ExtensionsBrowserEntryState.INSTALLING
-			buttonSecondary.setOnClickListener { onRemove(item) }
+			buttonSecondary.text = if (item.state == ExtensionsBrowserEntryState.INSTALLING) {
+				root.context.getString(android.R.string.cancel)
+			} else {
+				root.context.getString(R.string.remove)
+			}
+			buttonSecondary.isEnabled = true
+			buttonSecondary.setOnClickListener {
+				if (item.state == ExtensionsBrowserEntryState.INSTALLING) {
+					onCancelInstall(item)
+				} else {
+					onRemove(item)
+				}
+			}
 		}
 
 		private fun getFallbackIcon(item: ExtensionsBrowserListItem.Entry): Int = when (item.extension.type) {
@@ -126,14 +179,19 @@ class ExtensionsBrowserAdapter(
 	}
 
 	private companion object {
-		const val VIEW_TYPE_HEADER = 0
-		const val VIEW_TYPE_ENTRY = 1
+		const val VIEW_TYPE_SECTION_HEADER = 0
+		const val VIEW_TYPE_LANGUAGE_HEADER = 1
+		const val VIEW_TYPE_ENTRY = 2
 
 		val DIFF_CALLBACK = object : DiffUtil.ItemCallback<ExtensionsBrowserListItem>() {
 			override fun areItemsTheSame(oldItem: ExtensionsBrowserListItem, newItem: ExtensionsBrowserListItem): Boolean {
 				return when {
-					oldItem is ExtensionsBrowserListItem.Header && newItem is ExtensionsBrowserListItem.Header -> {
+					oldItem is ExtensionsBrowserListItem.SectionHeader && newItem is ExtensionsBrowserListItem.SectionHeader -> {
 						oldItem.section == newItem.section
+					}
+
+					oldItem is ExtensionsBrowserListItem.LanguageHeader && newItem is ExtensionsBrowserListItem.LanguageHeader -> {
+						oldItem.section == newItem.section && oldItem.language == newItem.language
 					}
 
 					oldItem is ExtensionsBrowserListItem.Entry && newItem is ExtensionsBrowserListItem.Entry -> {

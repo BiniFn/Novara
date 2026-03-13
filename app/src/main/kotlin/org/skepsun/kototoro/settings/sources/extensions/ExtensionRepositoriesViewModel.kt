@@ -1,17 +1,22 @@
 package org.skepsun.kototoro.settings.sources.extensions
 
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -20,6 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ExtensionRepositoriesViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
+	@ApplicationContext private val appContext: Context,
 	private val repoRepository: ExternalExtensionRepoRepository,
 ) : BaseViewModel() {
 
@@ -35,44 +41,74 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 	val onTrustPrompt = MutableEventFlow<ExternalExtensionRepo>()
 
 	fun addRepo(indexUrl: String) {
+		Log.d(TAG, "addRepo:start type=$type input=$indexUrl")
 		launchLoadingJob(Dispatchers.IO) {
 			when (val result = repoRepository.prepareAddRepo(type, indexUrl)) {
 				is ExternalExtensionRepoRepository.PrepareAddRepoResult.Ready -> {
+					Log.d(TAG, "addRepo:trustPrompt type=$type baseUrl=${result.repo.baseUrl} name=${result.repo.displayName}")
 					onTrustPrompt.call(result.repo)
 				}
 
 				is ExternalExtensionRepoRepository.PrepareAddRepoResult.DuplicateFingerprint -> {
-					onMessage.call("Signing fingerprint already used by ${result.existingRepo.displayName}")
+					Log.d(TAG, "addRepo:duplicateFingerprint type=$type existing=${result.existingRepo.baseUrl}")
+					onMessage.call(
+						appContext.getString(
+							R.string.extension_repo_duplicate_fingerprint_message,
+							result.existingRepo.displayName,
+						),
+					)
+				}
+
+				is ExternalExtensionRepoRepository.PrepareAddRepoResult.FetchFailed -> {
+					Log.e(TAG, "addRepo:fetchFailed type=$type message=${result.error.message}", result.error)
+					onMessage.call(result.error.getDisplayMessage(appContext.resources))
 				}
 
 				ExternalExtensionRepoRepository.PrepareAddRepoResult.InvalidUrl -> {
-					onMessage.call("Invalid repository URL")
+					Log.d(TAG, "addRepo:invalidUrl type=$type input=$indexUrl")
+					onMessage.call(appContext.getString(R.string.extension_repo_invalid_url_message))
 				}
 
 				ExternalExtensionRepoRepository.PrepareAddRepoResult.RepoAlreadyExists -> {
-					onMessage.call("Repository already exists")
+					Log.d(TAG, "addRepo:alreadyExists type=$type input=$indexUrl")
+					onMessage.call(appContext.getString(R.string.extension_repo_already_exists_message))
 				}
 			}
 		}
 	}
 
 	fun confirmAddRepo(repo: ExternalExtensionRepo) {
+		Log.d(TAG, "confirmAddRepo:start type=${repo.type} baseUrl=${repo.baseUrl} name=${repo.displayName}")
 		launchLoadingJob(Dispatchers.IO) {
 			when (val result = repoRepository.confirmAddRepo(repo)) {
 				is ExternalExtensionRepoRepository.AddRepoResult.Success -> {
-					onMessage.call("Added ${result.repo.displayName}")
+					Log.d(TAG, "confirmAddRepo:success type=${repo.type} baseUrl=${repo.baseUrl}")
+					onMessage.call(appContext.getString(R.string.extension_repo_added_message, result.repo.displayName))
 				}
 
 				is ExternalExtensionRepoRepository.AddRepoResult.DuplicateFingerprint -> {
-					onMessage.call("Signing fingerprint already used by ${result.existingRepo.displayName}")
+					Log.d(TAG, "confirmAddRepo:duplicateFingerprint type=${repo.type} existing=${result.existingRepo.baseUrl}")
+					onMessage.call(
+						appContext.getString(
+							R.string.extension_repo_duplicate_fingerprint_message,
+							result.existingRepo.displayName,
+						),
+					)
+				}
+
+				is ExternalExtensionRepoRepository.AddRepoResult.FetchFailed -> {
+					Log.e(TAG, "confirmAddRepo:fetchFailed type=${repo.type} message=${result.error.message}", result.error)
+					onMessage.call(result.error.getDisplayMessage(appContext.resources))
 				}
 
 				ExternalExtensionRepoRepository.AddRepoResult.InvalidUrl -> {
-					onMessage.call("Invalid repository URL")
+					Log.d(TAG, "confirmAddRepo:invalidUrl type=${repo.type} baseUrl=${repo.baseUrl}")
+					onMessage.call(appContext.getString(R.string.extension_repo_invalid_url_message))
 				}
 
 				ExternalExtensionRepoRepository.AddRepoResult.RepoAlreadyExists -> {
-					onMessage.call("Repository already exists")
+					Log.d(TAG, "confirmAddRepo:alreadyExists type=${repo.type} baseUrl=${repo.baseUrl}")
+					onMessage.call(appContext.getString(R.string.extension_repo_already_exists_message))
 				}
 			}
 		}
@@ -81,7 +117,7 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 	fun deleteRepo(repo: ExternalExtensionRepo) {
 		launchLoadingJob(Dispatchers.IO) {
 			repoRepository.delete(repo)
-			onMessage.call("Removed ${repo.displayName}")
+			onMessage.call(appContext.getString(R.string.extension_repo_removed_message, repo.displayName))
 		}
 	}
 
@@ -89,5 +125,9 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 		launchLoadingJob(Dispatchers.IO) {
 			repoRepository.refresh(type)
 		}
+	}
+
+	private companion object {
+		const val TAG = "ExtensionRepo"
 	}
 }

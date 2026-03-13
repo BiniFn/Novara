@@ -28,6 +28,11 @@ class FakeJsonSourceDao : JsonSourceDao {
 	override suspend fun countEnabled(): Int = sources.count { it.enabled }
 	override suspend fun insert(source: JsonSourceEntity) { sources.add(source) }
 	override suspend fun insertAll(sources: List<JsonSourceEntity>) { this.sources.addAll(sources) }
+	override suspend fun update(source: JsonSourceEntity) {
+		sources.indexOfFirst { it.id == source.id }
+			.takeIf { it >= 0 }
+			?.let { index -> sources[index] = source }
+	}
 	override suspend fun setEnabled(id: String, enabled: Boolean, timestamp: Long) {
 		sources.find { it.id == id }?.let {
 			sources[sources.indexOf(it)] = it.copy(enabled = enabled, updatedAt = timestamp)

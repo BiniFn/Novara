@@ -1,8 +1,9 @@
 package org.skepsun.kototoro.extensions.repo
 
-import androidx.core.net.toUri
+import android.util.Log
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -20,8 +21,11 @@ class ExtensionRepoService @Inject constructor(
 	private val json: Json,
 ) {
 
-	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo? {
-		return runCatching {
+	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
+		val repoJsonUrl = "$baseUrl/repo.json"
+		val startedAt = System.currentTimeMillis()
+		Log.d(TAG, "fetchRepoDetails:start type=$type url=$repoJsonUrl")
+		return withTimeout(REPO_DETAILS_TIMEOUT_MS) {
 			val body = httpClient.newCall(GET("$baseUrl/repo.json")).awaitSuccess().use { response ->
 				response.body.string()
 			}
@@ -39,32 +43,60 @@ class ExtensionRepoService @Inject constructor(
 				lastSuccessAt = now,
 				lastError = null,
 			)
-		}.getOrNull()
+		}.also { repo ->
+			Log.d(
+				TAG,
+				"fetchRepoDetails:success type=$type baseUrl=${repo.baseUrl} name=${repo.displayName} elapsedMs=${System.currentTimeMillis() - startedAt}",
+			)
+		}
 	}
 
 	suspend fun fetchAvailableExtensions(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
+		val indexUrl = "${repo.baseUrl}/index.min.json"
+		val startedAt = System.currentTimeMillis()
+		Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} url=$indexUrl")
 		return runCatching {
-			val body = httpClient.newCall(GET("${repo.baseUrl}/index.min.json")).awaitSuccess().use { response ->
-				response.body.string()
+			withTimeout(CATALOG_TIMEOUT_MS) {
+				val body = httpClient.newCall(GET(indexUrl)).awaitSuccess().use { response ->
+					response.body.string()
+				}
+				val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
+				dto.asSequence()
+					.mapNotNull { item -> item.toAvailableExtension(repo) }
+					.toList()
 			}
-			val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
-			dto.asSequence()
-				.mapNotNull { item -> item.toAvailableExtension(repo) }
-				.toList()
+		}.onSuccess { extensions ->
+			Log.d(
+				TAG,
+				"fetchAvailableExtensions:success type=${repo.type} baseUrl=${repo.baseUrl} count=${extensions.size} elapsedMs=${System.currentTimeMillis() - startedAt}",
+			)
+		}.onFailure { error ->
+			Log.e(
+				TAG,
+				"fetchAvailableExtensions:failed type=${repo.type} baseUrl=${repo.baseUrl} elapsedMs=${System.currentTimeMillis() - startedAt} message=${error.message}",
+				error,
+			)
 		}.getOrDefault(emptyList())
 	}
 
 	fun normalizeIndexUrl(input: String): String? {
-		val trimmed = input.trim().removeSuffix("/")
-		val candidate = when {
-			trimmed.endsWith("/index.min.json") -> trimmed
-			else -> "$trimmed/index.min.json"
-		}
-		val url = candidate.toHttpUrlOrNull() ?: return null
+		val url = input.trim().toHttpUrlOrNull() ?: return null
 		if (url.scheme != "https") {
 			return null
 		}
-		return url.newBuilder().fragment(null).query(null).build().toString()
+		val normalizedSegments = url.pathSegments
+			.filter { it.isNotEmpty() }
+			.toMutableList()
+		if (normalizedSegments.lastOrNull() != "index.min.json") {
+			normalizedSegments += "index.min.json"
+		}
+		val normalizedPath = "/" + normalizedSegments.joinToString("/")
+		return url.newBuilder()
+			.encodedPath(normalizedPath)
+			.fragment(null)
+			.query(null)
+			.build()
+			.toString()
 	}
 
 	fun baseUrlFromIndexUrl(indexUrl: String): String {
@@ -131,4 +163,10 @@ class ExtensionRepoService @Inject constructor(
 	private data class ExtensionSourceDto(
 		val name: String,
 	)
+
+	private companion object {
+		const val TAG = "ExtensionRepo"
+		const val REPO_DETAILS_TIMEOUT_MS = 15_000L
+		const val CATALOG_TIMEOUT_MS = 20_000L
+	}
 }
