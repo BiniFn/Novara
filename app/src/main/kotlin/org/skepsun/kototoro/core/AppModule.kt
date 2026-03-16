@@ -7,7 +7,9 @@ import android.provider.SearchRecentSuggestions
 import android.text.Html
 import androidx.collection.arraySetOf
 import androidx.core.content.ContextCompat
+import androidx.hilt.work.HiltWorkerFactory
 import androidx.room.InvalidationTracker
+import androidx.work.Configuration
 import androidx.work.WorkManager
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -220,7 +222,20 @@ interface AppModule {
 		@Provides
 		fun provideWorkManager(
 			@ApplicationContext context: Context,
-		): WorkManager = WorkManager.getInstance(context)
+			workerFactory: HiltWorkerFactory,
+		): WorkManager {
+			return runCatching {
+				WorkManager.getInstance(context)
+			}.getOrElse {
+				WorkManager.initialize(
+					context,
+					Configuration.Builder()
+						.setWorkerFactory(workerFactory)
+						.build(),
+				)
+				WorkManager.getInstance(context)
+			}
+		}
 
 		@Provides
 		@Singleton

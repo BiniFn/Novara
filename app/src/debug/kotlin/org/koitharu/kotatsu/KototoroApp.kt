@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.StrictMode
+import android.util.Log
 import androidx.core.content.edit
 import androidx.fragment.app.strictmode.FragmentStrictMode
 import leakcanary.LeakCanary
@@ -12,11 +13,16 @@ import org.skepsun.kototoro.core.BaseApp
 class KototoroApp : BaseApp() {
 
 	var isLeakCanaryEnabled: Boolean
-		get() = getDebugPreferences(this).getBoolean(KEY_LEAK_CANARY, true)
+		get() = getDebugPreferences(this).getBoolean(KEY_LEAK_CANARY, false)
 		set(value) {
 			getDebugPreferences(this).edit { putBoolean(KEY_LEAK_CANARY, value) }
 			configureLeakCanary()
 		}
+
+	override fun onCreate() {
+		installUncaughtExceptionLogger()
+		super.onCreate()
+	}
 
 	override fun attachBaseContext(base: Context) {
 		super.attachBaseContext(base)
@@ -25,9 +31,31 @@ class KototoroApp : BaseApp() {
 	}
 
 	private fun configureLeakCanary() {
+		val isOplusDevice = isOplusFamilyDevice()
 		LeakCanary.config = LeakCanary.config.copy(
-			dumpHeap = isLeakCanaryEnabled,
+			dumpHeap = isLeakCanaryEnabled && !isOplusDevice,
 		)
+	}
+
+	private fun installUncaughtExceptionLogger() {
+		val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+		if (previousHandler is DebugLoggingExceptionHandler) {
+			return
+		}
+		Thread.setDefaultUncaughtExceptionHandler(
+			DebugLoggingExceptionHandler(previousHandler),
+		)
+	}
+
+	private fun isOplusFamilyDevice(): Boolean {
+		val manufacturer = Build.MANUFACTURER.lowercase()
+		val brand = Build.BRAND.lowercase()
+		return manufacturer.contains("oppo") ||
+			manufacturer.contains("oneplus") ||
+			manufacturer.contains("realme") ||
+			brand.contains("oppo") ||
+			brand.contains("oneplus") ||
+			brand.contains("realme")
 	}
 
 	private fun enableStrictMode() {
@@ -94,8 +122,19 @@ class KototoroApp : BaseApp() {
 
 		const val PREFS_DEBUG = "_debug"
 		const val KEY_LEAK_CANARY = "leak_canary"
+		private const val TAG = "KototoroFatal"
 
 		fun getDebugPreferences(context: Context): SharedPreferences =
 			context.getSharedPreferences(PREFS_DEBUG, MODE_PRIVATE)
+	}
+
+	private class DebugLoggingExceptionHandler(
+		private val delegate: Thread.UncaughtExceptionHandler?,
+	) : Thread.UncaughtExceptionHandler {
+
+		override fun uncaughtException(thread: Thread, throwable: Throwable) {
+			Log.e(TAG, "Uncaught exception on thread=${thread.name}", throwable)
+			delegate?.uncaughtException(thread, throwable)
+		}
 	}
 }

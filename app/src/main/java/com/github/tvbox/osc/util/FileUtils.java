@@ -36,6 +36,30 @@ public class FileUtils {
         return Environment.getExternalStorageDirectory().getAbsolutePath();
     }
 
+    public static void cleanPlayerCache() {
+        File externalCacheDir = getExternalCacheDir();
+        if (externalCacheDir != null) {
+            recursiveDelete(new File(externalCacheDir, "player"));
+        }
+    }
+
+    public static void recursiveDelete(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    recursiveDelete(child);
+                }
+            }
+        }
+        if (!file.delete()) {
+            file.deleteOnExit();
+        }
+    }
+
     public static boolean isWeekAgo(File file) {
         if (file == null || !file.exists()) return true;
         long threshold = 15L * 24L * 60L * 60L * 1000L;

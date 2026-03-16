@@ -1,9 +1,13 @@
 package org.skepsun.kototoro.core.parser.tvbox
 
+import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.github.catvod.crawler.Spider
+import com.github.catvod.utils.Path
+import com.github.tvbox.osc.base.App
+import dalvik.system.DexClassLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,8 +32,10 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
 import java.io.File
 import java.io.InputStream
+import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -83,7 +89,7 @@ internal class TVBoxJarSpiderRuntime(
 	private var filterOptionsCache: MangaListFilterOptions? = null
 
 	override fun describeCapability(config: TVBoxStoredConfig): String {
-		return "DexClassLoader(type=3/csp, basic TVBox spider bridge)"
+		return "DexClassLoader(type=3/csp, FongMi-style in-process host runtime)"
 	}
 
 	override fun describeUnavailability(config: TVBoxStoredConfig): String? {
@@ -97,7 +103,7 @@ internal class TVBoxJarSpiderRuntime(
 		if (jarSpec.url.isBlank()) {
 			return "TVBox csp source has an empty spider/jar locator"
 		}
-		return "TVBox csp runtime is enabled in basic mode; advanced proxy/parser branches may still be incomplete"
+		return null
 	}
 
 	override suspend fun getList(
@@ -241,26 +247,35 @@ internal class TVBoxJarSpiderRuntime(
 			return@withContext null
 		}
 		val loadedJar = ensureLoadedJar() ?: return@withContext null
+		val bridgeApp = App.getInstance()
 		val className = "com.github.catvod.spider.${config.site.api.removePrefix("csp_")}"
 		Log.i(TAG, "Creating TVBox spider instance for ${source.name}: class=$className jar=${loadedJar.spec.url}")
 		val spider = runCatching {
-			loadedJar.classLoader.loadClass(className)
-				.getDeclaredConstructor()
-				.newInstance() as? Spider
+			withContextClassLoader(loadedJar.classLoader) {
+				loadedJar.classLoader.loadClass(className)
+					.getDeclaredConstructor()
+					.newInstance() as? Spider
+			}
 		}.getOrElse {
 			Log.w(TAG, "Unable to instantiate TVBox spider class $className for ${source.name}", it)
 			null
 		} ?: return@withContext null
+		spider.siteKey = config.site.key
 		val extLiteral = buildExtLiteral()
 		runCatching {
-			spider.init(context, extLiteral)
+			withContextClassLoader(loadedJar.classLoader) {
+				spider.init(bridgeApp, extLiteral)
+			}
 		}.recoverCatching {
-			spider.init(context)
+			withContextClassLoader(loadedJar.classLoader) {
+				spider.init(bridgeApp)
+			}
 		}.onFailure {
 			Log.w(TAG, "TVBox spider init failed for ${source.name}", it)
 			logReflectiveFailure("init", it)
 			return@withContext null
 		}
+		logSpiderShellState(spider, "after-init")
 		spider
 	}
 
@@ -270,9 +285,11 @@ internal class TVBoxJarSpiderRuntime(
 		loadedJars[cacheKey]?.let { return@withContext it }
 		loadMutex.withLock {
 			loadedJars[cacheKey]?.let { return@withLock it }
-			val cacheDir = File(context.filesDir, "tvbox_csp").apply { mkdirs() }
-			val jarFile = File(cacheDir, "$cacheKey.jar")
-			val optimizedDir = File(context.codeCacheDir, "tvbox_csp_opt").apply { mkdirs() }
+			App.init(context)
+			val bridgeApp = App.getInstance()
+			val cacheDir = Path.jar()
+			val cachePath = cacheDir.absolutePath
+			val jarFile = Path.jar(jarSpec.url)
 			Log.i(TAG, "Preparing TVBox spider jar for ${source.name}: url=${jarSpec.url} cache=${jarFile.absolutePath}")
 			if (!isUsableJarCache(jarFile, jarSpec.md5)) {
 				downloadJar(jarSpec, jarFile)
@@ -282,19 +299,24 @@ internal class TVBoxJarSpiderRuntime(
 				return@withLock null
 			}
 			prepareJarForLoading(jarFile)
-			val classLoader = ChildFirstDexClassLoader(
+			val classLoader = DexClassLoader(
 				jarFile.absolutePath,
-				optimizedDir.absolutePath,
-				null,
-				context.classLoader,
+				cachePath,
+				cachePath,
+				bridgeApp.classLoader,
 			)
 			runCatching {
-				val initClass = classLoader.loadClass("com.github.catvod.spider.Init")
-				val initMethod = initClass.getMethod("init", Context::class.java)
-				initMethod.invoke(null, context)
+				withContextClassLoader(classLoader) {
+					val initClass = classLoader.loadClass("com.github.catvod.spider.Init")
+					val initMethod = initClass.getMethod("init", Context::class.java)
+					initMethod.invoke(null, bridgeApp)
+				}
 			}.onFailure {
 				Log.d(TAG, "TVBox spider Init not available for ${source.name}: ${it.message}")
 			}
+			logJarInitState(classLoader, "after-init")
+			seedJarInitState(classLoader, bridgeApp)
+			logJarInitState(classLoader, "after-seed")
 			val proxyMethod = runCatching {
 				classLoader.loadClass("com.github.catvod.spider.Proxy")
 					.getMethod("proxy", Map::class.java)
@@ -518,17 +540,22 @@ internal class TVBoxJarSpiderRuntime(
 		val redirectUrl = headers.entries.firstNotNullOfOrNull { (key, value) ->
 			value.takeIf { key.equals("Location", ignoreCase = true) }
 		}
-		val body = when (rawBody) {
-			null -> ByteArray(0)
-			is ByteArray -> rawBody
-			is InputStream -> rawBody.use { it.readBytes() }
-			else -> rawBody.toString().toByteArray(Charsets.UTF_8)
+		val bodyStream = rawBody as? InputStream
+		val bodyBytes = if (bodyStream == null) {
+			when (rawBody) {
+				null -> ByteArray(0)
+				is ByteArray -> rawBody
+				else -> rawBody.toString().toByteArray(Charsets.UTF_8)
+			}
+		} else {
+			ByteArray(0)
 		}
 		return VideoLocalCacheProxy.DynamicResponse(
 			statusCode = statusCode,
 			contentType = contentType,
 			headers = headers,
-			body = if (redirectUrl != null) ByteArray(0) else body,
+			body = if (redirectUrl != null) ByteArray(0) else bodyBytes,
+			bodyStream = if (redirectUrl != null) null else bodyStream,
 			redirectUrl = redirectUrl,
 		)
 	}
@@ -852,6 +879,206 @@ internal class TVBoxJarSpiderRuntime(
 		}
 	}
 
+	private fun seedJarInitState(classLoader: DexClassLoader, bridgeApp: Context) {
+		runCatching {
+			val initClass = classLoader.loadClass("com.github.catvod.spider.Init")
+			val initInstance = resolveInitInstance(initClass)
+			val staticWrites = seedJarInitFields(
+				target = null,
+				fields = collectClassHierarchyFields(initClass),
+				classLoader = classLoader,
+				bridgeApp = bridgeApp,
+				label = "static",
+			)
+			val instanceWrites = if (initInstance == null) {
+				emptyList()
+			} else {
+				seedJarInitFields(
+					target = initInstance,
+					fields = collectClassHierarchyFields(initInstance.javaClass),
+					classLoader = classLoader,
+					bridgeApp = bridgeApp,
+					label = initInstance.javaClass.simpleName,
+				)
+			}
+			val staticSetterWrites = seedJarInitSetters(
+				target = null,
+				methods = collectClassHierarchyMethods(initClass),
+				classLoader = classLoader,
+				bridgeApp = bridgeApp,
+				label = "static",
+			)
+			val instanceSetterWrites = if (initInstance == null) {
+				emptyList()
+			} else {
+				seedJarInitSetters(
+					target = initInstance,
+					methods = collectClassHierarchyMethods(initInstance.javaClass),
+					classLoader = classLoader,
+					bridgeApp = bridgeApp,
+					label = initInstance.javaClass.simpleName,
+				)
+			}
+			if (
+				staticWrites.isNotEmpty() ||
+				instanceWrites.isNotEmpty() ||
+				staticSetterWrites.isNotEmpty() ||
+				instanceSetterWrites.isNotEmpty()
+			) {
+				Log.i(
+					TAG,
+					"Seeded TVBox jar Init state for ${source.name}: static=${(staticWrites + staticSetterWrites).joinToString()} instance=${(instanceWrites + instanceSetterWrites).joinToString()}",
+				)
+			}
+		}.onFailure {
+			Log.w(TAG, "Unable to seed TVBox jar Init state for ${source.name}", it)
+		}
+	}
+
+	private fun resolveInitInstance(initClass: Class<*>): Any? {
+		listOf("get", "instance", "getInstance").forEach { methodName ->
+			runCatching {
+				initClass.getDeclaredMethod(methodName).apply { isAccessible = true }.invoke(null)
+			}.getOrNull()?.let { return it }
+		}
+		collectClassHierarchyFields(initClass).forEach { field ->
+			runCatching {
+				if (!Modifier.isStatic(field.modifiers) || !initClass.isAssignableFrom(field.type)) {
+					return@runCatching
+				}
+				field.isAccessible = true
+				field.get(null)
+			}.getOrNull()?.let { return it }
+		}
+		return null
+	}
+
+	private fun seedJarInitFields(
+		target: Any?,
+		fields: List<Field>,
+		classLoader: DexClassLoader,
+		bridgeApp: Context,
+		label: String,
+	): List<String> {
+		val writes = ArrayList<String>()
+		fields.forEach { field ->
+			runCatching {
+				field.isAccessible = true
+				val currentValue = runCatching { field.get(target) }.getOrNull()
+				if (currentValue != null) {
+					return@runCatching
+				}
+				val fieldValue = resolveInitMemberValue(
+					memberType = field.type,
+					memberName = field.name,
+					bridgeApp = bridgeApp,
+					classLoader = classLoader,
+				) ?: return@runCatching
+				field.set(target, fieldValue)
+				writes += "$label.${field.name}=${fieldValue.javaClass.simpleName}"
+			}
+		}
+		return writes
+	}
+
+	private fun seedJarInitSetters(
+		target: Any?,
+		methods: List<Method>,
+		classLoader: DexClassLoader,
+		bridgeApp: Context,
+		label: String,
+	): List<String> {
+		val writes = ArrayList<String>()
+		methods.forEach { method ->
+			runCatching {
+				if (method.parameterTypes.size != 1) {
+					return@runCatching
+				}
+				if ((target == null) != Modifier.isStatic(method.modifiers)) {
+					return@runCatching
+				}
+				val parameterType = method.parameterTypes[0]
+				val argument = resolveInitMemberValue(
+					memberType = parameterType,
+					memberName = method.name,
+					bridgeApp = bridgeApp,
+					classLoader = classLoader,
+				) ?: return@runCatching
+				method.isAccessible = true
+				method.invoke(target, argument)
+				writes += "$label.${method.name}(${argument.javaClass.simpleName})"
+			}
+		}
+		return writes
+	}
+
+	private fun resolveInitMemberValue(
+		memberType: Class<*>,
+		memberName: String,
+		bridgeApp: Context,
+		classLoader: DexClassLoader,
+	): Any? {
+		val normalizedName = memberName.lowercase()
+		val application = bridgeApp as? Application
+		return when {
+			memberType.isAssignableFrom(bridgeApp.javaClass) -> bridgeApp
+			application != null && memberType.isAssignableFrom(application.javaClass) -> application
+			memberType == Any::class.java && normalizedName.contains("loader") -> classLoader
+			memberType == Any::class.java && (normalizedName.contains("context") || normalizedName.contains("app")) -> bridgeApp
+			Context::class.java.isAssignableFrom(memberType) -> bridgeApp
+			Application::class.java.isAssignableFrom(memberType) -> application
+			ClassLoader::class.java.isAssignableFrom(memberType) -> classLoader
+			normalizedName == "loader" || normalizedName.contains("classloader") || normalizedName.contains("dexloader") -> {
+				if (memberType == Any::class.java || memberType.isAssignableFrom(classLoader.javaClass)) classLoader else null
+			}
+			normalizedName == "app" || normalizedName.contains("application") -> {
+				when {
+					application == null -> null
+					memberType == Any::class.java -> application
+					memberType.isAssignableFrom(application.javaClass) -> application
+					else -> null
+				}
+			}
+			normalizedName == "context" || normalizedName.endsWith("context") -> {
+				if (memberType == Any::class.java || memberType.isAssignableFrom(bridgeApp.javaClass)) bridgeApp else null
+			}
+			else -> null
+		}
+	}
+
+	private fun collectClassHierarchyFields(type: Class<*>): List<Field> {
+		val fields = ArrayList<Field>()
+		var current: Class<*>? = type
+		while (current != null && current != Any::class.java) {
+			fields += current.declaredFields
+			current = current.superclass
+		}
+		return fields
+	}
+
+	private fun collectClassHierarchyMethods(type: Class<*>): List<Method> {
+		val methods = ArrayList<Method>()
+		var current: Class<*>? = type
+		while (current != null && current != Any::class.java) {
+			methods += current.declaredMethods.filterNot { method ->
+				method.name == "init" || method.parameterCount != 1
+			}
+			current = current.superclass
+		}
+		return methods
+	}
+
+	private inline fun <T> withContextClassLoader(classLoader: ClassLoader, block: () -> T): T {
+		val thread = Thread.currentThread()
+		val previous = thread.contextClassLoader
+		thread.contextClassLoader = classLoader
+		return try {
+			block()
+		} finally {
+			thread.contextClassLoader = previous
+		}
+	}
+
 	private fun logReflectiveFailure(action: String, error: Throwable) {
 		when (error) {
 			is InvocationTargetException -> {
@@ -884,6 +1111,53 @@ internal class TVBoxJarSpiderRuntime(
 		}
 	}
 
+	private fun logSpiderShellState(spider: Spider, stage: String) {
+		runCatching {
+			val spiderFields = collectClassHierarchyFields(spider.javaClass)
+				.filter { Spider::class.java.isAssignableFrom(it.type) }
+			if (spiderFields.isEmpty()) {
+				return@runCatching
+			}
+			val states = spiderFields.mapNotNull { field ->
+				runCatching {
+					field.isAccessible = true
+					val value = field.get(spider) as? Spider
+					val state = value?.javaClass?.name ?: "null"
+					"${field.declaringClass.simpleName}.${field.name}=$state"
+				}.getOrNull()
+			}
+			if (states.isNotEmpty()) {
+				Log.i(
+					TAG,
+					"TVBox spider shell state for ${source.name}: stage=$stage class=${spider.javaClass.name} ${states.joinToString()}",
+				)
+			}
+		}.onFailure {
+			Log.w(TAG, "Unable to inspect TVBox spider shell state for ${source.name}: stage=$stage", it)
+		}
+	}
+
+	private fun logJarInitState(classLoader: DexClassLoader, stage: String) {
+		runCatching {
+			val initClass = classLoader.loadClass("com.github.catvod.spider.Init")
+			val contextValue = runCatching {
+				initClass.getDeclaredMethod("context").apply { isAccessible = true }.invoke(null)
+			}.getOrNull()
+			val loaderValue = runCatching {
+				initClass.getDeclaredMethod("loader").apply { isAccessible = true }.invoke(null)
+			}.getOrNull()
+			val classLoaderValue = runCatching {
+				initClass.getDeclaredMethod("classLoader").apply { isAccessible = true }.invoke(null)
+			}.getOrNull()
+			Log.i(
+				TAG,
+				"TVBox jar Init state for ${source.name}: stage=$stage context=${contextValue?.javaClass?.name ?: "null"} loader=${loaderValue?.javaClass?.name ?: "null"} classLoader=${classLoaderValue?.javaClass?.name ?: "null"}",
+			)
+		}.onFailure {
+			Log.w(TAG, "Unable to inspect TVBox jar Init state for ${source.name}: stage=$stage", it)
+		}
+	}
+
 	private data class JarSpec(
 		val raw: String,
 		val url: String,
@@ -893,7 +1167,7 @@ internal class TVBoxJarSpiderRuntime(
 
 	private data class LoadedJar(
 		val spec: JarSpec,
-		val classLoader: ClassLoader,
+		val classLoader: DexClassLoader,
 		val proxyMethod: Method?,
 	)
 

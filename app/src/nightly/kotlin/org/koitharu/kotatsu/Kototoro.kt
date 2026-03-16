@@ -2,6 +2,7 @@ package org.skepsun.kototoro
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import androidx.preference.PreferenceManager
 import leakcanary.LeakCanary
 import org.skepsun.kototoro.core.BaseApp
@@ -22,8 +23,16 @@ class KototoroApp : BaseApp(), SharedPreferences.OnSharedPreferenceChangeListene
 	}
 
 	private fun configureLeakCanary(isEnabled: Boolean) {
+		val manufacturer = Build.MANUFACTURER.lowercase()
+		val brand = Build.BRAND.lowercase()
+		val isOplusDevice = manufacturer.contains("oppo") ||
+			manufacturer.contains("oneplus") ||
+			manufacturer.contains("realme") ||
+			brand.contains("oppo") ||
+			brand.contains("oneplus") ||
+			brand.contains("realme")
 		LeakCanary.config = LeakCanary.config.copy(
-			dumpHeap = isEnabled,
+			dumpHeap = isEnabled && !isOplusDevice,
 		)
 	}
 

@@ -879,22 +879,25 @@ class JsonSourceManager @Inject constructor(
 		}
 	}
 
+	private val tvboxLenientJson = kotlinx.serialization.json.Json {
+		ignoreUnknownKeys = true
+		isLenient = true
+		allowTrailingComma = true
+	}
+
 	private fun preprocessTvBoxJson(rawContent: String): String {
 		val withoutBom = rawContent.removePrefix("\uFEFF")
-		val lines = withoutBom.lines()
+		val cleaned = withoutBom.replace(Regex(""",(?=\s*[\}\]])"""), "")
+		val lines = cleaned.lines()
 		var started = false
 		val builder = StringBuilder()
 		for (line in lines) {
 			val trimmed = line.trim()
 			if (!started) {
-				if (trimmed.isBlank()) {
-					continue
-				}
-				if (trimmed.startsWith("//")) {
-					continue
-				}
+				if (trimmed.isBlank() || trimmed.startsWith("//") || trimmed.startsWith("#")) continue
 				started = true
 			}
+			if (trimmed.startsWith("//") || trimmed.startsWith("#")) continue
 			if (builder.isNotEmpty()) {
 				builder.append('\n')
 			}
@@ -904,11 +907,20 @@ class JsonSourceManager @Inject constructor(
 	}
 
 	private fun parseTvBoxRootObject(content: String): JSONObject {
-		val tokenized = JSONTokener(content).nextValue()
-		return when (tokenized) {
-			is JSONObject -> tokenized
-			is JSONArray -> throw IllegalArgumentException("TVBox root must be a JSON object, not array")
-			else -> throw IllegalArgumentException("TVBox root must be a JSON object")
+		return try {
+			val tokenized = JSONTokener(content).nextValue()
+			when (tokenized) {
+				is JSONObject -> tokenized
+				is JSONArray -> throw IllegalArgumentException("TVBox root must be a JSON object, not array")
+				else -> throw IllegalArgumentException("TVBox root must be a JSON object")
+			}
+		} catch (e: Exception) {
+			try {
+				val jsonElement = tvboxLenientJson.decodeFromString<kotlinx.serialization.json.JsonObject>(content)
+				JSONObject(jsonElement.toString())
+			} catch (fallbackEx: Exception) {
+				throw e
+			}
 		}
 	}
 

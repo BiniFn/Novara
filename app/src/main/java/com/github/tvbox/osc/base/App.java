@@ -1,6 +1,8 @@
 package com.github.tvbox.osc.base;
 
+import android.app.Activity;
 import android.app.Application;
+import android.app.Application.ActivityLifecycleCallbacks;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -29,7 +31,36 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
 
+import androidx.hilt.work.HiltWorkerFactory;
 import androidx.multidex.MultiDexApplication;
+import androidx.room.InvalidationTracker;
+import androidx.work.Configuration;
+
+import com.github.catvod.crawler.JsLoader;
+import com.github.catvod.Init;
+import com.github.tvbox.osc.bean.VodInfo;
+import com.github.tvbox.osc.data.AppDataManager;
+import com.github.tvbox.osc.server.ControlManager;
+import com.github.tvbox.osc.util.AppManager;
+import com.github.tvbox.osc.util.EpgUtil;
+import com.github.tvbox.osc.util.FileUtils;
+import com.github.tvbox.osc.util.HawkConfig;
+import com.github.tvbox.osc.util.LOG;
+import com.github.tvbox.osc.util.OkGoHelper;
+import com.github.tvbox.osc.util.PlayerHelper;
+import com.orhanobut.hawk.Hawk;
+import com.p2p.P2PClass;
+import com.whl.quickjs.android.QuickJSLoader;
+
+import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager;
+import org.skepsun.kototoro.core.db.MangaDatabase;
+import org.skepsun.kototoro.core.os.AppValidator;
+import org.skepsun.kototoro.core.prefs.AppSettings;
+import org.skepsun.kototoro.local.data.LocalStorageChanges;
+import org.skepsun.kototoro.local.data.index.LocalMangaIndex;
+import org.skepsun.kototoro.local.domain.model.LocalManga;
+import org.skepsun.kototoro.mihon.MihonExtensionManager;
+import org.skepsun.kototoro.settings.work.WorkScheduleManager;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -37,35 +68,97 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
-public class App extends MultiDexApplication {
+import javax.inject.Inject;
+import javax.inject.Provider;
+
+import dagger.hilt.android.HiltAndroidApp;
+import kotlinx.coroutines.flow.MutableSharedFlow;
+
+@HiltAndroidApp
+public class App extends MultiDexApplication implements Configuration.Provider {
     public static final String HOST_PACKAGE_NAME = "com.github.tvbox.osc";
     private static final String HOST_APPLICATION_CLASS_NAME = "com.github.tvbox.osc.base.App";
 
     private static App instance = new App();
     private static volatile Context appContext;
+    private static volatile Context bridgeContext;
     private static volatile ApplicationInfo bridgedApplicationInfo;
     private static volatile PackageManager bridgedPackageManager;
-    private static volatile File bridgedCacheDir;
-    private static volatile File bridgedCodeCacheDir;
-    private static volatile File bridgedFilesDir;
-    private static volatile ClassLoader bridgedClassLoader;
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static volatile boolean attached = false;
+    private static volatile boolean hostRuntimeBootstrapped = false;
+    private static volatile P2PClass p;
+    public static String burl;
+    private static String dashData;
+    private volatile VodInfo vodInfo;
+    @Inject
+    protected Provider<Set<InvalidationTracker.Observer>> databaseObserversProvider;
+    @Inject
+    protected Set<ActivityLifecycleCallbacks> activityLifecycleCallbacks;
+    @Inject
+    protected Provider<MangaDatabase> database;
+    @Inject
+    protected AppSettings settings;
+    @Inject
+    protected HiltWorkerFactory workerFactory;
+    @Inject
+    protected AppValidator appValidator;
+    @Inject
+    protected WorkScheduleManager workScheduleManager;
+    @Inject
+    protected Provider<LocalMangaIndex> localMangaIndexProvider;
+    @Inject
+    @LocalStorageChanges
+    protected MutableSharedFlow<LocalManga> localStorageChanges;
+    @Inject
+    protected MihonExtensionManager mihonExtensionManager;
+    @Inject
+    protected AniyomiExtensionManager aniyomiExtensionManager;
 
     public App() {
         instance = this;
     }
 
+    @Override
+    public Configuration getWorkManagerConfiguration() {
+        return new Configuration.Builder()
+                .setWorkerFactory(workerFactory)
+                .build();
+    }
+
     public static synchronized void init(Context context) {
         if (context != null) {
-            appContext = context.getApplicationContext();
-            bridgedApplicationInfo = null;
-            bridgedPackageManager = null;
-            if (!attached && instance != null) {
-                instance.attach(appContext);
-                attached = true;
+            Context resolvedApplication = context.getApplicationContext();
+            App resolvedApp = null;
+            if (context instanceof App) {
+                resolvedApp = (App) context;
+            } else if (resolvedApplication instanceof App) {
+                resolvedApp = (App) resolvedApplication;
             }
+            if (resolvedApp != null) {
+                instance = resolvedApp;
+                appContext = resolvedApp;
+                bridgeContext = resolvedApp.peekBridgeContext();
+                attached = true;
+            } else {
+                Context runtimeContext = resolvedApplication != null ? resolvedApplication : context;
+                bridgeContext = runtimeContext;
+                if (instance != null && instance.getClass() != App.class) {
+                    appContext = instance;
+                    attached = true;
+                } else {
+                    appContext = runtimeContext;
+                    if (!attached && instance != null) {
+                        instance.attach(runtimeContext);
+                        attached = true;
+                    }
+                }
+            }
+            resetBridgeCaches();
+            Init.set(getInstance());
+            bootstrapHostRuntime();
         }
     }
 
@@ -73,14 +166,60 @@ public class App extends MultiDexApplication {
         return instance;
     }
 
-    public static synchronized void configureRuntimeDirs(File cacheDir, File codeCacheDir, File filesDir) {
-        bridgedCacheDir = cacheDir;
-        bridgedCodeCacheDir = codeCacheDir;
-        bridgedFilesDir = filesDir;
+    private static void resetBridgeCaches() {
+        bridgedApplicationInfo = null;
+        bridgedPackageManager = null;
     }
 
-    public static synchronized void configureRuntimeClassLoader(ClassLoader classLoader) {
-        bridgedClassLoader = classLoader;
+    public static synchronized void bootstrapHostRuntime() {
+        if (hostRuntimeBootstrapped || appContext == null) {
+            return;
+        }
+        hostRuntimeBootstrapped = true;
+        try {
+            Hawk.init(getInstance()).build();
+            Hawk.put(HawkConfig.DEBUG_OPEN, false);
+            if (!Hawk.contains(HawkConfig.PLAY_TYPE)) {
+                Hawk.put(HawkConfig.PLAY_TYPE, 1);
+            }
+        } catch (Throwable error) {
+            LOG.e("Hawk bootstrap failed: " + error);
+        }
+        try {
+            OkGoHelper.init();
+        } catch (Throwable error) {
+            LOG.e("OkGo bootstrap failed: " + error);
+        }
+        try {
+            EpgUtil.init();
+        } catch (Throwable error) {
+            LOG.e("EPG bootstrap failed: " + error);
+        }
+        try {
+            ControlManager.init(getInstance());
+        } catch (Throwable error) {
+            LOG.e("ControlManager bootstrap failed: " + error);
+        }
+        try {
+            AppDataManager.init();
+        } catch (Throwable error) {
+            LOG.e("AppDataManager bootstrap failed: " + error);
+        }
+        try {
+            PlayerHelper.init();
+        } catch (Throwable error) {
+            LOG.e("PlayerHelper bootstrap failed: " + error);
+        }
+        try {
+            QuickJSLoader.init();
+        } catch (Throwable error) {
+            LOG.e("QuickJS bootstrap failed: " + error);
+        }
+        try {
+            FileUtils.cleanPlayerCache();
+        } catch (Throwable error) {
+            LOG.e("FileUtils bootstrap failed: " + error);
+        }
     }
 
     public static void post(Runnable runnable) {
@@ -100,10 +239,44 @@ public class App extends MultiDexApplication {
     }
 
     private Context requireContext() {
-        if (appContext == null) {
+        Context context = peekBridgeContext();
+        if (context == null) {
             throw new IllegalStateException("TVBox App bridge is not initialized");
         }
-        return appContext;
+        return context;
+    }
+
+    private boolean hasRealHostIdentity() {
+        return HOST_PACKAGE_NAME.equals(super.getPackageName());
+    }
+
+    private Context peekBridgeContext() {
+        Context context = bridgeContext;
+        if (context != null && context != this) {
+            return context;
+        }
+        Context application = appContext;
+        if (application != null && application != this) {
+            return application;
+        }
+        Context base = getBaseContext();
+        if (base != null && base != this) {
+            return base;
+        }
+        return null;
+    }
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        if (base != null) {
+            instance = this;
+            appContext = this;
+            bridgeContext = base;
+            resetBridgeCaches();
+            attached = true;
+            Init.set(this);
+        }
+        super.attachBaseContext(base);
     }
 
     private void attach(Context context) {
@@ -117,6 +290,9 @@ public class App extends MultiDexApplication {
 
     @Override
     public ApplicationInfo getApplicationInfo() {
+        if (hasRealHostIdentity()) {
+            return super.getApplicationInfo();
+        }
         ApplicationInfo cached = bridgedApplicationInfo;
         if (cached != null) {
             return cached;
@@ -137,12 +313,12 @@ public class App extends MultiDexApplication {
 
     @Override
     public File getCacheDir() {
-        return bridgedCacheDir != null ? bridgedCacheDir : requireContext().getCacheDir();
+        return requireContext().getCacheDir();
     }
 
     @Override
     public File getCodeCacheDir() {
-        return bridgedCodeCacheDir != null ? bridgedCodeCacheDir : requireContext().getCodeCacheDir();
+        return requireContext().getCodeCacheDir();
     }
 
     @Override
@@ -157,7 +333,7 @@ public class App extends MultiDexApplication {
 
     @Override
     public File getFilesDir() {
-        return bridgedFilesDir != null ? bridgedFilesDir : requireContext().getFilesDir();
+        return requireContext().getFilesDir();
     }
 
     @Override
@@ -167,11 +343,17 @@ public class App extends MultiDexApplication {
 
     @Override
     public ClassLoader getClassLoader() {
-        return bridgedClassLoader != null ? bridgedClassLoader : requireContext().getClassLoader();
+        if (hasRealHostIdentity()) {
+            return super.getClassLoader();
+        }
+        return requireContext().getClassLoader();
     }
 
     @Override
     public PackageManager getPackageManager() {
+        if (hasRealHostIdentity()) {
+            return super.getPackageManager();
+        }
         PackageManager cached = bridgedPackageManager;
         if (cached != null) {
             return cached;
@@ -206,7 +388,39 @@ public class App extends MultiDexApplication {
 
     @Override
     public String getPackageName() {
-        return HOST_PACKAGE_NAME;
+        return hasRealHostIdentity() ? super.getPackageName() : HOST_PACKAGE_NAME;
+    }
+
+    public static P2PClass getp2p() {
+        try {
+            if (p == null) {
+                p = new P2PClass(FileUtils.getExternalCachePath());
+            }
+            return p;
+        } catch (Exception e) {
+            LOG.e(e.toString());
+            return null;
+        }
+    }
+
+    public Activity getCurrentActivity() {
+        return AppManager.getInstance().currentActivity();
+    }
+
+    public void setDashData(String data) {
+        dashData = data;
+    }
+
+    public String getDashData() {
+        return dashData;
+    }
+
+    public void setVodInfo(VodInfo vodInfo) {
+        this.vodInfo = vodInfo;
+    }
+
+    public VodInfo getVodInfo() {
+        return vodInfo;
     }
 
     private String buildHostProcessName(String realProcessName) {
@@ -815,6 +1029,15 @@ public class App extends MultiDexApplication {
         @Override
         public void verifyPendingInstall(int id, int verificationCode) {
             base.verifyPendingInstall(id, verificationCode);
+        }
+    }
+
+    @Override
+    public void onTerminate() {
+        super.onTerminate();
+        try {
+            JsLoader.destroy();
+        } catch (Throwable ignored) {
         }
     }
 }

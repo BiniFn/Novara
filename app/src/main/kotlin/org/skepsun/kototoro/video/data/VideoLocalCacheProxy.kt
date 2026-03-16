@@ -42,8 +42,33 @@ class VideoLocalCacheProxy @Inject constructor(
         val contentType: String = "application/octet-stream",
         val headers: Map<String, String> = emptyMap(),
         val body: ByteArray = ByteArray(0),
+        val bodyStream: InputStream? = null,
         val redirectUrl: String? = null,
-    )
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as DynamicResponse
+            if (statusCode != other.statusCode) return false
+            if (contentType != other.contentType) return false
+            if (headers != other.headers) return false
+            if (!body.contentEquals(other.body)) return false
+            if (bodyStream != other.bodyStream) return false
+            if (redirectUrl != other.redirectUrl) return false
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = statusCode
+            result = 31 * result + contentType.hashCode()
+            result = 31 * result + headers.hashCode()
+            result = 31 * result + body.contentHashCode()
+            result = 31 * result + (bodyStream?.hashCode() ?: 0)
+            result = 31 * result + (redirectUrl?.hashCode() ?: 0)
+            return result
+        }
+    }
 
     data class SessionStats(
         val hit: Long,
@@ -584,6 +609,24 @@ class VideoLocalCacheProxy @Inject constructor(
             isHead -> {
                 NanoHTTPD.newFixedLengthResponse(status, response.contentType, "")
             }
+            response.bodyStream != null -> {
+                val contentLengthStr = response.headers.entries.firstOrNull { it.key.equals("Content-Length", ignoreCase = true) }?.value
+                val contentLength = contentLengthStr?.toLongOrNull() ?: -1L
+                if (contentLength >= 0L) {
+                    NanoHTTPD.newFixedLengthResponse(
+                        status,
+                        response.contentType,
+                        response.bodyStream,
+                        contentLength,
+                    )
+                } else {
+                    NanoHTTPD.newChunkedResponse(
+                        status,
+                        response.contentType,
+                        response.bodyStream,
+                    )
+                }
+            }
             else -> {
                 NanoHTTPD.newFixedLengthResponse(
                     status,
@@ -594,8 +637,14 @@ class VideoLocalCacheProxy @Inject constructor(
             }
         }
         response.redirectUrl?.let { output.addHeader("Location", it) }
-        response.headers.forEach { (key, value) -> output.addHeader(key, value) }
-        output.addHeader("Content-Length", response.body.size.toString())
+        response.headers.forEach { (key, value) ->
+            if (!key.equals("Content-Length", ignoreCase = true)) {
+                output.addHeader(key, value)
+            }
+        }
+        if (response.bodyStream == null) {
+            output.addHeader("Content-Length", response.body.size.toString())
+        }
         return output
     }
 

@@ -21,7 +21,6 @@
 	<uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-	<uses-permission android:name="org.skepsun.kototoro.permission.BIND_TVBOX_COMPANION" />
 	<uses-permission
 		android:name="android.permission.REQUEST_INSTALL_PACKAGES"
 		tools:ignore="RequestInstallPackagesPolicy" />
@@ -60,7 +59,7 @@
 	</queries>
 
 	<application
-		android:name="org.skepsun.kototoro.KototoroApp"
+		android:name="${appClassName}"
 		android:allowBackup="true"
 		android:backupAgent="org.skepsun.kototoro.backups.domain.AppBackupAgent"
 		android:dataExtractionRules="@xml/backup_rules"
@@ -433,11 +432,6 @@
 		<service
 			android:name="org.skepsun.kototoro.browser.AdListUpdateService"
 			android:exported="false" />
-		<service
-			android:name="org.skepsun.kototoro.core.parser.tvbox.TVBoxJarSpiderService"
-			android:exported="false"
-			android:process=":tvbox_spider" />
-
 		<provider
 			android:name="org.skepsun.kototoro.search.ui.MangaSuggestionsProvider"
 			android:authorities="${applicationId}.MangaSuggestionsProvider"

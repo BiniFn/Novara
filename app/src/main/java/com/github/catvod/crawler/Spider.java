@@ -1,15 +1,19 @@
 package com.github.catvod.crawler;
 
 import android.content.Context;
-import com.github.tvbox.osc.util.OkGoHelper;
+
+import com.github.catvod.net.OkHttp;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import okhttp3.Dns;
+import okhttp3.OkHttpClient;
 
-public class Spider {
+public abstract class Spider {
+
+    public String siteKey;
 
     public void init(Context context) throws Exception {}
 
@@ -45,6 +49,10 @@ public class Spider {
         return "";
     }
 
+    public String liveContent(String url) throws Exception {
+        return "";
+    }
+
     public boolean manualVideoCheck() throws Exception {
         return false;
     }
@@ -53,7 +61,15 @@ public class Spider {
         return false;
     }
 
+    public Object[] proxy(Map<String, String> params) throws Exception {
+        return null;
+    }
+
     public Object[] proxyLocal(Map<String, String> params) throws Exception {
+        return null;
+    }
+
+    public String action(String action) throws Exception {
         return null;
     }
 
@@ -61,11 +77,11 @@ public class Spider {
 
     public void destroy() {}
 
-    public String liveContent(String url) {
-        return "";
+    public static Dns safeDns() {
+        return OkHttp.dns();
     }
 
-    public static Dns safeDns() {
-        return OkGoHelper.dnsOverHttps != null ? OkGoHelper.dnsOverHttps : Dns.SYSTEM;
+    public static OkHttpClient client() {
+        return OkHttp.client();
     }
 }

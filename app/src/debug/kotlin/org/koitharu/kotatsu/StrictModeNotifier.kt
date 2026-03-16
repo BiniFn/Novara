@@ -8,6 +8,7 @@ import android.content.Context
 import android.os.Build
 import android.os.StrictMode
 import android.os.strictmode.Violation
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
@@ -42,32 +43,38 @@ class StrictModeNotifier(
 
 	override fun onViolation(violation: FragmentViolation) = showNotification(violation)
 
-	private fun showNotification(violation: Throwable) = Notification.Builder(context, CHANNEL_ID)
-		.setSmallIcon(R.drawable.ic_bug)
-		.setContentTitle(context.getString(R.string.strict_mode))
-		.setContentText(violation.message)
-		.setStyle(
-			BigTextStyle()
-				.setBigContentTitle(context.getString(R.string.strict_mode))
-				.setSummaryText(violation.message)
-				.bigText(violation.stackTraceToString()),
-		).setShowWhen(true)
-		.setContentIntent(
-			PendingIntentCompat.getActivity(
-				context,
-				violation.hashCode(),
-				ShareHelper(context).getShareTextIntent(violation.stackTraceToString()),
-				0,
-				false,
-			),
-		)
-		.setAutoCancel(true)
-		.setGroup(CHANNEL_ID)
-		.build()
-		.let { notificationManager.notify(CHANNEL_ID, violation.hashCode().absoluteValue, it) }
+	private fun showNotification(violation: Throwable) {
+		runCatching {
+			Notification.Builder(context, CHANNEL_ID)
+				.setSmallIcon(R.drawable.ic_bug)
+				.setContentTitle(context.getString(R.string.strict_mode))
+				.setContentText(violation.message)
+				.setStyle(
+					BigTextStyle()
+						.setBigContentTitle(context.getString(R.string.strict_mode))
+						.setSummaryText(violation.message)
+						.bigText(violation.stackTraceToString()),
+				).setShowWhen(true)
+				.setContentIntent(
+					PendingIntentCompat.getActivity(
+						context,
+						violation.hashCode(),
+						ShareHelper(context).getShareTextIntent(violation.stackTraceToString()),
+						0,
+						false,
+					),
+				)
+				.setAutoCancel(true)
+				.setGroup(CHANNEL_ID)
+				.build()
+				.let { notificationManager.notify(CHANNEL_ID, violation.hashCode().absoluteValue, it) }
+		}.onFailure {
+			Log.w(TAG, "Unable to show StrictMode notification", it)
+		}
+	}
 
 	private companion object {
-
+		const val TAG = "StrictModeNotifier"
 		const val CHANNEL_ID = "strict_mode"
 	}
 }

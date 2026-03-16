@@ -1,16 +1,11 @@
 package org.skepsun.kototoro.core
 
-import android.app.Application
 import android.content.Context
 import android.os.Build
 import androidx.annotation.WorkerThread
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.hilt.work.HiltWorkerFactory
 import androidx.room.InvalidationTracker
-import androidx.work.Configuration
-import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttp
 import org.acra.ACRA
@@ -23,6 +18,7 @@ import org.acra.sender.HttpSender
 import org.conscrypt.Conscrypt
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
+import com.github.tvbox.osc.base.App
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.os.AppValidator
 import org.skepsun.kototoro.core.os.RomCompat
@@ -32,53 +28,9 @@ import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.index.LocalMangaIndex
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
-import org.skepsun.kototoro.settings.work.WorkScheduleManager
-import org.skepsun.kototoro.tvbox.bridge.TVBoxJarSpiderWorkerProtocol
 import java.security.Security
-import javax.inject.Inject
-import javax.inject.Provider
 
-@HiltAndroidApp
-open class BaseApp : Application(), Configuration.Provider {
-
-	@Inject
-	lateinit var databaseObserversProvider: Provider<Set<@JvmSuppressWildcards InvalidationTracker.Observer>>
-
-	@Inject
-	lateinit var activityLifecycleCallbacks: Set<@JvmSuppressWildcards ActivityLifecycleCallbacks>
-
-	@Inject
-	lateinit var database: Provider<MangaDatabase>
-
-	@Inject
-	lateinit var settings: AppSettings
-
-	@Inject
-	lateinit var workerFactory: HiltWorkerFactory
-
-	@Inject
-	lateinit var appValidator: AppValidator
-
-	@Inject
-	lateinit var workScheduleManager: WorkScheduleManager
-
-	@Inject
-	lateinit var localMangaIndexProvider: Provider<LocalMangaIndex>
-
-	@Inject
-	@LocalStorageChanges
-	lateinit var localStorageChanges: MutableSharedFlow<LocalManga?>
-
-	@Inject
-	lateinit var mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager
-
-	@Inject
-	lateinit var aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
-
-	override val workManagerConfiguration: Configuration
-		get() = Configuration.Builder()
-			.setWorkerFactory(workerFactory)
-			.build()
+open class BaseApp : App() {
 
 	override fun onCreate() {
 		super.onCreate()
@@ -88,9 +40,6 @@ open class BaseApp : Application(), Configuration.Provider {
 			// Ignore initialization errors
 		}
 		if (ACRA.isACRASenderServiceProcess()) {
-			return
-		}
-		if (isRemoteTvBoxSpiderProcess()) {
 			return
 		}
 		AppCompatDelegate.setDefaultNightMode(settings.theme)
@@ -137,9 +86,6 @@ open class BaseApp : Application(), Configuration.Provider {
 		if (ACRA.isACRASenderServiceProcess()) {
 			return
 		}
-		if (isRemoteTvBoxSpiderProcess()) {
-			return
-		}
 		initAcra {
 			buildConfigClass = BuildConfig::class.java
 			reportFormat = StringFormat.JSON
@@ -184,24 +130,4 @@ open class BaseApp : Application(), Configuration.Provider {
 			registerActivityLifecycleCallbacks(it)
 		}
 	}
-
-	private fun isRemoteTvBoxSpiderProcess(): Boolean {
-		return currentProcessNameCompat()?.endsWith(
-			TVBoxJarSpiderWorkerProtocol.PROCESS_SUFFIX,
-			ignoreCase = false,
-		) == true
-	}
-}
-
-private fun currentProcessNameCompat(): String? {
-	return runCatching {
-		@Suppress("DEPRECATION")
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-			Application.getProcessName()
-		} else {
-			Class.forName("android.app.ActivityThread")
-				.getDeclaredMethod("currentProcessName")
-				.invoke(null) as? String
-		}
-	}.getOrNull()
 }
