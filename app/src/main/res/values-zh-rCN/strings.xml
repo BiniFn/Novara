@@ -1089,12 +1089,12 @@
 
     <!-- 内容源管理相关 -->
     <string name="source_tag_json">Legado</string>
-    <string name="json_sources" translatable="false">Legado</string>
-    <string name="json_sources_directory">Legado源目录</string>
+    <string name="json_sources" translatable="false">JSON</string>
+    <string name="json_sources_directory">JSON源目录</string>
     <string name="built_in_sources_directory">内置源目录</string>
     <string name="mihon_sources_directory">Mihon源目录</string>
     <string name="aniyomi_sources_directory">Aniyomi源目录</string>
-    <string name="json_sources_summary">管理导入的 Legado 内容源</string>
+    <string name="json_sources_summary">管理已导入的 JSON 内容源</string>
     <string name="import_json">导入 Legado</string>
     <string name="source_deleted">内容源已删除</string>
 

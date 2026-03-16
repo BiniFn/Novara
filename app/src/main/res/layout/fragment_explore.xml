@@ -63,6 +63,19 @@
 
     </HorizontalScrollView>
 
+    <TextView
+        android:id="@+id/textView_tvbox_repository"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="@dimen/list_spacing_normal"
+        android:paddingEnd="@dimen/list_spacing_normal"
+        android:paddingBottom="8dp"
+        android:textAppearance="?attr/textAppearanceLabelMedium"
+        android:textColor="?android:attr/textColorSecondary"
+        android:visibility="gone"
+        tools:text="当前 TVBox 仓库：vip.wwgz.cn:5200"
+        tools:visibility="visible" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"

@@ -1,0 +1,82 @@
+plugins {
+	id 'com.android.application'
+	id 'kotlin-android'
+}
+
+def generatedTvboxRuntimeDir = layout.buildDirectory.dir('generated/tvbox-runtime-src/main/kotlin')
+
+tasks.register('syncTvboxRuntimeSources', Copy) {
+	from('../app/src/main/kotlin/org/skepsun/kototoro/core/parser/tvbox/ChildFirstDexClassLoader.kt')
+	from('../app/src/main/kotlin/org/skepsun/kototoro/core/parser/tvbox/TVBoxJarSpiderExecutor.kt')
+	into(generatedTvboxRuntimeDir)
+}
+
+android {
+	namespace = 'org.skepsun.kototoro.tvbox.companion'
+	compileSdk = 36
+	buildToolsVersion = '35.0.0'
+
+	defaultConfig {
+		applicationId 'com.github.tvbox.osc'
+		minSdk = 26
+		targetSdk = 36
+		versionCode = 1
+		versionName = '0.0.1'
+	}
+
+	buildTypes {
+		debug {
+		}
+		release {
+			minifyEnabled false
+		}
+	}
+
+	packagingOptions {
+		jniLibs {
+			useLegacyPackaging = true
+		}
+	}
+
+	sourceSets {
+		main {
+			java.srcDirs += [
+				'../app/src/main/java/com/github/catvod',
+				'../app/src/main/java/com/github/tvbox/osc/util',
+				'../app/src/main/java/com/whl',
+				generatedTvboxRuntimeDir,
+			]
+		}
+	}
+
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_11
+		targetCompatibility JavaVersion.VERSION_11
+	}
+
+	kotlinOptions {
+		jvmTarget = JavaVersion.VERSION_11.toString()
+	}
+}
+
+dependencies {
+	def parsersVersion = libs.versions.parsers.get()
+	if (System.properties.containsKey('parsersVersionOverride')) {
+		parsersVersion = System.getProperty('parsersVersionOverride')
+	}
+
+	implementation project(':tvbox-bridge-api')
+	implementation("com.github.skepsun:kototoro-parsers:$parsersVersion") {
+		exclude group: 'org.json', module: 'json'
+	}
+	implementation libs.kotlin.stdlib
+	implementation libs.kotlinx.coroutines.android
+	implementation 'androidx.multidex:multidex:2.0.1'
+	implementation libs.okhttp
+	implementation libs.okhttp.dnsoverhttps
+	implementation libs.quickjsKt
+}
+
+tasks.named('preBuild').configure {
+	dependsOn(tasks.named('syncTvboxRuntimeSources'))
+}

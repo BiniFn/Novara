@@ -24,11 +24,10 @@ internal object TVBoxSpiderRuntimeFactory {
 				videoLocalCacheProxy = videoLocalCacheProxy,
 			)
 
-			config.site.type == 3 || config.site.api.startsWith("csp_", ignoreCase = true) -> TVBoxJarSpiderRuntime(
+			config.site.type == 3 || config.site.api.startsWith("csp_", ignoreCase = true) -> TVBoxJarSpiderIsolatedRuntime(
 				source = source,
 				config = config,
 				context = context,
-				httpClient = httpClient,
 				videoLocalCacheProxy = videoLocalCacheProxy,
 			)
 

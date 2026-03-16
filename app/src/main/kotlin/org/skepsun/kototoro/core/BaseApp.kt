@@ -33,6 +33,7 @@ import org.skepsun.kototoro.local.data.index.LocalMangaIndex
 import org.skepsun.kototoro.local.domain.model.LocalManga
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
 import org.skepsun.kototoro.settings.work.WorkScheduleManager
+import org.skepsun.kototoro.tvbox.bridge.TVBoxJarSpiderWorkerProtocol
 import java.security.Security
 import javax.inject.Inject
 import javax.inject.Provider
@@ -89,6 +90,9 @@ open class BaseApp : Application(), Configuration.Provider {
 		if (ACRA.isACRASenderServiceProcess()) {
 			return
 		}
+		if (isRemoteTvBoxSpiderProcess()) {
+			return
+		}
 		AppCompatDelegate.setDefaultNightMode(settings.theme)
 		// TLS 1.3 support for Android < 10
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -131,6 +135,9 @@ open class BaseApp : Application(), Configuration.Provider {
 	override fun attachBaseContext(base: Context) {
 		super.attachBaseContext(base)
 		if (ACRA.isACRASenderServiceProcess()) {
+			return
+		}
+		if (isRemoteTvBoxSpiderProcess()) {
 			return
 		}
 		initAcra {
@@ -177,4 +184,24 @@ open class BaseApp : Application(), Configuration.Provider {
 			registerActivityLifecycleCallbacks(it)
 		}
 	}
+
+	private fun isRemoteTvBoxSpiderProcess(): Boolean {
+		return currentProcessNameCompat()?.endsWith(
+			TVBoxJarSpiderWorkerProtocol.PROCESS_SUFFIX,
+			ignoreCase = false,
+		) == true
+	}
+}
+
+private fun currentProcessNameCompat(): String? {
+	return runCatching {
+		@Suppress("DEPRECATION")
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+			Application.getProcessName()
+		} else {
+			Class.forName("android.app.ActivityThread")
+				.getDeclaredMethod("currentProcessName")
+				.invoke(null) as? String
+		}
+	}.getOrNull()
 }

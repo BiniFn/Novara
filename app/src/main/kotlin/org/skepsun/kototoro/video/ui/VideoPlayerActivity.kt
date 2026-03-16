@@ -812,8 +812,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun prepareAndPlay(url: String, source: ParsersMangaSource?, headers: Map<String, String>? = null) {
         // Check if URL is a direct stream or needs resolution
         val lastSegment = runCatching { Uri.parse(url).lastPathSegment }.getOrNull() ?: url
+        val normalizedUrl = url.trim()
+        val lowerUrl = normalizedUrl.lowercase()
+        val isHttpLike = lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://")
         val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
             lastSegment.endsWith(".mp4", ignoreCase = true)
+        val isDirectLocator = lowerUrl.startsWith("magnet:") ||
+            lowerUrl.startsWith("thunder:") ||
+            lowerUrl.startsWith("ed2k:") ||
+            lowerUrl.startsWith("ftp://") ||
+            lowerUrl.startsWith("rtsp://") ||
+            lowerUrl.startsWith("rtmp://") ||
+            lowerUrl.startsWith("mms://")
+        val isResolvedPlaybackUrl = isDirectStream || isDirectLocator || (isHttpLike && headers != null)
         val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
         val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
         val localUrl = resolveLocalVideoUrl(manga, currentState, url)
@@ -828,7 +839,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$url, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState, isDirectStream=$isDirectStream")
 
-        if (isDirectStream) {
+        if (isResolvedPlaybackUrl) {
             currentVideoSource = source
             availableVideos = emptyList()
             currentVideoIndex = 0
@@ -837,6 +848,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 runCatching { mangaRepositoryFactory.create(source).getRequestHeaders() }.getOrDefault(emptyMap())
             } else {
                 headers
+            }
+            if (lowerUrl.startsWith("magnet:") || lowerUrl.startsWith("thunder:") || lowerUrl.startsWith("ed2k:")) {
+                android.util.Log.w("VideoPlayer", "Unsupported direct playback scheme: $url")
+                Snackbar.make(
+                    viewBinding.root,
+                    org.skepsun.kototoro.R.string.error_occurred,
+                    Snackbar.LENGTH_LONG,
+                ).show()
+                return
             }
             startMpvPlayback(url, source, mergedHeaders)
             return

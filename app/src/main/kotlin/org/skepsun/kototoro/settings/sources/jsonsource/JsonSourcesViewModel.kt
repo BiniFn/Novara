@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
 
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,9 @@ import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.first
+import android.net.Uri
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
 
 /**
  * ViewModel for managing JSON sources with grouping support.
@@ -45,22 +49,37 @@ import kotlinx.coroutines.flow.first
  */
 @HiltViewModel
 class JsonSourcesViewModel @Inject constructor(
+	private val savedStateHandle: SavedStateHandle,
 	private val jsonSourceManager: JsonSourceManager,
 	private val sourceGroupManager: SourceGroupManager,
 	private val mangaSourcesRepository: MangaSourcesRepository,
 	private val json: Json,
+	private val appSettings: AppSettings,
 ) : BaseViewModel() {
+
+	val sourceTypeFilter: JsonSourceType? = savedStateHandle.get<String>(JsonSourcesFragment.ARG_SOURCE_TYPE)
+		?.let { runCatching { JsonSourceType.valueOf(it) }.getOrNull() }
 	
 	/**
 	 * StateFlow of all JSON sources from the database.
 	 * Automatically updates when sources change.
 	 */
-	val jsonSources: StateFlow<List<JsonSourceEntity>> = jsonSourceManager
+	private val allJsonSources: StateFlow<List<JsonSourceEntity>> = jsonSourceManager
 		.observeAllJsonSources()
 		.stateIn(
 			scope = viewModelScope,
 			started = SharingStarted.WhileSubscribed(5000),
 			initialValue = emptyList()
+		)
+
+	val jsonSources: StateFlow<List<JsonSourceEntity>> = allJsonSources
+		.map { sources ->
+			sourceTypeFilter?.let { type -> sources.filter { it.type == type } } ?: sources
+		}
+		.stateIn(
+			scope = viewModelScope,
+			started = SharingStarted.WhileSubscribed(5000),
+			initialValue = emptyList(),
 		)
 	
 	private val parsedSources = jsonSources.map { sources ->
@@ -84,6 +103,41 @@ class JsonSourcesViewModel @Inject constructor(
 		scope = viewModelScope,
 		started = SharingStarted.WhileSubscribed(5000),
 		initialValue = emptyList()
+	)
+
+	val tvBoxRepositories: StateFlow<List<TvBoxRepositoryItem>> = jsonSources.map { sources ->
+		sources.asSequence()
+			.filter { it.type == JsonSourceType.TVBOX }
+			.mapNotNull { entity ->
+				val locator = extractTvBoxSourceLocator(entity.config) ?: return@mapNotNull null
+				Triple(locator, extractTvBoxSourceTitle(entity.config) ?: buildTvBoxRepositoryTitle(locator), entity.enabled)
+			}
+			.groupBy(keySelector = { it.first })
+			.map { (locator, triples) ->
+				TvBoxRepositoryItem(
+					locator = locator,
+					title = triples.firstNotNullOfOrNull { it.second.takeIf(String::isNotBlank) } ?: buildTvBoxRepositoryTitle(locator),
+					sourceCount = triples.size,
+					enabledCount = triples.count { it.third },
+				)
+			}
+			.sortedBy { it.title.lowercase() }
+	}.stateIn(
+		scope = viewModelScope,
+		started = SharingStarted.WhileSubscribed(5000),
+		initialValue = emptyList(),
+	)
+
+	val activeTvBoxRepositoryLocator: StateFlow<String?> = combine(
+		appSettings.observeAsFlow(AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY) { activeTvBoxRepositoryLocator },
+		tvBoxRepositories,
+	) { configuredLocator, repositories ->
+		configuredLocator?.takeIf { it.isNotBlank() }
+			?: repositories.singleOrNull { it.enabledCount > 0 }?.locator
+	}.stateIn(
+		scope = viewModelScope,
+		started = SharingStarted.WhileSubscribed(5000),
+		initialValue = appSettings.activeTvBoxRepositoryLocator,
 	)
 	
 	/**
@@ -170,6 +224,12 @@ class JsonSourcesViewModel @Inject constructor(
 					parsedSources.value[entity.id]?.groups?.contains(filter.name) == true
 				}
 			}
+			is FilterOption.TVBOX_REPOSITORY -> {
+				searchedEntities.filter { entity ->
+					entity.type == JsonSourceType.TVBOX &&
+						extractTvBoxSourceLocator(entity.config) == filter.locator
+				}
+			}
 		}
 		
 		// Sort sources
@@ -227,7 +287,15 @@ class JsonSourcesViewModel @Inject constructor(
 	 */
 	fun toggleSource(sourceId: String, enabled: Boolean) {
 		launchJob(Dispatchers.Default) {
-			jsonSourceManager.toggleSource(sourceId, enabled)
+			val entity = jsonSources.value.firstOrNull { it.id == sourceId }
+			val locator = entity
+				?.takeIf { it.type == JsonSourceType.TVBOX && enabled }
+				?.let { extractTvBoxSourceLocator(it.config) }
+			if (!locator.isNullOrBlank()) {
+				jsonSourceManager.activateTvBoxRepository(locator)
+			} else {
+				jsonSourceManager.toggleSource(sourceId, enabled)
+			}
 		}
 	}
 	
@@ -462,6 +530,17 @@ class JsonSourcesViewModel @Inject constructor(
 		_searchQuery.value = query
 	}
 
+	fun activateTvBoxRepository(sourceLocator: String) {
+		launchJob(Dispatchers.Default) {
+			jsonSourceManager.activateTvBoxRepository(sourceLocator)
+		}
+	}
+
+	fun getActiveTvBoxRepositoryTitle(): String? {
+		val locator = activeTvBoxRepositoryLocator.value ?: return null
+		return tvBoxRepositories.value.firstOrNull { it.locator == locator }?.title
+	}
+
 	private fun parseSourceMeta(entity: JsonSourceEntity): JsonSourceMeta = when (entity.type) {
 		JsonSourceType.LEGADO -> {
 			val source = json.decodeFromString<LegadoBookSource>(entity.config)
@@ -499,6 +578,37 @@ class JsonSourcesViewModel @Inject constructor(
 			hasExplore = null,
 		)
 	}
+
+	private fun extractTvBoxSourceLocator(rawConfig: String): String? {
+		return runCatching {
+			JSONObject(rawConfig)
+				.optJSONObject("meta")
+				?.optString("sourceLocator")
+				?.trim()
+				?.ifBlank { null }
+		}.getOrNull()
+	}
+
+	private fun extractTvBoxSourceTitle(rawConfig: String): String? {
+		return runCatching {
+			JSONObject(rawConfig)
+				.optJSONObject("meta")
+				?.optString("sourceTitle")
+				?.trim()
+				?.ifBlank { null }
+		}.getOrNull()
+	}
+
+	private fun buildTvBoxRepositoryTitle(locator: String): String {
+		val uri = runCatching { Uri.parse(locator) }.getOrNull()
+		val host = uri?.host?.trim().orEmpty()
+		val tail = uri?.lastPathSegment?.trim().orEmpty()
+		return when {
+			host.isNotBlank() && tail.isNotBlank() -> "$host · $tail"
+			host.isNotBlank() -> host
+			else -> locator.substringAfterLast('/').ifBlank { locator }
+		}
+	}
 }
 
 /**
@@ -529,6 +639,13 @@ private data class JsonSourceMeta(
 	val hasExplore: Boolean?,
 )
 
+data class TvBoxRepositoryItem(
+	val locator: String,
+	val title: String,
+	val sourceCount: Int,
+	val enabledCount: Int,
+)
+
 enum class SortOption {
 	NAME, ENABLED
 }
@@ -543,4 +660,5 @@ sealed class FilterOption {
 	object EXPLORE_ENABLED : FilterOption()
 	object EXPLORE_DISABLED : FilterOption()
 	data class GROUP(val name: String) : FilterOption()
+	data class TVBOX_REPOSITORY(val locator: String) : FilterOption()
 }

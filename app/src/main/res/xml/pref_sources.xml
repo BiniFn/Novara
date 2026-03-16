@@ -45,8 +45,14 @@
         android:persistent="false"
         android:title="@string/built_in_sources_directory" />
 
+    <Preference
+        android:key="import_json_sources"
+        android:persistent="false"
+        android:summary="@string/import_json_sources_summary"
+        android:title="@string/import_json_sources" />
+
     <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.sources.jsonsource.JsonSourcesFragment"
+        android:fragment="org.skepsun.kototoro.settings.sources.jsonsource.JsonSourcesRootFragment"
         android:key="json_sources"
         android:persistent="false"
         android:title="@string/json_sources_directory" />

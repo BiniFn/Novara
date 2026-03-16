@@ -152,6 +152,26 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getStringSet(KEY_CONTENT_LANGUAGES, null) ?: setOf("zh", "en", "ja", "")
 		set(value) = prefs.edit { putStringSet(KEY_CONTENT_LANGUAGES, value) }
 
+	var activeTvBoxRepositoryLocator: String?
+		get() = prefs.getString(KEY_TVBOX_ACTIVE_REPOSITORY, null)?.takeIf { it.isNotBlank() }
+		set(value) = prefs.edit {
+			if (value.isNullOrBlank()) {
+				remove(KEY_TVBOX_ACTIVE_REPOSITORY)
+			} else {
+				putString(KEY_TVBOX_ACTIVE_REPOSITORY, value)
+			}
+		}
+
+	var activeTvBoxRepositoryTitle: String?
+		get() = prefs.getString(KEY_TVBOX_ACTIVE_REPOSITORY_TITLE, null)?.takeIf { it.isNotBlank() }
+		set(value) = prefs.edit {
+			if (value.isNullOrBlank()) {
+				remove(KEY_TVBOX_ACTIVE_REPOSITORY_TITLE)
+			} else {
+				putString(KEY_TVBOX_ACTIVE_REPOSITORY_TITLE, value)
+			}
+		}
+
 	var isReaderDoubleOnLandscape: Boolean
 		get() = prefs.getBoolean(KEY_READER_DOUBLE_PAGES, false)
 		set(value) = prefs.edit { putBoolean(KEY_READER_DOUBLE_PAGES, value) }
@@ -1346,6 +1366,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_PREFETCH_CONTENT = "prefetch_content"
 		const val KEY_APP_LOCALE = "app_locale"
 		const val KEY_CONTENT_LANGUAGES = "content_languages"
+		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
+		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
 		const val KEY_SOURCES_GRID = "sources_grid"
 		const val KEY_UPDATES_UNSTABLE = "updates_unstable"
 		const val KEY_TIPS_CLOSED = "tips_closed"

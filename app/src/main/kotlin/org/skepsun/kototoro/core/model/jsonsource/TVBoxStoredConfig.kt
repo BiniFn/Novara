@@ -105,6 +105,7 @@ data class TVBoxStoredHeaderRule(
 
 data class TVBoxStoredMeta(
 	val sourceLocator: String?,
+	val sourceTitle: String?,
 	val siteIndex: Int?,
 	val siteKey: String?,
 	val siteApi: String?,
@@ -114,6 +115,7 @@ data class TVBoxStoredMeta(
 		fun from(jsonObject: JSONObject): TVBoxStoredMeta {
 			return TVBoxStoredMeta(
 				sourceLocator = jsonObject.optStringOrNull("sourceLocator"),
+				sourceTitle = jsonObject.optStringOrNull("sourceTitle"),
 				siteIndex = jsonObject.optNullableInt("siteIndex"),
 				siteKey = jsonObject.optStringOrNull("siteKey"),
 				siteApi = jsonObject.optStringOrNull("siteApi"),

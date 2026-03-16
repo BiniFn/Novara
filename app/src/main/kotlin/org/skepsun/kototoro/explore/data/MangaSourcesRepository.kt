@@ -208,11 +208,12 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 	private suspend fun getEnabledJsonSources(): List<org.skepsun.kototoro.core.jsonsource.JsonMangaSource> {
 		val jsonSources = jsonSourceManager.observeEnabledJsonSources()
 			.map { entities ->
-				android.util.Log.d("MangaSourcesRepository", "getEnabledJsonSources: found ${entities.size} enabled JSON sources")
-				entities.forEach { entity ->
+				val filteredEntities = filterActiveTvBoxEntities(entities, settings.activeTvBoxRepositoryLocator)
+				android.util.Log.d("MangaSourcesRepository", "getEnabledJsonSources: found ${filteredEntities.size} enabled JSON sources after TVBox repository filter")
+				filteredEntities.forEach { entity ->
 					android.util.Log.d("MangaSourcesRepository", "  JSON source: id=${entity.id}, name=${entity.name}, enabled=${entity.enabled}")
 				}
-				entities.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
+				filteredEntities.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
 			}
 			.first()
 		android.util.Log.d("MangaSourcesRepository", "getEnabledJsonSources: returning ${jsonSources.size} JsonMangaSource instances")
@@ -475,7 +476,7 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 	}
 
 	fun observeJsonSourcesCount(): Flow<Int> {
-		return observeJsonSources().map { it.count() }.distinctUntilChanged()
+		return jsonSourceManager.observeAllJsonSources().map { it.count() }.distinctUntilChanged()
 	}
 
 	fun observeMihonSourcesCount(): Flow<Int> {
@@ -623,11 +624,47 @@ val allMangaSources: Set<MangaSource> = Collections.unmodifiableSet(
 	private fun observeJsonSources(): Flow<List<org.skepsun.kototoro.core.jsonsource.JsonMangaSource>> {
 		return combine(
 			jsonSourceManager.observeEnabledJsonSources(),
-			observeIsNsfwDisabled()
-		) { entities, skipNsfw ->
-			entities.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
+			observeIsNsfwDisabled(),
+			settings.observeAsFlow(AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY) { activeTvBoxRepositoryLocator }
+		) { entities, skipNsfw, activeTvBoxRepositoryLocator ->
+			filterActiveTvBoxEntities(entities, activeTvBoxRepositoryLocator)
+				.map { org.skepsun.kototoro.core.jsonsource.JsonMangaSource(it) }
 				.filter { source -> !skipNsfw || !source.isNsfw() }
 		}
+	}
+
+	private fun filterActiveTvBoxEntities(
+		entities: List<org.skepsun.kototoro.core.db.entity.JsonSourceEntity>,
+		activeLocator: String?,
+	): List<org.skepsun.kototoro.core.db.entity.JsonSourceEntity> {
+		val normalizedActiveLocator = activeLocator?.trim().orEmpty()
+		val effectiveLocator = if (normalizedActiveLocator.isNotBlank()) {
+			normalizedActiveLocator
+		} else {
+			entities.asSequence()
+				.filter { it.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX }
+				.mapNotNull { extractTvBoxSourceLocator(it.config) }
+				.distinct()
+				.singleOrNull()
+				.orEmpty()
+		}
+		if (effectiveLocator.isBlank()) {
+			return entities
+		}
+		return entities.filter { entity ->
+			entity.type != org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX ||
+				extractTvBoxSourceLocator(entity.config) == effectiveLocator
+		}
+	}
+
+	private fun extractTvBoxSourceLocator(rawConfig: String): String? {
+		return runCatching {
+			org.json.JSONObject(rawConfig)
+				.optJSONObject("meta")
+				?.optString("sourceLocator")
+				?.trim()
+				?.ifBlank { null }
+		}.getOrNull()
 	}
 	
 	/**

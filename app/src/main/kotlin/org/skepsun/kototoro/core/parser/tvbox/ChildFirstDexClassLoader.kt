@@ -22,6 +22,9 @@ internal class ChildFirstDexClassLoader(
 		"org.jsoup.",
 		"org.skepsun.kototoro.",
 		"com.github.catvod.crawler.",
+		"com.github.tvbox.osc.base.",
+		"com.github.tvbox.osc.util.",
+		"com.github.catvod.net.",
 	)
 
 	override fun loadClass(name: String, resolve: Boolean): Class<*> {

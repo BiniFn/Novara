@@ -1,5 +1,9 @@
 package org.skepsun.kototoro.core.jsonsource
 
+import android.net.Uri
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.model.MangaSourceInfo
 
 /**
@@ -61,6 +65,9 @@ data class SourceGroupInfo(
 				OriginGroup.EXTERNAL -> "外部源"
 				OriginGroup.MIHON -> "Mihon 扩展"
 				OriginGroup.ANIYOMI -> "Aniyomi 扩展"
+			}
+			is SourceGroup.TvBoxRepository -> name.ifBlank {
+				if (group.locator.isNullOrBlank()) "其他 JSON 源" else "TVBox 仓库"
 			}
 		}
 	}
@@ -197,6 +204,44 @@ data class GroupedSourceList(
 						)
 					}
 				}
+				GroupingStrategy.BY_TVBOX_REPOSITORY -> {
+					val tvBoxGroups = linkedMapOf<Pair<String?, String>, MutableList<MangaSourceInfo>>()
+					val otherSources = mutableListOf<MangaSourceInfo>()
+					sources.forEach { sourceInfo ->
+						val jsonSource = sourceInfo.mangaSource as? JsonMangaSource
+						if (jsonSource?.entity?.type != JsonSourceType.TVBOX) {
+							otherSources += sourceInfo
+							return@forEach
+						}
+						val locator = runCatching {
+							TVBoxStoredConfig.parse(jsonSource.entity.config).meta.sourceLocator?.trim()?.ifBlank { null }
+						}.getOrNull()
+						val title = buildTvBoxRepositoryTitle(locator)
+						tvBoxGroups.getOrPut(locator to title) { mutableListOf() } += sourceInfo
+					}
+					buildList {
+						tvBoxGroups.entries
+							.sortedBy { it.key.second.lowercase() }
+							.forEach { (key, groupedSources) ->
+								add(
+									SourceGroupInfo(
+										group = SourceGroup.TvBoxRepository(key.first, key.second),
+										name = key.second,
+										sources = groupedSources,
+									),
+								)
+							}
+						if (otherSources.isNotEmpty()) {
+							add(
+								SourceGroupInfo(
+									group = SourceGroup.TvBoxRepository(null, "其他 JSON 源"),
+									name = "其他 JSON 源",
+									sources = otherSources,
+								),
+							)
+						}
+					}
+				}
 			}
 			
 			return GroupedSourceList(groups)
@@ -217,4 +262,21 @@ enum class GroupingStrategy {
 	 * Group sources by origin type (native, JSON Legado, JSON TVBox)
 	 */
 	BY_ORIGIN,
+
+	/**
+	 * Group JSON sources by imported TVBox repository.
+	 */
+	BY_TVBOX_REPOSITORY,
+}
+
+private fun buildTvBoxRepositoryTitle(locator: String?): String {
+	if (locator.isNullOrBlank()) return "TVBox 仓库"
+	val uri = runCatching { Uri.parse(locator) }.getOrNull()
+	val host = uri?.host?.trim().orEmpty()
+	val tail = uri?.lastPathSegment?.trim().orEmpty()
+	return when {
+		host.isNotBlank() && tail.isNotBlank() -> "$host · $tail"
+		host.isNotBlank() -> host
+		else -> locator.substringAfterLast('/').ifBlank { locator }
+	}
 }

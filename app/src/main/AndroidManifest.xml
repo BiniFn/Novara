@@ -21,6 +21,7 @@
 	<uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+	<uses-permission android:name="org.skepsun.kototoro.permission.BIND_TVBOX_COMPANION" />
 	<uses-permission
 		android:name="android.permission.REQUEST_INSTALL_PACKAGES"
 		tools:ignore="RequestInstallPackagesPolicy" />
@@ -36,6 +37,11 @@
 		tools:ignore="AllFilesAccessPolicy,ScopedStorage" />
 
 	<queries>
+		<package android:name="com.github.tvbox.osc" />
+		<provider android:authorities="com.github.tvbox.osc.tvbox.bootstrap" />
+		<intent>
+			<action android:name="com.github.tvbox.osc.action.BIND_TVBOX_RUNTIME" />
+		</intent>
 		<intent>
 			<action android:name="android.intent.action.PROCESS_TEXT" />
 			<data android:mimeType="text/plain" />
@@ -427,6 +433,10 @@
 		<service
 			android:name="org.skepsun.kototoro.browser.AdListUpdateService"
 			android:exported="false" />
+		<service
+			android:name="org.skepsun.kototoro.core.parser.tvbox.TVBoxJarSpiderService"
+			android:exported="false"
+			android:process=":tvbox_spider" />
 
 		<provider
 			android:name="org.skepsun.kototoro.search.ui.MangaSuggestionsProvider"

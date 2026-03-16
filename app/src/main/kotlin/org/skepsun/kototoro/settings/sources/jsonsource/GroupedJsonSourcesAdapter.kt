@@ -30,6 +30,7 @@ class GroupedJsonSourcesAdapter(
 	
 	// Validation state map: sourceId -> true/false
 	var validationStates: Map<String, Boolean?> = emptyMap()
+	var activeTvBoxRepositoryLocator: String? = null
 	// Selection state
 	var selectedIds: Set<String> = emptySet()
 	
@@ -70,7 +71,12 @@ class GroupedJsonSourcesAdapter(
 	override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 		when (val item = getItem(position)) {
 			is GroupedSourceItem.Header -> (holder as GroupHeaderViewHolder).bind(item)
-			is GroupedSourceItem.Source -> (holder as SourceViewHolder).bind(item, validationStates, selectedIds)
+			is GroupedSourceItem.Source -> (holder as SourceViewHolder).bind(
+				item,
+				validationStates,
+				selectedIds,
+				activeTvBoxRepositoryLocator,
+			)
 		}
 	}
 	
@@ -110,7 +116,12 @@ class GroupedJsonSourcesAdapter(
 		private val listener: GroupedSourceListener,
 	) : RecyclerView.ViewHolder(binding.root) {
 		
-		fun bind(item: GroupedSourceItem.Source, validationStates: Map<String, Boolean?>, selectedIds: Set<String>) {
+		fun bind(
+			item: GroupedSourceItem.Source,
+			validationStates: Map<String, Boolean?>,
+			selectedIds: Set<String>,
+			activeTvBoxRepositoryLocator: String?,
+		) {
 			val sourceInfo = item.sourceInfo
 			val mangaSource = sourceInfo.mangaSource
 			
@@ -125,7 +136,20 @@ class GroupedJsonSourcesAdapter(
 				
 				// Set URL with content type and groups
 				val groupsDisplay = if (meta.groups.isNotBlank()) " [${meta.groups}]" else ""
-				binding.textViewUrl.text = "${meta.reference} · ${meta.contentTypeLabel}$groupsDisplay"
+				val tvBoxRepoDisplay = if (!meta.tvBoxRepositoryTitle.isNullOrBlank()) {
+					val repoState = if (meta.tvBoxRepositoryLocator == activeTvBoxRepositoryLocator) {
+						binding.root.context.getString(R.string.tvbox_repository_active_short)
+					} else {
+						binding.root.context.getString(R.string.tvbox_repository_inactive_short)
+					}
+					"${meta.tvBoxRepositoryTitle} · $repoState"
+				} else {
+					null
+				}
+				binding.textViewUrl.text = listOfNotNull(
+					tvBoxRepoDisplay,
+					"${meta.reference} · ${meta.contentTypeLabel}$groupsDisplay".takeIf { it.isNotBlank() },
+				).joinToString(" · ")
 				
 				// Selection checkbox
 				binding.checkboxSelect.visibility = View.VISIBLE
@@ -250,8 +274,9 @@ class GroupedJsonSourcesAdapter(
 					val jsonObj = runCatching { JSONObject(entity.config) }.getOrNull()
 					val site = jsonObj?.optJSONObject("site")
 					val sourceLocator = jsonObj?.optJSONObject("meta")?.optString("sourceLocator").orEmpty()
+					val sourceTitle = jsonObj?.optJSONObject("meta")?.optString("sourceTitle")?.trim().orEmpty()
+					val repositoryTitle = buildTvBoxRepositoryTitle(sourceLocator, sourceTitle)
 					val reference = listOf(
-						sourceLocator.takeIf { it.isNotBlank() },
 						site?.optString("key")?.takeIf { !it.isNullOrBlank() },
 						site?.optString("api")?.takeIf { !it.isNullOrBlank() },
 					).joinToString(" · ").ifBlank { entity.id }
@@ -262,6 +287,8 @@ class GroupedJsonSourcesAdapter(
 						contentTypeLabel = "视频",
 						canEdit = false,
 						canTest = false,
+						tvBoxRepositoryLocator = sourceLocator.ifBlank { null },
+						tvBoxRepositoryTitle = repositoryTitle,
 					)
 				}
 				org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> JsonSourceItemMeta(
@@ -272,6 +299,19 @@ class GroupedJsonSourcesAdapter(
 					canEdit = false,
 					canTest = false,
 				)
+			}
+		}
+
+		private fun buildTvBoxRepositoryTitle(locator: String, sourceTitle: String?): String? {
+			sourceTitle?.takeIf { it.isNotBlank() }?.let { return it }
+			if (locator.isBlank()) return null
+			val uri = runCatching { android.net.Uri.parse(locator) }.getOrNull()
+			val host = uri?.host?.trim().orEmpty()
+			val tail = uri?.lastPathSegment?.trim().orEmpty()
+			return when {
+				host.isNotBlank() && tail.isNotBlank() -> "$host · $tail"
+				host.isNotBlank() -> host
+				else -> locator.substringAfterLast('/').ifBlank { locator }
 			}
 		}
 		
@@ -403,4 +443,6 @@ private data class JsonSourceItemMeta(
 	val contentTypeLabel: String,
 	val canEdit: Boolean,
 	val canTest: Boolean,
+	val tvBoxRepositoryLocator: String? = null,
+	val tvBoxRepositoryTitle: String? = null,
 )

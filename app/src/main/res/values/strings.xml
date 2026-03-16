@@ -1418,13 +1418,13 @@
     </plurals>
     
     <!-- JSON Sources Management -->
-    <string name="json_sources_directory">Legado Sources Directory</string>
+    <string name="json_sources_directory">JSON Sources Directory</string>
     <string name="built_in_sources_directory">Built-in Sources Directory</string>
     <string name="mihon_sources_directory">Mihon Extensions Directory</string>
     <string name="aniyomi_sources_directory">Aniyomi Extensions Directory</string>
     <string name="source_tag_json">Legado</string>
-    <string name="json_sources" translatable="false">Legado</string>
-    <string name="json_sources_summary">Manage imported Legado sources</string>
+    <string name="json_sources" translatable="false">JSON</string>
+    <string name="json_sources_summary">Manage imported JSON sources</string>
     <string name="import_json">Import Legado</string>
     <string name="test">Test</string>
 
@@ -1595,11 +1595,20 @@
     <string name="group_by">Group by</string>
     <string name="group_by_origin">Group by origin</string>
     <string name="group_by_type">Group by type</string>
+    <string name="group_by_tvbox_repository">按 TVBox 仓库分组</string>
     <string name="manage_groups">Group management</string>
     <string name="filter_need_login">Need login</string>
     <string name="filter_no_group">No group</string>
     <string name="filter_explore_enabled">Explore enabled</string>
     <string name="filter_explore_disabled">Explore disabled</string>
+    <string name="tvbox_repository_switch">切换 TVBox 仓库</string>
+    <string name="tvbox_repository_switch_with_current">切换 TVBox 仓库（当前：%1$s）</string>
+    <string name="tvbox_repository_filter">TVBox 仓库筛选</string>
+    <string name="tvbox_repository_switch_empty">当前没有可切换的 TVBox 仓库</string>
+    <string name="tvbox_repository_switched">已切换到仓库：%1$s</string>
+    <string name="tvbox_repository_active_short">当前仓库</string>
+    <string name="tvbox_repository_inactive_short">未激活</string>
+    <string name="tvbox_repository_current_label">当前 TVBox 仓库：%1$s</string>
     <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x2">Automatically downscale to 1080p if resolution is higher</string>
     <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x4">Automatically downscale to 720p if resolution is higher</string>
     <string name="video_super_resolution_shader_desc_anime4k_clamp_highlights">Clamp highlights to prevent clipping when restoring or upscaling</string>

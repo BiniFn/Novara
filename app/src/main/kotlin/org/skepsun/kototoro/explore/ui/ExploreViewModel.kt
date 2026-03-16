@@ -89,6 +89,14 @@ class ExploreViewModel @Inject constructor(
 	 */
 	val currentSourceTags: StateFlow<Set<SourceTag>> = globalFavoritesState.selectedSourceTags
 
+	val activeTvBoxRepositoryTitle: StateFlow<String?> = settings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.IO,
+		key = AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY_TITLE,
+		valueProducer = {
+			settings.activeTvBoxRepositoryTitle
+		},
+	)
+
 	/**
 	 * Available tabs based on NSFW setting
 	 */
@@ -322,4 +330,5 @@ class ExploreViewModel @Inject constructor(
 		private const val TIP_SUGGESTIONS = "suggestions"
 		private const val SUGGESTIONS_COUNT = 8
 	}
+
 }

@@ -41,7 +41,8 @@ class AppBackupAgent : BackupAgent() {
 		super.onFullBackup(data)
 		val db = MangaDatabase(context = applicationContext)
 		val jsonSourceManager = org.skepsun.kototoro.core.jsonsource.JsonSourceManager(
-			jsonSourceDao = db.getJsonSourceDao()
+			jsonSourceDao = db.getJsonSourceDao(),
+			appSettings = AppSettings(applicationContext),
 		)
 		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 		val json = Json { ignoreUnknownKeys = true }
@@ -116,7 +117,8 @@ class AppBackupAgent : BackupAgent() {
 		if (destination?.name?.endsWith(".bk.zip") == true) {
 			val db = MangaDatabase(applicationContext)
 			val jsonSourceManager = org.skepsun.kototoro.core.jsonsource.JsonSourceManager(
-				jsonSourceDao = db.getJsonSourceDao()
+				jsonSourceDao = db.getJsonSourceDao(),
+				appSettings = AppSettings(applicationContext),
 			)
 			val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 			val json = Json { ignoreUnknownKeys = true }

@@ -219,6 +219,8 @@ dependencies {
 
 	implementation libs.androidx.appcompat
 	implementation libs.androidx.core
+	implementation 'androidx.multidex:multidex:2.0.1'
+	implementation project(':tvbox-bridge-api')
 	implementation libs.androidx.activity
 	implementation libs.androidx.fragment
 	implementation libs.androidx.transition

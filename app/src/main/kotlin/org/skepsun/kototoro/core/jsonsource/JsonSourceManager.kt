@@ -11,12 +11,14 @@ import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.javascript.JavaScriptEnginePool
 import org.skepsun.kototoro.core.parser.legado.book.BookChapterList
 import org.skepsun.kototoro.core.parser.legado.book.BookContent
 import org.skepsun.kototoro.core.parser.legado.book.BookInfo
 import org.skepsun.kototoro.core.parser.legado.book.BookList
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
+import java.net.IDN
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,6 +39,7 @@ import javax.inject.Singleton
 @Singleton
 class JsonSourceManager @Inject constructor(
 	private val jsonSourceDao: JsonSourceDao,
+	private val appSettings: AppSettings,
 	private val legadoHttpClient: LegadoHttpClient? = null,
 	private val jsSourceParser: JSSourceParser? = null,
 	private val jsEnginePool: JavaScriptEnginePool? = null,
@@ -64,9 +67,11 @@ class JsonSourceManager @Inject constructor(
 		private const val LEGADO_MANGA_PREFIX = "JSON_LEGADO_M_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
 		private const val JS_PREFIX = "JSON_JS_"
+		private const val MAX_TVBOX_REPOSITORY_DEPTH = 3
 		
 		// Regex pattern to match valid identifier characters (alphanumeric and underscore)
 		private val VALID_CHAR_REGEX = Regex("[^A-Z0-9_]")
+		private val TVBOX_URL_REGEX = Regex("^(https?)://([^/?#]+)(.*)$", RegexOption.IGNORE_CASE)
 	}
 	
 	/**
@@ -194,6 +199,25 @@ class JsonSourceManager @Inject constructor(
 			JsonSourceLogger.logDatabaseError("batch toggle sources", e)
 			throw JsonSourceError.DatabaseError("batch toggle sources", e)
 		}
+	}
+
+	suspend fun activateTvBoxRepository(sourceLocator: String): Int {
+		val tvBoxSources = jsonSourceDao.observeByType(JsonSourceType.TVBOX).first()
+		if (tvBoxSources.isEmpty()) {
+			return 0
+		}
+		val normalizedTarget = sourceLocator.trim()
+		val matchingSources = tvBoxSources.filter { entity ->
+			extractTvBoxSourceLocator(entity.config) == normalizedTarget
+		}
+		appSettings.activeTvBoxRepositoryLocator = normalizedTarget
+		appSettings.activeTvBoxRepositoryTitle = tvBoxSources.firstNotNullOfOrNull { entity ->
+			extractTvBoxSourceLocator(entity.config)
+				?.takeIf { it == normalizedTarget }
+				?.let { extractTvBoxSourceTitle(entity.config) ?: buildTvBoxRepositoryTitle(it, null) }
+		}
+		JsonSourceLogger.logInfo("Activated TVBox repository $normalizedTarget with ${matchingSources.size} source(s)")
+		return matchingSources.size
 	}
 	
 	/**
@@ -536,6 +560,7 @@ class JsonSourceManager @Inject constructor(
 		JsonSourceLogger.logImportStart("TVBOX", jsonContent.length)
 
 		return try {
+			val currentActiveLocator = resolveActiveTvBoxRepositoryLocator()
 			val entities = mutableListOf<JsonSourceEntity>()
 			val visitedUrls = linkedSetOf<String>()
 			val errors = mutableListOf<String>()
@@ -543,6 +568,7 @@ class JsonSourceManager @Inject constructor(
 			processTvBoxDocument(
 				rawContent = jsonContent,
 				sourceLocator = sourceLocator,
+				sourceTitle = null,
 				depth = 0,
 				visitedUrls = visitedUrls,
 				entities = entities,
@@ -559,6 +585,15 @@ class JsonSourceManager @Inject constructor(
 			}
 
 			jsonSourceDao.insertAll(entities)
+			if (currentActiveLocator.isNullOrBlank()) {
+				entities.firstOrNull()?.let { entity ->
+					extractTvBoxSourceLocator(entity.config)?.let { locator ->
+						appSettings.activeTvBoxRepositoryLocator = locator
+						appSettings.activeTvBoxRepositoryTitle =
+							extractTvBoxSourceTitle(entity.config) ?: buildTvBoxRepositoryTitle(locator, null)
+					}
+				}
+			}
 			val duration = System.currentTimeMillis() - startTime
 			JsonSourceLogger.logImportSuccess("TVBOX", entities.size, duration)
 			if (errors.isNotEmpty()) {
@@ -740,55 +775,105 @@ class JsonSourceManager @Inject constructor(
 	private suspend fun processTvBoxDocument(
 		rawContent: String,
 		sourceLocator: String?,
+		sourceTitle: String?,
 		depth: Int,
 		visitedUrls: MutableSet<String>,
 		entities: MutableList<JsonSourceEntity>,
 		errors: MutableList<String>,
 	) {
+		val locatorLabel = sourceLocator?.trim().takeUnless { it.isNullOrBlank() } ?: "inline"
 		val normalizedContent = preprocessTvBoxJson(rawContent)
+		JsonSourceLogger.logInfo("Processing TVBox document: locator=$locatorLabel depth=$depth bytes=${normalizedContent.length}")
 		val root = try {
 			parseTvBoxRootObject(normalizedContent)
 		} catch (e: Exception) {
+			JsonSourceLogger.logWarning(
+				"Failed to parse TVBox document: locator=$locatorLabel depth=$depth message=${e.message ?: "invalid TVBox JSON"}",
+			)
 			errors += "${sourceLocator ?: "inline"}: ${e.message ?: "invalid TVBox JSON"}"
 			return
 		}
 
 		when {
 			root.has("sites") -> {
-				entities += buildTvBoxSiteEntities(root, sourceLocator)
+				val repositoryTitle = sourceTitle ?: extractTvBoxRepositoryRootTitle(root, sourceLocator)
+				val importedEntities = buildTvBoxSiteEntities(
+					root = root,
+					sourceLocator = sourceLocator,
+					sourceTitle = repositoryTitle,
+				)
+				entities += importedEntities
+				JsonSourceLogger.logInfo(
+					"TVBox repository parsed: locator=$locatorLabel depth=$depth title=${repositoryTitle ?: "-"} declaredSites=${root.optJSONArray("sites")?.length() ?: 0} importedSites=${importedEntities.size}",
+				)
 			}
 			root.has("urls") -> {
-				if (depth >= 1) {
+				if (depth >= MAX_TVBOX_REPOSITORY_DEPTH) {
+					JsonSourceLogger.logWarning(
+						"Skipping nested TVBox repository: locator=$locatorLabel depth=$depth limit=$MAX_TVBOX_REPOSITORY_DEPTH",
+					)
 					errors += "${sourceLocator ?: "inline"}: nested multi-repository depth exceeds limit"
 					return
 				}
 				val childUrls = root.optJSONArray("urls") ?: JSONArray()
+				JsonSourceLogger.logInfo(
+					"TVBox multi-repository parsed: locator=$locatorLabel depth=$depth title=${sourceTitle ?: extractTvBoxRepositoryRootTitle(root, sourceLocator) ?: "-"} children=${childUrls.length()}",
+				)
 				for (index in 0 until childUrls.length()) {
-					val child = childUrls.optJSONObject(index) ?: continue
-					val childUrl = child.optString("url").trim()
+					val rawEntry = childUrls.opt(index)
+					val entry = parseTvBoxRepositoryEntry(rawEntry)
+					val childUrl = entry?.url.orEmpty()
+					val childTitle = entry?.title
+					JsonSourceLogger.logInfo(
+						"TVBox child repository candidate: parent=$locatorLabel depth=$depth index=$index rawType=${rawEntry?.javaClass?.simpleName ?: "null"} title=${childTitle ?: "-"} url=${childUrl.ifBlank { "<blank>" }}",
+					)
 					if (childUrl.isBlank()) {
+						JsonSourceLogger.logWarning(
+							"Skipping TVBox child repository: parent=$locatorLabel depth=$depth index=$index reason=missing_url",
+						)
 						errors += "${sourceLocator ?: "inline"}: child repository at index $index is missing url"
 						continue
 					}
+					val normalizedChildUrl = normalizeTvBoxFetchUrl(childUrl) ?: childUrl
+					if (normalizedChildUrl != childUrl) {
+						JsonSourceLogger.logInfo(
+							"Normalized TVBox child repository URL: original=$childUrl normalized=$normalizedChildUrl",
+						)
+					}
 					if (!visitedUrls.add(childUrl)) {
+						JsonSourceLogger.logInfo(
+							"Skipping duplicate TVBox child repository: parent=$locatorLabel depth=$depth index=$index url=$childUrl",
+						)
 						continue
 					}
+					val entityCountBefore = entities.size
+					val errorCountBefore = errors.size
 					val childContent = fetchTvBoxChildRepository(childUrl)
 					if (childContent == null) {
+						JsonSourceLogger.logWarning(
+							"TVBox child repository fetch returned empty: parent=$locatorLabel depth=$depth index=$index url=$childUrl",
+						)
 						errors += "$childUrl: fetch failed"
 						continue
 					}
 					processTvBoxDocument(
 						rawContent = childContent,
 						sourceLocator = childUrl,
+						sourceTitle = childTitle,
 						depth = depth + 1,
 						visitedUrls = visitedUrls,
 						entities = entities,
 						errors = errors,
 					)
+					JsonSourceLogger.logInfo(
+						"TVBox child repository processed: parent=$locatorLabel depth=$depth index=$index url=$childUrl importedSites=${entities.size - entityCountBefore} newErrors=${errors.size - errorCountBefore}",
+					)
 				}
 			}
 			else -> {
+				JsonSourceLogger.logWarning(
+					"Unsupported TVBox root object: locator=$locatorLabel depth=$depth keys=${root.keySummary()}",
+				)
 				errors += "${sourceLocator ?: "inline"}: unsupported TVBox JSON, expected 'sites' or 'urls'"
 			}
 		}
@@ -830,6 +915,7 @@ class JsonSourceManager @Inject constructor(
 	private suspend fun buildTvBoxSiteEntities(
 		root: JSONObject,
 		sourceLocator: String?,
+		sourceTitle: String?,
 	): List<JsonSourceEntity> {
 		val sites = root.optJSONArray("sites") ?: JSONArray()
 		if (sites.length() == 0) {
@@ -867,6 +953,7 @@ class JsonSourceManager @Inject constructor(
 				put("root", JSONObject(rootContext.toString()))
 				put("meta", JSONObject().apply {
 					put("sourceLocator", sourceLocator ?: JSONObject.NULL)
+					put("sourceTitle", sourceTitle ?: JSONObject.NULL)
 					put("siteIndex", index)
 					put("siteKey", site.optString("key"))
 					put("siteApi", site.optString("api"))
@@ -906,15 +993,30 @@ class JsonSourceManager @Inject constructor(
 		return generateSourceId(fingerprint, JsonSourceType.TVBOX)
 	}
 
+	private suspend fun resolveActiveTvBoxRepositoryLocator(): String? {
+		appSettings.activeTvBoxRepositoryLocator?.let { return it }
+		val existingTvBoxSources = jsonSourceDao.observeByType(JsonSourceType.TVBOX).first()
+		val locators = existingTvBoxSources.asSequence()
+			.mapNotNull { extractTvBoxSourceLocator(it.config) }
+			.distinct()
+			.toList()
+		return if (locators.size == 1) locators.first() else null
+	}
+
 	private suspend fun fetchTvBoxChildRepository(url: String): String? {
-		val validation = SecurityValidator.validateUrl(url)
+		val requestUrl = normalizeTvBoxFetchUrl(url) ?: url
+		if (requestUrl != url) {
+			JsonSourceLogger.logInfo("Normalized TVBox child request URL from $url to $requestUrl")
+		}
+		val validation = SecurityValidator.validateUrl(requestUrl)
 		if (!validation.isValid) {
 			JsonSourceLogger.logWarning("Skipping TVBox child repository $url: ${validation.errors.joinToString(", ")}")
 			return null
 		}
 		val client = legadoHttpClient ?: return null
 		return try {
-			val response = client.get(url)
+			JsonSourceLogger.logInfo("Fetching TVBox child repository: source=$url request=$requestUrl")
+			val response = client.get(requestUrl)
 			if (!response.isSuccessful) {
 				JsonSourceLogger.logWarning("Failed to fetch TVBox child repository $url: HTTP ${response.code}")
 				response.close()
@@ -922,6 +1024,11 @@ class JsonSourceManager @Inject constructor(
 			}
 			val body = response.body?.string()
 			response.close()
+			if (body.isNullOrBlank()) {
+				JsonSourceLogger.logWarning("Fetched empty TVBox child repository body: source=$url request=$requestUrl")
+				return null
+			}
+			JsonSourceLogger.logInfo("Fetched TVBox child repository: source=$url request=$requestUrl bytes=${body.length}")
 			body
 		} catch (e: Exception) {
 			JsonSourceLogger.logNetworkError(url, e)
@@ -932,6 +1039,133 @@ class JsonSourceManager @Inject constructor(
 	private fun copyIfPresent(from: JSONObject, to: JSONObject, key: String) {
 		if (from.has(key)) {
 			to.put(key, from.get(key))
+		}
+	}
+
+	private fun parseTvBoxRepositoryEntry(raw: Any?): TvBoxRepositoryEntry? {
+		return when (raw) {
+			null, JSONObject.NULL -> null
+			is JSONObject -> {
+				val title = listOf("name", "title", "siteName")
+					.firstNotNullOfOrNull { key -> raw.optString(key).trim().ifBlank { null } }
+				val url = listOf("url", "api", "ext", "link", "file")
+					.firstNotNullOfOrNull { key -> raw.optString(key).trim().ifBlank { null } }
+					?: return null
+				TvBoxRepositoryEntry(url = url, title = title)
+			}
+			is String -> parseTvBoxRepositoryEntryString(raw)
+			else -> parseTvBoxRepositoryEntryString(raw.toString())
+		}
+	}
+
+	private fun parseTvBoxRepositoryEntryString(raw: String): TvBoxRepositoryEntry? {
+		val trimmed = raw.trim()
+		if (trimmed.isBlank()) {
+			return null
+		}
+		val schemes = listOf("https://", "http://", "clan://", "file://", "content://")
+		val schemeIndex = schemes.mapNotNull { scheme ->
+			trimmed.indexOf(scheme).takeIf { it >= 0 }
+		}.minOrNull()
+		return if (schemeIndex == null) {
+			TvBoxRepositoryEntry(url = trimmed, title = null)
+		} else {
+			val title = trimmed.substring(0, schemeIndex)
+				.trim()
+				.trim('|', ',', ';', '$', '，', '；')
+				.ifBlank { null }
+			val url = trimmed.substring(schemeIndex).trim()
+			TvBoxRepositoryEntry(url = url, title = title)
+		}
+	}
+
+	private fun extractTvBoxSourceLocator(rawConfig: String): String? {
+		return runCatching {
+			JSONObject(rawConfig)
+				.optJSONObject("meta")
+				?.optString("sourceLocator")
+				?.trim()
+				?.ifBlank { null }
+		}.getOrNull()
+	}
+
+	private fun extractTvBoxSourceTitle(rawConfig: String): String? {
+		return runCatching {
+			JSONObject(rawConfig)
+				.optJSONObject("meta")
+				?.optString("sourceTitle")
+				?.trim()
+				?.ifBlank { null }
+		}.getOrNull()
+	}
+
+	private fun extractTvBoxRepositoryRootTitle(root: JSONObject, sourceLocator: String?): String? {
+		return listOf(
+			root.optString("name").trim().ifBlank { null },
+			root.optString("title").trim().ifBlank { null },
+			root.optString("siteName").trim().ifBlank { null },
+		).firstOrNull { !it.isNullOrBlank() } ?: sourceLocator?.let { buildTvBoxRepositoryTitle(it, null) }
+	}
+
+	private fun buildTvBoxRepositoryTitle(locator: String, sourceTitle: String?): String {
+		sourceTitle?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+		val uri = runCatching { android.net.Uri.parse(locator) }.getOrNull()
+		val host = uri?.host?.trim().orEmpty()
+		val tail = uri?.lastPathSegment?.trim().orEmpty()
+		return when {
+			host.isNotBlank() && tail.isNotBlank() -> "$host · $tail"
+			host.isNotBlank() -> host
+			else -> locator.substringAfterLast('/').ifBlank { locator }
+		}
+	}
+
+	private fun normalizeTvBoxFetchUrl(rawUrl: String): String? {
+		val match = TVBOX_URL_REGEX.find(rawUrl.trim()) ?: return rawUrl
+		val scheme = match.groupValues[1]
+		val authority = match.groupValues[2]
+		val suffix = match.groupValues[3]
+		if (authority.isBlank()) {
+			return rawUrl
+		}
+		val userInfo = authority.substringBefore('@', "").ifBlank { null }
+		val hostPort = authority.substringAfter('@', authority)
+		val host = hostPort.substringBefore(':').ifBlank { hostPort }
+		val port = hostPort.substringAfter(':', "").ifBlank { null }
+		val asciiHost = runCatching { IDN.toASCII(host) }.getOrDefault(host)
+		if (asciiHost == host) {
+			return rawUrl
+		}
+		return buildString {
+			append(scheme)
+			append("://")
+			userInfo?.let {
+				append(it)
+				append('@')
+			}
+			append(asciiHost)
+			port?.let {
+				append(':')
+				append(it)
+			}
+			append(suffix)
+		}
+	}
+
+	private data class TvBoxRepositoryEntry(
+		val url: String,
+		val title: String?,
+	)
+
+	private fun JSONObject.keySummary(limit: Int = 8): String {
+		val keyNames = mutableListOf<String>()
+		val iterator = keys()
+		while (iterator.hasNext() && keyNames.size < limit) {
+			keyNames += iterator.next()
+		}
+		return if (keyNames.isEmpty()) {
+			"<none>"
+		} else {
+			keyNames.joinToString(", ")
 		}
 	}
 

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -23,7 +24,9 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.UnknownMangaSource
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.append
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
@@ -65,6 +68,7 @@ class SearchViewModel @Inject constructor(
 	private val searchHelperFactory: SearchV2Helper.Factory,
 	private val sourcesRepository: MangaSourcesRepository,
 	private val sourceTypeIdentifier: SourceTypeIdentifier,
+	private val appSettings: AppSettings,
 	private val globalFavoritesState: GlobalFavoritesState,
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,
@@ -84,6 +88,16 @@ class SearchViewModel @Inject constructor(
 		searchContentKindsFromNames(savedStateHandle.get<ArrayList<String>>(AppRouter.KEY_CONTENT_KINDS))
 			?: ALL_SEARCH_CONTENT_KINDS,
 	)
+	val activeTvBoxRepositoryTitle: StateFlow<String?> = appSettings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.IO,
+		key = AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY_TITLE,
+		valueProducer = {
+			appSettings.activeTvBoxRepositoryTitle
+		},
+	)
+	val isTvBoxSourceTypeActive: StateFlow<Boolean> = sourceTypes
+		.map { SourceType.JSON_TVBOX in it }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, SourceType.JSON_TVBOX in sourceTypes.value)
 	private val results = MutableStateFlow<List<SearchResultsListModel>>(emptyList())
 
 	private var searchJob: Job? = null
@@ -409,4 +423,5 @@ class SearchViewModel @Inject constructor(
 		}
 		return res
 	}
+
 }

@@ -39,6 +39,8 @@ dependencyResolutionManagement {
 }
 
 include ':app'
+include ':tvbox-bridge-api'
+include ':tvbox-companion'
 rootProject.name = "Kototoro"
 
 // 使用远程 DanmakuRenderEngine（本地工程 AGP 4.2.2 与当前 Gradle 不兼容）
@@ -46,12 +48,12 @@ rootProject.name = "Kototoro"
 // 使用本地 kototoro-parsers 进行编译：通过复合构建替换远程依赖
 // 注释掉以使用在线版本（避免Java 8依赖问题）
 
-includeBuild('../kototoro-parsers') {
-    dependencySubstitution {
-        // 将远程坐标 com.github.skepsun:kototoro-parsers 替换为本地项目
-        substitute module('com.github.skepsun:kototoro-parsers') using project(':')
-    }
-}
+// includeBuild('../kototoro-parsers') {
+//     dependencySubstitution {
+//         // 将远程坐标 com.github.skepsun:kototoro-parsers 替换为本地项目
+//         substitute module('com.github.skepsun:kototoro-parsers') using project(':')
+//     }
+// }
 
 // 使用本地 kotatsu-parsers 进行编译：通过复合构建替换远程依赖
 // 注释掉以使用在线版本

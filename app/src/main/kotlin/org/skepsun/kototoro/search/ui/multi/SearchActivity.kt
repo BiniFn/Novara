@@ -120,6 +120,12 @@ class SearchActivity :
 
 		viewModel.list.observe(this, adapter)
 		viewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.recyclerView, null))
+		viewModel.activeTvBoxRepositoryTitle.observe(this) {
+			updateTvBoxRepositoryLabel()
+		}
+		viewModel.isTvBoxSourceTypeActive.observe(this) {
+			updateTvBoxRepositoryLabel()
+		}
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -246,5 +252,14 @@ class SearchActivity :
 			overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
 		}
 		finishAfterTransition()
+	}
+
+	private fun updateTvBoxRepositoryLabel() {
+		val title = viewModel.activeTvBoxRepositoryTitle.value
+		val shouldShow = !title.isNullOrBlank() && viewModel.isTvBoxSourceTypeActive.value
+		viewBinding.textViewTvboxRepository.visibility = if (shouldShow) View.VISIBLE else View.GONE
+		if (shouldShow) {
+			viewBinding.textViewTvboxRepository.text = getString(R.string.tvbox_repository_current_label, title)
+		}
 	}
 }

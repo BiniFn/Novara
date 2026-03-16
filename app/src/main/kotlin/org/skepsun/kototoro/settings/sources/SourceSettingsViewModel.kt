@@ -42,6 +42,7 @@ import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.skepsun.kototoro.core.network.webview.WebViewExecutor
 import kotlinx.coroutines.withContext
+import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 
 @HiltViewModel
 class SourceSettingsViewModel @Inject constructor(
@@ -49,6 +50,7 @@ class SourceSettingsViewModel @Inject constructor(
 	mangaRepositoryFactory: MangaRepository.Factory,
 	private val cookieJar: MutableCookieJar,
 	private val mangaSourcesRepository: MangaSourcesRepository,
+	private val jsonSourceManager: JsonSourceManager,
 	private val jsSourceParser: JSSourceParser,
 	private val webViewExecutor: WebViewExecutor,
 ) : BaseViewModel(), SharedPreferences.OnSharedPreferenceChangeListener {
@@ -250,7 +252,15 @@ class SourceSettingsViewModel @Inject constructor(
 
 	fun setEnabled(value: Boolean) {
 		launchJob(Dispatchers.Default) {
-			mangaSourcesRepository.setSourcesEnabled(setOf(source), value)
+			val tvBoxLocator = (source as? JsonMangaSource)
+				?.takeIf { it.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX && value }
+				?.let { TVBoxStoredConfig.parse(it.entity.config).meta.sourceLocator }
+				?.takeIf { !it.isNullOrBlank() }
+			if (!tvBoxLocator.isNullOrBlank()) {
+				jsonSourceManager.activateTvBoxRepository(tvBoxLocator)
+			} else {
+				mangaSourcesRepository.setSourcesEnabled(setOf(source), value)
+			}
 		}
 	}
 

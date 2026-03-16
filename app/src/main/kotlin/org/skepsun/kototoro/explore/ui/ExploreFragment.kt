@@ -126,9 +126,16 @@ class ExploreFragment :
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
 			updateSourceTagChipsSelection(binding, tags ?: emptySet())
 			updateContentTypeChipsEnabled(binding, tags ?: emptySet())
+			updateTvBoxRepositoryLabel(binding)
 		}
 		viewModel.availableTabs.observe(viewLifecycleOwner) { tabs ->
 			rebuildContentTypeChips(binding, tabs)
+		}
+		viewModel.currentGroupTab.observe(viewLifecycleOwner) {
+			updateTvBoxRepositoryLabel(binding)
+		}
+		viewModel.activeTvBoxRepositoryTitle.observe(viewLifecycleOwner) {
+			updateTvBoxRepositoryLabel(binding)
 		}
 
 		// Register for appbar offset changes to handle sticky inset padding
@@ -343,6 +350,18 @@ class ExploreFragment :
 			val chip = binding.chipGroupSourceTag.findViewById<Chip>(id) ?: return@forEach
 			chip.isEnabled = selectedTab.supportsSourceTag(tag)
 			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
+	private fun updateTvBoxRepositoryLabel(binding: FragmentExploreBinding) {
+		val title = viewModel.activeTvBoxRepositoryTitle.value
+		val shouldShow = !title.isNullOrBlank() && (
+			viewModel.currentSourceTags.value?.contains(SourceTag.TVBOX) == true ||
+				viewModel.currentGroupTab.value == BrowseGroupTab.Video
+			)
+		binding.textViewTvboxRepository.visibility = if (shouldShow) View.VISIBLE else View.GONE
+		if (shouldShow) {
+			binding.textViewTvboxRepository.text = getString(R.string.tvbox_repository_current_label, title)
 		}
 	}
 
