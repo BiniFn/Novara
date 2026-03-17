@@ -164,19 +164,22 @@ internal class TVBoxJarSpiderRuntime(
 						source = source,
 					),
 				)
-			if (locator.id.startsWith("http://", ignoreCase = true) || locator.id.startsWith("https://", ignoreCase = true)) {
+			val directLocator = TVBoxPlayback.normalizeLocator(locator.id)
+			if (directLocator.startsWith("http://", ignoreCase = true) || directLocator.startsWith("https://", ignoreCase = true)) {
 				return listOf(
 					MangaPage(
 						id = positiveHash("${chapter.url}|page"),
-						url = locator.id,
+						url = directLocator,
 						preview = null,
-						headers = buildHeadersForUrl(locator.id, emptyMap()),
+						headers = buildHeadersForUrl(directLocator, emptyMap()),
 						source = source,
 					),
 				)
 			}
 			val playResult = loadPlay(spider, locator.flag, locator.id)
-			val resolvedUrl = playResult?.url?.takeIf { it.isNotBlank() } ?: locator.id
+			val resolvedUrl = TVBoxPlayback.normalizeLocator(
+				playResult?.url?.takeIf { it.isNotBlank() } ?: locator.id,
+			)
 			val finalUrl = if (resolvedUrl.startsWith("proxy://", ignoreCase = true)) {
 				createProxyPlaybackUrl(spider, resolvedUrl)
 			} else {
@@ -305,15 +308,7 @@ internal class TVBoxJarSpiderRuntime(
 				cachePath,
 				bridgeApp.classLoader,
 			)
-			runCatching {
-				withContextClassLoader(classLoader) {
-					val initClass = classLoader.loadClass("com.github.catvod.spider.Init")
-					val initMethod = initClass.getMethod("init", Context::class.java)
-					initMethod.invoke(null, bridgeApp)
-				}
-			}.onFailure {
-				Log.d(TAG, "TVBox spider Init not available for ${source.name}: ${it.message}")
-			}
+			Log.i(TAG, "Skipping TVBox spider static Init.init(Context) for ${source.name} to avoid hostile jar self-termination")
 			logJarInitState(classLoader, "after-init")
 			seedJarInitState(classLoader, bridgeApp)
 			logJarInitState(classLoader, "after-seed")
@@ -459,7 +454,8 @@ internal class TVBoxJarSpiderRuntime(
 			val raw = invokeSpider("detailContent(ids=$itemId)") {
 				spider.detailContent(listOf(itemId))
 			}.orEmpty()
-			parseDetailResult(raw)?.also { detailCache[itemId] = it }
+			(parseDetailResult(raw) ?: buildFallbackDetailResult(raw, manga))
+				?.also { detailCache[itemId] = it }
 		}
 	}
 
@@ -785,6 +781,44 @@ internal class TVBoxJarSpiderRuntime(
 				),
 			)
 		}
+		return TVBoxJarDetailResult(item = item, chapters = chapters)
+	}
+
+	private fun buildFallbackDetailResult(raw: String, seed: Manga): TVBoxJarDetailResult? {
+		val jsonValue = raw.toJsonValue() ?: return null
+		val root = when (jsonValue) {
+			is JSONObject -> jsonValue
+			is JSONArray -> JSONObject().put("list", jsonValue)
+			else -> return null
+		}
+		val message = root.firstNonBlank("msg", "message", "error")
+		val hasPlaybackHints = root.has("parse") || root.has("jx") || root.has("url") || root.has("playUrl") || root.has("realUrl")
+		if (message.isNullOrBlank() && !hasPlaybackHints) {
+			return null
+		}
+		val itemId = (seed.url ?: seed.publicUrl).orEmpty().ifBlank { return null }
+		val item = TVBoxJarVodItem(
+			id = seed.id,
+			itemId = itemId,
+			title = seed.title,
+			coverUrl = seed.coverUrl ?: seed.largeCoverUrl,
+			description = mergeDescription(seed.description, message),
+			tags = seed.tags,
+		)
+		val chapters = listOf(
+			MangaChapter(
+				id = positiveHash("${item.itemId}|fallback"),
+				title = item.title,
+				number = 1f,
+				volume = 0,
+				url = buildChapterUrl(item.title, item.itemId),
+				scanlator = null,
+				uploadDate = 0L,
+				branch = null,
+				source = source,
+			),
+		)
+		Log.i(TAG, "TVBox detail fallback applied for ${source.name}: itemId=$itemId msg=${message.orEmpty()}")
 		return TVBoxJarDetailResult(item = item, chapters = chapters)
 	}
 
@@ -1270,6 +1304,14 @@ private fun JSONObject.optStringOrNull(key: String): String? {
 		return null
 	}
 	return value.toString().trim().ifBlank { null }
+}
+
+private fun mergeDescription(base: String?, extra: String?): String? {
+	val parts = listOfNotNull(
+		base?.trim()?.takeIf { it.isNotBlank() },
+		extra?.trim()?.takeIf { it.isNotBlank() },
+	).distinct()
+	return parts.joinToString("\n").ifBlank { null }
 }
 
 private fun JSONObject.optHeaderMapFlexible(key: String): Map<String, String> {

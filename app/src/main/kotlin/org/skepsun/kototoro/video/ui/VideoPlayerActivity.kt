@@ -37,6 +37,8 @@ import org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.CommonHeaders
+import org.skepsun.kototoro.core.network.webview.WebViewExecutor
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxPlayback
 import org.skepsun.kototoro.core.ui.BaseFullscreenActivity
 import org.skepsun.kototoro.databinding.ActivityVideoPlayerBinding
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
@@ -125,6 +127,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     @Inject
     lateinit var videoLocalCacheProxy: VideoLocalCacheProxy
+
+    @Inject
+    lateinit var webViewExecutor: WebViewExecutor
 
     // ReaderState（用于历史保存时提供章节与页信息）
     private var readerState: ReaderState? = null
@@ -810,13 +815,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun prepareAndPlay(url: String, source: ParsersMangaSource?, headers: Map<String, String>? = null) {
-        // Check if URL is a direct stream or needs resolution
-        val lastSegment = runCatching { Uri.parse(url).lastPathSegment }.getOrNull() ?: url
-        val normalizedUrl = url.trim()
+        val normalizedUrl = TVBoxPlayback.normalizeLocator(url.trim())
+        val lastSegment = runCatching { Uri.parse(normalizedUrl).lastPathSegment }.getOrNull() ?: normalizedUrl
         val lowerUrl = normalizedUrl.lowercase()
         val isHttpLike = lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://")
+        val isHtmlPlaybackPage = isHttpLike && TVBoxPlayback.looksLikeHtmlPlaybackPage(normalizedUrl)
+        val isDirectPlaybackUrl = TVBoxPlayback.looksLikeDirectPlaybackUrl(normalizedUrl)
         val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
-            lastSegment.endsWith(".mp4", ignoreCase = true)
+            lastSegment.endsWith(".mp4", ignoreCase = true) ||
+            isDirectPlaybackUrl
         val isDirectLocator = lowerUrl.startsWith("magnet:") ||
             lowerUrl.startsWith("thunder:") ||
             lowerUrl.startsWith("ed2k:") ||
@@ -824,7 +831,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             lowerUrl.startsWith("rtsp://") ||
             lowerUrl.startsWith("rtmp://") ||
             lowerUrl.startsWith("mms://")
-        val isResolvedPlaybackUrl = isDirectStream || isDirectLocator || (isHttpLike && headers != null)
+        val isResolvedPlaybackUrl = isDirectStream || isDirectLocator || (isHttpLike && headers != null && !isHtmlPlaybackPage)
         val manga = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga
         val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
         val localUrl = resolveLocalVideoUrl(manga, currentState, url)
@@ -837,7 +844,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             return
         }
 
-        android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$url, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState, isDirectStream=$isDirectStream")
+        android.util.Log.d("VideoPlayer", "prepareAndPlay: url=$normalizedUrl, manga=${manga?.title}, chapters=${manga?.chapters?.size}, state=$currentState, isDirectStream=$isDirectStream")
+
+        if (isHtmlPlaybackPage) {
+            resolvePlaybackPageAndPlay(
+                url = normalizedUrl,
+                source = source,
+                headers = headers,
+            )
+            return
+        }
 
         if (isResolvedPlaybackUrl) {
             currentVideoSource = source
@@ -858,7 +874,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 ).show()
                 return
             }
-            startMpvPlayback(url, source, mergedHeaders)
+            startMpvPlayback(normalizedUrl, source, mergedHeaders)
             return
         }
 
@@ -948,6 +964,45 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 org.skepsun.kototoro.R.string.error_occurred,
                 Snackbar.LENGTH_LONG
             ).show()
+        }
+    }
+
+    private fun resolvePlaybackPageAndPlay(
+        url: String,
+        source: ParsersMangaSource?,
+        headers: Map<String, String>?,
+    ) {
+        lifecycleScope.launch {
+            val sniffed = runCatching {
+                webViewExecutor.sniffMediaUrl(
+                    url = url,
+                    headers = headers,
+                )
+            }.onFailure {
+                Log.w("VideoPlayer", "Failed to sniff playback page: $url", it)
+            }.getOrNull()
+
+            if (sniffed != null) {
+                Log.d("VideoPlayer", "Sniffed playable media from web page: ${sniffed.url}")
+                currentVideoSource = source
+                availableVideos = emptyList()
+                currentVideoIndex = 0
+                updateQualityButtonVisibility()
+                startMpvPlayback(
+                    url = sniffed.url,
+                    source = source,
+                    headers = mergeHeaders(headers, sniffed.headers),
+                )
+                return@launch
+            }
+
+            Log.w("VideoPlayer", "No playable media sniffed from web page, fallback to browser: $url")
+            AppRouter(this@VideoPlayerActivity).openBrowser(
+                url = url,
+                source = source,
+                title = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)?.manga?.title,
+            )
+            finish()
         }
     }
 

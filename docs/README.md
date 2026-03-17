@@ -29,6 +29,7 @@ This directory is organized by task, not by internal implementation. Start with 
 
 ### For advanced users
 
+- [Architecture Review](./architecture/architecture-review.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
 - [TVBox Integration Implementation Plan](./architecture/tvbox-integration-implementation-plan.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)

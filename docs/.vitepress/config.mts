@@ -50,6 +50,7 @@ export default defineConfig({
       {
         text: "Reference",
         items: [
+          { text: "Architecture Review", link: "/architecture/architecture-review" },
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
           { text: "TVBox Integration Plan", link: "/architecture/tvbox-integration-implementation-plan" },
           { text: "OCR Pipeline", link: "/architecture/ocr-pipeline-v2" },

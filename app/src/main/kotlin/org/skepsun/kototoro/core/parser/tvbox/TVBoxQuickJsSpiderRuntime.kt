@@ -136,19 +136,22 @@ internal class TVBoxQuickJsSpiderRuntime(
 						source = source,
 					),
 				)
-			if (locator.id.startsWith("http://", ignoreCase = true) || locator.id.startsWith("https://", ignoreCase = true)) {
+			val directLocator = TVBoxPlayback.normalizeLocator(locator.id)
+			if (directLocator.startsWith("http://", ignoreCase = true) || directLocator.startsWith("https://", ignoreCase = true)) {
 				return listOf(
 					MangaPage(
 						id = positiveHash("${chapter.url}|page"),
-						url = locator.id,
+						url = directLocator,
 						preview = null,
-						headers = buildHeadersForUrl(locator.id, emptyMap()),
+						headers = buildHeadersForUrl(directLocator, emptyMap()),
 						source = source,
 					),
 				)
 			}
 			val playResult = loadPlay(locator.flag, locator.id)
-			val finalUrl = playResult?.url?.takeIf { it.isNotBlank() } ?: locator.id
+			val finalUrl = TVBoxPlayback.normalizeLocator(
+				playResult?.url?.takeIf { it.isNotBlank() } ?: locator.id,
+			)
 			listOf(
 				MangaPage(
 					id = positiveHash("${chapter.url}|page"),
@@ -275,7 +278,8 @@ internal class TVBoxQuickJsSpiderRuntime(
 				action = "detail",
 				argsLiteral = itemId.toJsStringLiteral(),
 			).orEmpty()
-			parseDetailResult(raw)?.also { detailCache[itemId] = it }
+			(parseDetailResult(raw) ?: buildFallbackDetailResult(raw, manga))
+				?.also { detailCache[itemId] = it }
 		}
 	}
 
@@ -780,6 +784,44 @@ internal class TVBoxQuickJsSpiderRuntime(
 			item = item,
 			chapters = chapters,
 		)
+	}
+
+	private fun buildFallbackDetailResult(raw: String, seed: Manga): TVBoxDetailResult? {
+		val jsonValue = raw.toJsonValue() ?: return null
+		val root = when (jsonValue) {
+			is JSONObject -> jsonValue
+			is JSONArray -> JSONObject().put("list", jsonValue)
+			else -> return null
+		}
+		val message = root.firstNonBlank("msg", "message", "error")
+		val hasPlaybackHints = root.has("parse") || root.has("jx") || root.has("url") || root.has("playUrl") || root.has("realUrl")
+		if (message.isNullOrBlank() && !hasPlaybackHints) {
+			return null
+		}
+		val itemId = (seed.url ?: seed.publicUrl).orEmpty().ifBlank { return null }
+		val item = TVBoxVodItem(
+			id = seed.id,
+			itemId = itemId,
+			title = seed.title,
+			coverUrl = seed.coverUrl ?: seed.largeCoverUrl,
+			description = mergeDescription(seed.description, message),
+			tags = seed.tags,
+		)
+		val chapters = listOf(
+			MangaChapter(
+				id = positiveHash("${item.itemId}|fallback"),
+				title = item.title,
+				number = 1f,
+				volume = 0,
+				url = buildChapterUrl(item.title, item.itemId),
+				scanlator = null,
+				uploadDate = 0L,
+				branch = null,
+				source = source,
+			),
+		)
+		Log.i(TAG, "TVBox detail fallback applied for ${source.name}: itemId=$itemId msg=${message.orEmpty()}")
+		return TVBoxDetailResult(item = item, chapters = chapters)
 	}
 
 	private fun parsePlaySources(node: JSONObject): List<TVBoxPlaySource> {
@@ -1388,6 +1430,14 @@ private fun JSONObject.optStringOrNull(key: String): String? {
 		return null
 	}
 	return value.toString().trim().ifBlank { null }
+}
+
+private fun mergeDescription(base: String?, extra: String?): String? {
+	val parts = listOfNotNull(
+		base?.trim()?.takeIf { it.isNotBlank() },
+		extra?.trim()?.takeIf { it.isNotBlank() },
+	).distinct()
+	return parts.joinToString("\n").ifBlank { null }
 }
 
 private fun JSONObject.optHeaderMap(key: String): Map<String, String> {

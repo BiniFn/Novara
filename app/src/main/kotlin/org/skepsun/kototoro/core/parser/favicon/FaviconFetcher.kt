@@ -28,7 +28,6 @@ import okio.IOException
 import okio.Path.Companion.toOkioPath
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.core.model.MangaSource
 import org.skepsun.kototoro.core.parser.EmptyMangaRepository
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
@@ -48,6 +47,7 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import javax.inject.Inject
 import coil3.Uri as CoilUri
+import org.skepsun.kototoro.parsers.model.MangaSource as ParserMangaSource
 import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 
 class FaviconFetcher(
@@ -59,7 +59,7 @@ class FaviconFetcher(
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
-		val mangaSource = MangaSource(uri.schemeSpecificPart)
+		val mangaSource = org.skepsun.kototoro.core.model.MangaSource(uri.schemeSpecificPart)
 
 		return when (val repo = mangaRepositoryFactory.create(mangaSource)) {
 			is ParserMangaRepository -> fetchParserFavicon(repo)
@@ -87,7 +87,7 @@ class FaviconFetcher(
 				}
 				faviconUrl?.let { url ->
 					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
-				} ?: imageLoader.fetch(R.drawable.ic_storage, options)
+				} ?: fetchDefaultIcon(mangaSource)
 			}
 
 			is LocalMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
@@ -101,11 +101,15 @@ class FaviconFetcher(
 				val guessed = guessFaviconUrl((repo.source as? JsonMangaSource)?.entity?.config)
 				guessed?.let { url ->
 					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
-				} ?: imageLoader.fetch(R.drawable.ic_storage, options)
+				} ?: fetchDefaultIcon(mangaSource)
 			}
 
-			else -> imageLoader.fetch(R.drawable.ic_storage, options)
+			else -> fetchDefaultIcon(mangaSource)
 		}
+	}
+
+	private suspend fun fetchDefaultIcon(mangaSource: ParserMangaSource): FetchResult? {
+		return imageLoader.fetch(defaultIconRes(mangaSource), options)
 	}
 
     private suspend fun fetchMihonIcon(repository: MihonMangaRepository): FetchResult {
@@ -295,6 +299,14 @@ class FaviconFetcher(
 	private companion object {
 
 		const val FALLBACK_SIZE = 9999 // largest icon
+
+		private fun defaultIconRes(source: ParserMangaSource): Int {
+			return if (source is JsonMangaSource || source.name.startsWith("JSON_")) {
+				R.drawable.ic_source_builtin
+			} else {
+				R.drawable.ic_storage
+			}
+		}
 
 		private fun guessFaviconUrl(config: String?): String? {
 			if (config.isNullOrBlank()) return null

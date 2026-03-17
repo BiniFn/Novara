@@ -61,31 +61,10 @@ android {
 			?: 'demo_app_secret').toString()
 		buildConfigField 'String', 'DANDANPLAY_APP_ID', "\"${dandanAppId}\""
 		buildConfigField 'String', 'DANDANPLAY_APP_SECRET', "\"${dandanAppSecret}\""
-		buildConfigField 'boolean', 'TVBOX_REAL_HOST_IDENTITY', 'false'
-	}
-	flavorDimensions 'identity'
-	productFlavors {
-		standard {
-			dimension 'identity'
-		}
-		tvboxHost {
-			dimension 'identity'
-			applicationId 'com.github.tvbox.osc'
-			manifestPlaceholders = [
-				appClassName: 'com.github.tvbox.osc.base.App'
-			]
-			buildConfigField 'boolean', 'TVBOX_REAL_HOST_IDENTITY', 'true'
-		}
 	}
 	buildTypes {
 		debug {
 			applicationIdSuffix = '.debug'
-		}
-		create('identity') {
-			initWith(buildTypes.getByName('debug'))
-			applicationIdSuffix = ''
-			matchingFallbacks = ['debug']
-			signingConfig signingConfigs.debug
 		}
 		release {
 			minifyEnabled true
@@ -142,8 +121,6 @@ android {
 	sourceSets {
 		androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
 		main.java.srcDirs += 'src/main/kotlin/'
-		identity.java.srcDirs += 'src/debug/kotlin/'
-		identity.res.srcDirs += 'src/debug/res/'
 		test.java.srcDirs += 'src/test/kotlin/'
 		androidTest.java.srcDirs += 'src/androidTest/kotlin/'
 	}
@@ -193,19 +170,6 @@ android {
 				output.versionCodeOverride = now.format("yyMMdd").toInteger()
 				output.versionNameOverride = 'N' + now.format("yyyyMMdd")
 			}
-		}
-	}
-}
-
-androidComponents {
-	beforeVariants(selector().all()) { variantBuilder ->
-		def flavorMap = variantBuilder.productFlavors.collectEntries { [(it.first): it.second] }
-		def identityFlavor = flavorMap.get('identity')
-		if (identityFlavor == 'standard' && variantBuilder.buildType == 'identity') {
-			variantBuilder.enable = false
-		}
-		if (identityFlavor == 'tvboxHost' && (variantBuilder.buildType == 'debug' || variantBuilder.buildType == 'nightly')) {
-			variantBuilder.enable = false
 		}
 	}
 }
@@ -359,10 +323,8 @@ dependencies {
 	implementation libs.rxjava3
 
 	debugImplementation libs.leakcanary.android
-	identityImplementation libs.leakcanary.android
 	nightlyImplementation libs.leakcanary.android
 	debugImplementation libs.workinspector
-	identityImplementation libs.workinspector
 
 	testImplementation libs.junit
 	testImplementation libs.json

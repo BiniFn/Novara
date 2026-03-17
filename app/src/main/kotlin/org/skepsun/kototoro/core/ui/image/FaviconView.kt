@@ -43,12 +43,20 @@ class FaviconView @JvmOverloads constructor(
 
 	fun setImageAsync(mangaSource: MangaSource): Disposable {
 		val fallbackFactory: (ImageRequest) -> Image? = {
-			FaviconDrawable(context, iconStyle, mangaSource.name).asImage()
+			sourceFallbackImage(
+				context = context,
+				styleResId = iconStyle,
+				source = mangaSource,
+				animated = false,
+			)
 		}
-		val placeholderFactory: (ImageRequest) -> Image? = if (context.isAnimationsEnabled) {
-			{ AnimatedFaviconDrawable(context, iconStyle, mangaSource.name).asImage() }
-		} else {
-			fallbackFactory
+		val placeholderFactory: (ImageRequest) -> Image? = {
+			sourceFallbackImage(
+				context = context,
+				styleResId = iconStyle,
+				source = mangaSource,
+				animated = context.isAnimationsEnabled,
+			)
 		}
 		return enqueueRequest(
 			newRequestBuilder()

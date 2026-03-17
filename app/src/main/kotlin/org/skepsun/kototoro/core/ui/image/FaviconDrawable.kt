@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.annotation.StyleRes
+import androidx.core.content.ContextCompat
 import androidx.core.content.withStyledAttributes
 import androidx.core.graphics.withClip
 import coil3.Image
@@ -20,9 +21,11 @@ import coil3.request.ImageRequest
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
 import org.skepsun.kototoro.core.util.KototoroColors
 import org.skepsun.kototoro.core.util.ext.hasFocusStateSpecified
 import org.skepsun.kototoro.core.util.ext.mangaSourceKey
+import org.skepsun.kototoro.parsers.model.MangaSource
 
 open class FaviconDrawable(
 	context: Context,
@@ -137,9 +140,29 @@ open class FaviconDrawable(
 
 		override fun invoke(request: ImageRequest): Image? {
 			val source = request.getExtra(mangaSourceKey) ?: return null
-			val context = request.context
-			val title = source.getTitle(context)
-			return FaviconDrawable(context, styleResId, title).asImage()
+			return sourceFallbackImage(
+				context = request.context,
+				styleResId = styleResId,
+				source = source,
+				animated = false,
+			)
 		}
+	}
+}
+
+internal fun sourceFallbackImage(
+	context: Context,
+	@StyleRes styleResId: Int,
+	source: MangaSource,
+	animated: Boolean,
+): Image? {
+	if (source is JsonMangaSource || source.name.startsWith("JSON_")) {
+		return ContextCompat.getDrawable(context, R.drawable.ic_source_builtin)?.asImage()
+	}
+	val title = source.getTitle(context)
+	return if (animated) {
+		AnimatedFaviconDrawable(context, styleResId, title).asImage()
+	} else {
+		FaviconDrawable(context, styleResId, title).asImage()
 	}
 }

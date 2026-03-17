@@ -3,8 +3,10 @@ package org.skepsun.kototoro.core.network.webview
 import android.content.Context
 import android.util.AndroidRuntimeException
 import android.webkit.WebSettings
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.CookieManager
 import androidx.annotation.MainThread
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -20,12 +22,15 @@ import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.proxy.ProxyProvider
 import org.skepsun.kototoro.core.parser.MangaRepository
 import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxPlayback
 import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
 import org.skepsun.kototoro.core.util.ext.configureForParser
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.parsers.model.MangaSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -216,6 +221,83 @@ class WebViewExecutor @Inject constructor(
 		}
 	}
 
+	suspend fun sniffMediaUrl(
+		url: String,
+		headers: Map<String, String>? = null,
+		delayMs: Long = 2500,
+		timeoutMs: Long = 20000,
+	): SniffedMediaResult? = mutex.withLock {
+		withContext(Dispatchers.Main.immediate) {
+			val webView = obtainWebView()
+			try {
+				webView.configureForParser(headers?.get(CommonHeaders.USER_AGENT), blockImages = true)
+				withTimeout(timeoutMs) {
+					suspendCancellableCoroutine { cont ->
+						val pageFinished = AtomicBoolean(false)
+						val candidateUrl = AtomicReference<String?>(null)
+
+						fun tryResume(result: SniffedMediaResult?) {
+							if (cont.isActive) {
+								cont.resume(result)
+							}
+						}
+
+						fun captureCandidate(rawUrl: String?) {
+							val normalized = rawUrl?.takeIf(TVBoxPlayback::looksLikeDirectPlaybackUrl) ?: return
+							if (candidateUrl.compareAndSet(null, normalized)) {
+								val mergedHeaders = headers.orEmpty().toMutableMap()
+								if (!mergedHeaders.keys.any { it.equals(CommonHeaders.REFERER, ignoreCase = true) }) {
+									mergedHeaders[CommonHeaders.REFERER] = url
+								}
+								CookieManager.getInstance().getCookie(normalized)?.takeIf { it.isNotBlank() }?.let { cookie ->
+									mergedHeaders[CommonHeaders.COOKIE] = cookie
+								}
+								tryResume(SniffedMediaResult(url = normalized, headers = mergedHeaders))
+							}
+						}
+
+						webView.webViewClient = object : WebViewClient() {
+							override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): android.webkit.WebResourceResponse? {
+								captureCandidate(request?.url?.toString())
+								return null
+							}
+
+							override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+								if (!pageFinished.compareAndSet(false, true)) {
+									return
+								}
+								kotlinx.coroutines.CoroutineScope(cont.context).launch(Dispatchers.Main.immediate) {
+									kotlinx.coroutines.delay(delayMs)
+									if (!cont.isActive || candidateUrl.get() != null) {
+										return@launch
+									}
+									val html = suspendCancellableCoroutine<String> { htmlCont ->
+										webView.evaluateJavascript("document.documentElement.outerHTML") { jsResult ->
+											htmlCont.resume(decodeJavascriptString(jsResult))
+										}
+									}
+									val embeddedUrl = TVBoxPlayback.extractEmbeddedMediaUrl(html)
+									if (embeddedUrl != null) {
+										captureCandidate(embeddedUrl)
+									} else {
+										tryResume(null)
+									}
+								}
+							}
+						}
+						if (!headers.isNullOrEmpty()) {
+							webView.loadUrl(url, headers)
+						} else {
+							webView.loadUrl(url)
+						}
+					}
+				}
+			} finally {
+				webView.reset()
+			}
+		}
+	}
+
 	private suspend fun obtainWebView(): WebView {
 		webViewCached?.get()?.let {
 			return it
@@ -310,5 +392,27 @@ class WebViewExecutor @Inject constructor(
 		settings.userAgentString = defaultUserAgent
 		loadDataWithBaseURL(null, " ", "text/html", null, null)
 		clearHistory()
+	}
+
+	data class SniffedMediaResult(
+		val url: String,
+		val headers: Map<String, String>,
+	)
+
+	private fun decodeJavascriptString(value: String?): String {
+		if (value.isNullOrBlank() || value == "null") {
+			return ""
+		}
+		if (!value.startsWith("\"") || !value.endsWith("\"")) {
+			return value
+		}
+		return value.substring(1, value.length - 1)
+			.replace("\\u003C", "<")
+			.replace("\\u003E", ">")
+			.replace("\\u0026", "&")
+			.replace("\\n", "\n")
+			.replace("\\t", "\t")
+			.replace("\\\"", "\"")
+			.replace("\\\\", "\\")
 	}
 }
