@@ -1,13 +1,13 @@
 package org.skepsun.kototoro.reader.novel
 
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 /**
  * 小说阅读器状态
  */
 data class NovelReaderState(
     val mangaName: String,
-    val currentChapter: MangaChapter?,
+    val currentChapter: ContentChapter?,
     val currentChapterIndex: Int,
     val totalChapters: Int,
     val currentPage: Int,

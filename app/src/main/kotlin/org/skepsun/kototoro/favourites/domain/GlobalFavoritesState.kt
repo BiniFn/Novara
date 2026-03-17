@@ -51,7 +51,7 @@ class GlobalFavoritesState @Inject constructor(
 		}
 	}
 
-	// Content Type (All, Manga, Novel)
+	// Content Type (All, Content, Novel)
 	private val _selectedGroupTab = MutableStateFlow<BrowseGroupTab>(
 		BrowseGroupTab.fromId(settings.getSelectedGroupTab() ?: BrowseGroupTab.All.id)
 	)

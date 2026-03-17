@@ -25,7 +25,7 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT * FROM history WHERE deleted_at = 0 ORDER BY updated_at DESC LIMIT :limit OFFSET :offset")
-	abstract suspend fun findAll(offset: Int, limit: Int): List<HistoryWithManga>
+	abstract suspend fun findAll(offset: Int, limit: Int): List<HistoryWithContent>
 
 	@Transaction
 	@Query("SELECT manga.* FROM history LEFT JOIN manga ON manga.manga_id = history.manga_id WHERE history.deleted_at = 0 AND (manga.title LIKE :query OR manga.alt_title LIKE :query) LIMIT :limit")
@@ -41,17 +41,17 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT * FROM history WHERE deleted_at = 0 ORDER BY updated_at DESC")
-	abstract fun observeAll(): Flow<List<HistoryWithManga>>
+	abstract fun observeAll(): Flow<List<HistoryWithContent>>
 
 	@Transaction
 	@Query("SELECT * FROM history WHERE deleted_at = 0 ORDER BY updated_at DESC LIMIT :limit")
-	abstract fun observeAll(limit: Int): Flow<List<HistoryWithManga>>
+	abstract fun observeAll(limit: Int): Flow<List<HistoryWithContent>>
 
 	fun observeAll(
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
 		limit: Int
-	): Flow<List<HistoryWithManga>> = observeAllImpl(
+	): Flow<List<HistoryWithContent>> = observeAllImpl(
 		MangaQueryBuilder(TABLE_HISTORY, this)
 			.join("LEFT JOIN manga ON history.manga_id = manga.manga_id")
 			.where("history.deleted_at = 0")
@@ -108,7 +108,7 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 	@Query("SELECT percent FROM history WHERE manga_id = :id AND deleted_at = 0")
 	abstract suspend fun findProgress(id: Long): Float?
 
-	fun dump(): Flow<HistoryWithManga> = flow {
+	fun dump(): Flow<HistoryWithContent> = flow {
 		val window = 10
 		var offset = 0
 		while (currentCoroutineContext().isActive) {
@@ -208,7 +208,7 @@ abstract class HistoryDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@RawQuery(observedEntities = [HistoryEntity::class])
-	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<HistoryWithManga>>
+	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<HistoryWithContent>>
 
 	override fun getCondition(option: ListFilterOption): String? = when (option) {
 		is ListFilterOption.Favorite -> "EXISTS(SELECT * FROM favourites WHERE history.manga_id = favourites.manga_id AND category_id = ${option.category.id})"

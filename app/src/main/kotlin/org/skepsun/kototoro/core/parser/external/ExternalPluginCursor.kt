@@ -5,7 +5,7 @@ import android.database.CursorWrapper
 import org.skepsun.kototoro.core.exceptions.IncompatiblePluginException
 import org.skepsun.kototoro.core.util.ext.getBoolean
 
-class ExternalPluginCursor(private val source: ExternalMangaSource, cursor: Cursor) : CursorWrapper(cursor) {
+class ExternalPluginCursor(private val source: ExternalContentSource, cursor: Cursor) : CursorWrapper(cursor) {
 
 	override fun getColumnIndexOrThrow(columnName: String?): Int = try {
 		super.getColumnIndexOrThrow(columnName)

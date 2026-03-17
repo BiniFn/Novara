@@ -11,17 +11,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.ext.findKeyByValue
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.sanitize
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
@@ -32,10 +32,10 @@ abstract class Scrobbler(
 	protected val db: MangaDatabase,
 	val scrobblerService: ScrobblerService,
 	private val repository: ScrobblerRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	private val infoCache = LongSparseArray<ScrobblerMangaInfo>()
+	private val infoCache = LongSparseArray<ScrobblerContentInfo>()
 	protected val statuses = EnumMap<ScrobblingStatus, String>(ScrobblingStatus::class.java)
 
 	val user: Flow<ScrobblerUser> = flow {
@@ -73,15 +73,15 @@ abstract class Scrobbler(
 		repository.logout()
 	}
 
-	suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
-		return repository.findManga(query, offset)
+	suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
+		return repository.findContent(query, offset)
 	}
 
-	suspend fun linkManga(mangaId: Long, targetId: Long) {
+	suspend fun linkContent(mangaId: Long, targetId: Long) {
 		repository.createRate(mangaId, targetId)
 	}
 
-	suspend fun scrobble(manga: Manga, chapterId: Long) {
+	suspend fun scrobble(manga: Content, chapterId: Long) {
 		var chapters = manga.chapters
 		if (chapters.isNullOrEmpty()) {
 			chapters = mangaRepositoryFactory.create(manga.source).getDetails(manga).chapters
@@ -134,14 +134,14 @@ abstract class Scrobbler(
 		repository.unregister(mangaId)
 	}
 
-	protected suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
-		return repository.getMangaInfo(id)
+	protected suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
+		return repository.getContentInfo(id)
 	}
 
 	private suspend fun ScrobblingEntity.toScrobblingInfo(): ScrobblingInfo? {
 		val mangaInfo = infoCache.getOrElse(targetId) {
 			runCatchingCancellable {
-				getMangaInfo(targetId)
+				getContentInfo(targetId)
 			}.onFailure {
 				it.printStackTraceDebug()
 			}.onSuccess {
@@ -164,7 +164,7 @@ abstract class Scrobbler(
 	}
 }
 
-suspend fun Scrobbler.tryScrobble(manga: Manga, chapterId: Long): Boolean {
+suspend fun Scrobbler.tryScrobble(manga: Content, chapterId: Long): Boolean {
 	return runCatchingCancellable {
 		scrobble(manga, chapterId)
 	}.onFailure {

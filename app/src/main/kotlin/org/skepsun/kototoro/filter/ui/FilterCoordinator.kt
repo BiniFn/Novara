@@ -22,8 +22,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.LocaleComparator
 import org.skepsun.kototoro.core.util.ext.lifecycleScope
 import org.skepsun.kototoro.core.util.ext.sortedByOrdinal
@@ -35,21 +35,21 @@ import org.skepsun.kototoro.filter.ui.tags.TagTitleComparator
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.model.YEAR_MIN
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
-import org.skepsun.kototoro.search.domain.MangaSearchRepository
+import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
@@ -57,30 +57,30 @@ import javax.inject.Inject
 @ViewModelScoped
 class FilterCoordinator @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    mangaRepositoryFactory: MangaRepository.Factory,
-    private val searchRepository: MangaSearchRepository,
+    mangaRepositoryFactory: ContentRepository.Factory,
+    private val searchRepository: ContentSearchRepository,
     private val savedFiltersRepository: SavedFiltersRepository,
     lifecycle: ViewModelLifecycle,
 ) {
 
     private val coroutineScope = lifecycle.lifecycleScope + Dispatchers.Default
-    private val repository = mangaRepositoryFactory.create(MangaSource(savedStateHandle[RemoteListFragment.ARG_SOURCE]))
-    private val sourceLocale = (repository.source as? MangaParserSource)?.locale
+    private val repository = mangaRepositoryFactory.create(ContentSource(savedStateHandle[RemoteListFragment.ARG_SOURCE]))
+    private val sourceLocale = (repository.source as? ContentParserSource)?.locale
 
-    private val currentListFilter = MutableStateFlow(MangaListFilter.EMPTY)
+    private val currentListFilter = MutableStateFlow(ContentListFilter.EMPTY)
     private val currentSortOrder = MutableStateFlow(repository.defaultSortOrder)
 
     private val availableSortOrders = repository.sortOrders
     private val filterRefreshTrigger = MutableStateFlow(0)
-    private val filterOptions: StateFlow<Result<MangaListFilterOptions>> = filterRefreshTrigger.flatMapLatest {
+    private val filterOptions: StateFlow<Result<ContentListFilterOptions>> = filterRefreshTrigger.flatMapLatest {
         flow {
             emit(runCatchingCancellable { repository.getFilterOptions() })
         }
-    }.stateIn(coroutineScope, SharingStarted.Lazily, Result.success(MangaListFilterOptions()))
+    }.stateIn(coroutineScope, SharingStarted.Lazily, Result.success(ContentListFilterOptions()))
 
     val capabilities = repository.filterCapabilities
 
-    val mangaSource: MangaSource
+    val mangaSource: ContentSource
         get() = repository.source
 
     val isFilterApplied: Boolean
@@ -153,7 +153,7 @@ class FilterCoordinator @Inject constructor(
         MutableStateFlow(FilterProperty.EMPTY)
     }
 
-    val states: StateFlow<FilterProperty<MangaState>> = combine(
+    val states: StateFlow<FilterProperty<ContentState>> = combine(
         filterOptions,
         currentListFilter.distinctUntilChangedBy { it.states },
     ) { available, selected ->
@@ -294,7 +294,7 @@ class FilterCoordinator @Inject constructor(
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.EMPTY)
 
     fun reset() {
-        currentListFilter.value = MangaListFilter.EMPTY
+        currentListFilter.value = ContentListFilter.EMPTY
         refreshFilters()
     }
 
@@ -314,11 +314,11 @@ class FilterCoordinator @Inject constructor(
         repository.defaultSortOrder = newSortOrder
     }
 
-    fun set(value: MangaListFilter) {
+    fun set(value: ContentListFilter) {
         currentListFilter.value = value
     }
 
-    fun setAdjusted(value: MangaListFilter) {
+    fun setAdjusted(value: ContentListFilter) {
         var newFilter = value
         if (!newFilter.author.isNullOrEmpty() && !capabilities.isAuthorSearchSupported) {
             newFilter = newFilter.copy(
@@ -327,7 +327,7 @@ class FilterCoordinator @Inject constructor(
             )
         }
         if (!newFilter.query.isNullOrEmpty() && !newFilter.hasNonSearchOptions() && !capabilities.isSearchWithFiltersSupported) {
-            newFilter = MangaListFilter(query = newFilter.query)
+            newFilter = ContentListFilter(query = newFilter.query)
         }
         set(newFilter)
     }
@@ -350,7 +350,7 @@ class FilterCoordinator @Inject constructor(
             if (capabilities.isSearchWithFiltersSupported || newQuery == null) {
                 oldValue.copy(query = newQuery)
             } else {
-                MangaListFilter(query = newQuery)
+                ContentListFilter(query = newQuery)
             }
         }
     }
@@ -401,7 +401,7 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    fun toggleState(value: MangaState, isSelected: Boolean) {
+    fun toggleState(value: ContentState, isSelected: Boolean) {
         currentListFilter.update { oldValue ->
             oldValue.copy(
                 states = if (isSelected) oldValue.states + value else oldValue.states - value,
@@ -441,21 +441,21 @@ class FilterCoordinator @Inject constructor(
      * Check if a tag represents a text input field (Mihon Filter.Text).
      * Text input tags have keys starting with "text:" prefix.
      */
-    fun isTextInputTag(tag: MangaTag): Boolean {
+    fun isTextInputTag(tag: ContentTag): Boolean {
         return tag.key.startsWith("text:")
     }
     
     /**
      * Get the display name for a text input tag (without the emoji prefix).
      */
-    fun getTextInputLabel(tag: MangaTag): String {
+    fun getTextInputLabel(tag: ContentTag): String {
         return tag.title.removePrefix("📝 ")
     }
     
     /**
      * Get the current value for a text input tag, if any.
      */
-    fun getTextInputValue(tag: MangaTag): String? {
+    fun getTextInputValue(tag: ContentTag): String? {
         val baseKey = tag.key
         return currentListFilter.value.tags
             .find { it.key.startsWith(baseKey) && it.key.contains("=") }
@@ -466,7 +466,7 @@ class FilterCoordinator @Inject constructor(
      * Set the value for a text input filter.
      * Creates a new tag with the value appended to the key (format: key=value).
      */
-    fun setTextInputValue(originalTag: MangaTag, value: String) {
+    fun setTextInputValue(originalTag: ContentTag, value: String) {
         currentListFilter.update { oldValue ->
             // Remove any existing tag with the same base key
             val baseKey = originalTag.key
@@ -474,7 +474,7 @@ class FilterCoordinator @Inject constructor(
             
             // Add new tag with value if not empty
             val newTags = if (value.isNotBlank()) {
-                val tagWithValue = MangaTag(
+                val tagWithValue = ContentTag(
                     title = "${originalTag.title.removePrefix("📝 ")}: $value",
                     key = "$baseKey=$value",
                     source = originalTag.source
@@ -491,7 +491,7 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    fun toggleTag(value: MangaTag, isSelected: Boolean) {
+    fun toggleTag(value: ContentTag, isSelected: Boolean) {
         currentListFilter.update { oldValue ->
             val tagGroup = findTagGroup(value)
             val newTags = when {
@@ -514,7 +514,7 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    fun toggleTagExclude(value: MangaTag, isSelected: Boolean) {
+    fun toggleTagExclude(value: ContentTag, isSelected: Boolean) {
         currentListFilter.update { oldValue ->
             val tagGroup = findTagGroup(value)
             val newTagsExclude = when {
@@ -537,14 +537,14 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    private fun findTagGroup(tag: MangaTag): MangaTagGroup? {
+    private fun findTagGroup(tag: ContentTag): ContentTagGroup? {
         return filterOptions.value.getOrNull()
             ?.effectiveTagGroups
             ?.firstOrNull { tag in it.tags }
     }
 
     fun getAllTagGroups(): Flow<Result<List<UiTagGroup>>> = filterOptions.map { opts ->
-        opts.map { x: MangaListFilterOptions ->
+        opts.map { x: ContentListFilterOptions ->
             x.effectiveTagGroups.map { group ->
                 UiTagGroup(
                     title = group.title,
@@ -554,19 +554,19 @@ class FilterCoordinator @Inject constructor(
         }
     }
 
-    private fun MangaListFilter.takeQueryIfSupported() = when {
+    private fun ContentListFilter.takeQueryIfSupported() = when {
         capabilities.isSearchWithFiltersSupported -> query
         query.isNullOrEmpty() -> query
         hasNonSearchOptions() -> null
         else -> query
     }
 
-    private fun getTopTags(limit: Int): Flow<Result<List<MangaTag>>> = combine(
+    private fun getTopTags(limit: Int): Flow<Result<List<ContentTag>>> = combine(
         flow { emit(searchRepository.getTopTags(repository.source, limit)) },
         filterOptions,
-    ) { suggested: List<MangaTag>, options: Result<MangaListFilterOptions> ->
+    ) { suggested: List<ContentTag>, options: Result<ContentListFilterOptions> ->
         val all = options.getOrNull()?.availableTags.orEmpty()
-        val result = ArrayList<MangaTag>(limit)
+        val result = ArrayList<ContentTag>(limit)
         result.addAll(suggested.take(limit))
         if (result.size < limit) {
             result.addAll(all.shuffled().take(limit - result.size))
@@ -574,18 +574,18 @@ class FilterCoordinator @Inject constructor(
         if (result.isNotEmpty()) {
             Result.success(result.toList())
         } else {
-            options.map { emptyList<MangaTag>() }
+            options.map { emptyList<ContentTag>() }
         }
     }.catch {
         emit(Result.failure(it))
     }
 
-    private fun getBottomTags(limit: Int): Flow<Result<List<MangaTag>>> = combine(
+    private fun getBottomTags(limit: Int): Flow<Result<List<ContentTag>>> = combine(
         flow { emit(searchRepository.getRareTags(repository.source, limit)) },
         filterOptions,
-    ) { suggested: List<MangaTag>, options: Result<MangaListFilterOptions> ->
+    ) { suggested: List<ContentTag>, options: Result<ContentListFilterOptions> ->
         val all = options.getOrNull()?.availableTags.orEmpty()
-        val result = ArrayList<MangaTag>(limit)
+        val result = ArrayList<ContentTag>(limit)
         result.addAll(suggested.take(limit))
         if (result.size < limit) {
             result.addAll(all.shuffled().take(limit - result.size))
@@ -593,7 +593,7 @@ class FilterCoordinator @Inject constructor(
         if (result.isNotEmpty()) {
             Result.success(result.toList())
         } else {
-            options.map { emptyList<MangaTag>() }
+            options.map { emptyList<ContentTag>() }
         }
     }.catch {
         emit(Result.failure(it))
@@ -621,7 +621,7 @@ class FilterCoordinator @Inject constructor(
 
     data class Snapshot(
         val sortOrder: SortOrder,
-        val listFilter: MangaListFilter,
+        val listFilter: ContentListFilter,
     )
 
     interface Owner {
@@ -655,5 +655,5 @@ class FilterCoordinator @Inject constructor(
 }
 
 // 当前 parser 模型不再暴露 tag group 的独占元信息，过滤 UI 统一回退为非独占。
-private val MangaTagGroup.isExclusive: Boolean
+private val ContentTagGroup.isExclusive: Boolean
     get() = false

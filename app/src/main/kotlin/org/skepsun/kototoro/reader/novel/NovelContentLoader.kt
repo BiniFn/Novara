@@ -7,12 +7,12 @@ import kotlinx.coroutines.withContext
 import okio.buffer
 import okio.source
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.NovelCache
 import org.skepsun.kototoro.core.util.ext.toMimeType
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.core.util.ext.URI_SCHEME_ZIP
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import java.io.File
@@ -43,9 +43,9 @@ class NovelContentLoader @Inject constructor(
      * @return 章节的纯文本内容
      */
     suspend fun loadChapterContent(
-        repository: MangaRepository,
-        chapter: MangaChapter,
-        pages: List<MangaPage>? = null,
+        repository: ContentRepository,
+        chapter: ContentChapter,
+        pages: List<ContentPage>? = null,
     ): String = withContext(Dispatchers.IO) {
         val flow = loadChapterContentFlow(repository, chapter, pages, forceRefresh = false)
         flow.toList().lastOrNull() ?: ""
@@ -55,9 +55,9 @@ class NovelContentLoader @Inject constructor(
      * 以流的形式加载章节内容，支持增量渲染
      */
     fun loadChapterContentFlow(
-        repository: MangaRepository,
-        chapter: MangaChapter,
-        prefetchedPages: List<MangaPage>? = null,
+        repository: ContentRepository,
+        chapter: ContentChapter,
+        prefetchedPages: List<ContentPage>? = null,
         forceRefresh: Boolean = false,
         priority: Int = org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND,
         nextChapterUrl: String? = null
@@ -80,7 +80,7 @@ class NovelContentLoader @Inject constructor(
                 android.util.Log.d("NovelContentLoader", "Detected local novel chapter, reading directly: ${chapter.url}")
                 val localContent = runCatching {
                     val uri = android.net.Uri.parse(chapter.url)
-                    val pages = org.skepsun.kototoro.local.data.input.LocalMangaParser(uri).getPages(chapter)
+                    val pages = org.skepsun.kototoro.local.data.input.LocalContentParser(uri).getPages(chapter)
                     if (pages.isNotEmpty()) {
                         htmlToPlainText(concatPagesHtml(pages))
                     } else {
@@ -142,7 +142,7 @@ class NovelContentLoader @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun concatPagesHtml(pages: List<MangaPage>): String {
+    private fun concatPagesHtml(pages: List<ContentPage>): String {
         val sb = StringBuilder()
         pages.forEach { page ->
             val html = if (page.url.startsWith("data:", ignoreCase = true)) {
@@ -164,7 +164,7 @@ class NovelContentLoader @Inject constructor(
     /**
      * 检查章节是否已缓存
      */
-    suspend fun isCached(chapter: MangaChapter): Boolean {
+    suspend fun isCached(chapter: ContentChapter): Boolean {
         val cacheKey = generateCacheKey(chapter)
         return cache.get(cacheKey)?.let { !isErrorContent(readTextFromFile(it)) } ?: false
     }
@@ -173,16 +173,16 @@ class NovelContentLoader @Inject constructor(
      * 强制重新拉取（忽略缓存），用于之前缓存了错误提示时的手动刷新
      */
     suspend fun refreshChapterContent(
-        repository: MangaRepository,
-        chapter: MangaChapter,
+        repository: ContentRepository,
+        chapter: ContentChapter,
     ): String = withContext(Dispatchers.IO) {
         loadChapterContentInternal(repository, chapter, null, forceRefresh = true)
     }
 
     private suspend fun loadChapterContentInternal(
-        repository: MangaRepository,
-        chapter: MangaChapter,
-        prefetchedPages: List<MangaPage>?,
+        repository: ContentRepository,
+        chapter: ContentChapter,
+        prefetchedPages: List<ContentPage>?,
         forceRefresh: Boolean,
     ): String {
         android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal START: id=${chapter.id}, prefetched=${prefetchedPages != null}, force=$forceRefresh")
@@ -242,7 +242,7 @@ class NovelContentLoader @Inject constructor(
         return plainText
     }
 
-    private fun loadLocalHtmlChapter(chapter: MangaChapter): String {
+    private fun loadLocalHtmlChapter(chapter: ContentChapter): String {
         return try {
             val uri = java.net.URI(chapter.url)
             val file = java.io.File(uri)
@@ -264,9 +264,9 @@ class NovelContentLoader @Inject constructor(
     }
 
 	private suspend fun loadLocalHtmlViaPages(
-		repository: MangaRepository,
-		chapter: MangaChapter,
-		prefetchedPages: List<MangaPage>?,
+		repository: ContentRepository,
+		chapter: ContentChapter,
+		prefetchedPages: List<ContentPage>?,
 	): String? {
 		return runCatching {
 			val pages = prefetchedPages ?: repository.getPages(chapter)
@@ -542,7 +542,7 @@ class NovelContentLoader @Inject constructor(
      * Uses EpubChapterMappingDao to find the correct EPUB file path
      * (supports multiple EPUB files per manga, e.g., Z-Library)
      */
-    private suspend fun loadEpubChapterContent(chapter: MangaChapter): String = withContext(Dispatchers.IO) {
+    private suspend fun loadEpubChapterContent(chapter: ContentChapter): String = withContext(Dispatchers.IO) {
         try {
             // Parse epub:// URL
             val regex = Regex("epub://(-?\\d+)/chapter/(\\d+)")
@@ -556,7 +556,7 @@ class NovelContentLoader @Inject constructor(
             
             // Query database for EPUB file path using chapter index
             val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
-            val allMappings = epubChapterMappingDao.findByMangaId(mangaId)
+            val allMappings = epubChapterMappingDao.findByContentId(mangaId)
             
             // Sort mappings by parentChapterId and chapterIndex to match LocalEpubSource ordering
             val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
@@ -604,7 +604,7 @@ class NovelContentLoader @Inject constructor(
      * 生成缓存key
      * 只使用章节ID，因为URL可能包含动态参数（时间戳、token等）
      */
-    private fun generateCacheKey(chapter: MangaChapter): String {
+    private fun generateCacheKey(chapter: ContentChapter): String {
         // 只使用章节ID作为key，确保稳定性
         return "novel_chapter_${chapter.id}"
     }

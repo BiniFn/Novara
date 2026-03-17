@@ -9,12 +9,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.javascript.RhinoJavaScriptEngine
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.jsonsource.UserAgentManager
 import io.mockk.mockk
@@ -92,10 +92,10 @@ class LegadoJavaScriptIntegrationTest {
 			updatedAt = System.currentTimeMillis()
 		)
 		
-		val source = JsonMangaSource(entity)
+		val source = JsonContentSource(entity)
 		val repository = LegadoRepository(source, httpClient, jsEngine)
 		
-		val filter = MangaListFilter(query = "test query")
+		val filter = ContentListFilter(query = "test query")
 		val results = repository.getList(0, null, filter)
 		
 		val request = mockServer.takeRequest()
@@ -138,7 +138,7 @@ class LegadoJavaScriptIntegrationTest {
 			updatedAt = System.currentTimeMillis()
 		)
 		
-		val source = JsonMangaSource(entity)
+		val source = JsonContentSource(entity)
 		val repository = LegadoRepository(source, httpClient, jsEngine)
 		
 		val results = repository.getList(0, null, null)

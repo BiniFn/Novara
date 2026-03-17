@@ -31,7 +31,7 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.combine
 import org.skepsun.kototoro.core.util.ext.requireValue
 import org.skepsun.kototoro.core.util.ext.sortedWithSafe
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.DetailsInteractor
 import org.skepsun.kototoro.details.ui.DetailsActivity
 import org.skepsun.kototoro.details.ui.DetailsViewModel
@@ -41,10 +41,10 @@ import org.skepsun.kototoro.download.ui.worker.DownloadTask
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.local.domain.DeleteLocalMangaUseCase
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.reader.ui.ReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.reader.ui.ReaderViewModel
@@ -57,21 +57,21 @@ abstract class ChaptersPagesViewModel(
 	private val bookmarksRepository: BookmarksRepository,
 	private val historyRepository: HistoryRepository,
 	private val downloadScheduler: DownloadWorker.Scheduler,
-	private val deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
-	private val localStorageChanges: SharedFlow<LocalManga?>,
+	private val deleteLocalContentUseCase: DeleteLocalContentUseCase,
+	private val localStorageChanges: SharedFlow<LocalContent?>,
 ) : BaseViewModel() {
 
-	val mangaDetails = MutableStateFlow<MangaDetails?>(null)
+	val mangaDetails = MutableStateFlow<ContentDetails?>(null)
 	val readingState = MutableStateFlow<ReaderState?>(null)
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val onDownloadStarted = MutableEventFlow<Unit>()
-	val onMangaRemoved = MutableEventFlow<Manga>()
+	val onContentRemoved = MutableEventFlow<Content>()
 
 	private val chaptersQuery = MutableStateFlow("")
 	val selectedBranch = MutableStateFlow<String?>(null)
 
-	val manga = mangaDetails.map { x -> x?.toManga() }
+	val manga = mangaDetails.map { x -> x?.toContent() }
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
@@ -101,7 +101,7 @@ abstract class ChaptersPagesViewModel(
 		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
 
-	val emptyReason: StateFlow<EmptyMangaReason?> = combine(
+	val emptyReason: StateFlow<EmptyContentReason?> = combine(
 		mangaDetails,
 		isLoading,
 		onError.onStart { emit(null) },
@@ -109,15 +109,15 @@ abstract class ChaptersPagesViewModel(
 		when {
 			details == null || loading -> null
 			details.chapters.isNotEmpty() -> null
-			details.toManga().state == MangaState.RESTRICTED -> EmptyMangaReason.RESTRICTED
-			error != null -> EmptyMangaReason.LOADING_ERROR
-			else -> EmptyMangaReason.NO_CHAPTERS
+			details.toContent().state == ContentState.RESTRICTED -> EmptyContentReason.RESTRICTED
+			error != null -> EmptyContentReason.LOADING_ERROR
+			else -> EmptyContentReason.NO_CHAPTERS
 		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.WhileSubscribed(), null)
 
 	val bookmarks = mangaDetails.flatMapLatest {
 		if (it != null) {
-			bookmarksRepository.observeBookmarks(it.toManga()).withErrorHandling()
+			bookmarksRepository.observeBookmarks(it.toContent()).withErrorHandling()
 		} else {
 			flowOf(emptyList())
 		}
@@ -206,9 +206,9 @@ abstract class ChaptersPagesViewModel(
 		chaptersQuery.value = query?.trim().orEmpty()
 	}
 
-	fun getMangaOrNull(): Manga? = mangaDetails.value?.toManga()
+	fun getContentOrNull(): Content? = mangaDetails.value?.toContent()
 
-	fun requireManga() = mangaDetails.requireValue().toManga()
+	fun requireContent() = mangaDetails.requireValue().toContent()
 
 	fun markChapterAsCurrent(chapterId: Long) {
 		launchJob(Dispatchers.Default) {
@@ -219,7 +219,7 @@ abstract class ChaptersPagesViewModel(
 			check(chapterIndex in allChapters.indices) { "Chapter not found" }
 			val percent = chapterIndex / allChapters.size.toFloat()
 			historyRepository.addOrUpdate(
-				manga = manga.toManga(),
+				manga = manga.toContent(),
 				chapterId = chapterId,
 				page = 0,
 				scroll = 0,
@@ -231,7 +231,7 @@ abstract class ChaptersPagesViewModel(
 
 	fun download(chaptersIds: Set<Long>?, allowMeteredNetwork: Boolean) {
 		launchJob(Dispatchers.Default) {
-			val manga = requireManga()
+			val manga = requireContent()
 			val task = DownloadTask(
 				mangaId = manga.id,
 				isPaused = false,
@@ -253,8 +253,8 @@ abstract class ChaptersPagesViewModel(
 			return
 		}
 		launchLoadingJob(Dispatchers.Default) {
-			deleteLocalMangaUseCase(m)
-			onMangaRemoved.call(m)
+			deleteLocalContentUseCase(m)
+			onContentRemoved.call(m)
 		}
 	}
 
@@ -265,10 +265,10 @@ abstract class ChaptersPagesViewModel(
 		return filter { it.contains(query) }
 	}
 
-	private suspend fun onDownloadComplete(downloadedManga: LocalManga?) {
-		downloadedManga ?: return
+	private suspend fun onDownloadComplete(downloadedContent: LocalContent?) {
+		downloadedContent ?: return
 		mangaDetails.update {
-			interactor.updateLocal(it, downloadedManga)
+			interactor.updateLocal(it, downloadedContent)
 		}
 	}
 

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -30,7 +30,7 @@ import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.scrobbling.common.ui.selector.model.ScrobblerHint
 import javax.inject.Inject
@@ -42,13 +42,13 @@ class ScrobblingSelectorViewModel @Inject constructor(
 	private val historyRepository: HistoryRepository,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
 	val availableScrobblers = scrobblers.filter { it.isEnabled }
 
 	val selectedScrobblerIndex = MutableStateFlow(0)
 
-	private val scrobblerMangaList = MutableStateFlow<List<ScrobblerManga>>(emptyList())
+	private val scrobblerContentList = MutableStateFlow<List<ScrobblerContent>>(emptyList())
 	private val hasNextPage = MutableStateFlow(true)
 	private val listError = MutableStateFlow<Throwable?>(null)
 	private var loadingJob: Job? = null
@@ -59,7 +59,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 		get() = availableScrobblers[selectedScrobblerIndex.requireValue()]
 
 	val content: StateFlow<List<ListModel>> = combine(
-		scrobblerMangaList,
+		scrobblerContentList,
 		listError,
 		hasNextPage,
 	) { list, error, isHasNextPage ->
@@ -85,7 +85,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 	private val searchQuery = MutableStateFlow(manga.title)
 
 	val isEmpty: Boolean
-		get() = scrobblerMangaList.value.isEmpty()
+		get() = scrobblerContentList.value.isEmpty()
 
 	init {
 		initialize()
@@ -105,7 +105,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 	}
 
 	fun loadNextPage() {
-		if (scrobblerMangaList.value.isNotEmpty() && hasNextPage.value) {
+		if (scrobblerContentList.value.isNotEmpty() && hasNextPage.value) {
 			loadList(append = true)
 		}
 	}
@@ -113,7 +113,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 	fun retry() {
 		loadingJob?.cancel()
 		hasNextPage.value = true
-		scrobblerMangaList.value = emptyList()
+		scrobblerContentList.value = emptyList()
 		loadList(append = false)
 	}
 
@@ -123,17 +123,17 @@ class ScrobblingSelectorViewModel @Inject constructor(
 		}
 		loadingJob = launchJob(Dispatchers.Default) {
 			listError.value = null
-			val offset = if (append) scrobblerMangaList.value.size else 0
+			val offset = if (append) scrobblerContentList.value.size else 0
 			runCatchingCancellable {
-				currentScrobbler.findManga(checkNotNull(searchQuery.value), offset)
+				currentScrobbler.findContent(checkNotNull(searchQuery.value), offset)
 			}.onSuccess { list ->
 				val newList = (if (append) {
-					scrobblerMangaList.value + list
+					scrobblerContentList.value + list
 				} else {
 					list
 				}).distinctBy { x -> x.id }
-				val changed = newList != scrobblerMangaList.value
-				scrobblerMangaList.value = newList
+				val changed = newList != scrobblerContentList.value
+				scrobblerContentList.value = newList
 				hasNextPage.value = changed && newList.isNotEmpty()
 			}.onFailure { error ->
 				error.printStackTraceDebug()
@@ -153,7 +153,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 		}
 		doneJob = launchLoadingJob(Dispatchers.Default) {
 			val prevInfo = currentScrobbler.getScrobblingInfoOrNull(manga.id)
-			currentScrobbler.linkManga(manga.id, targetId)
+			currentScrobbler.linkContent(manga.id, targetId)
 			val history = historyRepository.getOne(manga)
 			currentScrobbler.updateScrobblingInfo(
 				mangaId = manga.id,
@@ -185,7 +185,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 		initJob?.cancel()
 		loadingJob?.cancel()
 		hasNextPage.value = true
-		scrobblerMangaList.value = emptyList()
+		scrobblerContentList.value = emptyList()
 		initJob = launchJob(Dispatchers.Default) {
 			try {
 				val info = currentScrobbler.getScrobblingInfoOrNull(manga.id)

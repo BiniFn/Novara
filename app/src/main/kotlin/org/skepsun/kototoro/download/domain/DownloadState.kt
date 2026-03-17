@@ -2,12 +2,12 @@ package org.skepsun.kototoro.download.domain
 
 import androidx.work.Data
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import java.time.Instant
 
 data class DownloadState(
-	val manga: Manga,
+	val manga: Content,
 	val isIndeterminate: Boolean,
 	val isPaused: Boolean = false,
 	val isStopped: Boolean = false,
@@ -19,7 +19,7 @@ data class DownloadState(
 	val currentPage: Int = 0,
 	val eta: Long = -1L,
 	val isStuck: Boolean = false,
-	val localManga: LocalManga? = null,
+	val localContent: LocalContent? = null,
 	val downloadedChapters: Int = 0,
 	val timestamp: Long = System.currentTimeMillis(),
 ) {
@@ -31,10 +31,10 @@ data class DownloadState(
 	val percent: Float = if (max > 0) progress.toFloat() / max else PROGRESS_NONE
 
 	val isFinalState: Boolean
-		get() = localManga != null || (error != null && !isPaused)
+		get() = localContent != null || (error != null && !isPaused)
 
 	val isParticularProgress: Boolean
-		get() = localManga == null && error == null && !isPaused && !isStopped && max > 0 && !isIndeterminate
+		get() = localContent == null && error == null && !isPaused && !isStopped && max > 0 && !isIndeterminate
 
 	fun toWorkData() = Data.Builder()
 		.putLong(DATA_MANGA_ID, manga.id)
@@ -62,7 +62,7 @@ data class DownloadState(
 		private const val DATA_INDETERMINATE = "indeterminate"
 		private const val DATA_PAUSED = "paused"
 
-		fun getMangaId(data: Data): Long = data.getLong(DATA_MANGA_ID, 0L)
+		fun getContentId(data: Data): Long = data.getLong(DATA_MANGA_ID, 0L)
 
 		fun isIndeterminate(data: Data): Boolean = data.getBoolean(DATA_INDETERMINATE, false)
 

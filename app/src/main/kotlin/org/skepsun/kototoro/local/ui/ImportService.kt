@@ -29,8 +29,8 @@ import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
 import org.skepsun.kototoro.local.data.importer.ImportMode
-import org.skepsun.kototoro.local.data.importer.SingleMangaImporter
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.data.importer.SingleContentImporter
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
@@ -38,7 +38,7 @@ import javax.inject.Inject
 class ImportService : CoroutineIntentService() {
 
 	@Inject
-	lateinit var importer: SingleMangaImporter
+	lateinit var importer: SingleContentImporter
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -116,7 +116,7 @@ class ImportService : CoroutineIntentService() {
 		)
 	}
 
-	private suspend fun buildSuccessNotification(startId: Int, manga: Manga, totalCount: Int): Notification {
+	private suspend fun buildSuccessNotification(startId: Int, manga: Content, totalCount: Int): Notification {
 		val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
 			.setPriority(NotificationCompat.PRIORITY_DEFAULT)
 			.setDefaults(0)

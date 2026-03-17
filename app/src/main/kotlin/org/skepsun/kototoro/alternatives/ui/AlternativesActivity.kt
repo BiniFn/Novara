@@ -29,13 +29,13 @@ import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
 import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
 import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class AlternativesActivity : BaseActivity<ActivityAlternativesBinding>(),
 	ListStateHolderListener,
-	OnListItemClickListener<MangaAlternativeModel> {
+	OnListItemClickListener<ContentAlternativeModel> {
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -88,7 +88,7 @@ class AlternativesActivity : BaseActivity<ActivityAlternativesBinding>(),
 		return insets.consumeAllSystemBarsInsets()
 	}
 
-	override fun onItemClick(item: MangaAlternativeModel, view: View) {
+	override fun onItemClick(item: ContentAlternativeModel, view: View) {
 		when (view.id) {
 			R.id.chip_source -> router.openSearch(item.manga.source, viewModel.manga.title)
 			R.id.button_migrate -> confirmMigration(item.manga)
@@ -102,7 +102,7 @@ class AlternativesActivity : BaseActivity<ActivityAlternativesBinding>(),
 
 	override fun onFooterButtonClick() = viewModel.continueSearch()
 
-	private fun confirmMigration(target: Manga) {
+	private fun confirmMigration(target: Content) {
 		buildAlertDialog(this, isCentered = true) {
 			setIcon(R.drawable.ic_replace)
 			setTitle(R.string.manga_migration)

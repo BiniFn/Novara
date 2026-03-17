@@ -9,13 +9,13 @@ import androidx.preference.SwitchPreferenceCompat
 import org.skepsun.kototoro.R
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import org.skepsun.kototoro.core.parser.EmptyMangaRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.EmptyContentRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.network.UserAgents
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.settings.utils.AutoCompleteTextViewPreference
@@ -28,9 +28,9 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getUnsupportedSourceTitleResId
 import org.skepsun.kototoro.core.model.unwrap
 
-fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: MangaRepository) {
+fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: ContentRepository) {
 	when (repository) {
-		is ParserMangaRepository -> {
+		is ParserContentRepository -> {
 			lifecycleScope.launch {
 				addPreferencesFromParserRepository(repository)
 			}
@@ -40,12 +40,12 @@ fun PreferenceFragmentCompat.addPreferencesFromRepository(repository: MangaRepos
 				addPreferencesFromParserRepository(repository)
 			}
 		}
-		is EmptyMangaRepository -> addPreferencesFromEmptyRepository()
+		is EmptyContentRepository -> addPreferencesFromEmptyRepository()
 		else -> Unit
 	}
 }
 
-private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(repository: MangaRepository) {
+private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(repository: ContentRepository) {
 	addPreferencesFromResource(R.xml.pref_source_parser)
 	val configKeys = repository.getConfigKeys()
 	val screen = preferenceScreen
@@ -160,7 +160,7 @@ private fun PreferenceFragmentCompat.addPreferencesFromEmptyRepository() {
 	preference.isSelectable = false
 	preference.order = 200
 	val sourceName = arguments?.getString(org.skepsun.kototoro.core.nav.AppRouter.KEY_SOURCE)
-	val source = sourceName?.let { org.skepsun.kototoro.core.model.MangaSource(it) }
+	val source = sourceName?.let { org.skepsun.kototoro.core.model.ContentSource(it) }
 	val contentType = source?.getContentType() ?: ContentType.MANGA
 	preference.setSummary(contentType.getUnsupportedSourceTitleResId())
 	preferenceScreen.addPreference(preference)

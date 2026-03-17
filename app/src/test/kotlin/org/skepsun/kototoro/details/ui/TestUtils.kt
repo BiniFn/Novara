@@ -1,10 +1,10 @@
 package org.skepsun.kototoro.details.ui
 
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
- * Test MangaSource for property tests
+ * Test ContentSource for property tests
  */
-object TestMangaSource : MangaSource {
+object TestContentSource : ContentSource {
     override val name: String = "TestSource"
 }

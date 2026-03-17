@@ -5,7 +5,7 @@ import okhttp3.Response
 import okio.IOException
 import org.skepsun.kototoro.core.exceptions.CloudFlareBlockedException
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 
 class CloudFlareInterceptor : Interceptor {
@@ -17,14 +17,14 @@ class CloudFlareInterceptor : Interceptor {
 			CloudFlareHelper.PROTECTION_BLOCKED -> response.closeThrowing(
 				CloudFlareBlockedException(
 					url = request.url.toString(),
-					source = request.tag(MangaSource::class.java),
+					source = request.tag(ContentSource::class.java),
 				),
 			)
 
 			CloudFlareHelper.PROTECTION_CAPTCHA -> response.closeThrowing(
 				CloudFlareProtectedException(
 					url = request.url.toString(),
-					source = request.tag(MangaSource::class.java),
+					source = request.tag(ContentSource::class.java),
 					headers = request.headers,
 				),
 			)

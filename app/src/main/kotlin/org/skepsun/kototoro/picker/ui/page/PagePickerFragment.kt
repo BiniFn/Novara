@@ -79,7 +79,7 @@ class PagePickerFragment :
 		viewModel.isLoading.observe(viewLifecycleOwner) { binding.progressBar.showOrHide(it) }
 		viewModel.isLoadingDown.observe(viewLifecycleOwner) { binding.progressBarBottom.showOrHide(it) }
 		viewModel.manga.observe(viewLifecycleOwner, Lifecycle.State.RESUMED) {
-			activity?.title = it?.toManga()?.title.ifNullOrEmpty { getString(R.string.pick_manga_page) }
+			activity?.title = it?.toContent()?.title.ifNullOrEmpty { getString(R.string.pick_manga_page) }
 		}
 	}
 
@@ -104,7 +104,7 @@ class PagePickerFragment :
 	}
 
 	override fun onItemClick(item: PageThumbnail, view: View) {
-		val manga = viewModel.manga.value?.toManga() ?: return
+		val manga = viewModel.manga.value?.toContent() ?: return
 		(activity as PageImagePickActivity).onPagePicked(manga, item.page)
 	}
 

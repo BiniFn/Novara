@@ -16,7 +16,7 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.firstNotNull
 import org.skepsun.kototoro.core.util.ext.requireValue
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.reader.domain.ChaptersLoader
@@ -85,13 +85,13 @@ class PagesViewModel @Inject constructor(
 		pages: Set<ReaderPage>,
 	) {
 		launchLoadingJob(Dispatchers.Default) {
-			val manga = state.requireValue().details.toManga()
+			val manga = state.requireValue().details.toContent()
 			val tasks = pages.map {
 				PageSaveHelper.Task(
 					manga = manga,
 					chapterId = it.chapterId,
 					pageNumber = it.index + 1,
-					page = it.toMangaPage(),
+					page = it.toContentPage(),
 				)
 			}
 			val dest = pageSaveHelper.save(tasks)
@@ -153,7 +153,7 @@ class PagesViewModel @Inject constructor(
 	}
 
 	data class State(
-		val details: MangaDetails,
+		val details: ContentDetails,
 		val readerState: ReaderState?,
 		val branch: String?
 	)

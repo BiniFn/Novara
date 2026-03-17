@@ -1,10 +1,10 @@
 package org.skepsun.kototoro.aniyomi.model
 
 import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
- * Wrapper that adapts an Aniyomi AnimeCatalogueSource to Kototoro's MangaSource interface.
+ * Wrapper that adapts an Aniyomi AnimeCatalogueSource to Kototoro's ContentSource interface.
  */
 data class AniyomiAnimeSource(
     val animeCatalogueSource: AnimeCatalogueSource,
@@ -14,7 +14,7 @@ data class AniyomiAnimeSource(
      * Whether this source should display its language in the name.
      */
     val hasLanguageSuffix: Boolean = false,
-) : MangaSource {
+) : ContentSource {
     
     /**
      * The source name, following the Aniyomi convention: ANIYOMI_{sourceId}
@@ -52,7 +52,7 @@ data class AniyomiAnimeSource(
     
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is MangaSource) return false
+        if (other !is ContentSource) return false
         return name == other.name
     }
     

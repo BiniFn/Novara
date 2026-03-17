@@ -19,8 +19,8 @@ import org.skepsun.kototoro.parsers.util.parseJson
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -94,7 +94,7 @@ class BangumiRepository @Inject constructor(
 		storage.clear()
 	}
 
-	override suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
+	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
 		val requestBody = JSONObject().apply {
 			put("keyword", query)
 			put("filter", JSONObject().apply {
@@ -109,7 +109,7 @@ class BangumiRepository @Inject constructor(
 		val response = okHttp.newCall(request.build()).await().parseJson()
 		val data = response.getJSONArray("data")
 		return data.mapJSON { json ->
-			ScrobblerManga(
+			ScrobblerContent(
 				id = json.getLong("id"),
 				name = json.getString("name_cn").ifBlank { json.getString("name") },
 				altName = json.getString("name"),
@@ -120,18 +120,18 @@ class BangumiRepository @Inject constructor(
 		}
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
+	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.BANGUMI.id,
-			id = scrobblerMangaId.toInt(),
+			id = scrobblerContentId.toInt(),
 			mangaId = mangaId,
-			targetId = scrobblerMangaId,
+			targetId = scrobblerContentId,
 			status = "do",
 			chapter = 0,
 			comment = "",
 			rating = 0f,
 		)
-		updateCollection(scrobblerMangaId, 2, null, null, null)
+		updateCollection(scrobblerContentId, 2, null, null, null)
 		db.getScrobblingDao().upsert(entity)
 	}
 
@@ -174,12 +174,12 @@ class BangumiRepository @Inject constructor(
 		okHttp.newCall(request.build()).await()
 	}
 
-	override suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
+	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
 			.url("${API_URL}v0/subjects/$id")
 			.get()
 		val json = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerMangaInfo(
+		return ScrobblerContentInfo(
 			id = json.getLong("id"),
 			name = json.getString("name_cn").ifBlank { json.getString("name") },
 			cover = json.getJSONObject("images").getString("large"),
@@ -216,7 +216,7 @@ class BangumiRepository @Inject constructor(
 			for (i in 0 until data.length()) {
 				val item = data.optJSONObject(i) ?: continue
 				val subjectId = item.optJSONObject("subject")?.optLong("id") ?: continue
-				val mappedMangaId = oldMappings[subjectId] ?: 0L
+				val mappedContentId = oldMappings[subjectId] ?: 0L
 				val typeInt = item.optInt("type", 0)
 				val statusStr = when (typeInt) {
 					1 -> "wish"
@@ -230,7 +230,7 @@ class BangumiRepository @Inject constructor(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.BANGUMI.id,
 						id = subjectId.toInt(),
-						mangaId = mappedMangaId,
+						mangaId = mappedContentId,
 						targetId = subjectId,
 						status = statusStr,
 						chapter = item.optInt("ep_status", 0),

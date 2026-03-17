@@ -5,29 +5,29 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.cache.MemoryContentCache
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.mihon.model.MihonMangaSource
-import org.skepsun.kototoro.mihon.model.getPublicMangaUrl
+import org.skepsun.kototoro.mihon.model.getPublicContentUrl
 import org.skepsun.kototoro.mihon.model.toKotoChapter
-import org.skepsun.kototoro.mihon.model.toKotoManga
+import org.skepsun.kototoro.mihon.model.toKotoContent
 import org.skepsun.kototoro.mihon.model.toKotoPage
 import org.skepsun.kototoro.mihon.model.toMihonChapter
 import org.skepsun.kototoro.mihon.model.toMihonManga
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 /**
- * Repository that adapts a Mihon CatalogueSource to Kototoro's MangaRepository interface.
+ * Repository that adapts a Mihon CatalogueSource to Kototoro's ContentRepository interface.
  */
 class MihonMangaRepository(
     override val source: MihonMangaSource,
     cache: MemoryContentCache,
-) : CachingMangaRepository(cache) {
+) : CachingContentRepository(cache) {
     
     companion object {
         private const val TAG = "MihonMangaRepository"
@@ -67,8 +67,8 @@ class MihonMangaRepository(
         }
     }
     
-    override val filterCapabilities: MangaListFilterCapabilities
-        get() = MangaListFilterCapabilities(
+    override val filterCapabilities: ContentListFilterCapabilities
+        get() = ContentListFilterCapabilities(
             isSearchSupported = true,
             isMultipleTagsSupported = true,
             isSearchWithFiltersSupported = true,
@@ -79,8 +79,8 @@ class MihonMangaRepository(
     override suspend fun getList(
         offset: Int,
         order: SortOrder?,
-        filter: MangaListFilter?,
-    ): List<Manga> = withContext(Dispatchers.IO) {
+        filter: ContentListFilter?,
+    ): List<Content> = withContext(Dispatchers.IO) {
         if (offset == 0) {
             currentPage = 1
         } else if (offset > lastOffset) {
@@ -97,29 +97,29 @@ class MihonMangaRepository(
         
         val mangasPage = when {
             hasFilters -> {
-                mihonSource.getSearchManga(page, query ?: "", filter?.toMihonFilterList() ?: FilterList())
+                mihonSource.getSearchContent(page, query ?: "", filter?.toMihonFilterList() ?: FilterList())
             }
             order == SortOrder.UPDATED && mihonSource.supportsLatest -> {
                 mihonSource.getLatestUpdates(page)
             }
             else -> {
-                mihonSource.getPopularManga(page)
+                mihonSource.getPopularContent(page)
             }
         }
         
-        mangasPage.mangas.map { sManga ->
-            sManga.toKotoManga(
+        mangasPage.mangas.map { sContent ->
+            sContent.toKotoContent(
                 source = source,
-                publicUrl = (mihonSource as? HttpSource)?.getPublicMangaUrl(sManga) ?: "",
+                publicUrl = (mihonSource as? HttpSource)?.getPublicContentUrl(sContent) ?: "",
             )
         }
     }
     
-    override suspend fun getDetailsImpl(manga: Manga): Manga = withContext(Dispatchers.IO) {
-        val sManga = manga.toMihonManga()
+    override suspend fun getDetailsImpl(manga: Content): Content = withContext(Dispatchers.IO) {
+        val sContent = manga.toMihonManga()
         
         val details = try {
-            mihonSource.getMangaDetails(sManga)
+            mihonSource.getContentDetails(sContent)
         } catch (e: Exception) {
             val ioException = when {
                 e is java.io.IOException -> e
@@ -129,14 +129,14 @@ class MihonMangaRepository(
             
             if (ioException != null) {
                 kotlinx.coroutines.delay(500)
-                mihonSource.getMangaDetails(sManga)
+                mihonSource.getContentDetails(sContent)
             } else {
                 throw e
             }
         }
         
         val rawChapters = try {
-            mihonSource.getChapterList(sManga)
+            mihonSource.getChapterList(sContent)
         } catch (e: Exception) {
             val ioException = when {
                 e is java.io.IOException -> e
@@ -146,7 +146,7 @@ class MihonMangaRepository(
             
             if (ioException != null) {
                 kotlinx.coroutines.delay(500)
-                mihonSource.getChapterList(sManga)
+                mihonSource.getChapterList(sContent)
             } else {
                 throw e
             }
@@ -172,20 +172,20 @@ class MihonMangaRepository(
             .sortedBy { it.number } // Kototoro 内部列表始终保持升序
         
         // Copy missing fields from original manga to details
-        // Some sources don't return all fields in getMangaDetails, or return them empty.
-        details.url = sManga.url
+        // Some sources don't return all fields in getContentDetails, or return them empty.
+        details.url = sContent.url
         
         // Title fallback
         val detailsTitle = try { details.title } catch (e: Exception) { "" }
         if (detailsTitle.isBlank()) {
-            details.title = sManga.title
+            details.title = sContent.title
         }
         
         // Thumbnail fallback - IMPORTANT: many sources return empty or same-as-manga-url thumbnail in details
         val detailsThumb = try { details.thumbnail_url } catch (e: Exception) { null }
-        val searchThumb = try { sManga.thumbnail_url } catch (e: Exception) { null }
+        val searchThumb = try { sContent.thumbnail_url } catch (e: Exception) { null }
         
-        if (detailsThumb.isNullOrBlank() || detailsThumb == details.url || detailsThumb == sManga.url) {
+        if (detailsThumb.isNullOrBlank() || detailsThumb == details.url || detailsThumb == sContent.url) {
             if (!searchThumb.isNullOrBlank()) {
                 android.util.Log.d("MihonMangaRepository", "Detail thumb is invalid/missing, falling back to search thumb: $searchThumb")
                 details.thumbnail_url = searchThumb
@@ -194,16 +194,16 @@ class MihonMangaRepository(
         
         android.util.Log.d("MihonMangaRepository", "Final details thumbnail: ${try { details.thumbnail_url } catch (e: Exception) { "uninitialized" }}")
         
-        val publicUrl = (mihonSource as? HttpSource)?.getPublicMangaUrl(details) ?: ""
+        val publicUrl = (mihonSource as? HttpSource)?.getPublicContentUrl(details) ?: ""
         
-        details.toKotoManga(
+        details.toKotoContent(
             source = source,
             chapters = chapters,
             publicUrl = publicUrl,
         ).copy(id = manga.id)
     }
     
-    override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = withContext(Dispatchers.IO) {
+    override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> = withContext(Dispatchers.IO) {
         val sChapter = chapter.toMihonChapter()
         val pages = mihonSource.getPageList(sChapter)
         
@@ -239,7 +239,7 @@ class MihonMangaRepository(
         }
     }
     
-    override suspend fun getPageUrl(page: MangaPage): String = withContext(Dispatchers.IO) {
+    override suspend fun getPageUrl(page: ContentPage): String = withContext(Dispatchers.IO) {
         val url = page.url
         
         if (url.startsWith("mihon://resolve")) {
@@ -264,7 +264,7 @@ class MihonMangaRepository(
         }
     }
     
-    override suspend fun getFilterOptions(): MangaListFilterOptions {
+    override suspend fun getFilterOptions(): ContentListFilterOptions {
         val mihonFilters = try {
             mihonSource.getFilterList()
         } catch (e: Exception) {
@@ -274,7 +274,7 @@ class MihonMangaRepository(
         return MihonFilterMapper.mapOptions(mihonFilters, source)
     }
 
-    private fun MangaListFilter.toMihonFilterList(): FilterList {
+    private fun ContentListFilter.toMihonFilterList(): FilterList {
         val mihonFilters = try {
             mihonSource.getFilterList()
         } catch (e: Exception) {
@@ -295,7 +295,7 @@ class MihonMangaRepository(
         return map
     }
     
-    override fun createPageRequest(pageUrl: String, page: MangaPage): okhttp3.Request {
+    override fun createPageRequest(pageUrl: String, page: ContentPage): okhttp3.Request {
         if (pageUrl.isBlank()) return super.createPageRequest(pageUrl, page)
         val httpSource = mihonSource as? HttpSource ?: return super.createPageRequest(pageUrl, page)
         val sPage = page.toMihonPage(pageUrl)
@@ -314,7 +314,7 @@ class MihonMangaRepository(
         }
     }
 
-    private fun MangaPage.toMihonPage(imageUrl: String): eu.kanade.tachiyomi.source.model.Page {
+    private fun ContentPage.toMihonPage(imageUrl: String): eu.kanade.tachiyomi.source.model.Page {
         return eu.kanade.tachiyomi.source.model.Page(
             index = id.toInt(), // Use id as index
             url = url,
@@ -322,5 +322,5 @@ class MihonMangaRepository(
         )
     }
     
-    override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> = emptyList()
+    override suspend fun getRelatedContentImpl(seed: Content): List<Content> = emptyList()
 }

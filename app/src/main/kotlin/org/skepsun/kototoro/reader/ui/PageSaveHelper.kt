@@ -36,8 +36,8 @@ import org.skepsun.kototoro.core.util.ext.isZipUri
 import org.skepsun.kototoro.core.util.ext.toFileNameSafe
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
 import org.skepsun.kototoro.core.util.ext.writeAllCancellable
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.reader.domain.PageLoader
 import java.io.File
 import java.text.SimpleDateFormat
@@ -238,10 +238,10 @@ class PageSaveHelper @AssistedInject constructor(
 	)
 
 	data class Task(
-		val manga: Manga,
+		val manga: Content,
 		val chapterId: Long,
 		val pageNumber: Int,
-		val page: MangaPage,
+		val page: ContentPage,
 	) {
 
 		fun getFileBaseName() = buildString {

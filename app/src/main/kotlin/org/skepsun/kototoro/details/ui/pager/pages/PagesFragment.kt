@@ -40,7 +40,7 @@ import org.skepsun.kototoro.core.util.ext.setTextAndVisible
 import org.skepsun.kototoro.core.util.ext.showOrHide
 import org.skepsun.kototoro.databinding.FragmentPagesBinding
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
-import org.skepsun.kototoro.details.ui.pager.EmptyMangaReason
+import org.skepsun.kototoro.details.ui.pager.EmptyContentReason
 import org.skepsun.kototoro.list.ui.GridSpanResolver
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
@@ -173,7 +173,7 @@ class PagesFragment :
 		} else {
 			router.openReader(
 				ReaderIntent.Builder(view.context)
-					.manga(parentViewModel.getMangaOrNull() ?: return)
+					.manga(parentViewModel.getContentOrNull() ?: return)
 					.state(ReaderState(item.page.chapterId, item.page.index, 0))
 					.build(),
 			)
@@ -245,7 +245,7 @@ class PagesFragment :
 		spanResolver?.setGridSize(scale, requireViewBinding().recyclerView)
 	}
 
-	private fun onNoChaptersChanged(reason: EmptyMangaReason?) {
+	private fun onNoChaptersChanged(reason: EmptyContentReason?) {
 		with(viewBinding ?: return) {
 			textViewHolder.setTextAndVisible(reason?.msgResId ?: 0)
 			recyclerView.isInvisible = reason != null

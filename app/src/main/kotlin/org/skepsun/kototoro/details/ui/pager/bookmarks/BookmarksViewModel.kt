@@ -22,12 +22,12 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.requireValue
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import javax.inject.Inject
 
@@ -35,9 +35,9 @@ import javax.inject.Inject
 class BookmarksViewModel @Inject constructor(
 	private val bookmarksRepository: BookmarksRepository,
 	settings: AppSettings,
-) : BaseViewModel(), FlowCollector<MangaDetails?> {
+) : BaseViewModel(), FlowCollector<ContentDetails?> {
 
-	private val manga = MutableStateFlow<Manga?>(null)
+	private val manga = MutableStateFlow<Content?>(null)
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 
 	val gridScale = settings.observeAsStateFlow(
@@ -53,8 +53,8 @@ class BookmarksViewModel @Inject constructor(
 		.filterNotNull()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, listOf(LoadingState))
 
-	override suspend fun emit(value: MangaDetails?) {
-		manga.value = value?.toManga()
+	override suspend fun emit(value: ContentDetails?) {
+		manga.value = value?.toContent()
 	}
 
 	fun removeBookmarks(ids: Set<Long>) {
@@ -73,7 +73,7 @@ class BookmarksViewModel @Inject constructor(
 					manga = m,
 					chapterId = it.chapterId,
 					pageNumber = it.page + 1,
-					page = it.toMangaPage(),
+					page = it.toContentPage(),
 				)
 			}
 			val dest = pageSaveHelper.save(tasks)
@@ -82,7 +82,7 @@ class BookmarksViewModel @Inject constructor(
 		}
 	}
 
-	private fun mapList(manga: Manga, bookmarks: List<Bookmark>): List<ListModel>? {
+	private fun mapList(manga: Content, bookmarks: List<Bookmark>): List<ListModel>? {
 		val chapters = manga.chapters ?: return null
 		val bookmarksMap = bookmarks.groupBy { it.chapterId }
 		val result = ArrayList<ListModel>(bookmarks.size + bookmarksMap.size)

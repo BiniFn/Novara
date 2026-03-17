@@ -21,7 +21,7 @@ import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import javax.inject.Inject
 
@@ -65,7 +65,7 @@ class AllBookmarksViewModel @Inject constructor(
 					manga = it.manga,
 					chapterId = it.chapterId,
 					pageNumber = it.page + 1,
-					page = it.toMangaPage(),
+					page = it.toContentPage(),
 				)
 			}
 			val dest = pageSaveHelper.save(tasks)
@@ -74,7 +74,7 @@ class AllBookmarksViewModel @Inject constructor(
 		}
 	}
 
-	private fun mapList(data: Map<Manga, List<Bookmark>>): List<ListModel> {
+	private fun mapList(data: Map<Content, List<Bookmark>>): List<ListModel> {
 		val result = ArrayList<ListModel>(data.values.sumOf { it.size + 1 })
 		for ((manga, bookmarks) in data) {
 			result.add(ListHeader(manga.title, R.string.more, manga))

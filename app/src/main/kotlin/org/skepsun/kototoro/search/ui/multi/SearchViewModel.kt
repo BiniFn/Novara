@@ -22,7 +22,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
-import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
@@ -33,19 +33,19 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
@@ -64,9 +64,9 @@ private const val MAX_PARALLELISM = 4
 @HiltViewModel
 class SearchViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 	private val searchHelperFactory: SearchV2Helper.Factory,
-	private val sourcesRepository: MangaSourcesRepository,
+	private val sourcesRepository: ContentSourcesRepository,
 	private val sourceTypeIdentifier: SourceTypeIdentifier,
 	private val appSettings: AppSettings,
 	private val globalFavoritesState: GlobalFavoritesState,
@@ -136,9 +136,9 @@ class SearchViewModel @Inject constructor(
 		doSearch()
 	}
 
-	fun getItems(ids: LongSet): Set<Manga> {
+	fun getItems(ids: LongSet): Set<Content> {
 		val snapshot = results.value
-		val result = ArraySet<Manga>(ids.size)
+		val result = ArraySet<Content>(ids.size)
 		snapshot.forEach { x ->
 			for (item in x.list) {
 				if (item.id in ids) {
@@ -254,7 +254,7 @@ class SearchViewModel @Inject constructor(
 
 	// impl
 
-	private suspend fun searchSource(source: MangaSource): SearchResultsListModel? = runCatchingCancellable {
+	private suspend fun searchSource(source: ContentSource): SearchResultsListModel? = runCatchingCancellable {
 		val searchHelper = searchHelperFactory.create(source)
 		searchHelper(query, kind)
 	}.fold(
@@ -278,7 +278,7 @@ class SearchViewModel @Inject constructor(
 		},
 		onFailure = { error ->
 			error.printStackTraceDebug()
-			if (source is MangaParserSource && source.isBroken) {
+			if (source is ContentParserSource && source.isBroken) {
 				null
 			} else {
 				SearchResultsListModel(0, source, null, null, emptyList(), error)
@@ -290,11 +290,11 @@ class SearchViewModel @Inject constructor(
 		historyRepository.search(query, kind, Int.MAX_VALUE)
 	}.fold(
 		onSuccess = { result ->
-			val filtered = filterMangaBySourceType(result)
+			val filtered = filterContentBySourceType(result)
 			if (filtered.isNotEmpty()) {
 				SearchResultsListModel(
 					titleResId = R.string.history,
-					source = UnknownMangaSource,
+					source = UnknownContentSource,
 					list = mangaListMapper.toListModelList(manga = filtered, mode = ListMode.GRID),
 					error = null,
 					listFilter = null,
@@ -307,7 +307,7 @@ class SearchViewModel @Inject constructor(
 		onFailure = { error ->
 			SearchResultsListModel(
 				titleResId = R.string.history,
-				source = UnknownMangaSource,
+				source = UnknownContentSource,
 				list = emptyList(),
 				error = error,
 				listFilter = null,
@@ -320,15 +320,15 @@ class SearchViewModel @Inject constructor(
 		favouritesRepository.search(query, kind, Int.MAX_VALUE)
 	}.fold(
 		onSuccess = { result ->
-			val filtered = filterMangaBySourceType(result)
+			val filtered = filterContentBySourceType(result)
 			if (filtered.isNotEmpty()) {
 				SearchResultsListModel(
 					titleResId = R.string.favourites,
-					source = UnknownMangaSource,
+					source = UnknownContentSource,
 					list = mangaListMapper.toListModelList(
 						manga = filtered,
 						mode = ListMode.GRID,
-						flags = MangaListMapper.NO_FAVORITE,
+						flags = ContentListMapper.NO_FAVORITE,
 					),
 					error = null,
 					listFilter = null,
@@ -341,7 +341,7 @@ class SearchViewModel @Inject constructor(
 		onFailure = { error ->
 			SearchResultsListModel(
 				titleResId = R.string.favourites,
-				source = UnknownMangaSource,
+				source = UnknownContentSource,
 				list = emptyList(),
 				error = error,
 				listFilter = null,
@@ -365,7 +365,7 @@ class SearchViewModel @Inject constructor(
 					list = mangaListMapper.toListModelList(
 						manga = result.manga,
 						mode = ListMode.GRID,
-						flags = MangaListMapper.NO_SAVED,
+						flags = ContentListMapper.NO_SAVED,
 					),
 					error = null,
 					listFilter = result.listFilter,
@@ -393,7 +393,7 @@ class SearchViewModel @Inject constructor(
 		}
 	}
 
-	private fun filterSourcesByType(sources: Collection<MangaSource>): List<MangaSource> {
+	private fun filterSourcesByType(sources: Collection<ContentSource>): List<ContentSource> {
 		val allowedSourceTypes = sourceTypes.value
 		val allowedContentKinds = contentKinds.value
 		return sources.filter { source ->
@@ -402,7 +402,7 @@ class SearchViewModel @Inject constructor(
 		}
 	}
 
-	private fun filterMangaBySourceType(manga: List<Manga>): List<Manga> {
+	private fun filterContentBySourceType(manga: List<Content>): List<Content> {
 		val allowedSourceTypes = sourceTypes.value
 		val allowedContentKinds = contentKinds.value
 		return manga.filter { item ->
@@ -411,14 +411,14 @@ class SearchViewModel @Inject constructor(
 		}
 	}
 
-	private fun isSourceTypeAllowed(source: MangaSource): Boolean {
+	private fun isSourceTypeAllowed(source: ContentSource): Boolean {
 		return sourceTypeIdentifier.getSourceType(source.name) in sourceTypes.value &&
 			contentKinds.value.any { it.matches(source) }
 	}
 
-	private fun MangaSource.priority(): Int {
+	private fun ContentSource.priority(): Int {
 		var res = 0
-		if (this is MangaParserSource) {
+		if (this is ContentParserSource) {
 			if (locale.toLocale() == Locale.getDefault()) res += 2
 		}
 		return res

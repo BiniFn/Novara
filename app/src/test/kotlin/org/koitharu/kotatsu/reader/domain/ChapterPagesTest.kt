@@ -3,7 +3,7 @@ package org.skepsun.kototoro.reader.domain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.skepsun.kototoro.core.model.TestMangaSource
+import org.skepsun.kototoro.core.model.TestContentSource
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import kotlin.random.Random
 
@@ -74,6 +74,6 @@ class ChapterPagesTest {
 		headers = null,
 		chapterId = chapterId,
 		index = Random.nextInt(),
-		source = TestMangaSource,
+		source = TestContentSource,
 	)
 }

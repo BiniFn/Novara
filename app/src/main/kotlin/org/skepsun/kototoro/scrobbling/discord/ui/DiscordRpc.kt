@@ -27,7 +27,7 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.lifecycleScope
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.scrobbling.discord.data.DiscordRepository
@@ -82,7 +82,7 @@ class DiscordRpc @Inject constructor(
 	}
 
 	@AnyThread
-	fun updateRpc(manga: Manga, state: ReaderUiState) {
+	fun updateRpc(manga: Content, state: ReaderUiState) {
 		getRpc()?.run {
 			if (settings.isDiscordRpcSkipNsfw && manga.isNsfw()) {
 				clearRpc()

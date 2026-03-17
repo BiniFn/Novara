@@ -18,8 +18,8 @@ import coil3.toBitmap
 import okio.buffer
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.image.RegionBitmapDecoder
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 fun ImageRequest.Builder.enqueueWith(loader: ImageLoader) = loader.enqueue(build())
 
@@ -48,11 +48,11 @@ fun ImageRequest.Builder.decodeRegion(
 	extras[RegionBitmapDecoder.regionScrollKey] = scroll
 }
 
-fun ImageRequest.Builder.mangaSourceExtra(source: MangaSource?): ImageRequest.Builder = apply {
+fun ImageRequest.Builder.mangaSourceExtra(source: ContentSource?): ImageRequest.Builder = apply {
 	extras[mangaSourceKey] = source
 }
 
-fun ImageRequest.Builder.mangaExtra(manga: Manga?): ImageRequest.Builder = apply {
+fun ImageRequest.Builder.mangaExtra(manga: Content?): ImageRequest.Builder = apply {
 	extras[mangaKey] = manga
 	mangaSourceExtra(manga?.source)
 }
@@ -68,9 +68,9 @@ suspend fun ImageLoader.fetch(data: Any, options: Options): FetchResult? {
 	return fetcher?.fetch()
 }
 
-val mangaKey = Extras.Key<Manga?>(null)
+val mangaKey = Extras.Key<Content?>(null)
 val bookmarkKey = Extras.Key<Bookmark?>(null)
-val mangaSourceKey = Extras.Key<MangaSource?>(null)
+val mangaSourceKey = Extras.Key<ContentSource?>(null)
 
 @CheckResult
 fun SourceFetchResult.copyWithNewSource(): SourceFetchResult = SourceFetchResult(

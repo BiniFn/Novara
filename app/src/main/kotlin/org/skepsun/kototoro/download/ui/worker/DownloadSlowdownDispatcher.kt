@@ -3,21 +3,21 @@ package org.skepsun.kototoro.download.ui.worker
 import android.os.SystemClock
 import androidx.collection.MutableObjectLongMap
 import kotlinx.coroutines.delay
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DownloadSlowdownDispatcher @Inject constructor(
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val settings: AppSettings,
 ) {
-	private val timeMap = MutableObjectLongMap<MangaSource>()
+	private val timeMap = MutableObjectLongMap<ContentSource>()
 
-	suspend fun delay(source: MangaSource) {
+	suspend fun delay(source: ContentSource) {
 		val repo = mangaRepositoryFactory.create(source)
 		if (!repo.isSlowdownEnabled()) {
 			return

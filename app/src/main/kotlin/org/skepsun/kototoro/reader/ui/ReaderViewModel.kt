@@ -31,13 +31,13 @@ import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
-import org.skepsun.kototoro.core.exceptions.EmptyMangaException
+import org.skepsun.kototoro.core.exceptions.EmptyContentException
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.model.getLocale
-import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.core.os.AppShortcutManager
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.prefs.TriStateOption
@@ -47,21 +47,21 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.firstNotNull
 import org.skepsun.kototoro.core.util.ext.requireValue
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.DetailsInteractor
 import org.skepsun.kototoro.details.domain.DetailsLoadUseCase
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
-import org.skepsun.kototoro.details.ui.pager.EmptyMangaReason
+import org.skepsun.kototoro.details.ui.pager.EmptyContentReason
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.DeleteLocalMangaUseCase
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.sizeOrZero
@@ -84,7 +84,7 @@ private const val LOG_TAG = "ReaderViewModel"
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    private val dataRepository: MangaDataRepository,
+    private val dataRepository: ContentDataRepository,
     private val historyRepository: HistoryRepository,
     private val bookmarksRepository: BookmarksRepository,
     settings: AppSettings,
@@ -96,9 +96,9 @@ class ReaderViewModel @Inject constructor(
     private val detectReaderModeUseCase: DetectReaderModeUseCase,
     private val statsCollector: StatsCollector,
     private val discordRpc: DiscordRpc,
-    @LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
+    @LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
     interactor: DetailsInteractor,
-    deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
+    deleteLocalContentUseCase: DeleteLocalContentUseCase,
     downloadScheduler: DownloadWorker.Scheduler,
     readerSettingsProducerFactory: ReaderSettings.Producer.Factory,
 ) : ChaptersPagesViewModel(
@@ -107,7 +107,7 @@ class ReaderViewModel @Inject constructor(
     bookmarksRepository = bookmarksRepository,
     historyRepository = historyRepository,
     downloadScheduler = downloadScheduler,
-    deleteLocalMangaUseCase = deleteLocalMangaUseCase,
+    deleteLocalContentUseCase = deleteLocalContentUseCase,
     localStorageChanges = localStorageChanges,
 ) {
     data class TranslationPageTaskSnapshot(
@@ -119,7 +119,7 @@ class ReaderViewModel @Inject constructor(
         val failCode: String?,
     )
 
-    private val intent = MangaIntent(savedStateHandle)
+    private val intent = ContentIntent(savedStateHandle)
 
     private var loadingJob: Job? = null
     private var pageSaveJob: Job? = null
@@ -127,7 +127,7 @@ class ReaderViewModel @Inject constructor(
     private var stateChangeJob: Job? = null
 
     init {
-        mangaDetails.value = intent.manga?.let { MangaDetails(it) }
+        mangaDetails.value = intent.manga?.let { ContentDetails(it) }
     }
 
     val readerMode = MutableStateFlow<ReaderMode?>(null)
@@ -208,10 +208,10 @@ class ReaderViewModel @Inject constructor(
         manga.mapNotNull { it?.id },
     )
 
-    val isMangaNsfw = manga.map { it?.contentRating == ContentRating.ADULT }
+    val isContentNsfw = manga.map { it?.contentRating == ContentRating.ADULT }
 
     val isBookmarkAdded = readingState.flatMapLatest { state ->
-        val manga = mangaDetails.value?.toManga()
+        val manga = mangaDetails.value?.toContent()
         if (state == null || manga == null) {
             flowOf(false)
         } else {
@@ -230,7 +230,7 @@ class ReaderViewModel @Inject constructor(
         launchJob(Dispatchers.Default) {
             val mangaId = manga.filterNotNull().first().id
             if (!isIncognitoMode.firstNotNull()) {
-                appShortcutManager.notifyMangaOpened(mangaId)
+                appShortcutManager.notifyContentOpened(mangaId)
             }
         }
     }
@@ -314,9 +314,9 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    fun isTranslationBypassedForCurrentManga(): Boolean {
+    fun isTranslationBypassedForCurrentContent(): Boolean {
         if (!settings.isReaderTranslationEnabled) return false
-        val sourceLang = getMangaOrNull()?.source?.getLocale()?.language?.lowercase().orEmpty()
+        val sourceLang = getContentOrNull()?.source?.getLocale()?.language?.lowercase().orEmpty()
         if (sourceLang.isBlank()) return false
         val targetLang = settings.readerTranslationTargetLanguage
             .lowercase()
@@ -326,17 +326,17 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun getTranslationBypassHint(context: Context): String? {
-        if (!isTranslationBypassedForCurrentManga()) return null
+        if (!isTranslationBypassedForCurrentContent()) return null
         val targetLang = settings.readerTranslationTargetLanguage
         return context.getString(R.string.reader_translation_bypass_hint, targetLang)
     }
 
     fun shouldShowTranslationToggle(): Boolean {
-        return settings.isReaderTranslationEnabled && !isTranslationBypassedForCurrentManga()
+        return settings.isReaderTranslationEnabled && !isTranslationBypassedForCurrentContent()
     }
 
     fun onPause() {
-        getMangaOrNull()?.let {
+        getContentOrNull()?.let {
             statsCollector.onPause(it.id)
         }
     }
@@ -351,7 +351,7 @@ class ReaderViewModel @Inject constructor(
 
     fun switchMode(newMode: ReaderMode) {
         launchJob {
-            val manga = checkNotNull(getMangaOrNull())
+            val manga = checkNotNull(getContentOrNull())
             dataRepository.saveReaderMode(
                 manga = manga,
                 mode = newMode,
@@ -373,7 +373,7 @@ class ReaderViewModel @Inject constructor(
         }
         val readerState = state ?: readingState.value ?: return
         historyUpdateUseCase.invokeAsync(
-            manga = getMangaOrNull() ?: return,
+            manga = getContentOrNull() ?: return,
             readerState = readerState,
             percent = computePercent(readerState.chapterId, readerState.page),
         )
@@ -381,7 +381,7 @@ class ReaderViewModel @Inject constructor(
 
     fun getCurrentState() = readingState.value
 
-    fun getCurrentChapterPages(): List<MangaPage>? {
+    fun getCurrentChapterPages(): List<ContentPage>? {
         val chapterId = readingState.value?.chapterId ?: return null
         return chaptersLoader.getPages(chapterId)
     }
@@ -398,28 +398,28 @@ class ReaderViewModel @Inject constructor(
             prevJob?.cancelAndJoin()
             val state = checkNotNull(getCurrentState())
             val targetPage = targetPagePosition.value ?: state.page
-            val currentManga = manga.requireValue()
+            val currentContent = manga.requireValue()
             val pages = content.value.pages
             val page = pages.find { it.chapterId == state.chapterId && it.index == targetPage }
                 ?: pages.find { it.chapterId == state.chapterId && it.index == state.page }
                 ?: throw IllegalStateException("Cannot find current page")
 
             val task = PageSaveHelper.Task(
-                manga = currentManga,
+                manga = currentContent,
                 chapterId = state.chapterId,
                 pageNumber = targetPage + 1,
-                page = page.toMangaPage(),
+                page = page.toContentPage(),
             )
             val dest = pageSaveHelper.save(setOf(task))
             onPageSaved.call(dest)
         }
     }
 
-    fun getCurrentPage(): MangaPage? {
+    fun getCurrentPage(): ContentPage? {
         val state = readingState.value ?: return null
         return content.value.pages.find {
             it.chapterId == state.chapterId && it.index == state.page
-        }?.toMangaPage()
+        }?.toContentPage()
     }
 
     fun switchChapter(id: Long, page: Int) {
@@ -544,13 +544,13 @@ class ReaderViewModel @Inject constructor(
             loadingJob?.join()
             val state = checkNotNull(getCurrentState())
             if (isBookmarkAdded.value) {
-                val manga = requireManga()
+                val manga = requireContent()
                 bookmarksRepository.removeBookmark(manga.id, state.chapterId, state.page)
                 onShowToast.call(R.string.bookmark_removed)
             } else {
                 val page = checkNotNull(getCurrentPage()) { "Page not found" }
                 val bookmark = Bookmark(
-                    manga = requireManga(),
+                    manga = requireContent(),
                     pageId = page.id,
                     chapterId = state.chapterId,
                     page = state.page,
@@ -591,7 +591,7 @@ class ReaderViewModel @Inject constructor(
     private fun loadImpl() {
         loadingJob = launchLoadingJob(Dispatchers.Default + EventExceptionHandler(onLoadingError)) {
             var exception: Exception? = null
-            var loadedDetails: MangaDetails? = null
+            var loadedDetails: ContentDetails? = null
             try {
                 detailsLoadUseCase(intent, force = false)
                     .collect { details ->
@@ -600,7 +600,7 @@ class ReaderViewModel @Inject constructor(
                             mangaDetails.value = details
                         }
                         chaptersLoader.init(details)
-                        val manga = details.toManga()
+                        val manga = details.toContent()
                         // obtain state
                         if (readingState.value == null) {
                             val newState = getStateFromIntent(manga)
@@ -641,22 +641,22 @@ class ReaderViewModel @Inject constructor(
                 exception = e.mergeWith(exception)
             }
             if (readingState.value == null) {
-                val loadedManga = loadedDetails // for smart cast
-                if (loadedManga != null) {
-                    mangaDetails.value = loadedManga.filterChapters(selectedBranch.value)
+                val loadedContent = loadedDetails // for smart cast
+                if (loadedContent != null) {
+                    mangaDetails.value = loadedContent.filterChapters(selectedBranch.value)
                 }
                 val loadingError = when {
                     exception != null -> exception
-                    loadedManga == null || !loadedManga.isLoaded -> null
-                    loadedManga.isRestricted -> EmptyMangaException(
-                        EmptyMangaReason.RESTRICTED,
-                        loadedManga.toManga(),
+                    loadedContent == null || !loadedContent.isLoaded -> null
+                    loadedContent.isRestricted -> EmptyContentException(
+                        EmptyContentReason.RESTRICTED,
+                        loadedContent.toContent(),
                         null,
                     )
 
-                    loadedManga.allChapters.isEmpty() -> EmptyMangaException(
-                        EmptyMangaReason.NO_CHAPTERS,
-                        loadedManga.toManga(),
+                    loadedContent.allChapters.isEmpty() -> EmptyContentException(
+                        EmptyContentReason.NO_CHAPTERS,
+                        loadedContent.toContent(),
                         null,
                     )
 
@@ -724,7 +724,7 @@ class ReaderViewModel @Inject constructor(
         val m = mangaDetails.value ?: return
         val chapterIndex = m.chapters[chapter.branch]?.indexOfFirst { it.id == chapter.id } ?: -1
         val newState = ReaderUiState(
-            mangaName = m.toManga().title,
+            mangaName = m.toContent().title,
             chapter = chapter,
             chapterIndex = chapterIndex,
             chaptersTotal = m.chapters[chapter.branch].sizeOrZero(),
@@ -736,7 +736,7 @@ class ReaderViewModel @Inject constructor(
         uiState.value = newState
         if (isIncognitoMode.value == false) {
             statsCollector.onStateChanged(m.id, state)
-            discordRpc.updateRpc(m.toManga(), newState)
+            discordRpc.updateRpc(m.toContent(), newState)
         }
     }
 
@@ -789,7 +789,7 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    private suspend fun getStateFromIntent(manga: Manga): ReaderState? {
+    private suspend fun getStateFromIntent(manga: Content): ReaderState? {
         // check if we have at least some chapters loaded
         if (manga.chapters.isNullOrEmpty()) {
             return null

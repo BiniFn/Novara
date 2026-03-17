@@ -20,8 +20,8 @@ import org.skepsun.kototoro.parsers.util.toAbsoluteUrl
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -92,7 +92,7 @@ class ShikimoriRepository @Inject constructor(
 		storage.clear()
 	}
 
-	override suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
+	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
 		val page = offset / MANGA_PAGE_SIZE
 		val pageOffset = offset % MANGA_PAGE_SIZE
 		val url = BASE_URL.toHttpUrl().newBuilder()
@@ -105,18 +105,18 @@ class ShikimoriRepository @Inject constructor(
 			.build()
 		val request = Request.Builder().url(url).get().build()
 		val response = okHttp.newCall(request).await().parseJsonArray()
-		val list = response.mapJSON { ScrobblerManga(it, query) }
+		val list = response.mapJSON { ScrobblerContent(it, query) }
 		return if (pageOffset != 0) list.drop(pageOffset) else list
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
+	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val user = cachedUser ?: loadUser()
 		val payload = JSONObject()
 		payload.put(
 			"user_rate",
 			JSONObject().apply {
-				put("target_id", scrobblerMangaId)
-				put("target_type", "Manga")
+				put("target_id", scrobblerContentId)
+				put("target_type", "Content")
 				put("user_id", user.id)
 			},
 		)
@@ -174,17 +174,17 @@ class ShikimoriRepository @Inject constructor(
 		saveRate(response, mangaId)
 	}
 
-	override suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
+	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
 			.get()
 			.url("${BASE_URL}api/mangas/$id")
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerMangaInfo(response)
+		return ScrobblerContentInfo(response)
 	}
 
 	/**
 	 * Sync all manga rates from Shikimori to local database.
-	 * Uses Shikimori API: GET /api/v2/user_rates?user_id={id}&target_type=Manga
+	 * Uses Shikimori API: GET /api/v2/user_rates?user_id={id}&target_type=Content
 	 */
 	suspend fun syncLibraryFromRemote(): Int {
 		val user = cachedUser ?: loadUser()
@@ -204,7 +204,7 @@ class ShikimoriRepository @Inject constructor(
 				.addPathSegment("v2")
 				.addPathSegment("user_rates")
 				.addEncodedQueryParameter("user_id", user.id.toString())
-				.addEncodedQueryParameter("target_type", "Manga")
+				.addEncodedQueryParameter("target_type", "Content")
 				.addEncodedQueryParameter("page", page.toString())
 				.addEncodedQueryParameter("limit", limit.toString())
 				.build()
@@ -216,12 +216,12 @@ class ShikimoriRepository @Inject constructor(
 				val json = data.optJSONObject(i) ?: continue
 				val targetId = json.optLong("target_id", 0L)
 				if (targetId == 0L) continue
-				val mappedMangaId = oldMappings[targetId] ?: 0L
+				val mappedContentId = oldMappings[targetId] ?: 0L
 				synced.add(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.SHIKIMORI.id,
 						id = json.getInt("id"),
-						mangaId = mappedMangaId,
+						mangaId = mappedContentId,
 						targetId = targetId,
 						status = json.getString("status"),
 						chapter = json.getInt("chapters"),
@@ -257,7 +257,7 @@ class ShikimoriRepository @Inject constructor(
 		db.getScrobblingDao().upsert(entity)
 	}
 
-	private fun ScrobblerManga(json: JSONObject, sourceTitle: String) = ScrobblerManga(
+	private fun ScrobblerContent(json: JSONObject, sourceTitle: String) = ScrobblerContent(
 		id = json.getLong("id"),
 		name = json.getString("name"),
 		altName = json.getStringOrNull("russian"),
@@ -267,7 +267,7 @@ class ShikimoriRepository @Inject constructor(
 			|| json.getStringOrNull("russian")?.equals(sourceTitle, ignoreCase = true) == true
 	)
 
-	private fun ScrobblerMangaInfo(json: JSONObject) = ScrobblerMangaInfo(
+	private fun ScrobblerContentInfo(json: JSONObject) = ScrobblerContentInfo(
 		id = json.getLong("id"),
 		name = json.getString("name"),
 		cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),

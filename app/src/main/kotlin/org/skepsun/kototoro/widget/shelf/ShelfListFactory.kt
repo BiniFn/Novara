@@ -21,7 +21,7 @@ import org.skepsun.kototoro.core.ui.image.TrimTransformation
 import org.skepsun.kototoro.core.util.ext.getDrawableOrThrow
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.replaceWith
 
 class ShelfListFactory(
@@ -32,7 +32,7 @@ class ShelfListFactory(
 	widgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
 
-	private val dataSet = ArrayList<Manga>()
+	private val dataSet = ArrayList<Content>()
 	private val config = AppWidgetConfig(context, ShelfWidgetProvider::class.java, widgetId)
 	private val transformation = RoundedCornersTransformation(
 		context.resources.getDimension(R.dimen.appwidget_corner_radius_inner),
@@ -53,9 +53,9 @@ class ShelfListFactory(
 			runBlocking {
 				val category = config.categoryId
 				if (category == 0L) {
-					favouritesRepository.getAllManga()
+					favouritesRepository.getAllContent()
 				} else {
-					favouritesRepository.getManga(category)
+					favouritesRepository.getContent(category)
 				}
 			}
 		} else {

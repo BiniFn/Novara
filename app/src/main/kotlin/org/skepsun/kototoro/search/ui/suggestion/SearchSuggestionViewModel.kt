@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.plus
-import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.SearchSuggestionType
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -24,13 +24,13 @@ import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
-import org.skepsun.kototoro.search.domain.MangaSearchRepository
+import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.SearchContentKind
@@ -50,9 +50,9 @@ private const val MAX_SOURCES_TIPS_ITEMS = 2
 
 @HiltViewModel
 class SearchSuggestionViewModel @Inject constructor(
-	private val repository: MangaSearchRepository,
+	private val repository: ContentSearchRepository,
 	private val settings: AppSettings,
-	private val sourcesRepository: MangaSourcesRepository,
+	private val sourcesRepository: ContentSourcesRepository,
 	private val sourceTypeIdentifier: SourceTypeIdentifier,
 	private val globalFavoritesState: GlobalFavoritesState,
 ) : BaseViewModel() {
@@ -139,7 +139,7 @@ class SearchSuggestionViewModel @Inject constructor(
 		}
 	}
 
-	fun onSourceToggle(source: MangaSource, isEnabled: Boolean) {
+	fun onSourceToggle(source: ContentSource, isEnabled: Boolean) {
 		launchJob(Dispatchers.Default) {
 			sourcesRepository.setSourcesEnabled(setOf(source), isEnabled)
 		}
@@ -169,7 +169,7 @@ class SearchSuggestionViewModel @Inject constructor(
 				null
 			},
 			if (SearchSuggestionType.MANGA in types) {
-				async { getManga(searchQuery) }
+				async { getContent(searchQuery) }
 			} else {
 				null
 			},
@@ -234,13 +234,13 @@ class SearchSuggestionViewModel @Inject constructor(
 		listOf(SearchSuggestionItem.Text(0, e))
 	}
 
-	private suspend fun getManga(searchQuery: String): List<SearchSuggestionItem> = runCatchingCancellable {
-		val manga = repository.getMangaSuggestion(searchQuery, MAX_MANGA_ITEMS, null)
+	private suspend fun getContent(searchQuery: String): List<SearchSuggestionItem> = runCatchingCancellable {
+		val manga = repository.getContentSuggestion(searchQuery, MAX_MANGA_ITEMS, null)
 			.filter { item -> contentKinds.value.any { kind -> kind.matches(item) } }
 		if (manga.isEmpty()) {
 			emptyList()
 		} else {
-			listOf(SearchSuggestionItem.MangaList(manga))
+			listOf(SearchSuggestionItem.ContentList(manga))
 		}
 		}.getOrElse { e ->
 			e.printStackTraceDebug()
@@ -272,7 +272,7 @@ class SearchSuggestionViewModel @Inject constructor(
 		emptyList()
 	}
 
-	private fun mapTags(tags: List<MangaTag>): List<ChipsView.ChipModel> = tags.map { tag ->
+	private fun mapTags(tags: List<ContentTag>): List<ChipsView.ChipModel> = tags.map { tag ->
 		ChipsView.ChipModel(
 			title = tag.title,
 			data = tag,
@@ -281,7 +281,7 @@ class SearchSuggestionViewModel @Inject constructor(
 }
 
 private data class EnabledSourcesSnapshot(
-	val sources: List<MangaSource>,
+	val sources: List<ContentSource>,
 	val names: Set<String>,
 )
 
@@ -308,7 +308,7 @@ private fun EnabledSourcesSnapshot.filterByTypes(
 	)
 }
 
-private fun List<MangaSourceInfo>.toEnabledSourcesSnapshot(): EnabledSourcesSnapshot {
+private fun List<ContentSourceInfo>.toEnabledSourcesSnapshot(): EnabledSourcesSnapshot {
 	val sources = this.map { it.mangaSource }
 	return EnabledSourcesSnapshot(
 		sources = sources,

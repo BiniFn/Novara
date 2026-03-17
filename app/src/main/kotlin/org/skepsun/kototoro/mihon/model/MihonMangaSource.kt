@@ -1,10 +1,10 @@
 package org.skepsun.kototoro.mihon.model
 
 import eu.kanade.tachiyomi.source.CatalogueSource
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
- * Wrapper that adapts a Mihon CatalogueSource to Kototoro's MangaSource interface.
+ * Wrapper that adapts a Mihon CatalogueSource to Kototoro's ContentSource interface.
  * 
  * This allows Mihon sources to be used interchangeably with native Kototoro sources
  * throughout the application.
@@ -18,7 +18,7 @@ data class MihonMangaSource(
      * Used for multi-language extensions where the same source name appears multiple times.
      */
     val hasLanguageSuffix: Boolean = false,
-) : MangaSource {
+) : ContentSource {
     
     /**
      * The source name, which follows the Mihon convention: MIHON_{sourceId}
@@ -57,8 +57,8 @@ data class MihonMangaSource(
     
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is MangaSource) return false
-        // Compare by name to support comparison with anonymous MangaSource objects
+        if (other !is ContentSource) return false
+        // Compare by name to support comparison with anonymous ContentSource objects
         // that are created when loading from the database
         return name == other.name
     }

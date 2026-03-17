@@ -23,8 +23,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import android.util.Log
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.model.DateTimeAgo
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
@@ -43,8 +43,8 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.util.LinkedList
@@ -54,13 +54,13 @@ import javax.inject.Inject
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
 	private val workScheduler: DownloadWorker.Scheduler,
-	private val mangaDataRepository: MangaDataRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalManga?>,
-	private val localMangaRepository: LocalMangaRepository,
+	private val mangaDataRepository: ContentDataRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalContent?>,
+	private val localContentRepository: LocalMangaRepository,
 ) : BaseViewModel() {
 
-	private val mangaCache = LongSparseArray<Manga>()
+	private val mangaCache = LongSparseArray<Content>()
 	private val cacheMutex = Mutex()
 	private val expanded = MutableStateFlow(emptySet<UUID>())
 	private val chaptersCache = ArrayMap<UUID, StateFlow<List<DownloadChapter>?>>()
@@ -270,9 +270,9 @@ class DownloadsViewModel @Inject constructor(
 			?: progress.takeUnless { it.isEmpty }
 			?: workScheduler.getInputData(id)
 			?: return null
-		val mangaId = DownloadState.getMangaId(workData)
+		val mangaId = DownloadState.getContentId(workData)
 		if (mangaId == 0L) return null
-		val manga = getManga(mangaId) ?: return null
+		val manga = getContent(mangaId) ?: return null
 		val chapters = synchronized(chaptersCache) {
 			chaptersCache.getOrPut(id) {
 				observeChapters(manga, id)
@@ -305,27 +305,27 @@ class DownloadsViewModel @Inject constructor(
 		),
 	)
 
-	private suspend fun getManga(mangaId: Long): Manga? {
+	private suspend fun getContent(mangaId: Long): Content? {
 		mangaCache[mangaId]?.let {
 			return it
 		}
 		return cacheMutex.withLock {
 			mangaCache.getOrElse(mangaId) {
-				mangaDataRepository.findMangaById(mangaId, withChapters = true)?.also {
+				mangaDataRepository.findContentById(mangaId, withChapters = true)?.also {
 					mangaCache[mangaId] = it
 				} ?: return null
 			}
 		}
 	}
 
-	private fun observeChapters(manga: Manga, workId: UUID): StateFlow<List<DownloadChapter>?> = flow {
+	private fun observeChapters(manga: Content, workId: UUID): StateFlow<List<DownloadChapter>?> = flow {
 		val chapterIds = workScheduler.getTask(workId)?.chaptersIds
 		val chapters = (tryLoad(manga) ?: manga).chapters ?: return@flow
 
 		suspend fun mapChapters(): List<DownloadChapter> {
 			val size = chapterIds?.size ?: chapters.size
 			val localChapters =
-				localMangaRepository.findSavedManga(manga)?.manga?.chapters
+				localContentRepository.findSavedContent(manga)?.manga?.chapters
 					?.filter { it.source.isLocal }
 					?.mapToSet { it.id }
 					.orEmpty()
@@ -349,13 +349,13 @@ class DownloadsViewModel @Inject constructor(
 		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
-	private suspend fun tryLoad(manga: Manga) = runCatchingCancellable {
+	private suspend fun tryLoad(manga: Content) = runCatchingCancellable {
 		mangaRepositoryFactory.create(manga.source).getDetails(manga)
 	}.getOrNull()
 
 	private suspend fun retryWork(work: DownloadItemModel): Boolean {
 		val task = workScheduler.getTask(work.id) ?: return false
-		val manga = work.manga ?: getManga(task.mangaId) ?: return false
+		val manga = work.manga ?: getContent(task.mangaId) ?: return false
 		synchronized(chaptersCache) {
 			chaptersCache.remove(work.id)
 		}

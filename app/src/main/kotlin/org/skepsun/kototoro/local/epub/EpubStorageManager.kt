@@ -166,7 +166,7 @@ class EpubStorageManager @Inject constructor(
     /**
      * 列出所有有EPUB文件的manga ID
      */
-    fun listAllEpubMangaIds(): List<Long> {
+    fun listAllEpubContentIds(): List<Long> {
         if (!epubRootDir.exists()) {
             return emptyList()
         }

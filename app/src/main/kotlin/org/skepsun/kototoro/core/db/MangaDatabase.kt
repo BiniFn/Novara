@@ -72,8 +72,8 @@ import org.skepsun.kototoro.favourites.data.FavouriteEntity
 import org.skepsun.kototoro.favourites.data.FavouritesDao
 import org.skepsun.kototoro.history.data.HistoryDao
 import org.skepsun.kototoro.history.data.HistoryEntity
-import org.skepsun.kototoro.local.data.index.LocalMangaIndexDao
-import org.skepsun.kototoro.local.data.index.LocalMangaIndexEntity
+import org.skepsun.kototoro.local.data.index.LocalContentIndexDao
+import org.skepsun.kototoro.local.data.index.LocalContentIndexEntity
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingDao
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.stats.data.StatsDao
@@ -91,7 +91,7 @@ const val DATABASE_VERSION = 33
 		MangaEntity::class, TagEntity::class, HistoryEntity::class, MangaTagsEntity::class, ChapterEntity::class,
 		FavouriteCategoryEntity::class, FavouriteEntity::class, MangaPrefsEntity::class, TrackEntity::class,
 		TrackLogEntity::class, SuggestionEntity::class, BookmarkEntity::class, ScrobblingEntity::class,
-		MangaSourceEntity::class, StatsEntity::class, LocalMangaIndexEntity::class, EpubChapterMappingEntity::class,
+		MangaSourceEntity::class, StatsEntity::class, LocalContentIndexEntity::class, EpubChapterMappingEntity::class,
 		JsonSourceEntity::class, ExternalExtensionRepoEntity::class,
 		// EpubChapterEntity::class,
 	],
@@ -125,7 +125,7 @@ abstract class MangaDatabase : RoomDatabase() {
 
 	abstract fun getStatsDao(): StatsDao
 
-	abstract fun getLocalMangaIndexDao(): LocalMangaIndexDao
+	abstract fun getLocalContentIndexDao(): LocalContentIndexDao
 
 	abstract fun getChaptersDao(): ChaptersDao
 

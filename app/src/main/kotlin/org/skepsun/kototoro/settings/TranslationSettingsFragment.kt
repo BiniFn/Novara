@@ -20,7 +20,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
 import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
@@ -50,7 +50,7 @@ class TranslationSettingsFragment :
 	lateinit var onnxModelManager: OnnxModelManager
 
 	@Inject
-	@MangaHttpClient
+	@ContentHttpClient
 	lateinit var okHttpClient: OkHttpClient
 
 	private var fetchModelsJob: Job? = null

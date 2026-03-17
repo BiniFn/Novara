@@ -3,10 +3,10 @@ package org.skepsun.kototoro.local.data.output
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 
-class LocalMangaUtil(
-	private val manga: Manga,
+class LocalContentUtil(
+	private val manga: Content,
 ) {
 
 	init {
@@ -16,12 +16,12 @@ class LocalMangaUtil(
 	suspend fun deleteChapters(ids: Set<Long>) {
 		val file = manga.url.toUri().toFile()
 		if (file.isDirectory) {
-			LocalMangaDirOutput(file, manga).use { output ->
+			LocalContentDirOutput(file, manga).use { output ->
 				output.deleteChapters(ids)
 				output.finish()
 			}
 		} else {
-			LocalMangaZipOutput.filterChapters(file, manga, ids)
+			LocalContentZipOutput.filterChapters(file, manga, ids)
 		}
 	}
 }

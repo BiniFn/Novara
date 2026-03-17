@@ -66,7 +66,7 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.databinding.ActivityMainBinding
-import org.skepsun.kototoro.details.service.MangaPrefetchService
+import org.skepsun.kototoro.details.service.ContentPrefetchService
 import org.skepsun.kototoro.explore.ui.ExploreFragment
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
 import org.skepsun.kototoro.tracker.ui.feed.FeedFragment
@@ -75,8 +75,8 @@ import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.remotelist.ui.MangaSearchMenuProvider
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionItemCallback
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListenerImpl
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionMenuProvider
@@ -193,7 +193,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	}
 
 	override fun addMenuProvider(provider: MenuProvider, owner: LifecycleOwner, state: Lifecycle.State) {
-		if (provider !is MangaSearchMenuProvider) { // do not duplicate search menu item
+		if (provider !is ContentSearchMenuProvider) { // do not duplicate search menu item
 			super.addMenuProvider(provider, owner, state)
 		}
 	}
@@ -280,7 +280,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		updateContainerBottomMargin()
 	}
 
-	private fun onOpenReader(manga: Manga) {
+	private fun onOpenReader(manga: Content) {
 		val fab = viewBinding.fab ?: viewBinding.navRail?.headerView
 		router.openReader(manga, fab)
 	}
@@ -315,7 +315,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				LocalStorageCleanupWorker.enqueue(applicationContext)
 			}
 			withResumed {
-				MangaPrefetchService.prefetchLast(this@MainActivity)
+				ContentPrefetchService.prefetchLast(this@MainActivity)
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
 				startService(Intent(this@MainActivity, PeriodicalBackupService::class.java))

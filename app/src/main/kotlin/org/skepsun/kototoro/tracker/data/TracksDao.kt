@@ -15,11 +15,11 @@ abstract class TracksDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT * FROM tracks ORDER BY last_check_time ASC LIMIT :limit OFFSET :offset")
-	abstract suspend fun findAll(offset: Int, limit: Int): List<TrackWithManga>
+	abstract suspend fun findAll(offset: Int, limit: Int): List<TrackWithContent>
 
 	@Transaction
 	@Query("SELECT * FROM tracks ORDER BY last_check_time DESC")
-	abstract fun observeAll(): Flow<List<TrackWithManga>>
+	abstract fun observeAll(): Flow<List<TrackWithContent>>
 
 	@Query("SELECT manga_id FROM tracks")
 	abstract suspend fun findAllIds(): LongArray
@@ -34,19 +34,19 @@ abstract class TracksDao : MangaQueryBuilder.ConditionCallback {
 	abstract suspend fun getTracksCount(): Int
 
 	@Query("SELECT COUNT(*) FROM tracks WHERE chapters_new > 0")
-	abstract fun observeUpdateMangaCount(): Flow<Int>
+	abstract fun observeUpdateContentCount(): Flow<Int>
 
 	@Query("SELECT IFNULL(chapters_new, 0) FROM tracks WHERE manga_id = :mangaId")
 	abstract fun observeNewChapters(mangaId: Long): Flow<Int>
 
 	@Transaction
 	@Query("SELECT * FROM tracks WHERE chapters_new > 0 ORDER BY last_chapter_date DESC")
-	abstract fun observeUpdatedManga(): Flow<List<MangaWithTrack>>
+	abstract fun observeUpdatedContent(): Flow<List<ContentWithTrack>>
 
-	fun observeUpdatedManga(
+	fun observeUpdatedContent(
 		limit: Int,
 		filterOptions: Set<ListFilterOption>,
-	): Flow<List<MangaWithTrack>> = observeMangaImpl(
+	): Flow<List<ContentWithTrack>> = observeContentImpl(
 		MangaQueryBuilder("tracks", this)
 			.where("chapters_new > 0")
 			.filters(filterOptions)
@@ -75,7 +75,7 @@ abstract class TracksDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@RawQuery(observedEntities = [TrackEntity::class])
-	protected abstract fun observeMangaImpl(query: SupportSQLiteQuery): Flow<List<MangaWithTrack>>
+	protected abstract fun observeContentImpl(query: SupportSQLiteQuery): Flow<List<ContentWithTrack>>
 
 	override fun getCondition(option: ListFilterOption): String? = when (option) {
 		ListFilterOption.Macro.FAVORITE -> "EXISTS(SELECT * FROM favourites WHERE favourites.manga_id = tracks.manga_id)"

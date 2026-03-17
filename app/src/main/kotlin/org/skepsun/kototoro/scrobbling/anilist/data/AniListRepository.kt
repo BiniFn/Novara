@@ -20,8 +20,8 @@ import org.skepsun.kototoro.parsers.util.toIntUp
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -113,7 +113,7 @@ class AniListRepository @Inject constructor(
 		storage.clear()
 	}
 
-	override suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
+	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
 		val page = (offset / MANGA_PAGE_SIZE.toFloat()).toIntUp() + 1
 		val response = doRequest(
 			REQUEST_QUERY,
@@ -134,14 +134,14 @@ class AniListRepository @Inject constructor(
 			""",
 		)
 		val data = response.getJSONObject("data").getJSONObject("Page").getJSONArray("media")
-		return data.mapJSON { ScrobblerManga(it, query) }
+		return data.mapJSON { ScrobblerContent(it, query) }
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
+	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val response = doRequest(
 			REQUEST_MUTATION,
 			"""
-				SaveMediaListEntry(mediaId: $scrobblerMangaId) {
+				SaveMediaListEntry(mediaId: $scrobblerContentId) {
 					id
 					mediaId
 					status
@@ -191,7 +191,7 @@ class AniListRepository @Inject constructor(
 		saveRate(response.getJSONObject("data").getJSONObject("SaveMediaListEntry"), mangaId)
 	}
 
-	override suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
+	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val response = doRequest(
 			REQUEST_QUERY,
 			"""
@@ -208,7 +208,7 @@ class AniListRepository @Inject constructor(
 			}
 			""",
 		)
-		return ScrobblerMangaInfo(response.getJSONObject("data").getJSONObject("Media"))
+		return ScrobblerContentInfo(response.getJSONObject("data").getJSONObject("Media"))
 	}
 
 	/**
@@ -254,12 +254,12 @@ class AniListRepository @Inject constructor(
 				val json = mediaList.optJSONObject(i) ?: continue
 				val mediaId = json.optLong("mediaId", 0L)
 				if (mediaId == 0L) continue
-				val mappedMangaId = oldMappings[mediaId] ?: 0L
+				val mappedContentId = oldMappings[mediaId] ?: 0L
 				synced.add(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.ANILIST.id,
 						id = json.getInt("id"),
-						mangaId = mappedMangaId,
+						mangaId = mappedContentId,
 						targetId = mediaId,
 						status = json.getString("status"),
 						chapter = json.getInt("progress"),
@@ -296,9 +296,9 @@ class AniListRepository @Inject constructor(
 		db.getScrobblingDao().upsert(entity)
 	}
 
-	private fun ScrobblerManga(json: JSONObject, sourceTitle: String): ScrobblerManga {
+	private fun ScrobblerContent(json: JSONObject, sourceTitle: String): ScrobblerContent {
 		val title = json.getJSONObject("title")
-		return ScrobblerManga(
+		return ScrobblerContent(
 			id = json.getLong("id"),
 			name = title.getString("userPreferred"),
 			altName = title.getStringOrNull("native"),
@@ -315,7 +315,7 @@ class AniListRepository @Inject constructor(
 		)
 	}
 
-	private fun ScrobblerMangaInfo(json: JSONObject) = ScrobblerMangaInfo(
+	private fun ScrobblerContentInfo(json: JSONObject) = ScrobblerContentInfo(
 		id = json.getLong("id"),
 		name = json.getJSONObject("title").getString("userPreferred"),
 		cover = json.getJSONObject("coverImage").getString("large"),

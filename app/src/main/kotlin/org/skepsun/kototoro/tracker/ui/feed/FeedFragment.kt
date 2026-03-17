@@ -41,13 +41,13 @@ import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.adapter.ContentListListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.StaticItemSizeResolver
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.tracker.ui.feed.adapter.FeedAdapter
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import javax.inject.Inject
@@ -57,7 +57,7 @@ class FeedFragment :
 	BaseFragment<FragmentListBinding>(),
 	PaginationScrollListener.Callback,
 	RecyclerViewOwner,
-	MangaListListener,
+	ContentListListener,
 	SwipeRefreshLayout.OnRefreshListener,
 	AppBarLayout.OnOffsetChangedListener {
 
@@ -88,7 +88,7 @@ class FeedFragment :
 		val sizeResolver = StaticItemSizeResolver(resources.getDimensionPixelSize(R.dimen.smaller_grid_width))
 		val feedAdapter = FeedAdapter(this, sizeResolver) { item, v ->
 			viewModel.onItemClick(item)
-			router.openDetails(item.toMangaWithOverride())
+			router.openDetails(item.toContentWithOverride())
 		}
 		with(binding.recyclerView) {
 			val paddingVertical = resources.getDimensionPixelSize(R.dimen.list_spacing_normal)
@@ -167,7 +167,7 @@ class FeedFragment :
 		val colors = createChipColors()
 		val density = resources.displayMetrics.density
 
-		val tabs = listOf(BrowseGroupTab.Manga, BrowseGroupTab.Novel, BrowseGroupTab.Video)
+		val tabs = listOf(BrowseGroupTab.Content, BrowseGroupTab.Novel, BrowseGroupTab.Video)
 		for (tab in tabs) {
 			val chip = createCompactChip(getString(tab.titleRes), tab.iconRes, colors, density)
 			val id = View.generateViewId()
@@ -366,11 +366,11 @@ class FeedFragment :
 		viewModel.requestMoreItems()
 	}
 
-	override fun onItemClick(item: MangaListModel, view: View) {
-		router.openDetails(item.toMangaWithOverride())
+	override fun onItemClick(item: ContentListModel, view: View) {
+		router.openDetails(item.toContentWithOverride())
 	}
 
-	override fun onReadClick(manga: Manga, view: View) = Unit
+	override fun onReadClick(manga: Content, view: View) = Unit
 
-	override fun onTagClick(manga: Manga, tag: MangaTag, view: View) = Unit
+	override fun onTagClick(manga: Content, tag: ContentTag, view: View) = Unit
 }

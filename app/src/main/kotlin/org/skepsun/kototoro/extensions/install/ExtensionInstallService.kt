@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.update
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.BuildConfig
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
 import java.io.File
 import java.io.IOException
@@ -26,7 +26,7 @@ import javax.inject.Singleton
 @Singleton
 class ExtensionInstallService @Inject constructor(
 	@ApplicationContext private val context: Context,
-	@MangaHttpClient private val httpClient: OkHttpClient,
+	@ContentHttpClient private val httpClient: OkHttpClient,
 ) {
 
 	private val activeCalls = ConcurrentHashMap<String, Call>()

@@ -28,11 +28,11 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import android.content.Context
 import org.skepsun.kototoro.core.LocalizedAppContext
@@ -46,9 +46,9 @@ class ScrobblerConfigViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
 	private val db: MangaDatabase,
-	private val mangaDataRepository: MangaDataRepository,
+	private val mangaDataRepository: ContentDataRepository,
 	private val historyRepository: HistoryRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val favouritesRepository: FavouritesRepository,
 	@LocalizedAppContext private val context: Context,
 ) : BaseViewModel() {
@@ -99,21 +99,21 @@ class ScrobblerConfigViewModel @Inject constructor(
 		}
 	}
 
-	fun bindManga(info: ScrobblingInfo, pickedManga: Manga) {
+	fun bindContent(info: ScrobblingInfo, pickedContent: Content) {
 		launchLoadingJob(Dispatchers.Default) {
-			android.util.Log.d("ScrobblerConfigVM", "bindManga: info.mangaId=${info.mangaId}, info.targetId=${info.targetId}, info.chapter=${info.chapter}, pickedManga.id=${pickedManga.id}, pickedManga.title=${pickedManga.title}")
-			// 1. Insert the online Manga result into MangaDatabase via MangaDataRepository
-			mangaDataRepository.storeManga(pickedManga, replaceExisting = false)
-			val mangaId = pickedManga.id
-			android.util.Log.d("ScrobblerConfigVM", "bindManga: stored manga, mangaId=$mangaId")
+			android.util.Log.d("ScrobblerConfigVM", "bindContent: info.mangaId=${info.mangaId}, info.targetId=${info.targetId}, info.chapter=${info.chapter}, pickedContent.id=${pickedContent.id}, pickedContent.title=${pickedContent.title}")
+			// 1. Insert the online Content result into MangaDatabase via ContentDataRepository
+			mangaDataRepository.storeContent(pickedContent, replaceExisting = false)
+			val mangaId = pickedContent.id
+			android.util.Log.d("ScrobblerConfigVM", "bindContent: stored manga, mangaId=$mangaId")
 
 			// 2. Re-link the tracker
 			val currentEntity = db.getScrobblingDao().find(scrobbler.scrobblerService.id, info.mangaId)
-			android.util.Log.d("ScrobblerConfigVM", "bindManga: currentEntity=$currentEntity")
+			android.util.Log.d("ScrobblerConfigVM", "bindContent: currentEntity=$currentEntity")
 			if (currentEntity != null) {
 				db.getScrobblingDao().delete(currentEntity)
 				val newEntity = currentEntity.copy(mangaId = mangaId)
-				android.util.Log.d("ScrobblerConfigVM", "bindManga: deleted old, upserting new entity=$newEntity")
+				android.util.Log.d("ScrobblerConfigVM", "bindContent: deleted old, upserting new entity=$newEntity")
 				db.getScrobblingDao().upsert(newEntity)
 			} else {
 				val newEntity = ScrobblingEntity(
@@ -126,15 +126,15 @@ class ScrobblerConfigViewModel @Inject constructor(
 					comment = info.comment,
 					rating = info.rating,
 				)
-				android.util.Log.d("ScrobblerConfigVM", "bindManga: no existing entity, upserting new=$newEntity")
+				android.util.Log.d("ScrobblerConfigVM", "bindContent: no existing entity, upserting new=$newEntity")
 				db.getScrobblingDao().upsert(newEntity)
 			}
-			android.util.Log.d("ScrobblerConfigVM", "bindManga: upsert done")
+			android.util.Log.d("ScrobblerConfigVM", "bindContent: upsert done")
 
 			// 3. Sync Reading Progress
 			if (info.chapter > 0) {
 				try {
-					var mangaToSync = pickedManga
+					var mangaToSync = pickedContent
 					if (mangaToSync.chapters.isNullOrEmpty() && !mangaToSync.isLocal) {
 						val repo = mangaRepositoryFactory.create(mangaToSync.source)
 						val details = repo.getDetails(mangaToSync)
@@ -144,7 +144,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 					
 					val chapters = mangaToSync.chapters ?: emptyList()
 					val targetChapterIndex = (info.chapter - 1).coerceIn(0, chapters.size - 1)
-					android.util.Log.d("ScrobblerConfigVM", "bindManga: syncing progress, chapters.size=${chapters.size}, targetChapterIndex=$targetChapterIndex")
+					android.util.Log.d("ScrobblerConfigVM", "bindContent: syncing progress, chapters.size=${chapters.size}, targetChapterIndex=$targetChapterIndex")
 					if (chapters.isNotEmpty() && targetChapterIndex >= 0) {
 						val targetChapter = chapters[targetChapterIndex]
 						historyRepository.addOrUpdate(
@@ -155,26 +155,26 @@ class ScrobblerConfigViewModel @Inject constructor(
 							percent = 1f, // Mark as completed
 							force = true
 						)
-						android.util.Log.d("ScrobblerConfigVM", "bindManga: history synced for chapter=${targetChapter.id}")
+						android.util.Log.d("ScrobblerConfigVM", "bindContent: history synced for chapter=${targetChapter.id}")
 					}
 				} catch (e: Exception) {
 					android.util.Log.e("ScrobblerConfigVM", "Failed to sync reading progress", e)
 				}
 			}
 			
-			autoAssignSourceCategory(pickedManga)
+			autoAssignSourceCategory(pickedContent)
 			
-			android.util.Log.d("ScrobblerConfigVM", "bindManga: completed successfully")
-			onBindResult.call(pickedManga.title)
+			android.util.Log.d("ScrobblerConfigVM", "bindContent: completed successfully")
+			onBindResult.call(pickedContent.title)
 		}
 	}
 
-	suspend fun hasLocalManga(mangaId: Long): Boolean {
+	suspend fun hasLocalContent(mangaId: Long): Boolean {
 		if (mangaId == 0L) return false
 		return db.getMangaDao().find(mangaId) != null
 	}
 
-	private suspend fun autoAssignSourceCategory(manga: Manga) {
+	private suspend fun autoAssignSourceCategory(manga: Content) {
 		val source = manga.source
 		val origin = source.getOriginLabel(context)
 		val title = if (origin != null && origin != "内置") {

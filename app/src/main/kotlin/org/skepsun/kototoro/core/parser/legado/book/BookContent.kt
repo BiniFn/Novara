@@ -5,8 +5,8 @@ import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.parser.legado.AnalyzeRule
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
 import org.skepsun.kototoro.parsers.exception.ContentUnavailableException
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
  * Handles chapter content parsing and image extraction.
@@ -17,14 +17,14 @@ object BookContent {
     private val optionsSplitRegex = Regex("\\s*,\\s*(?=\\{)")
 
     data class ParseResult(
-        val pages: List<MangaPage>,
+        val pages: List<ContentPage>,
         val nextPageUrls: List<String>
     )
     
     fun parse(
         content: String,
         baseUrl: String,
-        source: MangaSource,
+        source: ContentSource,
         config: LegadoBookSource,
         sandbox: LegadoSandbox
     ): ParseResult {
@@ -45,10 +45,10 @@ object BookContent {
         
         val processedContent = applyReplace(rawContentList, rule)
         
-        val pages = ArrayList<MangaPage>()
-        val isManga = config.bookSourceType == 2
+        val pages = ArrayList<ContentPage>()
+        val isContent = config.bookSourceType == 2
         
-        if (isManga) {
+        if (isContent) {
             // For manga, merge all items and perform deep image extraction (Legado-style)
             val fullContent = processedContent.joinToString("\n")
             val doc = org.jsoup.Jsoup.parse(fullContent)
@@ -63,10 +63,10 @@ object BookContent {
 
                     val (url, headers) = splitUrlAndHeaders(urlRaw)
                     if (url.isBlank()) return@forEach
-                    val absoluteUrl = normalizeMangaImageUrl(resolveUrl(baseUrl, url))
+                    val absoluteUrl = normalizeContentImageUrl(resolveUrl(baseUrl, url))
                     if (absoluteUrl.isBlank()) return@forEach
                     val finalHeaders = mergeDefaultImageHeaders(headers, baseUrl, absoluteUrl)
-                    pages.add(MangaPage(
+                    pages.add(ContentPage(
                         id = (source.name.hashCode().toLong() shl 32) + pages.size,
                         url = absoluteUrl,
                         preview = absoluteUrl,
@@ -82,9 +82,9 @@ object BookContent {
                     if (candidate.isBlank()) return@forEach
                     if (isLikelyUrl(candidate)) {
                         val (url, headers) = splitUrlAndHeaders(candidate)
-                        val absoluteUrl = normalizeMangaImageUrl(resolveUrl(baseUrl, url))
+                        val absoluteUrl = normalizeContentImageUrl(resolveUrl(baseUrl, url))
                         val finalHeaders = mergeDefaultImageHeaders(headers, baseUrl, absoluteUrl)
-                        pages.add(MangaPage(
+                        pages.add(ContentPage(
                             id = (source.name.hashCode().toLong() shl 32) + pages.size,
                             url = absoluteUrl,
                             preview = absoluteUrl,
@@ -113,7 +113,7 @@ object BookContent {
                     "data:text/html;base64,$base64"
                 }
 
-                pages.add(MangaPage(
+                pages.add(ContentPage(
                     id = (source.name.hashCode().toLong() shl 32) + pages.size,
                     url = absoluteUrl,
                     preview = if (isUrl) absoluteUrl else "TEXT",
@@ -125,7 +125,7 @@ object BookContent {
         
 	        if (pages.isNotEmpty()) {
 	            android.util.Log.d(TAG, "[Content] Page[0] URL: ${pages[0].url}")
-	        } else if (isManga) {
+	        } else if (isContent) {
 	            detectApiErrorMessage(content)?.let { message ->
 	                throw ContentUnavailableException(message)
 	            }
@@ -144,7 +144,7 @@ object BookContent {
         return ParseResult(pages, nextPageUrls)
     }
 
-    private fun normalizeMangaImageUrl(url: String): String {
+    private fun normalizeContentImageUrl(url: String): String {
         if (url.isBlank()) return url
         // Android 9+ 默认可能禁用 cleartext；对 mkzcdn 等常见图床统一升级 https。
         if (url.startsWith("http://", ignoreCase = true)) {

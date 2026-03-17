@@ -15,7 +15,7 @@ import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
 import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.core.model.getContentType
 
 class BookmarksAdapter(

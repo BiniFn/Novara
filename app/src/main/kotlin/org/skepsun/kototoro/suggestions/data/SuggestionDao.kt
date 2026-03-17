@@ -20,12 +20,12 @@ abstract class SuggestionDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT * FROM suggestions ORDER BY relevance DESC")
-	abstract fun observeAll(): Flow<List<SuggestionWithManga>>
+	abstract fun observeAll(): Flow<List<SuggestionWithContent>>
 
 	fun observeAll(
 		limit: Int,
 		filterOptions: Collection<ListFilterOption>
-	): Flow<List<SuggestionWithManga>> = observeAllImpl(
+	): Flow<List<SuggestionWithContent>> = observeAllImpl(
 		MangaQueryBuilder("suggestions", this)
 			.filters(filterOptions)
 			.orderBy("relevance DESC")
@@ -35,7 +35,7 @@ abstract class SuggestionDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT manga.* FROM suggestions LEFT JOIN manga ON manga.manga_id = suggestions.manga_id ORDER BY relevance DESC LIMIT :limit")
-	abstract suspend fun getTopManga(limit: Int): List<MangaWithTags>
+	abstract suspend fun getTopContent(limit: Int): List<MangaWithTags>
 
 	@Transaction
 	open suspend fun getRandom(limit: Int): List<MangaWithTags> {
@@ -79,7 +79,7 @@ abstract class SuggestionDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@RawQuery(observedEntities = [SuggestionEntity::class])
-	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<SuggestionWithManga>>
+	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<SuggestionWithContent>>
 
 	override fun getCondition(option: ListFilterOption): String? = when (option) {
 		ListFilterOption.Macro.NSFW -> "(SELECT nsfw FROM manga WHERE manga.manga_id = suggestions.manga_id) = 1"

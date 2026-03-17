@@ -33,7 +33,7 @@ class StorageUsagePreference @JvmOverloads constructor(
 		super.onBindViewHolder(holder)
 		val binding = PreferenceMemoryUsageBinding.bind(holder.itemView)
 		val storageSegment = SegmentedBarView.Segment(
-			usage?.savedManga?.percent ?: 0f,
+			usage?.savedContent?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, Color.BLUE),
 		)
 		val pagesSegment = SegmentedBarView.Segment(
@@ -47,7 +47,7 @@ class StorageUsagePreference @JvmOverloads constructor(
 
 		with(binding) {
 			bar.animateSegments(listOf(storageSegment, pagesSegment, otherSegment).filter { it.percent > 0f })
-			labelStorage.text = formatLabel(usage?.savedManga, R.string.saved_manga)
+			labelStorage.text = formatLabel(usage?.savedContent, R.string.saved_manga)
 			labelPagesCache.text = formatLabel(usage?.pagesCache, R.string.pages_cache)
 			labelOtherCache.text = formatLabel(usage?.otherCache, R.string.other_cache)
 			labelAvailable.text = formatLabel(usage?.available, R.string.available, R.string.available)

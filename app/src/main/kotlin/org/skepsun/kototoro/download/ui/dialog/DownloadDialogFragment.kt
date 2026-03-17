@@ -37,7 +37,7 @@ import org.skepsun.kototoro.core.util.ext.showOrHide
 import org.skepsun.kototoro.databinding.DialogDownloadBinding
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.settings.storage.DirectoryModel
 
@@ -60,10 +60,10 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 	override fun onViewBindingCreated(binding: DialogDownloadBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		val contentType = viewModel.manga.firstOrNull()?.source?.getContentType() ?: ContentType.MANGA
-		binding.optionWholeManga.title = getString(contentType.getWholeWorkOptionResId())
+		binding.optionWholeContent.title = getString(contentType.getWholeWorkOptionResId())
 
 		optionViews = arrayOf(
-			binding.optionWholeManga,
+			binding.optionWholeContent,
 			binding.optionWholeBranch,
 			binding.optionFirstChapters,
 			binding.optionUnreadChapters,
@@ -226,7 +226,7 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 			viewModel.confirm(
 				startNow = switchStart.isChecked,
 				chaptersMacro = when {
-					optionWholeManga.isChecked -> options.wholeManga
+					optionWholeContent.isChecked -> options.wholeContent
 					optionWholeBranch.isChecked -> options.wholeBranch ?: return@run
 					optionFirstChapters.isChecked -> options.firstChapters ?: return@run
 					optionUnreadChapters.isChecked -> options.unreadChapters ?: return@run
@@ -269,11 +269,11 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 	private fun onChapterSelectOptionsChanged(options: ChapterSelectOptions) {
 		with(viewBinding ?: return) {
 			// Whole manga
-			optionWholeManga.subtitle = if (options.wholeManga.chaptersCount > 0) {
+			optionWholeContent.subtitle = if (options.wholeContent.chaptersCount > 0) {
 				resources.getQuantityStringSafe(
 					R.plurals.chapters,
-					options.wholeManga.chaptersCount,
-					options.wholeManga.chaptersCount,
+					options.wholeContent.chaptersCount,
+					options.wholeContent.chaptersCount,
 				)
 			} else {
 				null

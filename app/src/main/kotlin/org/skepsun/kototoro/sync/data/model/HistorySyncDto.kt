@@ -16,10 +16,10 @@ data class HistorySyncDto(
 	@SerialName("percent") val percent: Float,
 	@SerialName("deleted_at") val deletedAt: Long,
 	@SerialName("chapters") val chaptersCount: Int,
-	@SerialName("manga") val manga: MangaSyncDto,
+	@SerialName("manga") val manga: ContentSyncDto,
 ) {
 
-	constructor(cursor: Cursor, manga: MangaSyncDto) : this(
+	constructor(cursor: Cursor, manga: ContentSyncDto) : this(
 		mangaId = cursor.getLong(cursor.getColumnIndexOrThrow("manga_id")),
 		createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
 		updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at")),

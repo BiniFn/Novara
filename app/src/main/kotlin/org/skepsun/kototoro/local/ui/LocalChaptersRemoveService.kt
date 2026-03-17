@@ -13,7 +13,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ErrorReporterReceiver
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.ui.CoroutineIntentService
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
@@ -21,19 +21,19 @@ import org.skepsun.kototoro.core.util.ext.powerManager
 import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class LocalChaptersRemoveService : CoroutineIntentService() {
 
 	@Inject
-	lateinit var localMangaRepository: LocalMangaRepository
+	lateinit var localContentRepository: LocalMangaRepository
 
 	@Inject
 	@LocalStorageChanges
-	lateinit var localStorageChanges: MutableSharedFlow<LocalManga?>
+	lateinit var localStorageChanges: MutableSharedFlow<LocalContent?>
 
 	override fun onCreate() {
 		super.onCreate()
@@ -47,12 +47,12 @@ class LocalChaptersRemoveService : CoroutineIntentService() {
 
 	override suspend fun IntentJobContext.processIntent(intent: Intent) {
 		startForeground(this)
-		val manga = intent.getParcelableExtraCompat<ParcelableManga>(EXTRA_MANGA)?.manga ?: return
+		val manga = intent.getParcelableExtraCompat<ParcelableContent>(EXTRA_MANGA)?.manga ?: return
 		val chaptersIds = intent.getLongArrayExtra(EXTRA_CHAPTERS_IDS)?.toSet() ?: return
 		powerManager.withPartialWakeLock(TAG) {
-			val mangaWithChapters = localMangaRepository.getDetails(manga)
-			localMangaRepository.deleteChapters(mangaWithChapters, chaptersIds)
-			localStorageChanges.emit(LocalManga(localMangaRepository.getDetails(manga)))
+			val mangaWithChapters = localContentRepository.getDetails(manga)
+			localContentRepository.deleteChapters(mangaWithChapters, chaptersIds)
+			localStorageChanges.emit(LocalContent(localContentRepository.getDetails(manga)))
 		}
 	}
 
@@ -110,12 +110,12 @@ class LocalChaptersRemoveService : CoroutineIntentService() {
 
 		private const val TAG = CHANNEL_ID
 
-		fun start(context: Context, manga: Manga, chaptersIds: Collection<Long>) {
+		fun start(context: Context, manga: Content, chaptersIds: Collection<Long>) {
 			if (chaptersIds.isEmpty()) {
 				return
 			}
 			val intent = Intent(context, LocalChaptersRemoveService::class.java)
-			intent.putExtra(EXTRA_MANGA, ParcelableManga(manga))
+			intent.putExtra(EXTRA_MANGA, ParcelableContent(manga))
 			intent.putExtra(EXTRA_CHAPTERS_IDS, chaptersIds.toLongArray())
 			ContextCompat.startForegroundService(context, intent)
 		}

@@ -13,7 +13,7 @@ import kotlinx.coroutines.runInterruptible
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.AlphanumComparator
@@ -21,20 +21,20 @@ import org.skepsun.kototoro.core.util.ext.deleteAwait
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.takeIfWriteable
 import org.skepsun.kototoro.core.util.ext.withChildren
-import org.skepsun.kototoro.local.data.index.LocalMangaIndex
-import org.skepsun.kototoro.local.data.input.LocalMangaParser
-import org.skepsun.kototoro.local.data.output.LocalMangaOutput
-import org.skepsun.kototoro.local.data.output.LocalMangaUtil
-import org.skepsun.kototoro.local.domain.MangaLock
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.index.LocalContentIndex
+import org.skepsun.kototoro.local.data.input.LocalContentParser
+import org.skepsun.kototoro.local.data.output.LocalContentOutput
+import org.skepsun.kototoro.local.data.output.LocalContentUtil
+import org.skepsun.kototoro.local.domain.ContentLock
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.parsers.util.mapToSet
@@ -51,17 +51,17 @@ private const val FILENAME_SKIP = ".notamanga"
 @Singleton
 class LocalMangaRepository @Inject constructor(
 	private val storageManager: LocalStorageManager,
-	private val localMangaIndex: LocalMangaIndex,
-	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalManga?>,
+	private val localContentIndex: LocalContentIndex,
+	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalContent?>,
 	private val settings: AppSettings,
-	private val lock: MangaLock,
-	private val repositoryFactory: Provider<MangaRepository.Factory>,
-) : MangaRepository {
+	private val lock: ContentLock,
+	private val repositoryFactory: Provider<ContentRepository.Factory>,
+) : ContentRepository {
 
 	override val source = LocalMangaSource
 
-	override val filterCapabilities: MangaListFilterCapabilities
-		get() = MangaListFilterCapabilities(
+	override val filterCapabilities: ContentListFilterCapabilities
+		get() = ContentListFilterCapabilities(
 			isMultipleTagsSupported = true,
 			isTagsExclusionSupported = true,
 			isSearchSupported = true,
@@ -81,10 +81,10 @@ class LocalMangaRepository @Inject constructor(
 			settings.localListOrder = value
 		}
 
-	override suspend fun getFilterOptions() = MangaListFilterOptions(
-		availableTags = localMangaIndex.getAvailableTags(
+	override suspend fun getFilterOptions() = ContentListFilterOptions(
+		availableTags = localContentIndex.getAvailableTags(
 			skipNsfw = settings.isNsfwContentDisabled,
-		).mapToSet { MangaTag(title = it, key = it, source = source) },
+		).mapToSet { ContentTag(title = it, key = it, source = source) },
 		availableContentRating = if (!settings.isNsfwContentDisabled) {
 			EnumSet.of(ContentRating.SAFE, ContentRating.ADULT)
 		} else {
@@ -92,7 +92,7 @@ class LocalMangaRepository @Inject constructor(
 		},
 	)
 
-	override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> {
+	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
 		if (offset > 0) {
 			return emptyList()
 		}
@@ -130,24 +130,24 @@ class LocalMangaRepository @Inject constructor(
 		return list.unwrap()
 	}
 
-	override suspend fun getDetails(manga: Manga): Manga = when {
+	override suspend fun getDetails(manga: Content): Content = when {
 		!manga.isLocal -> {
 			// For saved manga, always re-parse from disk to get fresh chapter data
 			// This ensures we get updated chapters after EPUB download/extraction
-			// Bypass localMangaIndex cache by using LocalMangaParser.find directly
-			val parser = LocalMangaParser.find(storageManager.getAllReadableDirs(), manga)
+			// Bypass localContentIndex cache by using LocalContentParser.find directly
+			val parser = LocalContentParser.find(storageManager.getAllReadableDirs(), manga)
 			if (parser != null) {
 				// Parse directly from disk to get fresh data
-				parser.getManga(withDetails = true).manga
+				parser.getContent(withDetails = true).manga
 			} else {
-				throw IllegalArgumentException("Manga is not local or saved")
+				throw IllegalArgumentException("Content is not local or saved")
 			}
 		}
 
-		else -> LocalMangaParser(manga.url.toUri()).getManga(withDetails = true).manga
+		else -> LocalContentParser(manga.url.toUri()).getContent(withDetails = true).manga
 	}
 
-	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
+	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
 		if (!chapter.source.isLocal) {
 			android.util.Log.d("LocalMangaRepository", "Delegating getPages to original source: ${chapter.source.name}")
 			return repositoryFactory.get().create(chapter.source).getPages(chapter, nextChapterUrl)
@@ -160,7 +160,7 @@ class LocalMangaRepository @Inject constructor(
 			android.util.Log.d("LocalMangaRepository", "EPUB chapter detected (new architecture)")
 			// Return a special page that will be handled by NovelContentLoader
 			return listOf(
-				MangaPage(
+				ContentPage(
 					id = 0,
 					url = chapter.url,
 					preview = null,
@@ -178,12 +178,12 @@ class LocalMangaRepository @Inject constructor(
 			return emptyList()
 		}
 		
-		// 普通章节，使用LocalMangaParser
-		android.util.Log.d("LocalMangaRepository", "Using LocalMangaParser for regular chapter")
-		return LocalMangaParser(chapter.url.toUri()).getPages(chapter)
+		// 普通章节，使用LocalContentParser
+		android.util.Log.d("LocalMangaRepository", "Using LocalContentParser for regular chapter")
+		return LocalContentParser(chapter.url.toUri()).getPages(chapter)
 	}
 
-	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): NovelChapterContent? {
+	override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): NovelChapterContent? {
 		if (!chapter.source.isLocal) {
 			android.util.Log.d("LocalMangaRepository", "Delegating getChapterContent to original source: ${chapter.source.name}")
 			return repositoryFactory.get().create(chapter.source).getChapterContent(chapter, nextChapterUrl)
@@ -191,51 +191,51 @@ class LocalMangaRepository @Inject constructor(
 		return super.getChapterContent(chapter, nextChapterUrl)
 	}
 
-	suspend fun delete(manga: Manga): Boolean {
+	suspend fun delete(manga: Content): Boolean {
 		val file = manga.url.toUri().toFile()
 		val result = file.deleteAwait()
 		if (result) {
-			localMangaIndex.delete(manga.id)
+			localContentIndex.delete(manga.id)
 			localStorageChanges.emit(null)
 		}
 		return result
 	}
 
-	suspend fun deleteChapters(manga: Manga, ids: Set<Long>) = lock.withLock(manga) {
-		val subject = if (manga.isLocal) manga else checkNotNull(findSavedManga(manga, withDetails = false)) {
-			"Manga is not stored on local storage"
+	suspend fun deleteChapters(manga: Content, ids: Set<Long>) = lock.withLock(manga) {
+		val subject = if (manga.isLocal) manga else checkNotNull(findSavedContent(manga, withDetails = false)) {
+			"Content is not stored on local storage"
 		}.manga
-		LocalMangaUtil(subject).deleteChapters(ids)
+		LocalContentUtil(subject).deleteChapters(ids)
 		val updated = getDetails(subject)
-		localStorageChanges.emit(LocalManga(updated))
+		localStorageChanges.emit(LocalContent(updated))
 	}
 
-	suspend fun getRemoteManga(localManga: Manga): Manga? {
+	suspend fun getRemoteContent(localContent: Content): Content? {
 		return runCatchingCancellable {
-			LocalMangaParser(localManga.url.toUri()).getMangaInfo()?.takeUnless { it.isLocal }
+			LocalContentParser(localContent.url.toUri()).getContentInfo()?.takeUnless { it.isLocal }
 		}.onFailure {
 			it.printStackTraceDebug()
 		}.getOrNull()
 	}
 
-	suspend fun findSavedManga(remoteManga: Manga, withDetails: Boolean = true): LocalManga? = runCatchingCancellable {
+	suspend fun findSavedContent(remoteContent: Content, withDetails: Boolean = true): LocalContent? = runCatchingCancellable {
 		// very fast path
-		localMangaIndex.get(remoteManga.id, withDetails)?.let { cached ->
+		localContentIndex.get(remoteContent.id, withDetails)?.let { cached ->
 			return@runCatchingCancellable cached
 		}
 		// fast path
-		LocalMangaParser.find(storageManager.getAllReadableDirs(), remoteManga)?.let {
-			return it.getManga(withDetails)
+		LocalContentParser.find(storageManager.getAllReadableDirs(), remoteContent)?.let {
+			return it.getContent(withDetails)
 		}
 		// slow path
 		val files = getAllFiles()
 		return channelFlow {
 			for (file in files) {
 				launch {
-					val mangaInput = LocalMangaParser.getOrNull(file)
+					val mangaInput = LocalContentParser.getOrNull(file)
 					runCatchingCancellable {
-						val mangaInfo = mangaInput?.getMangaInfo()
-						if (mangaInfo != null && mangaInfo.id == remoteManga.id) {
+						val mangaInfo = mangaInput?.getContentInfo()
+						if (mangaInfo != null && mangaInfo.id == remoteContent.id) {
 							send(mangaInput)
 						}
 					}.onFailure {
@@ -243,27 +243,27 @@ class LocalMangaRepository @Inject constructor(
 					}
 				}
 			}
-		}.firstOrNull()?.getManga(withDetails)
-	}.onSuccess { x: LocalManga? ->
+		}.firstOrNull()?.getContent(withDetails)
+	}.onSuccess { x: LocalContent? ->
 		if (x != null) {
-			localMangaIndex.put(x)
+			localContentIndex.put(x)
 		}
 	}.onFailure {
 		it.printStackTraceDebug()
 	}.getOrNull()
 
-	override suspend fun getPageUrl(page: MangaPage) = page.url
+	override suspend fun getPageUrl(page: ContentPage) = page.url
 
-	override suspend fun getRelated(seed: Manga): List<Manga> = emptyList()
+	override suspend fun getRelated(seed: Content): List<Content> = emptyList()
 
-	suspend fun getOutputDir(manga: Manga, fallback: File?): File? {
+	suspend fun getOutputDir(manga: Content, fallback: File?): File? {
 		val defaultDir = fallback?.takeIfWriteable() ?: storageManager.getDefaultWriteableDir()
-		if (defaultDir != null && LocalMangaOutput.get(defaultDir, manga) != null) {
+		if (defaultDir != null && LocalContentOutput.get(defaultDir, manga) != null) {
 			return defaultDir
 		}
 		return storageManager.getWriteableDirs()
 			.firstOrNull {
-				LocalMangaOutput.get(it, manga) != null
+				LocalContentOutput.get(it, manga) != null
 			} ?: defaultDir
 	}
 
@@ -287,13 +287,13 @@ class LocalMangaRepository @Inject constructor(
 		return true
 	}
 
-	fun getRawListAsFlow(): Flow<LocalManga> = channelFlow {
+	fun getRawListAsFlow(): Flow<LocalContent> = channelFlow {
 		val files = getAllFiles()
 		val dispatcher = Dispatchers.IO.limitedParallelism(MAX_PARALLELISM)
 		for (file in files) {
 			launch(dispatcher) {
 				runCatchingCancellable {
-					LocalMangaParser.getOrNull(file)?.getManga(withDetails = false)
+					LocalContentParser.getOrNull(file)?.getContent(withDetails = false)
 				}.onFailure { e ->
 					e.printStackTraceDebug()
 				}.onSuccess { m ->
@@ -303,7 +303,7 @@ class LocalMangaRepository @Inject constructor(
 		}
 	}
 
-	private suspend fun getRawList(): ArrayList<LocalManga> = getRawListAsFlow().toCollection(ArrayList())
+	private suspend fun getRawList(): ArrayList<LocalContent> = getRawListAsFlow().toCollection(ArrayList())
 
 	private suspend fun getAllFiles() = storageManager.getAllReadableDirs()
 		.asSequence()
@@ -313,7 +313,7 @@ class LocalMangaRepository @Inject constructor(
 			}
 		}
 
-	private fun Collection<LocalManga>.unwrap(): List<Manga> = map { it.manga }
+	private fun Collection<LocalContent>.unwrap(): List<Content> = map { it.manga }
 
 	private fun File.shouldSkip(): Boolean = isDirectory && File(this, FILENAME_SKIP).exists()
 }

@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.core.parser.tvbox
 
 import android.content.Context
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
@@ -9,7 +9,7 @@ import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
 internal object TVBoxSpiderRuntimeFactory {
 
 	fun create(
-		source: JsonMangaSource,
+		source: JsonContentSource,
 		config: TVBoxStoredConfig,
 		context: Context,
 		httpClient: LegadoHttpClient,

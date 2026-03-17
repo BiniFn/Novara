@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -19,9 +19,9 @@ import org.skepsun.kototoro.core.ui.model.DateTimeAgo
 import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
 import org.skepsun.kototoro.core.util.ext.onFirst
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
-import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -29,10 +29,10 @@ import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.UpdatesListQuickFilter
-import org.skepsun.kototoro.tracker.domain.model.MangaTracking
+import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
@@ -43,18 +43,18 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 class UpdatesViewModel @Inject constructor(
 	private val repository: TrackingRepository,
 	settings: AppSettings,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 	private val quickFilter: UpdatesListQuickFilter,
 	private val sourceGroupManager: SourceGroupManager,
-	mangaDataRepository: MangaDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
-) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+	mangaDataRepository: ContentDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
 
 	override val isFilterBarVisible = MutableStateFlow(true)
 
 	override val content = combine(
 		quickFilter.appliedOptions.flatMapLatest { filterOptions ->
-			repository.observeUpdatedManga(
+			repository.observeUpdatedContent(
 				limit = 0,
 				filterOptions = filterOptions,
 			)
@@ -65,7 +65,7 @@ class UpdatesViewModel @Inject constructor(
 		selectedGroupTab,
 		selectedSourceTags,
 	) { values: Array<Any?> ->
-		val mangaList = values[0] as List<MangaTracking>
+		val mangaList = values[0] as List<ContentTracking>
 		val filters = values[1] as Set<ListFilterOption>
 		val grouping = values[2] as Boolean
 		val mode = values[3] as ListMode
@@ -120,7 +120,7 @@ class UpdatesViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun List<MangaTracking>.toUi(
+	private suspend fun List<ContentTracking>.toUi(
 		mode: ListMode,
 		filters: Set<ListFilterOption>,
 		grouped: Boolean,

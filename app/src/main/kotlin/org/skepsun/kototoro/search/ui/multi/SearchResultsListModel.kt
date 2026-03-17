@@ -5,17 +5,17 @@ import androidx.annotation.StringRes
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 data class SearchResultsListModel(
 	@StringRes val titleResId: Int,
-	val source: MangaSource,
-	val listFilter: MangaListFilter?,
+	val source: ContentSource,
+	val listFilter: ContentListFilter?,
 	val sortOrder: SortOrder?,
-	val list: List<MangaListModel>,
+	val list: List<ContentListModel>,
 	val error: Throwable?,
 ) : ListModel {
 

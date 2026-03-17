@@ -4,18 +4,18 @@ import dagger.Reusable
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @Reusable
 class MarkAsReadUseCase @Inject constructor(
 	private val historyRepository: HistoryRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	suspend operator fun invoke(manga: Manga) {
+	suspend operator fun invoke(manga: Content) {
 		val repo = mangaRepositoryFactory.create(manga.source)
 		val details = if (manga.chapters.isNullOrEmpty()) {
 			repo.getDetails(manga)
@@ -34,7 +34,7 @@ class MarkAsReadUseCase @Inject constructor(
 		)
 	}
 
-	suspend operator fun invoke(manga: Collection<Manga>) {
+	suspend operator fun invoke(manga: Collection<Content>) {
 		when (manga.size) {
 			0 -> Unit
 			1 -> invoke(manga.first())

@@ -21,28 +21,28 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.core.model.getPreferredBranch
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.sanitize
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import javax.inject.Inject
 
 @HiltViewModel
 class PreviewViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	private val mangaListMapper: MangaListMapper,
-	private val repositoryFactory: MangaRepository.Factory,
+	private val mangaListMapper: ContentListMapper,
+	private val repositoryFactory: ContentRepository.Factory,
 	private val historyRepository: HistoryRepository,
 	private val imageGetter: Html.ImageGetter,
 ) : BaseViewModel() {
 
 	val manga = MutableStateFlow(
-		savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga,
+		savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga,
 	)
 
 	val footer = combine(

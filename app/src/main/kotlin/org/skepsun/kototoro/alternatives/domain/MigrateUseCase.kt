@@ -3,14 +3,14 @@ package org.skepsun.kototoro.alternatives.domain
 import androidx.room.withTransaction
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.model.getPreferredBranch
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.details.domain.ProgressUpdateUseCase
 import org.skepsun.kototoro.history.data.HistoryEntity
-import org.skepsun.kototoro.history.data.toMangaHistory
+import org.skepsun.kototoro.history.data.toContentHistory
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
@@ -20,39 +20,39 @@ import javax.inject.Inject
 class MigrateUseCase
 @Inject
 constructor(
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	private val mangaDataRepository: MangaDataRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	private val mangaDataRepository: ContentDataRepository,
 	private val database: MangaDatabase,
 	private val progressUpdateUseCase: ProgressUpdateUseCase,
 	private val scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
 ) {
 	suspend operator fun invoke(
-		oldManga: Manga,
-		newManga: Manga,
+		oldContent: Content,
+		newContent: Content,
 	) {
-		val oldDetails = if (oldManga.chapters.isNullOrEmpty()) {
+		val oldDetails = if (oldContent.chapters.isNullOrEmpty()) {
 			runCatchingCancellable {
-				mangaRepositoryFactory.create(oldManga.source).getDetails(oldManga)
-			}.getOrDefault(oldManga)
+				mangaRepositoryFactory.create(oldContent.source).getDetails(oldContent)
+			}.getOrDefault(oldContent)
 		} else {
-			oldManga
+			oldContent
 		}
-		val newDetails = if (newManga.chapters.isNullOrEmpty()) {
-			mangaRepositoryFactory.create(newManga.source).getDetails(newManga)
+		val newDetails = if (newContent.chapters.isNullOrEmpty()) {
+			mangaRepositoryFactory.create(newContent.source).getDetails(newContent)
 		} else {
-			newManga
+			newContent
 		}
-		mangaDataRepository.storeManga(newDetails, replaceExisting = true)
+		mangaDataRepository.storeContent(newDetails, replaceExisting = true)
 		database.withTransaction {
 			// replace favorites
 			val favoritesDao = database.getFavouritesDao()
 			val oldFavourites = favoritesDao.findAllRaw(oldDetails.id)
 			if (oldFavourites.isNotEmpty()) {
-				favoritesDao.delete(oldManga.id)
+				favoritesDao.delete(oldContent.id)
 				for (f in oldFavourites) {
 					val e =
 						f.copy(
-							mangaId = newManga.id,
+							mangaId = newContent.id,
 						)
 					favoritesDao.upsert(e)
 				}
@@ -94,7 +94,7 @@ constructor(
 				}
 				val prevInfo = scrobbler.getScrobblingInfoOrNull(oldDetails.id) ?: continue
 				scrobbler.unregisterScrobbling(oldDetails.id)
-				scrobbler.linkManga(newDetails.id, prevInfo.targetId)
+				scrobbler.linkContent(newDetails.id, prevInfo.targetId)
 				scrobbler.updateScrobblingInfo(
 					mangaId = newDetails.id,
 					rating = prevInfo.rating,
@@ -114,17 +114,17 @@ constructor(
 				}
 			}
 		}
-		progressUpdateUseCase(newManga)
+		progressUpdateUseCase(newContent)
 	}
 
 	private fun makeNewHistory(
-		oldManga: Manga,
-		newManga: Manga,
+		oldContent: Content,
+		newContent: Content,
 		history: HistoryEntity,
 	): HistoryEntity {
-		if (oldManga.chapters.isNullOrEmpty()) { // probably broken manga/source
-			val branch = newManga.getPreferredBranch(null)
-			val chapters = checkNotNull(newManga.getChapters(branch))
+		if (oldContent.chapters.isNullOrEmpty()) { // probably broken manga/source
+			val branch = newContent.getPreferredBranch(null)
+			val chapters = checkNotNull(newContent.getChapters(branch))
 			val currentChapter =
 				if (history.percent in 0f..1f) {
 					chapters[(chapters.lastIndex * history.percent).toInt()]
@@ -132,7 +132,7 @@ constructor(
 					chapters.first()
 				}
 			return HistoryEntity(
-				mangaId = newManga.id,
+				mangaId = newContent.id,
 				createdAt = history.createdAt,
 				updatedAt = history.updatedAt,
 				chapterId = currentChapter.id,
@@ -143,8 +143,8 @@ constructor(
 				chaptersCount = chapters.count { it.branch == currentChapter.branch },
 			)
 		}
-		val branch = oldManga.getPreferredBranch(history.toMangaHistory())
-		val oldChapters = checkNotNull(oldManga.getChapters(branch))
+		val branch = oldContent.getPreferredBranch(history.toContentHistory())
+		val oldChapters = checkNotNull(oldContent.getChapters(branch))
 		var index = oldChapters.indexOfFirst { it.id == history.chapterId }
 		if (index < 0) {
 			index =
@@ -154,12 +154,12 @@ constructor(
 					0
 				}
 		}
-		val newChapters = checkNotNull(newManga.chapters).groupBy { it.branch }
+		val newChapters = checkNotNull(newContent.chapters).groupBy { it.branch }
 		val newBranch =
 			if (newChapters.containsKey(branch)) {
 				branch
 			} else {
-				newManga.getPreferredBranch(null)
+				newContent.getPreferredBranch(null)
 			}
 		val newChapterId =
 			checkNotNull(newChapters[newBranch])
@@ -169,7 +169,7 @@ constructor(
 				}.id
 
 		return HistoryEntity(
-			mangaId = newManga.id,
+			mangaId = newContent.id,
 			createdAt = history.createdAt,
 			updatedAt = history.updatedAt,
 			chapterId = newChapterId,
@@ -181,10 +181,10 @@ constructor(
 		)
 	}
 
-	private fun List<MangaChapter>.findByNumber(
+	private fun List<ContentChapter>.findByNumber(
 		volume: Int,
 		number: Float,
-	): MangaChapter? =
+	): ContentChapter? =
 		if (number <= 0f) {
 			null
 		} else {

@@ -20,14 +20,14 @@ import org.skepsun.kototoro.databinding.ItemExploreButtonsBinding
 import org.skepsun.kototoro.databinding.ItemExploreSourceGridBinding
 import org.skepsun.kototoro.databinding.ItemExploreSourceListBinding
 import org.skepsun.kototoro.databinding.ItemRecommendationBinding
-import org.skepsun.kototoro.databinding.ItemRecommendationMangaBinding
+import org.skepsun.kototoro.databinding.ItemRecommendationContentBinding
 import org.skepsun.kototoro.explore.ui.model.ExploreButtons
-import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
+import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.explore.ui.model.RecommendationsItem
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaCompactListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import org.skepsun.kototoro.parsers.model.Content
 
 fun exploreButtonsAD(
 	clickListener: View.OnClickListener,
@@ -51,13 +51,13 @@ fun exploreButtonsAD(
 }
 
 fun exploreRecommendationItemAD(
-	itemClickListener: OnListItemClickListener<Manga>,
+	itemClickListener: OnListItemClickListener<Content>,
 ) = adapterDelegateViewBinding<RecommendationsItem, ListModel, ItemRecommendationBinding>(
 	{ layoutInflater, parent -> ItemRecommendationBinding.inflate(layoutInflater, parent, false) },
 ) {
 
-	val adapter = BaseListAdapter<MangaCompactListModel>()
-		.addDelegate(ListItemType.MANGA_LIST, recommendationMangaItemAD(itemClickListener))
+	val adapter = BaseListAdapter<ContentCompactListModel>()
+		.addDelegate(ListItemType.MANGA_LIST, recommendationContentItemAD(itemClickListener))
 	binding.pager.adapter = adapter
 	binding.pager.recyclerView?.isNestedScrollingEnabled = false
 	binding.dots.bindToViewPager(binding.pager)
@@ -67,10 +67,10 @@ fun exploreRecommendationItemAD(
 	}
 }
 
-fun recommendationMangaItemAD(
-	itemClickListener: OnListItemClickListener<Manga>,
-) = adapterDelegateViewBinding<MangaCompactListModel, MangaCompactListModel, ItemRecommendationMangaBinding>(
-	{ layoutInflater, parent -> ItemRecommendationMangaBinding.inflate(layoutInflater, parent, false) },
+fun recommendationContentItemAD(
+	itemClickListener: OnListItemClickListener<Content>,
+) = adapterDelegateViewBinding<ContentCompactListModel, ContentCompactListModel, ItemRecommendationContentBinding>(
+	{ layoutInflater, parent -> ItemRecommendationContentBinding.inflate(layoutInflater, parent, false) },
 ) {
 
 	binding.root.setOnClickListener { v ->
@@ -85,8 +85,8 @@ fun recommendationMangaItemAD(
 
 
 fun exploreSourceListItemAD(
-	listener: OnListItemClickListener<MangaSourceItem>,
-) = adapterDelegateViewBinding<MangaSourceItem, ListModel, ItemExploreSourceListBinding>(
+	listener: OnListItemClickListener<ContentSourceItem>,
+) = adapterDelegateViewBinding<ContentSourceItem, ListModel, ItemExploreSourceListBinding>(
 	{ layoutInflater, parent ->
 		ItemExploreSourceListBinding.inflate(
 			layoutInflater,
@@ -94,7 +94,7 @@ fun exploreSourceListItemAD(
 			false,
 		)
 	},
-	on = { item, _, _ -> item is MangaSourceItem && !item.isGrid },
+	on = { item, _, _ -> item is ContentSourceItem && !item.isGrid },
 ) {
 
 	AdapterDelegateClickListenerAdapter(this, listener).attach(itemView)
@@ -113,8 +113,8 @@ fun exploreSourceListItemAD(
 }
 
 fun exploreSourceGridItemAD(
-	listener: OnListItemClickListener<MangaSourceItem>,
-) = adapterDelegateViewBinding<MangaSourceItem, ListModel, ItemExploreSourceGridBinding>(
+	listener: OnListItemClickListener<ContentSourceItem>,
+) = adapterDelegateViewBinding<ContentSourceItem, ListModel, ItemExploreSourceGridBinding>(
 	{ layoutInflater, parent ->
 		ItemExploreSourceGridBinding.inflate(
 			layoutInflater,
@@ -122,7 +122,7 @@ fun exploreSourceGridItemAD(
 			false,
 		)
 	},
-	on = { item, _, _ -> item is MangaSourceItem && item.isGrid },
+	on = { item, _, _ -> item is ContentSourceItem && item.isGrid },
 ) {
 
 	AdapterDelegateClickListenerAdapter(this, listener).attach(itemView)

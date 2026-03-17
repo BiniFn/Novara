@@ -39,8 +39,8 @@ import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -54,7 +54,7 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
 import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -70,13 +70,13 @@ class CaptchaHandler @Inject constructor(
 	private val webViewExecutor: WebViewExecutor,
 ) : EventListener() {
 
-	private val exceptionMap = MutableScatterMap<MangaSource, CloudFlareProtectedException>()
+	private val exceptionMap = MutableScatterMap<ContentSource, CloudFlareProtectedException>()
 	private val mutex = Mutex()
 
 	@CheckResult
 	suspend fun handle(exception: CloudFlareException): Boolean = handleException(exception.source, exception, true)
 
-	suspend fun discard(source: MangaSource) {
+	suspend fun discard(source: ContentSource) {
 		handleException(source, null, true)
 	}
 
@@ -100,11 +100,11 @@ class CaptchaHandler @Inject constructor(
 	}
 
 	private suspend fun handleException(
-		source: MangaSource,
+		source: ContentSource,
 		exception: CloudFlareException?,
 		notify: Boolean,
 	): Boolean = withContext(Dispatchers.Default) {
-		if (source == UnknownMangaSource) {
+		if (source == UnknownContentSource) {
 			return@withContext false
 		}
 		if (exception != null && webViewExecutor.tryResolveCaptcha(exception, RESOLVE_TIMEOUT)) {
@@ -122,7 +122,7 @@ class CaptchaHandler @Inject constructor(
 
 			if (notify && context.checkNotificationPermission(CHANNEL_ID)) {
 				val exceptions = dao.findAllCaptchaRequired().mapNotNull {
-					it.source.toMangaSourceOrNull()
+					it.source.toContentSourceOrNull()
 				}.filterNot {
 					SourceSettings(context, it).isCaptchaNotificationsDisabled
 				}.mapNotNull {
@@ -241,9 +241,9 @@ class CaptchaHandler @Inject constructor(
 		return notification.build()
 	}
 
-	private fun String.toMangaSourceOrNull() = MangaSource(this).takeUnless { it == UnknownMangaSource }
+	private fun String.toContentSourceOrNull() = ContentSource(this).takeUnless { it == UnknownContentSource }
 
-	private suspend fun getFavicon(source: MangaSource) = runCatchingCancellable {
+	private suspend fun getFavicon(source: ContentSource) = runCatchingCancellable {
 		coilProvider.get().execute(
 			ImageRequest.Builder(context)
 				.data(source.faviconUri())
@@ -268,7 +268,7 @@ class CaptchaHandler @Inject constructor(
 		override fun onReceive(context: Context?, intent: Intent?) {
 			val sourceName = intent?.getStringExtra(AppRouter.KEY_SOURCE) ?: return
 			goAsync {
-				captchaHandler.handleException(MangaSource(sourceName), exception = null, notify = false)
+				captchaHandler.handleException(ContentSource(sourceName), exception = null, notify = false)
 			}
 		}
 	}

@@ -168,7 +168,7 @@ class LocalStorageManager @Inject constructor(
 	@WorkerThread
 	private fun getConfiguredStorageDirs(): MutableSet<File> {
 		val set = getAvailableStorageDirs()
-		set.addAll(settings.userSpecifiedMangaDirectories)
+		set.addAll(settings.userSpecifiedContentDirectories)
 		return set
 	}
 

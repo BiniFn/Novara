@@ -22,7 +22,7 @@ sealed class BrowseGroupTab(
 	/**
 	 * Show only manga sources
 	 */
-	object Manga : BrowseGroupTab(R.string.manga, R.drawable.ic_content_manga, "manga")
+	object Content : BrowseGroupTab(R.string.manga, R.drawable.ic_content_manga, "manga")
 	
 	/**
 	 * Show only novel sources
@@ -40,7 +40,7 @@ sealed class BrowseGroupTab(
 		 */
 		fun getAllTabs(): List<BrowseGroupTab> = listOf(
 			All,
-			Manga,
+			Content,
 			Novel,
 			Video,
 		)
@@ -50,7 +50,7 @@ sealed class BrowseGroupTab(
 		 */
 		fun fromId(id: String): BrowseGroupTab = when (id) {
 			"all" -> All
-			"manga" -> Manga
+			"manga" -> Content
 			"novel" -> Novel
 			"video" -> Video
 			// Legacy IDs now fall back to All
@@ -71,7 +71,7 @@ sealed class BrowseGroupTab(
 	 */
 	fun matchesContentGroup(group: ContentGroup): Boolean = when (this) {
 		All -> true
-		Manga -> group == ContentGroup.MANGA || group == ContentGroup.HENTAI_MANGA
+		Content -> group == ContentGroup.MANGA || group == ContentGroup.HENTAI_MANGA
 		Novel -> group == ContentGroup.NOVEL || group == ContentGroup.HENTAI_NOVEL
 		Video -> group == ContentGroup.VIDEO || group == ContentGroup.HENTAI_VIDEO
 	}
@@ -89,7 +89,7 @@ sealed class BrowseGroupTab(
 	 */
 	fun supportsSourceTag(tag: SourceTag): Boolean = when (this) {
 		All -> true
-		Manga -> tag == SourceTag.BUILTIN || tag == SourceTag.MIHON || tag == SourceTag.LEGADO
+		Content -> tag == SourceTag.BUILTIN || tag == SourceTag.MIHON || tag == SourceTag.LEGADO
 		Novel -> tag == SourceTag.BUILTIN || tag == SourceTag.LEGADO
 		Video -> tag == SourceTag.BUILTIN || tag == SourceTag.ANIYOMI || tag == SourceTag.TVBOX
 	}

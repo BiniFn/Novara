@@ -6,10 +6,10 @@ import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_DOWN
 import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_GRID
 import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_NEW
 import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_UNREAD
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import kotlin.experimental.or
 
-fun MangaChapter.toListItem(
+fun ContentChapter.toListItem(
 	isCurrent: Boolean,
 	isUnread: Boolean,
 	isNew: Boolean,

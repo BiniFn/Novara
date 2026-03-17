@@ -3,8 +3,8 @@ package org.skepsun.kototoro.core.parser.legado.book
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.parser.legado.*
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
  * Handles Table of Contents (TOC) parsing using ruleToc.
@@ -15,7 +15,7 @@ object BookChapterList {
 
     data class ParseResult(
 
-        val chapters: List<MangaChapter>,
+        val chapters: List<ContentChapter>,
         val nextPageUrls: List<String>,
         /**
          * 是否需要对当前页解析出的章节列表做反转。
@@ -32,7 +32,7 @@ object BookChapterList {
     fun parse(
         content: String,
         baseUrl: String,
-        source: MangaSource,
+        source: ContentSource,
         config: LegadoBookSource,
         sandbox: LegadoSandbox
     ): ParseResult {
@@ -153,7 +153,7 @@ object BookChapterList {
 
             val uploadDate = 0L // TODO: Parse updateTime if present
 
-            MangaChapter(
+            ContentChapter(
                 id = stableId,
                 title = finalName,
                 number = index.toFloat() + 1f,

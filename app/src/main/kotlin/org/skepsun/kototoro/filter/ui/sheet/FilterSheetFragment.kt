@@ -53,7 +53,7 @@ import org.skepsun.kototoro.filter.ui.model.FilterProperty
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.model.YEAR_UNKNOWN
@@ -73,9 +73,9 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
     private var includeTagsExpanded = false
     private var excludeTagsExpanded = false
     private var lastIncludeGroups: List<UiTagGroup> = emptyList()
-    private var lastIncludeSelected: Set<org.skepsun.kototoro.parsers.model.MangaTag> = emptySet()
+    private var lastIncludeSelected: Set<org.skepsun.kototoro.parsers.model.ContentTag> = emptySet()
     private var lastExcludeGroups: List<UiTagGroup> = emptyList()
-    private var lastExcludeSelected: Set<org.skepsun.kototoro.parsers.model.MangaTag> = emptySet()
+    private var lastExcludeSelected: Set<org.skepsun.kototoro.parsers.model.ContentTag> = emptySet()
 
     override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetFilterBinding {
         return SheetFilterBinding.inflate(inflater, container, false)
@@ -220,9 +220,9 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
     override fun onChipClick(chip: Chip, data: Any?) {
         val filter = FilterCoordinator.require(this)
         when (data) {
-            is MangaState -> filter.toggleState(data, !chip.isChecked)
+            is ContentState -> filter.toggleState(data, !chip.isChecked)
             is UiTagGroup -> {} // groups are not directly toggled
-            is org.skepsun.kototoro.parsers.model.MangaTag -> {
+            is org.skepsun.kototoro.parsers.model.ContentTag -> {
                 // Check if this is a text input tag (Mihon Filter.Text)
                 if (filter.isTextInputTag(data)) {
                     showTextInputDialog(filter, data)
@@ -246,7 +246,7 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         }
     }
     
-    private fun showTextInputDialog(filter: FilterCoordinator, tag: org.skepsun.kototoro.parsers.model.MangaTag) {
+    private fun showTextInputDialog(filter: FilterCoordinator, tag: org.skepsun.kototoro.parsers.model.ContentTag) {
         val currentValue = filter.getTextInputValue(tag) ?: ""
         val label = filter.getTextInputLabel(tag)
         
@@ -406,7 +406,7 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         container: ViewGroup,
         placeholderChips: ChipsView,
         groups: List<UiTagGroup>,
-        selected: Set<org.skepsun.kototoro.parsers.model.MangaTag>,
+        selected: Set<org.skepsun.kototoro.parsers.model.ContentTag>,
         expanded: Boolean,
     ) {
         val limit = TAGS_PREVIEW_LIMIT
@@ -504,7 +504,7 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         b.chipsAuthor.setChips(chips)
     }
 
-    private fun onStateChanged(value: FilterProperty<MangaState>) {
+    private fun onStateChanged(value: FilterProperty<ContentState>) {
         val b = viewBinding ?: return
         b.layoutState.isGone = value.isEmpty()
         if (value.isEmpty()) {

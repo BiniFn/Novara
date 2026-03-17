@@ -6,9 +6,9 @@ import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.skepsun.kototoro.BuildConfig
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.util.EnumSet
@@ -16,16 +16,16 @@ import javax.inject.Inject
 
 class MirrorSwitcher @Inject constructor(
 	private val settings: AppSettings,
-	@MangaHttpClient private val okHttpClient: OkHttpClient,
+	@ContentHttpClient private val okHttpClient: OkHttpClient,
 ) {
 
-	private val blacklist = EnumSet.noneOf(MangaParserSource::class.java)
+	private val blacklist = EnumSet.noneOf(ContentParserSource::class.java)
 	private val mutex: Mutex = Mutex()
 
 	val isEnabled: Boolean
 		get() = settings.isMirrorSwitchingEnabled
 
-	suspend fun <T : Any> trySwitchMirror(repository: ParserMangaRepository, loader: suspend () -> T?): T? {
+	suspend fun <T : Any> trySwitchMirror(repository: ParserContentRepository, loader: suspend () -> T?): T? {
 		val source = repository.source
 		if (!isEnabled || source in blacklist) {
 			return null
@@ -65,7 +65,7 @@ class MirrorSwitcher @Inject constructor(
 		}
 	}
 
-	suspend fun findRedirect(repository: ParserMangaRepository): String? {
+	suspend fun findRedirect(repository: ParserContentRepository): String? {
 		if (!isEnabled) {
 			return null
 		}

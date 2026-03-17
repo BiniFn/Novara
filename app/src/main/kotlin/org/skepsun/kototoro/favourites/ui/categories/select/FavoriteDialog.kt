@@ -19,12 +19,12 @@ import org.skepsun.kototoro.core.util.ext.joinToStringWithLimit
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.DialogFavoriteBinding
-import org.skepsun.kototoro.favourites.ui.categories.select.adapter.MangaCategoriesAdapter
-import org.skepsun.kototoro.favourites.ui.categories.select.model.MangaCategoryItem
+import org.skepsun.kototoro.favourites.ui.categories.select.adapter.ContentCategoriesAdapter
+import org.skepsun.kototoro.favourites.ui.categories.select.model.ContentCategoryItem
 
 @AndroidEntryPoint
 class FavoriteDialog : AlertDialogFragment<DialogFavoriteBinding>(),
-	OnListItemClickListener<MangaCategoryItem>, DialogInterface.OnClickListener {
+	OnListItemClickListener<ContentCategoryItem>, DialogInterface.OnClickListener {
 
 	private val viewModel by viewModels<FavoriteDialogViewModel>()
 
@@ -44,14 +44,14 @@ class FavoriteDialog : AlertDialogFragment<DialogFavoriteBinding>(),
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		val adapter = MangaCategoriesAdapter(this)
+		val adapter = ContentCategoriesAdapter(this)
 		binding.recyclerViewCategories.adapter = adapter
 		viewModel.content.observe(viewLifecycleOwner, adapter)
 		viewModel.onError.observeEvent(viewLifecycleOwner, ::onError)
 		bindHeader()
 	}
 
-	override fun onItemClick(item: MangaCategoryItem, view: View) {
+	override fun onItemClick(item: ContentCategoryItem, view: View) {
 		viewModel.setChecked(item.category.id, item.checkedState != MaterialCheckBox.STATE_CHECKED)
 	}
 

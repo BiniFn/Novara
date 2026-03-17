@@ -37,14 +37,14 @@ import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.databinding.ActivityStatsBinding
 import org.skepsun.kototoro.databinding.ItemEmptyStateBinding
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.stats.domain.StatsPeriod
 import org.skepsun.kototoro.stats.domain.StatsRecord
 import org.skepsun.kototoro.stats.ui.views.PieChartView
 
 @AndroidEntryPoint
 class StatsActivity : BaseActivity<ActivityStatsBinding>(),
-	OnListItemClickListener<Manga>,
+	OnListItemClickListener<Content>,
 	PieChartView.OnSegmentClickListener,
 	AsyncListDiffer.ListListener<StatsRecord>,
 	ViewStub.OnInflateListener,
@@ -81,7 +81,7 @@ class StatsActivity : BaseActivity<ActivityStatsBinding>(),
 						value = (v.duration / 1000).toInt(),
 						label = v.manga?.title ?: getString(R.string.other_manga),
 						percent = (v.duration.toDouble() / sum).toFloat(),
-						color = KototoroColors.ofManga(this, v.manga),
+						color = KototoroColors.ofContent(this, v.manga),
 						tag = v.manga,
 					)
 				},
@@ -134,12 +134,12 @@ class StatsActivity : BaseActivity<ActivityStatsBinding>(),
 		viewModel.setCategoryChecked(category, isChecked)
 	}
 
-	override fun onItemClick(item: Manga, view: View) {
+	override fun onItemClick(item: Content, view: View) {
 		router.showStatisticSheet(item)
 	}
 
 	override fun onSegmentClick(view: PieChartView, segment: PieChartView.Segment) {
-		val manga = segment.tag as? Manga ?: return
+		val manga = segment.tag as? Content ?: return
 		onItemClick(manga, view)
 	}
 

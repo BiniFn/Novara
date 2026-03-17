@@ -102,7 +102,7 @@ class DataCleanupSettingsFragment : BasePreferenceFragment(R.string.data_removal
         }
 
         AppSettings.KEY_CLEAR_MANGA_DATA -> {
-            viewModel.clearMangaData()
+            viewModel.clearContentData()
             true
         }
 

@@ -22,7 +22,7 @@ import org.skepsun.kototoro.core.exceptions.CaughtException
 import org.skepsun.kototoro.core.exceptions.CloudFlareBlockedException
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
-import org.skepsun.kototoro.core.exceptions.EmptyMangaException
+import org.skepsun.kototoro.core.exceptions.EmptyContentException
 import org.skepsun.kototoro.core.exceptions.IncompatiblePluginException
 import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.exceptions.NoDataReceivedException
@@ -113,7 +113,7 @@ private fun Throwable.getDisplayMessageOrNull(resources: Resources): String? = w
     is AccessDeniedException -> resources.getString(R.string.no_access_to_file)
     is NonFileUriException -> resources.getString(R.string.error_non_file_uri)
     is EmptyHistoryException -> resources.getString(R.string.history_is_empty)
-    is EmptyMangaException -> reason?.let { resources.getString(it.msgResId) } ?: cause?.getDisplayMessage(resources)
+    is EmptyContentException -> reason?.let { resources.getString(it.msgResId) } ?: cause?.getDisplayMessage(resources)
     is ProxyConfigException -> resources.getString(R.string.invalid_proxy_configuration)
     is SyncApiException,
     is ContentUnavailableException -> message
@@ -194,7 +194,7 @@ fun Throwable.getCauseUrl(): String? = when (this) {
     is InteractiveActionRequiredException -> url
     is HttpStatusException -> url
     is UnsupportedSourceException -> manga?.publicUrl?.takeIf { it.isHttpUrl() }
-    is EmptyMangaException -> manga.publicUrl.takeIf { it.isHttpUrl() }
+    is EmptyContentException -> manga.publicUrl.takeIf { it.isHttpUrl() }
     is HttpException -> (response.delegate as? Response)?.request?.url?.toString()
     else -> null
 }

@@ -23,8 +23,8 @@ import org.skepsun.kototoro.parsers.util.urlEncoded
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuInterceptor.Companion.VND_JSON
@@ -93,7 +93,7 @@ class KitsuRepository(
 		return db.getScrobblingDao().delete(ScrobblerService.KITSU.id, mangaId)
 	}
 
-	override suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
+	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
 		val request = Request.Builder()
 			.get()
 			.url("$BASE_WEB_URL/api/edge/manga?page[limit]=20&page[offset]=$offset&filter[text]=${query.urlEncoded()}")
@@ -101,7 +101,7 @@ class KitsuRepository(
 		return response.getJSONArray("data").mapJSON { jo ->
 			val attrs = jo.getJSONObject("attributes")
 			val titles = attrs.getJSONObject("titles").valuesToStringList()
-			ScrobblerManga(
+			ScrobblerContent(
 				id = jo.getAsLong("id"),
 				name = titles.first(),
 				altName = titles.drop(1).joinToString(),
@@ -114,13 +114,13 @@ class KitsuRepository(
 		}
 	}
 
-	override suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
+	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
 			.get()
 			.url("$BASE_WEB_URL/api/edge/manga/$id")
 		val data = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().getJSONObject("data")
 		val attrs = data.getJSONObject("attributes")
-		return ScrobblerMangaInfo(
+		return ScrobblerContentInfo(
 			id = data.getAsLong("id"),
 			name = attrs.getString("canonicalTitle"),
 			cover = attrs.getJSONObject("posterImage").getString("medium"),
@@ -129,8 +129,8 @@ class KitsuRepository(
 		)
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
-		findExistingRate(scrobblerMangaId)?.let {
+	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
+		findExistingRate(scrobblerContentId)?.let {
 			saveRate(it, mangaId)
 			return
 		}
@@ -146,7 +146,7 @@ class KitsuRepository(
 				putJO("manga") {
 					putJO("data") {
 						put("type", "manga")
-						put("id", scrobblerMangaId)
+						put("id", scrobblerContentId)
 					}
 				}
 				putJO("user") {
@@ -224,12 +224,12 @@ class KitsuRepository(
 					?.optJSONObject("manga")
 					?.optJSONObject("data")
 				val targetId = manga?.optString("id")?.toLongOrNull() ?: continue
-				val mappedMangaId = oldMappings[targetId] ?: 0L
+				val mappedContentId = oldMappings[targetId] ?: 0L
 				synced.add(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.KITSU.id,
 						id = json.optString("id").toIntOrNull() ?: continue,
-						mangaId = mappedMangaId,
+						mangaId = mappedContentId,
 						targetId = targetId,
 						status = attrs.getStringOrNull("status"),
 						chapter = attrs.getIntOrDefault("progress", 0),
@@ -264,11 +264,11 @@ class KitsuRepository(
 
 	private fun JSONObject.toKitsuRequestBody() = toString().toRequestBody(VND_JSON.toMediaType())
 
-	private suspend fun findExistingRate(scrobblerMangaId: Long): JSONObject? {
+	private suspend fun findExistingRate(scrobblerContentId: Long): JSONObject? {
 		val userId = (cachedUser ?: loadUser()).id
 		val request = Request.Builder()
 			.get()
-			.url("$BASE_WEB_URL/api/edge/library-entries?filter[manga_id]=$scrobblerMangaId&filter[userId]=$userId&include=manga")
+			.url("$BASE_WEB_URL/api/edge/library-entries?filter[manga_id]=$scrobblerContentId&filter[userId]=$userId&include=manga")
 		val data = okHttp.newCall(request.build()).await().parseJsonOrNull()?.optJSONArray("data") ?: return null
 		return data.optJSONObject(0)
 	}

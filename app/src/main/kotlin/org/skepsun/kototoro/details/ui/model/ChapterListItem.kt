@@ -5,11 +5,11 @@ import android.text.format.DateUtils
 import org.jsoup.internal.StringUtil.StringJoiner
 import org.skepsun.kototoro.core.model.getLocalizedTitle
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import kotlin.experimental.and
 
 data class ChapterListItem(
-	val chapter: MangaChapter,
+	val chapter: ContentChapter,
 	val flags: Byte,
 ) : ListModel {
 

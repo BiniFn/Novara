@@ -10,14 +10,14 @@ import org.skepsun.kototoro.core.exceptions.IncompatiblePluginException
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.find
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
@@ -29,14 +29,14 @@ import java.util.Locale
 
 class ExternalPluginContentSource(
 	private val contentResolver: ContentResolver,
-	private val source: ExternalMangaSource,
+	private val source: ExternalContentSource,
 ) {
 
 	@Blocking
 	@WorkerThread
-	fun getListFilterOptions() = MangaListFilterOptions(
+	fun getListFilterOptions() = ContentListFilterOptions(
 		availableTags = fetchTags(),
-		availableStates = fetchEnumSet(MangaState::class.java, "filter/states"),
+		availableStates = fetchEnumSet(ContentState::class.java, "filter/states"),
 		availableContentRating = fetchEnumSet(ContentRating::class.java, "filter/content_ratings"),
 		availableContentTypes = fetchEnumSet(ContentType::class.java, "filter/content_types"),
 		availableDemographics = fetchEnumSet(Demographic::class.java, "filter/demographics"),
@@ -45,7 +45,7 @@ class ExternalPluginContentSource(
 
 	@Blocking
 	@WorkerThread
-	fun getList(offset: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
+	fun getList(offset: Int, order: SortOrder, filter: ContentListFilter): List<Content> {
 		val uri = "content://${source.authority}/manga".toUri().buildUpon()
 		uri.appendQueryParameter("offset", offset.toString())
 		filter.tags.forEach { uri.appendQueryParameter("tags_include", "${it.key}=${it.title}") }
@@ -62,10 +62,10 @@ class ExternalPluginContentSource(
 		return contentResolver.query(uri.build(), null, null, null, order.name)
 			.safe()
 			.use { cursor ->
-				val result = ArrayList<Manga>(cursor.count)
+				val result = ArrayList<Content>(cursor.count)
 				if (cursor.moveToFirst()) {
 					do {
-						result += cursor.getManga()
+						result += cursor.getContent()
 					} while (cursor.moveToNext())
 				}
 				result
@@ -74,10 +74,10 @@ class ExternalPluginContentSource(
 
 	@Blocking
 	@WorkerThread
-	fun getDetails(manga: Manga): Manga {
+	fun getDetails(manga: Content): Content {
 		val chapters = queryChapters(manga.url)
 		val details = queryDetails(manga.url)
-		return Manga(
+		return Content(
 			id = manga.id,
 			title = details.title.ifBlank { manga.title },
 			altTitles = details.altTitles.ifEmpty { manga.altTitles },
@@ -98,7 +98,7 @@ class ExternalPluginContentSource(
 
 	@Blocking
 	@WorkerThread
-	fun getPages(chapter: MangaChapter): List<MangaPage> {
+	fun getPages(chapter: ContentChapter): List<ContentPage> {
 		val uri = "content://${source.authority}/chapters".toUri()
 			.buildUpon()
 			.appendPath(chapter.url)
@@ -106,10 +106,10 @@ class ExternalPluginContentSource(
 		return contentResolver.query(uri, null, null, null, null)
 			.safe()
 			.use { cursor ->
-				val result = ArrayList<MangaPage>(cursor.count)
+				val result = ArrayList<ContentPage>(cursor.count)
 				if (cursor.moveToFirst()) {
 					do {
-						result += MangaPage(
+						result += ContentPage(
 							id = cursor.getLong(COLUMN_ID),
 							url = cursor.getString(COLUMN_URL),
 							preview = cursor.getStringOrNull(COLUMN_PREVIEW),
@@ -123,15 +123,15 @@ class ExternalPluginContentSource(
 
 	@Blocking
 	@WorkerThread
-	private fun fetchTags(): Set<MangaTag> {
+	private fun fetchTags(): Set<ContentTag> {
 		val uri = "content://${source.authority}/filter/tags".toUri()
 		return contentResolver.query(uri, null, null, null, null)
 			.safe()
 			.use { cursor ->
-				val result = ArraySet<MangaTag>(cursor.count)
+				val result = ArraySet<ContentTag>(cursor.count)
 				if (cursor.moveToFirst()) {
 					do {
-						result += MangaTag(
+						result += ContentTag(
 							key = cursor.getString(COLUMN_KEY),
 							title = cursor.getString(COLUMN_TITLE),
 							source = source,
@@ -176,19 +176,19 @@ class ExternalPluginContentSource(
 			}
 	}
 
-	fun getCapabilities(): MangaSourceCapabilities? {
+	fun getCapabilities(): ContentSourceCapabilities? {
 		val uri = "content://${source.authority}/capabilities".toUri()
 		return contentResolver.query(uri, null, null, null, null)
 			.safe()
 			.use { cursor ->
 				if (cursor.moveToFirst()) {
-					MangaSourceCapabilities(
+					ContentSourceCapabilities(
 						availableSortOrders = cursor.getStringOrNull(COLUMN_SORT_ORDERS)
 							?.split(',')
 							?.mapNotNullTo(EnumSet.noneOf(SortOrder::class.java)) {
 								SortOrder.entries.find(it)
 							}.orEmpty(),
-						listFilterCapabilities = MangaListFilterCapabilities(
+						listFilterCapabilities = ContentListFilterCapabilities(
 							isMultipleTagsSupported = cursor.getBooleanOrDefault(COLUMN_MULTIPLE_TAGS, false),
 							isTagsExclusionSupported = cursor.getBooleanOrDefault(COLUMN_TAGS_EXCLUSION, false),
 							isSearchSupported = cursor.getBooleanOrDefault(COLUMN_SEARCH, false),
@@ -208,7 +208,7 @@ class ExternalPluginContentSource(
 			}
 	}
 
-	private fun queryDetails(url: String): Manga {
+	private fun queryDetails(url: String): Content {
 		val uri = "content://${source.authority}/manga".toUri()
 			.buildUpon()
 			.appendPath(url)
@@ -217,11 +217,11 @@ class ExternalPluginContentSource(
 			.safe()
 			.use { cursor ->
 				cursor.moveToFirst()
-				cursor.getManga()
+				cursor.getContent()
 			}
 	}
 
-	private fun queryChapters(url: String): List<MangaChapter> {
+	private fun queryChapters(url: String): List<ContentChapter> {
 		val uri = "content://${source.authority}/manga/chapters".toUri()
 			.buildUpon()
 			.appendPath(url)
@@ -229,10 +229,10 @@ class ExternalPluginContentSource(
 		return contentResolver.query(uri, null, null, null, null)
 			.safe()
 			.use { cursor ->
-				val result = ArrayList<MangaChapter>(cursor.count)
+				val result = ArrayList<ContentChapter>(cursor.count)
 				if (cursor.moveToFirst()) {
 					do {
-						result += MangaChapter(
+						result += ContentChapter(
 							id = cursor.getLong(COLUMN_ID),
 							title = cursor.getStringOrNull(COLUMN_NAME),
 							number = cursor.getFloatOrDefault(COLUMN_NUMBER, 0f),
@@ -249,7 +249,7 @@ class ExternalPluginContentSource(
 			}
 	}
 
-	private fun ExternalPluginCursor.getManga() = Manga(
+	private fun ExternalPluginCursor.getContent() = Content(
 		id = getLong(COLUMN_ID),
 		title = getString(COLUMN_TITLE),
 		altTitles = setOfNotNull(getStringOrNull(COLUMN_ALT_TITLE)),
@@ -264,9 +264,9 @@ class ExternalPluginContentSource(
 		coverUrl = getStringOrNull(COLUMN_COVER_URL),
 		tags = getStringOrNull(COLUMN_TAGS)?.split(':')?.mapNotNullToSet {
 			val parts = it.splitTwoParts('=') ?: return@mapNotNullToSet null
-			MangaTag(key = parts.first, title = parts.second, source = source)
+			ContentTag(key = parts.first, title = parts.second, source = source)
 		}.orEmpty(),
-		state = getStringOrNull(COLUMN_STATE)?.let { MangaState.entries.find(it) },
+		state = getStringOrNull(COLUMN_STATE)?.let { ContentState.entries.find(it) },
 		authors = getStringOrNull(COLUMN_AUTHOR)?.split(',')?.mapNotNullToSet {
 			it.trim().nullIfEmpty()
 		}.orEmpty(),
@@ -301,9 +301,9 @@ class ExternalPluginContentSource(
 		cursor = this ?: throw IncompatiblePluginException(source.name, null),
 	)
 
-	class MangaSourceCapabilities(
+	class ContentSourceCapabilities(
 		val availableSortOrders: Set<SortOrder>,
-		val listFilterCapabilities: MangaListFilterCapabilities,
+		val listFilterCapabilities: ContentListFilterCapabilities,
 	)
 
 	private companion object {

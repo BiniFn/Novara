@@ -21,9 +21,9 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.lifecycleScope
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
 import javax.inject.Inject
@@ -32,7 +32,7 @@ import javax.inject.Inject
 class SourcesListProducer @Inject constructor(
 	lifecycle: ViewModelLifecycle,
 	@LocalizedAppContext private val context: Context,
-	private val repository: MangaSourcesRepository,
+	private val repository: ContentSourcesRepository,
 	private val settings: AppSettings,
 ) : InvalidationTracker.Observer(TABLE_SOURCES) {
 
@@ -68,7 +68,7 @@ class SourcesListProducer @Inject constructor(
 	private suspend fun buildList(): List<SourceConfigItem> {
 		val enabledSources = repository.getEnabledSources().filter {
 			when (it.unwrap()) {
-				is MangaParserSource -> true
+				is ContentParserSource -> true
 				is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource -> true
 				else -> false
 			}

@@ -29,7 +29,7 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListHeader
@@ -40,7 +40,7 @@ import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.UpdatesListQuickFilter
 import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
-import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedMangaHeader
+import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 import org.skepsun.kototoro.tracker.work.TrackWorker
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -52,7 +52,7 @@ class FeedViewModel @Inject constructor(
 	private val settings: AppSettings,
 	private val repository: TrackingRepository,
 	private val scheduler: TrackWorker.Scheduler,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 	private val quickFilter: UpdatesListQuickFilter,
 	private val sourceGroupManager: SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
@@ -182,20 +182,20 @@ class FeedViewModel @Inject constructor(
 	}.flatMapLatest { (hasHeader, groupTab, sourceTags) ->
 		if (hasHeader) {
 			quickFilter.appliedOptions.combineWithSettings().flatMapLatest {
-				repository.observeUpdatedManga(10, it)
+				repository.observeUpdatedContent(10, it)
 			}.map { mangaList ->
-				val filteredMangaList = mangaList.filter { item ->
+				val filteredContentList = mangaList.filter { item ->
 					val contentGroup = sourceGroupManager.getContentGroup(item.manga.source)
 					val originGroup = sourceGroupManager.getOriginGroup(item.manga.source)
 					
 					groupTab.matchesContentGroup(contentGroup) &&
 						(sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) })
 				}
-				if (filteredMangaList.isEmpty()) {
+				if (filteredContentList.isEmpty()) {
 					null
 				} else {
-					UpdatedMangaHeader(
-						filteredMangaList.map { mangaListMapper.toListModel(it.manga, ListMode.GRID) },
+					UpdatedContentHeader(
+						filteredContentList.map { mangaListMapper.toListModel(it.manga, ListMode.GRID) },
 					)
 				}
 			}

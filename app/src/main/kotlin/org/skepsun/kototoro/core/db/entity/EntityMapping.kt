@@ -1,11 +1,11 @@
 package org.skepsun.kototoro.core.db.entity
 
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.longHashCode
 import org.skepsun.kototoro.parsers.util.mapToSet
@@ -17,21 +17,21 @@ private const val VALUES_DIVIDER = '\n'
 
 // Entity to model
 
-fun TagEntity.toMangaTag() = MangaTag(
+fun TagEntity.toContentTag() = ContentTag(
 	key = this.key,
 	title = this.title.toTitleCase(),
-	source = MangaSource(this.source),
+	source = ContentSource(this.source),
 )
 
-fun Collection<TagEntity>.toMangaTags() = mapToSet(TagEntity::toMangaTag)
+fun Collection<TagEntity>.toContentTags() = mapToSet(TagEntity::toContentTag)
 
-fun Collection<TagEntity>.toMangaTagsList() = map(TagEntity::toMangaTag)
+fun Collection<TagEntity>.toContentTagsList() = map(TagEntity::toContentTag)
 
-fun MangaEntity.toManga(tags: Set<MangaTag>, chapters: List<ChapterEntity>?) = Manga(
+fun MangaEntity.toContent(tags: Set<ContentTag>, chapters: List<ChapterEntity>?) = Content(
 	id = this.id,
 	title = this.title,
 	altTitles = this.altTitles?.split(VALUES_DIVIDER)?.toArraySet().orEmpty(),
-	state = this.state?.let { MangaState(it) },
+	state = this.state?.let { ContentState(it) },
 	rating = this.rating,
 	contentRating = ContentRating(this.contentRating)
 		?: if (isNsfw) ContentRating.ADULT else null,
@@ -40,16 +40,16 @@ fun MangaEntity.toManga(tags: Set<MangaTag>, chapters: List<ChapterEntity>?) = M
 	coverUrl = this.coverUrl,
 	largeCoverUrl = this.largeCoverUrl,
 	authors = this.authors?.split(VALUES_DIVIDER)?.toArraySet().orEmpty(),
-	source = MangaSource(this.source),
+	source = ContentSource(this.source),
 	tags = tags,
-	chapters = chapters?.toMangaChapters(),
+	chapters = chapters?.toContentChapters(),
 )
 
-fun MangaWithTags.toManga(chapters: List<ChapterEntity>? = null) = manga.toManga(tags.toMangaTags(), chapters)
+fun MangaWithTags.toContent(chapters: List<ChapterEntity>? = null) = manga.toContent(tags.toContentTags(), chapters)
 
-fun Collection<MangaWithTags>.toMangaList() = map { it.toManga() }
+fun Collection<MangaWithTags>.toContentList() = map { it.toContent() }
 
-fun ChapterEntity.toMangaChapter() = MangaChapter(
+fun ChapterEntity.toContentChapter() = ContentChapter(
 	id = chapterId,
 	title = title.nullIfEmpty(),
 	number = number,
@@ -58,14 +58,14 @@ fun ChapterEntity.toMangaChapter() = MangaChapter(
 	scanlator = scanlator,
 	uploadDate = uploadDate,
 	branch = branch,
-	source = MangaSource(source),
+	source = ContentSource(source),
 )
 
-fun Collection<ChapterEntity>.toMangaChapters() = map { it.toMangaChapter() }
+fun Collection<ChapterEntity>.toContentChapters() = map { it.toContentChapter() }
 
 // Model to entity
 
-fun Manga.toEntity() = MangaEntity(
+fun Content.toEntity() = MangaEntity(
 	id = id,
 	url = url,
 	publicUrl = publicUrl,
@@ -81,7 +81,7 @@ fun Manga.toEntity() = MangaEntity(
 	authors = authors.joinToString(VALUES_DIVIDER.toString()),
 )
 
-fun MangaTag.toEntity() = TagEntity(
+fun ContentTag.toEntity() = TagEntity(
 	title = title,
 	key = key,
 	source = source.name,
@@ -89,9 +89,9 @@ fun MangaTag.toEntity() = TagEntity(
 	isPinned = false, // for future use
 )
 
-fun Collection<MangaTag>.toEntities() = map(MangaTag::toEntity)
+fun Collection<ContentTag>.toEntities() = map(ContentTag::toEntity)
 
-fun Iterable<IndexedValue<MangaChapter>>.toEntities(mangaId: Long) = map { (index, chapter) ->
+fun Iterable<IndexedValue<ContentChapter>>.toEntities(mangaId: Long) = map { (index, chapter) ->
 	ChapterEntity(
 		chapterId = chapter.id,
 		mangaId = mangaId,
@@ -113,8 +113,8 @@ fun SortOrder(name: String, fallback: SortOrder): SortOrder = runCatching {
 	SortOrder.valueOf(name)
 }.getOrDefault(fallback)
 
-fun MangaState(name: String): MangaState? = runCatching {
-	MangaState.valueOf(name)
+fun ContentState(name: String): ContentState? = runCatching {
+	ContentState.valueOf(name)
 }.getOrNull()
 
 fun ContentRating(name: String?): ContentRating? = runCatching {

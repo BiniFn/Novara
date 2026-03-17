@@ -51,12 +51,12 @@ import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.image.CoilMemoryCacheKey
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.LocalMangaSource
-import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.model.getSummary
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.getContentType
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.nav.ReaderIntent
@@ -99,9 +99,9 @@ import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.databinding.ActivityDetailsBinding
 import org.skepsun.kototoro.databinding.LayoutDetailsTableBinding
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.data.ReadingTime
-import org.skepsun.kototoro.details.service.MangaPrefetchService
+import org.skepsun.kototoro.details.service.ContentPrefetchService
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.details.ui.scrobbling.ScrobblingItemDecoration
@@ -111,12 +111,12 @@ import org.skepsun.kototoro.list.domain.ReadingProgress
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.adapter.mangaGridItemAD
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.StaticItemSizeResolver
 import org.skepsun.kototoro.main.ui.owners.BottomSheetOwner
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.parsers.util.toTitleCase
@@ -205,9 +205,9 @@ class DetailsActivity :
 		}
 
 		val appRouter = router
-		viewModel.mangaDetails.filterNotNull().observe(this, ::onMangaUpdated)
+		viewModel.mangaDetails.filterNotNull().observe(this, ::onContentUpdated)
 		viewModel.coverUrl.observe(this, ::loadCover)
-		viewModel.onMangaRemoved.observeEvent(this, ::onMangaRemoved)
+		viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
 		viewModel.onError
 			.filterNot { appRouter.isChapterPagesSheetShown() }
 			.observeEvent(this, DetailsErrorObserver(this, viewModel, exceptionResolver))
@@ -220,11 +220,11 @@ class DetailsActivity :
 		viewModel.isLoading.observe(this, ::onLoadingStateChanged)
 		viewModel.scrobblingInfo.observe(this, ::onScrobblingInfoChanged)
 		viewModel.localSize.observe(this, ::onLocalSizeChanged)
-		viewModel.relatedManga.observe(this, ::onRelatedMangaChanged)
+		viewModel.relatedContent.observe(this, ::onRelatedContentChanged)
 		viewModel.favouriteCategories.observe(this, ::onFavoritesChanged)
 		val menuInvalidator = MenuInvalidator(this)
 		viewModel.isStatsAvailable.observe(this, menuInvalidator)
-		viewModel.remoteManga.observe(this, menuInvalidator)
+		viewModel.remoteContent.observe(this, menuInvalidator)
 		viewModel.tags.observe(this, ::onTagsChanged)
 		viewModel.chapters.observe(this, PrefetchObserver(this))
 		viewModel.onDownloadStarted
@@ -244,7 +244,7 @@ class DetailsActivity :
 
 	override fun onProvideAssistContent(outContent: AssistContent) {
 		super.onProvideAssistContent(outContent)
-		viewModel.getMangaOrNull()?.publicUrl?.toUriOrNull()?.let { outContent.webUri = it }
+		viewModel.getContentOrNull()?.publicUrl?.toUriOrNull()?.let { outContent.webUri = it }
 	}
 
 	override fun isNsfwContent(): Flow<Boolean> = viewModel.manga.map { it?.contentRating == ContentRating.ADULT }
@@ -252,22 +252,22 @@ class DetailsActivity :
 	override fun onClick(v: View) {
 		when (v.id) {
 			R.id.textView_source -> {
-				val manga = viewModel.getMangaOrNull() ?: return
+				val manga = viewModel.getContentOrNull() ?: return
 				router.openList(manga.source, null, null)
 			}
 
 			R.id.textView_local -> {
-				val manga = viewModel.getMangaOrNull() ?: return
+				val manga = viewModel.getContentOrNull() ?: return
 				router.showLocalInfoDialog(manga)
 			}
 
 			R.id.chip_favorite -> {
-				val manga = viewModel.getMangaOrNull() ?: return
+				val manga = viewModel.getContentOrNull() ?: return
 				router.showFavoriteDialog(manga)
 			}
 
 			R.id.imageView_cover -> {
-				val manga = viewModel.getMangaOrNull() ?: return
+				val manga = viewModel.getContentOrNull() ?: return
 				router.openImage(
 					url = viewModel.coverUrl.value ?: return,
 					source = manga.source,
@@ -292,18 +292,18 @@ class DetailsActivity :
 
 			R.id.button_scrobbling_more -> {
 				router.showScrobblingSelectorSheet(
-					manga = viewModel.getMangaOrNull() ?: return,
+					manga = viewModel.getContentOrNull() ?: return,
 					scrobblerService = viewModel.scrobblingInfo.value.firstOrNull()?.scrobbler,
 				)
 			}
 
 			R.id.button_related_more -> {
-				val manga = viewModel.getMangaOrNull() ?: return
+				val manga = viewModel.getContentOrNull() ?: return
 				router.openRelated(manga)
 			}
 
 			R.id.textView_title -> {
-				val title = viewModel.getMangaOrNull()?.title?.nullIfEmpty() ?: return
+				val title = viewModel.getContentOrNull()?.title?.nullIfEmpty() ?: return
 				buildAlertDialog(this) {
 					setMessage(title)
 					setNegativeButton(R.string.close, null)
@@ -316,11 +316,11 @@ class DetailsActivity :
 	}
 
 	override fun onAuthorClick(author: String) {
-		router.showAuthorDialog(author, viewModel.getMangaOrNull()?.source ?: return)
+		router.showAuthorDialog(author, viewModel.getContentOrNull()?.source ?: return)
 	}
 
 	override fun onChipClick(chip: Chip, data: Any?) {
-		val tag = data as? MangaTag ?: return
+		val tag = data as? ContentTag ?: return
 		router.showTagDialog(tag)
 	}
 
@@ -415,7 +415,7 @@ class DetailsActivity :
 		}
 	}
 
-	private fun onRelatedMangaChanged(related: List<MangaListModel>) {
+	private fun onRelatedContentChanged(related: List<ContentListModel>) {
 		if (related.isEmpty()) {
 			viewBinding.groupRelated.isVisible = false
 			return
@@ -429,7 +429,7 @@ class DetailsActivity :
 				mangaGridItemAD(
 					sizeResolver = StaticItemSizeResolver(resources.getDimensionPixelSize(R.dimen.smaller_grid_width)),
 				) { item, view ->
-					router.openDetails(item.toMangaWithOverride())
+					router.openDetails(item.toContentWithOverride())
 				},
 			).also { rv.adapter = it }
 		adapter.items = related
@@ -453,8 +453,8 @@ class DetailsActivity :
 		}
 	}
 
-	private fun onMangaUpdated(details: MangaDetails) {
-		val manga = details.toManga()
+	private fun onContentUpdated(details: ContentDetails) {
+		val manga = details.toContent()
 		with(viewBinding) {
 			textViewTitle.text = manga.title
 			textViewSubtitle.textAndVisible = manga.altTitles.joinToString("\n")
@@ -490,7 +490,7 @@ class DetailsActivity :
 				textViewStateLabel.isVisible = false
 			}
 
-			if (manga.source == LocalMangaSource || manga.source == UnknownMangaSource) {
+			if (manga.source == LocalMangaSource || manga.source == UnknownContentSource) {
 				textViewSource.isVisible = false
 				textViewSourceLabel.isVisible = false
 			} else {
@@ -500,7 +500,7 @@ class DetailsActivity :
 				textViewSource.setTooltipCompat(manga.source.getSummary(this@DetailsActivity, contentType))
 				textViewSourceLabel.isVisible = textViewSource.isVisible == true
 				if ((initialTitle == getString(R.string.unknown) || manga.source.name.startsWith("JSON_")) &&
-					manga.source !is JsonMangaSource
+					manga.source !is JsonContentSource
 				) {
 					// 某些场景 seed.source 仍是裸 ID，这里兜底同步显示数据库中的显示名
 					lifecycleScope.launch {
@@ -532,7 +532,7 @@ class DetailsActivity :
 		invalidateOptionsMenu()
 	}
 
-	private fun onMangaRemoved(manga: Manga) {
+	private fun onContentRemoved(manga: Content) {
 		Toast.makeText(
 			this,
 			getString(R.string._s_deleted_from_local_storage, manga.title),
@@ -578,7 +578,7 @@ class DetailsActivity :
 
 	private fun loadCover(imageUrl: String?) {
 		android.util.Log.d("DetailsActivity", "loadCover: $imageUrl")
-		viewBinding.imageViewCover.setImageAsync(imageUrl, viewModel.getMangaOrNull())
+		viewBinding.imageViewCover.setImageAsync(imageUrl, viewModel.getContentOrNull())
 		loadPanoramaCover(imageUrl)
 	}
 
@@ -606,7 +606,7 @@ class DetailsActivity :
 			.lifecycle(this)
 			.crossfade(true)
 			.allowRgb565(true)
-			.mangaSourceExtra(viewModel.getMangaOrNull()?.source)
+			.mangaSourceExtra(viewModel.getContentOrNull()?.source)
 			.target(
 				onSuccess = { result ->
 					panoramaView.setImageDrawable(result.asDrawable(resources))
@@ -667,7 +667,7 @@ class DetailsActivity :
         viewBinding.root.requestLayout()
     }
 
-	private fun getContentType(source: org.skepsun.kototoro.parsers.model.MangaSource): org.skepsun.kototoro.parsers.model.ContentType {
+	private fun getContentType(source: org.skepsun.kototoro.parsers.model.ContentSource): org.skepsun.kototoro.parsers.model.ContentType {
 		return source.getContentType()
 	}
 
@@ -679,7 +679,7 @@ class DetailsActivity :
 		return getString(R.string.chapters_time_pattern, this, timeFormatted)
 	}
 
-	private fun Manga.getAuthorsString(): SpannedString? {
+	private fun Content.getAuthorsString(): SpannedString? {
 		if (authors.isEmpty()) {
 			return null
 		}
@@ -710,7 +710,7 @@ class DetailsActivity :
 			if (!isCalled) {
 				isCalled = true
 				val item = value.find { it.isCurrent } ?: value.first()
-				MangaPrefetchService.prefetchPages(context, item.chapter)
+				ContentPrefetchService.prefetchPages(context, item.chapter)
 			}
 		}
 	}

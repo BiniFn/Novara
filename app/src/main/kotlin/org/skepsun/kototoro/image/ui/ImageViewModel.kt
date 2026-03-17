@@ -12,7 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -37,7 +37,7 @@ class ImageViewModel @Inject constructor(
 				.memoryCachePolicy(CachePolicy.READ_ONLY)
 				.data(savedStateHandle.require<Uri>(AppRouter.KEY_DATA))
 				.memoryCachePolicy(CachePolicy.DISABLED)
-				.mangaSourceExtra(MangaSource(savedStateHandle[AppRouter.KEY_SOURCE]))
+				.mangaSourceExtra(ContentSource(savedStateHandle[AppRouter.KEY_SOURCE]))
 				.build()
 			val bitmap = coil.execute(request).getDrawableOrThrow().toBitmap()
 			runInterruptible(Dispatchers.IO) {

@@ -8,10 +8,10 @@ import androidx.fragment.app.viewModels
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
-import org.skepsun.kototoro.list.ui.MangaListFragment
+import org.skepsun.kototoro.list.ui.ContentListFragment
 
 @AndroidEntryPoint
-class UpdatesFragment : MangaListFragment() {
+class UpdatesFragment : ContentListFragment() {
 
 	override val viewModel by viewModels<UpdatesViewModel>()
 	override val isSwipeRefreshEnabled = false

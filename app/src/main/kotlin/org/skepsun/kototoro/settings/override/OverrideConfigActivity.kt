@@ -14,14 +14,14 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.filterNotNull
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseActivity
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.databinding.ActivityOverrideEditBinding
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.picker.ui.PageImagePickContract
 import com.google.android.material.R as materialR
@@ -97,7 +97,7 @@ class OverrideConfigActivity : BaseActivity<ActivityOverrideEditBinding>(), View
 		}
 	}
 
-	private fun onDataChanged(data: Pair<Manga, MangaOverride>) {
+	private fun onDataChanged(data: Pair<Content, ContentOverride>) {
 		val (manga, override) = data
 		viewBinding.imageViewCover.setImageAsync(override.coverUrl.ifNullOrEmpty { manga.coverUrl }, manga)
 		viewBinding.layoutName.placeholderText = manga.title

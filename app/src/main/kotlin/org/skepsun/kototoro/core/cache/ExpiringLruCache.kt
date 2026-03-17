@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.core.cache
 
 import org.skepsun.kototoro.core.util.SynchronizedSieveCache
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.concurrent.TimeUnit
 import org.skepsun.kototoro.core.cache.MemoryContentCache.Key as CacheKey
 
@@ -38,7 +38,7 @@ class ExpiringLruCache<T>(
 		cache.remove(key)
 	}
 
-	fun removeAll(source: MangaSource) {
+	fun removeAll(source: ContentSource) {
 		cache.removeIf { key, _ -> key.source == source }
 	}
 }

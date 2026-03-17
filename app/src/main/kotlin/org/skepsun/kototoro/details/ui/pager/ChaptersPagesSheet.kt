@@ -77,12 +77,12 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		val source = when (viewModel) {
 			is DetailsViewModel -> (viewModel as DetailsViewModel).manga.value?.source
 			is org.skepsun.kototoro.video.ui.VideoChaptersViewModel -> 
-				(viewModel as org.skepsun.kototoro.video.ui.VideoChaptersViewModel).mangaDetails.value?.toManga()?.source
+				(viewModel as org.skepsun.kototoro.video.ui.VideoChaptersViewModel).mangaDetails.value?.toContent()?.source
 			else -> null
 		} ?: run {
-			// 从Activity的Intent中获取Manga，这在Fragment Arguments为空时作为备用方案
+			// 从Activity的Intent中获取Content，这在Fragment Arguments为空时作为备用方案
 			val intent = activity?.intent
-			intent?.getParcelableExtra<org.skepsun.kototoro.core.model.parcelable.ParcelableManga>(AppRouter.KEY_MANGA)?.manga?.source
+			intent?.getParcelableExtra<org.skepsun.kototoro.core.model.parcelable.ParcelableContent>(AppRouter.KEY_MANGA)?.manga?.source
 		}
 		
 		android.util.Log.d("ChaptersPagesSheet", "Source: $source, type: ${source?.javaClass?.simpleName}")
@@ -228,7 +228,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         binding.splitButtonRead.scaleY = 0.8f
     }
 
-	private fun getContentType(source: org.skepsun.kototoro.parsers.model.MangaSource): org.skepsun.kototoro.parsers.model.ContentType {
+	private fun getContentType(source: org.skepsun.kototoro.parsers.model.ContentSource): org.skepsun.kototoro.parsers.model.ContentType {
 		return source.getContentType()
 	}
 

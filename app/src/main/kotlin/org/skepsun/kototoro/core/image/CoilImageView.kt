@@ -36,8 +36,8 @@ import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.core.util.ext.isNetworkError
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.LinkedList
 import javax.inject.Inject
 
@@ -133,7 +133,7 @@ open class CoilImageView @JvmOverloads constructor(
 			.build(),
 	)
 
-	fun setImageAsyncBySource(url: String?, source: MangaSource?) = enqueueRequest(
+	fun setImageAsyncBySource(url: String?, source: ContentSource?) = enqueueRequest(
 		newRequestBuilder()
 			.data(url)
 			.apply {
@@ -144,7 +144,7 @@ open class CoilImageView @JvmOverloads constructor(
 			.build(),
 	)
 
-	fun setImageAsync(manga: Manga?) = enqueueRequest(
+	fun setImageAsync(manga: Content?) = enqueueRequest(
 		newRequestBuilder()
 			.data(manga?.coverUrl)
 			.apply {

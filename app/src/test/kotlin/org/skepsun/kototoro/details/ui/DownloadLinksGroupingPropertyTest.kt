@@ -13,8 +13,8 @@ import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
 import org.skepsun.kototoro.local.epub.ChapterMetadata
 import org.skepsun.kototoro.local.epub.ChapterType
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
  * Property-based tests for download links grouping.
@@ -99,18 +99,18 @@ class DownloadLinksGroupingPropertyTest : StringSpec({
 /**
  * Arbitrary generator for chapter list with EPUB_DOWNLOAD chapters
  */
-private fun arbChapterListWithDownloads(): Arb<Pair<List<MangaChapter>, Map<Long, ChapterMetadata>>> = arbitrary {
+private fun arbChapterListWithDownloads(): Arb<Pair<List<ContentChapter>, Map<Long, ChapterMetadata>>> = arbitrary {
     val downloadCount = Arb.int(0..5).bind()
     val normalCount = Arb.int(0..10).bind()
     val epubInternalCount = Arb.int(0..10).bind()
     
-    val chapters = mutableListOf<MangaChapter>()
+    val chapters = mutableListOf<ContentChapter>()
     val metadataMap = mutableMapOf<Long, ChapterMetadata>()
     
     // Add EPUB_DOWNLOAD chapters
     repeat(downloadCount) {
         val chapterId = Arb.long(1L..1000000L).bind()
-        val chapter = MangaChapter(
+        val chapter = ContentChapter(
             id = chapterId,
             title = "Download ${Arb.string(5..20).bind()}",
             number = it.toFloat(),
@@ -119,7 +119,7 @@ private fun arbChapterListWithDownloads(): Arb<Pair<List<MangaChapter>, Map<Long
             scanlator = null,
             uploadDate = 0L,
             branch = null,
-            source = TestMangaSource
+            source = TestContentSource
         )
         chapters.add(chapter)
         metadataMap[chapterId] = ChapterMetadata(
@@ -133,7 +133,7 @@ private fun arbChapterListWithDownloads(): Arb<Pair<List<MangaChapter>, Map<Long
     // Add NORMAL chapters
     repeat(normalCount) {
         val chapterId = Arb.long(1000001L..2000000L).bind()
-        val chapter = MangaChapter(
+        val chapter = ContentChapter(
             id = chapterId,
             title = "Chapter ${it + 1}",
             number = (it + 1).toFloat(),
@@ -142,7 +142,7 @@ private fun arbChapterListWithDownloads(): Arb<Pair<List<MangaChapter>, Map<Long
             scanlator = null,
             uploadDate = 0L,
             branch = null,
-            source = TestMangaSource
+            source = TestContentSource
         )
         chapters.add(chapter)
         metadataMap[chapterId] = ChapterMetadata(
@@ -157,7 +157,7 @@ private fun arbChapterListWithDownloads(): Arb<Pair<List<MangaChapter>, Map<Long
     repeat(epubInternalCount) {
         val chapterId = Arb.long(2000001L..3000000L).bind()
         val parentId = Arb.long(1L..1000000L).bind()
-        val chapter = MangaChapter(
+        val chapter = ContentChapter(
             id = chapterId,
             title = "Internal Chapter ${it + 1}",
             number = (it + 1).toFloat(),
@@ -166,7 +166,7 @@ private fun arbChapterListWithDownloads(): Arb<Pair<List<MangaChapter>, Map<Long
             scanlator = null,
             uploadDate = 0L,
             branch = null,
-            source = TestMangaSource
+            source = TestContentSource
         )
         chapters.add(chapter)
         metadataMap[chapterId] = ChapterMetadata(

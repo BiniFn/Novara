@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.skepsun.kototoro.core.db.entity.MangaWithTags
 import org.skepsun.kototoro.history.data.HistoryEntity
-import org.skepsun.kototoro.history.data.HistoryWithManga
+import org.skepsun.kototoro.history.data.HistoryWithContent
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 
 @Serializable
@@ -17,10 +17,10 @@ class HistoryBackup(
 	@SerialName("scroll") val scroll: Float,
 	@SerialName("percent") val percent: Float = PROGRESS_NONE,
 	@SerialName("chapters") val chaptersCount: Int = 0,
-	@SerialName("manga") val manga: MangaBackup,
+	@SerialName("manga") val manga: ContentBackup,
 ) {
 
-	constructor(entity: HistoryWithManga) : this(
+	constructor(entity: HistoryWithContent) : this(
 		mangaId = entity.manga.id,
 		createdAt = entity.history.createdAt,
 		updatedAt = entity.history.updatedAt,
@@ -29,7 +29,7 @@ class HistoryBackup(
 		scroll = entity.history.scroll,
 		percent = entity.history.percent,
 		chaptersCount = entity.history.chaptersCount,
-		manga = MangaBackup(MangaWithTags(entity.manga, entity.tags)),
+		manga = ContentBackup(MangaWithTags(entity.manga, entity.tags)),
 	)
 
 	fun toEntity() = HistoryEntity(

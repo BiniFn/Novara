@@ -17,7 +17,7 @@ import org.skepsun.kototoro.browser.BrowserActivity
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
 import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -48,7 +48,7 @@ class BrowserLauncher(
      * @param source 源信息（可选）
      * @return 浏览器最终页面的 HTML 内容，如果失败则返回空字符串
      */
-    fun launchAndWait(url: String, title: String, source: MangaSource? = null): String {
+    fun launchAndWait(url: String, title: String, source: ContentSource? = null): String {
         Log.i(TAG, "Launching browser: url=$url, title=$title")
         
         // 创建 Intent
@@ -116,7 +116,7 @@ class BrowserLauncher(
         activity: FragmentActivity,
         url: String,
         title: String,
-        source: MangaSource? = null
+        source: ContentSource? = null
     ): String {
         Log.i(TAG, "Launching browser from activity: url=$url, title=$title")
         

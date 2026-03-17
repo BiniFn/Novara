@@ -38,12 +38,12 @@ import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler
 import org.skepsun.kototoro.core.image.AvifImageDecoder
 import org.skepsun.kototoro.core.image.CbzFetcher
-import org.skepsun.kototoro.core.image.MangaSourceHeaderInterceptor
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.image.ContentSourceHeaderInterceptor
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.os.NetworkState
-import org.skepsun.kototoro.core.parser.MangaLoaderContextImpl
+import org.skepsun.kototoro.core.parser.ContentLoaderContextImpl
 import org.skepsun.kototoro.core.parser.favicon.FaviconFetcher
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.image.CoilImageGetter
@@ -52,20 +52,20 @@ import org.skepsun.kototoro.core.util.AcraScreenLogger
 import org.skepsun.kototoro.core.util.FileSize
 import org.skepsun.kototoro.core.util.ext.connectivityManager
 import org.skepsun.kototoro.core.util.ext.isLowRamDevice
-import org.skepsun.kototoro.details.ui.pager.pages.MangaPageFetcher
-import org.skepsun.kototoro.details.ui.pager.pages.MangaPageKeyer
+import org.skepsun.kototoro.details.ui.pager.pages.ContentPageFetcher
+import org.skepsun.kototoro.details.ui.pager.pages.ContentPageKeyer
 import org.skepsun.kototoro.local.data.CacheDir
 import org.skepsun.kototoro.local.data.FaviconCache
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.NovelCache
 import org.skepsun.kototoro.local.data.PageCache
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.main.domain.CoverRestoreInterceptor
 import org.skepsun.kototoro.main.ui.protect.AppProtectHelper
 import org.skepsun.kototoro.main.ui.protect.ScreenshotPolicyHelper
-import org.skepsun.kototoro.parsers.MangaLoaderContext
-import org.skepsun.kototoro.search.ui.MangaSuggestionsProvider
+import org.skepsun.kototoro.parsers.ContentLoaderContext
+import org.skepsun.kototoro.search.ui.ContentSuggestionsProvider
 import org.skepsun.kototoro.sync.domain.SyncController
 import org.skepsun.kototoro.widget.WidgetUpdater
 import javax.inject.Provider
@@ -76,7 +76,7 @@ import javax.inject.Singleton
 interface AppModule {
 
 	@Binds
-	fun bindMangaLoaderContext(mangaLoaderContextImpl: MangaLoaderContextImpl): MangaLoaderContext
+	fun bindContentLoaderContext(mangaLoaderContextImpl: ContentLoaderContextImpl): ContentLoaderContext
 
 	@Binds
 	fun bindImageGetter(coilImageGetter: CoilImageGetter): Html.ImageGetter
@@ -128,10 +128,10 @@ interface AppModule {
 		@Singleton
 		fun provideCoil(
 			@LocalizedAppContext context: Context,
-			@MangaHttpClient okHttpClientProvider: Provider<OkHttpClient>,
+			@ContentHttpClient okHttpClientProvider: Provider<OkHttpClient>,
 			faviconFetcherFactory: FaviconFetcher.Factory,
 			imageProxyInterceptor: ImageProxyInterceptor,
-			pageFetcherFactory: MangaPageFetcher.Factory,
+			pageFetcherFactory: ContentPageFetcher.Factory,
 			coverRestoreInterceptor: CoverRestoreInterceptor,
 			networkStateProvider: Provider<NetworkState>,
 			captchaHandler: CaptchaHandler,
@@ -167,18 +167,18 @@ interface AppModule {
 					add(CbzFetcher.Factory())
 					add(AvifImageDecoder.Factory())
 					add(faviconFetcherFactory)
-					add(MangaPageKeyer())
+					add(ContentPageKeyer())
 					add(pageFetcherFactory)
 					add(imageProxyInterceptor)
 					add(coverRestoreInterceptor)
-					add(MangaSourceHeaderInterceptor())
+					add(ContentSourceHeaderInterceptor())
 				}.build()
 		}
 
 		@Provides
 		fun provideSearchSuggestions(
 			@ApplicationContext context: Context,
-		): SearchRecentSuggestions = MangaSuggestionsProvider.createSuggestions(context)
+		): SearchRecentSuggestions = ContentSuggestionsProvider.createSuggestions(context)
 
 		@Provides
 		@ElementsIntoSet
@@ -211,13 +211,13 @@ interface AppModule {
 		@Provides
 		@Singleton
 		@LocalStorageChanges
-		fun provideMutableLocalStorageChangesFlow(): MutableSharedFlow<LocalManga?> = MutableSharedFlow()
+		fun provideMutableLocalStorageChangesFlow(): MutableSharedFlow<LocalContent?> = MutableSharedFlow()
 
 		@Provides
 		@LocalStorageChanges
 		fun provideLocalStorageChangesFlow(
-			@LocalStorageChanges flow: MutableSharedFlow<LocalManga?>,
-		): SharedFlow<LocalManga?> = flow.asSharedFlow()
+			@LocalStorageChanges flow: MutableSharedFlow<LocalContent?>,
+		): SharedFlow<LocalContent?> = flow.asSharedFlow()
 
 		@Provides
 		fun provideWorkManager(

@@ -28,9 +28,9 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.parser.EmptyMangaRepository
-import org.skepsun.kototoro.core.parser.JsMangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.EmptyContentRepository
+import org.skepsun.kototoro.core.parser.JsContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
@@ -39,8 +39,8 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
 import org.skepsun.kototoro.settings.utils.PasswordSummaryProvider
 import android.widget.Toast
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -53,7 +53,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
@@ -89,7 +89,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		
 		addPreferencesFromResource(R.xml.pref_source)
 		addPreferencesFromRepository(viewModel.repository)
-		val isValidSource = viewModel.repository !is EmptyMangaRepository
+		val isValidSource = viewModel.repository !is EmptyContentRepository
 
 		val contentType = viewModel.source.getContentType()
 		findPreference<SwitchPreferenceCompat>(KEY_ENABLE)?.run {
@@ -102,14 +102,14 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		}
         // 显示 Web 登录入口：当解析器支持“网页登录”但不支持“凭证登录”时才显示
         findPreference<Preference>(KEY_AUTH)?.run {
-            val parserRepo = (viewModel.repository as? ParserMangaRepository)
+            val parserRepo = (viewModel.repository as? ParserContentRepository)
             val authProvider = parserRepo?.getAuthProvider()
-            val credentialsProvider = authProvider as? MangaParserCredentialsAuthProvider
+            val credentialsProvider = authProvider as? ContentParserCredentialsAuthProvider
             isVisible = authProvider != null && credentialsProvider == null
         }
 
         // 如果解析器支持用户名/密码登录，在当前页面插入输入框与登录按钮
-        val credentialsProvider = (viewModel.repository as? ParserMangaRepository)?.getAuthProvider() as? MangaParserCredentialsAuthProvider
+        val credentialsProvider = (viewModel.repository as? ParserContentRepository)?.getAuthProvider() as? ContentParserCredentialsAuthProvider
 		if (credentialsProvider != null) {
             addCredentialsPreferences()
         }
@@ -665,14 +665,14 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 
 	private fun getLegadoRepoAndConfigOrNull(): Pair<org.skepsun.kototoro.core.parser.legado.LegadoRepository, LegadoBookSource>? {
 		val repo = viewModel.repository as? org.skepsun.kototoro.core.parser.legado.LegadoRepository ?: return null
-		val jsonSource = repo.source as? JsonMangaSource ?: return null
+		val jsonSource = repo.source as? JsonContentSource ?: return null
 		val config = runCatching { legadoJson.decodeFromString<LegadoBookSource>(jsonSource.entity.config) }.getOrNull() ?: return null
 		return repo to config
 	}
 
 	private fun getTvBoxRepoAndConfigOrNull(): Pair<TVBoxRepository, TVBoxStoredConfig>? {
 		val repo = viewModel.repository as? TVBoxRepository ?: return null
-		val jsonSource = repo.source as? JsonMangaSource ?: return null
+		val jsonSource = repo.source as? JsonContentSource ?: return null
 		val config = runCatching { TVBoxStoredConfig.parse(jsonSource.entity.config) }.getOrNull() ?: return null
 		return repo to config
 	}
@@ -706,7 +706,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		return SIGNED_INT_PATTERN.matcher(text).matches()
 	}
 
-	private fun addJsLoginPreferences(meta: JsMangaRepository.JsAccountMeta) {
+	private fun addJsLoginPreferences(meta: JsContentRepository.JsAccountMeta) {
 		if (!meta.hasLogin && meta.cookieFields.isEmpty()) return
 		val screen = preferenceScreen ?: return
 		if (findPreference<PreferenceCategory>(KEY_JS_ACCOUNT_CATEGORY) == null) {
@@ -954,7 +954,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		private const val LEGADO_BOOK_PREFS = "legado_book_store"
 		private val SIGNED_INT_PATTERN = Pattern.compile("^-?\\d+$")
 
-		fun newInstance(source: org.skepsun.kototoro.parsers.model.MangaSource) = SourceSettingsFragment().withArgs(1) {
+		fun newInstance(source: org.skepsun.kototoro.parsers.model.ContentSource) = SourceSettingsFragment().withArgs(1) {
 			putString(AppRouter.KEY_SOURCE, source.name)
 		}
 	}
@@ -1012,7 +1012,7 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 	}
 
 	private fun tryAddJsPreferences() {
-		val repo = viewModel.repository as? JsMangaRepository ?: return
+		val repo = viewModel.repository as? JsContentRepository ?: return
 		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
 			val schema = runCatching { repo.fetchSettingsSchema() }.getOrDefault(emptyList())
 			if (schema.isEmpty()) return@launch

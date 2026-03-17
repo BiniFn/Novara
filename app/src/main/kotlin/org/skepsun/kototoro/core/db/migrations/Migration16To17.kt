@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.preference.PreferenceManager
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 
 class Migration16To17(context: Context) : Migration(16, 17) {
 
@@ -15,7 +15,7 @@ class Migration16To17(context: Context) : Migration(16, 17) {
 		db.execSQL("CREATE INDEX `index_sources_sort_key` ON `sources` (`sort_key`)")
 		val hiddenSources = prefs.getStringSet("sources_hidden", null).orEmpty()
 		val order = prefs.getString("sources_order_2", null)?.split('|').orEmpty()
-		val sources = MangaParserSource.entries
+		val sources = ContentParserSource.entries
 		for (source in sources) {
 			val name = source.name
 			val isHidden = name in hiddenSources

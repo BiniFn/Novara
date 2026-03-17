@@ -1,11 +1,19 @@
 package org.skepsun.kototoro.core
 
+import android.app.Application.ActivityLifecycleCallbacks
 import android.content.Context
 import android.os.Build
 import androidx.annotation.WorkerThread
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.hilt.work.HiltWorkerFactory
 import androidx.room.InvalidationTracker
+import androidx.work.Configuration
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttp
 import org.acra.ACRA
@@ -19,18 +27,31 @@ import org.conscrypt.Conscrypt
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import com.github.tvbox.osc.base.App
+import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.os.AppValidator
 import org.skepsun.kototoro.core.os.RomCompat
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.data.index.LocalMangaIndex
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.index.LocalContentIndex
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.mihon.MihonExtensionManager
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
+import org.skepsun.kototoro.settings.work.WorkScheduleManager
 import java.security.Security
+import javax.inject.Provider
 
-open class BaseApp : App() {
+open class BaseApp : App(), Configuration.Provider {
+
+	private val entryPoint: BaseAppEntryPoint by lazy(LazyThreadSafetyMode.NONE) {
+		EntryPointAccessors.fromApplication(this, BaseAppEntryPoint::class.java)
+	}
+
+	override val workManagerConfiguration: Configuration
+		get() = Configuration.Builder()
+			.setWorkerFactory(entryPoint.workerFactory())
+			.build()
 
 	override fun onCreate() {
 		super.onCreate()
@@ -42,7 +63,7 @@ open class BaseApp : App() {
 		if (ACRA.isACRASenderServiceProcess()) {
 			return
 		}
-		AppCompatDelegate.setDefaultNightMode(settings.theme)
+		AppCompatDelegate.setDefaultNightMode(entryPoint.settings().theme)
 		// TLS 1.3 support for Android < 10
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
 			try {
@@ -54,28 +75,28 @@ open class BaseApp : App() {
 		setupActivityLifecycleCallbacks()
 		processLifecycleScope.launch {
 			runCatching {
-				ACRA.errorReporter.putCustomData("isOriginalApp", appValidator.isOriginalApp.getOrNull().toString())
+				ACRA.errorReporter.putCustomData("isOriginalApp", entryPoint.appValidator().isOriginalApp.getOrNull().toString())
 				ACRA.errorReporter.putCustomData("isMiui", RomCompat.isMiui.getOrNull().toString())
 			}
 		}
 		processLifecycleScope.launch(Dispatchers.Default) {
 			runCatching {
 				setupDatabaseObservers()
-				localStorageChanges.collect(localMangaIndexProvider.get())
+				entryPoint.localStorageChanges().collect(entryPoint.localContentIndexProvider().get())
 			}
 		}
 		try {
-			workScheduleManager.init()
+			entryPoint.workScheduleManager().init()
 		} catch (e: Throwable) {
 			e.printStackTrace()
 		}
 		try {
-			mihonExtensionManager.initialize()
+			entryPoint.mihonExtensionManager().initialize()
 		} catch (e: Throwable) {
 			e.printStackTrace()
 		}
 		try {
-			aniyomiExtensionManager.initialize()
+			entryPoint.aniyomiExtensionManager().initialize()
 		} catch (e: Throwable) {
 			e.printStackTrace()
 		}
@@ -119,15 +140,32 @@ open class BaseApp : App() {
 
 	@WorkerThread
 	private fun setupDatabaseObservers() {
-		val tracker = database.get().invalidationTracker
-		databaseObserversProvider.get().forEach {
+		val tracker = entryPoint.database().get().invalidationTracker
+		entryPoint.databaseObserversProvider().get().forEach {
 			tracker.addObserver(it)
 		}
 	}
 
 	private fun setupActivityLifecycleCallbacks() {
-		activityLifecycleCallbacks.forEach {
+		entryPoint.activityLifecycleCallbacks().forEach {
 			registerActivityLifecycleCallbacks(it)
 		}
+	}
+
+	@EntryPoint
+	@InstallIn(SingletonComponent::class)
+	interface BaseAppEntryPoint {
+		fun databaseObserversProvider(): Provider<Set<@JvmSuppressWildcards InvalidationTracker.Observer>>
+		fun activityLifecycleCallbacks(): Set<@JvmSuppressWildcards ActivityLifecycleCallbacks>
+		fun database(): Provider<MangaDatabase>
+		fun settings(): AppSettings
+		fun workerFactory(): HiltWorkerFactory
+		fun appValidator(): AppValidator
+		fun workScheduleManager(): WorkScheduleManager
+		fun localContentIndexProvider(): Provider<LocalContentIndex>
+		@LocalStorageChanges
+		fun localStorageChanges(): MutableSharedFlow<LocalContent?>
+		fun mihonExtensionManager(): MihonExtensionManager
+		fun aniyomiExtensionManager(): AniyomiExtensionManager
 	}
 }

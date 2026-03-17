@@ -17,7 +17,7 @@ import org.skepsun.kototoro.core.db.entity.MangaEntity
 		),
 	],
 )
-class LocalMangaIndexEntity(
+class LocalContentIndexEntity(
 	@PrimaryKey(autoGenerate = false)
 	@ColumnInfo(name = "manga_id") val mangaId: Long,
 	@ColumnInfo(name = "path") val path: String,

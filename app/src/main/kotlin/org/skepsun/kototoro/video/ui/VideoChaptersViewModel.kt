@@ -13,17 +13,17 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getPreferredBranch
-import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.DetailsInteractor
 import org.skepsun.kototoro.details.domain.DetailsLoadUseCase
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.DeleteLocalMangaUseCase
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.video.data.VideoDownloadIndex
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
@@ -36,11 +36,11 @@ class VideoChaptersViewModel @Inject constructor(
     bookmarksRepository: BookmarksRepository,
     settings: AppSettings,
     @LocalStorageChanges
-    localStorageChanges: SharedFlow<LocalManga?>,
+    localStorageChanges: SharedFlow<LocalContent?>,
     downloadScheduler: DownloadWorker.Scheduler,
     interactor: DetailsInteractor,
     savedStateHandle: SavedStateHandle,
-    deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
+    deleteLocalContentUseCase: DeleteLocalContentUseCase,
     private val detailsLoadUseCase: DetailsLoadUseCase,
     private val videoDownloadIndex: VideoDownloadIndex,
 ) : ChaptersPagesViewModel(
@@ -49,16 +49,16 @@ class VideoChaptersViewModel @Inject constructor(
     bookmarksRepository = bookmarksRepository,
     historyRepository = historyRepository,
     downloadScheduler = downloadScheduler,
-    deleteLocalMangaUseCase = deleteLocalMangaUseCase,
+    deleteLocalContentUseCase = deleteLocalContentUseCase,
     localStorageChanges = localStorageChanges,
 ) {
 
-    private val intent = MangaIntent(savedStateHandle)
+    private val intent = ContentIntent(savedStateHandle)
     private var loadingJob: Job? = null
     private val mangaId = intent.mangaId
 
     init {
-        mangaDetails.value = intent.manga?.let { MangaDetails(it) }
+        mangaDetails.value = intent.manga?.let { ContentDetails(it) }
 
         historyRepository.observeOne(mangaId)
             .onEach { h -> readingState.value = h?.let(::ReaderState) }
@@ -68,8 +68,8 @@ class VideoChaptersViewModel @Inject constructor(
         loadingJob = doLoad(false)
 
         videoDownloadIndex.changes
-            .onEach { changedMangaId ->
-                if (changedMangaId == mangaId) {
+            .onEach { changedContentId ->
+                if (changedContentId == mangaId) {
                     notifyDownloadChanged()
                 }
             }
@@ -84,7 +84,7 @@ class VideoChaptersViewModel @Inject constructor(
         detailsLoadUseCase.invoke(intent, force).collect { details ->
             mangaDetails.value = details
             if (details.allChapters.isNotEmpty()) {
-                val manga = details.toManga()
+                val manga = details.toContent()
                 val hist = historyRepository.getOne(manga)
                 selectedBranch.value = manga.getPreferredBranch(hist)
             }
@@ -92,7 +92,7 @@ class VideoChaptersViewModel @Inject constructor(
     }
 
     override suspend fun expandEpubChaptersIfNeeded(chapters: List<ChapterListItem>): List<ChapterListItem> {
-        val manga = mangaDetails.value?.toManga() ?: return chapters
+        val manga = mangaDetails.value?.toContent() ?: return chapters
         val downloadedIds = videoDownloadIndex.getDownloadedChapterIds(manga.id)
         if (downloadedIds.isEmpty()) return chapters
         val downloadedOnly = isDownloadedOnly.value

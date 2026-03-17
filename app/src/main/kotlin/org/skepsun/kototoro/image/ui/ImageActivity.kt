@@ -25,7 +25,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.image.CoilMemoryCacheKey
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.util.PopupMenuMediator
@@ -128,7 +128,7 @@ class ImageActivity : BaseActivity<ActivityImageBinding>(),
 			.memoryCachePolicy(CachePolicy.READ_ONLY)
 			.lifecycle(this)
 			.listener(this)
-			.mangaSourceExtra(MangaSource(intent.getStringExtra(AppRouter.KEY_SOURCE)))
+			.mangaSourceExtra(ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)))
 			.target(SsivTarget(viewBinding.ssiv))
 			.enqueueWith(coil)
 	}

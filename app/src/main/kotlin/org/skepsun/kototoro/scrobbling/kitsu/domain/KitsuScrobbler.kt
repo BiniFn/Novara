@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.scrobbling.kitsu.domain
 
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -12,7 +12,7 @@ import javax.inject.Inject
 class KitsuScrobbler @Inject constructor(
 	private val repository: KitsuRepository,
 	db: MangaDatabase,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 ) : Scrobbler(db, ScrobblerService.KITSU, repository, mangaRepositoryFactory) {
 
 	init {

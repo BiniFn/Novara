@@ -19,10 +19,10 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.textAndVisible
 import org.skepsun.kototoro.databinding.FragmentPreviewBinding
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
-import org.skepsun.kototoro.search.ui.MangaListActivity
+import org.skepsun.kototoro.search.ui.ContentListActivity
 
 @AndroidEntryPoint
 class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickListener, ChipsView.OnChipClickListener {
@@ -35,7 +35,7 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 
 	override fun onViewBindingCreated(binding: FragmentPreviewBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		binding.buttonClose.isVisible = activity is MangaListActivity
+		binding.buttonClose.isVisible = activity is ContentListActivity
 		binding.buttonClose.setOnClickListener(this)
 		binding.textViewDescription.movementMethod = LinkMovementMethodCompat.getInstance()
 		binding.chipsTags.onChipClickListener = this
@@ -44,7 +44,7 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 		binding.buttonOpen.setOnClickListener(this)
 		binding.buttonRead.setOnClickListener(this)
 
-		viewModel.manga.observe(viewLifecycleOwner, ::onMangaUpdated)
+		viewModel.manga.observe(viewLifecycleOwner, ::onContentUpdated)
 		viewModel.footer.observe(viewLifecycleOwner, ::onFooterUpdated)
 		viewModel.tagsChips.observe(viewLifecycleOwner, ::onTagsChipsChanged)
 		viewModel.description.observe(viewLifecycleOwner, ::onDescriptionChanged)
@@ -73,7 +73,7 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 	}
 
 	override fun onChipClick(chip: Chip, data: Any?) {
-		val tag = data as? MangaTag ?: return
+		val tag = data as? ContentTag ?: return
 		val filter = FilterCoordinator.find(this)
 		if (filter == null) {
 			router.openList(tag)
@@ -83,7 +83,7 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 		}
 	}
 
-	private fun onMangaUpdated(manga: Manga) {
+	private fun onContentUpdated(manga: Content) {
 		with(requireViewBinding()) {
 			// Main
 			loadCover(manga)
@@ -122,7 +122,7 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 		}
 	}
 
-	private fun loadCover(manga: Manga) {
+	private fun loadCover(manga: Content) {
 		val imageUrl = manga.largeCoverUrl.ifNullOrEmpty { manga.coverUrl }
 		requireViewBinding().imageViewCover.setImageAsync(imageUrl, manga)
 	}
@@ -132,6 +132,6 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 	}
 
 	private fun closeSelf() {
-		((activity as? MangaListActivity)?.hidePreview())
+		((activity as? ContentListActivity)?.hidePreview())
 	}
 }

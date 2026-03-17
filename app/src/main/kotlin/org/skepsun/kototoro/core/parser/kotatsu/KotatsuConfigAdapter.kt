@@ -3,10 +3,10 @@ package org.skepsun.kototoro.core.parser.kotatsu
 import org.koitharu.kotatsu.parsers.config.ConfigKey as KTConfigKey
 import org.koitharu.kotatsu.parsers.config.MangaSourceConfig as KTMangaSourceConfig
 import org.skepsun.kototoro.parsers.config.ConfigKey
-import org.skepsun.kototoro.parsers.config.MangaSourceConfig
+import org.skepsun.kototoro.parsers.config.ContentSourceConfig
 
 internal class KotatsuConfigAdapter(
-	private val delegate: MangaSourceConfig,
+	private val delegate: ContentSourceConfig,
 ) : KTMangaSourceConfig {
 
 	override fun <T> get(key: KTConfigKey<T>): T {

@@ -16,11 +16,11 @@ import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentListBinding
-import org.skepsun.kototoro.list.ui.MangaListFragment
+import org.skepsun.kototoro.list.ui.ContentListFragment
 import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
 
 @AndroidEntryPoint
-class HistoryListFragment : MangaListFragment() {
+class HistoryListFragment : ContentListFragment() {
 
 	override val viewModel by viewModels<HistoryListViewModel>()
 	override val isSwipeRefreshEnabled = false

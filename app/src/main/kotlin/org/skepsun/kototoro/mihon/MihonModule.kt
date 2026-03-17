@@ -8,7 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.mihon.compat.KotoInjektBridge
 import javax.inject.Singleton
 
@@ -20,7 +20,7 @@ object MihonModule {
     @Singleton
     fun provideKotoInjektBridge(
         @ApplicationContext context: Context,
-        @MangaHttpClient okHttpClient: OkHttpClient,
+        @ContentHttpClient okHttpClient: OkHttpClient,
         cookieJar: CookieJar,
     ): KotoInjektBridge {
         return try {

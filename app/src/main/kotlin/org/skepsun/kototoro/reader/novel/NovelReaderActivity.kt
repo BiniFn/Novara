@@ -28,18 +28,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.ui.BaseFullscreenActivity
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.databinding.ActivityNovelReaderV2Binding
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.reader.ui.ReaderControlDelegate
 import javax.inject.Inject
 
@@ -55,7 +55,7 @@ class NovelReaderActivity :
     NovelChaptersSheet.Callback {
 
     @Inject
-    lateinit var mangaRepositoryFactory: MangaRepository.Factory
+    lateinit var mangaRepositoryFactory: ContentRepository.Factory
 
     @Inject
     lateinit var settings: AppSettings
@@ -85,15 +85,15 @@ class NovelReaderActivity :
     lateinit var epubContentCache: org.skepsun.kototoro.local.epub.EpubContentCache
 
     @Inject
-    lateinit var localMangaRepository: org.skepsun.kototoro.local.data.LocalMangaRepository
+    lateinit var localContentRepository: org.skepsun.kototoro.local.data.LocalMangaRepository
 
-    private lateinit var manga: Manga
-    private lateinit var repository: MangaRepository
-    private var originalManga: Manga? = null  // Store original for online fallback
+    private lateinit var manga: Content
+    private lateinit var repository: ContentRepository
+    private var originalContent: Content? = null  // Store original for online fallback
     private lateinit var readerSettings: NovelReaderSettings
     private lateinit var epubInternalChapterLoader: EpubInternalChapterLoader
 
-    private var chapters: List<MangaChapter> = emptyList()
+    private var chapters: List<ContentChapter> = emptyList()
     private var currentChapterIndex: Int = 0
     private var isUiVisible: Boolean = false
     private var currentPageIndex: Int = 0
@@ -113,7 +113,7 @@ class NovelReaderActivity :
             isUiVisible = it.getBoolean(KEY_UI_VISIBLE, true)
         }
 
-        val parcelable = intent.getParcelableExtraCompat<ParcelableManga>(AppRouter.KEY_MANGA)
+        val parcelable = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)
         val mangaSeed = parcelable?.manga
         if (mangaSeed == null) {
             finish()
@@ -121,32 +121,32 @@ class NovelReaderActivity :
         }
 
         // Save original manga for online fallback（若当前是本地 URI，尝试从 index.json 恢复对应的远端信息以获得原始 URL）
-        val isMangaSeedLocalUrl = mangaSeed.url.let { it.startsWith("file://") || it.startsWith("zip://") || it.startsWith("cbz://") || it.startsWith("local://") }
+        val isContentSeedLocalUrl = mangaSeed.url.let { it.startsWith("file://") || it.startsWith("zip://") || it.startsWith("cbz://") || it.startsWith("local://") }
         val maybeRemote = runCatching {
             runBlocking {
-                if (isMangaSeedLocalUrl) localMangaRepository.getRemoteManga(mangaSeed) else null
+                if (isContentSeedLocalUrl) localContentRepository.getRemoteContent(mangaSeed) else null
             }
         }.getOrNull()
-        originalManga = maybeRemote ?: mangaSeed
+        originalContent = maybeRemote ?: mangaSeed
         
         val local = runCatching {
             runBlocking {
-                localMangaRepository.findSavedManga(mangaSeed, withDetails = true)
+                localContentRepository.findSavedContent(mangaSeed, withDetails = true)
             }
         }.getOrNull()
         manga = local?.manga ?: mangaSeed
         
         // 如果是从历史记录进入（可能 URL 是 local 但 source 已修正）或者来源是 Unknown，
         // 尝试修正为原始来源以支持在线跳转，并确保有远程 URL 可用
-        if ((manga.source.name.startsWith("LOCAL") || manga.source == org.skepsun.kototoro.core.model.UnknownMangaSource) 
-            && originalManga != null) {
-            manga = manga.copy(source = originalManga!!.source, url = originalManga!!.url)
+        if ((manga.source.name.startsWith("LOCAL") || manga.source == org.skepsun.kototoro.core.model.UnknownContentSource) 
+            && originalContent != null) {
+            manga = manga.copy(source = originalContent!!.source, url = originalContent!!.url)
             android.util.Log.d("NovelReaderActivity", "Fixed manga source to ${manga.source.name} and URL to ${manga.url}")
         }
         if (local != null && (manga.chapters.isNullOrEmpty())) {
             // 某些情况下索引未带章节，兜底从本地解析一遍
             runCatching {
-                manga = runBlocking { localMangaRepository.getDetails(manga) }
+                manga = runBlocking { localContentRepository.getDetails(manga) }
                 android.util.Log.d(
                     "NovelReaderActivity",
                     "Refetched local details, chapters=${manga.chapters?.size ?: 0}",
@@ -154,17 +154,17 @@ class NovelReaderActivity :
             }.onFailure {
                 android.util.Log.w("NovelReaderActivity", "Failed to refetch local details", it)
             }
-            // 再次兜底：直接用 LocalMangaParser 解析目录/CBZ
+            // 再次兜底：直接用 LocalContentParser 解析目录/CBZ
             if (manga.chapters.isNullOrEmpty()) {
                 runCatching {
-                    val parser = org.skepsun.kototoro.local.data.input.LocalMangaParser.getOrNull(
+                    val parser = org.skepsun.kototoro.local.data.input.LocalContentParser.getOrNull(
                         java.io.File(java.net.URI(manga.url))
                     )
                     if (parser != null) {
-                        manga = runBlocking { parser.getManga(withDetails = true).manga }
+                        manga = runBlocking { parser.getContent(withDetails = true).manga }
                         android.util.Log.d(
                             "NovelReaderActivity",
-                            "Parsed chapters via LocalMangaParser fallback, count=${manga.chapters?.size ?: 0}",
+                            "Parsed chapters via LocalContentParser fallback, count=${manga.chapters?.size ?: 0}",
                         )
                     }
                 }.onFailure {
@@ -184,8 +184,8 @@ class NovelReaderActivity :
         )
         
         android.util.Log.d("NovelReaderActivity", "=== onCreate ===")
-        android.util.Log.d("NovelReaderActivity", "Manga: id=${manga.id}, title=${manga.title}")
-        android.util.Log.d("NovelReaderActivity", "Manga has chapters: ${manga.chapters != null}, count: ${manga.chapters?.size ?: 0}")
+        android.util.Log.d("NovelReaderActivity", "Content: id=${manga.id}, title=${manga.title}")
+        android.util.Log.d("NovelReaderActivity", "Content has chapters: ${manga.chapters != null}, count: ${manga.chapters?.size ?: 0}")
         android.util.Log.d("NovelReaderActivity", "Repository type: ${repository.javaClass.simpleName}")
 
         setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
@@ -249,14 +249,14 @@ class NovelReaderActivity :
 
     private fun setupImageHeaders() {
         viewBinding.readerView.imageHeadersProvider = when (val source = manga.source) {
-            MangaParserSource.BILINOVEL -> { _ ->
+            ContentParserSource.BILINOVEL -> { _ ->
                 mapOf(
                     "Referer" to "https://www.bilinovel.com/",
                     "Origin" to "https://www.bilinovel.com",
                     "Accept-Encoding" to "identity",
                 )
             }
-            is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> { imageUrl ->
+            is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> { imageUrl ->
                 // Extract headers from Legado JSON source config
                 val headers = mutableMapOf<String, String>()
                 
@@ -480,7 +480,7 @@ class NovelReaderActivity :
      * 
      * 修复：改进章节ID查找逻辑，支持数据库映射的章节ID
      */
-    private suspend fun restoreReadingProgress(originalChapters: List<MangaChapter>) {
+    private suspend fun restoreReadingProgress(originalChapters: List<ContentChapter>) {
         android.util.Log.d("NovelReaderActivity", "=== restoreReadingProgress() ===")
         
         // Get ReaderState from Intent
@@ -556,13 +556,13 @@ class NovelReaderActivity :
                 android.util.Log.w("NovelReaderActivity", "❌ Chapter ID $targetChapterId not found in local chapters")
                 
                 // Try to find the chapter in original manga (online source)
-                var onlineChapter = originalManga?.chapters?.find { it.id == targetChapterId }
-                if (onlineChapter == null && originalManga != null) {
+                var onlineChapter = originalContent?.chapters?.find { it.id == targetChapterId }
+                if (onlineChapter == null && originalContent != null) {
                     // 若原始信息没有完整目录，尝试拉取远端详情
                     runCatching {
-                        val onlineRepo = mangaRepositoryFactory.create(originalManga!!.source)
-                        val details = runBlocking { onlineRepo.getDetails(originalManga!!) }
-                        originalManga = details
+                        val onlineRepo = mangaRepositoryFactory.create(originalContent!!.source)
+                        val details = runBlocking { onlineRepo.getDetails(originalContent!!) }
+                        originalContent = details
                         onlineChapter = details.chapters?.find { it.id == targetChapterId }
                     }.onFailure {
                         android.util.Log.w("NovelReaderActivity", "Failed to fetch online details for missing chapter", it)
@@ -573,7 +573,7 @@ class NovelReaderActivity :
                     android.util.Log.d("NovelReaderActivity", "✅ Found chapter in online source: ${onlineChapter.title}")
                     
                     // Create a new repository for online source
-                    repository = mangaRepositoryFactory.create(originalManga!!.source)
+                    repository = mangaRepositoryFactory.create(originalContent!!.source)
                     
                     // Add the online chapter to our list temporarily
                     chapters = chapters + onlineChapter
@@ -613,22 +613,22 @@ class NovelReaderActivity :
     private fun loadChapters() {
         android.util.Log.d("NovelReaderActivity", "=== loadChapters() called ===")
         android.util.Log.d("NovelReaderActivity", "Current manga.chapters: ${manga.chapters?.size ?: 0} chapters")
-        android.util.Log.d("NovelReaderActivity", "Manga is local: ${manga.isLocal}")
+        android.util.Log.d("NovelReaderActivity", "Content is local: ${manga.isLocal}")
         
         lifecycleScope.launch(org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND)) {
             try {
                 showLoading(true)
                 
-                android.util.Log.d("NovelReaderActivity", "Manga chapters null or empty: ${manga.chapters.isNullOrEmpty()}, isLocal: ${manga.isLocal}")
+                android.util.Log.d("NovelReaderActivity", "Content chapters null or empty: ${manga.chapters.isNullOrEmpty()}, isLocal: ${manga.isLocal}")
 
                 // For local manga, ALWAYS reload from repository to get fresh chapter list from index
                 val details = if (manga.isLocal || manga.chapters.isNullOrEmpty()) {
                     android.util.Log.d("NovelReaderActivity", "Loading chapters from repository (local=${manga.isLocal}, empty=${manga.chapters.isNullOrEmpty()})...")
                     val startTime = System.currentTimeMillis()
-                    // 核心修复：如果是远程解析器，优先使用带有原始远程 URL 的 originalManga 获取详情，避免 SSL 错误
-                    val result = if (repository !is org.skepsun.kototoro.local.novel.LocalNovelRepository && originalManga != null) {
-                        android.util.Log.d("NovelReaderActivity", "Using originalManga for remote details fetch: ${originalManga!!.url}")
-                        repository.getDetails(originalManga!!)
+                    // 核心修复：如果是远程解析器，优先使用带有原始远程 URL 的 originalContent 获取详情，避免 SSL 错误
+                    val result = if (repository !is org.skepsun.kototoro.local.novel.LocalNovelRepository && originalContent != null) {
+                        android.util.Log.d("NovelReaderActivity", "Using originalContent for remote details fetch: ${originalContent!!.url}")
+                        repository.getDetails(originalContent!!)
                     } else {
                         repository.getDetails(manga)
                     }
@@ -640,25 +640,25 @@ class NovelReaderActivity :
                     manga
                 }
 
-                // 如果本地启动且 originalManga 还没有目录，尝试拉取远端目录用于占位（历史入口常见）
-                if (manga.isLocal && originalManga?.chapters.isNullOrEmpty() && originalManga != null) {
+                // 如果本地启动且 originalContent 还没有目录，尝试拉取远端目录用于占位（历史入口常见）
+                if (manga.isLocal && originalContent?.chapters.isNullOrEmpty() && originalContent != null) {
                     runCatching {
-                        val onlineRepo = mangaRepositoryFactory.create(originalManga!!.source)
-                        val remoteDetails = runBlocking { onlineRepo.getDetails(originalManga!!) }
-                        originalManga = remoteDetails
+                        val onlineRepo = mangaRepositoryFactory.create(originalContent!!.source)
+                        val remoteDetails = runBlocking { onlineRepo.getDetails(originalContent!!) }
+                        originalContent = remoteDetails
                         android.util.Log.d(
                             "NovelReaderActivity",
-                            "Fetched remote details for originalManga, chapters=${remoteDetails.chapters?.size ?: 0}",
+                            "Fetched remote details for originalContent, chapters=${remoteDetails.chapters?.size ?: 0}",
                         )
                     }.onFailure {
-                        android.util.Log.w("NovelReaderActivity", "Failed to fetch remote details for originalManga", it)
+                        android.util.Log.w("NovelReaderActivity", "Failed to fetch remote details for originalContent", it)
                     }
                 }
                 
                 // 若当前是本地且有原始远端目录，合并远端目录与本地章节，保留未下载章节的占位
                 var originalChapters = details.chapters.orEmpty()
-                if (manga.isLocal && originalManga?.chapters != null) {
-                    val remoteChapters = originalManga?.chapters.orEmpty()
+                if (manga.isLocal && originalContent?.chapters != null) {
+                    val remoteChapters = originalContent?.chapters.orEmpty()
                     val localById = originalChapters.associateBy { it.id }
                     val merged = remoteChapters.map { localById[it.id] ?: it }.toMutableList()
                     // 添加仅本地存在的章节（例如本地缓存的特殊章节）
@@ -906,7 +906,7 @@ class NovelReaderActivity :
      * 1. epub://{manga_id}/chapter/{index} - 新架构（NoveliaWenku, Z-Library等）
      * 2. file://path#chapter/N - 旧架构（向后兼容）
      */
-    private suspend fun loadEpubContent(chapter: MangaChapter): String? {
+    private suspend fun loadEpubContent(chapter: ContentChapter): String? {
         return try {
             android.util.Log.d("NovelReaderActivity", "Loading EPUB content for: ${chapter.title}, URL: ${chapter.url}")
             
@@ -992,7 +992,7 @@ class NovelReaderActivity :
      * @param chapterHref The chapter's path in EPUB (e.g., "OEBPS/Text/content_1.html")
      */
     private fun renderChapterWithEpubInfo(
-        chapter: MangaChapter, 
+        chapter: ContentChapter, 
         text: String,
         epubFile: java.io.File? = null,
         chapterHref: String? = null
@@ -1012,7 +1012,7 @@ class NovelReaderActivity :
                             val mangaId = match.groupValues[1].toLong()
                             val chapterIndex = match.groupValues[2].toInt()
                             
-                            val allMappings = epubChapterMappingDao.findByMangaId(mangaId)
+                            val allMappings = epubChapterMappingDao.findByContentId(mangaId)
                             val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
                             val mapping = sortedMappings.getOrNull(chapterIndex)
                             
@@ -1039,7 +1039,7 @@ class NovelReaderActivity :
                             val chapterIndex = match.groupValues[1].toInt()
                             
                             // Try to find EPUB file from database mapping
-                            val allMappings = epubChapterMappingDao.findByMangaId(manga.id)
+                            val allMappings = epubChapterMappingDao.findByContentId(manga.id)
                             val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
                             val mapping = sortedMappings.getOrNull(chapterIndex)
                             
@@ -1126,7 +1126,7 @@ class NovelReaderActivity :
         }
     }
     
-    private fun renderChapter(chapter: MangaChapter, text: String) {
+    private fun renderChapter(chapter: ContentChapter, text: String) {
         try {
             android.util.Log.d("NovelReaderActivity", "renderChapter called for: ${chapter.title}")
             
@@ -1156,7 +1156,7 @@ class NovelReaderActivity :
                             val mangaId = match.groupValues[1].toLong()
                             val chapterIndex = match.groupValues[2].toInt()
                             
-                            val allMappings = epubChapterMappingDao.findByMangaId(mangaId)
+                            val allMappings = epubChapterMappingDao.findByContentId(mangaId)
                             val sortedMappings = allMappings.sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
                             val mapping = sortedMappings.getOrNull(chapterIndex)
                             
@@ -1275,7 +1275,7 @@ class NovelReaderActivity :
     /**
      * 从URL或本地文件加载EPUB内容（带缓存）
      */
-    private suspend fun loadEpubContentFromUrl(url: String, chapter: MangaChapter): org.skepsun.kototoro.local.epub.EpubContent? {
+    private suspend fun loadEpubContentFromUrl(url: String, chapter: ContentChapter): org.skepsun.kototoro.local.epub.EpubContent? {
         return withContext(Dispatchers.IO) {
             try {
                 android.util.Log.d("NovelReaderActivity", "Loading EPUB from URL: $url")
@@ -1337,13 +1337,13 @@ class NovelReaderActivity :
     /**
      * 查找本地下载的EPUB文件（可能被重命名为.cbz）
      */
-    private fun findLocalEpubFile(chapter: MangaChapter): java.io.File? {
+    private fun findLocalEpubFile(chapter: ContentChapter): java.io.File? {
         try {
             // 获取下载目录
             val downloadDir = getExternalFilesDir(null)?.resolve("manga") ?: return null
             
             android.util.Log.d("NovelReaderActivity", "Searching for EPUB file in: ${downloadDir.absolutePath}")
-            android.util.Log.d("NovelReaderActivity", "Manga ID: ${manga.id}, Title: ${manga.title}")
+            android.util.Log.d("NovelReaderActivity", "Content ID: ${manga.id}, Title: ${manga.title}")
             android.util.Log.d("NovelReaderActivity", "Chapter ID: ${chapter.id}, Title: ${chapter.title}")
             
             // 策略1: 按manga ID查找目录
@@ -1391,7 +1391,7 @@ class NovelReaderActivity :
                             indexContent.contains(idPattern2) ||
                             indexContent.contains(idPattern3)) {
                             
-                            android.util.Log.d("NovelReaderActivity", "Manga ID matched in ${dir.name}")
+                            android.util.Log.d("NovelReaderActivity", "Content ID matched in ${dir.name}")
                             
                             val files = dir.listFiles { file ->
                                 file.isFile && (file.name.endsWith(".cbz") || file.name.endsWith(".epub"))
@@ -1405,7 +1405,7 @@ class NovelReaderActivity :
                                 }
                             }
                         } else {
-                            android.util.Log.d("NovelReaderActivity", "Manga ID not matched in ${dir.name} (looking for ${manga.id})")
+                            android.util.Log.d("NovelReaderActivity", "Content ID not matched in ${dir.name} (looking for ${manga.id})")
                         }
                     } catch (e: Exception) {
                         android.util.Log.w("NovelReaderActivity", "Failed to read index.json in ${dir.name}", e)
@@ -1429,14 +1429,14 @@ class NovelReaderActivity :
      * 1. 使用卷名作为前缀，避免章节名重复
      * 2. 使用数据库映射的章节ID，确保与详情页一致
      */
-    private suspend fun expandEpubChapters(originalChapters: List<MangaChapter>): List<MangaChapter> {
+    private suspend fun expandEpubChapters(originalChapters: List<ContentChapter>): List<ContentChapter> {
         // 本地 CBZ 小说直接返回，避免误判为 EPUB
         if (manga.isLocal) {
             android.util.Log.d("NovelReaderActivity", "expandEpubChapters: manga is local, skip expansion")
             return originalChapters
         }
 
-        val expandedChapters = mutableListOf<MangaChapter>()
+        val expandedChapters = mutableListOf<ContentChapter>()
         
         android.util.Log.d("NovelReaderActivity", "expandEpubChapters: Processing ${originalChapters.size} chapters")
         
@@ -1475,7 +1475,7 @@ class NovelReaderActivity :
                         android.util.Log.d("NovelReaderActivity", "Using ${dbMappings.size} chapters from database")
                         
                         for (mapping in dbMappings.sortedBy { it.chapterIndex }) {
-                            val internalChapter = MangaChapter(
+                            val internalChapter = ContentChapter(
                                 id = mapping.internalChapterId,
                                 title = mapping.chapterTitle,  // 不添加卷名前缀，详情页已经分组
                                 number = chapter.number + mapping.chapterIndex,
@@ -1501,7 +1501,7 @@ class NovelReaderActivity :
                                 // 使用与DownloadWorker相同的ID生成算法
                                 val internalChapterId = chapter.id + (chapterIndex * 1000000L) + 1
                                 
-                                val internalChapter = MangaChapter(
+                                val internalChapter = ContentChapter(
                                     id = internalChapterId,
                                     title = epubChapter.title,  // 不添加卷名前缀，详情页已经分组
                                     number = chapter.number + chapterIndex,
@@ -1773,9 +1773,9 @@ class NovelReaderActivity :
         lifecycleScope.launch {
             try {
                 // 确保保存历史时包含完整目录：优先使用当前内存中的章节（已合并本地/远端），并修正来源
-                val fixedSource = originalManga?.source ?: manga.source
-                val fixedUrl = originalManga?.url ?: manga.url
-                val baseManga = if (chapters.isNotEmpty()) {
+                val fixedSource = originalContent?.source ?: manga.source
+                val fixedUrl = originalContent?.url ?: manga.url
+                val baseContent = if (chapters.isNotEmpty()) {
                     manga.copy(chapters = chapters, source = fixedSource, url = fixedUrl)
                 } else if (manga.chapters.isNullOrEmpty()) {
                     try {
@@ -1789,21 +1789,21 @@ class NovelReaderActivity :
                 }
 
                 // 合并远端目录与当前章节（避免历史保存时只有已下载章节）
-                val mergedForHistory = if (baseManga.isLocal && originalManga?.chapters != null) {
-                    val remoteChapters = originalManga?.chapters.orEmpty()
-                    val localById = baseManga.chapters.orEmpty().associateBy { it.id }
+                val mergedForHistory = if (baseContent.isLocal && originalContent?.chapters != null) {
+                    val remoteChapters = originalContent?.chapters.orEmpty()
+                    val localById = baseContent.chapters.orEmpty().associateBy { it.id }
                     val merged = remoteChapters.map { localById[it.id] ?: it }.toMutableList()
                     val remoteIds = remoteChapters.map { it.id }.toSet()
-                    baseManga.chapters.orEmpty().filterNot { it.id in remoteIds }.forEach { merged.add(it) }
-                    baseManga.copy(chapters = merged, source = originalManga!!.source)
+                    baseContent.chapters.orEmpty().filterNot { it.id in remoteIds }.forEach { merged.add(it) }
+                    baseContent.copy(chapters = merged, source = originalContent!!.source)
                 } else {
-                    baseManga
+                    baseContent
                 }
-                val mangaWithChapters = if (originalManga != null) {
-                    originalManga!!.copy(
+                val mangaWithChapters = if (originalContent != null) {
+                    originalContent!!.copy(
                         chapters = mergedForHistory.chapters,
-                        source = originalManga!!.source,
-                        url = originalManga!!.url,
+                        source = originalContent!!.source,
+                        url = originalContent!!.url,
                     )
                 } else {
                     mergedForHistory

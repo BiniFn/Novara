@@ -19,22 +19,22 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaSource as ParserMangaSource
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentSource as ParserContentSource
 import org.skepsun.kototoro.core.model.distinctById
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.getCauseUrl
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.explore.domain.ExploreRepository
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
-import org.skepsun.kototoro.list.domain.MangaListMapper
-import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.domain.ContentListMapper
+import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -43,9 +43,9 @@ import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorFooter
 import org.skepsun.kototoro.list.ui.model.toErrorState
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.sizeOrZero
 import javax.inject.Inject
 
@@ -54,24 +54,24 @@ private const val FILTER_MIN_INTERVAL = 250L
 @HiltViewModel
 open class RemoteListViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 	final override val filterCoordinator: FilterCoordinator,
 	settings: AppSettings,
-	protected val mangaListMapper: MangaListMapper,
+	protected val mangaListMapper: ContentListMapper,
 	private val exploreRepository: ExploreRepository,
-	sourcesRepository: MangaSourcesRepository,
-	mangaDataRepository: MangaDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>
-) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), FilterCoordinator.Owner {
+	sourcesRepository: ContentSourcesRepository,
+	mangaDataRepository: ContentDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>
+) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), FilterCoordinator.Owner {
 
-	private val initialSource = MangaSource(savedStateHandle[RemoteListFragment.ARG_SOURCE])
+	private val initialSource = ContentSource(savedStateHandle[RemoteListFragment.ARG_SOURCE])
 	val isRandomLoading = MutableStateFlow(false)
-	val onOpenManga = MutableEventFlow<Manga>()
+	val onOpenContent = MutableEventFlow<Content>()
     val onSourceBroken = MutableEventFlow<Unit>()
 
 	protected val repository = mangaRepositoryFactory.create(initialSource)
-	val source: ParserMangaSource = repository.source
-	private val mangaList = MutableStateFlow<List<Manga>?>(null)
+	val source: ParserContentSource = repository.source
+	private val mangaList = MutableStateFlow<List<Content>?>(null)
 	private val hasNextPage = MutableStateFlow(false)
 	private val listError = MutableStateFlow<Throwable?>(null)
 	private var loadingJob: Job? = null
@@ -89,7 +89,7 @@ open class RemoteListViewModel @Inject constructor(
 		// Wait, RemoteListViewModel overrides `content`. The error was:
 		// Cannot infer type for this parameter. Specify it explicitly.
 	) { values: Array<Any?> ->
-		val list = values[0] as List<Manga>?
+		val list = values[0] as List<Content>?
 		val mode = values[1] as ListMode
 		val error = values[2] as Throwable?
 		val hasNext = values[3] as Boolean
@@ -106,7 +106,7 @@ open class RemoteListViewModel @Inject constructor(
 				list == null -> add(LoadingState)
 				list.isEmpty() -> add(createEmptyState(canResetFilter = filterCoordinator.isFilterApplied))
 				else -> {
-					mapMangaList(this, list, mode)
+					mapContentList(this, list, mode)
 					when {
 						error != null -> add(error.toErrorFooter())
 						hasNext -> add(LoadingFooter())
@@ -134,7 +134,7 @@ open class RemoteListViewModel @Inject constructor(
 			sourcesRepository.trackUsage(source)
 		}
 
-        if (source is MangaParserSource && source.isBroken) {
+        if (source is ContentParserSource && source.isBroken) {
             // Just notify one. Will show reason in future
             onSourceBroken.call(Unit)
         }
@@ -164,8 +164,8 @@ open class RemoteListViewModel @Inject constructor(
 			try {
 				listError.value = null
 				val offsetOrPageIndex = when (repository.listPagingMode) {
-					MangaRepository.ListPagingMode.OFFSET -> if (append) mangaList.value.sizeOrZero() else 0
-					MangaRepository.ListPagingMode.PAGE_INDEX -> {
+					ContentRepository.ListPagingMode.OFFSET -> if (append) mangaList.value.sizeOrZero() else 0
+					ContentRepository.ListPagingMode.PAGE_INDEX -> {
 						val pageIndex = if (append) lastLoadedPageIndex + 1 else 0
 						lastRequestedPageIndex = pageIndex
 						pageIndex
@@ -179,22 +179,22 @@ open class RemoteListViewModel @Inject constructor(
 				val prevList = mangaList.value.orEmpty()
 				if (!append) {
 					mangaList.value = list.distinctById()
-					if (repository.listPagingMode == MangaRepository.ListPagingMode.PAGE_INDEX && list.isNotEmpty()) {
+					if (repository.listPagingMode == ContentRepository.ListPagingMode.PAGE_INDEX && list.isNotEmpty()) {
 						lastLoadedPageIndex = 0
 					}
 				} else if (list.isNotEmpty()) {
 					mangaList.value = (prevList + list).distinctById()
-					if (repository.listPagingMode == MangaRepository.ListPagingMode.PAGE_INDEX) {
+					if (repository.listPagingMode == ContentRepository.ListPagingMode.PAGE_INDEX) {
 						lastLoadedPageIndex = lastRequestedPageIndex
 					}
 				}
 				hasNextPage.value = when (repository.listPagingMode) {
-					MangaRepository.ListPagingMode.OFFSET -> if (append) {
+					ContentRepository.ListPagingMode.OFFSET -> if (append) {
 						prevList != mangaList.value
 					} else {
 						list.size > prevList.size || hasNextPage.value
 					}
-					MangaRepository.ListPagingMode.PAGE_INDEX -> list.isNotEmpty()
+					ContentRepository.ListPagingMode.PAGE_INDEX -> list.isNotEmpty()
 				}
 			} catch (e: CancellationException) {
 				throw e
@@ -218,9 +218,9 @@ open class RemoteListViewModel @Inject constructor(
 
 	protected open suspend fun onBuildList(list: MutableList<ListModel>) = Unit
 
-	protected open suspend fun mapMangaList(
+	protected open suspend fun mapContentList(
 		destination: MutableCollection<in ListModel>,
-		manga: Collection<Manga>,
+		manga: Collection<Content>,
 		mode: ListMode
 	) = mangaListMapper.toListModelList(destination, manga, mode)
 
@@ -242,8 +242,8 @@ open class RemoteListViewModel @Inject constructor(
 		}
 		randomJob = launchLoadingJob(Dispatchers.Default) {
 			isRandomLoading.value = true
-			val manga = exploreRepository.findRandomManga(source, 16)
-			onOpenManga.call(manga)
+			val manga = exploreRepository.findRandomContent(source, 16)
+			onOpenContent.call(manga)
 			isRandomLoading.value = false
 		}
 	}

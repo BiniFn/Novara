@@ -5,7 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -21,12 +21,12 @@ import javax.inject.Inject
 @HiltViewModel
 class LocalInfoViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	private val localMangaRepository: LocalMangaRepository,
+	private val localContentRepository: LocalMangaRepository,
 	private val storageManager: LocalStorageManager,
 	private val deleteReadChaptersUseCase: DeleteReadChaptersUseCase,
 ) : BaseViewModel() {
 
-	private val manga = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	private val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
 	val isCleaningUp = MutableStateFlow(false)
 	val onCleanedUp = MutableEventFlow<Pair<Int, Long>>()
@@ -55,7 +55,7 @@ class LocalInfoViewModel @Inject constructor(
 	}
 
 	private fun computeSize() = launchLoadingJob(Dispatchers.Default) {
-		val file = manga.url.toUri().toFileOrNull() ?: localMangaRepository.findSavedManga(manga)?.file
+		val file = manga.url.toUri().toFileOrNull() ?: localContentRepository.findSavedContent(manga)?.file
 		requireNotNull(file)
 		path.value = file.path
 		size.value = file.computeSize()

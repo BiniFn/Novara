@@ -3,14 +3,14 @@ package org.skepsun.kototoro.details.ui
 import android.content.Context
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.local.epub.ChapterMetadata
 import org.skepsun.kototoro.local.epub.ChapterType
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.core.model.isLocal
 
@@ -23,11 +23,11 @@ import org.skepsun.kototoro.core.model.isLocal
  */
 data class ChapterGroup(
     val name: String,
-    val chapters: List<MangaChapter>,
+    val chapters: List<ContentChapter>,
     val isCollapsible: Boolean
 )
 
-fun MangaDetails.mapChapters(
+fun ContentDetails.mapChapters(
 	currentChapterId: Long,
 	newCount: Int,
 	branch: String?,
@@ -227,7 +227,7 @@ private fun List<ChapterListItem>.withEpubVolumeGroups(context: Context): Mutabl
  * @return List of chapter groups for UI display
  */
 fun mapChaptersToGroups(
-    chapters: List<MangaChapter>,
+    chapters: List<ContentChapter>,
     metadataMap: Map<Long, ChapterMetadata>
 ): List<ChapterGroup> {
     if (chapters.isEmpty()) {
@@ -237,9 +237,9 @@ fun mapChaptersToGroups(
     val result = mutableListOf<ChapterGroup>()
     
     // Group chapters by type
-    val downloadChapters = mutableListOf<MangaChapter>()
-    val normalChapters = mutableListOf<MangaChapter>()
-    val epubInternalByFile = mutableMapOf<String, MutableList<MangaChapter>>()
+    val downloadChapters = mutableListOf<ContentChapter>()
+    val normalChapters = mutableListOf<ContentChapter>()
+    val epubInternalByFile = mutableMapOf<String, MutableList<ContentChapter>>()
     
     for (chapter in chapters) {
         val metadata = metadataMap[chapter.id]

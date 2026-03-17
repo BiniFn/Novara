@@ -17,10 +17,10 @@ import org.skepsun.kototoro.core.util.ext.sortedByOrdinal
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.list.domain.ListSortOrder
-import org.skepsun.kototoro.list.ui.MangaListFragment
+import org.skepsun.kototoro.list.ui.ContentListFragment
 
 @AndroidEntryPoint
-class FavouritesListFragment : MangaListFragment(), PopupMenu.OnMenuItemClickListener {
+class FavouritesListFragment : ContentListFragment(), PopupMenu.OnMenuItemClickListener {
 
 	override val viewModel by viewModels<FavouritesListViewModel>()
 

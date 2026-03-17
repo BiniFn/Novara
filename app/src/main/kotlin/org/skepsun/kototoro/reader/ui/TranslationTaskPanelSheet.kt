@@ -218,7 +218,7 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val generating = snapshots.count { it.state == TranslationLayerState.GENERATING }
         val failed = snapshots.count { it.state == TranslationLayerState.FAILED }
         val sampled = benchmarkSummary.lineSequence().firstOrNull { it.startsWith("已采样:") }.orEmpty()
-        val mangaTitle = viewModel.getMangaOrNull()?.title.orEmpty().ifBlank { "?" }
+        val mangaTitle = viewModel.getContentOrNull()?.title.orEmpty().ifBlank { "?" }
         val chapterTitle = viewModel.uiState.value?.chapter?.title.orEmpty().ifBlank { "?" }
         val onnxModel = settings.readerTranslationOnnxModelId.ifBlank { "MLKIT" }
         val detModel = settings.readerTranslationDetModelId.ifBlank { "AUTO" }

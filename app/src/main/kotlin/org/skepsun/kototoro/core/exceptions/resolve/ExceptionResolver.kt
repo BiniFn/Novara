@@ -16,7 +16,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.browser.BrowserActivity
 import org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.core.exceptions.EmptyMangaException
+import org.skepsun.kototoro.core.exceptions.EmptyContentException
 import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.exceptions.ProxyConfigException
 import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
@@ -26,18 +26,18 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.restartApplication
-import org.skepsun.kototoro.details.ui.pager.EmptyMangaReason
+import org.skepsun.kototoro.details.ui.pager.EmptyContentReason
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.NotFoundException
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerAuthRequiredException
 import org.skepsun.kototoro.scrobbling.common.ui.ScrobblerAuthHelper
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
-import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
+import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import java.security.cert.CertPathValidatorException
 import javax.inject.Inject
 import javax.inject.Provider
@@ -49,7 +49,7 @@ import kotlin.coroutines.suspendCoroutine
 class ExceptionResolver private constructor(
     private val host: Host,
     private val settings: AppSettings,
-    private val mangaRepositoryFactory: MangaRepository.Factory,
+    private val mangaRepositoryFactory: ContentRepository.Factory,
     private val scrobblerAuthHelperProvider: Provider<ScrobblerAuthHelper>,
 ) {
     private val continuations = MutableScatterMap<String, Continuation<Boolean>>(1)
@@ -90,11 +90,11 @@ class ExceptionResolver private constructor(
                 false
             }
 
-            is EmptyMangaException -> {
+            is EmptyContentException -> {
                 when (e.reason) {
-                    EmptyMangaReason.NO_CHAPTERS -> openAlternatives(e.manga)
-                    EmptyMangaReason.LOADING_ERROR -> Unit
-                    EmptyMangaReason.RESTRICTED -> host.router.openBrowser(e.manga)
+                    EmptyContentReason.NO_CHAPTERS -> openAlternatives(e.manga)
+                    EmptyContentReason.LOADING_ERROR -> Unit
+                    EmptyContentReason.RESTRICTED -> host.router.openBrowser(e.manga)
                     else -> Unit
                 }
                 false
@@ -133,7 +133,7 @@ class ExceptionResolver private constructor(
         cloudflareContract.launch(e)
     }
 
-    private suspend fun resolveAuthException(source: MangaSource): Boolean {
+    private suspend fun resolveAuthException(source: ContentSource): Boolean {
         if (isCredentialBased(source)) {
             host.router.openSourceSettings(source)
             return false
@@ -144,11 +144,11 @@ class ExceptionResolver private constructor(
         }
     }
 
-    private fun isCredentialBased(source: MangaSource): Boolean {
-        if (source !is MangaParserSource) return false
+    private fun isCredentialBased(source: ContentSource): Boolean {
+        if (source !is ContentParserSource) return false
         val repo = mangaRepositoryFactory.create(source)
-        if (repo is ParserMangaRepository) {
-            return repo.getAuthProvider() is MangaParserCredentialsAuthProvider
+        if (repo is ParserContentRepository) {
+            return repo.getAuthProvider() is ContentParserCredentialsAuthProvider
         }
         return false
     }
@@ -164,7 +164,7 @@ class ExceptionResolver private constructor(
         host.router.openBrowser(url, null, null)
     }
 
-    private fun openAlternatives(manga: Manga) {
+    private fun openAlternatives(manga: Content) {
         host.router.openAlternatives(manga)
     }
 
@@ -192,7 +192,7 @@ class ExceptionResolver private constructor(
 
     class Factory @Inject constructor(
         private val settings: AppSettings,
-        private val mangaRepositoryFactory: MangaRepository.Factory,
+        private val mangaRepositoryFactory: ContentRepository.Factory,
         private val scrobblerAuthHelperProvider: Provider<ScrobblerAuthHelper>,
     ) {
 
@@ -271,9 +271,9 @@ class ExceptionResolver private constructor(
 
             is InteractiveActionRequiredException -> R.string._continue
 
-            is EmptyMangaException -> when (e.reason) {
-                EmptyMangaReason.RESTRICTED -> if (e.manga.publicUrl.isHttpUrl()) R.string.open_in_browser else 0
-                EmptyMangaReason.NO_CHAPTERS -> R.string.alternatives
+            is EmptyContentException -> when (e.reason) {
+                EmptyContentReason.RESTRICTED -> if (e.manga.publicUrl.isHttpUrl()) R.string.open_in_browser else 0
+                EmptyContentReason.NO_CHAPTERS -> R.string.alternatives
                 else -> 0
             }
 

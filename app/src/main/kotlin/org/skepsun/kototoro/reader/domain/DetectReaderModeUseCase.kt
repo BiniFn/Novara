@@ -7,17 +7,17 @@ import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import okhttp3.OkHttpClient
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.util.ext.isFileUri
 import org.skepsun.kototoro.core.util.ext.isZipUri
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.ui.ReaderState
 import java.io.InputStream
@@ -28,14 +28,14 @@ import android.util.Base64
 import java.io.ByteArrayInputStream
 
 class DetectReaderModeUseCase @Inject constructor(
-	private val dataRepository: MangaDataRepository,
+	private val dataRepository: ContentDataRepository,
 	private val settings: AppSettings,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	@MangaHttpClient private val okHttpClient: OkHttpClient,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	@ContentHttpClient private val okHttpClient: OkHttpClient,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 ) {
 
-	suspend operator fun invoke(manga: Manga, state: ReaderState?): ReaderMode {
+	suspend operator fun invoke(manga: Content, state: ReaderState?): ReaderMode {
 		dataRepository.getReaderMode(manga.id)?.let { return it }
 		val defaultMode = settings.defaultReaderMode
 		if (!settings.isReaderModeDetectionEnabled || defaultMode == ReaderMode.WEBTOON) {
@@ -47,7 +47,7 @@ class DetectReaderModeUseCase @Inject constructor(
 		val repo = mangaRepositoryFactory.create(manga.source)
 		val pages = repo.getPages(chapter)
 		return runCatchingCancellable {
-			val isWebtoon = guessMangaIsWebtoon(repo, pages)
+			val isWebtoon = guessContentIsWebtoon(repo, pages)
 			if (isWebtoon) ReaderMode.WEBTOON else defaultMode
 		}.onSuccess {
 			dataRepository.saveReaderMode(manga, it)
@@ -60,7 +60,7 @@ class DetectReaderModeUseCase @Inject constructor(
 	 * Automatic determine type of manga by page size
 	 * @return ReaderMode.WEBTOON if page is wide
 	 */
-	private suspend fun guessMangaIsWebtoon(repository: MangaRepository, pages: List<MangaPage>): Boolean {
+	private suspend fun guessContentIsWebtoon(repository: ContentRepository, pages: List<ContentPage>): Boolean {
 		if (pages.isEmpty()) return false
 		val pageIndex = (pages.size * 0.3).roundToInt()
 		val page = pages.getOrNull(pageIndex) ?: return false

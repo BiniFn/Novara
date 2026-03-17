@@ -12,7 +12,7 @@ import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.download.ui.list.chapters.DownloadChapter
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.time.Instant
 import java.util.UUID
 import androidx.appcompat.R as appcompatR
@@ -22,7 +22,7 @@ data class DownloadItemModel(
 	val workState: WorkInfo.State,
 	val isIndeterminate: Boolean,
 	val isPaused: Boolean,
-	val manga: Manga?,
+	val manga: Content?,
 	val error: String?,
 	val max: Int,
 	val progress: Int,

@@ -26,7 +26,7 @@ import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.util.ext.enqueueWith
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
-import org.skepsun.kototoro.databinding.ItemMangaAlternativeBinding
+import org.skepsun.kototoro.databinding.ItemContentAlternativeBinding
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
 import kotlin.math.sign
@@ -35,9 +35,9 @@ import com.google.android.material.R as materialR
 fun alternativeAD(
 	coil: ImageLoader,
 	lifecycleOwner: LifecycleOwner,
-	listener: OnListItemClickListener<MangaAlternativeModel>,
-) = adapterDelegateViewBinding<MangaAlternativeModel, ListModel, ItemMangaAlternativeBinding>(
-	{ inflater, parent -> ItemMangaAlternativeBinding.inflate(inflater, parent, false) },
+	listener: OnListItemClickListener<ContentAlternativeModel>,
+) = adapterDelegateViewBinding<ContentAlternativeModel, ListModel, ItemContentAlternativeBinding>(
+	{ inflater, parent -> ItemContentAlternativeBinding.inflate(inflater, parent, false) },
 ) {
 
 	val colorGreen = ContextCompat.getColor(context, R.color.common_green)

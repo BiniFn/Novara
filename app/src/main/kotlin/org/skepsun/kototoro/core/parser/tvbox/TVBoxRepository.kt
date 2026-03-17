@@ -8,19 +8,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
@@ -31,11 +31,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class TVBoxRepository(
-	override val source: JsonMangaSource,
+	override val source: JsonContentSource,
 	private val context: Context,
 	private val httpClient: LegadoHttpClient,
 	private val videoLocalCacheProxy: VideoLocalCacheProxy,
-) : MangaRepository {
+) : ContentRepository {
 
 	companion object {
 		private const val TAG = "TVBoxRepository"
@@ -75,14 +75,14 @@ class TVBoxRepository(
 
 	override var defaultSortOrder: SortOrder = SortOrder.ALPHABETICAL
 
-	override val listPagingMode: MangaRepository.ListPagingMode
+	override val listPagingMode: ContentRepository.ListPagingMode
 		get() = if (mightBeCmsSource()) {
-			MangaRepository.ListPagingMode.PAGE_INDEX
+			ContentRepository.ListPagingMode.PAGE_INDEX
 		} else {
-			MangaRepository.ListPagingMode.OFFSET
+			ContentRepository.ListPagingMode.OFFSET
 		}
 
-	override val filterCapabilities: MangaListFilterCapabilities = MangaListFilterCapabilities(
+	override val filterCapabilities: ContentListFilterCapabilities = ContentListFilterCapabilities(
 		isSearchSupported = true,
 		isMultipleTagsSupported = true,
 		isTagsExclusionSupported = true,
@@ -92,8 +92,8 @@ class TVBoxRepository(
 	override suspend fun getList(
 		offset: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?,
-	): List<Manga> {
+		filter: ContentListFilter?,
+	): List<Content> {
 		Log.i(
 			TAG,
 			"getList start for ${source.name}: offset=$offset order=${order ?: defaultSortOrder} query=${filter?.query.orEmpty()} runtime=${spiderRuntime?.id ?: "none"}",
@@ -127,12 +127,12 @@ class TVBoxRepository(
 				excludeTags.isEmpty() || item.tags.none { it.key in excludeTags }
 			}
 			.toList()
-		return sortItems(filtered, order ?: defaultSortOrder, query).map { item -> item.toManga(source) }.also {
+		return sortItems(filtered, order ?: defaultSortOrder, query).map { item -> item.toContent(source) }.also {
 			Log.i(TAG, "getList resolved by catalog parsing for ${source.name}: count=${it.size}")
 		}
 	}
 
-	override suspend fun getDetails(manga: Manga): Manga {
+	override suspend fun getDetails(manga: Content): Content {
 		spiderRuntime?.getDetails(manga)?.let { return it }
 		resolveCmsProvider()?.let { provider ->
 			val details = getCmsDetails(provider, manga)
@@ -150,7 +150,7 @@ class TVBoxRepository(
 			tags = if (item.tags.isNotEmpty()) item.tags else manga.tags,
 			authors = manga.authors,
 			chapters = item.streams.mapIndexed { index, stream ->
-				MangaChapter(
+				ContentChapter(
 					id = positiveHash("${item.token}|chapter|${stream.token}|$index"),
 					title = stream.title,
 					number = (index + 1).toFloat(),
@@ -165,7 +165,7 @@ class TVBoxRepository(
 		)
 	}
 
-	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
+	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
 		spiderRuntime?.getPages(chapter, nextChapterUrl)?.let { return it }
 		val locator = parseChapterUrl(chapter.url)
 			?: throw UnsupportedSourceException("Invalid TVBox chapter URL", null)
@@ -183,7 +183,7 @@ class TVBoxRepository(
 			}
 			?: throw UnsupportedSourceException("TVBox stream not found for chapter", null)
 		return listOf(
-			MangaPage(
+			ContentPage(
 				id = positiveHash("${chapter.url}|page"),
 				url = stream.url,
 				preview = null,
@@ -193,20 +193,20 @@ class TVBoxRepository(
 		)
 	}
 
-	override suspend fun getPageUrl(page: MangaPage): String {
+	override suspend fun getPageUrl(page: ContentPage): String {
 		return page.url
 	}
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions {
+	override suspend fun getFilterOptions(): ContentListFilterOptions {
 		spiderRuntime?.getFilterOptions()?.let { return it }
 		resolveCmsProvider()?.let { provider ->
 			if (provider.categories.isNotEmpty()) {
 				val tags = provider.categories.mapTo(linkedSetOf()) { category ->
 					buildCmsTag(category.name, category.id)
 				}
-				return MangaListFilterOptions(
+				return ContentListFilterOptions(
 					availableTags = tags,
-					tagGroups = listOf(MangaTagGroup("分类", tags)),
+					tagGroups = listOf(ContentTagGroup("分类", tags)),
 				)
 			}
 		}
@@ -214,18 +214,18 @@ class TVBoxRepository(
 			?.takeIf { it.isNotEmpty() }
 			?: config.site.categories
 				.mapTo(linkedSetOf()) { category ->
-					MangaTag(
+					ContentTag(
 						title = category,
 						key = "group:${category.lowercase()}",
 						source = source,
 					)
 				}
 		return if (availableTags.isEmpty()) {
-			MangaListFilterOptions()
+			ContentListFilterOptions()
 		} else {
-			MangaListFilterOptions(
+			ContentListFilterOptions(
 				availableTags = availableTags,
-				tagGroups = listOf(MangaTagGroup("分类", availableTags)),
+				tagGroups = listOf(ContentTagGroup("分类", availableTags)),
 			)
 		}
 	}
@@ -235,7 +235,7 @@ class TVBoxRepository(
 			?: buildHeadersForUrl(config.site.api.takeIf(::looksLikeUrl), emptyMap())
 	}
 
-	override suspend fun getRelated(seed: Manga): List<Manga> = emptyList()
+	override suspend fun getRelated(seed: Content): List<Content> = emptyList()
 
 	fun getRuntimeCapabilitySummary(): String? = spiderRuntime?.describeCapability(config)
 
@@ -264,7 +264,7 @@ class TVBoxRepository(
 		}
 	}
 
-	private suspend fun findItem(manga: Manga): TVBoxMediaItem? {
+	private suspend fun findItem(manga: Content): TVBoxMediaItem? {
 		val locator = parseItemUrl(manga.url) ?: parseItemUrl(manga.publicUrl)
 		if (locator != null) {
 			cmsItems[locator.token]?.let { return it }
@@ -308,8 +308,8 @@ class TVBoxRepository(
 		provider: CmsProvider,
 		offset: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?,
-	): List<Manga> {
+		filter: ContentListFilter?,
+	): List<Content> {
 		val page = offset + 1
 		val query = filter?.query?.trim().orEmpty()
 		val selectedCategoryId = filter?.tags
@@ -328,23 +328,23 @@ class TVBoxRepository(
 			}
 			.toList()
 		filtered.forEach { cmsItems[it.token] = it }
-		return sortItems(filtered, order ?: defaultSortOrder, query).map { it.toManga(source) }
+		return sortItems(filtered, order ?: defaultSortOrder, query).map { it.toContent(source) }
 	}
 
-	private suspend fun getCmsDetails(provider: CmsProvider, manga: Manga): Manga? {
+	private suspend fun getCmsDetails(provider: CmsProvider, manga: Content): Content? {
 		val locator = parseItemUrl(manga.url) ?: parseItemUrl(manga.publicUrl) ?: return null
 		cmsItems[locator.token]?.takeIf { it.streams.isNotEmpty() }?.let { cached ->
-			return mergeItemIntoManga(manga, cached)
+			return mergeItemIntoContent(manga, cached)
 		}
 		val externalId = locator.externalId ?: return null
 		val requestUrls = buildCmsDetailUrls(provider.candidate.url, externalId)
 		val items = fetchCmsItems(provider.candidate, requestUrls)
 		val item = items.firstOrNull { it.externalId == externalId } ?: items.firstOrNull() ?: return null
 		cmsItems[item.token] = item
-		return mergeItemIntoManga(manga, item)
+		return mergeItemIntoContent(manga, item)
 	}
 
-	private fun mergeItemIntoManga(manga: Manga, item: TVBoxMediaItem): Manga {
+	private fun mergeItemIntoContent(manga: Content, item: TVBoxMediaItem): Content {
 		return manga.copy(
 			title = item.title.ifBlank { manga.title },
 			coverUrl = item.coverUrl ?: manga.coverUrl,
@@ -354,7 +354,7 @@ class TVBoxRepository(
 			tags = if (item.tags.isNotEmpty()) item.tags else manga.tags,
 			authors = manga.authors,
 			chapters = item.streams.mapIndexed { index, stream ->
-				MangaChapter(
+				ContentChapter(
 					id = positiveHash("${item.token}|chapter|${stream.token}|$index"),
 					title = stream.title,
 					number = (index + 1).toFloat(),
@@ -1011,10 +1011,10 @@ class TVBoxRepository(
 			return TVBoxCatalog.empty()
 		}
 		val uniqueItems = items.distinctBy { "${it.title}|${it.group.orEmpty()}|${it.streams.firstOrNull()?.url.orEmpty()}" }
-		val availableTags = linkedSetOf<MangaTag>()
+		val availableTags = linkedSetOf<ContentTag>()
 		uniqueItems.forEach { item -> availableTags += item.tags }
 		config.site.categories.forEach { category ->
-			availableTags += MangaTag(
+			availableTags += ContentTag(
 				title = category,
 				key = "group:${category.lowercase()}",
 				source = source,
@@ -1048,12 +1048,12 @@ class TVBoxRepository(
 		)
 	}
 
-	private fun buildTags(group: String?): Set<MangaTag> {
+	private fun buildTags(group: String?): Set<ContentTag> {
 		return if (group.isNullOrBlank()) {
 			emptySet()
 		} else {
 			setOf(
-				MangaTag(
+				ContentTag(
 					title = group,
 					key = "group:${group.lowercase()}",
 					source = source,
@@ -1062,15 +1062,15 @@ class TVBoxRepository(
 		}
 	}
 
-	private fun buildCmsTags(group: String?, typeId: String?): Set<MangaTag> {
+	private fun buildCmsTags(group: String?, typeId: String?): Set<ContentTag> {
 		return when {
 			group.isNullOrBlank() && typeId.isNullOrBlank() -> emptySet()
 			else -> setOf(buildCmsTag(group ?: typeId.orEmpty(), typeId))
 		}
 	}
 
-	private fun buildCmsTag(title: String, typeId: String?): MangaTag {
-		return MangaTag(
+	private fun buildCmsTag(title: String, typeId: String?): ContentTag {
+		return ContentTag(
 			title = title,
 			key = "cms_type:${typeId ?: title.lowercase()}",
 			source = source,
@@ -1500,7 +1500,7 @@ class TVBoxRepository(
 
 	private data class TVBoxCatalog(
 		val items: List<TVBoxMediaItem>,
-		val availableTags: Set<MangaTag>,
+		val availableTags: Set<ContentTag>,
 	) {
 		companion object {
 			fun empty() = TVBoxCatalog(
@@ -1519,11 +1519,11 @@ class TVBoxRepository(
 		val description: String?,
 		val coverUrl: String?,
 		val group: String?,
-		val tags: Set<MangaTag>,
+		val tags: Set<ContentTag>,
 		val streams: List<TVBoxStream>,
 		val externalId: String? = null,
 	) {
-		fun toManga(source: JsonMangaSource): Manga = Manga(
+		fun toContent(source: JsonContentSource): Content = Content(
 			id = id,
 			title = title,
 			altTitles = emptySet(),

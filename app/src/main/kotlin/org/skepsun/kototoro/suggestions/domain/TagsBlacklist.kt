@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.suggestions.domain
 
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.almostEquals
 
 class TagsBlacklist(
@@ -11,7 +11,7 @@ class TagsBlacklist(
 
 	fun isNotEmpty() = tags.isNotEmpty()
 
-	operator fun contains(manga: Manga): Boolean {
+	operator fun contains(manga: Content): Boolean {
 		if (tags.isEmpty()) {
 			return false
 		}
@@ -25,7 +25,7 @@ class TagsBlacklist(
 		return false
 	}
 
-	operator fun contains(tag: MangaTag): Boolean = tags.any {
+	operator fun contains(tag: ContentTag): Boolean = tags.any {
 		it.almostEquals(tag.title, threshold)
 	}
 }

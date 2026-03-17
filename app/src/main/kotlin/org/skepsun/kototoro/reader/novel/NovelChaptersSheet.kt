@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import org.skepsun.kototoro.databinding.ItemNovelChapterBinding
 import org.skepsun.kototoro.databinding.SheetNovelChaptersBinding
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 /**
  * 小说章节选择器
@@ -19,7 +19,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
     private var _binding: SheetNovelChaptersBinding? = null
     private val binding get() = _binding!!
 
-    private var chapters: List<MangaChapter> = emptyList()
+    private var chapters: List<ContentChapter> = emptyList()
     private var currentIndex: Int = 0
     private var isReversed: Boolean = false
     private var callback: Callback? = null
@@ -100,7 +100,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
         }
     }
 
-    fun setChapters(chapters: List<MangaChapter>, currentIndex: Int) {
+    fun setChapters(chapters: List<ContentChapter>, currentIndex: Int) {
         this.chapters = chapters
         this.currentIndex = currentIndex
     }
@@ -111,7 +111,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
 
     companion object {
         fun newInstance(
-            chapters: List<MangaChapter>,
+            chapters: List<ContentChapter>,
             currentIndex: Int
         ): NovelChaptersSheet {
             return NovelChaptersSheet().apply {
@@ -124,7 +124,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
      * 章节适配器 - 支持分组显示
      */
     private class ChaptersAdapter(
-        private val chapters: List<MangaChapter>,
+        private val chapters: List<ContentChapter>,
         private val currentIndex: Int,
         private val onChapterClick: (Int) -> Unit
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -181,7 +181,7 @@ class NovelChaptersSheet : BottomSheetDialogFragment() {
 
         sealed class Item {
             data class Header(val title: String) : Item()
-            data class Chapter(val chapter: MangaChapter, val originalIndex: Int) : Item()
+            data class Chapter(val chapter: ContentChapter, val originalIndex: Int) : Item()
         }
 
         class HeaderViewHolder(val binding: org.skepsun.kototoro.databinding.ItemNovelChapterHeaderBinding) : 

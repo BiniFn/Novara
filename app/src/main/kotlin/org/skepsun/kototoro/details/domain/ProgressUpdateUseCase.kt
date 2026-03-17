@@ -3,23 +3,23 @@ package org.skepsun.kototoro.details.domain
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.os.NetworkState
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 class ProgressUpdateUseCase @Inject constructor(
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val database: MangaDatabase,
-	private val localMangaRepository: LocalMangaRepository,
+	private val localContentRepository: LocalMangaRepository,
 	private val networkState: NetworkState,
 ) {
 
-	suspend operator fun invoke(manga: Manga): Float {
+	suspend operator fun invoke(manga: Content): Float {
 		val history = database.getHistoryDao().find(manga.id) ?: return PROGRESS_NONE
 		val seed = if (manga.isLocal) {
-			localMangaRepository.getRemoteManga(manga) ?: manga
+			localContentRepository.getRemoteContent(manga) ?: manga
 		} else {
 			manga
 		}

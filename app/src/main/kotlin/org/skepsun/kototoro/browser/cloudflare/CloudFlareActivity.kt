@@ -20,13 +20,13 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.browser.BaseBrowserActivity
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -45,7 +45,7 @@ class CloudFlareActivity : BaseBrowserActivity(), CloudFlareCallback {
 
 	private lateinit var cfClient: CloudFlareClient
 
-	override fun onCreate2(savedInstanceState: Bundle?, source: MangaSource, repository: ParserMangaRepository?) {
+	override fun onCreate2(savedInstanceState: Bundle?, source: ContentSource, repository: ParserContentRepository?) {
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = true)
 		val url = intent?.dataString
 		if (url.isNullOrEmpty()) {
@@ -108,7 +108,7 @@ class CloudFlareActivity : BaseBrowserActivity(), CloudFlareCallback {
 			val source = intent?.getStringExtra(AppRouter.KEY_SOURCE)
 			if (source != null) {
 				runCatchingCancellable {
-					captchaHandler.discard(MangaSource(source))
+					captchaHandler.discard(ContentSource(source))
 				}.onFailure {
 					it.printStackTraceDebug()
 				}

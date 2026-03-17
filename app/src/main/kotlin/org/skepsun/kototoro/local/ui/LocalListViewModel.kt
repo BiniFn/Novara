@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.toChipModel
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.widgets.ChipsView
@@ -17,38 +17,38 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.explore.domain.ExploreRepository
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.list.ui.model.TipModel
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.LocalStorageManager
-import org.skepsun.kototoro.local.domain.DeleteLocalMangaUseCase
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
 import javax.inject.Inject
 
 @HiltViewModel
 class LocalListViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 	filterCoordinator: FilterCoordinator,
 	settings: AppSettings,
-	mangaListMapper: MangaListMapper,
-	private val deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
+	mangaListMapper: ContentListMapper,
+	private val deleteLocalContentUseCase: DeleteLocalContentUseCase,
 	exploreRepository: ExploreRepository,
-	@param:LocalStorageChanges private val localStorageChanges: SharedFlow<LocalManga?>,
+	@param:LocalStorageChanges private val localStorageChanges: SharedFlow<LocalContent?>,
 	private val localStorageManager: LocalStorageManager,
-	sourcesRepository: MangaSourcesRepository,
-	mangaDataRepository: MangaDataRepository,
+	sourcesRepository: ContentSourcesRepository,
+	mangaDataRepository: ContentDataRepository,
 ) : RemoteListViewModel(
 	savedStateHandle = savedStateHandle,
 	mangaRepositoryFactory = mangaRepositoryFactory,
@@ -61,7 +61,7 @@ class LocalListViewModel @Inject constructor(
 	localStorageChanges = localStorageChanges,
 ), SharedPreferences.OnSharedPreferenceChangeListener, QuickFilterListener {
 
-	val onMangaRemoved = MutableEventFlow<Unit>()
+	val onContentRemoved = MutableEventFlow<Unit>()
 	private val showInlineFilter: Boolean = savedStateHandle[AppRouter.KEY_IS_BOTTOMTAB] ?: false
 
 	init {
@@ -83,7 +83,7 @@ class LocalListViewModel @Inject constructor(
 		}
 		if (!localStorageManager.hasExternalStoragePermission(isReadOnly = true)) {
 			for (item in list) {
-				if (item !is MangaListModel) {
+				if (item !is ContentListModel) {
 					continue
 				}
 				val file = item.manga.url.toUriOrNull()?.toFileOrNull() ?: continue
@@ -132,16 +132,16 @@ class LocalListViewModel @Inject constructor(
 
 	fun delete(ids: Set<Long>) {
 		launchLoadingJob(Dispatchers.Default) {
-			deleteLocalMangaUseCase(ids)
-			onMangaRemoved.call(Unit)
+			deleteLocalContentUseCase(ids)
+			onContentRemoved.call(Unit)
 		}
 	}
 
-	override suspend fun mapMangaList(
+	override suspend fun mapContentList(
 		destination: MutableCollection<in ListModel>,
-		manga: Collection<Manga>,
+		manga: Collection<Content>,
 		mode: ListMode
-	) = mangaListMapper.toListModelList(destination, manga, mode, MangaListMapper.NO_SAVED)
+	) = mangaListMapper.toListModelList(destination, manga, mode, ContentListMapper.NO_SAVED)
 
 	override fun createEmptyState(canResetFilter: Boolean): EmptyState = if (canResetFilter) {
 		super.createEmptyState(true)

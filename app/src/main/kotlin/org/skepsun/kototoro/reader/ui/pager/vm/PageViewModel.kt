@@ -24,7 +24,7 @@ import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.throttle
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.reader.domain.PageLoader
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 
@@ -44,7 +44,7 @@ class PageViewModel(
 	private val scope = loader.loaderScope + Dispatchers.Main.immediate
 	private var job: Job? = null
 	private var cachedBounds: Rect? = null
-	private var boundPage: MangaPage? = null
+	private var boundPage: ContentPage? = null
 	@Volatile
 	private var pendingLayerSwitchPageId: Long? = null
 	private val boundsCache = LinkedHashMap<String, Rect?>(64, 0.75f, true)
@@ -66,7 +66,7 @@ class PageViewModel(
 
 	fun isLoading() = job?.isActive == true
 
-	fun onBind(page: MangaPage) {
+	fun onBind(page: ContentPage) {
 		boundPage = page
 		pendingLayerSwitchPageId = null
 		val prevJob = job
@@ -76,7 +76,7 @@ class PageViewModel(
 		}
 	}
 
-	fun retry(page: MangaPage, isFromUser: Boolean) {
+	fun retry(page: ContentPage, isFromUser: Boolean) {
 		val prevJob = job
 		job = scope.launch {
 			prevJob?.cancelAndJoin()
@@ -106,7 +106,7 @@ class PageViewModel(
 		job?.cancel()
 	}
 
-	fun refreshDisplayVariant(page: MangaPage) {
+	fun refreshDisplayVariant(page: ContentPage) {
 		val prevJob = job
 		job = scope.launch(Dispatchers.Default) {
 			prevJob?.cancelAndJoin()
@@ -115,7 +115,7 @@ class PageViewModel(
 		}
 	}
 
-	fun switchDisplayLayer(page: MangaPage) {
+	fun switchDisplayLayer(page: ContentPage) {
 		val currentState = state.value
 		val source = when (currentState) {
 			is PageState.Shown -> currentState.source
@@ -190,7 +190,7 @@ class PageViewModel(
 	}
 
 	@WorkerThread
-	private suspend fun doLoad(data: MangaPage, force: Boolean) = coroutineScope {
+	private suspend fun doLoad(data: ContentPage, force: Boolean) = coroutineScope {
 		state.value = PageState.Loading(null, -1)
 		val previewJob = launch {
 			val preview = loader.loadPreview(data) ?: return@launch
@@ -246,7 +246,7 @@ class PageViewModel(
 		}
 	}
 
-	private suspend fun applyPendingLayerSwitchIfNeeded(page: MangaPage, currentUri: Uri) {
+	private suspend fun applyPendingLayerSwitchIfNeeded(page: ContentPage, currentUri: Uri) {
 		if (pendingLayerSwitchPageId != page.id) {
 			return
 		}
@@ -263,7 +263,7 @@ class PageViewModel(
 		state.value = PageState.Loaded(targetUri.toImageSource(cachedBounds), isConverted = false)
 	}
 
-	suspend fun resolveLayerSources(page: MangaPage): LayerSources? {
+	suspend fun resolveLayerSources(page: ContentPage): LayerSources? {
 		val currentState = state.value
 		val source = when (currentState) {
 			is PageState.Shown -> currentState.source

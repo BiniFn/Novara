@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.scrobbling.common.data
 
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 
 interface ScrobblerRepository {
@@ -20,11 +20,11 @@ interface ScrobblerRepository {
 
 	suspend fun unregister(mangaId: Long)
 
-	suspend fun findManga(query: String, offset: Int): List<ScrobblerManga>
+	suspend fun findContent(query: String, offset: Int): List<ScrobblerContent>
 
-	suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo
+	suspend fun getContentInfo(id: Long): ScrobblerContentInfo
 
-	suspend fun createRate(mangaId: Long, scrobblerMangaId: Long)
+	suspend fun createRate(mangaId: Long, scrobblerContentId: Long)
 
 	suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int)
 

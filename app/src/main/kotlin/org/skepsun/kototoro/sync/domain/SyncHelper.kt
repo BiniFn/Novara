@@ -44,8 +44,8 @@ import org.skepsun.kototoro.sync.data.SyncSettings
 import org.skepsun.kototoro.sync.data.model.FavouriteCategorySyncDto
 import org.skepsun.kototoro.sync.data.model.FavouriteSyncDto
 import org.skepsun.kototoro.sync.data.model.HistorySyncDto
-import org.skepsun.kototoro.sync.data.model.MangaSyncDto
-import org.skepsun.kototoro.sync.data.model.MangaTagSyncDto
+import org.skepsun.kototoro.sync.data.model.ContentSyncDto
+import org.skepsun.kototoro.sync.data.model.ContentTagSyncDto
 import org.skepsun.kototoro.sync.data.model.SyncDto
 import java.net.HttpURLConnection
 import java.util.concurrent.TimeUnit
@@ -139,7 +139,7 @@ class SyncHelper @AssistedInject constructor(
 		val uri = uri(authorityHistory, TABLE_HISTORY)
 		val operations = ArrayList<ContentProviderOperation>()
 		history.mapTo(operations) {
-			operations.addAll(upsertManga(it.manga, authorityHistory))
+			operations.addAll(upsertContent(it.manga, authorityHistory))
 			ContentProviderOperation.newInsert(uri)
 				.withValues(it.toContentValues())
 				.build()
@@ -162,7 +162,7 @@ class SyncHelper @AssistedInject constructor(
 		val uri = uri(authorityFavourites, TABLE_FAVOURITES)
 		val operations = ArrayList<ContentProviderOperation>()
 		favourites.mapTo(operations) {
-			operations.addAll(upsertManga(it.manga, authorityFavourites))
+			operations.addAll(upsertContent(it.manga, authorityFavourites))
 			ContentProviderOperation.newInsert(uri)
 				.withValues(it.toContentValues())
 				.build()
@@ -170,7 +170,7 @@ class SyncHelper @AssistedInject constructor(
 		return provider.applyBatch(operations)
 	}
 
-	private fun upsertManga(manga: MangaSyncDto, authority: String): List<ContentProviderOperation> {
+	private fun upsertContent(manga: ContentSyncDto, authority: String): List<ContentProviderOperation> {
 		val tags = manga.tags
 		val result = ArrayList<ContentProviderOperation>(tags.size * 2 + 1)
 		for (tag in tags) {
@@ -200,7 +200,7 @@ class SyncHelper @AssistedInject constructor(
 			if (cursor.moveToFirst()) {
 				do {
 					val mangaId = cursor.getLong(cursor.getColumnIndexOrThrow("manga_id"))
-					result.add(HistorySyncDto(cursor, getManga(authorityHistory, mangaId)))
+					result.add(HistorySyncDto(cursor, getContent(authorityHistory, mangaId)))
 				} while (cursor.moveToNext())
 			}
 			result
@@ -209,7 +209,7 @@ class SyncHelper @AssistedInject constructor(
 
 	private fun getFavourites(): List<FavouriteSyncDto> {
 		return provider.query(authorityFavourites, TABLE_FAVOURITES).map { cursor ->
-			val manga = getManga(authorityFavourites, cursor.getLong(cursor.getColumnIndexOrThrow("manga_id")))
+			val manga = getContent(authorityFavourites, cursor.getLong(cursor.getColumnIndexOrThrow("manga_id")))
 			FavouriteSyncDto(cursor, manga)
 		}
 	}
@@ -219,7 +219,7 @@ class SyncHelper @AssistedInject constructor(
 			FavouriteCategorySyncDto(cursor)
 		}
 
-	private fun getManga(authority: String, id: Long): MangaSyncDto {
+	private fun getContent(authority: String, id: Long): ContentSyncDto {
 		val tags = requireNotNull(
 			provider.query(
 				uri(authority, TABLE_MANGA_TAGS),
@@ -241,12 +241,12 @@ class SyncHelper @AssistedInject constructor(
 				null,
 			)?.use { cursor ->
 				cursor.moveToFirst()
-				MangaSyncDto(cursor, tags)
+				ContentSyncDto(cursor, tags)
 			},
 		)
 	}
 
-	private fun getTag(authority: String, tagId: Long): MangaTagSyncDto = requireNotNull(
+	private fun getTag(authority: String, tagId: Long): ContentTagSyncDto = requireNotNull(
 		provider.query(
 			uri(authority, TABLE_TAGS),
 			null,
@@ -255,7 +255,7 @@ class SyncHelper @AssistedInject constructor(
 			null,
 		)?.use { cursor ->
 			if (cursor.moveToFirst()) {
-				MangaTagSyncDto(cursor)
+				ContentTagSyncDto(cursor)
 			} else {
 				null
 			}

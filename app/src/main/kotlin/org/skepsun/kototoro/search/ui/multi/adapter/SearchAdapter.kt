@@ -5,9 +5,9 @@ import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
 import org.skepsun.kototoro.core.ui.BaseListAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
-import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
+import org.skepsun.kototoro.list.ui.ContentSelectionDecoration
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
-import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.adapter.ContentListListener
 import org.skepsun.kototoro.list.ui.adapter.buttonFooterAD
 import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
 import org.skepsun.kototoro.list.ui.adapter.errorStateListAD
@@ -18,10 +18,10 @@ import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
 
 class SearchAdapter(
-	listener: MangaListListener,
+	listener: ContentListListener,
 	itemClickListener: OnListItemClickListener<SearchResultsListModel>,
 	sizeResolver: ItemSizeResolver,
-	selectionDecoration: MangaSelectionDecoration,
+	selectionDecoration: ContentSelectionDecoration,
 ) : BaseListAdapter<ListModel>(), FastScroller.SectionIndexer {
 
 	init {

@@ -39,7 +39,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
         val screen = preferenceManager.createPreferenceScreen(requireContext())
         preferenceScreen = screen
 
-        // Recognition Models (e.g. MangaOCR)
+        // Recognition Models (e.g. ContentOCR)
         val recCategory = PreferenceCategory(requireContext()).apply {
             title = getString(R.string.reader_translation_ocr_model_rec_title)
         }
@@ -52,7 +52,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                 key = "mangaocr_${model.id}"
             }
             recCategory.addPreference(pref)
-            updateMangaOcrStatus(pref, model)
+            updateContentOcrStatus(pref, model)
         }
 
         val ncnnCategory = PreferenceCategory(requireContext()).apply {
@@ -122,7 +122,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
             }
     }
 
-    private fun updateMangaOcrStatus(pref: Preference, model: TfliteOfficialModel) {
+    private fun updateContentOcrStatus(pref: Preference, model: TfliteOfficialModel) {
         val downloaded = tfliteModelManager.isModelDownloaded(model.version)
         pref.widgetLayoutResource = if (downloaded) 0 else R.layout.preference_widget_download
         pref.summary = if (downloaded) {
@@ -132,12 +132,12 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
         }
 
         pref.setOnPreferenceClickListener {
-            downloadMangaOcr(pref, model)
+            downloadContentOcr(pref, model)
             true
         }
     }
 
-    private fun downloadMangaOcr(pref: Preference, model: TfliteOfficialModel) {
+    private fun downloadContentOcr(pref: Preference, model: TfliteOfficialModel) {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 pref.isEnabled = false
@@ -161,7 +161,7 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                         }
                     }
                 )
-                updateMangaOcrStatus(pref, model)
+                updateContentOcrStatus(pref, model)
                 Toast.makeText(context, R.string.reader_translation_rec_download_success, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 pref.summary = "Error: ${e.message}"

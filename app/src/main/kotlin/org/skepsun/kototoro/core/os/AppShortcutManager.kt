@@ -25,7 +25,7 @@ import org.skepsun.kototoro.core.db.TABLE_HISTORY
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.image.ThumbnailTransformation
@@ -34,8 +34,8 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -47,7 +47,7 @@ class AppShortcutManager @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	private val coil: ImageLoader,
 	private val historyRepository: HistoryRepository,
-	private val mangaRepository: MangaDataRepository,
+	private val mangaRepository: ContentDataRepository,
 	private val settings: AppSettings,
 ) : InvalidationTracker.Observer(TABLE_HISTORY), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -81,21 +81,21 @@ class AppShortcutManager @Inject constructor(
 		}
 	}
 
-	suspend fun requestPinShortcut(manga: Manga): Boolean = try {
+	suspend fun requestPinShortcut(manga: Content): Boolean = try {
 		ShortcutManagerCompat.requestPinShortcut(context, buildShortcutInfo(manga), null)
 	} catch (e: IllegalStateException) {
 		e.printStackTraceDebug()
 		false
 	}
 
-	suspend fun requestPinShortcut(source: MangaSource): Boolean = try {
+	suspend fun requestPinShortcut(source: ContentSource): Boolean = try {
 		ShortcutManagerCompat.requestPinShortcut(context, buildShortcutInfo(source), null)
 	} catch (e: IllegalStateException) {
 		e.printStackTraceDebug()
 		false
 	}
 
-	fun getMangaShortcuts(): Set<Long> {
+	fun getContentShortcuts(): Set<Long> {
 		val shortcuts = ShortcutManagerCompat.getShortcuts(
 			context,
 			ShortcutManagerCompat.FLAG_MATCH_CACHED or ShortcutManagerCompat.FLAG_MATCH_PINNED or ShortcutManagerCompat.FLAG_MATCH_DYNAMIC,
@@ -108,7 +108,7 @@ class AppShortcutManager @Inject constructor(
 		return shortcutsUpdateJob?.join() != null
 	}
 
-	fun notifyMangaOpened(mangaId: Long) {
+	fun notifyContentOpened(mangaId: Long) {
 		ShortcutManagerCompat.reportShortcutUsed(context, mangaId.toString())
 	}
 
@@ -134,7 +134,7 @@ class AppShortcutManager @Inject constructor(
 		}
 	}
 
-	private suspend fun buildShortcutInfo(manga: Manga): ShortcutInfoCompat = withContext(Dispatchers.Default) {
+	private suspend fun buildShortcutInfo(manga: Content): ShortcutInfoCompat = withContext(Dispatchers.Default) {
 		val icon = runCatchingCancellable {
 			coil.execute(
 				ImageRequest.Builder(context)
@@ -149,7 +149,7 @@ class AppShortcutManager @Inject constructor(
 			onSuccess = { IconCompat.createWithAdaptiveBitmap(it) },
 			onFailure = { IconCompat.createWithResource(context, R.drawable.ic_shortcut_default) },
 		)
-		mangaRepository.storeManga(manga, replaceExisting = true)
+		mangaRepository.storeContent(manga, replaceExisting = true)
 		val title = manga.title.ifEmpty {
 			manga.altTitles.firstOrNull()
 		}.ifNullOrEmpty {
@@ -168,7 +168,7 @@ class AppShortcutManager @Inject constructor(
 			).build()
 	}
 
-	private suspend fun buildShortcutInfo(source: MangaSource): ShortcutInfoCompat = withContext(Dispatchers.Default) {
+	private suspend fun buildShortcutInfo(source: ContentSource): ShortcutInfoCompat = withContext(Dispatchers.Default) {
 		val icon = runCatchingCancellable {
 			coil.execute(
 				ImageRequest.Builder(context)

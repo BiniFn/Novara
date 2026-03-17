@@ -7,15 +7,15 @@ import org.skepsun.kototoro.core.util.ext.getEnumValue
 import org.skepsun.kototoro.core.util.ext.putEnumValue
 import org.skepsun.kototoro.core.util.ext.sanitizeHeaderValue
 import org.skepsun.kototoro.parsers.config.ConfigKey
-import org.skepsun.kototoro.parsers.config.MangaSourceConfig
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.config.ContentSourceConfig
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.settings.utils.validation.DomainValidator
 import java.io.File
 
-class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig {
+class SourceSettings(context: Context, source: ContentSource) : ContentSourceConfig {
 
     private val prefs = context.getSharedPreferences(
         source.name.replace(File.separatorChar, '$'),

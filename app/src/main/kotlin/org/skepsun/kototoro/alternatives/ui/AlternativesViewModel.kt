@@ -16,23 +16,23 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.alternatives.domain.AlternativesUseCase
 import org.skepsun.kototoro.alternatives.domain.MigrateUseCase
 import org.skepsun.kototoro.core.model.chaptersCount
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.append
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.require
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
-import org.skepsun.kototoro.list.ui.model.MangaGridModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrDefault
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import javax.inject.Inject
@@ -40,16 +40,16 @@ import javax.inject.Inject
 @HiltViewModel
 class AlternativesViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val alternativesUseCase: AlternativesUseCase,
 	private val migrateUseCase: MigrateUseCase,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
 	private var includeDisabledSources = MutableStateFlow(false)
-	private val results = MutableStateFlow<List<MangaAlternativeModel>>(emptyList())
+	private val results = MutableStateFlow<List<ContentAlternativeModel>>(emptyList())
 
 	private var migrationJob: Job? = null
 	private var searchJob: Job? = null
@@ -58,7 +58,7 @@ class AlternativesViewModel @Inject constructor(
 		mangaRepositoryFactory.create(manga.source).getDetails(manga)
 	}
 
-	val onMigrated = MutableEventFlow<Manga>()
+	val onMigrated = MutableEventFlow<Content>()
 
 	val list: StateFlow<List<ListModel>> = combine(
 		results,
@@ -107,7 +107,7 @@ class AlternativesViewModel @Inject constructor(
 		}
 	}
 
-	fun migrate(target: Manga) {
+	fun migrate(target: Content) {
 		if (migrationJob?.isActive == true) {
 			return
 		}
@@ -125,8 +125,8 @@ class AlternativesViewModel @Inject constructor(
 			val refCount = ref.chaptersCount()
 			alternativesUseCase.invoke(ref, throughDisabledSources)
 				.collect {
-					val model = MangaAlternativeModel(
-						mangaModel = mangaListMapper.toListModel(it, ListMode.GRID) as MangaGridModel,
+					val model = ContentAlternativeModel(
+						mangaModel = mangaListMapper.toListModel(it, ListMode.GRID) as ContentGridModel,
 						referenceChapters = refCount,
 					)
 					results.append(model)

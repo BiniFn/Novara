@@ -3,7 +3,7 @@ package org.skepsun.kototoro.search.ui.suggestion.adapter
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.databinding.ItemSearchSuggestionTagsBinding
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListener
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
@@ -14,7 +14,7 @@ fun searchSuggestionTagsAD(
 ) {
 
 	binding.chipsGenres.onChipClickListener = ChipsView.OnChipClickListener { _, data ->
-		listener.onTagClick(data as? MangaTag ?: return@OnChipClickListener)
+		listener.onTagClick(data as? ContentTag ?: return@OnChipClickListener)
 	}
 
 	bind {

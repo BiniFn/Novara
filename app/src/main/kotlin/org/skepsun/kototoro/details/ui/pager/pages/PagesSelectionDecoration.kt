@@ -4,9 +4,9 @@ import android.content.Context
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
 import org.skepsun.kototoro.core.util.ext.getItem
-import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
+import org.skepsun.kototoro.list.ui.ContentSelectionDecoration
 
-class PagesSelectionDecoration(context: Context) : MangaSelectionDecoration(context) {
+class PagesSelectionDecoration(context: Context) : ContentSelectionDecoration(context) {
 
 	override fun getItemId(parent: RecyclerView, child: View): Long {
 		val holder = parent.getChildViewHolder(child) ?: return RecyclerView.NO_ID

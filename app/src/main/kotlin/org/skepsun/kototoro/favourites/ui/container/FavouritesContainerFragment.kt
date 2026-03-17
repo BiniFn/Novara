@@ -167,7 +167,7 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		binding.chipGroupContentType.removeAllViews()
 		contentTypeChipIds.clear()
 		val tabs = listOf(
-			BrowseGroupTab.Manga,
+			BrowseGroupTab.Content,
 			BrowseGroupTab.Novel,
 			BrowseGroupTab.Video,
 		)

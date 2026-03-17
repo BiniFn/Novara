@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.MangaHistory
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.model.ContentHistory
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -26,25 +26,25 @@ import org.skepsun.kototoro.core.util.ext.flattenLatest
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.history.domain.HistoryListQuickFilter
 import org.skepsun.kototoro.history.domain.MarkAsReadUseCase
-import org.skepsun.kototoro.history.domain.model.MangaWithHistory
+import org.skepsun.kototoro.history.domain.model.ContentWithHistory
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.domain.ReadingProgress
-import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.InfoModel
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import kotlinx.coroutines.flow.SharedFlow
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
@@ -56,14 +56,14 @@ private const val PAGE_SIZE = 16
 class HistoryListViewModel @Inject constructor(
 	private val repository: HistoryRepository,
 	settings: AppSettings,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 	private val markAsReadUseCase: MarkAsReadUseCase,
 	private val quickFilter: HistoryListQuickFilter,
 	private val sourceGroupManager: SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
-	mangaDataRepository: MangaDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
-) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+	mangaDataRepository: ContentDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
 
 	override val isFilterBarVisible = MutableStateFlow(true)
 
@@ -116,7 +116,7 @@ class HistoryListViewModel @Inject constructor(
 		this.currentSourceTags,
 	) { values: Array<Any?> ->
 		val filters = values[0] as Set<ListFilterOption>
-		val list = values[1] as List<MangaWithHistory>
+		val list = values[1] as List<ContentWithHistory>
 		val grouped = values[2] as Boolean
 		val mode = values[3] as ListMode
 		val incognito = values[4] as Boolean
@@ -163,7 +163,7 @@ class HistoryListViewModel @Inject constructor(
 		}
 	}
 
-	fun markAsRead(items: Set<Manga>) {
+	fun markAsRead(items: Set<Content>) {
 		launchLoadingJob(Dispatchers.Default) {
 			markAsReadUseCase(items)
 		}
@@ -185,7 +185,7 @@ class HistoryListViewModel @Inject constructor(
 	}.flattenLatest()
 
 	private suspend fun mapList(
-		list: List<MangaWithHistory>,
+		list: List<ContentWithHistory>,
 		grouped: Boolean,
 		mode: ListMode,
 		filters: Set<ListFilterOption>,
@@ -247,7 +247,7 @@ class HistoryListViewModel @Inject constructor(
 		return result
 	}
 
-	private fun MangaHistory.header(order: ListSortOrder): ListHeader? = when (order) {
+	private fun ContentHistory.header(order: ListSortOrder): ListHeader? = when (order) {
 		ListSortOrder.LAST_READ,
 		ListSortOrder.LONG_AGO_READ -> calculateTimeAgo(updatedAt)?.let {
 			ListHeader(it)

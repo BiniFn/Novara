@@ -8,12 +8,12 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.local.data.input.LocalMangaParser
+import org.skepsun.kototoro.local.data.input.LocalContentParser
 import org.skepsun.kototoro.local.novel.LocalNovelRepository
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import javax.inject.Inject
@@ -21,13 +21,13 @@ import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
-class LocalMangaIndex @Inject constructor(
-	private val mangaDataRepository: MangaDataRepository,
+class LocalContentIndex @Inject constructor(
+	private val mangaDataRepository: ContentDataRepository,
 	private val db: MangaDatabase,
 	@ApplicationContext context: Context,
-	private val localMangaRepositoryProvider: Provider<LocalMangaRepository>,
+	private val localContentRepositoryProvider: Provider<LocalMangaRepository>,
 	private val localNovelRepositoryProvider: Provider<LocalNovelRepository>,
-) : FlowCollector<LocalManga?> {
+) : FlowCollector<LocalContent?> {
 
 private val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 private val mutex = Mutex()
@@ -36,7 +36,7 @@ private var currentVersion: Int
 	get() = prefs.getInt(KEY_VERSION, 0)
 	set(value) = prefs.edit { putInt(KEY_VERSION, value) }
 
-override suspend fun emit(value: LocalManga?) {
+override suspend fun emit(value: LocalContent?) {
 	if (value != null) {
 		put(value)
 	}
@@ -44,9 +44,9 @@ override suspend fun emit(value: LocalManga?) {
 
 suspend fun update() = mutex.withLock {
 	db.withTransaction {
-		val dao = db.getLocalMangaIndexDao()
+		val dao = db.getLocalContentIndexDao()
 		dao.clear()
-		localMangaRepositoryProvider.get()
+		localContentRepositoryProvider.get()
 			.getRawListAsFlow()
 			.collect { upsert(it) }
 		// novels
@@ -63,11 +63,11 @@ suspend fun update() = mutex.withLock {
 		}
 	}
 
-	suspend fun get(mangaId: Long, withDetails: Boolean): LocalManga? {
+	suspend fun get(mangaId: Long, withDetails: Boolean): LocalContent? {
 		updateIfRequired()
-		var path = db.getLocalMangaIndexDao().findPath(mangaId)
+		var path = db.getLocalContentIndexDao().findPath(mangaId)
 		if (path == null && mutex.isLocked) { // wait for updating complete
-			path = mutex.withLock { db.getLocalMangaIndexDao().findPath(mangaId) }
+			path = mutex.withLock { db.getLocalContentIndexDao().findPath(mangaId) }
 		}
 		if (path == null) {
 			return null
@@ -78,28 +78,28 @@ suspend fun update() = mutex.withLock {
 		if (novel != null) {
 			return@runCatchingCancellable novel
 		}
-		LocalMangaParser(dir).getManga(withDetails)
+		LocalContentParser(dir).getContent(withDetails)
 	}.onFailure {
 		it.printStackTraceDebug()
 	}.getOrNull()
 }
 
 	suspend operator fun contains(mangaId: Long): Boolean {
-		return db.getLocalMangaIndexDao().findPath(mangaId) != null
+		return db.getLocalContentIndexDao().findPath(mangaId) != null
 	}
 
-	suspend fun put(manga: LocalManga) = mutex.withLock {
+	suspend fun put(manga: LocalContent) = mutex.withLock {
 		db.withTransaction {
 			upsert(manga)
 		}
 	}
 
 	suspend fun delete(mangaId: Long) {
-		db.getLocalMangaIndexDao().delete(mangaId)
+		db.getLocalContentIndexDao().delete(mangaId)
 	}
 
 	suspend fun getAvailableTags(skipNsfw: Boolean): List<String> {
-		val dao = db.getLocalMangaIndexDao()
+		val dao = db.getLocalContentIndexDao()
 		return if (skipNsfw) {
 			dao.findTags(isNsfw = false)
 		} else {
@@ -107,12 +107,12 @@ suspend fun update() = mutex.withLock {
 		}
 	}
 
-	private suspend fun upsert(manga: LocalManga) {
-		mangaDataRepository.storeManga(manga.manga, replaceExisting = true)
-		db.getLocalMangaIndexDao().upsert(manga.toEntity())
+	private suspend fun upsert(manga: LocalContent) {
+		mangaDataRepository.storeContent(manga.manga, replaceExisting = true)
+		db.getLocalContentIndexDao().upsert(manga.toEntity())
 	}
 
-	private fun LocalManga.toEntity() = LocalMangaIndexEntity(
+	private fun LocalContent.toEntity() = LocalContentIndexEntity(
 		mangaId = manga.id,
 		path = file.path,
 	)

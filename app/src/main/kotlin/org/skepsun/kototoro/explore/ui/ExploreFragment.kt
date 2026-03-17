@@ -30,7 +30,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
+import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.dialog.BigButtonsAlertDialog
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
@@ -46,20 +46,20 @@ import org.skepsun.kototoro.databinding.FragmentExploreBinding
 import org.skepsun.kototoro.explore.ui.adapter.ExploreAdapter
 import org.skepsun.kototoro.explore.ui.adapter.ExploreListEventListener
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
+import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 
 @AndroidEntryPoint
 class ExploreFragment :
 	BaseFragment<FragmentExploreBinding>(),
 	RecyclerViewOwner,
 	ExploreListEventListener,
-	OnListItemClickListener<MangaSourceItem>, ListSelectionController.Callback,
+	OnListItemClickListener<ContentSourceItem>, ListSelectionController.Callback,
 	AppBarLayout.OnOffsetChangedListener {
 
 	private val viewModel by viewModels<ExploreViewModel>()
@@ -111,7 +111,7 @@ class ExploreFragment :
 		
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))
-		viewModel.onOpenManga.observeEvent(viewLifecycleOwner, ::onOpenManga)
+		viewModel.onOpenContent.observeEvent(viewLifecycleOwner, ::onOpenContent)
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.recyclerView))
 		viewModel.isGrid.observe(viewLifecycleOwner, ::onGridModeChanged)
 		viewModel.onShowSuggestionsTip.observeEvent(viewLifecycleOwner) {
@@ -402,18 +402,18 @@ class ExploreFragment :
 		}
 	}
 
-	override fun onItemClick(item: MangaSourceItem, view: View) {
+	override fun onItemClick(item: ContentSourceItem, view: View) {
 		if (sourceSelectionController?.onItemClick(item.id) == true) {
 			return
 		}
 		router.openList(item.source, null, null)
 	}
 
-	override fun onItemLongClick(item: MangaSourceItem, view: View): Boolean {
+	override fun onItemLongClick(item: ContentSourceItem, view: View): Boolean {
 		return sourceSelectionController?.onItemLongClick(view, item.id) == true
 	}
 
-	override fun onItemContextClick(item: MangaSourceItem, view: View): Boolean {
+	override fun onItemContextClick(item: ContentSourceItem, view: View): Boolean {
 		return sourceSelectionController?.onItemContextClick(view, item.id) == true
 	}
 
@@ -442,8 +442,8 @@ class ExploreFragment :
 		menu.findItem(R.id.action_pin).isVisible = selectedSources.all { !it.isPinned }
 		menu.findItem(R.id.action_unpin).isVisible = selectedSources.all { it.isPinned }
 		menu.findItem(R.id.action_disable)?.isVisible = !viewModel.isAllSourcesEnabled.value &&
-			selectedSources.all { it.mangaSource is MangaParserSource }
-		menu.findItem(R.id.action_delete)?.isVisible = selectedSources.all { it.mangaSource is ExternalMangaSource }
+			selectedSources.all { it.mangaSource is ContentParserSource }
+		menu.findItem(R.id.action_delete)?.isVisible = selectedSources.all { it.mangaSource is ExternalContentSource }
 		return super.onPrepareActionMode(controller, mode, menu)
 	}
 
@@ -466,7 +466,7 @@ class ExploreFragment :
 
 			R.id.action_delete -> {
 				selectedSources.forEach {
-					(it.mangaSource as? ExternalMangaSource)?.let { uninstallExternalSource(it) }
+					(it.mangaSource as? ExternalContentSource)?.let { uninstallExternalSource(it) }
 				}
 				mode?.finish()
 			}
@@ -492,7 +492,7 @@ class ExploreFragment :
 		return true
 	}
 
-	private fun onOpenManga(manga: Manga) {
+	private fun onOpenContent(manga: Content) {
 		router.openDetails(manga)
 	}
 
@@ -519,7 +519,7 @@ class ExploreFragment :
 			.show()
 	}
 
-	private fun uninstallExternalSource(source: ExternalMangaSource) {
+	private fun uninstallExternalSource(source: ExternalContentSource) {
 		val uri = Uri.fromParts("package", source.packageName, null)
 		val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			Intent.ACTION_DELETE

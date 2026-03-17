@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
@@ -59,7 +59,7 @@ class ReaderConfigSheet :
     lateinit var orientationHelper: ScreenOrientationHelper
 
     @Inject
-    lateinit var mangaRepositoryFactory: MangaRepository.Factory
+    lateinit var mangaRepositoryFactory: ContentRepository.Factory
 
     @Inject
     lateinit var pageLoader: PageLoader
@@ -106,7 +106,7 @@ class ReaderConfigSheet :
             ?: ReaderMode.STANDARD
         imageServerDelegate = ImageServerDelegate(
             mangaRepositoryFactory = mangaRepositoryFactory,
-            mangaSource = viewModel.getMangaOrNull()?.source,
+            mangaSource = viewModel.getContentOrNull()?.source,
         )
     }
 
@@ -209,12 +209,12 @@ class ReaderConfigSheet :
 
             R.id.button_color_filter -> {
                 val page = viewModel.getCurrentPage() ?: return
-                val manga = viewModel.getMangaOrNull() ?: return
+                val manga = viewModel.getContentOrNull() ?: return
                 router.openColorFilterConfig(manga, page)
             }
 
             R.id.button_open_in_browser -> {
-                val manga = viewModel.getMangaOrNull() ?: return
+                val manga = viewModel.getContentOrNull() ?: return
                 val chapter = viewModel.uiState.value?.chapter
                 if (chapter != null) {
                     val url = kotlin.runCatching {

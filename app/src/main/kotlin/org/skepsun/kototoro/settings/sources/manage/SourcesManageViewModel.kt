@@ -12,8 +12,8 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.move
 import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
 import javax.inject.Inject
@@ -22,7 +22,7 @@ import javax.inject.Inject
 class SourcesManageViewModel @Inject constructor(
 	private val database: MangaDatabase,
 	private val settings: AppSettings,
-	private val repository: MangaSourcesRepository,
+	private val repository: ContentSourcesRepository,
 	private val listProducer: SourcesListProducer,
 ) : BaseViewModel() {
 
@@ -63,7 +63,7 @@ class SourcesManageViewModel @Inject constructor(
 		return oldPosItem.isEnabled && newPosItem.isEnabled && oldPosItem.isPinned == newPosItem.isPinned
 	}
 
-	fun setEnabled(source: MangaSource, isEnabled: Boolean) {
+	fun setEnabled(source: ContentSource, isEnabled: Boolean) {
 		launchJob(Dispatchers.Default) {
 			val rollback = repository.setSourcesEnabled(setOf(source), isEnabled)
 			if (!isEnabled) {
@@ -72,7 +72,7 @@ class SourcesManageViewModel @Inject constructor(
 		}
 	}
 
-	fun setPinned(source: MangaSource, isPinned: Boolean) {
+	fun setPinned(source: ContentSource, isPinned: Boolean) {
 		launchJob(Dispatchers.Default) {
 			val rollback = repository.setIsPinned(setOf(source), isPinned)
 			val message = if (isPinned) R.string.source_pinned else R.string.source_unpinned
@@ -80,7 +80,7 @@ class SourcesManageViewModel @Inject constructor(
 		}
 	}
 
-	fun bringToTop(source: MangaSource) {
+	fun bringToTop(source: ContentSource) {
 		val snapshot = content.value
 		launchJob(Dispatchers.Default) {
 			var oldPos = -1

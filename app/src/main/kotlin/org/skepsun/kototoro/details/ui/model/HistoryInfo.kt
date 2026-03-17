@@ -1,13 +1,13 @@
 package org.skepsun.kototoro.details.ui.model
 
-import org.skepsun.kototoro.core.model.MangaHistory
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.core.model.ContentHistory
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.data.ReadingTime
 
 data class HistoryInfo(
 	val totalChapters: Int,
 	val currentChapter: Int,
-	val history: MangaHistory?,
+	val history: ContentHistory?,
 	val isIncognitoMode: Boolean,
 	val isChapterMissing: Boolean,
 	val canDownload: Boolean,
@@ -28,9 +28,9 @@ data class HistoryInfo(
 }
 
 fun HistoryInfo(
-	manga: MangaDetails?,
+	manga: ContentDetails?,
 	branch: String?,
-	history: MangaHistory?,
+	history: ContentHistory?,
 	isIncognitoMode: Boolean,
 	estimatedTime: ReadingTime?,
 ): HistoryInfo {

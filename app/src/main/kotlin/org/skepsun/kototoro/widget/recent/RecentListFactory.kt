@@ -19,7 +19,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.getDrawableOrThrow
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.replaceWith
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 
@@ -30,7 +30,7 @@ class RecentListFactory(
 	private val settings: AppSettings,
 ) : RemoteViewsService.RemoteViewsFactory {
 
-	private val dataSet = ArrayList<Manga>()
+	private val dataSet = ArrayList<Content>()
 	private val transformation = RoundedCornersTransformation(
 		context.resources.getDimension(R.dimen.appwidget_corner_radius_inner),
 	)

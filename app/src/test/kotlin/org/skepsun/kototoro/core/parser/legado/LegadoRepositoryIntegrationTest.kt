@@ -10,12 +10,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.javascript.JavaScriptEngine
 import org.skepsun.kototoro.core.javascript.JavaScriptContext
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.jsonsource.UserAgentManager
 import io.mockk.mockk
@@ -112,7 +112,7 @@ class LegadoRepositoryIntegrationTest {
 			updatedAt = System.currentTimeMillis()
 		)
 		
-		val source = JsonMangaSource(entity)
+		val source = JsonContentSource(entity)
 		val repository = LegadoRepository(source, httpClient, mockJsEngine)
 		
 		val results = repository.getList(0, null, null)
@@ -176,10 +176,10 @@ class LegadoRepositoryIntegrationTest {
 			updatedAt = System.currentTimeMillis()
 		)
 		
-		val source = JsonMangaSource(entity)
+		val source = JsonContentSource(entity)
 		val repository = LegadoRepository(source, httpClient, mockJsEngine)
 		
-		val testManga = Manga(
+		val testContent = Content(
 			id = 1L,
 			title = "Original Title",
 			altTitles = emptySet(),
@@ -197,7 +197,7 @@ class LegadoRepositoryIntegrationTest {
 			source = source
 		)
 		
-		val result = repository.getDetails(testManga)
+		val result = repository.getDetails(testContent)
 		
 		assertNotNull(result)
 		assertEquals("Test Novel", result.title)

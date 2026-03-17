@@ -5,17 +5,17 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 sealed interface SearchSuggestionItem : ListModel {
 
-	data class MangaList(
-		val items: List<Manga>,
+	data class ContentList(
+		val items: List<Content>,
 	) : SearchSuggestionItem {
 
 		override fun areItemsTheSame(other: ListModel): Boolean {
-			return other is MangaList
+			return other is ContentList
 		}
 	}
 
@@ -47,7 +47,7 @@ sealed interface SearchSuggestionItem : ListModel {
 	}
 
 	data class Source(
-		val source: MangaSource,
+		val source: ContentSource,
 		val isEnabled: Boolean,
 	) : SearchSuggestionItem {
 
@@ -71,7 +71,7 @@ sealed interface SearchSuggestionItem : ListModel {
 	}
 
 	data class SourceTip(
-		val source: MangaSource,
+		val source: ContentSource,
 	) : SearchSuggestionItem {
 
 		val isNsfw: Boolean

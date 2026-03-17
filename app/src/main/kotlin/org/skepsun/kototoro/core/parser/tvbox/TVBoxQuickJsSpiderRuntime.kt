@@ -18,18 +18,18 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 import org.skepsun.kototoro.parsers.model.SortOrder
 import java.io.File
@@ -37,7 +37,7 @@ import java.nio.charset.Charset
 import java.util.concurrent.ConcurrentHashMap
 
 internal class TVBoxQuickJsSpiderRuntime(
-	private val source: JsonMangaSource,
+	private val source: JsonContentSource,
 	private val config: TVBoxStoredConfig,
 	private val context: Context,
 	private val httpClient: LegadoHttpClient,
@@ -66,7 +66,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 	private var homeCache: TVBoxHomeResult? = null
 
 	@Volatile
-	private var filterOptionsCache: MangaListFilterOptions? = null
+	private var filterOptionsCache: ContentListFilterOptions? = null
 
 	override fun describeCapability(config: TVBoxStoredConfig): String {
 		return "QuickJS(type=4, basic TVBox JS bridge)"
@@ -84,8 +84,8 @@ internal class TVBoxQuickJsSpiderRuntime(
 	override suspend fun getList(
 		offset: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?,
-	): List<Manga>? {
+		filter: ContentListFilter?,
+	): List<Content>? {
 		val page = offset + 1
 		val query = filter?.query?.trim().orEmpty()
 		val selectedCategoryId = filter?.tags
@@ -97,7 +97,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 				offset == 0 -> {
 					val homeVodItems = loadHomeVod()
 					if (homeVodItems.isNotEmpty()) {
-						homeVodItems.map { it.toManga(source) }
+						homeVodItems.map { it.toContent(source) }
 					} else {
 						loadInitialCategoryFallback(loadHome(), page)
 					}
@@ -111,10 +111,10 @@ internal class TVBoxQuickJsSpiderRuntime(
 		}.getOrNull()
 	}
 
-	override suspend fun getDetails(manga: Manga): Manga? {
+	override suspend fun getDetails(manga: Content): Content? {
 		return runCatching {
 			val detail = loadDetail(manga) ?: return manga
-			detail.toManga(source).copy(
+			detail.toContent(source).copy(
 				id = manga.id,
 				url = manga.url,
 				publicUrl = manga.publicUrl,
@@ -124,11 +124,11 @@ internal class TVBoxQuickJsSpiderRuntime(
 		}.getOrNull()
 	}
 
-	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage>? {
+	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage>? {
 		return runCatching {
 			val locator = parseChapterLocator(chapter.url)
 				?: return listOf(
-					MangaPage(
+					ContentPage(
 						id = positiveHash("${chapter.url}|page"),
 						url = chapter.url,
 						preview = null,
@@ -136,21 +136,24 @@ internal class TVBoxQuickJsSpiderRuntime(
 						source = source,
 					),
 				)
-			if (locator.id.startsWith("http://", ignoreCase = true) || locator.id.startsWith("https://", ignoreCase = true)) {
+			val directLocator = TVBoxPlayback.normalizeLocator(locator.id)
+			if (directLocator.startsWith("http://", ignoreCase = true) || directLocator.startsWith("https://", ignoreCase = true)) {
 				return listOf(
-					MangaPage(
+					ContentPage(
 						id = positiveHash("${chapter.url}|page"),
-						url = locator.id,
+						url = directLocator,
 						preview = null,
-						headers = buildHeadersForUrl(locator.id, emptyMap()),
+						headers = buildHeadersForUrl(directLocator, emptyMap()),
 						source = source,
 					),
 				)
 			}
 			val playResult = loadPlay(locator.flag, locator.id)
-			val finalUrl = playResult?.url?.takeIf { it.isNotBlank() } ?: locator.id
+			val finalUrl = TVBoxPlayback.normalizeLocator(
+				playResult?.url?.takeIf { it.isNotBlank() } ?: locator.id,
+			)
 			listOf(
-				MangaPage(
+				ContentPage(
 					id = positiveHash("${chapter.url}|page"),
 					url = finalUrl,
 					preview = null,
@@ -163,25 +166,25 @@ internal class TVBoxQuickJsSpiderRuntime(
 		}.getOrNull()
 	}
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions? {
+	override suspend fun getFilterOptions(): ContentListFilterOptions? {
 		filterOptionsCache?.let { return it }
 		return filterOptionsMutex.withLock {
 			filterOptionsCache?.let { return it }
 			runCatching {
 				val home = loadHome()
 				if (home.categories.isEmpty()) {
-					MangaListFilterOptions()
+					ContentListFilterOptions()
 				} else {
 					val tags = home.categories.mapTo(linkedSetOf()) { category ->
-						MangaTag(
+						ContentTag(
 							title = category.name,
 							key = "$TAG_CATEGORY_PREFIX${category.id}",
 							source = source,
 						)
 					}
-					MangaListFilterOptions(
+					ContentListFilterOptions(
 						availableTags = tags,
-						tagGroups = listOf(MangaTagGroup("分类", tags)),
+						tagGroups = listOf(ContentTagGroup("分类", tags)),
 					)
 				}
 			}.onFailure {
@@ -216,7 +219,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 		return parseVodList(raw)
 	}
 
-	private suspend fun loadCategory(categoryId: String, page: Int): List<Manga> {
+	private suspend fun loadCategory(categoryId: String, page: Int): List<Content> {
 		Log.i(TAG, "Loading TVBox category for ${source.name}: categoryId=$categoryId page=$page")
 		val raw = executeSpiderCall(
 			action = "category",
@@ -227,13 +230,13 @@ internal class TVBoxQuickJsSpiderRuntime(
 				"{}",
 			).joinToString(", "),
 		).orEmpty()
-		return parseVodList(raw).map { it.toManga(source) }
+		return parseVodList(raw).map { it.toContent(source) }
 	}
 
 	private suspend fun loadInitialCategoryFallback(
 		home: TVBoxHomeResult,
 		page: Int,
-	): List<Manga> {
+	): List<Content> {
 		val categories = home.categories.take(HOME_CATEGORY_FALLBACK_LIMIT)
 		if (categories.isEmpty()) {
 			Log.i(TAG, "TVBox home has no categories for ${source.name}")
@@ -254,7 +257,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 		return emptyList()
 	}
 
-	private suspend fun search(query: String, page: Int): List<Manga> {
+	private suspend fun search(query: String, page: Int): List<Content> {
 		val raw = executeSpiderCall(
 			action = "search",
 			argsLiteral = listOf(
@@ -263,10 +266,10 @@ internal class TVBoxQuickJsSpiderRuntime(
 				page.toString().toJsStringLiteral(),
 			).joinToString(", "),
 		).orEmpty()
-		return parseVodList(raw).map { it.toManga(source) }
+		return parseVodList(raw).map { it.toContent(source) }
 	}
 
-	private suspend fun loadDetail(manga: Manga): TVBoxDetailResult? {
+	private suspend fun loadDetail(manga: Content): TVBoxDetailResult? {
 		val itemId = (manga.url ?: manga.publicUrl).orEmpty().ifBlank { manga.id.toString() }
 		detailCache[itemId]?.let { return it }
 		return detailMutex.withLock {
@@ -275,7 +278,8 @@ internal class TVBoxQuickJsSpiderRuntime(
 				action = "detail",
 				argsLiteral = itemId.toJsStringLiteral(),
 			).orEmpty()
-			parseDetailResult(raw)?.also { detailCache[itemId] = it }
+			(parseDetailResult(raw) ?: buildFallbackDetailResult(raw, manga))
+				?.also { detailCache[itemId] = it }
 		}
 	}
 
@@ -694,8 +698,8 @@ internal class TVBoxQuickJsSpiderRuntime(
 		val category = node.firstNonBlank("type_name", "vod_class", "class")
 		val remarks = node.firstNonBlank("vod_remarks", "remarks", "note")
 		val tags = buildSet {
-			category?.let { add(MangaTag(it, "category:${it.lowercase()}", source)) }
-			remarks?.let { add(MangaTag(it, "remark:${it.lowercase()}", source)) }
+			category?.let { add(ContentTag(it, "category:${it.lowercase()}", source)) }
+			remarks?.let { add(ContentTag(it, "remark:${it.lowercase()}", source)) }
 		}
 		val description = buildString {
 			node.firstNonBlank("vod_content", "content", "vod_blurb")?.let {
@@ -748,7 +752,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 		val chapters = if (playSources.isNotEmpty()) {
 			playSources.flatMapIndexed { groupIndex, sourceGroup ->
 				sourceGroup.items.mapIndexed { index, playItem ->
-					MangaChapter(
+					ContentChapter(
 						id = positiveHash("${item.itemId}|${sourceGroup.flag}|${playItem.id}|$groupIndex|$index"),
 						title = playItem.title,
 						number = (index + 1).toFloat(),
@@ -763,7 +767,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 			}
 		} else {
 			listOf(
-				MangaChapter(
+				ContentChapter(
 					id = positiveHash("${item.itemId}|single"),
 					title = item.title,
 					number = 1f,
@@ -780,6 +784,44 @@ internal class TVBoxQuickJsSpiderRuntime(
 			item = item,
 			chapters = chapters,
 		)
+	}
+
+	private fun buildFallbackDetailResult(raw: String, seed: Content): TVBoxDetailResult? {
+		val jsonValue = raw.toJsonValue() ?: return null
+		val root = when (jsonValue) {
+			is JSONObject -> jsonValue
+			is JSONArray -> JSONObject().put("list", jsonValue)
+			else -> return null
+		}
+		val message = root.firstNonBlank("msg", "message", "error")
+		val hasPlaybackHints = root.has("parse") || root.has("jx") || root.has("url") || root.has("playUrl") || root.has("realUrl")
+		if (message.isNullOrBlank() && !hasPlaybackHints) {
+			return null
+		}
+		val itemId = (seed.url ?: seed.publicUrl).orEmpty().ifBlank { return null }
+		val item = TVBoxVodItem(
+			id = seed.id,
+			itemId = itemId,
+			title = seed.title,
+			coverUrl = seed.coverUrl ?: seed.largeCoverUrl,
+			description = mergeDescription(seed.description, message),
+			tags = seed.tags,
+		)
+		val chapters = listOf(
+			ContentChapter(
+				id = positiveHash("${item.itemId}|fallback"),
+				title = item.title,
+				number = 1f,
+				volume = 0,
+				url = buildChapterUrl(item.title, item.itemId),
+				scanlator = null,
+				uploadDate = 0L,
+				branch = null,
+				source = source,
+			),
+		)
+		Log.i(TAG, "TVBox detail fallback applied for ${source.name}: itemId=$itemId msg=${message.orEmpty()}")
+		return TVBoxDetailResult(item = item, chapters = chapters)
 	}
 
 	private fun parsePlaySources(node: JSONObject): List<TVBoxPlaySource> {
@@ -1294,9 +1336,9 @@ internal class TVBoxQuickJsSpiderRuntime(
 		val title: String,
 		val coverUrl: String?,
 		val description: String?,
-		val tags: Set<MangaTag>,
+		val tags: Set<ContentTag>,
 	) {
-		fun toManga(source: JsonMangaSource): Manga = Manga(
+		fun toContent(source: JsonContentSource): Content = Content(
 			id = id,
 			title = title,
 			altTitles = emptySet(),
@@ -1317,9 +1359,9 @@ internal class TVBoxQuickJsSpiderRuntime(
 
 	private data class TVBoxDetailResult(
 		val item: TVBoxVodItem,
-		val chapters: List<MangaChapter>,
+		val chapters: List<ContentChapter>,
 	) {
-		fun toManga(source: JsonMangaSource): Manga = item.toManga(source).copy(
+		fun toContent(source: JsonContentSource): Content = item.toContent(source).copy(
 			chapters = chapters,
 		)
 	}
@@ -1388,6 +1430,14 @@ private fun JSONObject.optStringOrNull(key: String): String? {
 		return null
 	}
 	return value.toString().trim().ifBlank { null }
+}
+
+private fun mergeDescription(base: String?, extra: String?): String? {
+	val parts = listOfNotNull(
+		base?.trim()?.takeIf { it.isNotBlank() },
+		extra?.trim()?.takeIf { it.isNotBlank() },
+	).distinct()
+	return parts.joinToString("\n").ifBlank { null }
 }
 
 private fun JSONObject.optHeaderMap(key: String): Map<String, String> {

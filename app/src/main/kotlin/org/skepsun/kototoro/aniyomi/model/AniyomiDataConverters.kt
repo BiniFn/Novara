@@ -5,25 +5,25 @@ import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 
 /**
  * Extension functions for converting between Aniyomi and Kototoro data models.
  */
 
-// ============ SAnime <-> Manga ============
+// ============ SAnime <-> Content ============
 
-fun SAnime.toKotoManga(
+fun SAnime.toKotoContent(
     source: AniyomiAnimeSource,
-    chapters: List<MangaChapter>? = null,
+    chapters: List<ContentChapter>? = null,
     publicUrl: String = "",
-): Manga {
+): Content {
     val baseUrl = (source.animeCatalogueSource as? AnimeHttpSource)?.baseUrl ?: ""
     
     val safeUrl = try { url } catch (e: Exception) { "" }
@@ -38,7 +38,7 @@ fun SAnime.toKotoManga(
     val safeDescription = try { description } catch (e: Exception) { null }
     val safeStatus = try { status } catch (e: Exception) { SAnime.UNKNOWN }
     
-    return Manga(
+    return Content(
         id = generateId(safeUrl, source.name, "manga"),
         title = safeTitle,
         altTitles = emptySet(),
@@ -53,19 +53,19 @@ fun SAnime.toKotoManga(
         coverUrl = absoluteThumbnailUrl,
         largeCoverUrl = absoluteThumbnailUrl,
         tags = safeGenres?.map { genreName ->
-            MangaTag(
+            ContentTag(
                 title = genreName,
                 key = genreName.lowercase().replace(" ", "_"),
                 source = source,
             )
         }?.toSet() ?: emptySet(),
         state = when (safeStatus) {
-            SAnime.ONGOING -> MangaState.ONGOING
-            SAnime.COMPLETED -> MangaState.FINISHED
-            SAnime.ON_HIATUS -> MangaState.PAUSED
-            SAnime.CANCELLED -> MangaState.ABANDONED
-            SAnime.LICENSED -> MangaState.RESTRICTED
-            SAnime.PUBLISHING_FINISHED -> MangaState.FINISHED
+            SAnime.ONGOING -> ContentState.ONGOING
+            SAnime.COMPLETED -> ContentState.FINISHED
+            SAnime.ON_HIATUS -> ContentState.PAUSED
+            SAnime.CANCELLED -> ContentState.ABANDONED
+            SAnime.LICENSED -> ContentState.RESTRICTED
+            SAnime.PUBLISHING_FINISHED -> ContentState.FINISHED
             else -> null
         },
         authors = buildSet {
@@ -78,7 +78,7 @@ fun SAnime.toKotoManga(
     )
 }
 
-fun Manga.toAniyomiAnime(): SAnime {
+fun Content.toAniyomiAnime(): SAnime {
     val baseUrl = (source as? AniyomiAnimeSource)?.let { 
         (it.animeCatalogueSource as? AnimeHttpSource)?.baseUrl ?: ""
     } ?: ""
@@ -98,11 +98,11 @@ fun Manga.toAniyomiAnime(): SAnime {
         this.description = this@toAniyomiAnime.description
         this.genre = this@toAniyomiAnime.tags.joinToString(", ") { it.title }
         this.status = when (this@toAniyomiAnime.state) {
-            MangaState.ONGOING -> SAnime.ONGOING
-            MangaState.FINISHED -> SAnime.COMPLETED
-            MangaState.PAUSED -> SAnime.ON_HIATUS
-            MangaState.ABANDONED -> SAnime.CANCELLED
-            MangaState.RESTRICTED -> SAnime.LICENSED
+            ContentState.ONGOING -> SAnime.ONGOING
+            ContentState.FINISHED -> SAnime.COMPLETED
+            ContentState.PAUSED -> SAnime.ON_HIATUS
+            ContentState.ABANDONED -> SAnime.CANCELLED
+            ContentState.RESTRICTED -> SAnime.LICENSED
             else -> SAnime.UNKNOWN
         }
         this.thumbnail_url = this@toAniyomiAnime.coverUrl
@@ -110,11 +110,11 @@ fun Manga.toAniyomiAnime(): SAnime {
     }
 }
 
-// ============ SEpisode <-> MangaChapter ============
+// ============ SEpisode <-> ContentChapter ============
 
-fun SEpisode.toKotoChapter(source: MangaSource, overrideNumber: Float? = null): MangaChapter {
+fun SEpisode.toKotoChapter(source: ContentSource, overrideNumber: Float? = null): ContentChapter {
     val chapterNumber = overrideNumber ?: (if (episode_number >= 0) episode_number else 0f)
-    return MangaChapter(
+    return ContentChapter(
         id = generateId(url, source.name, "episode"),
         title = name.takeIf { it.isNotBlank() },
         number = chapterNumber,
@@ -127,7 +127,7 @@ fun SEpisode.toKotoChapter(source: MangaSource, overrideNumber: Float? = null): 
     )
 }
 
-fun MangaChapter.toAniyomiEpisode(): SEpisode {
+fun ContentChapter.toAniyomiEpisode(): SEpisode {
     return SEpisode.create().apply {
         this.url = this@toAniyomiEpisode.url
         this.name = this@toAniyomiEpisode.title ?: "Episode ${this@toAniyomiEpisode.number}"
@@ -137,13 +137,13 @@ fun MangaChapter.toAniyomiEpisode(): SEpisode {
     }
 }
 
-// ============ Video <-> MangaPage ============
+// ============ Video <-> ContentPage ============
 
 fun Video.toKotoPage(
-    source: MangaSource,
+    source: ContentSource,
     episode: SEpisode,
     index: Int
-): MangaPage {
+): ContentPage {
     val pageId = "${episode.url}|video|$index".hashCode().toLong() and Long.MAX_VALUE
     
     // Convert Headers to Map
@@ -154,7 +154,7 @@ fun Video.toKotoPage(
         }
     }
     
-    return MangaPage(
+    return ContentPage(
         id = pageId,
         url = videoUrl ?: "",
         preview = null,

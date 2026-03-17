@@ -4,55 +4,55 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import org.koitharu.kotatsu.parsers.MangaParser as KTMangaParser
 import org.skepsun.kototoro.core.cache.MemoryContentCache
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.model.Favicons
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 class KotatsuParserRepository(
 	private val parser: KTMangaParser,
 	private val kotatsuSource: KotatsuParserSource,
-	private val loaderContext: org.skepsun.kototoro.parsers.MangaLoaderContext,
+	private val loaderContext: org.skepsun.kototoro.parsers.ContentLoaderContext,
 	cache: MemoryContentCache,
-) : CachingMangaRepository(cache), Interceptor {
+) : CachingContentRepository(cache), Interceptor {
 
-	override val source: org.skepsun.kototoro.parsers.model.MangaSource
+	override val source: org.skepsun.kototoro.parsers.model.ContentSource
 		get() = kotatsuSource
 
 	override val sortOrders: Set<SortOrder> =
 		parser.availableSortOrders.map { it.toKototoro() }.toSet()
 
-	override val filterCapabilities: MangaListFilterCapabilities =
+	override val filterCapabilities: ContentListFilterCapabilities =
 		parser.filterCapabilities.toKototoro()
 
 	override var defaultSortOrder: SortOrder
 		get() = sortOrders.first()
 		set(@Suppress("UNUSED_PARAMETER") value) {}
 
-	override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> =
-		parser.getList(offset, (order ?: sortOrders.first()).toKotatsu(), (filter ?: MangaListFilter.EMPTY).toKotatsu(kotatsuSource))
+	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> =
+		parser.getList(offset, (order ?: sortOrders.first()).toKotatsu(), (filter ?: ContentListFilter.EMPTY).toKotatsu(kotatsuSource))
 			.map { it.toKototoro(kotatsuSource) }
 
-	override suspend fun getDetailsImpl(manga: Manga): Manga =
+	override suspend fun getDetailsImpl(manga: Content): Content =
 		parser.getDetails(manga.toKotatsu(kotatsuSource)).toKototoro(kotatsuSource)
 
-	override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> =
+	override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> =
 		parser.getPages(chapter.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
 
-	override suspend fun getPageUrl(page: MangaPage): String =
+	override suspend fun getPageUrl(page: ContentPage): String =
 		parser.getPageUrl(page.toKotatsu(kotatsuSource))
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions =
+	override suspend fun getFilterOptions(): ContentListFilterOptions =
 		parser.getFilterOptions().toKototoro(kotatsuSource)
 
-	override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> =
-		parser.getRelatedManga(seed.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
+	override suspend fun getRelatedContentImpl(seed: Content): List<Content> =
+		parser.getRelatedContent(seed.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
 
 	suspend fun getFavicons(): Favicons = parser.getFavicons().toKototoro()
 

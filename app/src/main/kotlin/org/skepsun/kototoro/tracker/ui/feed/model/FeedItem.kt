@@ -1,16 +1,16 @@
 package org.skepsun.kototoro.tracker.ui.feed.model
 
 import org.skepsun.kototoro.core.model.withOverride
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 
 data class FeedItem(
 	val id: Long,
-	private val override: MangaOverride?,
-	val manga: Manga,
+	private val override: ContentOverride?,
+	val manga: Content,
 	val count: Int,
 	val isNew: Boolean,
 ) : ListModel {
@@ -21,7 +21,7 @@ data class FeedItem(
 	val title: String
 		get() = override?.title.ifNullOrEmpty { manga.title }
 
-	fun toMangaWithOverride() = manga.withOverride(override)
+	fun toContentWithOverride() = manga.withOverride(override)
 
 	override fun areItemsTheSame(other: ListModel): Boolean {
 		return other is FeedItem && other.id == id

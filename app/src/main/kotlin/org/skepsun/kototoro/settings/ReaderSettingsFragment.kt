@@ -22,7 +22,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ZoomMode
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderAnimation
@@ -66,7 +66,7 @@ class ReaderSettingsFragment :
 	lateinit var onnxModelManager: OnnxModelManager
 
 	@Inject
-	@MangaHttpClient
+	@ContentHttpClient
 	lateinit var okHttpClient: OkHttpClient
 
 	private var fetchModelsJob: Job? = null

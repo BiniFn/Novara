@@ -2,18 +2,18 @@ package org.skepsun.kototoro.download.ui.dialog
 
 import androidx.collection.ArraySet
 import androidx.collection.LongLongMap
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
 
 interface ChaptersSelectMacro {
 
-	fun getChaptersIds(mangaId: Long, chapters: List<MangaChapter>): Set<Long>?
+	fun getChaptersIds(mangaId: Long, chapters: List<ContentChapter>): Set<Long>?
 
-	class WholeManga(
+	class WholeContent(
 		val chaptersCount: Int,
 	) : ChaptersSelectMacro {
 
-		override fun getChaptersIds(mangaId: Long, chapters: List<MangaChapter>): Set<Long>? = null
+		override fun getChaptersIds(mangaId: Long, chapters: List<ContentChapter>): Set<Long>? = null
 	}
 
 	class WholeBranch(
@@ -25,7 +25,7 @@ interface ChaptersSelectMacro {
 
 		override fun getChaptersIds(
 			mangaId: Long,
-			chapters: List<MangaChapter>
+			chapters: List<ContentChapter>
 		): Set<Long> = chapters.mapNotNullToSet { c ->
 			if (c.branch == selectedBranch) {
 				c.id
@@ -43,7 +43,7 @@ interface ChaptersSelectMacro {
 		val branch: String?,
 	) : ChaptersSelectMacro {
 
-		override fun getChaptersIds(mangaId: Long, chapters: List<MangaChapter>): Set<Long> {
+		override fun getChaptersIds(mangaId: Long, chapters: List<ContentChapter>): Set<Long> {
 			val result = ArraySet<Long>(minOf(chaptersCount, chapters.size))
 			for (c in chapters) {
 				if (c.branch == branch) {
@@ -65,7 +65,7 @@ interface ChaptersSelectMacro {
 		private val currentChaptersIds: LongLongMap,
 	) : ChaptersSelectMacro {
 
-		override fun getChaptersIds(mangaId: Long, chapters: List<MangaChapter>): Set<Long>? {
+		override fun getChaptersIds(mangaId: Long, chapters: List<ContentChapter>): Set<Long>? {
 			if (chapters.isEmpty()) {
 				return null
 			}

@@ -13,8 +13,8 @@ import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
 import org.skepsun.kototoro.local.epub.ChapterMetadata
 import org.skepsun.kototoro.local.epub.ChapterType
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
  * Property-based tests for EPUB filename grouping.
@@ -142,11 +142,11 @@ class EpubFilenameGroupingPropertyTest : StringSpec({
 /**
  * Arbitrary generator for chapter list with EPUB_INTERNAL chapters
  */
-private fun arbChapterListWithEpubInternal(): Arb<Pair<List<MangaChapter>, Map<Long, ChapterMetadata>>> = arbitrary {
+private fun arbChapterListWithEpubInternal(): Arb<Pair<List<ContentChapter>, Map<Long, ChapterMetadata>>> = arbitrary {
     val epubInternalCount = (Arb.int(1..20).bind())
     val normalCount = (Arb.int(0..10).bind())
     
-    val chapters = mutableListOf<MangaChapter>()
+    val chapters = mutableListOf<ContentChapter>()
     val metadataMap = mutableMapOf<Long, ChapterMetadata>()
     
     // Add EPUB_INTERNAL chapters (use 2-3 different filenames)
@@ -156,7 +156,7 @@ private fun arbChapterListWithEpubInternal(): Arb<Pair<List<MangaChapter>, Map<L
         val parentId = Arb.long(1000001L..2000000L).bind()
         val epubFileName = epubFilenames[it % epubFilenames.size]
         
-        val chapter = MangaChapter(
+        val chapter = ContentChapter(
             id = chapterId,
             title = "Chapter ${it + 1}",
             number = (it + 1).toFloat(),
@@ -165,7 +165,7 @@ private fun arbChapterListWithEpubInternal(): Arb<Pair<List<MangaChapter>, Map<L
             scanlator = null,
             uploadDate = 0L,
             branch = null,
-            source = TestMangaSource
+            source = TestContentSource
         )
         chapters.add(chapter)
         metadataMap[chapterId] = ChapterMetadata(
@@ -179,7 +179,7 @@ private fun arbChapterListWithEpubInternal(): Arb<Pair<List<MangaChapter>, Map<L
     // Add NORMAL chapters
     repeat(normalCount) {
         val chapterId = Arb.long(2000001L..3000000L).bind()
-        val chapter = MangaChapter(
+        val chapter = ContentChapter(
             id = chapterId,
             title = "Online Chapter ${it + 1}",
             number = (it + 1).toFloat(),
@@ -188,7 +188,7 @@ private fun arbChapterListWithEpubInternal(): Arb<Pair<List<MangaChapter>, Map<L
             scanlator = null,
             uploadDate = 0L,
             branch = null,
-            source = TestMangaSource
+            source = TestContentSource
         )
         chapters.add(chapter)
         metadataMap[chapterId] = ChapterMetadata(
@@ -205,11 +205,11 @@ private fun arbChapterListWithEpubInternal(): Arb<Pair<List<MangaChapter>, Map<L
 /**
  * Arbitrary generator for chapter list with multiple different EPUB files
  */
-private fun arbChapterListWithMultipleEpubs(): Arb<Pair<List<MangaChapter>, Map<Long, ChapterMetadata>>> = arbitrary {
+private fun arbChapterListWithMultipleEpubs(): Arb<Pair<List<ContentChapter>, Map<Long, ChapterMetadata>>> = arbitrary {
     val epubFileCount = (Arb.int(2..5).bind())
     val chaptersPerEpub = (Arb.int(2..5).bind())
     
-    val chapters = mutableListOf<MangaChapter>()
+    val chapters = mutableListOf<ContentChapter>()
     val metadataMap = mutableMapOf<Long, ChapterMetadata>()
     
     var chapterIdCounter = 1L
@@ -221,7 +221,7 @@ private fun arbChapterListWithMultipleEpubs(): Arb<Pair<List<MangaChapter>, Map<
         
         repeat(chaptersPerEpub) { chapterIndex ->
             val chapterId = chapterIdCounter++
-            val chapter = MangaChapter(
+            val chapter = ContentChapter(
                 id = chapterId,
                 title = "Chapter ${chapterIndex + 1}",
                 number = (chapterIndex + 1).toFloat(),
@@ -230,7 +230,7 @@ private fun arbChapterListWithMultipleEpubs(): Arb<Pair<List<MangaChapter>, Map<
                 scanlator = null,
                 uploadDate = 0L,
                 branch = null,
-                source = TestMangaSource
+                source = TestContentSource
             )
             chapters.add(chapter)
             metadataMap[chapterId] = ChapterMetadata(

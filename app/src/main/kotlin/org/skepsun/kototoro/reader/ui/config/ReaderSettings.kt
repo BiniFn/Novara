@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.core.model.ZoomMode
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderBackground
 import org.skepsun.kototoro.core.prefs.ReaderMode
@@ -265,7 +265,7 @@ data class ReaderSettings(
 	class Producer @AssistedInject constructor(
 		@Assisted private val mangaId: Flow<Long>,
 		private val settings: AppSettings,
-		private val mangaDataRepository: MangaDataRepository,
+		private val mangaDataRepository: ContentDataRepository,
 	) : MediatorStateFlow<ReaderSettings>(ReaderSettings(settings, null)) {
 
 		private val settingsKeys = scatterSetOf(

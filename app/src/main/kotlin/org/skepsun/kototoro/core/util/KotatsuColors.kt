@@ -7,7 +7,7 @@ import androidx.core.graphics.ColorUtils
 import com.google.android.material.R
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.core.util.ext.getThemeColor
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import kotlin.math.absoluteValue
 
 object KototoroColors {
@@ -36,7 +36,7 @@ object KototoroColors {
 	}
 
 	@ColorInt
-	fun ofManga(context: Context, manga: Manga?): Int {
+	fun ofContent(context: Context, manga: Content?): Int {
 		val color = if (manga != null) {
 			val hue = (manga.id.absoluteValue % 360).toFloat()
 			ColorUtils.HSLToColor(floatArrayOf(hue, 0.5f, 0.5f))

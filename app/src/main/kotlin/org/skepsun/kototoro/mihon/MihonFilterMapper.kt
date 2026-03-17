@@ -2,10 +2,10 @@ package org.skepsun.kototoro.mihon
 
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.util.mapToSet
 
 object MihonFilterMapper {
@@ -15,8 +15,8 @@ object MihonFilterMapper {
     private const val PREFIX_SORT = "sort:"
     private const val PREFIX_TEXT = "text:"
 
-    fun mapOptions(mihonFilters: FilterList, source: org.skepsun.kototoro.parsers.model.MangaSource): MangaListFilterOptions {
-        val tagGroups = mutableListOf<MangaTagGroup>()
+    fun mapOptions(mihonFilters: FilterList, source: org.skepsun.kototoro.parsers.model.ContentSource): ContentListFilterOptions {
+        val tagGroups = mutableListOf<ContentTagGroup>()
         var currentHeader = "General"
 
         mihonFilters.forEachIndexed { index, filter ->
@@ -28,7 +28,7 @@ object MihonFilterMapper {
                 is Filter.Group<*> -> {
                     when (val state = filter.state) {
                         is List<*> -> {
-                            val checkboxTags = mutableListOf<MangaTag>()
+                            val checkboxTags = mutableListOf<ContentTag>()
                             
                             state.forEach { subItem ->
                                 if (subItem is Filter<*>) {
@@ -37,14 +37,14 @@ object MihonFilterMapper {
                                             val selectTags = mapFilterToTags(subItem, filter.name, source)
                                             if (selectTags.isNotEmpty()) {
                                                 val groupTitle = "${filter.name} - ${subItem.name}"
-                                                tagGroups.add(MangaTagGroup(groupTitle, selectTags.toSet()))
+                                                tagGroups.add(ContentTagGroup(groupTitle, selectTags.toSet()))
                                             }
                                         }
                                         is Filter.Sort -> {
                                             val sortTags = mapFilterToTags(subItem, filter.name, source)
                                             if (sortTags.isNotEmpty()) {
                                                 val groupTitle = "${filter.name} - ${subItem.name}"
-                                                tagGroups.add(MangaTagGroup(groupTitle, sortTags.toSet()))
+                                                tagGroups.add(ContentTagGroup(groupTitle, sortTags.toSet()))
                                             }
                                         }
                                         is Filter.Group<*> -> {
@@ -60,7 +60,7 @@ object MihonFilterMapper {
                             }
                             
                             if (checkboxTags.isNotEmpty()) {
-                                tagGroups.add(MangaTagGroup(filter.name, checkboxTags.toSet()))
+                                tagGroups.add(ContentTagGroup(filter.name, checkboxTags.toSet()))
                             }
                         }
                     }
@@ -68,7 +68,7 @@ object MihonFilterMapper {
                 else -> {
                     val tags = mapFilterToTags(filter, null, source)
                     if (tags.isNotEmpty()) {
-                        tagGroups.add(MangaTagGroup(currentHeader, tags.toSet()))
+                        tagGroups.add(ContentTagGroup(currentHeader, tags.toSet()))
                     }
                 }
             }
@@ -76,10 +76,10 @@ object MihonFilterMapper {
         
         val mergedGroups = tagGroups.groupBy { it.title }.map { (title, groups) ->
             val allTags = groups.flatMap { it.tags }.toSet()
-            MangaTagGroup(title, allTags)
+            ContentTagGroup(title, allTags)
         }
         
-        return MangaListFilterOptions(
+        return ContentListFilterOptions(
             availableTags = mergedGroups.flatMap { it.tags }.toSet(),
             tagGroups = mergedGroups
         )
@@ -88,37 +88,37 @@ object MihonFilterMapper {
     private fun mapFilterToTags(
         filter: Filter<*>, 
         parentName: String?, 
-        source: org.skepsun.kototoro.parsers.model.MangaSource,
-    ): List<MangaTag> {
+        source: org.skepsun.kototoro.parsers.model.ContentSource,
+    ): List<ContentTag> {
         val prefix = if (parentName != null) "$parentName/" else PREFIX_TOP
         
         return when (filter) {
             is Filter.CheckBox -> {
-                listOf(MangaTag(filter.name, "$prefix${filter.name}", source))
+                listOf(ContentTag(filter.name, "$prefix${filter.name}", source))
             }
             is Filter.TriState -> {
-                listOf(MangaTag(filter.name, "$prefix${filter.name}", source))
+                listOf(ContentTag(filter.name, "$prefix${filter.name}", source))
             }
             is Filter.Select<*> -> {
                 filter.values.map { value ->
                     val title = value.toString()
-                    MangaTag(title, "$prefix${filter.name}/$title", source)
+                    ContentTag(title, "$prefix${filter.name}/$title", source)
                 }
             }
             is Filter.Sort -> {
                 filter.values.map { value ->
-                    MangaTag(value, "$PREFIX_SORT$prefix${filter.name}/$value", source)
+                    ContentTag(value, "$PREFIX_SORT$prefix${filter.name}/$value", source)
                 }
             }
             is Filter.Text -> {
-                listOf(MangaTag(
+                listOf(ContentTag(
                     title = "📝 ${filter.name}",
                     key = "$PREFIX_TEXT$prefix${filter.name}",
                     source = source
                 ))
             }
             is Filter.Group<*> -> {
-                val nestedTags = mutableListOf<MangaTag>()
+                val nestedTags = mutableListOf<ContentTag>()
                 (filter.state as? List<*>)?.forEach { subItem ->
                     if (subItem is Filter<*>) {
                         val nestedPrefix = if (parentName != null) "$parentName/${filter.name}" else filter.name
@@ -131,7 +131,7 @@ object MihonFilterMapper {
         }
     }
 
-    fun updateMihonFilters(mihonFilters: FilterList, kotoFilter: MangaListFilter) {
+    fun updateMihonFilters(mihonFilters: FilterList, kotoFilter: ContentListFilter) {
         val selectedTags = kotoFilter.tags.mapToSet { it.key }
         val excludedTags = kotoFilter.tagsExclude.mapToSet { it.key }
         

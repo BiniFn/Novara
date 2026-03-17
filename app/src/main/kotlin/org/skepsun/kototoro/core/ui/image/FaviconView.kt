@@ -15,7 +15,7 @@ import org.skepsun.kototoro.core.image.CoilImageView
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
 import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 class FaviconView @JvmOverloads constructor(
 	context: Context,
@@ -41,14 +41,22 @@ class FaviconView @JvmOverloads constructor(
 		}
 	}
 
-	fun setImageAsync(mangaSource: MangaSource): Disposable {
+	fun setImageAsync(mangaSource: ContentSource): Disposable {
 		val fallbackFactory: (ImageRequest) -> Image? = {
-			FaviconDrawable(context, iconStyle, mangaSource.name).asImage()
+			sourceFallbackImage(
+				context = context,
+				styleResId = iconStyle,
+				source = mangaSource,
+				animated = false,
+			)
 		}
-		val placeholderFactory: (ImageRequest) -> Image? = if (context.isAnimationsEnabled) {
-			{ AnimatedFaviconDrawable(context, iconStyle, mangaSource.name).asImage() }
-		} else {
-			fallbackFactory
+		val placeholderFactory: (ImageRequest) -> Image? = {
+			sourceFallbackImage(
+				context = context,
+				styleResId = iconStyle,
+				source = mangaSource,
+				animated = context.isAnimationsEnabled,
+			)
 		}
 		return enqueueRequest(
 			newRequestBuilder()

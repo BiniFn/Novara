@@ -27,21 +27,21 @@ import org.skepsun.kototoro.core.util.ext.isZipUri
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toFileNameSafe
 import org.skepsun.kototoro.core.util.ext.toListSorted
-import org.skepsun.kototoro.local.data.MangaIndex
+import org.skepsun.kototoro.local.data.ContentIndex
 import org.skepsun.kototoro.local.data.hasZipExtension
 import org.skepsun.kototoro.local.data.isZipArchive
-import org.skepsun.kototoro.local.data.output.LocalMangaOutput.Companion.ENTRY_NAME_INDEX
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.local.data.output.LocalContentOutput.Companion.ENTRY_NAME_INDEX
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.longHashCode
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.toTitleCase
 import java.io.File
 
 /**
- * Manga root {dir or zip file}
+ * Content root {dir or zip file}
  * |--- index.json (optional)
  * |--- Page 1.png
  * |--- Page 2.png
@@ -50,16 +50,16 @@ import java.io.File
  * :
  * L--- Page x.png
  */
-class LocalMangaParser(private val uri: Uri) {
+class LocalContentParser(private val uri: Uri) {
 
 	constructor(file: File) : this(file.toUri())
 
 	private val rootFile: File = File(uri.schemeSpecificPart)
 
-	suspend fun getManga(withDetails: Boolean): LocalManga = runInterruptible(Dispatchers.IO) {
+	suspend fun getContent(withDetails: Boolean): LocalContent = runInterruptible(Dispatchers.IO) {
 		(uri.resolveFsAndPath()).use { (fileSystem, rootPath) ->
-			val index = MangaIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
-			val mangaInfo = index?.getMangaInfo()
+			val index = ContentIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
+			val mangaInfo = index?.getContentInfo()
 			if (mangaInfo != null) {
 				val coverEntry: Path? = index.getCoverEntry()?.let { rootPath / it }?.takeIf {
 					fileSystem.exists(it)
@@ -113,7 +113,7 @@ class LocalMangaParser(private val uri: Uri) {
 				)
 			} else {
 				val title = rootFile.name.fileNameToTitle()
-				Manga(
+				Content(
 					id = rootFile.absolutePath.longHashCode(),
 					title = title,
 					url = rootFile.toUri().toString(),
@@ -136,7 +136,7 @@ class LocalMangaParser(private val uri: Uri) {
 							} else {
 								p
 							}.toString().removePrefix(Path.DIRECTORY_SEPARATOR)
-							MangaChapter(
+							ContentChapter(
 								id = "$i$s".longHashCode(),
 								title = p.userFriendlyName(),
 								number = 0f,
@@ -160,21 +160,21 @@ class LocalMangaParser(private val uri: Uri) {
 					largeCoverUrl = null,
 					description = null,
 				)
-			}.let { LocalManga(it, rootFile) }
+			}.let { LocalContent(it, rootFile) }
 		}
 	}
 
-	suspend fun getMangaInfo(): Manga? = runInterruptible(Dispatchers.IO) {
+	suspend fun getContentInfo(): Content? = runInterruptible(Dispatchers.IO) {
 		uri.resolveFsAndPath().use { (fileSystem, rootPath) ->
-			val index = MangaIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
-			index?.getMangaInfo()
+			val index = ContentIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
+			index?.getContentInfo()
 		}
 	}
 
-	suspend fun getPages(chapter: MangaChapter): List<MangaPage> = runInterruptible(Dispatchers.IO) {
+	suspend fun getPages(chapter: ContentChapter): List<ContentPage> = runInterruptible(Dispatchers.IO) {
 		val chapterUri = chapter.url.toUri().resolve()
 		chapterUri.resolveFsAndPath().use { (fileSystem, rootPath) ->
-			val index = MangaIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
+			val index = ContentIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
 			val entries = fileSystem.listRecursively(rootPath)
 				.filter { fileSystem.isRegularFile(it) }
 			if (index != null) {
@@ -185,7 +185,7 @@ class LocalMangaParser(private val uri: Uri) {
 			}.toListSorted(compareBy(AlphanumComparator()) { x -> x.toString() })
 				.map { x ->
 					val entryUri = chapterUri.child(x, resolve = true).toString()
-					MangaPage(
+					ContentPage(
 						id = entryUri.longHashCode(),
 						url = entryUri,
 						preview = null,
@@ -271,13 +271,13 @@ class LocalMangaParser(private val uri: Uri) {
 		private val REGEX_PARENT_PATH_PREFIX = Regex("^(/\\.\\.)+")
 
 		@Blocking
-		fun getOrNull(file: File): LocalMangaParser? = if ((file.isDirectory || file.isZipArchive) && file.canRead()) {
-			LocalMangaParser(file)
+		fun getOrNull(file: File): LocalContentParser? = if ((file.isDirectory || file.isZipArchive) && file.canRead()) {
+			LocalContentParser(file)
 		} else {
 			null
 		}
 
-		suspend fun find(roots: Iterable<File>, manga: Manga): LocalMangaParser? = channelFlow {
+		suspend fun find(roots: Iterable<File>, manga: Content): LocalContentParser? = channelFlow {
 			val fileName = manga.title.toFileNameSafe()
 			val idFileName = "${manga.id}_$fileName"
 			for (root in roots) {
@@ -286,7 +286,7 @@ class LocalMangaParser(private val uri: Uri) {
 						?: getOrNull(File(root, "$fileName.cbz"))
 						?: getOrNull(File(root, idFileName))
 						?: getOrNull(File(root, "$idFileName.cbz"))
-					val info = runCatchingCancellable { parser?.getMangaInfo() }.getOrNull()
+					val info = runCatchingCancellable { parser?.getContentInfo() }.getOrNull()
 					if (info?.id == manga.id) {
 						send(parser)
 					}

@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.scrobbling.bangumi.domain
 
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -14,7 +14,7 @@ import javax.inject.Singleton
 class BangumiScrobbler @Inject constructor(
 	private val repository: BangumiRepository,
 	db: MangaDatabase,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 ) : Scrobbler(db, ScrobblerService.BANGUMI, repository, mangaRepositoryFactory) {
 
 	init {

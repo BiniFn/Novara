@@ -28,13 +28,12 @@ import okio.IOException
 import okio.Path.Companion.toOkioPath
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.core.parser.EmptyMangaRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.EmptyContentRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.legado.LegadoRepository
-import org.skepsun.kototoro.core.parser.external.ExternalMangaRepository
-import org.skepsun.kototoro.core.parser.JsMangaRepository
+import org.skepsun.kototoro.core.parser.external.ExternalContentRepository
+import org.skepsun.kototoro.core.parser.JsContentRepository
 import org.skepsun.kototoro.mihon.MihonMangaRepository
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.fetch
@@ -48,24 +47,25 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 import javax.inject.Inject
 import coil3.Uri as CoilUri
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource as ParserContentSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 
 class FaviconFetcher(
 	private val uri: Uri,
 	private val options: Options,
 	private val imageLoader: ImageLoader,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val localStorageCache: LocalStorageCache,
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
-		val mangaSource = MangaSource(uri.schemeSpecificPart)
+		val mangaSource = org.skepsun.kototoro.core.model.ContentSource(uri.schemeSpecificPart)
 
 		return when (val repo = mangaRepositoryFactory.create(mangaSource)) {
-			is ParserMangaRepository -> fetchParserFavicon(repo)
+			is ParserContentRepository -> fetchParserFavicon(repo)
 			is KotatsuParserRepository -> fetchKotatsuFavicon(repo)
-			is ExternalMangaRepository -> fetchPluginIcon(repo)
-			is EmptyMangaRepository -> ImageFetchResult(
+			is ExternalContentRepository -> fetchPluginIcon(repo)
+			is EmptyContentRepository -> ImageFetchResult(
 				image = ColorImage(Color.WHITE),
 				isSampled = false,
 				dataSource = DataSource.MEMORY,
@@ -73,7 +73,7 @@ class FaviconFetcher(
 			
 			// JSON/Legado sources: try to derive favicon from bookSourceUrl in config
 			is LegadoRepository -> {
-				val config = (repo.source as? JsonMangaSource)?.entity?.config
+				val config = (repo.source as? JsonContentSource)?.entity?.config
 				val siteUrl = try {
 					config?.let { JSONObject(it).optString("bookSourceUrl") }
 				} catch (e: Exception) {
@@ -87,7 +87,7 @@ class FaviconFetcher(
 				}
 				faviconUrl?.let { url ->
 					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
-				} ?: imageLoader.fetch(R.drawable.ic_storage, options)
+				} ?: fetchDefaultIcon(mangaSource)
 			}
 
 			is LocalMangaRepository -> imageLoader.fetch(R.drawable.ic_storage, options)
@@ -97,15 +97,19 @@ class FaviconFetcher(
 			is org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository -> fetchAniyomiIcon(repo)
 
 			// JS sources: try to derive favicon from config; fallback to neutral
-			is JsMangaRepository -> {
-				val guessed = guessFaviconUrl((repo.source as? JsonMangaSource)?.entity?.config)
+			is JsContentRepository -> {
+				val guessed = guessFaviconUrl((repo.source as? JsonContentSource)?.entity?.config)
 				guessed?.let { url ->
 					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
-				} ?: imageLoader.fetch(R.drawable.ic_storage, options)
+				} ?: fetchDefaultIcon(mangaSource)
 			}
 
-			else -> imageLoader.fetch(R.drawable.ic_storage, options)
+			else -> fetchDefaultIcon(mangaSource)
 		}
+	}
+
+	private suspend fun fetchDefaultIcon(mangaSource: ParserContentSource): FetchResult? {
+		return imageLoader.fetch(defaultIconRes(mangaSource), options)
 	}
 
     private suspend fun fetchMihonIcon(repository: MihonMangaRepository): FetchResult {
@@ -191,7 +195,7 @@ class FaviconFetcher(
 		throwNSEE(lastError)
 	}
 
-	private suspend fun fetchParserFavicon(repository: ParserMangaRepository): FetchResult {
+	private suspend fun fetchParserFavicon(repository: ParserContentRepository): FetchResult {
 		val sizePx = maxOf(
 			options.size.width.pxOrElse { FALLBACK_SIZE },
 			options.size.height.pxOrElse { FALLBACK_SIZE },
@@ -232,7 +236,7 @@ class FaviconFetcher(
 		throwNSEE(lastError)
 	}
 
-	private suspend fun fetchPluginIcon(repository: ExternalMangaRepository): FetchResult {
+	private suspend fun fetchPluginIcon(repository: ExternalContentRepository): FetchResult {
 		val source = repository.source
 		val pm = options.context.packageManager
 		val icon = runInterruptible {
@@ -277,7 +281,7 @@ class FaviconFetcher(
 	)
 
 	class Factory @Inject constructor(
-		private val mangaRepositoryFactory: MangaRepository.Factory,
+		private val mangaRepositoryFactory: ContentRepository.Factory,
 		@FaviconCache private val faviconCache: LocalStorageCache,
 	) : Fetcher.Factory<CoilUri> {
 
@@ -295,6 +299,14 @@ class FaviconFetcher(
 	private companion object {
 
 		const val FALLBACK_SIZE = 9999 // largest icon
+
+		private fun defaultIconRes(source: ParserContentSource): Int {
+			return if (source is JsonContentSource || source.name.startsWith("JSON_")) {
+				R.drawable.ic_source_builtin
+			} else {
+				R.drawable.ic_storage
+			}
+		}
 
 		private fun guessFaviconUrl(config: String?): String? {
 			if (config.isNullOrBlank()) return null

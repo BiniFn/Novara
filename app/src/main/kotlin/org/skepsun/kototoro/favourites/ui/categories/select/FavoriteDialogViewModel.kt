@@ -16,7 +16,7 @@ import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.ids
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.getOriginLabel
@@ -26,7 +26,7 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.favourites.ui.categories.select.model.MangaCategoryItem
+import org.skepsun.kototoro.favourites.ui.categories.select.model.ContentCategoryItem
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
@@ -40,7 +40,7 @@ class FavoriteDialogViewModel @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<List<ParcelableManga>>(AppRouter.KEY_MANGA_LIST).map {
+	val manga = savedStateHandle.require<List<ParcelableContent>>(AppRouter.KEY_MANGA_LIST).map {
 		it.manga
 	}
 
@@ -66,7 +66,7 @@ class FavoriteDialogViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun autoAssignSourceCategory(primaryCategoryId: Long, mangas: List<org.skepsun.kototoro.parsers.model.Manga>) {
+	private suspend fun autoAssignSourceCategory(primaryCategoryId: Long, mangas: List<org.skepsun.kototoro.parsers.model.Content>) {
 		for (m in mangas) {
 			val source = m.source
 			val origin = source.getOriginLabel(context)
@@ -106,7 +106,7 @@ class FavoriteDialogViewModel @Inject constructor(
 			ids.forEach { id -> cats[id]?.add(m.id) }
 		}
 		return categories.map { cat ->
-			MangaCategoryItem(
+			ContentCategoryItem(
 				category = cat,
 				checkedState = when (cats[cat.id]?.size ?: 0) {
 					0 -> MaterialCheckBox.STATE_UNCHECKED

@@ -34,7 +34,7 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.download.domain.DownloadState
 import org.skepsun.kototoro.download.ui.list.DownloadsActivity
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.util.UUID
@@ -52,7 +52,7 @@ class DownloadNotificationFactory @AssistedInject constructor(
 	@Assisted val isSilent: Boolean,
 ) {
 
-	private val covers = HashMap<Manga, Drawable>() // TODO cache
+	private val covers = HashMap<Content, Drawable>() // TODO cache
 	private val builder = NotificationCompat.Builder(context, if (isSilent) CHANNEL_ID_SILENT else CHANNEL_ID_DEFAULT)
 	private val mutex = Mutex()
 
@@ -144,10 +144,10 @@ class DownloadNotificationFactory @AssistedInject constructor(
 		)
 		when {
 			state == null -> Unit
-			state.localManga != null -> { // downloaded, final state
+			state.localContent != null -> { // downloaded, final state
 				builder.setProgress(0, 0, false)
 				builder.setContentText(context.getString(R.string.download_complete))
-				builder.setContentIntent(createMangaIntent(context, state.localManga.manga))
+				builder.setContentIntent(createContentIntent(context, state.localContent.manga))
 				builder.setAutoCancel(true)
 				builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
 				builder.setCategory(null)
@@ -258,7 +258,7 @@ class DownloadNotificationFactory @AssistedInject constructor(
 		}
 	}
 
-	private fun createMangaIntent(context: Context, manga: Manga?) = PendingIntentCompat.getActivity(
+	private fun createContentIntent(context: Context, manga: Content?) = PendingIntentCompat.getActivity(
 		context,
 		manga.hashCode(),
 		if (manga != null) {
@@ -270,7 +270,7 @@ class DownloadNotificationFactory @AssistedInject constructor(
 		false,
 	)
 
-	private suspend fun getCover(manga: Manga) = covers[manga] ?: run {
+	private suspend fun getCover(manga: Content) = covers[manga] ?: run {
 		runCatchingCancellable {
 			coil.execute(
 				ImageRequest.Builder(context)

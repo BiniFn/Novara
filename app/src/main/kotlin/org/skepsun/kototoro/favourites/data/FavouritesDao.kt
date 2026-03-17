@@ -30,11 +30,11 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT * FROM favourites WHERE deleted_at = 0 GROUP BY manga_id ORDER BY created_at DESC")
-	abstract suspend fun findAll(): List<FavouriteManga>
+	abstract suspend fun findAll(): List<FavouriteContent>
 
 	@Transaction
 	@Query("SELECT * FROM favourites WHERE deleted_at = 0 GROUP BY manga_id ORDER BY created_at DESC LIMIT :limit")
-	abstract suspend fun findLast(limit: Int): List<FavouriteManga>
+	abstract suspend fun findLast(limit: Int): List<FavouriteContent>
 
 	@Transaction
 	@Query("SELECT DISTINCT manga.* FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id WHERE favourites.deleted_at = 0 AND (manga.title LIKE :query OR manga.alt_title LIKE :query) LIMIT :limit")
@@ -52,11 +52,11 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
 		limit: Int
-	): Flow<List<FavouriteManga>> = observeAll(0L, order, filterOptions, limit)
+	): Flow<List<FavouriteContent>> = observeAll(0L, order, filterOptions, limit)
 
 	@Transaction
 	@Query("SELECT * FROM favourites WHERE deleted_at = 0 ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
-	abstract suspend fun findAllRaw(offset: Int, limit: Int): List<FavouriteManga>
+	abstract suspend fun findAllRaw(offset: Int, limit: Int): List<FavouriteContent>
 
 	@Query("SELECT DISTINCT manga_id FROM favourites WHERE deleted_at = 0 AND category_id IN (SELECT category_id FROM favourite_categories WHERE track = 1 AND deleted_at = 0)")
 	abstract suspend fun findIdsWithTrack(): LongArray
@@ -66,14 +66,14 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 		"SELECT * FROM favourites WHERE category_id = :categoryId AND deleted_at = 0 " +
 			"GROUP BY manga_id ORDER BY created_at DESC",
 	)
-	abstract suspend fun findAll(categoryId: Long): List<FavouriteManga>
+	abstract suspend fun findAll(categoryId: Long): List<FavouriteContent>
 
 	fun observeAll(
 		categoryId: Long,
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
 		limit: Int
-	): Flow<List<FavouriteManga>> = observeAllImpl(
+	): Flow<List<FavouriteContent>> = observeAllImpl(
 		MangaQueryBuilder(TABLE_FAVOURITES, this)
 			.join("LEFT JOIN manga ON favourites.manga_id = manga.manga_id")
 			.where("deleted_at = 0")
@@ -120,7 +120,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	}
 
 	@Query("SELECT COUNT(DISTINCT manga_id) FROM favourites WHERE deleted_at = 0")
-	abstract fun observeMangaCount(): Flow<Int>
+	abstract fun observeContentCount(): Flow<Int>
 
 	@Query("SELECT * FROM favourites WHERE manga_id = :mangaId AND deleted_at = 0")
 	abstract suspend fun findAllRaw(mangaId: Long): List<FavouriteEntity>
@@ -143,7 +143,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	@Query("SELECT manga.source AS count FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id WHERE favourites.category_id = :categoryId GROUP BY manga.source ORDER BY COUNT(manga.source) DESC LIMIT :limit")
 	abstract suspend fun findPopularSources(categoryId: Long, limit: Int): List<String>
 
-	fun dump(): Flow<FavouriteManga> = flow {
+	fun dump(): Flow<FavouriteContent> = flow {
 		val window = 10
 		var offset = 0
 		while (currentCoroutineContext().isActive) {
@@ -158,7 +158,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@Query("SELECT * FROM favourites ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
-	abstract suspend fun findAllRawIncludingDeleted(offset: Int, limit: Int): List<FavouriteManga>
+	abstract suspend fun findAllRawIncludingDeleted(offset: Int, limit: Int): List<FavouriteContent>
 
 	/** INSERT **/
 
@@ -220,7 +220,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@RawQuery(observedEntities = [FavouriteEntity::class])
-	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<FavouriteManga>>
+	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<FavouriteContent>>
 
 	@RawQuery
 	protected abstract suspend fun findCoversImpl(query: SupportSQLiteQuery): List<Cover>

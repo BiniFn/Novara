@@ -30,7 +30,7 @@ import org.skepsun.kototoro.core.util.ext.powerManager
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
 import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 import androidx.appcompat.R as appcompatR
@@ -110,7 +110,7 @@ class AutoFixService : CoroutineIntentService() {
 		)
 	}
 
-	private suspend fun buildNotification(startId: Int, result: Result<Pair<Manga, Manga?>>): Notification {
+	private suspend fun buildNotification(startId: Int, result: Result<Pair<Content, Content?>>): Notification {
 		val notification = NotificationCompat.Builder(this, CHANNEL_ID)
 			.setPriority(NotificationCompat.PRIORITY_DEFAULT)
 			.setDefaults(0)

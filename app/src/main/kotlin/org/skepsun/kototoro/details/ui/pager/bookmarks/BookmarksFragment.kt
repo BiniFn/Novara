@@ -34,7 +34,7 @@ import org.skepsun.kototoro.core.util.ext.findParentCallback
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.systemBarsInsets
-import org.skepsun.kototoro.databinding.FragmentMangaBookmarksBinding
+import org.skepsun.kototoro.databinding.FragmentContentBookmarksBinding
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.list.ui.GridSpanResolver
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
@@ -44,7 +44,7 @@ import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class BookmarksFragment : BaseFragment<FragmentMangaBookmarksBinding>(),
+class BookmarksFragment : BaseFragment<FragmentContentBookmarksBinding>(),
 	OnListItemClickListener<Bookmark>,
 	RecyclerViewOwner,
 	ListSelectionController.Callback {
@@ -77,11 +77,11 @@ class BookmarksFragment : BaseFragment<FragmentMangaBookmarksBinding>(),
 		activityViewModel.mangaDetails.observe(this, viewModel)
 	}
 
-	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentMangaBookmarksBinding {
-		return FragmentMangaBookmarksBinding.inflate(inflater, container, false)
+	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentContentBookmarksBinding {
+		return FragmentContentBookmarksBinding.inflate(inflater, container, false)
 	}
 
-	override fun onViewBindingCreated(binding: FragmentMangaBookmarksBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: FragmentContentBookmarksBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		spanResolver = GridSpanResolver(binding.root.resources)
 		selectionController = ListSelectionController(
@@ -144,7 +144,7 @@ class BookmarksFragment : BaseFragment<FragmentMangaBookmarksBinding>(),
 			dismissParentDialog()
 		} else {
 			val intent = ReaderIntent.Builder(view.context)
-				.manga(activityViewModel.getMangaOrNull() ?: return)
+				.manga(activityViewModel.getContentOrNull() ?: return)
 				.bookmark(item)
 				.incognito()
 				.build()

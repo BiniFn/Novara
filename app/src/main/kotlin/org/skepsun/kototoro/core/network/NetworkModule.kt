@@ -89,8 +89,8 @@ interface NetworkModule {
 
 		@Provides
 		@Singleton
-		@MangaHttpClient
-		fun provideMangaHttpClient(
+		@ContentHttpClient
+		fun provideContentHttpClient(
 			@BaseHttpClient baseClient: OkHttpClient,
 			commonHeadersInterceptor: CommonHeadersInterceptor,
 		): OkHttpClient = baseClient.newBuilder().apply {

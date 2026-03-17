@@ -29,7 +29,7 @@ import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.getContentType
 
@@ -58,7 +58,7 @@ class ReadButtonDelegate(
 			R.id.action_forget -> viewModel.removeFromHistory()
 			R.id.action_download -> {
 				router.showDownloadDialog(
-					manga = setOf(viewModel.getMangaOrNull() ?: return false),
+					manga = setOf(viewModel.getContentOrNull() ?: return false),
 					snackbarHost = splitButton,
 				)
 			}
@@ -107,11 +107,11 @@ class ReadButtonDelegate(
 		val history = viewModel.historyInfo.value
 		menu.findItem(R.id.action_incognito)?.isVisible = !history.isIncognitoMode
 		menu.findItem(R.id.action_forget)?.isVisible = history.history != null
-		menu.findItem(R.id.action_download)?.isVisible = viewModel.getMangaOrNull()?.isLocal == false
+		menu.findItem(R.id.action_download)?.isVisible = viewModel.getContentOrNull()?.isLocal == false
 	}
 
     private fun openReader(isIncognitoMode: Boolean) {
-        val manga = viewModel.getMangaOrNull() ?: return
+        val manga = viewModel.getContentOrNull() ?: return
         if (viewModel.historyInfo.value.isChapterMissing) {
             Snackbar.make(buttonRead, R.string.chapter_is_missing, Snackbar.LENGTH_SHORT)
                 .show() // TODO
@@ -216,7 +216,7 @@ class ReadButtonDelegate(
 		val isChaptersLoading = isLoading && (info.totalChapters <= 0 || info.isChapterMissing)
 		
 		// 根据内容类型选择合适的文案
-		val manga = viewModel.getMangaOrNull()
+		val manga = viewModel.getContentOrNull()
 		val source = manga?.source?.unwrap()
 		
 		// Check if this is LocalEpubSource (NEW ARCHITECTURE)

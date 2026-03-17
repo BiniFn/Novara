@@ -53,10 +53,10 @@ import org.skepsun.kototoro.core.image.BitmapDecoderCompat
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.ids
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.DownloadFormat
 import org.skepsun.kototoro.core.util.MimeTypes
@@ -89,20 +89,20 @@ import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.PageCache
 import org.skepsun.kototoro.local.data.TempFileFilter
-import org.skepsun.kototoro.local.data.input.LocalMangaParser
-import org.skepsun.kototoro.local.data.output.LocalMangaOutput
-import org.skepsun.kototoro.local.data.output.LocalMangaDirOutput
-import org.skepsun.kototoro.local.domain.MangaLock
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.input.LocalContentParser
+import org.skepsun.kototoro.local.data.output.LocalContentOutput
+import org.skepsun.kototoro.local.data.output.LocalContentDirOutput
+import org.skepsun.kototoro.local.domain.ContentLock
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.video.data.VideoDownloadIndex
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.requireBody
@@ -126,14 +126,14 @@ import javax.crypto.spec.SecretKeySpec
 class DownloadWorker @AssistedInject constructor(
 	@Assisted appContext: Context,
 	@Assisted params: WorkerParameters,
-	@MangaHttpClient private val okHttp: OkHttpClient,
+	@ContentHttpClient private val okHttp: OkHttpClient,
 	@PageCache private val cache: LocalStorageCache,
-	private val localMangaRepository: LocalMangaRepository,
-	private val mangaLock: MangaLock,
-	private val mangaDataRepository: MangaDataRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val localContentRepository: LocalMangaRepository,
+	private val mangaLock: ContentLock,
+	private val mangaDataRepository: ContentDataRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val settings: AppSettings,
-	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalManga?>,
+	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalContent?>,
 	private val slowdownDispatcher: DownloadSlowdownDispatcher,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 	notificationFactoryFactory: DownloadNotificationFactory.Factory,
@@ -157,7 +157,7 @@ class DownloadWorker @AssistedInject constructor(
 
 	override suspend fun doWork(): Result = withContext(org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND)) {
 		setForeground(getForegroundInfo())
-		val manga = mangaDataRepository.findMangaById(task.mangaId, withChapters = true) ?: return@withContext Result.failure()
+		val manga = mangaDataRepository.findContentById(task.mangaId, withChapters = true) ?: return@withContext Result.failure()
 		publishState(DownloadState(manga = manga, isIndeterminate = true).also { lastPublishedState = it })
 		Log.i(
 			"DownloadWorker",
@@ -173,9 +173,9 @@ class DownloadWorker @AssistedInject constructor(
 				pausingHandle.pause()
 			}
 			withContext(pausingHandle) {
-				Log.i("DownloadWorker", "doWork before downloadMangaImpl: workId=$id mangaId=${manga.id}")
-				downloadMangaImpl(manga, task, downloadedIds)
-				Log.i("DownloadWorker", "doWork after downloadMangaImpl: workId=$id mangaId=${manga.id}")
+				Log.i("DownloadWorker", "doWork before downloadContentImpl: workId=$id mangaId=${manga.id}")
+				downloadContentImpl(manga, task, downloadedIds)
+				Log.i("DownloadWorker", "doWork after downloadContentImpl: workId=$id mangaId=${manga.id}")
 			}
 			Result.success(currentState.toWorkData())
 		} catch (_: CancellationException) {
@@ -223,8 +223,8 @@ class DownloadWorker @AssistedInject constructor(
 		)
 	}
 
-	private suspend fun downloadMangaImpl(
-		subject: Manga,
+	private suspend fun downloadContentImpl(
+		subject: Content,
 		task: DownloadTask,
 		excludedIds: Set<Long>,
 	) {
@@ -234,7 +234,7 @@ class DownloadWorker @AssistedInject constructor(
 			downloadVideoImpl(manga, task, excludedIds)
 			return
 		}
-		Log.d("DownloadWorker", "downloadMangaImpl start: mangaId=${manga.id} title=${manga.title} excluded=${excludedIds.size}")
+		Log.d("DownloadWorker", "downloadContentImpl start: mangaId=${manga.id} title=${manga.title} excluded=${excludedIds.size}")
 		val chaptersToSkip = excludedIds.toMutableSet()
 		val pausingReceiver = PausingReceiver(id, PausingHandle.current())
 		mangaLock.withLock(manga) {
@@ -244,20 +244,20 @@ class DownloadWorker @AssistedInject constructor(
 				PausingReceiver.createIntentFilter(id),
 				ContextCompat.RECEIVER_NOT_EXPORTED,
 			)
-			var destination = localMangaRepository.getOutputDir(manga, task.destination)
+			var destination = localContentRepository.getOutputDir(manga, task.destination)
 			checkNotNull(destination) { applicationContext.getString(R.string.cannot_find_available_storage) }
-			Log.d("DownloadWorker", "downloadMangaImpl outputDir=${destination.absolutePath}")
-			var output: LocalMangaOutput? = null
+			Log.d("DownloadWorker", "downloadContentImpl outputDir=${destination.absolutePath}")
+			var output: LocalContentOutput? = null
 			try {
 				if (manga.isLocal) {
-					manga = localMangaRepository.getRemoteManga(manga)
+					manga = localContentRepository.getRemoteContent(manga)
 						?: error("Cannot obtain remote manga instance")
 				}
 				val repo = mangaRepositoryFactory.create(manga.source)
-				Log.d("DownloadWorker", "downloadMangaImpl repo=${repo.source.name}")
+				Log.d("DownloadWorker", "downloadContentImpl repo=${repo.source.name}")
 				val mangaDetails = if (manga.chapters.isNullOrEmpty() || manga.description.isNullOrEmpty()) repo.getDetails(manga) else manga
-				Log.d("DownloadWorker", "downloadMangaImpl detailsChapters=${mangaDetails.chapters?.size ?: 0}")
-				val parserSource = mangaDetails.source.unwrap() as? MangaParserSource
+				Log.d("DownloadWorker", "downloadContentImpl detailsChapters=${mangaDetails.chapters?.size ?: 0}")
+				val parserSource = mangaDetails.source.unwrap() as? ContentParserSource
 				val isNovel = when (parserSource?.contentType) {
 					ContentType.NOVEL, ContentType.HENTAI_NOVEL -> true
 					else -> false
@@ -288,15 +288,15 @@ class DownloadWorker @AssistedInject constructor(
 				} else {
 					task.format ?: settings.preferredDownloadFormat
 				}
-				Log.d("DownloadWorker", "downloadMangaImpl isNovel=$isNovel hasEpubChapters=$hasEpubChapters format=$downloadFormat")
+				Log.d("DownloadWorker", "downloadContentImpl isNovel=$isNovel hasEpubChapters=$hasEpubChapters format=$downloadFormat")
 
 				if (isNovel && !hasEpubChapters) {
 					// 尝试获取小说专用的输出目录
 					destination = localStorageManager.getDefaultNovelWriteableDir() ?: localStorageManager.getNovelWriteableDirs().firstOrNull() ?: destination
-					Log.d("DownloadWorker", "downloadMangaImpl novel outputDir=${destination.absolutePath}")
+					Log.d("DownloadWorker", "downloadContentImpl novel outputDir=${destination.absolutePath}")
 				}
 
-				output = LocalMangaOutput.getOrCreate(
+				output = LocalContentOutput.getOrCreate(
 					root = destination,
 					manga = mangaDetails,
 					format = downloadFormat,
@@ -312,27 +312,27 @@ class DownloadWorker @AssistedInject constructor(
 					downloadNovelChapters(mangaDetails, task, repo, destination, output, chaptersToSkip)
 					output.mergeWithExisting()
 					output.finish()
-					val localManga = LocalMangaParser(output.rootFile).getManga(withDetails = true)
+					val localContent = LocalContentParser(output.rootFile).getContent(withDetails = true)
 					// 刷新缓存，确保 UI 能识别到本地 icon
-					localMangaRepository.findSavedManga(mangaDetails)
+					localContentRepository.findSavedContent(mangaDetails)
 					android.util.Log.d("DownloadWorker", "Novel download completed, emitting localStorageChanges for ${output.rootFile}")
-					localStorageChanges.emit(localManga)
-					publishState(currentState.copy(localManga = localManga, eta = -1L, isStuck = false))
+					localStorageChanges.emit(localContent)
+					publishState(currentState.copy(localContent = localContent, eta = -1L, isStuck = false))
 					return@withLock
 				}
 				processStandardChapters(mangaDetails, task, repo, destination, chaptersToSkip, output)
 				publishState(currentState.copy(isIndeterminate = true, eta = -1L, isStuck = false))
 				output.mergeWithExisting()
 				output.finish()
-				val localManga = LocalMangaParser(output.rootFile).getManga(withDetails = true)
+				val localContent = LocalContentParser(output.rootFile).getContent(withDetails = true)
 				// 刷新缓存
-				localMangaRepository.findSavedManga(mangaDetails)
-				localStorageChanges.emit(localManga)
-				publishState(currentState.copy(localManga = localManga, eta = -1L, isStuck = false))
+				localContentRepository.findSavedContent(mangaDetails)
+				localStorageChanges.emit(localContent)
+				publishState(currentState.copy(localContent = localContent, eta = -1L, isStuck = false))
 			} catch (e: Exception) {
 				Log.e(
 					"DownloadWorker",
-					"downloadMangaImpl failed: mangaId=${manga.id} title=${manga.title} error=${e.javaClass.simpleName} msg=${e.message}",
+					"downloadContentImpl failed: mangaId=${manga.id} title=${manga.title} error=${e.javaClass.simpleName} msg=${e.message}",
 					e,
 				)
 				if (e !is CancellationException) {
@@ -361,12 +361,12 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun processStandardChapters(
-		mangaDetails: Manga,
+		mangaDetails: Content,
 		task: DownloadTask,
-		repo: MangaRepository,
+		repo: ContentRepository,
 		destination: File,
 		chaptersToSkip: MutableSet<Long>,
-		output: LocalMangaOutput,
+		output: LocalContentOutput,
 	) {
 		val chapters = getChapters(mangaDetails, task)
 		Log.d("DownloadWorker", "processStandardChapters total=${chapters.size} mangaId=${mangaDetails.id}")
@@ -441,7 +441,7 @@ class DownloadWorker @AssistedInject constructor(
 						}
 
 						val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
-						val epubContent = parser.parseManga() ?: run {
+						val epubContent = parser.parseContent() ?: run {
 							android.util.Log.e("DownloadWorker", "Failed to parse EPUB file")
 							return@runCatchingCancellable
 						}
@@ -467,7 +467,7 @@ class DownloadWorker @AssistedInject constructor(
 						android.util.Log.i("DownloadWorker", "EPUB file saved at: ${epubFile.absolutePath}")
 						
 						// Notify UI about the new local chapters
-						localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+						localStorageChanges.emit(LocalContentParser(output.rootFile).getContent(withDetails = false))
 					}.onFailure { e ->
 						android.util.Log.e("DownloadWorker", "Failed to parse EPUB chapters", e)
 						e.printStackTrace()
@@ -538,7 +538,7 @@ class DownloadWorker @AssistedInject constructor(
 			}
 			if (output.flushChapter(chapter.value)) {
 				runCatchingCancellable {
-					localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+					localStorageChanges.emit(LocalContentParser(output.rootFile).getContent(withDetails = false))
 				}.onFailure(Throwable::printStackTraceDebug)
 			}
 			publishState(currentState.copy(downloadedChapters = currentState.downloadedChapters + 1))
@@ -623,11 +623,11 @@ class DownloadWorker @AssistedInject constructor(
 	 * 小说章节下载：复用漫画的输出格式（单本/多本 CBZ），章节内写入 HTML + 插图。
 	 */
 	private suspend fun downloadNovelChapters(
-		manga: Manga,
+		manga: Content,
 		task: DownloadTask,
-		repo: MangaRepository,
+		repo: ContentRepository,
 		destination: File,
-		output: LocalMangaOutput,
+		output: LocalContentOutput,
 		chaptersToSkip: MutableSet<Long>,
 	) {
 		val chapters = getChapters(manga, task)
@@ -746,7 +746,7 @@ class DownloadWorker @AssistedInject constructor(
 			output.putChapterImages(chapter.value.id, mapping)
 			if (output.flushChapter(chapter.value)) {
 				runCatchingCancellable {
-					localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+					localStorageChanges.emit(LocalContentParser(output.rootFile).getContent(withDetails = false))
 				}.onFailure(Throwable::printStackTraceDebug)
 			}
 
@@ -765,7 +765,7 @@ class DownloadWorker @AssistedInject constructor(
 		}
 	}
 
-	private fun buildPageName(chapter: IndexedValue<MangaChapter>, pageNumber: Int, ext: String): String {
+	private fun buildPageName(chapter: IndexedValue<ContentChapter>, pageNumber: Int, ext: String): String {
 		val branchHash = chapter.value.branch?.hashCode() ?: 0
 		return buildString {
 			append(PAGE_NAME_PATTERN.format(branchHash, chapter.index + 1, pageNumber))
@@ -800,7 +800,7 @@ class DownloadWorker @AssistedInject constructor(
 		val mime: MimeType?,
 	)
 
-	private fun decodeDataPage(page: MangaPage?): NovelChapterContent? {
+	private fun decodeDataPage(page: ContentPage?): NovelChapterContent? {
 		if (page == null) return null
 		val url = page.url
 		if (!url.startsWith("data:", ignoreCase = true)) return null
@@ -818,7 +818,7 @@ class DownloadWorker @AssistedInject constructor(
 		return NovelChapterContent(html = html, images = emptyList())
 	}
 
-	private fun deriveReferer(url: String, manga: Manga): String {
+	private fun deriveReferer(url: String, manga: Content): String {
 		return runCatching {
 			val uri = java.net.URI(url)
 			val scheme = if (uri.scheme.isNullOrBlank()) "https" else uri.scheme
@@ -828,12 +828,12 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun downloadFile(
-		repo: MangaRepository,
+		repo: ContentRepository,
 		url: String,
 		destination: File,
 		useProxy: Boolean = true,
 		headers: Map<String, String> = emptyMap(),
-		page: MangaPage? = null,
+		page: ContentPage? = null,
 		isCover: Boolean = false,
 	): File {
 		if (url.startsWith("data:", ignoreCase = true)) {
@@ -938,8 +938,8 @@ class DownloadWorker @AssistedInject constructor(
 	 * EPUB本质上是ZIP格式，保存为.epub文件以符合标准
 	 * 
 	 * 特殊处理：
-	 * - 对于LocalMangaDirOutput：使用addEpubChapter直接保存EPUB
-	 * - 对于LocalMangaZipOutput：会导致ZIP嵌套（暂不支持）
+	 * - 对于LocalContentDirOutput：使用addEpubChapter直接保存EPUB
+	 * - 对于LocalContentZipOutput：会导致ZIP嵌套（暂不支持）
 	 * 
 	 * Requirements: 1.1, 1.2, 1.3, 1.4
 	 * - 1.1: Save with .epub extension
@@ -948,12 +948,12 @@ class DownloadWorker @AssistedInject constructor(
 	 * - 1.4: Generate unique filename using parent chapter ID
 	 */
 	private suspend fun downloadEpubChapter(
-		chapter: IndexedValue<MangaChapter>,
-		page: MangaPage?,
+		chapter: IndexedValue<ContentChapter>,
+		page: ContentPage?,
 		epubUrl: String,
-		output: LocalMangaOutput,
+		output: LocalContentOutput,
 		destination: File,
-		repo: MangaRepository,
+		repo: ContentRepository,
 	) {
 		println("DownloadWorker.downloadEpubChapter: Starting EPUB download")
 		println("DownloadWorker.downloadEpubChapter: URL = $epubUrl")
@@ -1043,7 +1043,7 @@ class DownloadWorker @AssistedInject constructor(
 			
 			// 根据output类型选择处理方式
 			when (output) {
-				is LocalMangaDirOutput -> {
+				is LocalContentDirOutput -> {
 					// MULTIPLE_CBZ格式：保存EPUB并解析章节
 					println("DownloadWorker.downloadEpubChapter: Using MULTIPLE_CBZ format - saving as EPUB file")
 					
@@ -1064,7 +1064,7 @@ class DownloadWorker @AssistedInject constructor(
 			
 			// 通知本地存储变化
 			runCatchingCancellable {
-				localStorageChanges.emit(LocalMangaParser(output.rootFile).getManga(withDetails = false))
+				localStorageChanges.emit(LocalContentParser(output.rootFile).getContent(withDetails = false))
 			}.onFailure(Throwable::printStackTraceDebug)
 			
 			println("DownloadWorker.downloadEpubChapter: Completed successfully")
@@ -1109,17 +1109,17 @@ class DownloadWorker @AssistedInject constructor(
 	 * @param repo The manga repository
 	 */
 	private suspend fun downloadEpubToStorage(
-		manga: Manga,
-		chapter: IndexedValue<MangaChapter>,
-		page: MangaPage?,
+		manga: Content,
+		chapter: IndexedValue<ContentChapter>,
+		page: ContentPage?,
 		epubUrl: String,
 		destination: File,
-		repo: MangaRepository,
+		repo: ContentRepository,
 	) {
 		android.util.Log.i("DownloadWorker", "========================================")
 		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Starting NEW ARCHITECTURE EPUB download")
-		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Manga ID=${manga.id}")
-		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Manga Title=${manga.title}")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Content ID=${manga.id}")
+		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Content Title=${manga.title}")
 		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: Chapter=${chapter.value.title}")
 		android.util.Log.i("DownloadWorker", "downloadEpubToStorage: URL=$epubUrl")
 		android.util.Log.i("DownloadWorker", "========================================")
@@ -1168,7 +1168,7 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun downloadVideoImpl(
-		manga: Manga,
+		manga: Content,
 		task: DownloadTask,
 		excludedIds: Set<Long>,
 	) {
@@ -1234,8 +1234,8 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun resolveVideoTarget(
-		repo: MangaRepository,
-		chapter: MangaChapter,
+		repo: ContentRepository,
+		chapter: ContentChapter,
 	): VideoDownloadTarget? {
 		val aniyomiRepo = repo as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
 		if (aniyomiRepo != null) {
@@ -1260,7 +1260,7 @@ class DownloadWorker @AssistedInject constructor(
 		)
 	}
 
-	private fun buildVideoFileName(chapter: IndexedValue<MangaChapter>, ext: String): String {
+	private fun buildVideoFileName(chapter: IndexedValue<ContentChapter>, ext: String): String {
 		val title = chapter.value.title.ifNullOrEmpty {
 			val num = chapter.value.numberString() ?: (chapter.index + 1).toString()
 			"Episode $num"
@@ -1270,7 +1270,7 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun downloadDirectVideo(
-		source: MangaSource,
+		source: ContentSource,
 		url: String,
 		headers: Map<String, String>?,
 		outputFile: File,
@@ -1311,7 +1311,7 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun downloadHls(
-		source: MangaSource,
+		source: ContentSource,
 		url: String,
 		headers: Map<String, String>?,
 		outputFile: File,
@@ -1384,7 +1384,7 @@ class DownloadWorker @AssistedInject constructor(
 		)
 	}
 
-	private suspend fun fetchText(source: MangaSource, url: String, headers: Map<String, String>?): String {
+	private suspend fun fetchText(source: ContentSource, url: String, headers: Map<String, String>?): String {
 		val request = PageLoader.createPageRequest(url, source, headers)
 			.newBuilder()
 			.build()
@@ -1478,7 +1478,7 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun fetchHlsKey(
-		source: MangaSource,
+		source: ContentSource,
 		baseUrl: String,
 		key: HlsKey,
 		headers: Map<String, String>?,
@@ -1523,7 +1523,7 @@ class DownloadWorker @AssistedInject constructor(
 	}
 
 	private suspend fun decryptIfNeeded(
-		source: MangaSource,
+		source: ContentSource,
 		baseUrl: String,
 		key: HlsKey?,
 		headers: Map<String, String>?,
@@ -1618,7 +1618,7 @@ class DownloadWorker @AssistedInject constructor(
 		}
 	}
 
-	private suspend fun getDoneChapters(manga: Manga) = runCatchingCancellable {
+	private suspend fun getDoneChapters(manga: Content) = runCatchingCancellable {
 		val start = System.currentTimeMillis()
 		val contentType = manga.source.getContentType()
 		if (contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) {
@@ -1627,7 +1627,7 @@ class DownloadWorker @AssistedInject constructor(
 			return@runCatchingCancellable ids
 		}
 		val result = withTimeoutOrNull(3000L) {
-			localMangaRepository.getDetails(manga).chapters
+			localContentRepository.getDetails(manga).chapters
 				?.filter { it.source.isLocal }
 				?.ids()
 		}
@@ -1653,12 +1653,12 @@ class DownloadWorker @AssistedInject constructor(
 	}.getOrNull().orEmpty()
 
 	private fun getChapters(
-		manga: Manga,
+		manga: Content,
 		task: DownloadTask,
-	): List<IndexedValue<MangaChapter>> {
+	): List<IndexedValue<ContentChapter>> {
 		val chapters = checkNotNull(manga.chapters) { "Chapters list must not be null" }
 		val chaptersIdsSet = task.chaptersIds?.toMutableSet()
-		val result = ArrayList<IndexedValue<MangaChapter>>((chaptersIdsSet ?: chapters).size)
+		val result = ArrayList<IndexedValue<ContentChapter>>((chaptersIdsSet ?: chapters).size)
 		val counters = HashMap<String?, Int>()
 		for (chapter in chapters) {
 			val index = counters[chapter.branch] ?: 0
@@ -1680,7 +1680,7 @@ class DownloadWorker @AssistedInject constructor(
 	@Reusable
 	class Scheduler @Inject constructor(
 		@ApplicationContext private val context: Context,
-		private val mangaDataRepository: MangaDataRepository,
+		private val mangaDataRepository: ContentDataRepository,
 		private val workManager: WorkManager,
 	) {
 
@@ -1757,12 +1757,12 @@ class DownloadWorker @AssistedInject constructor(
 			}
 		}
 
-		suspend fun schedule(tasks: Collection<Pair<Manga, DownloadTask>>) {
+		suspend fun schedule(tasks: Collection<Pair<Content, DownloadTask>>) {
 			if (tasks.isEmpty()) {
 				return
 			}
 			val requests = tasks.map { (manga, task) ->
-				mangaDataRepository.storeManga(manga, replaceExisting = true)
+				mangaDataRepository.storeContent(manga, replaceExisting = true)
 				OneTimeWorkRequestBuilder<DownloadWorker>()
 					.setConstraints(createConstraints(task.allowMeteredNetwork))
 					.addTag(TAG)

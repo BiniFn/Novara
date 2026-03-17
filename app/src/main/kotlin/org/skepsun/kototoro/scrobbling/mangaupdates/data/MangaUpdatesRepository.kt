@@ -19,8 +19,8 @@ import org.skepsun.kototoro.parsers.util.parseRaw
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import java.io.IOException
@@ -103,7 +103,7 @@ class MangaUpdatesRepository(
 		db.getScrobblingDao().delete(ScrobblerService.MANGAUPDATES.id, mangaId)
 	}
 
-	override suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
+	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
 		val payload = JSONObject().apply {
 			put("search", query)
 			put("page", (offset / 100) + 1)
@@ -117,12 +117,12 @@ class MangaUpdatesRepository(
 		val response = okHttp.newCall(request.build()).await().parseJson()
 		val results = response.optJSONArray("results") ?: return emptyList()
 
-		val mapped = mutableListOf<ScrobblerManga>()
+		val mapped = mutableListOf<ScrobblerContent>()
 		for (i in 0 until results.length()) {
 			val result = results.getJSONObject(i)
 			val record = result.getJSONObject("record")
 			mapped.add(
-				ScrobblerManga(
+				ScrobblerContent(
 					id = record.getLong("series_id"),
 					name = record.getString("title"),
 					altName = null,
@@ -135,13 +135,13 @@ class MangaUpdatesRepository(
 		return mapped
 	}
 
-	override suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
+	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
 			.get()
 			.url("$BASE_API_URL/series/$id")
 		
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerMangaInfo(
+		return ScrobblerContentInfo(
 			id = response.getLong("series_id"),
 			name = response.getString("title"),
 			cover = response.optJSONObject("image")?.optJSONObject("url")?.getString("original").orEmpty(),
@@ -150,12 +150,12 @@ class MangaUpdatesRepository(
 		)
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
+	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val payloadStr = """
 			[
 			  {
 			    "series": {
-			      "id": $scrobblerMangaId
+			      "id": $scrobblerContentId
 			    },
 			    "list_id": 0,
 			    "status": {
@@ -173,9 +173,9 @@ class MangaUpdatesRepository(
 		if (response.isSuccessful) {
 			val entity = ScrobblingEntity(
 				scrobbler = ScrobblerService.MANGAUPDATES.id,
-				id = scrobblerMangaId.toInt(),
+				id = scrobblerContentId.toInt(),
 				mangaId = mangaId,
-				targetId = scrobblerMangaId,
+				targetId = scrobblerContentId,
 				status = "0", // READING list ID
 				chapter = 0,
 				comment = null,

@@ -122,13 +122,13 @@ object OnnxOfficialModelCatalog {
 		),
 		OnnxOfficialModel(
 			id = "manga_bubble_yolo_hf_main",
-			title = "Manga Bubble YOLO",
+			title = "Content Bubble YOLO",
 			version = "hf-main",
 			category = OnnxModelCategory.BUBBLE_DETECTION,
 			files = listOf(
 				OnnxModelFile(
 					fileName = "yolo26s.onnx",
-					downloadUrl = "https://huggingface.co/Kiuyha/Manga-Bubble-YOLO/resolve/main/onnx/yolo26s.onnx",
+					downloadUrl = "https://huggingface.co/Kiuyha/Content-Bubble-YOLO/resolve/main/onnx/yolo26s.onnx",
 				),
 			),
 			description = "YOLO-based manga bubble/text region detector for ROI OCR pipeline.",

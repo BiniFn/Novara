@@ -2,10 +2,10 @@ package org.skepsun.kototoro.aniyomi
 
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.util.mapToSet
 
 object AniyomiFilterMapper {
@@ -14,8 +14,8 @@ object AniyomiFilterMapper {
     private const val PREFIX_SORT = "sort:"
     private const val PREFIX_TEXT = "text:"
 
-    fun mapOptions(aniyomiFilters: AnimeFilterList, source: org.skepsun.kototoro.parsers.model.MangaSource): MangaListFilterOptions {
-        val tagGroups = mutableListOf<MangaTagGroup>()
+    fun mapOptions(aniyomiFilters: AnimeFilterList, source: org.skepsun.kototoro.parsers.model.ContentSource): ContentListFilterOptions {
+        val tagGroups = mutableListOf<ContentTagGroup>()
         var currentHeader = "General"
 
         aniyomiFilters.forEach { filter ->
@@ -25,20 +25,20 @@ object AniyomiFilterMapper {
                 }
                 is AnimeFilter.Separator -> { }
                 is AnimeFilter.Group<*> -> {
-                    val checkboxTags = mutableListOf<MangaTag>()
+                    val checkboxTags = mutableListOf<ContentTag>()
                     (filter.state as? List<*>)?.forEach { subItem ->
                         if (subItem is AnimeFilter<*>) {
                             when (subItem) {
                                 is AnimeFilter.Select<*> -> {
                                     val selectTags = mapFilterToTags(subItem, filter.name, source)
                                     if (selectTags.isNotEmpty()) {
-                                        tagGroups.add(MangaTagGroup("${filter.name} - ${subItem.name}", selectTags.toSet()))
+                                        tagGroups.add(ContentTagGroup("${filter.name} - ${subItem.name}", selectTags.toSet()))
                                     }
                                 }
                                 is AnimeFilter.Sort -> {
                                     val sortTags = mapFilterToTags(subItem, filter.name, source)
                                     if (sortTags.isNotEmpty()) {
-                                        tagGroups.add(MangaTagGroup("${filter.name} - ${subItem.name}", sortTags.toSet()))
+                                        tagGroups.add(ContentTagGroup("${filter.name} - ${subItem.name}", sortTags.toSet()))
                                     }
                                 }
                                 is AnimeFilter.Group<*> -> {
@@ -51,23 +51,23 @@ object AniyomiFilterMapper {
                         }
                     }
                     if (checkboxTags.isNotEmpty()) {
-                        tagGroups.add(MangaTagGroup(filter.name, checkboxTags.toSet()))
+                        tagGroups.add(ContentTagGroup(filter.name, checkboxTags.toSet()))
                     }
                 }
                 else -> {
                     val tags = mapFilterToTags(filter, null, source)
                     if (tags.isNotEmpty()) {
-                        tagGroups.add(MangaTagGroup(currentHeader, tags.toSet()))
+                        tagGroups.add(ContentTagGroup(currentHeader, tags.toSet()))
                     }
                 }
             }
         }
         
         val mergedGroups = tagGroups.groupBy { it.title }.map { (title, groups) ->
-            MangaTagGroup(title, groups.flatMap { it.tags }.toSet())
+            ContentTagGroup(title, groups.flatMap { it.tags }.toSet())
         }
         
-        return MangaListFilterOptions(
+        return ContentListFilterOptions(
             availableTags = mergedGroups.flatMap { it.tags }.toSet(),
             tagGroups = mergedGroups
         )
@@ -76,33 +76,33 @@ object AniyomiFilterMapper {
     private fun mapFilterToTags(
         filter: AnimeFilter<*>, 
         parentName: String?, 
-        source: org.skepsun.kototoro.parsers.model.MangaSource,
-    ): List<MangaTag> {
+        source: org.skepsun.kototoro.parsers.model.ContentSource,
+    ): List<ContentTag> {
         val prefix = if (parentName != null) "$parentName/" else PREFIX_TOP
         
         return when (filter) {
             is AnimeFilter.CheckBox -> {
-                listOf(MangaTag(filter.name, "$prefix${filter.name}", source))
+                listOf(ContentTag(filter.name, "$prefix${filter.name}", source))
             }
             is AnimeFilter.TriState -> {
-                listOf(MangaTag(filter.name, "$prefix${filter.name}", source))
+                listOf(ContentTag(filter.name, "$prefix${filter.name}", source))
             }
             is AnimeFilter.Select<*> -> {
                 filter.values.map { value ->
                     val title = value.toString()
-                    MangaTag(title, "$prefix${filter.name}/$title", source)
+                    ContentTag(title, "$prefix${filter.name}/$title", source)
                 }
             }
             is AnimeFilter.Sort -> {
                 filter.values.map { value ->
-                    MangaTag(value, "$PREFIX_SORT$prefix${filter.name}/$value", source)
+                    ContentTag(value, "$PREFIX_SORT$prefix${filter.name}/$value", source)
                 }
             }
             is AnimeFilter.Text -> {
-                listOf(MangaTag("📝 ${filter.name}", "$PREFIX_TEXT$prefix${filter.name}", source))
+                listOf(ContentTag("📝 ${filter.name}", "$PREFIX_TEXT$prefix${filter.name}", source))
             }
             is AnimeFilter.Group<*> -> {
-                val nestedTags = mutableListOf<MangaTag>()
+                val nestedTags = mutableListOf<ContentTag>()
                 (filter.state as? List<*>)?.forEach { subItem ->
                     if (subItem is AnimeFilter<*>) {
                         val nestedPrefix = if (parentName != null) "$parentName/${filter.name}" else filter.name
@@ -115,7 +115,7 @@ object AniyomiFilterMapper {
         }
     }
 
-    fun updateAniyomiFilters(aniyomiFilters: AnimeFilterList, kotoFilter: MangaListFilter) {
+    fun updateAniyomiFilters(aniyomiFilters: AnimeFilterList, kotoFilter: ContentListFilter) {
         val selectedTags = kotoFilter.tags.mapToSet { it.key }
         val excludedTags = kotoFilter.tagsExclude.mapToSet { it.key }
         

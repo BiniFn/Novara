@@ -9,8 +9,8 @@ import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.model.jsonsource.*
 import org.skepsun.kototoro.core.parser.rule.DefaultRuleEngine
 import org.skepsun.kototoro.core.parser.rule.RuleCache
-import org.skepsun.kototoro.parsers.MangaLoaderContext
-import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.ContentLoaderContext
+import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 /**
@@ -299,7 +299,7 @@ class DynamicParserIntegrationTest {
 		)
 		
 		// Test with invalid URL - should return empty list, not crash
-		val result = parser.getListPage(1, SortOrder.UPDATED, MangaListFilter())
+		val result = parser.getListPage(1, SortOrder.UPDATED, ContentListFilter())
 		
 		// Should handle error gracefully
 		assertNotNull(result)
@@ -338,9 +338,9 @@ class DynamicParserIntegrationTest {
 		)
 	}
 	
-	private fun createMockContext(): MangaLoaderContext {
+	private fun createMockContext(): ContentLoaderContext {
 		// This is a simplified mock - in real tests you'd use a proper mock framework
-		return object : MangaLoaderContext {
+		return object : ContentLoaderContext {
 			override val httpClient: okhttp3.OkHttpClient
 				get() = okhttp3.OkHttpClient()
 			
@@ -354,8 +354,8 @@ class DynamicParserIntegrationTest {
 				return java.util.Base64.getDecoder().decode(data)
 			}
 			
-			override fun getConfig(source: org.skepsun.kototoro.parsers.model.MangaParserSource): org.skepsun.kototoro.parsers.config.MangaSourceConfig {
-				return object : org.skepsun.kototoro.parsers.config.MangaSourceConfig {
+			override fun getConfig(source: org.skepsun.kototoro.parsers.model.ContentParserSource): org.skepsun.kototoro.parsers.config.ContentSourceConfig {
+				return object : org.skepsun.kototoro.parsers.config.ContentSourceConfig {
 					override fun <T> get(key: org.skepsun.kototoro.parsers.config.ConfigKey<T>): T {
 						@Suppress("UNCHECKED_CAST")
 						return when (key) {
@@ -374,7 +374,7 @@ class DynamicParserIntegrationTest {
 		}
 	}
 	
-	private fun createMockParser(): org.skepsun.kototoro.parsers.MangaParser {
+	private fun createMockParser(): org.skepsun.kototoro.parsers.ContentParser {
 		val config = createTestLegadoConfig()
 		val context = createMockContext()
 		return DynamicLegadoParser(

@@ -1,18 +1,18 @@
 package org.skepsun.kototoro.tracker.domain.model
 
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.util.ifZero
 
 sealed interface MangaUpdates {
 
-	val manga: Manga
+	val manga: Content
 
 	data class Success(
-		override val manga: Manga,
+		override val manga: Content,
 		val branch: String?,
-		val newChapters: List<MangaChapter>,
+		val newChapters: List<ContentChapter>,
 		val isValid: Boolean,
 	) : MangaUpdates {
 
@@ -26,7 +26,7 @@ sealed interface MangaUpdates {
 	}
 
 	data class Failure(
-		override val manga: Manga,
+		override val manga: Content,
 		val error: Throwable?,
 	) : MangaUpdates {
 

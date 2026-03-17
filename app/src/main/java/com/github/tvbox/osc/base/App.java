@@ -2,7 +2,6 @@ package com.github.tvbox.osc.base;
 
 import android.app.Activity;
 import android.app.Application;
-import android.app.Application.ActivityLifecycleCallbacks;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -31,9 +30,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
 
-import androidx.hilt.work.HiltWorkerFactory;
 import androidx.multidex.MultiDexApplication;
-import androidx.room.InvalidationTracker;
 import androidx.work.Configuration;
 
 import com.github.catvod.crawler.JsLoader;
@@ -52,29 +49,19 @@ import com.orhanobut.hawk.Hawk;
 import com.p2p.P2PClass;
 import com.whl.quickjs.android.QuickJSLoader;
 
-import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager;
-import org.skepsun.kototoro.core.db.MangaDatabase;
-import org.skepsun.kototoro.core.os.AppValidator;
-import org.skepsun.kototoro.core.prefs.AppSettings;
-import org.skepsun.kototoro.local.data.LocalStorageChanges;
-import org.skepsun.kototoro.local.data.index.LocalMangaIndex;
-import org.skepsun.kototoro.local.domain.model.LocalManga;
-import org.skepsun.kototoro.mihon.MihonExtensionManager;
-import org.skepsun.kototoro.settings.work.WorkScheduleManager;
-
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
-import javax.inject.Inject;
-import javax.inject.Provider;
-
+import androidx.hilt.work.HiltWorkerFactory;
 import dagger.hilt.android.HiltAndroidApp;
-import kotlinx.coroutines.flow.MutableSharedFlow;
+import dagger.hilt.EntryPoint;
+import dagger.hilt.InstallIn;
+import dagger.hilt.android.EntryPointAccessors;
+import dagger.hilt.components.SingletonComponent;
 
 @HiltAndroidApp
 public class App extends MultiDexApplication implements Configuration.Provider {
@@ -90,48 +77,20 @@ public class App extends MultiDexApplication implements Configuration.Provider {
     private static volatile boolean attached = false;
     private static volatile boolean hostRuntimeBootstrapped = false;
     private static volatile P2PClass p;
+    private volatile Configuration workManagerConfiguration;
     public static String burl;
     private static String dashData;
     private volatile VodInfo vodInfo;
-    @Inject
-    protected Provider<Set<InvalidationTracker.Observer>> databaseObserversProvider;
-    @Inject
-    protected Set<ActivityLifecycleCallbacks> activityLifecycleCallbacks;
-    @Inject
-    protected Provider<MangaDatabase> database;
-    @Inject
-    protected AppSettings settings;
-    @Inject
-    protected HiltWorkerFactory workerFactory;
-    @Inject
-    protected AppValidator appValidator;
-    @Inject
-    protected WorkScheduleManager workScheduleManager;
-    @Inject
-    protected Provider<LocalMangaIndex> localMangaIndexProvider;
-    @Inject
-    @LocalStorageChanges
-    protected MutableSharedFlow<LocalManga> localStorageChanges;
-    @Inject
-    protected MihonExtensionManager mihonExtensionManager;
-    @Inject
-    protected AniyomiExtensionManager aniyomiExtensionManager;
 
     public App() {
         instance = this;
-    }
-
-    @Override
-    public Configuration getWorkManagerConfiguration() {
-        return new Configuration.Builder()
-                .setWorkerFactory(workerFactory)
-                .build();
     }
 
     public static synchronized void init(Context context) {
         if (context != null) {
             Context resolvedApplication = context.getApplicationContext();
             App resolvedApp = null;
+            Context initContext = null;
             if (context instanceof App) {
                 resolvedApp = (App) context;
             } else if (resolvedApplication instanceof App) {
@@ -141,10 +100,12 @@ public class App extends MultiDexApplication implements Configuration.Provider {
                 instance = resolvedApp;
                 appContext = resolvedApp;
                 bridgeContext = resolvedApp.peekBridgeContext();
+                initContext = bridgeContext != null ? bridgeContext : resolvedApp;
                 attached = true;
             } else {
                 Context runtimeContext = resolvedApplication != null ? resolvedApplication : context;
                 bridgeContext = runtimeContext;
+                initContext = runtimeContext;
                 if (instance != null && instance.getClass() != App.class) {
                     appContext = instance;
                     attached = true;
@@ -157,13 +118,28 @@ public class App extends MultiDexApplication implements Configuration.Provider {
                 }
             }
             resetBridgeCaches();
-            Init.set(getInstance());
+            Init.set(initContext != null ? initContext : getInstance());
             bootstrapHostRuntime();
         }
     }
 
     public static App getInstance() {
         return instance;
+    }
+
+    @Override
+    public Configuration getWorkManagerConfiguration() {
+        Configuration cached = workManagerConfiguration;
+        if (cached != null) {
+            return cached;
+        }
+        HiltWorkerFactory workerFactory =
+                EntryPointAccessors.fromApplication(this, WorkManagerEntryPoint.class).workerFactory();
+        Configuration created = new Configuration.Builder()
+                .setWorkerFactory(workerFactory)
+                .build();
+        workManagerConfiguration = created;
+        return created;
     }
 
     private static void resetBridgeCaches() {
@@ -246,6 +222,10 @@ public class App extends MultiDexApplication implements Configuration.Provider {
         return context;
     }
 
+    private boolean shouldBridgeHostIdentity() {
+        return false;
+    }
+
     private boolean hasRealHostIdentity() {
         return HOST_PACKAGE_NAME.equals(super.getPackageName());
     }
@@ -274,7 +254,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
             bridgeContext = base;
             resetBridgeCaches();
             attached = true;
-            Init.set(this);
+            Init.set(base);
         }
         super.attachBaseContext(base);
     }
@@ -290,7 +270,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
     @Override
     public ApplicationInfo getApplicationInfo() {
-        if (hasRealHostIdentity()) {
+        if (!shouldBridgeHostIdentity() || hasRealHostIdentity()) {
             return super.getApplicationInfo();
         }
         ApplicationInfo cached = bridgedApplicationInfo;
@@ -343,7 +323,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
     @Override
     public ClassLoader getClassLoader() {
-        if (hasRealHostIdentity()) {
+        if (!shouldBridgeHostIdentity() || hasRealHostIdentity()) {
             return super.getClassLoader();
         }
         return requireContext().getClassLoader();
@@ -351,7 +331,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
     @Override
     public PackageManager getPackageManager() {
-        if (hasRealHostIdentity()) {
+        if (!shouldBridgeHostIdentity() || hasRealHostIdentity()) {
             return super.getPackageManager();
         }
         PackageManager cached = bridgedPackageManager;
@@ -365,6 +345,9 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
     @Override
     public Context createPackageContext(String packageName, int flags) throws PackageManager.NameNotFoundException {
+        if (!shouldBridgeHostIdentity()) {
+            return super.createPackageContext(packageName, flags);
+        }
         if (HOST_PACKAGE_NAME.equals(packageName)) {
             return this;
         }
@@ -388,7 +371,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
     @Override
     public String getPackageName() {
-        return hasRealHostIdentity() ? super.getPackageName() : HOST_PACKAGE_NAME;
+        return super.getPackageName();
     }
 
     public static P2PClass getp2p() {
@@ -493,6 +476,12 @@ public class App extends MultiDexApplication implements Configuration.Provider {
         return copy;
     }
 
+    @EntryPoint
+    @InstallIn(SingletonComponent.class)
+    interface WorkManagerEntryPoint {
+        HiltWorkerFactory workerFactory();
+    }
+
     private static final class BridgedPackageManager extends PackageManager {
         private final App owner;
         private final Context realContext;
@@ -510,6 +499,17 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         private String bridgePackageName(String packageName) {
             return owner.bridgeReportedPackageName(packageName);
+        }
+
+        private ComponentName mapComponentName(ComponentName componentName) {
+            if (componentName == null) {
+                return null;
+            }
+            String packageName = componentName.getPackageName();
+            if (!owner.isHostPackageName(packageName)) {
+                return componentName;
+            }
+            return new ComponentName(owner.getRealPackageName(), componentName.getClassName());
         }
 
         private ApplicationInfo bridgeApplicationInfo(ApplicationInfo info) {
@@ -574,7 +574,14 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public void addPreferredActivity(IntentFilter filter, int match, ComponentName[] set, ComponentName activity) {
-            base.addPreferredActivity(filter, match, set, activity);
+            ComponentName[] mappedSet = set;
+            if (set != null && set.length > 0) {
+                mappedSet = Arrays.copyOf(set, set.length);
+                for (int index = 0; index < mappedSet.length; index++) {
+                    mappedSet[index] = mapComponentName(mappedSet[index]);
+                }
+            }
+            base.addPreferredActivity(filter, match, mappedSet, mapComponentName(activity));
         }
 
         @Override
@@ -624,7 +631,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public Drawable getActivityBanner(ComponentName activityName) throws NameNotFoundException {
-            return base.getActivityBanner(activityName);
+            return base.getActivityBanner(mapComponentName(activityName));
         }
 
         @Override
@@ -634,7 +641,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public Drawable getActivityIcon(ComponentName activityName) throws NameNotFoundException {
-            return base.getActivityIcon(activityName);
+            return base.getActivityIcon(mapComponentName(activityName));
         }
 
         @Override
@@ -644,12 +651,17 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public ActivityInfo getActivityInfo(ComponentName component, int flags) throws NameNotFoundException {
-            return base.getActivityInfo(component, flags);
+            return base.getActivityInfo(mapComponentName(component), flags);
+        }
+
+        @Override
+        public ActivityInfo getActivityInfo(ComponentName component, PackageManager.ComponentInfoFlags flags) throws NameNotFoundException {
+            return base.getActivityInfo(mapComponentName(component), flags);
         }
 
         @Override
         public Drawable getActivityLogo(ComponentName activityName) throws NameNotFoundException {
-            return base.getActivityLogo(activityName);
+            return base.getActivityLogo(mapComponentName(activityName));
         }
 
         @Override
@@ -693,6 +705,11 @@ public class App extends MultiDexApplication implements Configuration.Provider {
         }
 
         @Override
+        public ApplicationInfo getApplicationInfo(String packageName, PackageManager.ApplicationInfoFlags flags) throws NameNotFoundException {
+            return bridgeApplicationInfo(base.getApplicationInfo(mapPackageName(packageName), flags));
+        }
+
+        @Override
         public CharSequence getApplicationLabel(ApplicationInfo info) {
             return base.getApplicationLabel(mapApplicationInfo(info));
         }
@@ -714,7 +731,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public int getComponentEnabledSetting(ComponentName componentName) {
-            return base.getComponentEnabledSetting(componentName);
+            return base.getComponentEnabledSetting(mapComponentName(componentName));
         }
 
         @Override
@@ -733,7 +750,17 @@ public class App extends MultiDexApplication implements Configuration.Provider {
         }
 
         @Override
+        public List<ApplicationInfo> getInstalledApplications(PackageManager.ApplicationInfoFlags flags) {
+            return bridgeInstalledApplications(base.getInstalledApplications(flags));
+        }
+
+        @Override
         public List<PackageInfo> getInstalledPackages(int flags) {
+            return bridgeInstalledPackages(base.getInstalledPackages(flags));
+        }
+
+        @Override
+        public List<PackageInfo> getInstalledPackages(PackageManager.PackageInfoFlags flags) {
             return bridgeInstalledPackages(base.getInstalledPackages(flags));
         }
 
@@ -754,7 +781,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public InstrumentationInfo getInstrumentationInfo(ComponentName className, int flags) throws NameNotFoundException {
-            return base.getInstrumentationInfo(className, flags);
+            return base.getInstrumentationInfo(mapComponentName(className), flags);
         }
 
         @Override
@@ -797,6 +824,20 @@ public class App extends MultiDexApplication implements Configuration.Provider {
         }
 
         @Override
+        public PackageInfo getPackageInfo(VersionedPackage versionedPackage, PackageManager.PackageInfoFlags flags) throws NameNotFoundException {
+            VersionedPackage mapped = versionedPackage;
+            if (versionedPackage != null && owner.isHostPackageName(versionedPackage.getPackageName())) {
+                mapped = new VersionedPackage(owner.getRealPackageName(), versionedPackage.getLongVersionCode());
+            }
+            return bridgePackageInfo(base.getPackageInfo(mapped, flags));
+        }
+
+        @Override
+        public PackageInfo getPackageInfo(String packageName, PackageManager.PackageInfoFlags flags) throws NameNotFoundException {
+            return bridgePackageInfo(base.getPackageInfo(mapPackageName(packageName), flags));
+        }
+
+        @Override
         public PackageInstaller getPackageInstaller() {
             return base.getPackageInstaller();
         }
@@ -813,6 +854,11 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public List<PackageInfo> getPackagesHoldingPermissions(String[] permissions, int flags) {
+            return bridgeInstalledPackages(base.getPackagesHoldingPermissions(permissions, flags));
+        }
+
+        @Override
+        public List<PackageInfo> getPackagesHoldingPermissions(String[] permissions, PackageManager.PackageInfoFlags flags) {
             return bridgeInstalledPackages(base.getPackagesHoldingPermissions(permissions, flags));
         }
 
@@ -838,17 +884,27 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public ProviderInfo getProviderInfo(ComponentName component, int flags) throws NameNotFoundException {
-            return base.getProviderInfo(component, flags);
+            return base.getProviderInfo(mapComponentName(component), flags);
+        }
+
+        @Override
+        public ProviderInfo getProviderInfo(ComponentName component, PackageManager.ComponentInfoFlags flags) throws NameNotFoundException {
+            return base.getProviderInfo(mapComponentName(component), flags);
         }
 
         @Override
         public ActivityInfo getReceiverInfo(ComponentName component, int flags) throws NameNotFoundException {
-            return base.getReceiverInfo(component, flags);
+            return base.getReceiverInfo(mapComponentName(component), flags);
+        }
+
+        @Override
+        public ActivityInfo getReceiverInfo(ComponentName component, PackageManager.ComponentInfoFlags flags) throws NameNotFoundException {
+            return base.getReceiverInfo(mapComponentName(component), flags);
         }
 
         @Override
         public Resources getResourcesForActivity(ComponentName activityName) throws NameNotFoundException {
-            return base.getResourcesForActivity(activityName);
+            return base.getResourcesForActivity(mapComponentName(activityName));
         }
 
         @Override
@@ -863,7 +919,12 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public ServiceInfo getServiceInfo(ComponentName component, int flags) throws NameNotFoundException {
-            return base.getServiceInfo(component, flags);
+            return base.getServiceInfo(mapComponentName(component), flags);
+        }
+
+        @Override
+        public ServiceInfo getServiceInfo(ComponentName component, PackageManager.ComponentInfoFlags flags) throws NameNotFoundException {
+            return base.getServiceInfo(mapComponentName(component), flags);
         }
 
         @Override
@@ -958,7 +1019,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public List<ResolveInfo> queryIntentActivityOptions(ComponentName caller, Intent[] specifics, Intent intent, int flags) {
-            return base.queryIntentActivityOptions(caller, specifics, intent, flags);
+            return base.queryIntentActivityOptions(mapComponentName(caller), specifics, intent, flags);
         }
 
         @Override
@@ -1013,7 +1074,7 @@ public class App extends MultiDexApplication implements Configuration.Provider {
 
         @Override
         public void setComponentEnabledSetting(ComponentName componentName, int newState, int flags) {
-            base.setComponentEnabledSetting(componentName, newState, flags);
+            base.setComponentEnabledSetting(mapComponentName(componentName), newState, flags);
         }
 
         @Override
