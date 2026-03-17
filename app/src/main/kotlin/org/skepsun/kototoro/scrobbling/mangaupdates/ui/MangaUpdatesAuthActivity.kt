@@ -16,17 +16,17 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.util.DefaultTextWatcher
 import org.skepsun.kototoro.core.util.ext.consume
-import org.skepsun.kototoro.databinding.ActivityContentupdatesAuthBinding
+import org.skepsun.kototoro.databinding.ActivityMangaupdatesAuthBinding
 import org.skepsun.kototoro.parsers.util.urlEncoded
 
-class MangaUpdatesAuthActivity : BaseActivity<ActivityContentupdatesAuthBinding>(),
+class MangaUpdatesAuthActivity : BaseActivity<ActivityMangaupdatesAuthBinding>(),
 	View.OnClickListener,
 	DefaultTextWatcher,
 	TextView.OnEditorActionListener {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		setContentView(ActivityContentupdatesAuthBinding.inflate(layoutInflater))
+		setContentView(ActivityMangaupdatesAuthBinding.inflate(layoutInflater))
 		viewBinding.buttonCancel.setOnClickListener(this)
 		viewBinding.buttonDone.setOnClickListener(this)
 		viewBinding.editUsername.addTextChangedListener(this)

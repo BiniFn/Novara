@@ -97,13 +97,13 @@ class MihonMangaRepository(
         
         val mangasPage = when {
             hasFilters -> {
-                mihonSource.getSearchContent(page, query ?: "", filter?.toMihonFilterList() ?: FilterList())
+                mihonSource.getSearchManga(page, query ?: "", filter?.toMihonFilterList() ?: FilterList())
             }
             order == SortOrder.UPDATED && mihonSource.supportsLatest -> {
                 mihonSource.getLatestUpdates(page)
             }
             else -> {
-                mihonSource.getPopularContent(page)
+                mihonSource.getPopularManga(page)
             }
         }
         
@@ -119,7 +119,7 @@ class MihonMangaRepository(
         val sContent = manga.toMihonManga()
         
         val details = try {
-            mihonSource.getContentDetails(sContent)
+            mihonSource.getMangaDetails(sContent)
         } catch (e: Exception) {
             val ioException = when {
                 e is java.io.IOException -> e
@@ -129,7 +129,7 @@ class MihonMangaRepository(
             
             if (ioException != null) {
                 kotlinx.coroutines.delay(500)
-                mihonSource.getContentDetails(sContent)
+                mihonSource.getMangaDetails(sContent)
             } else {
                 throw e
             }

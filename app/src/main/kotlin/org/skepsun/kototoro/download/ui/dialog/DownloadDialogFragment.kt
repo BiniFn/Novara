@@ -60,10 +60,10 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 	override fun onViewBindingCreated(binding: DialogDownloadBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		val contentType = viewModel.manga.firstOrNull()?.source?.getContentType() ?: ContentType.MANGA
-		binding.optionWholeContent.title = getString(contentType.getWholeWorkOptionResId())
+		binding.optionWholeManga.title = getString(contentType.getWholeWorkOptionResId())
 
 		optionViews = arrayOf(
-			binding.optionWholeContent,
+			binding.optionWholeManga,
 			binding.optionWholeBranch,
 			binding.optionFirstChapters,
 			binding.optionUnreadChapters,
@@ -226,7 +226,7 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 			viewModel.confirm(
 				startNow = switchStart.isChecked,
 				chaptersMacro = when {
-					optionWholeContent.isChecked -> options.wholeContent
+					optionWholeManga.isChecked -> options.wholeContent
 					optionWholeBranch.isChecked -> options.wholeBranch ?: return@run
 					optionFirstChapters.isChecked -> options.firstChapters ?: return@run
 					optionUnreadChapters.isChecked -> options.unreadChapters ?: return@run
@@ -269,7 +269,7 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 	private fun onChapterSelectOptionsChanged(options: ChapterSelectOptions) {
 		with(viewBinding ?: return) {
 			// Whole manga
-			optionWholeContent.subtitle = if (options.wholeContent.chaptersCount > 0) {
+			optionWholeManga.subtitle = if (options.wholeContent.chaptersCount > 0) {
 				resources.getQuantityStringSafe(
 					R.plurals.chapters,
 					options.wholeContent.chaptersCount,

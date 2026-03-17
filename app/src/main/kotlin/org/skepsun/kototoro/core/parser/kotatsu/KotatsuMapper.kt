@@ -5,7 +5,7 @@ import org.koitharu.kotatsu.parsers.model.ContentType as KTContentType
 import org.koitharu.kotatsu.parsers.model.Demographic as KTDemographic
 import org.koitharu.kotatsu.parsers.model.Favicon as KTFavicon
 import org.koitharu.kotatsu.parsers.model.Favicons as KTFavicons
-import org.koitharu.kotatsu.parsers.model.Content as KTContent
+import org.koitharu.kotatsu.parsers.model.Manga as KTManga
 import org.koitharu.kotatsu.parsers.model.MangaChapter as KTMangaChapter
 import org.koitharu.kotatsu.parsers.model.MangaListFilter as KTContentListFilter
 import org.koitharu.kotatsu.parsers.model.MangaListFilterCapabilities as KTMangaListFilterCapabilities
@@ -158,7 +158,7 @@ internal fun KTFavicon.toKototoro(): Favicon = Favicon(url = url, size = size, r
 
 internal fun KTFavicons.toKototoro(): Favicons = Favicons(favicons = map { it.toKototoro() }, referer = referer)
 
-internal fun KTContent.toKototoro(source: ContentSource): Content = Content(
+internal fun KTManga.toKototoro(source: ContentSource): Content = Content(
 	id = id,
 	title = title,
 	altTitles = altTitles,
@@ -233,7 +233,7 @@ internal fun KTMangaListFilterCapabilities.toKototoro(): ContentListFilterCapabi
 		isAuthorSearchSupported = isAuthorSearchSupported,
 	)
 
-internal fun Content.toKotatsu(source: KotatsuParserSource): KTContent = KTContent(
+internal fun Content.toKotatsu(source: KotatsuParserSource): KTManga = KTManga(
 	id = id,
 	title = title,
 	altTitles = altTitles,

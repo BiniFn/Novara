@@ -82,22 +82,22 @@ abstract class HttpSource : CatalogueSource {
 
     // ======== Popular manga ========
 
-    @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getPopularContent"))
-    override fun fetchPopularContent(page: Int): Observable<MangasPage> {
+    @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getPopularManga"))
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> {
         return Observable.fromCallable {
-            val response = client.newCall(popularContentRequest(page)).execute()
-            popularContentParse(response)
+            val response = client.newCall(popularMangaRequest(page)).execute()
+            popularMangaParse(response)
         }
     }
 
-    protected abstract fun popularContentRequest(page: Int): Request
+    protected abstract fun popularMangaRequest(page: Int): Request
 
-    protected abstract fun popularContentParse(response: Response): MangasPage
+    protected abstract fun popularMangaParse(response: Response): MangasPage
 
     // ======== Search manga ========
 
-    @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getSearchContent"))
-    override fun fetchSearchContent(
+    @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getSearchManga"))
+    override fun fetchSearchManga(
         page: Int,
         query: String,
         filters: FilterList,
@@ -105,8 +105,8 @@ abstract class HttpSource : CatalogueSource {
         return Observable.defer {
             try {
                 Observable.fromCallable {
-                    val response = client.newCall(searchContentRequest(page, query, filters)).execute()
-                    searchContentParse(response)
+                    val response = client.newCall(searchMangaRequest(page, query, filters)).execute()
+                    searchMangaParse(response)
                 }
             } catch (e: NoClassDefFoundError) {
                 throw RuntimeException(e)
@@ -114,13 +114,13 @@ abstract class HttpSource : CatalogueSource {
         }
     }
 
-    protected abstract fun searchContentRequest(
+    protected abstract fun searchMangaRequest(
         page: Int,
         query: String,
         filters: FilterList,
     ): Request
 
-    protected abstract fun searchContentParse(response: Response): MangasPage
+    protected abstract fun searchMangaParse(response: Response): MangasPage
 
     // ======== Latest updates ========
 
@@ -139,12 +139,12 @@ abstract class HttpSource : CatalogueSource {
     // ======== Content details ========
 
     @Suppress("DEPRECATION")
-    override suspend fun getContentDetails(manga: SManga): SManga {
-        return fetchContentDetails(manga).toBlocking().first()
+    override suspend fun getMangaDetails(manga: SManga): SManga {
+        return fetchMangaDetails(manga).toBlocking().first()
     }
 
-    @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getContentDetails"))
-    override fun fetchContentDetails(manga: SManga): Observable<SManga> {
+    @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getMangaDetails"))
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
         return Observable.fromCallable {
             val response = client.newCall(mangaDetailsRequest(manga)).execute()
             mangaDetailsParse(response).apply { initialized = true }
@@ -262,7 +262,7 @@ abstract class HttpSource : CatalogueSource {
         }
     }
 
-    open fun getContentUrl(manga: SManga): String {
+    open fun getMangaUrl(manga: SManga): String {
         return mangaDetailsRequest(manga).url.toString()
     }
 

@@ -27,8 +27,8 @@ interface CatalogueSource : Source {
      * @param page the page number to retrieve.
      */
     @Suppress("DEPRECATION")
-    suspend fun getPopularContent(page: Int): MangasPage {
-        return fetchPopularContent(page).toBlocking().first()
+    suspend fun getPopularManga(page: Int): MangasPage {
+        return fetchPopularManga(page).toBlocking().first()
     }
 
     /**
@@ -40,8 +40,8 @@ interface CatalogueSource : Source {
      * @param filters the list of filters to apply.
      */
     @Suppress("DEPRECATION")
-    suspend fun getSearchContent(page: Int, query: String, filters: FilterList): MangasPage {
-        return fetchSearchContent(page, query, filters).toBlocking().first()
+    suspend fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage {
+        return fetchSearchManga(page, query, filters).toBlocking().first()
     }
 
     /**
@@ -62,16 +62,16 @@ interface CatalogueSource : Source {
 
     @Deprecated(
         "Use the non-RxJava API instead",
-        ReplaceWith("getPopularContent"),
+        ReplaceWith("getPopularManga"),
     )
-    fun fetchPopularContent(page: Int): Observable<MangasPage> =
+    fun fetchPopularManga(page: Int): Observable<MangasPage> =
         throw IllegalStateException("Not used")
 
     @Deprecated(
         "Use the non-RxJava API instead",
-        ReplaceWith("getSearchContent"),
+        ReplaceWith("getSearchManga"),
     )
-    fun fetchSearchContent(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
+    fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
         throw IllegalStateException("Not used")
 
     @Deprecated(

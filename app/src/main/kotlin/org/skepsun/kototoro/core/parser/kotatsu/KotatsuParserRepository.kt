@@ -52,7 +52,7 @@ class KotatsuParserRepository(
 		parser.getFilterOptions().toKototoro(kotatsuSource)
 
 	override suspend fun getRelatedContentImpl(seed: Content): List<Content> =
-		parser.getRelatedContent(seed.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
+		parser.getRelatedManga(seed.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
 
 	suspend fun getFavicons(): Favicons = parser.getFavicons().toKototoro()
 

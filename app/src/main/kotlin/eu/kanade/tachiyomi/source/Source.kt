@@ -32,8 +32,8 @@ interface Source {
      * @return the updated manga.
      */
     @Suppress("DEPRECATION")
-    suspend fun getContentDetails(manga: SManga): SManga {
-        return fetchContentDetails(manga).toBlocking().first()
+    suspend fun getMangaDetails(manga: SManga): SManga {
+        return fetchMangaDetails(manga).toBlocking().first()
     }
 
     /**
@@ -63,9 +63,9 @@ interface Source {
 
     @Deprecated(
         "Use the non-RxJava API instead",
-        ReplaceWith("getContentDetails"),
+        ReplaceWith("getMangaDetails"),
     )
-    fun fetchContentDetails(manga: SManga): Observable<SManga> =
+    fun fetchMangaDetails(manga: SManga): Observable<SManga> =
         throw IllegalStateException("Not used")
 
     @Deprecated(

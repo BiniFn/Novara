@@ -250,7 +250,7 @@ private fun generateChapterId(url: String, sourceName: String): Long {
  */
 fun HttpSource.getPublicContentUrl(manga: SManga): String {
     return try {
-        getContentUrl(manga)
+        getMangaUrl(manga)
     } catch (e: Exception) {
         ""
     }
