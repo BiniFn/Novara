@@ -176,3 +176,7 @@
 -keep class io.reactivex.** { *; }
 -keep interface io.reactivex.** { *; }
 -dontwarn io.reactivex.**
+
+# TVBox jar runtime classes loaded via reflection / DexClassLoader
+-keep class com.github.catvod.** { *; }
+-keep class com.github.tvbox.osc.** { *; }
