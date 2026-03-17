@@ -101,7 +101,7 @@ interface EpubChapterMappingDao {
      * @return List of all chapter mappings for this manga, ordered by creation time and chapter index
      */
     @Query("SELECT * FROM epub_chapter_mapping WHERE epubFilePath LIKE '%/epub/' || :mangaId || '/%' ORDER BY createdAt, chapterIndex")
-    suspend fun findByMangaId(mangaId: Long): List<EpubChapterMappingEntity>
+    suspend fun findByContentId(mangaId: Long): List<EpubChapterMappingEntity>
     
     /**
      * Finds a chapter mapping by manga ID and internal chapter ID.

@@ -41,9 +41,9 @@ import org.skepsun.kototoro.favourites.domain.model.Cover
 import org.skepsun.kototoro.parsers.exception.ContentUnavailableException
 import org.skepsun.kototoro.parsers.exception.ParseException
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import kotlin.coroutines.resume
 import androidx.appcompat.R as appcompatR
@@ -107,12 +107,12 @@ class CoverImageView @JvmOverloads constructor(
 
 	fun setImageAsync(page: ReaderPage) = enqueueRequest(
 		newRequestBuilder()
-			.data(page.toMangaPage())
+			.data(page.toContentPage())
 			.mangaSourceExtra(page.source)
 			.build(),
 	)
 
-	fun setImageAsync(page: MangaPage) = enqueueRequest(
+	fun setImageAsync(page: ContentPage) = enqueueRequest(
 		newRequestBuilder()
 			.data(page)
 			.mangaSourceExtra(page.source)
@@ -128,7 +128,7 @@ class CoverImageView @JvmOverloads constructor(
 
 	fun setImageAsync(
 		coverUrl: String?,
-		manga: Manga?,
+		manga: Content?,
 	) = enqueueRequest(
 		newRequestBuilder()
 			.data(coverUrl)
@@ -138,7 +138,7 @@ class CoverImageView @JvmOverloads constructor(
 
 	fun setImageAsync(
 		coverUrl: String?,
-		source: MangaSource,
+		source: ContentSource,
 	) = enqueueRequest(
 		newRequestBuilder()
 			.data(coverUrl)
@@ -150,7 +150,7 @@ class CoverImageView @JvmOverloads constructor(
 		bookmark: Bookmark
 	) = enqueueRequest(
 		newRequestBuilder()
-			.data(bookmark.toMangaPage())
+			.data(bookmark.toContentPage())
 			.decodeRegion(bookmark.scroll)
 			.bookmarkExtra(bookmark)
 			.build(),

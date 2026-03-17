@@ -10,15 +10,15 @@ import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.adapter.mangaGridItemAD
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
-import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedMangaHeader
+import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 
-fun updatedMangaAD(
+fun updatedContentAD(
 	sizeResolver: ItemSizeResolver,
-	listener: OnListItemClickListener<MangaListModel>,
+	listener: OnListItemClickListener<ContentListModel>,
 	headerClickListener: ListHeaderClickListener,
-) = adapterDelegateViewBinding<UpdatedMangaHeader, ListModel, ItemListGroupBinding>(
+) = adapterDelegateViewBinding<UpdatedContentHeader, ListModel, ItemListGroupBinding>(
 	{ layoutInflater, parent -> ItemListGroupBinding.inflate(layoutInflater, parent, false) },
 ) {
 

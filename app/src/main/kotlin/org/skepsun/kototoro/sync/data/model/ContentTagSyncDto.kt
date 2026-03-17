@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 import org.skepsun.kototoro.core.util.ext.buildContentValues
 
 @Serializable
-data class MangaTagSyncDto(
+data class ContentTagSyncDto(
 	@SerialName("tag_id") val id: Long,
 	@SerialName("title") val title: String,
 	@SerialName("key") val key: String,

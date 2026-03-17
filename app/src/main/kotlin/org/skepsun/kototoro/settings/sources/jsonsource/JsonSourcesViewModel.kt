@@ -23,9 +23,9 @@ import org.skepsun.kototoro.core.jsonsource.GroupingStrategy
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
-import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.ui.BaseViewModel
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import javax.inject.Inject
 import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
@@ -52,7 +52,7 @@ class JsonSourcesViewModel @Inject constructor(
 	private val savedStateHandle: SavedStateHandle,
 	private val jsonSourceManager: JsonSourceManager,
 	private val sourceGroupManager: SourceGroupManager,
-	private val mangaSourcesRepository: MangaSourcesRepository,
+	private val mangaSourcesRepository: ContentSourcesRepository,
 	private val json: Json,
 	private val appSettings: AppSettings,
 ) : BaseViewModel() {
@@ -238,11 +238,11 @@ class JsonSourcesViewModel @Inject constructor(
 			SortOption.ENABLED -> filteredEntities.sortedByDescending { it.enabled }
 		}
 		
-		// Convert JSON source entities to MangaSourceInfo
+		// Convert JSON source entities to ContentSourceInfo
 		val sourceInfoList = sortedEntities.map { entity ->
-			val jsonMangaSource = org.skepsun.kototoro.core.jsonsource.JsonMangaSource(entity)
-			MangaSourceInfo(
-				mangaSource = jsonMangaSource,
+			val jsonContentSource = org.skepsun.kototoro.core.jsonsource.JsonContentSource(entity)
+			ContentSourceInfo(
+				mangaSource = jsonContentSource,
 				isEnabled = entity.enabled,
 				isPinned = entity.isPinned
 			)
@@ -505,8 +505,8 @@ class JsonSourcesViewModel @Inject constructor(
 	 */
 	fun getVisibleJsonSourceIds(): List<String> {
 		return groupedSources.value.getAllSources()
-			.filter { it.mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource }
-			.map { (it.mangaSource as org.skepsun.kototoro.core.jsonsource.JsonMangaSource).entity.id }
+			.filter { it.mangaSource is org.skepsun.kototoro.core.jsonsource.JsonContentSource }
+			.map { (it.mangaSource as org.skepsun.kototoro.core.jsonsource.JsonContentSource).entity.id }
 	}
 	
 	/**

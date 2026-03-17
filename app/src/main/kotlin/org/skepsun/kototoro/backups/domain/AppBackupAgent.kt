@@ -13,7 +13,7 @@ import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.backups.data.BackupRepository
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.filter.data.SavedFiltersRepository
 import org.skepsun.kototoro.reader.data.TapGridSettings
 import java.io.File
@@ -58,7 +58,7 @@ class AppBackupAgent : BackupAgent() {
 				database = db,
 				settings = AppSettings(applicationContext),
 				tapGridSettings = TapGridSettings(applicationContext),
-				mangaSourcesRepository = MangaSourcesRepository(
+				mangaSourcesRepository = ContentSourcesRepository(
 					context = applicationContext,
 					db = db,
 					settings = AppSettings(applicationContext),
@@ -135,7 +135,7 @@ class AppBackupAgent : BackupAgent() {
 					database = db,
 					settings = AppSettings(applicationContext),
 					tapGridSettings = TapGridSettings(applicationContext),
-					mangaSourcesRepository = MangaSourcesRepository(
+					mangaSourcesRepository = ContentSourcesRepository(
 						context = applicationContext,
 						db = db,
 						settings = AppSettings(applicationContext),

@@ -4,8 +4,8 @@ import org.skepsun.kototoro.core.ui.BaseListAdapter
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 
-open class MangaListAdapter(
-	listener: MangaListListener,
+open class ContentListAdapter(
+	listener: ContentListListener,
 	sizeResolver: ItemSizeResolver,
 ) : BaseListAdapter<ListModel>() {
 

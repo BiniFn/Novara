@@ -219,7 +219,7 @@ open class PageHolder(
 	}
 
 	private fun refreshDualLayers() {
-		val page = boundData?.toMangaPage() ?: return
+		val page = boundData?.toContentPage() ?: return
 		val prev = dualLayerLoadJob
 		dualLayerLoadJob = holderScope.launch(Dispatchers.Default) {
 			prev?.cancelAndJoin()

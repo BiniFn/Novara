@@ -22,12 +22,12 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.model.getSummary
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
-import org.skepsun.kototoro.core.model.parcelable.ParcelableMangaListFilter
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContentListFilter
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseActivity
@@ -42,7 +42,7 @@ import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.setTextAndVisible
 import org.skepsun.kototoro.core.util.ext.start
-import org.skepsun.kototoro.databinding.ActivityMangaListBinding
+import org.skepsun.kototoro.databinding.ActivityContentListBinding
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.FilterHeaderFragment
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
@@ -50,9 +50,9 @@ import org.skepsun.kototoro.list.ui.preview.PreviewFragment
 import org.skepsun.kototoro.local.ui.LocalListFragment
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.core.util.FoldableUtils
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
 import kotlin.math.absoluteValue
@@ -60,8 +60,8 @@ import com.google.android.material.R as materialR
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MangaListActivity :
-    BaseActivity<ActivityMangaListBinding>(),
+class ContentListActivity :
+    BaseActivity<ActivityContentListBinding>(),
     AppBarOwner, View.OnClickListener,
     FilterCoordinator.Owner,
     AppBarLayout.OnOffsetChangedListener {
@@ -69,7 +69,7 @@ class MangaListActivity :
     private var isFoldUnfolded = false
     
     @Inject
-    lateinit var mangaRepositoryFactory: org.skepsun.kototoro.core.parser.MangaRepository.Factory
+    lateinit var mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory
 
 	override val appBar: AppBarLayout
 		get() = viewBinding.appbar
@@ -79,27 +79,27 @@ class MangaListActivity :
 			"Cannot find FilterCoordinator.Owner fragment in ${supportFragmentManager.fragments}"
 		}.filterCoordinator
 
-	private lateinit var source: MangaSource
+	private lateinit var source: ContentSource
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		setContentView(ActivityMangaListBinding.inflate(layoutInflater))
+		setContentView(ActivityContentListBinding.inflate(layoutInflater))
 		viewBinding.collapsingToolbarLayout?.let { collapsingToolbarLayout ->
 			FadingAppbarMediator(viewBinding.appbar, collapsingToolbarLayout).bind()
 		}
-		val filter = intent.getParcelableExtraCompat<ParcelableMangaListFilter>(AppRouter.KEY_FILTER)?.filter
+		val filter = intent.getParcelableExtraCompat<ParcelableContentListFilter>(AppRouter.KEY_FILTER)?.filter
 		val sortOrder = intent.getSerializableExtraCompat<SortOrder>(AppRouter.KEY_SORT_ORDER)
-		source = MangaSource(intent.getStringExtra(AppRouter.KEY_SOURCE))
+		source = ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE))
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 		if (viewBinding.containerFilterHeader != null) {
 			viewBinding.appbar.addOnOffsetChangedListener(this)
 		}
 		viewBinding.buttonOrder?.setOnClickListener(this)
-        // 注意：对于 JSON_* 源，这里拿到的是占位 MangaSource，需要通过 repository 解析真实名称
+        // 注意：对于 JSON_* 源，这里拿到的是占位 ContentSource，需要通过 repository 解析真实名称
         title = source.getTitle(this)
         lifecycleScope.launch(Dispatchers.Default) {
             val resolvedTitle = runCatching {
-                mangaRepositoryFactory.create(source).source.getTitle(this@MangaListActivity)
+                mangaRepositoryFactory.create(source).source.getTitle(this@ContentListActivity)
             }.getOrDefault(title.toString())
             withContext(Dispatchers.Main) {
                 title = resolvedTitle
@@ -145,14 +145,14 @@ class MangaListActivity :
 		}
 	}
 
-	fun showPreview(manga: Manga): Boolean = setSideFragment(
+	fun showPreview(manga: Content): Boolean = setSideFragment(
 		PreviewFragment::class.java,
-		bundleOf(AppRouter.KEY_MANGA to ParcelableManga(manga)),
+		bundleOf(AppRouter.KEY_MANGA to ParcelableContent(manga)),
 	)
 
 	fun hidePreview() = setSideFragment(FilterSheetFragment::class.java, null)
 
-	private fun initList(source: MangaSource, filter: MangaListFilter?, sortOrder: SortOrder?) {
+	private fun initList(source: ContentSource, filter: ContentListFilter?, sortOrder: SortOrder?) {
 		val fm = supportFragmentManager
 		val existingFragment = fm.findFragmentById(R.id.container)
 		if (existingFragment is FilterCoordinator.Owner) {
@@ -241,7 +241,7 @@ class MangaListActivity :
 
 	private class ApplyFilterRunnable(
 		private val filterOwner: FilterCoordinator.Owner,
-		private val filter: MangaListFilter?,
+		private val filter: ContentListFilter?,
 		private val sortOrder: SortOrder?,
 	) : Runnable {
 

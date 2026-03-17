@@ -14,22 +14,22 @@ import org.skepsun.kototoro.core.cache.MemoryContentCache
 import org.skepsun.kototoro.core.cache.SafeDeferred
 import org.skepsun.kototoro.core.util.MultiMutex
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 
-abstract class CachingMangaRepository(
+abstract class CachingContentRepository(
 	private val cache: MemoryContentCache,
-) : MangaRepository {
+) : ContentRepository {
 
 	private val detailsMutex = MultiMutex<Long>()
-	private val relatedMangaMutex = MultiMutex<Long>()
+	private val relatedContentMutex = MultiMutex<Long>()
 	private val pagesMutex = MultiMutex<Long>()
 
-	final override suspend fun getDetails(manga: Manga): Manga = getDetails(manga, CachePolicy.ENABLED)
+	final override suspend fun getDetails(manga: Content): Content = getDetails(manga, CachePolicy.ENABLED)
 
-	final override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = pagesMutex.withLock(chapter.id) {
+	final override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> = pagesMutex.withLock(chapter.id) {
 		cache.getPages(source, chapter.url)?.let { return it }
 		val pages = asyncSafe {
 			getPagesImpl(chapter, nextChapterUrl).distinctById()
@@ -38,16 +38,16 @@ abstract class CachingMangaRepository(
 		pages
 	}.await()
 
-	final override suspend fun getRelated(seed: Manga): List<Manga> = relatedMangaMutex.withLock(seed.id) {
-		cache.getRelatedManga(source, seed.url)?.let { return it }
+	final override suspend fun getRelated(seed: Content): List<Content> = relatedContentMutex.withLock(seed.id) {
+		cache.getRelatedContent(source, seed.url)?.let { return it }
 		val related = asyncSafe {
-			getRelatedMangaImpl(seed).filterNot { it.id == seed.id }
+			getRelatedContentImpl(seed).filterNot { it.id == seed.id }
 		}
-		cache.putRelatedManga(source, seed.url, related)
+		cache.putRelatedContent(source, seed.url, related)
 		related
 	}.await()
 
-	suspend fun getDetails(manga: Manga, cachePolicy: CachePolicy): Manga = detailsMutex.withLock(manga.id) {
+	suspend fun getDetails(manga: Content, cachePolicy: CachePolicy): Content = detailsMutex.withLock(manga.id) {
 		if (cachePolicy.readEnabled) {
 			cache.getDetails(source, manga.url)?.let { return it }
 		}
@@ -60,7 +60,7 @@ abstract class CachingMangaRepository(
 		details
 	}.await()
 
-	suspend fun peekDetails(manga: Manga): Manga? {
+	suspend fun peekDetails(manga: Content): Content? {
 		return cache.getDetails(source, manga.url)
 	}
 
@@ -68,13 +68,13 @@ abstract class CachingMangaRepository(
 		cache.clear(source)
 	}
 
-	protected abstract suspend fun getDetailsImpl(manga: Manga): Manga
+	protected abstract suspend fun getDetailsImpl(manga: Content): Content
 
-	protected abstract suspend fun getRelatedMangaImpl(seed: Manga): List<Manga>
+	protected abstract suspend fun getRelatedContentImpl(seed: Content): List<Content>
 
-	protected abstract suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String? = null): List<MangaPage>
+	protected abstract suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String? = null): List<ContentPage>
 
-	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): org.skepsun.kototoro.parsers.model.NovelChapterContent? = null
+	override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): org.skepsun.kototoro.parsers.model.NovelChapterContent? = null
 
 	private suspend fun <T> asyncSafe(block: suspend CoroutineScope.() -> T): SafeDeferred<T> {
 		var dispatcher = currentCoroutineContext()[CoroutineDispatcher.Key]
@@ -88,11 +88,11 @@ abstract class CachingMangaRepository(
 		)
 	}
 
-	private fun List<MangaPage>.distinctById(): List<MangaPage> {
+	private fun List<ContentPage>.distinctById(): List<ContentPage> {
 		if (isEmpty()) {
 			return emptyList()
 		}
-		val result = ArrayList<MangaPage>(size)
+		val result = ArrayList<ContentPage>(size)
 		val set = MutableLongSet(size)
 		for (page in this) {
 			if (set.add(page.id)) {

@@ -1,12 +1,12 @@
 package org.skepsun.kototoro.local.epub
 
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 /**
- * Extended metadata for MangaChapter to support EPUB functionality
+ * Extended metadata for ContentChapter to support EPUB functionality
  * 
  * This class holds EPUB-specific metadata that cannot be stored directly
- * in the parsers library's MangaChapter model.
+ * in the parsers library's ContentChapter model.
  * 
  * Usage:
  * - Store in a separate map/cache keyed by chapter ID
@@ -37,9 +37,9 @@ data class ChapterMetadata(
 )
 
 /**
- * Extension function to create ChapterMetadata from a MangaChapter
+ * Extension function to create ChapterMetadata from a ContentChapter
  */
-fun MangaChapter.toMetadata(
+fun ContentChapter.toMetadata(
     chapterType: ChapterType = ChapterType.NORMAL,
     parentChapterId: Long? = null,
     epubFileName: String? = null
@@ -53,12 +53,12 @@ fun MangaChapter.toMetadata(
 }
 
 /**
- * Wrapper class that combines MangaChapter with its metadata
+ * Wrapper class that combines ContentChapter with its metadata
  * 
  * This provides a convenient way to work with chapters and their EPUB metadata together.
  */
 data class ChapterWithMetadata(
-    val chapter: MangaChapter,
+    val chapter: ContentChapter,
     val metadata: ChapterMetadata
 ) {
     /**
@@ -81,16 +81,16 @@ data class ChapterWithMetadata(
 }
 
 /**
- * Extension function to combine a MangaChapter with metadata
+ * Extension function to combine a ContentChapter with metadata
  */
-fun MangaChapter.withMetadata(metadata: ChapterMetadata): ChapterWithMetadata {
+fun ContentChapter.withMetadata(metadata: ChapterMetadata): ChapterWithMetadata {
     return ChapterWithMetadata(this, metadata)
 }
 
 /**
- * Extension function to combine a MangaChapter with inline metadata
+ * Extension function to combine a ContentChapter with inline metadata
  */
-fun MangaChapter.withMetadata(
+fun ContentChapter.withMetadata(
     chapterType: ChapterType = ChapterType.NORMAL,
     parentChapterId: Long? = null,
     epubFileName: String? = null

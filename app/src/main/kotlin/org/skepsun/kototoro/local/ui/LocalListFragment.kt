@@ -25,15 +25,15 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
-import org.skepsun.kototoro.list.ui.MangaListFragment
-import org.skepsun.kototoro.remotelist.ui.MangaSearchMenuProvider
+import org.skepsun.kototoro.list.ui.ContentListFragment
+import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
 import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
 import org.skepsun.kototoro.settings.storage.RequestStorageManagerPermissionContract
 
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class LocalListFragment : MangaListFragment(), FilterCoordinator.Owner {
+class LocalListFragment : ContentListFragment(), FilterCoordinator.Owner {
 
 	private val permissionRequestLauncher = registerForActivityResult(
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -65,8 +65,8 @@ class LocalListFragment : MangaListFragment(), FilterCoordinator.Owner {
 	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		addMenuProvider(LocalListMenuProvider(this, this::onEmptyActionClick))
-		addMenuProvider(MangaSearchMenuProvider(filterCoordinator, viewModel))
-		viewModel.onMangaRemoved.observeEvent(viewLifecycleOwner) { onItemRemoved() }
+		addMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
+		viewModel.onContentRemoved.observeEvent(viewLifecycleOwner) { onItemRemoved() }
 	}
 
 	override fun onEmptyActionClick() {

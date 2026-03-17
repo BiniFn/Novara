@@ -8,17 +8,17 @@ import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.filter.data.PersistableFilter
 import org.skepsun.kototoro.filter.ui.model.FilterHeaderModel
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.util.toTitleCase
-import org.skepsun.kototoro.search.domain.MangaSearchRepository
+import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import javax.inject.Inject
 import androidx.appcompat.R as appcompatR
 
 class FilterHeaderProducer @Inject constructor(
-    private val searchRepository: MangaSearchRepository,
+    private val searchRepository: ContentSearchRepository,
 ) {
 
     fun observeHeader(filterCoordinator: FilterCoordinator): Flow<FilterHeaderModel> {
@@ -44,11 +44,11 @@ class FilterHeaderProducer @Inject constructor(
     }
 
     private suspend fun createChipsList(
-        source: MangaSource,
-        capabilities: MangaListFilterCapabilities,
+        source: ContentSource,
+        capabilities: ContentListFilterCapabilities,
         savedFilters: FilterProperty<PersistableFilter>,
         tagsProperty: FilterProperty<UiTagGroup>,
-        snapshot: MangaListFilter,
+        snapshot: ContentListFilter,
         limit: Int,
     ): List<ChipsView.ChipModel> {
         val result = ArrayDeque<ChipsView.ChipModel>(savedFilters.availableItems.size + limit + 3)

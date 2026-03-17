@@ -1,9 +1,9 @@
 package org.skepsun.kototoro.history.domain.model
 
-import org.skepsun.kototoro.core.model.MangaHistory
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.core.model.ContentHistory
+import org.skepsun.kototoro.parsers.model.Content
 
-data class MangaWithHistory(
-	val manga: Manga,
-	val history: MangaHistory
+data class ContentWithHistory(
+	val manga: Content,
+	val history: ContentHistory
 )

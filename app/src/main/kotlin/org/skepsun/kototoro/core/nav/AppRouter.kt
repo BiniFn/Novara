@@ -33,18 +33,18 @@ import org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.image.CoilMemoryCacheKey
 import org.skepsun.kototoro.core.model.FavouriteCategory
-import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
-import org.skepsun.kototoro.core.model.parcelable.ParcelableMangaListFilter
-import org.skepsun.kototoro.core.model.parcelable.ParcelableMangaPage
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContentListFilter
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContentPage
 import org.skepsun.kototoro.core.network.CommonHeaders
-import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
+import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.prefs.TriStateOption
@@ -57,12 +57,12 @@ import org.skepsun.kototoro.core.util.ext.getThemeDrawable
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.details.ui.DetailsActivity
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
-import org.skepsun.kototoro.details.ui.related.RelatedMangaActivity
+import org.skepsun.kototoro.details.ui.related.RelatedContentActivity
 import org.skepsun.kototoro.details.ui.scrobbling.ScrobblingInfoSheet
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogFragment
 import org.skepsun.kototoro.download.ui.list.DownloadsActivity
@@ -81,20 +81,20 @@ import org.skepsun.kototoro.local.ui.ImportDialogFragment
 import org.skepsun.kototoro.local.ui.info.LocalInfoDialog
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.welcome.WelcomeSheet
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.ellipsize
 import org.skepsun.kototoro.parsers.util.isNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.reader.novel.NovelReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.reader.ui.colorfilter.ColorFilterConfigActivity
 import org.skepsun.kototoro.reader.ui.config.ReaderConfigSheet
@@ -103,7 +103,7 @@ import org.skepsun.kototoro.scrobbling.common.ui.config.ScrobblerConfigActivity
 import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorSheet
 import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.domain.SearchContentKind
-import org.skepsun.kototoro.search.ui.MangaListActivity
+import org.skepsun.kototoro.search.ui.ContentListActivity
 import org.skepsun.kototoro.search.ui.multi.SearchActivity
 import org.skepsun.kototoro.settings.SettingsActivity
 import org.skepsun.kototoro.settings.about.AppUpdateActivity
@@ -111,11 +111,11 @@ import org.skepsun.kototoro.settings.override.OverrideConfigActivity
 import org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity
-import org.skepsun.kototoro.settings.storage.MangaDirectorySelectDialog
-import org.skepsun.kototoro.settings.storage.directories.MangaDirectoriesActivity
+import org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog
+import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity
 import org.skepsun.kototoro.settings.tracker.categories.TrackerCategoriesConfigSheet
 import org.skepsun.kototoro.stats.ui.StatsActivity
-import org.skepsun.kototoro.stats.ui.sheet.MangaStatsSheet
+import org.skepsun.kototoro.stats.ui.sheet.ContentStatsSheet
 import org.skepsun.kototoro.suggestions.ui.SuggestionsActivity
 import org.skepsun.kototoro.tracker.ui.updates.UpdatesActivity
 import java.io.File
@@ -134,7 +134,7 @@ class AppRouter private constructor(
         EntryPointAccessors.fromApplication<AppRouterEntryPoint>(checkNotNull(contextOrNull())).settings
     }
 
-    private val mangaRepositoryFactory: MangaRepository.Factory by lazy {
+    private val mangaRepositoryFactory: ContentRepository.Factory by lazy {
         EntryPointAccessors.fromApplication<AppRouterEntryPoint>(checkNotNull(contextOrNull())).mangaRepositoryFactory
     }
 
@@ -144,11 +144,11 @@ class AppRouter private constructor(
 
     /** Activities **/
 
-    fun openList(source: MangaSource, filter: MangaListFilter?, sortOrder: SortOrder?) {
+    fun openList(source: ContentSource, filter: ContentListFilter?, sortOrder: SortOrder?) {
         startActivity(listIntent(contextOrNull() ?: return, source, filter, sortOrder))
     }
 
-    fun openList(tag: MangaTag) = openList(tag.source, MangaListFilter(tags = setOf(tag)), null)
+    fun openList(tag: ContentTag) = openList(tag.source, ContentListFilter(tags = setOf(tag)), null)
 
     fun openSearch(
         query: String,
@@ -168,9 +168,9 @@ class AppRouter private constructor(
         startActivity(intent)
     }
 
-    fun openSearch(source: MangaSource, query: String) = openList(source, MangaListFilter(query = query), null)
+    fun openSearch(source: ContentSource, query: String) = openList(source, ContentListFilter(query = query), null)
 
-    fun openDetails(manga: Manga) {
+    fun openDetails(manga: Content) {
         startActivity(detailsIntent(contextOrNull() ?: return, manga))
     }
 
@@ -185,13 +185,13 @@ class AppRouter private constructor(
         )
     }
 
-	fun openReader(manga: Manga, anchor: View? = null) {
+	fun openReader(manga: Content, anchor: View? = null) {
 		val source = manga.source.unwrap()
         val contentType = getContentType(source)
         if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
             startActivity(
                 Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
-                    .putExtra(KEY_MANGA, ParcelableManga(manga)),
+                    .putExtra(KEY_MANGA, ParcelableContent(manga)),
                 anchor?.let { scaleUpActivityOptionsOf(it) },
             )
             return
@@ -277,9 +277,9 @@ class AppRouter private constructor(
 
 	fun openReader(intent: ReaderIntent, anchor: View? = null) {
 		val activityIntent = intent.intent
-		// Intercept video sources when ReaderIntent carries a Manga extra and route accordingly
+		// Intercept video sources when ReaderIntent carries a Content extra and route accordingly
 		runCatching {
-			val parcelable = activityIntent.getParcelableExtraCompat<ParcelableManga>(KEY_MANGA)
+			val parcelable = activityIntent.getParcelableExtraCompat<ParcelableContent>(KEY_MANGA)
 			val manga = parcelable?.manga
 			if (manga != null) {
                 // 对视频内容和EPUB内容：传入 ReaderState，优先使用历史记录中的状态
@@ -297,7 +297,7 @@ class AppRouter private constructor(
                         activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                     }
                     val novelIntent = Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
-                        .putExtra(KEY_MANGA, ParcelableManga(manga))
+                        .putExtra(KEY_MANGA, ParcelableContent(manga))
                     // 传递ReaderState
                     if (state != null) {
                         novelIntent.putExtra(ReaderIntent.EXTRA_STATE, state)
@@ -369,21 +369,21 @@ class AppRouter private constructor(
         startActivity(activityIntent, anchor?.let { view -> scaleUpActivityOptionsOf(view) })
     }
 
-    fun openAlternatives(manga: Manga) {
+    fun openAlternatives(manga: Content) {
         startActivity(
             Intent(contextOrNull() ?: return, AlternativesActivity::class.java)
-                .putExtra(KEY_MANGA, ParcelableManga(manga)),
+                .putExtra(KEY_MANGA, ParcelableContent(manga)),
         )
     }
 
-    fun openRelated(manga: Manga) {
+    fun openRelated(manga: Content) {
         startActivity(
-            Intent(contextOrNull(), RelatedMangaActivity::class.java)
-                .putExtra(KEY_MANGA, ParcelableManga(manga)),
+            Intent(contextOrNull(), RelatedContentActivity::class.java)
+                .putExtra(KEY_MANGA, ParcelableContent(manga)),
         )
     }
 
-    fun openImage(url: String, source: MangaSource?, anchor: View? = null, preview: CoilMemoryCacheKey? = null) {
+    fun openImage(url: String, source: ContentSource?, anchor: View? = null, preview: CoilMemoryCacheKey? = null) {
         startActivity(
             Intent(contextOrNull(), ImageActivity::class.java)
                 .setData(Uri.parse(url))
@@ -395,7 +395,7 @@ class AppRouter private constructor(
 
     fun openVideo(
         url: String,
-        source: MangaSource?,
+        source: ContentSource?,
         title: String? = null,
         anchor: View? = null,
         state: ReaderState? = null,
@@ -414,7 +414,7 @@ class AppRouter private constructor(
 
     fun openVideo(
         url: String,
-        manga: Manga,
+        manga: Content,
         anchor: View? = null,
         state: ReaderState? = null,
     ) {
@@ -425,7 +425,7 @@ class AppRouter private constructor(
                 .putExtra(KEY_URL, url)
                 .putExtra(KEY_SOURCE, manga.source.name)
                 .putExtra(KEY_TITLE, manga.title)
-                .putExtra(KEY_MANGA, ParcelableManga(manga, withChapters = !manga.chapters.isNullOrEmpty()))
+                .putExtra(KEY_MANGA, ParcelableContent(manga, withChapters = !manga.chapters.isNullOrEmpty()))
                 .putExtra(ReaderIntent.EXTRA_STATE, state),
             anchor?.let { scaleUpActivityOptionsOf(it) },
         )
@@ -443,23 +443,23 @@ class AppRouter private constructor(
 
     fun openDownloads() = startActivity(DownloadsActivity::class.java)
 
-    fun openDirectoriesSettings() = startActivity(MangaDirectoriesActivity::class.java)
+    fun openDirectoriesSettings() = startActivity(ContentDirectoriesActivity::class.java)
 
-    fun openBrowser(url: String, source: MangaSource?, title: String?) {
+    fun openBrowser(url: String, source: ContentSource?, title: String?) {
         startActivity(browserIntent(contextOrNull() ?: return, url, source, title))
     }
 
-    fun openBrowser(manga: Manga) = openBrowser(
+    fun openBrowser(manga: Content) = openBrowser(
         url = manga.publicUrl,
         source = manga.source,
         title = manga.title,
     )
 
-    fun openColorFilterConfig(manga: Manga, page: MangaPage) {
+    fun openColorFilterConfig(manga: Content, page: ContentPage) {
         startActivity(
             Intent(contextOrNull(), ColorFilterConfigActivity::class.java)
-                .putExtra(KEY_MANGA, ParcelableManga(manga))
-                .putExtra(KEY_PAGES, ParcelableMangaPage(page)),
+                .putExtra(KEY_MANGA, ParcelableContent(manga))
+                .putExtra(KEY_PAGES, ParcelableContentPage(page)),
         )
     }
 
@@ -490,7 +490,7 @@ class AppRouter private constructor(
         startActivity(mangaUpdatesIntent(contextOrNull() ?: return))
     }
 
-    fun openMangaOverrideConfig(manga: Manga) {
+    fun openContentOverrideConfig(manga: Content) {
         val intent = overrideEditIntent(contextOrNull() ?: return, manga)
         startActivity(intent)
     }
@@ -509,7 +509,7 @@ class AppRouter private constructor(
         startActivity(downloadsSettingsIntent(contextOrNull() ?: return))
     }
 
-    fun openSourceSettings(source: MangaSource) {
+    fun openSourceSettings(source: ContentSource) {
         startActivity(sourceSettingsIntent(contextOrNull() ?: return, source))
     }
 
@@ -534,7 +534,7 @@ class AppRouter private constructor(
         )
     }
 
-    fun openSourceAuth(source: MangaSource) {
+    fun openSourceAuth(source: ContentSource) {
         startActivity(sourceAuthIntent(contextOrNull() ?: return, source))
     }
 
@@ -570,9 +570,9 @@ class AppRouter private constructor(
 
     /** Dialogs **/
 
-    fun showDownloadDialog(manga: Manga, snackbarHost: View?) = showDownloadDialog(setOf(manga), snackbarHost)
+    fun showDownloadDialog(manga: Content, snackbarHost: View?) = showDownloadDialog(setOf(manga), snackbarHost)
 
-    fun showDownloadDialog(manga: Collection<Manga>, snackbarHost: View?) {
+    fun showDownloadDialog(manga: Collection<Content>, snackbarHost: View?) {
         if (manga.isEmpty()) {
             return
         }
@@ -585,35 +585,35 @@ class AppRouter private constructor(
             DownloadDialogFragment.unregisterCallback(fm)
         }
         DownloadDialogFragment().withArgs(1) {
-            putParcelableArray(KEY_MANGA, manga.mapToArray { ParcelableManga(it, withDescription = false) })
+            putParcelableArray(KEY_MANGA, manga.mapToArray { ParcelableContent(it, withDescription = false) })
         }.showDistinct()
     }
 
-    fun showLocalInfoDialog(manga: Manga) {
+    fun showLocalInfoDialog(manga: Content) {
         LocalInfoDialog().withArgs(1) {
-            putParcelable(KEY_MANGA, ParcelableManga(manga))
+            putParcelable(KEY_MANGA, ParcelableContent(manga))
         }.showDistinct()
     }
 
     fun showDirectorySelectDialog() {
-        MangaDirectorySelectDialog().showDistinct()
+        ContentDirectorySelectDialog().showDistinct()
     }
 
-    fun showFavoriteDialog(manga: Manga) = showFavoriteDialog(setOf(manga))
+    fun showFavoriteDialog(manga: Content) = showFavoriteDialog(setOf(manga))
 
-    fun showFavoriteDialog(manga: Collection<Manga>) {
+    fun showFavoriteDialog(manga: Collection<Content>) {
         if (manga.isEmpty()) {
             return
         }
         FavoriteDialog().withArgs(1) {
             putParcelableArrayList(
                 KEY_MANGA_LIST,
-                manga.mapTo(ArrayList(manga.size)) { ParcelableManga(it, withDescription = false) },
+                manga.mapTo(ArrayList(manga.size)) { ParcelableContent(it, withDescription = false) },
             )
         }.showDistinct()
     }
 
-    fun showTagDialog(tag: MangaTag) {
+    fun showTagDialog(tag: ContentTag) {
         buildAlertDialog(contextOrNull() ?: return) {
             setIcon(R.drawable.ic_tag)
             setTitle(tag.title)
@@ -633,7 +633,7 @@ class AppRouter private constructor(
         }.show()
     }
 
-    fun showAuthorDialog(author: String, source: MangaSource) {
+    fun showAuthorDialog(author: String, source: ContentSource) {
         buildAlertDialog(contextOrNull() ?: return) {
             setIcon(R.drawable.ic_user)
             setTitle(author)
@@ -644,7 +644,7 @@ class AppRouter private constructor(
                 ),
             ) { _, which ->
                 when (which) {
-                    0 -> openList(source, MangaListFilter(author = author), null)
+                    0 -> openList(source, ContentListFilter(author = author), null)
                     1 -> openSearch(author, SearchKind.AUTHOR)
                 }
             }
@@ -653,7 +653,7 @@ class AppRouter private constructor(
         }.show()
     }
 
-    fun showShareDialog(manga: Manga) {
+    fun showShareDialog(manga: Content) {
         if (manga.isBroken) {
             return
         }
@@ -728,9 +728,9 @@ class AppRouter private constructor(
         }.showDistinct()
     }
 
-    fun showStatisticSheet(manga: Manga) {
-        MangaStatsSheet().withArgs(1) {
-            putParcelable(KEY_MANGA, ParcelableManga(manga))
+    fun showStatisticSheet(manga: Content) {
+        ContentStatsSheet().withArgs(1) {
+            putParcelable(KEY_MANGA, ParcelableContent(manga))
         }.showDistinct()
     }
 
@@ -754,9 +754,9 @@ class AppRouter private constructor(
         }.showDistinct()
     }
 
-    fun showScrobblingSelectorSheet(manga: Manga, scrobblerService: ScrobblerService?) {
+    fun showScrobblingSelectorSheet(manga: Content, scrobblerService: ScrobblerService?) {
         ScrobblingSelectorSheet().withArgs(2) {
-            putParcelable(KEY_MANGA, ParcelableManga(manga))
+            putParcelable(KEY_MANGA, ParcelableContent(manga))
             if (scrobblerService != null) {
                 putInt(KEY_ID, scrobblerService.id)
             }
@@ -838,7 +838,7 @@ class AppRouter private constructor(
         }
     }
 
-    private fun getContentType(source: MangaSource): ContentType {
+    private fun getContentType(source: ContentSource): ContentType {
         return source.getContentType()
     }
 
@@ -931,21 +931,21 @@ class AppRouter private constructor(
             (view.context.findActivity() as? FragmentActivity)?.let(::AppRouter)
         }
 
-        fun detailsIntent(context: Context, manga: Manga) = Intent(context, DetailsActivity::class.java)
-            .putExtra(KEY_MANGA, ParcelableManga(manga))
-            .setData(shortMangaUrl(manga.id))
+        fun detailsIntent(context: Context, manga: Content) = Intent(context, DetailsActivity::class.java)
+            .putExtra(KEY_MANGA, ParcelableContent(manga))
+            .setData(shortContentUrl(manga.id))
 
         fun detailsIntent(context: Context, mangaId: Long) = Intent(context, DetailsActivity::class.java)
             .putExtra(KEY_ID, mangaId)
-            .setData(shortMangaUrl(mangaId))
+            .setData(shortContentUrl(mangaId))
 
-        fun listIntent(context: Context, source: MangaSource, filter: MangaListFilter?, sortOrder: SortOrder?): Intent =
-            Intent(context, MangaListActivity::class.java)
+        fun listIntent(context: Context, source: ContentSource, filter: ContentListFilter?, sortOrder: SortOrder?): Intent =
+            Intent(context, ContentListActivity::class.java)
                 .setAction(ACTION_MANGA_EXPLORE)
                 .putExtra(KEY_SOURCE, source.name)
                 .apply {
                     if (!filter.isNullOrEmpty()) {
-                        putExtra(KEY_FILTER, ParcelableMangaListFilter(filter))
+                        putExtra(KEY_FILTER, ParcelableContentListFilter(filter))
                     }
                     if (sortOrder != null) {
                         putExtra(KEY_SORT_ORDER, sortOrder)
@@ -964,7 +964,7 @@ class AppRouter private constructor(
         fun browserIntent(
             context: Context,
             url: String,
-            source: MangaSource?,
+            source: ContentSource?,
             title: String?
         ): Intent = Intent(context, BrowserActivity::class.java)
             .setData(Uri.parse(url))
@@ -1017,9 +1017,9 @@ class AppRouter private constructor(
             Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_MANAGE_DOWNLOADS)
 
-        fun sourceSettingsIntent(context: Context, source: MangaSource): Intent = when (source) {
-            is MangaSourceInfo -> sourceSettingsIntent(context, source.mangaSource)
-            is ExternalMangaSource -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        fun sourceSettingsIntent(context: Context, source: ContentSource): Intent = when (source) {
+            is ContentSourceInfo -> sourceSettingsIntent(context, source.mangaSource)
+            is ExternalContentSource -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 .setData(Uri.fromParts("package", source.packageName, null))
 
             else -> Intent(context, SettingsActivity::class.java)
@@ -1027,22 +1027,22 @@ class AppRouter private constructor(
                 .putExtra(KEY_SOURCE, source.name)
         }
 
-        fun sourceAuthIntent(context: Context, source: MangaSource): Intent {
+        fun sourceAuthIntent(context: Context, source: ContentSource): Intent {
             return Intent(context, SourceAuthActivity::class.java)
                 .putExtra(KEY_SOURCE, source.name)
         }
 
-        fun overrideEditIntent(context: Context, manga: Manga): Intent =
+        fun overrideEditIntent(context: Context, manga: Content): Intent =
             Intent(context, OverrideConfigActivity::class.java)
-                .putExtra(KEY_MANGA, ParcelableManga(manga, withDescription = false))
+                .putExtra(KEY_MANGA, ParcelableContent(manga, withDescription = false))
 
-        fun isShareSupported(manga: Manga): Boolean = when {
+        fun isShareSupported(manga: Content): Boolean = when {
             manga.isBroken -> false
             manga.isLocal -> manga.url.toUriOrNull()?.toFileOrNull() != null
             else -> true
         }
 
-        fun shortMangaUrl(mangaId: Long): Uri = Uri.Builder()
+        fun shortContentUrl(mangaId: Long): Uri = Uri.Builder()
             .scheme("kototoro")
             .path("manga")
             .appendQueryParameter("id", mangaId.toString())

@@ -16,8 +16,8 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.core.util.ext.observeChanges
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.io.File
 import javax.inject.Inject
 
@@ -26,14 +26,14 @@ class SavedFiltersRepository @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
 
-    fun observeAll(source: MangaSource): Flow<List<PersistableFilter>> = getPrefs(source).observeChanges()
+    fun observeAll(source: ContentSource): Flow<List<PersistableFilter>> = getPrefs(source).observeChanges()
         .onStart { emit(null) }
         .map {
             getAll(source)
         }.distinctUntilChanged()
         .flowOn(Dispatchers.Default)
 
-    suspend fun getAll(source: MangaSource): List<PersistableFilter> = withContext(Dispatchers.Default) {
+    suspend fun getAll(source: ContentSource): List<PersistableFilter> = withContext(Dispatchers.Default) {
         val prefs = getPrefs(source)
         val keys = prefs.all.keys.filter { it.startsWith(FILTER_PREFIX) }
         keys.mapNotNull { key ->
@@ -48,9 +48,9 @@ class SavedFiltersRepository @Inject constructor(
     }
 
     suspend fun save(
-        source: MangaSource,
+        source: ContentSource,
         name: String,
-        filter: MangaListFilter,
+        filter: ContentListFilter,
     ): PersistableFilter = withContext(Dispatchers.Default) {
         val persistableFilter = PersistableFilter(
             name = name,
@@ -67,7 +67,7 @@ class SavedFiltersRepository @Inject constructor(
         persist(filter)
     }
 
-    suspend fun rename(source: MangaSource, id: Int, newName: String) = withContext(Dispatchers.Default) {
+    suspend fun rename(source: ContentSource, id: Int, newName: String) = withContext(Dispatchers.Default) {
         val filter = load(source, id) ?: return@withContext
         val newFilter = filter.copy(name = newName)
         val prefs = getPrefs(source)
@@ -78,7 +78,7 @@ class SavedFiltersRepository @Inject constructor(
         newFilter
     }
 
-    suspend fun delete(source: MangaSource, id: Int) = withContext(Dispatchers.Default) {
+    suspend fun delete(source: ContentSource, id: Int) = withContext(Dispatchers.Default) {
         val prefs = getPrefs(source)
         prefs.edit(commit = true) {
             remove(key(id))
@@ -93,7 +93,7 @@ class SavedFiltersRepository @Inject constructor(
         }
     }
 
-    private fun load(source: MangaSource, id: Int): PersistableFilter? {
+    private fun load(source: ContentSource, id: Int): PersistableFilter? {
         val prefs = getPrefs(source)
         val json = prefs.getString(key(id), null) ?: return null
         return try {
@@ -104,7 +104,7 @@ class SavedFiltersRepository @Inject constructor(
         }
     }
 
-    private fun getPrefs(source: MangaSource): SharedPreferences {
+    private fun getPrefs(source: ContentSource): SharedPreferences {
         val key = source.name.replace(File.separatorChar, '$')
         return context.getSharedPreferences(key, Context.MODE_PRIVATE)
     }

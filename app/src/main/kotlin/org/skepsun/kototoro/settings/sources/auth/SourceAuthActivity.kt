@@ -18,22 +18,22 @@ import org.skepsun.kototoro.browser.BrowserCallback
 import org.skepsun.kototoro.browser.BrowserClient
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
-import org.skepsun.kototoro.parsers.MangaParserAuthProvider
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.ContentParserAuthProvider
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 
 @AndroidEntryPoint
 class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {
 
-	private lateinit var authProvider: MangaParserAuthProvider
+	private lateinit var authProvider: ContentParserAuthProvider
 
 	private var authCheckJob: Job? = null
 	private var lastUsernameVerifyUptimeMs: Long = 0L
 
-	override fun onCreate2(savedInstanceState: Bundle?, source: MangaSource, repository: ParserMangaRepository?) {
+	override fun onCreate2(savedInstanceState: Bundle?, source: ContentSource, repository: ParserContentRepository?) {
 		if (repository == null) {
 			finishAfterTransition()
 			return
@@ -114,9 +114,9 @@ class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {
 		}
 	}
 
-	class Contract : ActivityResultContract<MangaSource, Boolean>() {
+	class Contract : ActivityResultContract<ContentSource, Boolean>() {
 
-		override fun createIntent(context: Context, input: MangaSource) = AppRouter.sourceAuthIntent(context, input)
+		override fun createIntent(context: Context, input: ContentSource) = AppRouter.sourceAuthIntent(context, input)
 
 		override fun parseResult(resultCode: Int, intent: Intent?) = resultCode == RESULT_OK
 	}

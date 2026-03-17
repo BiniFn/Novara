@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.core.exceptions
 
 import okio.IOException
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 abstract class CloudFlareException(
 	message: String,
@@ -10,5 +10,5 @@ abstract class CloudFlareException(
 
 	abstract val url: String
 
-	abstract val source: MangaSource
+	abstract val source: ContentSource
 }

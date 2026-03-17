@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.resolveSp
-import org.skepsun.kototoro.core.image.MangaSourceHeaderInterceptor
+import org.skepsun.kototoro.core.image.ContentSourceHeaderInterceptor
 import org.skepsun.kototoro.local.epub.EpubImageExtractor
 import java.io.File
 import javax.inject.Inject

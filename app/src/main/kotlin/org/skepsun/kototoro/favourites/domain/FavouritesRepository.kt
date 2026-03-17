@@ -13,20 +13,20 @@ import org.skepsun.kototoro.core.db.TABLE_FAVOURITES
 import org.skepsun.kototoro.core.db.TABLE_FAVOURITE_CATEGORIES
 import org.skepsun.kototoro.core.db.entity.toEntities
 import org.skepsun.kototoro.core.db.entity.toEntity
-import org.skepsun.kototoro.core.db.entity.toMangaList
+import org.skepsun.kototoro.core.db.entity.toContentList
 import org.skepsun.kototoro.core.model.FavouriteCategory
-import org.skepsun.kototoro.core.model.toMangaSources
+import org.skepsun.kototoro.core.model.toContentSources
 import org.skepsun.kototoro.core.ui.util.ReversibleHandle
 import org.skepsun.kototoro.core.util.ext.mapItems
 import org.skepsun.kototoro.favourites.data.FavouriteCategoryEntity
 import org.skepsun.kototoro.favourites.data.FavouriteEntity
 import org.skepsun.kototoro.favourites.data.toFavouriteCategory
-import org.skepsun.kototoro.favourites.data.toMangaList
+import org.skepsun.kototoro.favourites.data.toContentList
 import org.skepsun.kototoro.favourites.domain.model.Cover
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.search.domain.SearchKind
 import javax.inject.Inject
@@ -37,17 +37,17 @@ class FavouritesRepository @Inject constructor(
 	private val localObserver: LocalFavoritesObserver,
 ) {
 
-	suspend fun getAllManga(): List<Manga> {
+	suspend fun getAllContent(): List<Content> {
 		val entities = db.getFavouritesDao().findAll()
-		return entities.toMangaList()
+		return entities.toContentList()
 	}
 
-	suspend fun getLastManga(limit: Int): List<Manga> {
+	suspend fun getLastContent(limit: Int): List<Content> {
 		val entities = db.getFavouritesDao().findLast(limit)
-		return entities.toMangaList()
+		return entities.toContentList()
 	}
 
-	suspend fun search(query: String, kind: SearchKind, limit: Int): List<Manga> {
+	suspend fun search(query: String, kind: SearchKind, limit: Int): List<Content> {
 		val dao = db.getFavouritesDao()
 		val q = "%$query%"
 		val entities = when (kind) {
@@ -57,20 +57,20 @@ class FavouritesRepository @Inject constructor(
 			SearchKind.AUTHOR -> dao.searchByAuthor(q, limit)
 			SearchKind.TAG -> dao.searchByTag(q, limit)
 		}
-		return entities.toMangaList()
+		return entities.toContentList()
 	}
 
-	fun observeAll(order: ListSortOrder, filterOptions: Set<ListFilterOption>, limit: Int): Flow<List<Manga>> {
+	fun observeAll(order: ListSortOrder, filterOptions: Set<ListFilterOption>, limit: Int): Flow<List<Content>> {
 		if (ListFilterOption.Downloaded in filterOptions) {
 			return localObserver.observeAll(order, filterOptions, limit)
 		}
 		return db.getFavouritesDao().observeAll(order, filterOptions, limit)
-			.map { it.toMangaList() }
+			.map { it.toContentList() }
 	}
 
-	suspend fun getManga(categoryId: Long): List<Manga> {
+	suspend fun getContent(categoryId: Long): List<Content> {
 		val entities = db.getFavouritesDao().findAll(categoryId)
-		return entities.toMangaList()
+		return entities.toContentList()
 	}
 
 	fun observeAll(
@@ -78,21 +78,21 @@ class FavouritesRepository @Inject constructor(
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
 		limit: Int
-	): Flow<List<Manga>> {
+	): Flow<List<Content>> {
 		if (ListFilterOption.Downloaded in filterOptions) {
 			return localObserver.observeAll(categoryId, order, filterOptions, limit)
 		}
 		return db.getFavouritesDao().observeAll(categoryId, order, filterOptions, limit)
-			.map { it.toMangaList() }
+			.map { it.toContentList() }
 	}
 
-	fun observeAll(categoryId: Long, filterOptions: Set<ListFilterOption>, limit: Int): Flow<List<Manga>> {
+	fun observeAll(categoryId: Long, filterOptions: Set<ListFilterOption>, limit: Int): Flow<List<Content>> {
 		return observeOrder(categoryId)
 			.flatMapLatest { order -> observeAll(categoryId, order, filterOptions, limit) }
 	}
 
-	fun observeMangaCount(): Flow<Int> {
-		return db.getFavouritesDao().observeMangaCount()
+	fun observeContentCount(): Flow<Int> {
+		return db.getFavouritesDao().observeContentCount()
 			.distinctUntilChanged()
 	}
 
@@ -166,14 +166,14 @@ class FavouritesRepository @Inject constructor(
 		return db.getFavouritesDao().findCategoriesIds(mangaId).toSet()
 	}
 
-	suspend fun findPopularSources(categoryId: Long, limit: Int): List<MangaSource> {
+	suspend fun findPopularSources(categoryId: Long, limit: Int): List<ContentSource> {
 		return db.getFavouritesDao().run {
 			if (categoryId == 0L) {
 				findPopularSources(limit)
 			} else {
 				findPopularSources(categoryId, limit)
 			}
-		}.toMangaSources()
+		}.toContentSources()
 	}
 
 	suspend fun createCategory(
@@ -238,7 +238,7 @@ class FavouritesRepository @Inject constructor(
 		}
 	}
 
-	suspend fun addToCategory(categoryId: Long, mangas: Collection<Manga>) {
+	suspend fun addToCategory(categoryId: Long, mangas: Collection<Content>) {
 		db.withTransaction {
 			val currentTime = System.currentTimeMillis()
 			for (manga in mangas) {

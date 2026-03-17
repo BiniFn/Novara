@@ -1,8 +1,8 @@
 package org.skepsun.kototoro.details.domain
 
-import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.core.model.ContentHistory
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.data.ReadingTime
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.stats.data.StatsRepository
@@ -15,7 +15,7 @@ class ReadingTimeUseCase @Inject constructor(
 	private val statsRepository: StatsRepository,
 ) {
 
-	suspend operator fun invoke(manga: MangaDetails?, branch: String?, history: MangaHistory?): ReadingTime? {
+	suspend operator fun invoke(manga: ContentDetails?, branch: String?, history: ContentHistory?): ReadingTime? {
 		if (!settings.isReadingTimeEstimationEnabled) {
 			return null
 		}

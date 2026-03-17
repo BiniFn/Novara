@@ -14,10 +14,10 @@ import org.skepsun.kototoro.core.util.ext.mapSortedByCount
 import org.skepsun.kototoro.core.util.ext.sortedWithSafe
 import org.skepsun.kototoro.core.util.ext.toList
 import org.skepsun.kototoro.core.util.ext.toLocale
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.util.mapToSet
@@ -26,12 +26,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class WelcomeViewModel @Inject constructor(
-	private val repository: MangaSourcesRepository,
+	private val repository: ContentSourcesRepository,
 	private val settings: AppSettings,
 	@LocalizedAppContext context: Context,
 ) : BaseViewModel() {
 
-private val allSources = repository.allMangaSources
+private val allSources = repository.allContentSources
 private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Locale.ROOT } }
 
 	private var updateJob: Job

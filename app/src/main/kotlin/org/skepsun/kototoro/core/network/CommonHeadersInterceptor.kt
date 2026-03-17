@@ -9,13 +9,13 @@ import okhttp3.Request
 import okhttp3.Response
 import okio.IOException
 import org.skepsun.kototoro.BuildConfig
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.core.parser.MangaLoaderContextImpl
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.parser.ContentLoaderContextImpl
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.mergeWith
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.net.IDN
@@ -24,14 +24,14 @@ import javax.inject.Singleton
 
 @Singleton
 class CommonHeadersInterceptor @Inject constructor(
-	private val mangaRepositoryFactoryLazy: Lazy<MangaRepository.Factory>,
-	private val mangaLoaderContextLazy: Lazy<MangaLoaderContextImpl>,
+	private val mangaRepositoryFactoryLazy: Lazy<ContentRepository.Factory>,
+	private val mangaLoaderContextLazy: Lazy<ContentLoaderContextImpl>,
 ) : Interceptor {
 
 	override fun intercept(chain: Chain): Response {
 		val request = chain.request()
-		val source = request.tag(MangaSource::class.java)
-			?: request.headers[CommonHeaders.MANGA_SOURCE]?.let { MangaSource(it) }
+		val source = request.tag(ContentSource::class.java)
+			?: request.headers[CommonHeaders.MANGA_SOURCE]?.let { ContentSource(it) }
 		val repository = if (source != null) {
 			mangaRepositoryFactoryLazy.get().create(source)
 		} else {
@@ -58,7 +58,7 @@ class CommonHeadersInterceptor @Inject constructor(
 		// Add Referer header upfront if not already set (like Kotatsu does)
 		if (headersBuilder[CommonHeaders.REFERER] == null && repository != null) {
 			val domain = when (repository) {
-				is ParserMangaRepository -> repository.domain
+				is ParserContentRepository -> repository.domain
 				is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository -> {
 					// Get domain from the underlying Kotatsu parser
 					runCatching { 

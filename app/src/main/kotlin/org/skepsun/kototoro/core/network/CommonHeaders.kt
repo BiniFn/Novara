@@ -18,7 +18,7 @@ object CommonHeaders {
 	const val RETRY_AFTER = "Retry-After"
 	const val LAST_MODIFIED = "Last-Modified"
 	const val IF_MODIFIED_SINCE = "If-Modified-Since"
-	const val MANGA_SOURCE = "X-Manga-Source"
+	const val MANGA_SOURCE = "X-Content-Source"
 	const val ICY_METADATA = "Icy-MetaData"
 
 	val CACHE_CONTROL_NO_STORE: CacheControl

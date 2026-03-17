@@ -30,7 +30,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
 import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
@@ -39,7 +39,7 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.PageCache
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.reader.translate.data.ReaderTranslationTextCache
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
@@ -71,7 +71,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val settings: AppSettings,
 	@PageCache private val cache: LocalStorageCache,
 	private val textCache: ReaderTranslationTextCache,
-	@MangaHttpClient
+	@ContentHttpClient
 	private val okHttpClient: OkHttpClient,
 	private val mlKitOcrEngine: MlKitReaderOcrEngine,
 	private val paddleOcrEngine: PaddleReaderOcrEngine,
@@ -120,7 +120,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		log { "translation page cache cleared page=$pageId" }
 	}
 
-	suspend fun peekRendered(page: MangaPage, sourceUri: Uri): Uri? {
+	suspend fun peekRendered(page: ContentPage, sourceUri: Uri): Uri? {
 		if (!settings.isReaderTranslationEnabled) {
 			return null
 		}
@@ -146,7 +146,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return renderedSourceMap[renderedUri.toString()]?.toUri()
 	}
 
-	suspend fun process(page: MangaPage, sourceUri: Uri): Uri {
+	suspend fun process(page: ContentPage, sourceUri: Uri): Uri {
 		val enabled = settings.isReaderTranslationEnabled
 		val showTranslated = settings.isReaderTranslationShowTranslated
 		Log.d(LOG_TAG, "process debug: page=${page.id} enabled=$enabled showTranslated=$showTranslated")

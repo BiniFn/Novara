@@ -1,11 +1,11 @@
 package org.skepsun.kototoro.tracker.ui.debug
 
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.time.Instant
 
 data class TrackDebugItem(
-	val manga: Manga,
+	val manga: Content,
 	val lastChapterId: Long,
 	val newChapters: Int,
 	val lastCheckTime: Instant?,

@@ -120,8 +120,8 @@ class LegacyEpubMigrationImpl @Inject constructor(
             // Get all history entries
             val historyEntries = historyDao.findAll(0, Int.MAX_VALUE)
             
-            for (historyWithManga in historyEntries) {
-                val history = historyWithManga.history
+            for (historyWithContent in historyEntries) {
+                val history = historyWithContent.history
                 val oldChapterId = history.chapterId
                 
                 // Try to find mapping for this chapter ID

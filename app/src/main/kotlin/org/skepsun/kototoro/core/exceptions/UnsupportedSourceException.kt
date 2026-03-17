@@ -1,8 +1,8 @@
 package org.skepsun.kototoro.core.exceptions
 
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 
 class UnsupportedSourceException(
 	message: String?,
-	val manga: Manga?,
+	val manga: Content?,
 ) : IllegalArgumentException(message)

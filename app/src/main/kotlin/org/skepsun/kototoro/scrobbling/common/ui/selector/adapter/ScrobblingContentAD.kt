@@ -4,14 +4,14 @@ import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.util.ext.textAndVisible
-import org.skepsun.kototoro.databinding.ItemMangaListBinding
+import org.skepsun.kototoro.databinding.ItemContentListBinding
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 
-fun scrobblingMangaAD(
-	clickListener: OnListItemClickListener<ScrobblerManga>,
-) = adapterDelegateViewBinding<ScrobblerManga, ListModel, ItemMangaListBinding>(
-	{ inflater, parent -> ItemMangaListBinding.inflate(inflater, parent, false) },
+fun scrobblingContentAD(
+	clickListener: OnListItemClickListener<ScrobblerContent>,
+) = adapterDelegateViewBinding<ScrobblerContent, ListModel, ItemContentListBinding>(
+	{ inflater, parent -> ItemContentListBinding.inflate(inflater, parent, false) },
 ) {
 	itemView.setOnClickListener {
 		clickListener.onItemClick(item, it)

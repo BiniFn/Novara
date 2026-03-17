@@ -4,14 +4,14 @@ import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.list.domain.ContentListQuickFilter
 import javax.inject.Inject
 
 class HistoryListQuickFilter @Inject constructor(
 	private val settings: AppSettings,
 	private val repository: HistoryRepository,
 	networkState: NetworkState,
-) : MangaListQuickFilter(settings) {
+) : ContentListQuickFilter(settings) {
 
 	init {
 		setFilterOption(ListFilterOption.Downloaded, !networkState.value)

@@ -7,11 +7,11 @@ import org.skepsun.kototoro.core.db.entity.toEntity
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.unwrap
-import org.skepsun.kototoro.core.parser.external.ExternalMangaSource
+import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 
 sealed interface ListFilterOption {
 
@@ -76,7 +76,7 @@ sealed interface ListFilterOption {
 	}
 
 	data class Tag(
-		val tag: MangaTag
+		val tag: ContentTag
 	) : ListFilterOption {
 
 		val tagId: Long = tag.toEntity().id
@@ -112,11 +112,11 @@ sealed interface ListFilterOption {
 	}
 
 	data class Source(
-		val mangaSource: MangaSource
+		val mangaSource: ContentSource
 	) : ListFilterOption {
 		override val titleResId: Int
 			get() = when (mangaSource.unwrap()) {
-				is ExternalMangaSource -> R.string.external_source
+				is ExternalContentSource -> R.string.external_source
 				LocalMangaSource -> R.string.local_storage
 				else -> 0
 			}
@@ -126,7 +126,7 @@ sealed interface ListFilterOption {
 
 		override val titleText: CharSequence?
 			get() = when (val source = mangaSource.unwrap()) {
-				is MangaParserSource -> source.title
+				is ContentParserSource -> source.title
 				else -> null
 			}
 

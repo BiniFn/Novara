@@ -5,10 +5,10 @@ import androidx.annotation.CheckResult
 import dagger.hilt.android.scopes.ViewModelScoped
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.details.data.MangaDetails
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.details.data.ContentDetails
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import javax.inject.Inject
 
@@ -16,26 +16,26 @@ private const val PAGES_TRIM_THRESHOLD = 120
 
 @ViewModelScoped
 class ChaptersLoader @Inject constructor(
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	private val chapters = LongSparseArray<MangaChapter>()
+	private val chapters = LongSparseArray<ContentChapter>()
 	private val chapterPages = ChapterPages()
 	private val mutex = Mutex()
 
 	val size: Int
 		get() = chapters.size()
 
-	suspend fun init(manga: MangaDetails) = mutex.withLock {
+	suspend fun init(manga: ContentDetails) = mutex.withLock {
 		chapters.clear()
 		manga.allChapters.forEach {
 			chapters.put(it.id, it)
 		}
 	}
 
-	suspend fun loadPrevNextChapter(manga: MangaDetails, currentId: Long, isNext: Boolean): Boolean {
+	suspend fun loadPrevNextChapter(manga: ContentDetails, currentId: Long, isNext: Boolean): Boolean {
 		val chapters = manga.allChapters
-		val predicate: (MangaChapter) -> Boolean = { it.id == currentId }
+		val predicate: (ContentChapter) -> Boolean = { it.id == currentId }
 		val index = if (isNext) chapters.indexOfFirst(predicate) else chapters.indexOfLast(predicate)
 		if (index == -1) return false
 		val newChapter = chapters.getOrNull(if (isNext) index + 1 else index - 1) ?: return false
@@ -70,14 +70,14 @@ class ChaptersLoader @Inject constructor(
 		}
 	}
 
-	fun peekChapter(chapterId: Long): MangaChapter? = chapters[chapterId]
+	fun peekChapter(chapterId: Long): ContentChapter? = chapters[chapterId]
 
 	fun hasPages(chapterId: Long): Boolean {
 		return chapterId in chapterPages
 	}
 
-	fun getPages(chapterId: Long): List<MangaPage> = synchronized(chapterPages) {
-		return chapterPages.subList(chapterId).map { it.toMangaPage() }
+	fun getPages(chapterId: Long): List<ContentPage> = synchronized(chapterPages) {
+		return chapterPages.subList(chapterId).map { it.toContentPage() }
 	}
 
 	fun getPagesCount(chapterId: Long): Int {

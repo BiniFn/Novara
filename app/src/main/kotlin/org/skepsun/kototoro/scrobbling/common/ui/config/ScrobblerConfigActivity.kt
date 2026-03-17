@@ -30,7 +30,7 @@ import org.skepsun.kototoro.databinding.ActivityScrobblerConfigBinding
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
-import org.skepsun.kototoro.scrobbling.common.ui.config.adapter.ScrobblingMangaAdapter
+import org.skepsun.kototoro.scrobbling.common.ui.config.adapter.ScrobblingContentAdapter
 import androidx.appcompat.R as appcompatR
 
 @AndroidEntryPoint
@@ -40,17 +40,17 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 	private val viewModel: ScrobblerConfigViewModel by viewModels()
 	private var pendingBindInfo: ScrobblingInfo? = null
 
-	private val pickMangaLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
-		android.util.Log.d("ScrobblerConfig", "pickMangaLauncher: resultCode=${result.resultCode}, hasData=${result.data != null}")
+	private val pickContentLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+		android.util.Log.d("ScrobblerConfig", "pickContentLauncher: resultCode=${result.resultCode}, hasData=${result.data != null}")
 		if (result.resultCode == android.app.Activity.RESULT_OK) {
-			val manga = result.data?.getParcelableExtraCompat<org.skepsun.kototoro.core.model.parcelable.ParcelableManga>(AppRouter.KEY_MANGA)?.manga
+			val manga = result.data?.getParcelableExtraCompat<org.skepsun.kototoro.core.model.parcelable.ParcelableContent>(AppRouter.KEY_MANGA)?.manga
 			val scrobblingInfo = pendingBindInfo
-			android.util.Log.d("ScrobblerConfig", "pickMangaLauncher: manga=${manga?.title}, scrobblingInfo=${scrobblingInfo?.title}")
+			android.util.Log.d("ScrobblerConfig", "pickContentLauncher: manga=${manga?.title}, scrobblingInfo=${scrobblingInfo?.title}")
 			if (manga != null && scrobblingInfo != null) {
 				pendingBindInfo = null
-				viewModel.bindManga(scrobblingInfo, manga)
+				viewModel.bindContent(scrobblingInfo, manga)
 			} else {
-				android.util.Log.w("ScrobblerConfig", "pickMangaLauncher: manga or scrobblingInfo is null!")
+				android.util.Log.w("ScrobblerConfig", "pickContentLauncher: manga or scrobblingInfo is null!")
 			}
 		}
 	}
@@ -61,7 +61,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 		setTitle(viewModel.titleResId)
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 
-		val listAdapter = ScrobblingMangaAdapter(this)
+		val listAdapter = ScrobblingContentAdapter(this)
 		with(viewBinding.recyclerView) {
 			adapter = listAdapter
 			setHasFixedSize(true)
@@ -123,7 +123,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 	override fun onItemClick(item: ScrobblingInfo, view: View) {
 		lifecycleScope.launch {
 			val hasLocal = withContext(Dispatchers.Default) {
-				viewModel.hasLocalManga(item.mangaId)
+				viewModel.hasLocalContent(item.mangaId)
 			}
 			if (hasLocal) {
 				router.openDetails(item.mangaId)
@@ -172,7 +172,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 					contentKinds = contentKinds,
 					pickMode = true
 				)
-				pickMangaLauncher.launch(intent)
+				pickContentLauncher.launch(intent)
 			}.show()
 	}
 

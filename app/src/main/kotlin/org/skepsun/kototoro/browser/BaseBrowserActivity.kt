@@ -6,18 +6,18 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import dagger.hilt.android.AndroidEntryPoint
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.proxy.ProxyProvider
 import org.skepsun.kototoro.core.network.webview.adblock.AdBlock
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.util.ext.configureForParser
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.databinding.ActivityBrowserBinding
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import javax.inject.Inject
 
@@ -28,7 +28,7 @@ abstract class BaseBrowserActivity : BaseActivity<ActivityBrowserBinding>(), Bro
 	lateinit var proxyProvider: ProxyProvider
 
 	@Inject
-	lateinit var mangaRepositoryFactory: MangaRepository.Factory
+	lateinit var mangaRepositoryFactory: ContentRepository.Factory
 
 	@Inject
 	lateinit var adBlock: AdBlock
@@ -44,8 +44,8 @@ abstract class BaseBrowserActivity : BaseActivity<ActivityBrowserBinding>(), Bro
 		onBackPressedCallback = WebViewBackPressedCallback(viewBinding.webView)
 		onBackPressedDispatcher.addCallback(onBackPressedCallback)
 
-		val mangaSource = MangaSource(intent?.getStringExtra(AppRouter.KEY_SOURCE))
-		val repository = mangaRepositoryFactory.create(mangaSource) as? ParserMangaRepository
+		val mangaSource = ContentSource(intent?.getStringExtra(AppRouter.KEY_SOURCE))
+		val repository = mangaRepositoryFactory.create(mangaSource) as? ParserContentRepository
 		val userAgent = intent?.getStringExtra(AppRouter.KEY_USER_AGENT)?.nullIfEmpty()
 			?: repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
 		viewBinding.webView.configureForParser(userAgent)
@@ -55,8 +55,8 @@ abstract class BaseBrowserActivity : BaseActivity<ActivityBrowserBinding>(), Bro
 
 	protected abstract fun onCreate2(
 		savedInstanceState: Bundle?,
-		source: MangaSource,
-		repository: ParserMangaRepository?
+		source: ContentSource,
+		repository: ParserContentRepository?
 	)
 
 	override fun onApplyWindowInsets(

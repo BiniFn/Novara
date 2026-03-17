@@ -3,27 +3,27 @@ package org.skepsun.kototoro.details.data
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.withOverride
-import org.skepsun.kototoro.core.ui.model.MangaOverride
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.core.ui.model.ContentOverride
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.reader.data.filterChapters
 import java.util.Locale
 
-data class MangaDetails(
-    private val manga: Manga,
-    private val localManga: LocalManga?,
-    private val override: MangaOverride?,
+data class ContentDetails(
+    private val manga: Content,
+    private val localContent: LocalContent?,
+    private val override: ContentOverride?,
     val description: CharSequence?,
     val isLoaded: Boolean,
 ) {
 
-    constructor(manga: Manga) : this(
+    constructor(manga: Content) : this(
         manga = manga,
-        localManga = null,
+        localContent = null,
         override = null,
         description = null,
         isLoaded = false,
@@ -32,30 +32,30 @@ data class MangaDetails(
     val id: Long
         get() = manga.id
 
-    val allChapters: List<MangaChapter> by lazy { mergeChapters() }
+    val allChapters: List<ContentChapter> by lazy { mergeChapters() }
 
-    val chapters: Map<String?, List<MangaChapter>> by lazy {
+    val chapters: Map<String?, List<ContentChapter>> by lazy {
         allChapters.groupBy { it.branch }
     }
 
     val isLocal
         get() = manga.isLocal
 
-    val local: LocalManga?
-        get() = localManga ?: if (manga.isLocal) LocalManga(manga) else null
+    val local: LocalContent?
+        get() = localContent ?: if (manga.isLocal) LocalContent(manga) else null
 
     val coverUrl: String?
         get() = override?.coverUrl
             .ifNullOrEmpty { manga.largeCoverUrl }
             .ifNullOrEmpty { manga.coverUrl }
-            .ifNullOrEmpty { localManga?.manga?.coverUrl }
+            .ifNullOrEmpty { localContent?.manga?.coverUrl }
             ?.nullIfEmpty()
 
     val isRestricted: Boolean
-        get() = manga.state == MangaState.RESTRICTED
+        get() = manga.state == ContentState.RESTRICTED
 
-    private val mergedManga by lazy {
-        if (localManga == null) {
+    private val mergedContent by lazy {
+        if (localContent == null) {
             // 对于非本地漫画，也需要包含 chapters 信息
             manga.withOverride(override).copy(
                 chapters = allChapters,
@@ -71,7 +71,7 @@ data class MangaDetails(
         }
     }
 
-    fun toManga() = mergedManga
+    fun toContent() = mergedContent
 
     fun getLocale(): Locale? {
         findAppropriateLocale(chapters.keys.singleOrNull())?.let {
@@ -82,12 +82,12 @@ data class MangaDetails(
 
     fun filterChapters(branch: String?) = copy(
         manga = manga.filterChapters(branch),
-        localManga = localManga?.run {
+        localContent = localContent?.run {
             copy(manga = manga.filterChapters(branch))
         },
     )
 
-    private fun mergeChapters(): List<MangaChapter> {
+    private fun mergeChapters(): List<ContentChapter> {
         val chapters = manga.chapters
         val localChapters = local?.manga?.chapters.orEmpty()
         if (chapters.isNullOrEmpty()) {
@@ -98,7 +98,7 @@ data class MangaDetails(
         } else {
             null
         }
-        val result = ArrayList<MangaChapter>(chapters.size)
+        val result = ArrayList<ContentChapter>(chapters.size)
         for (chapter in chapters) {
             val local = localMap?.remove(chapter.id)
             result += local ?: chapter

@@ -8,7 +8,7 @@ import okhttp3.OkHttpClient
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.network.SniBypassSSLSocketFactory
 import org.skepsun.kototoro.core.network.CloudFlareInterceptor
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import java.net.CookieManager
 import java.net.CookiePolicy
 import java.security.SecureRandom
@@ -56,7 +56,7 @@ object JsonSourceNetworkModule {
     @Singleton
     @JsonSourceHttpClient
     fun provideJsonSourceHttpClient(
-        @MangaHttpClient baseClient: OkHttpClient,
+        @ContentHttpClient baseClient: OkHttpClient,
         userAgentInterceptor: UserAgentInterceptor,
         rateLimitInterceptor: JsonSourceRateLimitInterceptor,
         loggingInterceptor: JsonSourceLoggingInterceptor,

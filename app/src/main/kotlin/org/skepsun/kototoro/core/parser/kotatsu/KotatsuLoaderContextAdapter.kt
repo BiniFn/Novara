@@ -5,16 +5,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.koitharu.kotatsu.parsers.MangaLoaderContext as KTMangaLoaderContext
 import org.koitharu.kotatsu.parsers.bitmap.Bitmap as KTBitmap
-import org.koitharu.kotatsu.parsers.model.MangaSource as KTMangaSource
-import org.skepsun.kototoro.parsers.MangaLoaderContext
-import org.skepsun.kototoro.parsers.config.MangaSourceConfig
+import org.koitharu.kotatsu.parsers.model.MangaSource as KTContentSource
+import org.skepsun.kototoro.parsers.ContentLoaderContext
+import org.skepsun.kototoro.parsers.config.ContentSourceConfig
 import java.util.Locale
 
 /**
- * 将 Kototoro 的 MangaLoaderContext 适配到 kotatsu。
+ * 将 Kototoro 的 ContentLoaderContext 适配到 kotatsu。
  */
 internal class KotatsuLoaderContextAdapter(
-	private val delegate: MangaLoaderContext,
+	private val delegate: ContentLoaderContext,
 ) : KTMangaLoaderContext() {
 
 	override val httpClient: OkHttpClient
@@ -31,7 +31,7 @@ internal class KotatsuLoaderContextAdapter(
 		throw UnsupportedOperationException("Browser action is not supported in Kotatsu adapter")
 	}
 
-	override fun getConfig(source: KTMangaSource): org.koitharu.kotatsu.parsers.config.MangaSourceConfig =
+	override fun getConfig(source: KTContentSource): org.koitharu.kotatsu.parsers.config.MangaSourceConfig =
 		KotatsuConfigAdapter(delegate.getConfig(KotatsuParserSource(source as org.koitharu.kotatsu.parsers.model.MangaParserSource)))
 
 	override fun getDefaultUserAgent(): String = delegate.getDefaultUserAgent()

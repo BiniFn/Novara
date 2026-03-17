@@ -16,7 +16,7 @@ import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
 import android.content.Intent
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
@@ -30,14 +30,14 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.databinding.ActivitySearchBinding
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
-import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.ContentSelectionDecoration
+import org.skepsun.kototoro.list.ui.adapter.ContentListListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.ui.multi.adapter.SearchAdapter
 import javax.inject.Inject
@@ -45,7 +45,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class SearchActivity :
 	BaseActivity<ActivitySearchBinding>(),
-	MangaListListener,
+	ContentListListener,
 	ListSelectionController.Callback {
 
 	@Inject
@@ -79,7 +79,7 @@ class SearchActivity :
 			}
 		}
 		val sizeResolver = DynamicItemSizeResolver(resources, this, settings, adjustWidth = true)
-		val selectionDecoration = MangaSelectionDecoration(this)
+		val selectionDecoration = ContentSelectionDecoration(this)
 		selectionController = ListSelectionController(
 			appCompatDelegate = delegate,
 			decoration = selectionDecoration,
@@ -144,11 +144,11 @@ class SearchActivity :
 		return insets.consumeAllSystemBarsInsets()
 	}
 
-	override fun onItemClick(item: MangaListModel, view: View) {
+	override fun onItemClick(item: ContentListModel, view: View) {
 		if (!selectionController.onItemClick(item.id)) {
-			val manga = item.toMangaWithOverride()
+			val manga = item.toContentWithOverride()
 			if (isPickMode) {
-				setResult(RESULT_OK, Intent().putExtra(AppRouter.KEY_MANGA, ParcelableManga(manga)))
+				setResult(RESULT_OK, Intent().putExtra(AppRouter.KEY_MANGA, ParcelableContent(manga)))
 				finish()
 			} else {
 				router.openDetails(manga)
@@ -156,21 +156,21 @@ class SearchActivity :
 		}
 	}
 
-	override fun onItemLongClick(item: MangaListModel, view: View): Boolean {
+	override fun onItemLongClick(item: ContentListModel, view: View): Boolean {
 		return selectionController.onItemLongClick(view, item.id)
 	}
 
-	override fun onItemContextClick(item: MangaListModel, view: View): Boolean {
+	override fun onItemContextClick(item: ContentListModel, view: View): Boolean {
 		return selectionController.onItemContextClick(view, item.id)
 	}
 
-	override fun onReadClick(manga: Manga, view: View) {
+	override fun onReadClick(manga: Content, view: View) {
 		if (!selectionController.onItemClick(manga.id)) {
 			router.openReader(manga)
 		}
 	}
 
-	override fun onTagClick(manga: Manga, tag: MangaTag, view: View) {
+	override fun onTagClick(manga: Content, tag: ContentTag, view: View) {
 		if (!selectionController.onItemClick(manga.id)) {
 			router.openList(tag)
 		}
@@ -210,7 +210,7 @@ class SearchActivity :
 	override fun onActionItemClicked(controller: ListSelectionController, mode: ActionMode?, item: MenuItem): Boolean {
 		return when (item.itemId) {
 			R.id.action_share -> {
-				ShareHelper(this).shareMangaLinks(collectSelectedItems())
+				ShareHelper(this).shareContentLinks(collectSelectedItems())
 				mode?.finish()
 				true
 			}
@@ -231,7 +231,7 @@ class SearchActivity :
 		}
 	}
 
-	private fun collectSelectedItems(): Set<Manga> {
+	private fun collectSelectedItems(): Set<Content> {
 		return viewModel.getItems(selectionController.peekCheckedIds())
 	}
 

@@ -36,14 +36,14 @@ import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingFooter
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.ui.selector.adapter.ScrobblerMangaSelectionDecoration
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.ui.selector.adapter.ScrobblerContentSelectionDecoration
 import org.skepsun.kototoro.scrobbling.common.ui.selector.adapter.ScrobblerSelectorAdapter
 
 @AndroidEntryPoint
 class ScrobblingSelectorSheet :
 	BaseAdaptiveSheet<SheetScrobblingSelectorBinding>(),
-	OnListItemClickListener<ScrobblerManga>,
+	OnListItemClickListener<ScrobblerContent>,
 	PaginationScrollListener.Callback,
 	View.OnClickListener,
 	MenuItem.OnActionExpandListener,
@@ -65,7 +65,7 @@ class ScrobblingSelectorSheet :
 		disableFitToContents()
 		val listAdapter = ScrobblerSelectorAdapter(this, this)
 		listAdapter.addListListener(this)
-		val decoration = ScrobblerMangaSelectionDecoration(binding.root.context)
+		val decoration = ScrobblerContentSelectionDecoration(binding.root.context)
 		with(binding.recyclerView) {
 			adapter = listAdapter
 			addItemDecoration(decoration)
@@ -128,7 +128,7 @@ class ScrobblingSelectorSheet :
 			val target = if (selectedId == NO_ID) {
 				0
 			} else {
-				currentList.indexOfFirst { it is ScrobblerManga && it.id == selectedId }.coerceAtLeast(0)
+				currentList.indexOfFirst { it is ScrobblerContent && it.id == selectedId }.coerceAtLeast(0)
 			}
 			rv.post(RecyclerViewScrollCallback(rv, target, if (target == 0) 0 else rv.height / 3))
 			paginationScrollListener?.postInvalidate(rv)
@@ -141,7 +141,7 @@ class ScrobblingSelectorSheet :
 		}
 	}
 
-	override fun onItemClick(item: ScrobblerManga, view: View) {
+	override fun onItemClick(item: ScrobblerContent, view: View) {
 		viewModel.selectItem(item.id)
 	}
 

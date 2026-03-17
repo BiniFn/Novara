@@ -5,7 +5,7 @@ import org.skepsun.kototoro.core.ui.BaseListAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
-import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.adapter.ContentListListener
 import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
 import org.skepsun.kototoro.list.ui.adapter.errorFooterAD
 import org.skepsun.kototoro.list.ui.adapter.errorStateListAD
@@ -18,7 +18,7 @@ import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 
 class FeedAdapter(
-	listener: MangaListListener,
+	listener: ContentListListener,
 	sizeResolver: ItemSizeResolver,
 	feedClickListener: OnListItemClickListener<FeedItem>,
 ) : BaseListAdapter<ListModel>(), FastScroller.SectionIndexer {
@@ -27,7 +27,7 @@ class FeedAdapter(
 		addDelegate(ListItemType.FEED, feedItemAD(feedClickListener))
 		addDelegate(
 			ListItemType.MANGA_NESTED_GROUP,
-			updatedMangaAD(
+			updatedContentAD(
 				sizeResolver = sizeResolver,
 				listener = listener,
 				headerClickListener = listener,

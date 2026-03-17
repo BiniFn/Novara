@@ -10,12 +10,12 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
-import org.skepsun.kototoro.list.ui.MangaListViewModel
-import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.list.ui.ContentListViewModel
+import org.skepsun.kototoro.parsers.model.ContentListFilter
 
-class MangaSearchMenuProvider(
+class ContentSearchMenuProvider(
 	private val filter: FilterCoordinator,
-	private val viewModel: MangaListViewModel,
+	private val viewModel: ContentListViewModel,
 ) : MenuProvider, MenuItem.OnActionExpandListener, SearchView.OnQueryTextListener {
 
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -37,7 +37,7 @@ class MangaSearchMenuProvider(
 	override fun onQueryTextSubmit(query: String?): Boolean {
 		val snapshot = filter.snapshot()
 		if (!query.isNullOrEmpty() && !filter.capabilities.isSearchWithFiltersSupported && snapshot.listFilter.hasNonSearchOptions()) {
-			filter.set(MangaListFilter(query = query))
+			filter.set(ContentListFilter(query = query))
 			viewModel.onActionDone.call(
 				ReversibleAction(R.string.filter_search_warning) { filter.set(snapshot.listFilter) },
 			)

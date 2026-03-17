@@ -8,7 +8,7 @@ import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 import org.skepsun.kototoro.parsers.util.mapToSet
 
 @Serializable
-class MangaBackup(
+class ContentBackup(
 	@SerialName("id") val id: Long,
 	@SerialName("title") val title: String,
 	@SerialName("alt_title") val altTitles: String? = null,

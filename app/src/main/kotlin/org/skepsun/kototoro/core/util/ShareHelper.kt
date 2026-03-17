@@ -8,7 +8,7 @@ import androidx.core.content.FileProvider
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.appUrl
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.io.File
 
 private const val TYPE_TEXT = "text/plain"
@@ -18,7 +18,7 @@ private const val TYPE_CBZ = "application/x-cbz"
 @Deprecated("")
 class ShareHelper(private val context: Context) {
 
-	fun shareMangaLink(manga: Manga) {
+	fun shareContentLink(manga: Content) {
 		val text = buildString {
 			append(manga.title)
 			append("\n \n")
@@ -33,12 +33,12 @@ class ShareHelper(private val context: Context) {
 			.startChooser()
 	}
 
-	fun shareMangaLinks(manga: Collection<Manga>) {
+	fun shareContentLinks(manga: Collection<Content>) {
 		if (manga.isEmpty()) {
 			return
 		}
 		if (manga.size == 1) {
-			shareMangaLink(manga.first())
+			shareContentLink(manga.first())
 			return
 		}
 		val text = manga.joinToString("\n \n") {

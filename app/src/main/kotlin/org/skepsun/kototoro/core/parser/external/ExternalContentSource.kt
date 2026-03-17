@@ -1,12 +1,12 @@
 package org.skepsun.kototoro.core.parser.external
 
 import android.content.Context
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
-data class ExternalMangaSource(
+data class ExternalContentSource(
 	val packageName: String,
 	val authority: String,
-) : MangaSource {
+) : ContentSource {
 
 	override val name: String
 		get() = "content:$packageName/$authority"

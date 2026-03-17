@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
-import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -25,21 +25,21 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.combine
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.explore.domain.ExploreRepository
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.explore.ui.model.ExploreButtons
 import org.skepsun.kototoro.explore.ui.model.SourceFilter
-import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
+import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.explore.ui.model.RecommendationsItem
 import org.skepsun.kototoro.list.ui.model.EmptyHint
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
-import org.skepsun.kototoro.list.ui.model.MangaCompactListModel
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import javax.inject.Inject
@@ -49,7 +49,7 @@ class ExploreViewModel @Inject constructor(
 	private val settings: AppSettings,
 	private val suggestionRepository: SuggestionRepository,
 	private val exploreRepository: ExploreRepository,
-	private val sourcesRepository: MangaSourcesRepository,
+	private val sourcesRepository: ContentSourcesRepository,
 	private val shortcutManager: AppShortcutManager,
 	private val sourceGroupManager: SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
@@ -72,7 +72,7 @@ class ExploreViewModel @Inject constructor(
 		valueProducer = { isSuggestionsEnabled },
 	)
 
-	val onOpenManga = MutableEventFlow<Manga>()
+	val onOpenContent = MutableEventFlow<Content>()
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val onShowSuggestionsTip = MutableEventFlow<Unit>()
 	
@@ -153,15 +153,15 @@ class ExploreViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			isRandomLoading.value = true
 			try {
-				val manga = exploreRepository.findRandomManga(tagsLimit = 8)
-				onOpenManga.call(manga)
+				val manga = exploreRepository.findRandomContent(tagsLimit = 8)
+				onOpenContent.call(manga)
 			} finally {
 				isRandomLoading.value = false
 			}
 		}
 	}
 
-	fun disableSources(sources: Collection<MangaSource>) {
+	fun disableSources(sources: Collection<ContentSource>) {
 		launchJob(Dispatchers.Default) {
 			val rollback = sourcesRepository.setSourcesEnabled(sources, isEnabled = false)
 			val message = if (sources.size == 1) R.string.source_disabled else R.string.sources_disabled
@@ -169,13 +169,13 @@ class ExploreViewModel @Inject constructor(
 		}
 	}
 
-	fun requestPinShortcut(source: MangaSource) {
+	fun requestPinShortcut(source: ContentSource) {
 		launchLoadingJob(Dispatchers.Default) {
 			shortcutManager.requestPinShortcut(source)
 		}
 	}
 
-	fun setSourcesPinned(sources: Collection<MangaSource>, isPinned: Boolean) {
+	fun setSourcesPinned(sources: Collection<ContentSource>, isPinned: Boolean) {
 		launchJob(Dispatchers.Default) {
 			sourcesRepository.setIsPinned(sources, isPinned)
 			val message = if (sources.size == 1) {
@@ -192,9 +192,9 @@ class ExploreViewModel @Inject constructor(
 		settings.closeTip(TIP_SUGGESTIONS)
 	}
 
-	fun sourcesSnapshot(ids: LongSet): List<MangaSourceInfo> {
+	fun sourcesSnapshot(ids: LongSet): List<ContentSourceInfo> {
 		return content.value.mapNotNull {
-			(it as? MangaSourceItem)?.takeIf { x -> x.id in ids }?.source
+			(it as? ContentSourceItem)?.takeIf { x -> x.id in ids }?.source
 		}
 	}
 
@@ -209,8 +209,8 @@ class ExploreViewModel @Inject constructor(
 		) { values: Array<Any?> ->
 			@Suppress("UNCHECKED_CAST")
 			buildList(
-				values[0] as List<MangaSourceInfo>,
-				values[1] as List<Manga>,
+				values[0] as List<ContentSourceInfo>,
+				values[1] as List<Content>,
 				values[2] as Boolean,
 				values[3] as Boolean,
 				values[4] as Boolean,
@@ -220,8 +220,8 @@ class ExploreViewModel @Inject constructor(
 		}.withErrorHandling()
 
 	private fun buildList(
-		sources: List<MangaSourceInfo>,
-		recommendation: List<Manga>,
+		sources: List<ContentSourceInfo>,
+		recommendation: List<Content>,
 		isGrid: Boolean,
 		allSourcesEnabled: Boolean,
 		hasNewSources: Boolean,
@@ -242,7 +242,7 @@ class ExploreViewModel @Inject constructor(
 				buttonTextRes = if (allSourcesEnabled) R.string.manage else R.string.catalog,
 				badge = if (!allSourcesEnabled && hasNewSources) "" else null,
 			)
-			filteredSources.mapTo(result) { MangaSourceItem(it, isGrid) }
+			filteredSources.mapTo(result) { ContentSourceItem(it, isGrid) }
 		} else {
 			result += EmptyHint(
 				icon = R.drawable.ic_empty_common,
@@ -259,17 +259,17 @@ class ExploreViewModel @Inject constructor(
 	 * 
 	 * Filters sources based on the selected browse group tab:
 	 * - All: Show all sources
-	 * - Manga/Novel/Video: Filter by content type
+	 * - Content/Novel/Video: Filter by content type
 	 * 
 	 * @param sources The complete list of sources to filter
 	 * @param groupTab The selected browse group tab
 	 * @return Filtered list of sources that match the tab criteria
 	 */
 	private fun applyGroupTabFilter(
-		sources: List<MangaSourceInfo>,
+		sources: List<ContentSourceInfo>,
 		groupTab: BrowseGroupTab,
 		sourceTags: Set<SourceTag>,
-	): List<MangaSourceInfo> {
+	): List<ContentSourceInfo> {
 		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: total sources=${sources.size}, groupTab=$groupTab, sourceTags=$sourceTags")
 		
 		val filtered = sources.filter { sourceInfo ->
@@ -316,8 +316,8 @@ class ExploreViewModel @Inject constructor(
 		}
 	}
 
-	private fun List<Manga>.toRecommendationList() = map { manga ->
-		MangaCompactListModel(
+	private fun List<Content>.toRecommendationList() = map { manga ->
+		ContentCompactListModel(
 			manga = manga,
 			override = null,
 			subtitle = manga.tags.joinToString { it.title },

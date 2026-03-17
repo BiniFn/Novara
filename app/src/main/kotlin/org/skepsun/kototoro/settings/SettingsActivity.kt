@@ -22,7 +22,7 @@ import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsFragment
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.util.ext.buildBundle
@@ -168,7 +168,7 @@ class SettingsActivity :
 			AppRouter.ACTION_PROXY -> ProxySettingsFragment()
 			AppRouter.ACTION_MANAGE_DOWNLOADS -> DownloadsSettingsFragment()
 			AppRouter.ACTION_SOURCE -> SourceSettingsFragment.newInstance(
-				MangaSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
+				ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
 			)
 
 			AppRouter.ACTION_MANAGE_SOURCES -> SourcesManageFragment()

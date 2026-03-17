@@ -12,9 +12,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getPreferredBranch
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.DownloadFormat
 import org.skepsun.kototoro.core.ui.BaseViewModel
@@ -27,7 +27,7 @@ import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageManager
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.sizeOrZero
@@ -40,13 +40,13 @@ class DownloadDialogViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	private val scheduler: DownloadWorker.Scheduler,
 	private val localStorageManager: LocalStorageManager,
-	private val localMangaRepository: LocalMangaRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val localContentRepository: LocalMangaRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val historyRepository: HistoryRepository,
 	private val settings: AppSettings,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<Array<ParcelableManga>>(AppRouter.KEY_MANGA).map {
+	val manga = savedStateHandle.require<Array<ParcelableContent>>(AppRouter.KEY_MANGA).map {
 		it.manga
 	}
 	private val mangaDetails = suspendLazy {
@@ -61,7 +61,7 @@ class DownloadDialogViewModel @Inject constructor(
 	val availableDestinations = MutableStateFlow(listOf(defaultDestination()))
 	val chaptersSelectOptions = MutableStateFlow(
 		ChapterSelectOptions(
-			wholeManga = ChaptersSelectMacro.WholeManga(0),
+			wholeContent = ChaptersSelectMacro.WholeContent(0),
 			wholeBranch = null,
 			firstChapters = null,
 			unreadChapters = null,
@@ -92,7 +92,7 @@ class DownloadDialogViewModel @Inject constructor(
 	) {
 		launchLoadingJob(Dispatchers.Default) {
 			val tasks = mangaDetails.get().map { m ->
-				val chapters = checkNotNull(m.chapters) { "Manga \"${m.title}\" cannot be loaded" }
+				val chapters = checkNotNull(m.chapters) { "Content \"${m.title}\" cannot be loaded" }
 				m to DownloadTask(
 					mangaId = m.id,
 					isPaused = !startNow,
@@ -207,7 +207,7 @@ class DownloadDialogViewModel @Inject constructor(
 		}
 		val defaultBranch = preferredBranches.firstOrNull()
 		chaptersSelectOptions.value = ChapterSelectOptions(
-			wholeManga = ChaptersSelectMacro.WholeManga(totalChapters),
+			wholeContent = ChaptersSelectMacro.WholeContent(totalChapters),
 			wholeBranch = if (branches.size > 1) {
 				ChaptersSelectMacro.WholeBranch(
 					branches = branches,
@@ -239,7 +239,7 @@ class DownloadDialogViewModel @Inject constructor(
 
 	private fun loadAvailableDestinations() = launchJob(Dispatchers.Default) {
 		val defaultDir = manga.mapToSet {
-			localMangaRepository.getOutputDir(it, null)
+			localContentRepository.getOutputDir(it, null)
 		}.singleOrNull()
 		val dirs = localStorageManager.getWriteableDirs()
 		availableDestinations.value = buildList(dirs.size + 1) {
@@ -270,7 +270,7 @@ class DownloadDialogViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun Manga.getDetails(): Manga = runCatchingCancellable {
+	private suspend fun Content.getDetails(): Content = runCatchingCancellable {
 		mangaRepositoryFactory.create(source).getDetails(this)
 	}.onFailure { e ->
 		e.printStackTraceDebug()

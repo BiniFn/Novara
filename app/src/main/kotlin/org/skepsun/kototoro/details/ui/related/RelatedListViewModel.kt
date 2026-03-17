@@ -13,37 +13,37 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.require
-import org.skepsun.kototoro.list.domain.MangaListMapper
-import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.domain.ContentListMapper
+import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @HiltViewModel
 class RelatedListViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 	settings: AppSettings,
-	private val mangaListMapper: MangaListMapper,
-	mangaDataRepository: MangaDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
-) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges) {
+	private val mangaListMapper: ContentListMapper,
+	mangaDataRepository: ContentDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges) {
 
-	private val seed = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	private val seed = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 	private val repository = mangaRepositoryFactory.create(seed.source)
-	private val mangaList = MutableStateFlow<List<Manga>?>(null)
+	private val mangaList = MutableStateFlow<List<Content>?>(null)
 	private val listError = MutableStateFlow<Throwable?>(null)
 	private var loadingJob: Job? = null
 

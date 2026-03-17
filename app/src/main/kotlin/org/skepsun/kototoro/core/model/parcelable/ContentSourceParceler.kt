@@ -2,14 +2,14 @@ package org.skepsun.kototoro.core.model.parcelable
 
 import android.os.Parcel
 import kotlinx.parcelize.Parceler
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
-class MangaSourceParceler : Parceler<MangaSource> {
+class ContentSourceParceler : Parceler<ContentSource> {
 
-	override fun create(parcel: Parcel): MangaSource = MangaSource(parcel.readString())
+	override fun create(parcel: Parcel): ContentSource = ContentSource(parcel.readString())
 
-	override fun MangaSource.write(parcel: Parcel, flags: Int) {
+	override fun ContentSource.write(parcel: Parcel, flags: Int) {
 		parcel.writeString(name)
 	}
 }

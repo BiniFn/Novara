@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.settings.userdata.storage
 
 data class StorageUsage(
-	val savedManga: Item,
+	val savedContent: Item,
 	val pagesCache: Item,
 	val otherCache: Item,
 	val available: Item,

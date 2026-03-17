@@ -74,7 +74,7 @@ class ChaptersSelectionCallback(
 
 			R.id.action_delete -> {
 				val ids = controller.peekCheckedIds()
-				val manga = viewModel.getMangaOrNull()
+				val manga = viewModel.getContentOrNull()
 				when {
 					ids.isEmpty() || manga == null -> Unit
 					ids.size == manga.chapters?.size -> viewModel.deleteLocal()

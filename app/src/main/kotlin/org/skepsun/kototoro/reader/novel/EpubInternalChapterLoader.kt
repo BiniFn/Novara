@@ -11,7 +11,7 @@ import org.skepsun.kototoro.local.epub.EpubError
 import org.skepsun.kototoro.local.epub.EpubErrorHandler
 import org.skepsun.kototoro.local.epub.EpubFileManager
 import org.skepsun.kototoro.local.epub.EpubReaderImpl
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import java.io.File
 
 /**
@@ -56,7 +56,7 @@ class EpubInternalChapterLoader(
      * 
      * Performance: Runs on IO dispatcher (Requirement 11.3)
      */
-    suspend fun loadEpubInternalChapter(chapter: MangaChapter): Result<EpubChapterLoadResult> = withContext(Dispatchers.IO) {
+    suspend fun loadEpubInternalChapter(chapter: ContentChapter): Result<EpubChapterLoadResult> = withContext(Dispatchers.IO) {
         try {
             // Extract chapter index from URL (Requirement 6.4)
             val chapterIndex = extractChapterIndexFromUrl(chapter.url)
@@ -143,7 +143,7 @@ class EpubInternalChapterLoader(
      * @param chapter The chapter
      * @return The EPUB file, or null if not found
      */
-    private suspend fun findEpubFileForChapter(chapter: MangaChapter): File? {
+    private suspend fun findEpubFileForChapter(chapter: ContentChapter): File? {
         // Strategy 1: Look up in database mapping
         val mapping = epubChapterMappingDao.getById(chapter.id)
         if (mapping != null) {

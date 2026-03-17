@@ -9,7 +9,7 @@ import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 
-abstract class MangaListQuickFilter(
+abstract class ContentListQuickFilter(
 	private val settings: AppSettings,
 ) : QuickFilterListener {
 

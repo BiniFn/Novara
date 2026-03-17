@@ -18,8 +18,8 @@ import org.skepsun.kototoro.core.util.ext.writeAllCancellable
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.data.hasZipExtension
-import org.skepsun.kototoro.local.data.input.LocalMangaParser
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.input.LocalContentParser
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -35,10 +35,10 @@ enum class ImportMode {
 }
 
 @Reusable
-class SingleMangaImporter @Inject constructor(
+class SingleContentImporter @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val storageManager: LocalStorageManager,
-	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalManga?>,
+	@LocalStorageChanges private val localStorageChanges: MutableSharedFlow<LocalContent?>,
 ) {
 
 	private val contentResolver = context.contentResolver
@@ -46,7 +46,7 @@ class SingleMangaImporter @Inject constructor(
 	/**
 	 * Import files (CBZ/ZIP archives)
 	 */
-	suspend fun import(uri: Uri): List<LocalManga> {
+	suspend fun import(uri: Uri): List<LocalContent> {
 		val results = if (isDirectory(uri)) {
 			// For file import, auto-detect (for backward compatibility)
 			importDirectoryAuto(uri)
@@ -60,7 +60,7 @@ class SingleMangaImporter @Inject constructor(
 	/**
 	 * Import directory with specified mode
 	 */
-	suspend fun import(uri: Uri, mode: ImportMode): List<LocalManga> {
+	suspend fun import(uri: Uri, mode: ImportMode): List<LocalContent> {
 		val results = if (isDirectory(uri)) {
 			when (mode) {
 				ImportMode.SINGLE_MANGA -> importDirectorySingle(uri)
@@ -73,7 +73,7 @@ class SingleMangaImporter @Inject constructor(
 		return results
 	}
 
-	private suspend fun importFile(uri: Uri): LocalManga = withContext(Dispatchers.IO) {
+	private suspend fun importFile(uri: Uri): LocalContent = withContext(Dispatchers.IO) {
 		val contentResolver = storageManager.contentResolver
 		val name = contentResolver.resolveName(uri) ?: throw IOException("Cannot fetch name from uri: $uri")
 		if (!hasZipExtension(name)) {
@@ -87,13 +87,13 @@ class SingleMangaImporter @Inject constructor(
 				output.writeAllCancellable(source)
 			}
 		}
-		LocalMangaParser(dest).getManga(withDetails = false)
+		LocalContentParser(dest).getContent(withDetails = false)
 	}
 
 	/**
 	 * Auto-detect import mode (for backward compatibility with file import)
 	 */
-	private suspend fun importDirectoryAuto(uri: Uri): List<LocalManga> {
+	private suspend fun importDirectoryAuto(uri: Uri): List<LocalContent> {
 		// Default to single manga mode for auto-detect
 		return importDirectorySingle(uri)
 	}
@@ -101,7 +101,7 @@ class SingleMangaImporter @Inject constructor(
 	/**
 	 * Import as single manga - the selected folder is one manga, subdirectories are chapters
 	 */
-	private suspend fun importDirectorySingle(uri: Uri): List<LocalManga> {
+	private suspend fun importDirectorySingle(uri: Uri): List<LocalContent> {
 		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
 			"Provided uri $uri is not a tree"
 		}
@@ -111,13 +111,13 @@ class SingleMangaImporter @Inject constructor(
 		for (docFile in childFiles) {
 			docFile.copyTo(dest)
 		}
-		return listOf(LocalMangaParser(dest).getManga(withDetails = false))
+		return listOf(LocalContentParser(dest).getContent(withDetails = false))
 	}
 
 	/**
 	 * Import as multiple manga - each subdirectory is a separate manga
 	 */
-	private suspend fun importDirectoryMultiple(uri: Uri): List<LocalManga> {
+	private suspend fun importDirectoryMultiple(uri: Uri): List<LocalContent> {
 		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
 			"Provided uri $uri is not a tree"
 		}
@@ -125,7 +125,7 @@ class SingleMangaImporter @Inject constructor(
 		val subDirs = childFiles.filter { it.isDirectory }
 		val zipFiles = childFiles.filter { it.isFile && hasZipExtension(it.name ?: "") }
 		
-		val results = mutableListOf<LocalManga>()
+		val results = mutableListOf<LocalContent>()
 		
 		// Import each subdirectory as a separate manga
 		for (folder in subDirs) {
@@ -136,7 +136,7 @@ class SingleMangaImporter @Inject constructor(
 			for (docFile in folder.listFiles()) {
 				docFile.copyTo(dest)
 			}
-			runCatching { LocalMangaParser(dest).getManga(withDetails = false) }
+			runCatching { LocalContentParser(dest).getContent(withDetails = false) }
 				.getOrNull()
 				?.let { results.add(it) }
 		}
@@ -150,7 +150,7 @@ class SingleMangaImporter @Inject constructor(
 					output.writeAllCancellable(input)
 				}
 			}
-			runCatching { LocalMangaParser(dest).getManga(withDetails = false) }
+			runCatching { LocalContentParser(dest).getContent(withDetails = false) }
 				.getOrNull()
 				?.let { results.add(it) }
 		}

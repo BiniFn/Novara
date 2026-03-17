@@ -28,7 +28,7 @@ import org.skepsun.kototoro.backups.data.model.BookmarkBackup
 import org.skepsun.kototoro.backups.data.model.CategoryBackup
 import org.skepsun.kototoro.backups.data.model.FavouriteBackup
 import org.skepsun.kototoro.backups.data.model.HistoryBackup
-import org.skepsun.kototoro.backups.data.model.MangaBackup
+import org.skepsun.kototoro.backups.data.model.ContentBackup
 import org.skepsun.kototoro.backups.data.model.ScrobblingBackup
 import org.skepsun.kototoro.backups.data.model.SourceBackup
 import org.skepsun.kototoro.backups.data.model.StatisticBackup
@@ -37,7 +37,7 @@ import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.CompositeResult
 import org.skepsun.kototoro.core.util.progress.Progress
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.filter.data.PersistableFilter
 import org.skepsun.kototoro.filter.data.SavedFiltersRepository
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -57,7 +57,7 @@ class BackupRepository @Inject constructor(
     private val database: MangaDatabase,
     private val settings: AppSettings,
     private val tapGridSettings: TapGridSettings,
-    private val mangaSourcesRepository: MangaSourcesRepository,
+    private val mangaSourcesRepository: ContentSourcesRepository,
     private val savedFiltersRepository: SavedFiltersRepository,
 ) {
 
@@ -175,7 +175,7 @@ class BackupRepository @Inject constructor(
                 result += when (section) {
                     BackupSection.INDEX -> CompositeResult.EMPTY // useless in our case
                     BackupSection.HISTORY -> input.readJsonArray<HistoryBackup>(serializer()).restoreToDb {
-                        upsertManga(it.manga)
+                        upsertContent(it.manga)
                         getHistoryDao().upsert(it.toEntity())
                     }
 
@@ -184,7 +184,7 @@ class BackupRepository @Inject constructor(
                     }
 
                     BackupSection.FAVOURITES -> input.readJsonArray<FavouriteBackup>(serializer()).restoreToDb {
-                        upsertManga(it.manga)
+                        upsertContent(it.manga)
                         getFavouritesDao().mergeWithTimestamp(it.toEntity())
                     }
 
@@ -199,7 +199,7 @@ class BackupRepository @Inject constructor(
                     }
 
                     BackupSection.BOOKMARKS -> input.readJsonArray<BookmarkBackup>(serializer()).restoreToDb {
-                        upsertManga(it.manga)
+                        upsertContent(it.manga)
                         getBookmarksDao().upsert(it.bookmarks.map { b -> b.toEntity() })
                     }
 
@@ -384,7 +384,7 @@ class BackupRepository @Inject constructor(
         }
     }
 
-    private suspend fun MangaDatabase.upsertManga(manga: MangaBackup) {
+    private suspend fun MangaDatabase.upsertContent(manga: ContentBackup) {
         val tags = manga.tags.map { it.toEntity() }
         getTagsDao().upsert(tags)
         getMangaDao().upsert(manga.toEntity(), tags)

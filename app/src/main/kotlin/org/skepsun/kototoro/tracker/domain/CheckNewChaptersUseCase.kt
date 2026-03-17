@@ -5,17 +5,17 @@ import coil3.request.CachePolicy
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.MultiMutex
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toInstantOrNull
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
-import org.skepsun.kototoro.tracker.domain.model.MangaTracking
+import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import org.skepsun.kototoro.tracker.domain.model.MangaUpdates
 import java.time.Instant
 import javax.inject.Inject
@@ -25,13 +25,13 @@ import javax.inject.Singleton
 class CheckNewChaptersUseCase @Inject constructor(
 	private val repository: TrackingRepository,
 	private val historyRepository: HistoryRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	private val localMangaRepository: LocalMangaRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	private val localContentRepository: LocalMangaRepository,
 ) {
 
 	private val mutex = MultiMutex<Long>()
 
-	suspend operator fun invoke(manga: Manga): MangaUpdates = mutex.withLock(manga.id) {
+	suspend operator fun invoke(manga: Content): MangaUpdates = mutex.withLock(manga.id) {
 		repository.updateTracks()
 		val tracking = repository.getTrackOrNull(manga) ?: return@withLock MangaUpdates.Failure(
 			manga = manga,
@@ -40,21 +40,21 @@ class CheckNewChaptersUseCase @Inject constructor(
 		invokeImpl(tracking)
 	}
 
-	suspend operator fun invoke(track: MangaTracking): MangaUpdates = mutex.withLock(track.manga.id) {
+	suspend operator fun invoke(track: ContentTracking): MangaUpdates = mutex.withLock(track.manga.id) {
 		invokeImpl(track)
 	}
 
-	suspend operator fun invoke(manga: Manga, currentChapterId: Long) = mutex.withLock(manga.id) {
+	suspend operator fun invoke(manga: Content, currentChapterId: Long) = mutex.withLock(manga.id) {
 		runCatchingCancellable {
 			repository.updateTracks()
-			val details = getFullManga(manga)
+			val details = getFullContent(manga)
 			val track = repository.getTrackOrNull(manga) ?: return@withLock
 			val branch = checkNotNull(details.chapters?.findById(currentChapterId)).branch
 			val chapters = details.getChapters(branch)
 			val chapterIndex = chapters.indexOfFirst { x -> x.id == currentChapterId }
 			val lastNewChapterIndex = chapters.size - track.newChapters
 			val lastChapter = chapters.lastOrNull()
-			val tracking = MangaTracking(
+			val tracking = ContentTracking(
 				manga = details,
 				lastChapterId = lastChapter?.id ?: 0L,
 				lastCheck = Instant.now(),
@@ -72,8 +72,8 @@ class CheckNewChaptersUseCase @Inject constructor(
 		}.isSuccess
 	}
 
-	private suspend fun invokeImpl(track: MangaTracking): MangaUpdates = runCatchingCancellable {
-		val details = getFullManga(track.manga)
+	private suspend fun invokeImpl(track: ContentTracking): MangaUpdates = runCatchingCancellable {
+		val details = getFullContent(track.manga)
 		compare(track, details, getBranch(details, track.lastChapterId))
 	}.getOrElse { error ->
 		MangaUpdates.Failure(
@@ -84,7 +84,7 @@ class CheckNewChaptersUseCase @Inject constructor(
 		repository.saveUpdates(updates)
 	}
 
-	private suspend fun getBranch(manga: Manga, trackChapterId: Long): String? {
+	private suspend fun getBranch(manga: Content, trackChapterId: Long): String? {
 		historyRepository.getOne(manga)?.let {
 			manga.chapters?.findById(it.chapterId)
 		}?.let {
@@ -97,9 +97,9 @@ class CheckNewChaptersUseCase @Inject constructor(
 		return manga.getPreferredBranch(null)
 	}
 
-	private suspend fun getFullManga(manga: Manga): Manga = when {
+	private suspend fun getFullContent(manga: Content): Content = when {
 		manga.isLocal -> fetchDetails(
-			requireNotNull(localMangaRepository.getRemoteManga(manga)) {
+			requireNotNull(localContentRepository.getRemoteContent(manga)) {
 				"Local manga is not supported"
 			},
 		)
@@ -108,9 +108,9 @@ class CheckNewChaptersUseCase @Inject constructor(
 		else -> manga
 	}
 
-	private suspend fun fetchDetails(manga: Manga): Manga {
+	private suspend fun fetchDetails(manga: Content): Content {
 		val repo = mangaRepositoryFactory.create(manga.source)
-		return if (repo is CachingMangaRepository) {
+		return if (repo is CachingContentRepository) {
 			repo.getDetails(manga, CachePolicy.WRITE_ONLY)
 		} else {
 			repo.getDetails(manga)
@@ -120,7 +120,7 @@ class CheckNewChaptersUseCase @Inject constructor(
 	/**
 	 * The main functionality of tracker: check new chapters in [manga] comparing to the [track]
 	 */
-	private fun compare(track: MangaTracking, manga: Manga, branch: String?): MangaUpdates.Success {
+	private fun compare(track: ContentTracking, manga: Content, branch: String?): MangaUpdates.Success {
 		if (track.isEmpty()) {
 			// first check or manga was empty on last check
 			return MangaUpdates.Success(manga, branch, emptyList(), isValid = false)

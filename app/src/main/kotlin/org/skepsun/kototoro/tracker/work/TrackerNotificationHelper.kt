@@ -24,8 +24,8 @@ import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import javax.inject.Inject
 
 class TrackerNotificationHelper @Inject constructor(
@@ -48,7 +48,7 @@ class TrackerNotificationHelper @Inject constructor(
 		}
 	}
 
-	suspend fun createNotification(manga: Manga, newChapters: List<MangaChapter>): NotificationInfo? {
+	suspend fun createNotification(manga: Content, newChapters: List<ContentChapter>): NotificationInfo? {
 		if (newChapters.isEmpty() || !applicationContext.checkNotificationPermission(CHANNEL_ID)) {
 			return null
 		}
@@ -187,7 +187,7 @@ class TrackerNotificationHelper @Inject constructor(
 		val id: Int,
 		val tag: String,
 		val notification: Notification,
-		val manga: Manga,
+		val manga: Content,
 		val newChapters: Int,
 	)
 

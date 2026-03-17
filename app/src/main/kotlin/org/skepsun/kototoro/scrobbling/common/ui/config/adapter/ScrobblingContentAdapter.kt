@@ -7,13 +7,13 @@ import org.skepsun.kototoro.list.ui.adapter.emptyStateListAD
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 
-class ScrobblingMangaAdapter(
+class ScrobblingContentAdapter(
 	clickListener: OnListItemClickListener<ScrobblingInfo>,
 ) : BaseListAdapter<ListModel>() {
 
 	init {
 		addDelegate(ListItemType.HEADER, scrobblingHeaderAD())
 		addDelegate(ListItemType.STATE_EMPTY, emptyStateListAD(null))
-		addDelegate(ListItemType.MANGA_SCROBBLING, scrobblingMangaAD(clickListener))
+		addDelegate(ListItemType.MANGA_SCROBBLING, scrobblingContentAD(clickListener))
 	}
 }

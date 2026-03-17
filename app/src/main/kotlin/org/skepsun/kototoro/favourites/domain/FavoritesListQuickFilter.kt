@@ -6,7 +6,7 @@ import dagger.assisted.AssistedInject
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.domain.MangaListQuickFilter
+import org.skepsun.kototoro.list.domain.ContentListQuickFilter
 import org.skepsun.kototoro.core.model.isNsfw
 
 class FavoritesListQuickFilter @AssistedInject constructor(
@@ -15,11 +15,11 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 	private val repository: FavouritesRepository,
 	networkState: NetworkState,
 	private val globalFilterState: GlobalFavoritesState,
-) : MangaListQuickFilter(settings) {
+) : ContentListQuickFilter(settings) {
 
 	init {
 		// Sync initial state if needed, or rely on global state.
-		// Note: MangaListQuickFilter sets 'Downloaded' based on network in init.
+		// Note: ContentListQuickFilter sets 'Downloaded' based on network in init.
 		// We might want to apply that to global state ONLY if it's the first init?
 		// Or just let user control.
 		// For now, let's keep the network logic but apply it to global state

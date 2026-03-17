@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 import org.skepsun.kototoro.core.model.getLocalizedTitle
 import org.skepsun.kototoro.core.ui.model.DateTimeAgo
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 data class ListHeader private constructor(
 	private val textRaw: Any,
@@ -28,7 +28,7 @@ data class ListHeader private constructor(
 	) : this(textRaw = textRes, buttonTextRes, payload, badge)
 
 	constructor(
-		chapter: MangaChapter,
+		chapter: ContentChapter,
 		@StringRes buttonTextRes: Int = 0,
 		payload: Any? = null,
 		badge: String? = null,
@@ -45,7 +45,7 @@ data class ListHeader private constructor(
 		is CharSequence -> textRaw
 		is Int -> if (textRaw != 0) context.getString(textRaw) else null
 		is DateTimeAgo -> textRaw.format(context)
-		is MangaChapter -> textRaw.getLocalizedTitle(context.resources)
+		is ContentChapter -> textRaw.getLocalizedTitle(context.resources)
 		else -> null
 	}
 

@@ -2,11 +2,11 @@ package org.skepsun.kototoro.stats.domain
 
 import org.skepsun.kototoro.details.data.ReadingTime
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.util.concurrent.TimeUnit
 
 data class StatsRecord(
-	val manga: Manga?,
+	val manga: Content?,
 	val duration: Long,
 ) : ListModel {
 

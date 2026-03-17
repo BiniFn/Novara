@@ -1,11 +1,11 @@
 package org.skepsun.kototoro.core.parser.tvbox
 
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 internal interface TVBoxSpiderRuntime {
@@ -19,14 +19,14 @@ internal interface TVBoxSpiderRuntime {
 	suspend fun getList(
 		offset: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?,
-	): List<Manga>?
+		filter: ContentListFilter?,
+	): List<Content>?
 
-	suspend fun getDetails(manga: Manga): Manga?
+	suspend fun getDetails(manga: Content): Content?
 
-	suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage>?
+	suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage>?
 
-	suspend fun getFilterOptions(): MangaListFilterOptions?
+	suspend fun getFilterOptions(): ContentListFilterOptions?
 
 	fun getRequestHeaders(): Map<String, String>?
 }

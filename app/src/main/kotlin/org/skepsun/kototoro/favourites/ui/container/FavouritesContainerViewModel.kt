@@ -19,16 +19,16 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.ui.util.ReversibleHandle
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.core.model.unwrap
-import org.skepsun.kototoro.parsers.MangaFavoriteFolder
+import org.skepsun.kototoro.parsers.ContentFavoriteFolder
 import org.skepsun.kototoro.parsers.CategorizedFavoritesProvider
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
@@ -45,9 +45,9 @@ class FavouritesContainerViewModel @Inject constructor(
 	@ApplicationContext private val appContext: Context,
 	private val settings: AppSettings,
 	private val favouritesRepository: FavouritesRepository,
-	private val sourcesRepository: MangaSourcesRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	mangaDataRepository: MangaDataRepository,
+	private val sourcesRepository: ContentSourcesRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	mangaDataRepository: ContentDataRepository,
 	networkState: NetworkState,
 	private val globalFavoritesState: GlobalFavoritesState,
 ) : BaseViewModel() {
@@ -83,9 +83,9 @@ class FavouritesContainerViewModel @Inject constructor(
 	}
 
 	data class ImportSource(
-		val source: MangaParserSource,
+		val source: ContentParserSource,
 		val title: String,
-		val folders: List<MangaFavoriteFolder>? = null,
+		val folders: List<ContentFavoriteFolder>? = null,
 	)
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
@@ -152,12 +152,12 @@ val importMessages = MutableEventFlow<String>()
 		logImport("loadImportCandidates: enabled=${enabledSources.size}, hideNsfw=${settings.isNsfwContentDisabled}")
 		for (item in enabledSources) {
 			val unwrapped = item.unwrap()
-			val parserSource = (unwrapped as? MangaParserSource)
+			val parserSource = (unwrapped as? ContentParserSource)
 			if (parserSource == null) {
 				logImport("skip ${item.name}: not a parser source (${unwrapped?.javaClass?.simpleName})")
 				continue
 			}
-			val repository = mangaRepositoryFactory.create(parserSource) as? ParserMangaRepository
+			val repository = mangaRepositoryFactory.create(parserSource) as? ParserContentRepository
 			if (repository == null) {
 				logImport("skip ${parserSource.name}: repository not parser")
 				continue
@@ -186,8 +186,8 @@ val importMessages = MutableEventFlow<String>()
 		return candidates.sortedBy { it.title.lowercase() }
 	}
 
-	suspend fun loadFavoriteFolders(source: MangaParserSource): List<MangaFavoriteFolder> {
-		val repository = mangaRepositoryFactory.create(source) as? ParserMangaRepository ?: return emptyList()
+	suspend fun loadFavoriteFolders(source: ContentParserSource): List<ContentFavoriteFolder> {
+		val repository = mangaRepositoryFactory.create(source) as? ParserContentRepository ?: return emptyList()
 		val catProvider = repository.categorizedFavoritesProvider() ?: return emptyList()
 		return runCatching { catProvider.fetchFavoriteFolders() }.getOrDefault(emptyList())
 	}
@@ -201,7 +201,7 @@ val importMessages = MutableEventFlow<String>()
 			for (item in sources) {
 				importMessages.call(appContext.getString(R.string.import_favourites_progress, item.title))
 				logImport("import start source=${item.source.name}")
-				val repository = mangaRepositoryFactory.create(item.source) as? ParserMangaRepository ?: continue
+				val repository = mangaRepositoryFactory.create(item.source) as? ParserContentRepository ?: continue
 				val catProvider = repository.categorizedFavoritesProvider()
 				val favProvider = repository.favoritesProvider() ?: continue
 				try {
@@ -242,12 +242,12 @@ val importMessages = MutableEventFlow<String>()
 		logSync("loadSyncCandidates: enabled=${enabledSources.size}, hideNsfw=${settings.isNsfwContentDisabled}")
 		for (item in enabledSources) {
 			val unwrapped = item.unwrap()
-			val parserSource = (unwrapped as? MangaParserSource)
+			val parserSource = (unwrapped as? ContentParserSource)
 			if (parserSource == null) {
 				logSync("skip ${item.name}: not a parser source (${unwrapped?.javaClass?.simpleName})")
 				continue
 			}
-			val repository = mangaRepositoryFactory.create(parserSource) as? ParserMangaRepository
+			val repository = mangaRepositoryFactory.create(parserSource) as? ParserContentRepository
 			if (repository == null) {
 				logSync("skip ${parserSource.name}: repository not parser")
 				continue
@@ -282,7 +282,7 @@ val importMessages = MutableEventFlow<String>()
 			for (item in sources) {
 				syncMessages.call(appContext.getString(R.string.sync_favourites_progress, item.title))
 				logSync("sync start source=${item.source.name}")
-				val repository = mangaRepositoryFactory.create(item.source) as? ParserMangaRepository ?: continue
+				val repository = mangaRepositoryFactory.create(item.source) as? ParserContentRepository ?: continue
 				val syncProvider = repository.favoritesSyncProvider() ?: continue
 				val favProvider = repository.favoritesProvider()
 				val category = favouritesRepository.findCategoryByTitle(item.title)
@@ -291,7 +291,7 @@ val importMessages = MutableEventFlow<String>()
 					syncMessages.call(appContext.getString(R.string.sync_favourites_skip_no_category, item.title))
 					continue
 				}
-				val local = favouritesRepository.getManga(category.id)
+				val local = favouritesRepository.getContent(category.id)
 				val remote = runCatching { favProvider?.fetchFavorites() ?: emptyList() }
 					.onFailure { logSync("sync ${item.source.name} fetch remote failed") }
 					.getOrDefault(emptyList())
@@ -327,7 +327,7 @@ val importMessages = MutableEventFlow<String>()
 			)
 	}
 
-	private suspend fun organizedFolders(provider: CategorizedFavoritesProvider?): List<MangaFavoriteFolder>? {
+	private suspend fun organizedFolders(provider: CategorizedFavoritesProvider?): List<ContentFavoriteFolder>? {
 		if (provider == null) return null
 		return runCatching { provider.fetchFavoriteFolders() }.getOrNull()
 	}

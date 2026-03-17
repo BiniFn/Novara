@@ -4,18 +4,18 @@ import android.os.Parcel
 import android.os.Parcelable
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 @Parcelize
 data class ParcelableChapter(
-	val chapter: MangaChapter,
+	val chapter: ContentChapter,
 ) : Parcelable {
 
 	companion object : Parceler<ParcelableChapter> {
 
 		override fun create(parcel: Parcel) = ParcelableChapter(
-			MangaChapter(
+			ContentChapter(
 				id = parcel.readLong(),
 				title = parcel.readString(),
 				number = parcel.readFloat(),
@@ -24,7 +24,7 @@ data class ParcelableChapter(
 				scanlator = parcel.readString(),
 				uploadDate = parcel.readLong(),
 				branch = parcel.readString(),
-				source = MangaSource(parcel.readString()),
+				source = ContentSource(parcel.readString()),
 			),
 		)
 

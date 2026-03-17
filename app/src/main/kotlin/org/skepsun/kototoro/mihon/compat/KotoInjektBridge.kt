@@ -5,7 +5,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.kanade.tachiyomi.network.NetworkHelper
 import okhttp3.OkHttpClient
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar

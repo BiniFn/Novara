@@ -2,9 +2,9 @@ package org.skepsun.kototoro.details.ui.pager.pages
 
 import coil3.key.Keyer
 import coil3.request.Options
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.ContentPage
 
-class MangaPageKeyer : Keyer<MangaPage> {
+class ContentPageKeyer : Keyer<ContentPage> {
 
-	override fun key(data: MangaPage, options: Options) = data.url
+	override fun key(data: ContentPage, options: Options) = data.url
 }

@@ -1,39 +1,39 @@
 package org.skepsun.kototoro.explore.domain
 
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
-class RecoverMangaUseCase @Inject constructor(
-	private val mangaDataRepository: MangaDataRepository,
-	private val repositoryFactory: MangaRepository.Factory,
+class RecoverContentUseCase @Inject constructor(
+	private val mangaDataRepository: ContentDataRepository,
+	private val repositoryFactory: ContentRepository.Factory,
 ) {
 
-	suspend operator fun invoke(manga: Manga): Manga? = runCatchingCancellable {
+	suspend operator fun invoke(manga: Content): Content? = runCatchingCancellable {
 		if (manga.isLocal) {
 			return@runCatchingCancellable null
 		}
 		val repository = repositoryFactory.create(manga.source)
-		val list = repository.getList(offset = 0, null, MangaListFilter(query = manga.title))
-		val newManga = list.find { x -> x.title == manga.title }?.let {
+		val list = repository.getList(offset = 0, null, ContentListFilter(query = manga.title))
+		val newContent = list.find { x -> x.title == manga.title }?.let {
 			repository.getDetails(it)
 		} ?: return@runCatchingCancellable null
-		val merged = merge(manga, newManga)
-		mangaDataRepository.storeManga(merged, replaceExisting = true)
+		val merged = merge(manga, newContent)
+		mangaDataRepository.storeContent(merged, replaceExisting = true)
 		merged
 	}.onFailure {
 		it.printStackTraceDebug()
 	}.getOrNull()
 
 	private fun merge(
-		broken: Manga,
-		current: Manga,
-	) = Manga(
+		broken: Content,
+		current: Content,
+	) = Content(
 		id = broken.id,
 		title = current.title,
 		altTitles = current.altTitles,

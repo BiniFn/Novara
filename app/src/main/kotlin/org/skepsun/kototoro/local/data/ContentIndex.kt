@@ -11,15 +11,15 @@ import org.json.JSONObject
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.LocalNovelSource
-import org.skepsun.kototoro.core.model.MangaSource as createMangaSource
+import org.skepsun.kototoro.core.model.ContentSource as createContentSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 import org.skepsun.kototoro.parsers.util.json.getBooleanOrDefault
 import org.skepsun.kototoro.parsers.util.json.getEnumValueOrNull
@@ -33,11 +33,11 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.toTitleCase
 import java.io.File
 
-class MangaIndex(source: String?) {
+class ContentIndex(source: String?) {
 
 	private val json: JSONObject = source?.let(::JSONObject) ?: JSONObject()
 
-	fun setMangaInfo(manga: Manga) {
+	fun setContentInfo(manga: Content) {
 		require(!manga.isLocal || manga.source == LocalNovelSource) { "Local manga information cannot be stored" }
 		json.put(KEY_ID, manga.id)
 		json.put(KEY_TITLE, manga.title)
@@ -115,9 +115,9 @@ class MangaIndex(source: String?) {
 		}
 	}
 
-	fun getMangaInfo(): Manga? = if (json.length() == 0) null else runCatching {
-		val source = createMangaSource(json.getStringOrNull(KEY_SOURCE))
-		Manga(
+	fun getContentInfo(): Content? = if (json.length() == 0) null else runCatching {
+		val source = createContentSource(json.getStringOrNull(KEY_SOURCE))
+		Content(
 			id = json.getLong(KEY_ID),
 			title = json.getString(KEY_TITLE),
 			altTitles = json.optJSONArray(KEY_ALT_TITLES)?.toStringSet()
@@ -132,10 +132,10 @@ class MangaIndex(source: String?) {
 			contentRating = json.getEnumValueOrNull(KEY_CONTENT_RATING, ContentRating::class.java)
 				?: if (json.getBooleanOrDefault(KEY_NSFW, false)) ContentRating.ADULT else null,
 			coverUrl = json.getStringOrNull(KEY_COVER),
-			state = json.getEnumValueOrNull(KEY_STATE, MangaState::class.java),
+			state = json.getEnumValueOrNull(KEY_STATE, ContentState::class.java),
 			description = json.getStringOrNull(KEY_DESCRIPTION),
 			tags = json.getJSONArray(KEY_TAGS).mapJSONToSet { x ->
-				MangaTag(
+				ContentTag(
 					title = x.getString(KEY_TITLE).toTitleCase(),
 					key = x.getString(KEY_KEY),
 					source = source,
@@ -148,7 +148,7 @@ class MangaIndex(source: String?) {
 	fun getCoverEntry(): String? = json.getStringOrNull(KEY_COVER_ENTRY)
 
 	fun addChapter(
-		chapter: IndexedValue<MangaChapter>,
+		chapter: IndexedValue<ContentChapter>,
 		filename: String?,
 		remoteImages: Map<String, String>? = null,
 	) {
@@ -242,7 +242,7 @@ class MangaIndex(source: String?) {
 		json.put(KEY_COVER_ENTRY, name)
 	}
 
-	fun getChapterNamesPattern(chapter: MangaChapter) = Regex(
+	fun getChapterNamesPattern(chapter: ContentChapter) = Regex(
 		json.getJSONObject(KEY_CHAPTERS)
 			.getJSONObject(chapter.id.toString())
 			.getString(KEY_ENTRIES),
@@ -274,21 +274,21 @@ class MangaIndex(source: String?) {
 		}
 	}
 
-	fun setFrom(other: MangaIndex) {
+	fun setFrom(other: ContentIndex) {
 		clear()
 		other.json.keys().forEach { key ->
 			json.putOpt(key, other.json.opt(key))
 		}
 	}
 
-	fun getChapters(source: MangaSource): List<MangaChapter> {
+	fun getChapters(source: ContentSource): List<ContentChapter> {
 		val chaptersJson = json.optJSONObject(KEY_CHAPTERS) ?: return emptyList()
-		val chapters = ArrayList<MangaChapter>(chaptersJson.length())
+		val chapters = ArrayList<ContentChapter>(chaptersJson.length())
 		for (k in chaptersJson.keys()) {
 			val v = chaptersJson.getJSONObject(k)
-			val chapterSource = v.getStringOrNull(KEY_SOURCE)?.let { createMangaSource(it) } ?: source
+			val chapterSource = v.getStringOrNull(KEY_SOURCE)?.let { createContentSource(it) } ?: source
 			chapters.add(
-				MangaChapter(
+				ContentChapter(
 					id = k.toLong(),
 					title = v.getStringOrNull(KEY_NAME),
 					url = v.getString(KEY_URL),
@@ -375,7 +375,7 @@ class MangaIndex(source: String?) {
 
 		@Blocking
 		@WorkerThread
-		fun read(fileSystem: FileSystem, path: Path): MangaIndex? = runCatchingCancellable {
+		fun read(fileSystem: FileSystem, path: Path): ContentIndex? = runCatchingCancellable {
 			if (!fileSystem.exists(path)) {
 				return@runCatchingCancellable null
 			}
@@ -385,7 +385,7 @@ class MangaIndex(source: String?) {
 				}
 			}
 			if (text.length > 2) {
-				MangaIndex(text)
+				ContentIndex(text)
 			} else {
 				null
 			}
@@ -395,6 +395,6 @@ class MangaIndex(source: String?) {
 
 		@Blocking
 		@WorkerThread
-		fun read(file: File): MangaIndex? = read(FileSystem.SYSTEM, file.toOkioPath())
+		fun read(file: File): ContentIndex? = read(FileSystem.SYSTEM, file.toOkioPath())
 	}
 }

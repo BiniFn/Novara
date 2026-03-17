@@ -7,16 +7,16 @@ import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
 import org.skepsun.kototoro.list.ui.adapter.loadingFooterAD
 import org.skepsun.kototoro.list.ui.adapter.loadingStateAD
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 
 class ScrobblerSelectorAdapter(
-	clickListener: OnListItemClickListener<ScrobblerManga>,
+	clickListener: OnListItemClickListener<ScrobblerContent>,
 	stateHolderListener: ListStateHolderListener,
 ) : BaseListAdapter<ListModel>() {
 
 	init {
 		addDelegate(ListItemType.STATE_LOADING, loadingStateAD())
-		addDelegate(ListItemType.MANGA_SCROBBLING, scrobblingMangaAD(clickListener))
+		addDelegate(ListItemType.MANGA_SCROBBLING, scrobblingContentAD(clickListener))
 		addDelegate(ListItemType.FOOTER_LOADING, loadingFooterAD())
 		addDelegate(ListItemType.HINT_EMPTY, scrobblerHintAD(stateHolderListener))
 	}

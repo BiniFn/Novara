@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import okio.buffer
 import okio.sink
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.ui.BaseViewModel
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
@@ -23,7 +23,7 @@ import org.skepsun.kototoro.core.util.ext.openSource
 import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.md5
 import java.io.File
 import javax.inject.Inject
@@ -34,12 +34,12 @@ private const val DIR_COVERS = "covers"
 class OverrideConfigViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	@ApplicationContext private val context: Context,
-	private val dataRepository: MangaDataRepository,
+	private val dataRepository: ContentDataRepository,
 ) : BaseViewModel() {
 
-	private val manga = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	private val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
-	val data = MutableStateFlow<Pair<Manga, MangaOverride>?>(null)
+	val data = MutableStateFlow<Pair<Content, ContentOverride>?>(null)
 	val onSaved = MutableEventFlow<Unit>()
 
 	init {
@@ -96,5 +96,5 @@ class OverrideConfigViewModel @Inject constructor(
 		}.toUri().toString()
 	}
 
-	private fun emptyOverride() = MangaOverride(null, null, null)
+	private fun emptyOverride() = ContentOverride(null, null, null)
 }

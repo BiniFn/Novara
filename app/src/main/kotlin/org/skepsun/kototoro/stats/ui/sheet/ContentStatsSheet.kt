@@ -16,23 +16,23 @@ import org.skepsun.kototoro.core.util.KototoroColors
 import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.textAndVisible
-import org.skepsun.kototoro.databinding.SheetStatsMangaBinding
+import org.skepsun.kototoro.databinding.SheetStatsContentBinding
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.stats.ui.views.BarChartView
 
 @AndroidEntryPoint
-class MangaStatsSheet : BaseAdaptiveSheet<SheetStatsMangaBinding>(), View.OnClickListener {
+class ContentStatsSheet : BaseAdaptiveSheet<SheetStatsContentBinding>(), View.OnClickListener {
 
-	private val viewModel: MangaStatsViewModel by viewModels()
+	private val viewModel: ContentStatsViewModel by viewModels()
 
-	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetStatsMangaBinding {
-		return SheetStatsMangaBinding.inflate(inflater, container, false)
+	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetStatsContentBinding {
+		return SheetStatsContentBinding.inflate(inflater, container, false)
 	}
 
-	override fun onViewBindingCreated(binding: SheetStatsMangaBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: SheetStatsContentBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		binding.textViewTitle.text = viewModel.manga.title
-		binding.chartView.barColor = KototoroColors.ofManga(binding.root.context, viewModel.manga)
+		binding.chartView.barColor = KototoroColors.ofContent(binding.root.context, viewModel.manga)
 		viewModel.stats.observe(viewLifecycleOwner, ::onStatsChanged)
 		viewModel.startDate.observe(viewLifecycleOwner) {
 			binding.textViewStart.textAndVisible = it?.format(binding.root.context)

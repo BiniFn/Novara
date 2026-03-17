@@ -7,7 +7,7 @@ import org.skepsun.kototoro.core.db.entity.MangaEntity
 import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
 import org.skepsun.kototoro.core.db.entity.TagEntity
 
-class FavouriteManga(
+class FavouriteContent(
 	@Embedded val favourite: FavouriteEntity,
 	@Relation(
 		parentColumn = "manga_id",

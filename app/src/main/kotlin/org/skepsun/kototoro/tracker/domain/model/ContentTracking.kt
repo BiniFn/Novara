@@ -1,10 +1,10 @@
 package org.skepsun.kototoro.tracker.domain.model
 
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.time.Instant
 
-data class MangaTracking(
-	val manga: Manga,
+data class ContentTracking(
+	val manga: Content,
 	val lastChapterId: Long,
 	val lastCheck: Instant?,
 	val lastChapterDate: Instant?,

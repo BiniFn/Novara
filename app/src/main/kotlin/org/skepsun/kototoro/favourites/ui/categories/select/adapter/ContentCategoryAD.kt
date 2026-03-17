@@ -6,13 +6,13 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.appendIcon
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.databinding.ItemCategoryCheckableBinding
-import org.skepsun.kototoro.favourites.ui.categories.select.model.MangaCategoryItem
+import org.skepsun.kototoro.favourites.ui.categories.select.model.ContentCategoryItem
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
 
 fun mangaCategoryAD(
-	clickListener: OnListItemClickListener<MangaCategoryItem>,
-) = adapterDelegateViewBinding<MangaCategoryItem, ListModel, ItemCategoryCheckableBinding>(
+	clickListener: OnListItemClickListener<ContentCategoryItem>,
+) = adapterDelegateViewBinding<ContentCategoryItem, ListModel, ItemCategoryCheckableBinding>(
 	{ inflater, parent -> ItemCategoryCheckableBinding.inflate(inflater, parent, false) },
 ) {
 

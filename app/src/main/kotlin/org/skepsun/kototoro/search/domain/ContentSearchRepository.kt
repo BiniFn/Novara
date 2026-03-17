@@ -13,37 +13,37 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.toEntity
-import org.skepsun.kototoro.core.db.entity.toManga
-import org.skepsun.kototoro.core.db.entity.toMangaTag
-import org.skepsun.kototoro.core.db.entity.toMangaTagsList
+import org.skepsun.kototoro.core.db.entity.toContent
+import org.skepsun.kototoro.core.db.entity.toContentTag
+import org.skepsun.kototoro.core.db.entity.toContentTagsList
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.parsers.util.mapToSet
-import org.skepsun.kototoro.search.ui.MangaSuggestionsProvider
+import org.skepsun.kototoro.search.ui.ContentSuggestionsProvider
 import javax.inject.Inject
 import kotlin.math.abs
 
 @Reusable
-class MangaSearchRepository @Inject constructor(
+class ContentSearchRepository @Inject constructor(
 	private val db: MangaDatabase,
-	private val sourcesRepository: MangaSourcesRepository,
+	private val sourcesRepository: ContentSourcesRepository,
 	@ApplicationContext private val context: Context,
 	private val recentSuggestions: SearchRecentSuggestions,
 	private val settings: AppSettings,
 ) {
 
-	suspend fun getMangaSuggestion(query: String, limit: Int, source: MangaSource?): List<Manga> = when {
-		query.isEmpty() -> db.getSuggestionDao().getTopManga(limit)
+	suspend fun getContentSuggestion(query: String, limit: Int, source: ContentSource?): List<Content> = when {
+		query.isEmpty() -> db.getSuggestionDao().getTopContent(limit)
 		source != null -> db.getMangaDao().searchByTitle("%$query%", source.name, limit)
 		else -> db.getMangaDao().searchByTitle("%$query%", limit)
 	}.let {
 		if (settings.isNsfwContentDisabled) it.filterNot { x -> x.manga.isNsfw } else it
 	}.map {
-		it.toManga()
+		it.toContent()
 	}.sortedBy { x ->
 		x.title.levenshteinDistance(query)
 	}
@@ -53,7 +53,7 @@ class MangaSearchRepository @Inject constructor(
 		limit: Int,
 	): List<String> = withContext(Dispatchers.IO) {
 		context.contentResolver.query(
-			MangaSuggestionsProvider.QUERY_URI,
+			ContentSuggestionsProvider.QUERY_URI,
 			arrayOf(SearchManager.SUGGEST_COLUMN_QUERY),
 			"${SearchManager.SUGGEST_COLUMN_QUERY} LIKE ?",
 			arrayOf("%$query%"),
@@ -98,7 +98,7 @@ class MangaSearchRepository @Inject constructor(
 		return db.getMangaDao().findAuthors("$query%", limit)
 	}
 
-	suspend fun getTagsSuggestion(query: String, limit: Int, source: MangaSource?): List<MangaTag> {
+	suspend fun getTagsSuggestion(query: String, limit: Int, source: ContentSource?): List<ContentTag> {
 		return when {
 			query.isNotEmpty() && source != null -> db.getTagsDao()
 				.findTags(source.name, "%$query%", limit)
@@ -106,39 +106,39 @@ class MangaSearchRepository @Inject constructor(
 			query.isNotEmpty() -> db.getTagsDao().findTags("%$query%", limit)
 			source != null -> db.getTagsDao().findPopularTags(source.name, limit)
 			else -> db.getTagsDao().findPopularTags(limit)
-		}.toMangaTagsList()
+		}.toContentTagsList()
 	}
 
-	suspend fun getTagsSuggestion(tags: Set<MangaTag>): List<MangaTag> {
+	suspend fun getTagsSuggestion(tags: Set<ContentTag>): List<ContentTag> {
 		val ids = tags.mapToSet { it.toEntity().id }
 		return if (ids.size == 1) {
 			db.getTagsDao().findRelatedTags(ids.first())
 		} else {
 			db.getTagsDao().findRelatedTags(ids)
 		}.mapNotNull { x ->
-			if (x.id in ids) null else x.toMangaTag()
+			if (x.id in ids) null else x.toContentTag()
 		}
 	}
 
-	suspend fun getRareTags(source: MangaSource, limit: Int): List<MangaTag> {
-		return db.getTagsDao().findRareTags(source.name, limit).toMangaTagsList()
+	suspend fun getRareTags(source: ContentSource, limit: Int): List<ContentTag> {
+		return db.getTagsDao().findRareTags(source.name, limit).toContentTagsList()
 	}
 
-	suspend fun getTopTags(source: MangaSource, limit: Int): List<MangaTag> {
-		return db.getTagsDao().findPopularTags(source.name, limit).toMangaTagsList()
+	suspend fun getTopTags(source: ContentSource, limit: Int): List<ContentTag> {
+		return db.getTagsDao().findPopularTags(source.name, limit).toContentTagsList()
 	}
 
-	suspend fun getSourcesSuggestion(limit: Int): List<MangaSource> = sourcesRepository.getTopSources(limit)
+	suspend fun getSourcesSuggestion(limit: Int): List<ContentSource> = sourcesRepository.getTopSources(limit)
 
-	fun getSourcesSuggestion(query: String, limit: Int): List<MangaSource> {
+	fun getSourcesSuggestion(query: String, limit: Int): List<ContentSource> {
 		return getSourcesSuggestion(query, limit, enabledSources = emptyList())
 	}
 
 	fun getSourcesSuggestion(
 		query: String,
 		limit: Int,
-		enabledSources: Collection<MangaSource>,
-	): List<MangaSource> {
+		enabledSources: Collection<ContentSource>,
+	): List<ContentSource> {
 		val normalizedQuery = query.trim()
 		if (normalizedQuery.isEmpty() || normalizedQuery.length < minSourcesQueryLength(normalizedQuery)) {
 			return emptyList()
@@ -147,13 +147,13 @@ class MangaSearchRepository @Inject constructor(
 		val queryLower = normalizedQuery.lowercase()
 		val candidates = ArrayList<SourceCandidate>()
 
-		val searchableSources = LinkedHashMap<String, MangaSource>(
-			enabledSources.size + sourcesRepository.allMangaSources.size,
+		val searchableSources = LinkedHashMap<String, ContentSource>(
+			enabledSources.size + sourcesRepository.allContentSources.size,
 		).also { map ->
 			for (source in enabledSources) {
 				map.putIfAbsent(source.name, source)
 			}
-			for (source in sourcesRepository.allMangaSources) {
+			for (source in sourcesRepository.allContentSources) {
 				map.putIfAbsent(source.name, source)
 			}
 		}.values
@@ -194,7 +194,7 @@ class MangaSearchRepository @Inject constructor(
 
 	suspend fun deleteSearchQuery(query: String) = withContext(Dispatchers.IO) {
 		context.contentResolver.delete(
-			MangaSuggestionsProvider.URI,
+			ContentSuggestionsProvider.URI,
 			"display1 = ?",
 			arrayOf(query),
 		)
@@ -202,7 +202,7 @@ class MangaSearchRepository @Inject constructor(
 
 	suspend fun getSearchHistoryCount(): Int = withContext(Dispatchers.IO) {
 		context.contentResolver.query(
-			MangaSuggestionsProvider.QUERY_URI,
+			ContentSuggestionsProvider.QUERY_URI,
 			arrayOf(SearchManager.SUGGEST_COLUMN_QUERY),
 			null,
 			arrayOfNulls(1),
@@ -210,13 +210,13 @@ class MangaSearchRepository @Inject constructor(
 		)?.use { cursor -> cursor.count } ?: 0
 	}
 
-    suspend fun getAuthors(source: MangaSource, limit: Int): List<String> {
+    suspend fun getAuthors(source: ContentSource, limit: Int): List<String> {
         return db.getMangaDao().findAuthorsBySource(source.name, limit)
     }
 }
 
 private data class SourceCandidate(
-	val source: MangaSource,
+	val source: ContentSource,
 	val titleLower: String,
 	val matchIndex: Int,
 	val titleLength: Int,

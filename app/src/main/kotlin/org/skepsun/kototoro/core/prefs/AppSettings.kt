@@ -679,7 +679,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isAdBlockEnabled: Boolean
 		get() = prefs.getBoolean(KEY_ADBLOCK, false)
 
-	var userSpecifiedMangaDirectories: Set<File>
+	var userSpecifiedContentDirectories: Set<File>
 		get() {
 			val set = prefs.getStringSet(KEY_LOCAL_MANGA_DIRS, emptySet()).orEmpty()
 			return set.mapNotNullToSet { File(it).takeIfReadable() }
@@ -692,14 +692,14 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var mangaStorageDir: File?
 		get() = prefs.getString(KEY_LOCAL_STORAGE, null)?.let {
 			File(it)
-		}?.takeIf { it.exists() && it in userSpecifiedMangaDirectories }
+		}?.takeIf { it.exists() && it in userSpecifiedContentDirectories }
 		set(value) = prefs.edit {
 			if (value == null) {
 				remove(KEY_LOCAL_STORAGE)
 			} else {
-				val userDirs = userSpecifiedMangaDirectories
+				val userDirs = userSpecifiedContentDirectories
 				if (value !in userDirs) {
-					userSpecifiedMangaDirectories = userDirs + value
+					userSpecifiedContentDirectories = userDirs + value
 				}
 				putString(KEY_LOCAL_STORAGE, value.path)
 			}
@@ -848,7 +848,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_FAVORITES_ORDER, ListSortOrder.NEWEST)
 		set(value) = prefs.edit { putEnumValue(KEY_FAVORITES_ORDER, value) }
 
-	val isRelatedMangaEnabled: Boolean
+	val isRelatedContentEnabled: Boolean
 		get() = prefs.getBoolean(KEY_RELATED_MANGA, true)
 
 	val isWebtoonZoomEnabled: Boolean
@@ -1031,7 +1031,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		prefs.edit { putString(KEY_PAGES_SAVE_DIR, uri?.toString()) }
 	}
 
-	fun getMangaListBadges(): Int {
+	fun getContentListBadges(): Int {
 		val raw = prefs.getStringSet(KEY_MANGA_LIST_BADGES, mangaListBadgesDefault).orEmpty()
 		var result = 0
 		for (item in raw) {

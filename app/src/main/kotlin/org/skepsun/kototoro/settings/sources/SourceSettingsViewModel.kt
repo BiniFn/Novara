@@ -10,25 +10,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.HttpUrl
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
-import org.skepsun.kototoro.core.parser.JsMangaRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
+import org.skepsun.kototoro.core.parser.JsContentRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
-import org.skepsun.kototoro.parsers.MangaParserAuthProvider
-import org.skepsun.kototoro.parsers.MangaParserCredentialsAuthProvider
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.parsers.ContentParserAuthProvider
+import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.ParseException
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
@@ -47,15 +47,15 @@ import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 @HiltViewModel
 class SourceSettingsViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 	private val cookieJar: MutableCookieJar,
-	private val mangaSourcesRepository: MangaSourcesRepository,
+	private val mangaSourcesRepository: ContentSourcesRepository,
 	private val jsonSourceManager: JsonSourceManager,
 	private val jsSourceParser: JSSourceParser,
 	private val webViewExecutor: WebViewExecutor,
 ) : BaseViewModel(), SharedPreferences.OnSharedPreferenceChangeListener {
 
-	private val initialSource = MangaSource(savedStateHandle.get<String>(AppRouter.KEY_SOURCE))
+	private val initialSource = ContentSource(savedStateHandle.get<String>(AppRouter.KEY_SOURCE))
 	val repository = mangaRepositoryFactory.create(initialSource)
 	val source = repository.source
 
@@ -64,8 +64,8 @@ class SourceSettingsViewModel @Inject constructor(
 	val isAuthorized = MutableStateFlow<Boolean?>(null)
 	val browserUrl = MutableStateFlow<String?>(null)
 	val isEnabled = mangaSourcesRepository.observeIsEnabled(source)
-	private val _jsAccountMeta = MutableStateFlow<JsMangaRepository.JsAccountMeta?>(null)
-	val jsAccountMeta: StateFlow<JsMangaRepository.JsAccountMeta?> = _jsAccountMeta.asStateFlow()
+	private val _jsAccountMeta = MutableStateFlow<JsContentRepository.JsAccountMeta?>(null)
+	val jsAccountMeta: StateFlow<JsContentRepository.JsAccountMeta?> = _jsAccountMeta.asStateFlow()
 	private val _jsLoginState = MutableEventFlow<Boolean>()
 	val jsLoginState: EventFlow<Boolean> = _jsLoginState
 	private val _jsWebLoginState = MutableEventFlow<Boolean>()
@@ -75,7 +75,7 @@ class SourceSettingsViewModel @Inject constructor(
 
 	init {
 		when (repository) {
-			is ParserMangaRepository -> {
+			is ParserContentRepository -> {
 				browserUrl.value = "https://${repository.domain}"
 				repository.getConfig().subscribe(this)
 				loadUsername(repository.getAuthProvider())
@@ -84,7 +84,7 @@ class SourceSettingsViewModel @Inject constructor(
 				val url = runCatching {
 					val json = Json { ignoreUnknownKeys = true; isLenient = true }
 					val config = json.decodeFromString<LegadoBookSource>(
-						(repository.source as JsonMangaSource).entity.config
+						(repository.source as JsonContentSource).entity.config
 					)
 					config.bookSourceUrl.takeIf { it.isNotBlank() }
 				}.getOrNull()
@@ -92,7 +92,7 @@ class SourceSettingsViewModel @Inject constructor(
 			}
 			is TVBoxRepository -> {
 				val url = runCatching {
-					val jsonSource = repository.source as? JsonMangaSource ?: return@runCatching null
+					val jsonSource = repository.source as? JsonContentSource ?: return@runCatching null
 					val config = TVBoxStoredConfig.parse(jsonSource.entity.config)
 					listOf(
 						config.meta.sourceLocator,
@@ -108,9 +108,9 @@ class SourceSettingsViewModel @Inject constructor(
 				}.getOrNull()
 				browserUrl.value = url
 			}
-			is JsMangaRepository -> {
+			is JsContentRepository -> {
 				val url = runCatching {
-					val config = (repository.source as? JsonMangaSource)?.entity?.config ?: return@runCatching null
+					val config = (repository.source as? JsonContentSource)?.entity?.config ?: return@runCatching null
 					jsSourceParser.parseMetadata(config).getOrNull()?.homepage?.takeIf { it.isNotBlank() }
 				}.getOrNull()
 				browserUrl.value = url
@@ -133,7 +133,7 @@ class SourceSettingsViewModel @Inject constructor(
 
 	override fun onCleared() {
 		when (repository) {
-			is ParserMangaRepository -> {
+			is ParserContentRepository -> {
 				repository.getConfig().unsubscribe(this)
 			}
 			is KotatsuParserRepository -> {
@@ -143,7 +143,7 @@ class SourceSettingsViewModel @Inject constructor(
 		super.onCleared()
 	}
 
-	private fun loadJsAccountMeta(repo: JsMangaRepository) {
+	private fun loadJsAccountMeta(repo: JsContentRepository) {
 		launchLoadingJob(Dispatchers.Default) {
 			runCatching { repo.getJsAccountMeta() }
 				.onSuccess { _jsAccountMeta.value = it }
@@ -151,7 +151,7 @@ class SourceSettingsViewModel @Inject constructor(
 	}
 
 	fun loginJs(username: String, password: String) {
-		val repo = repository as? JsMangaRepository ?: return
+		val repo = repository as? JsContentRepository ?: return
 		launchLoadingJob(Dispatchers.IO) {
 			val ok = runCatching { repo.jsLogin(username, password) }.getOrDefault(false)
 			_jsLoginState.call(ok)
@@ -159,7 +159,7 @@ class SourceSettingsViewModel @Inject constructor(
 	}
 
 	fun logoutJs() {
-		val repo = repository as? JsMangaRepository ?: return
+		val repo = repository as? JsContentRepository ?: return
 		launchLoadingJob(Dispatchers.IO) {
 			val ok = runCatching { repo.jsLogout() }.getOrDefault(false)
 			_jsLoginState.call(!ok)
@@ -190,7 +190,7 @@ class SourceSettingsViewModel @Inject constructor(
 
 	suspend fun loginJsWithWebview(): Boolean {
 		jsWebLoginJob?.cancel()
-		val repo = repository as? JsMangaRepository ?: return false
+		val repo = repository as? JsContentRepository ?: return false
 		val meta = jsAccountMeta.value ?: repo.getJsAccountMeta() ?: return false
 		val loginUrl = meta.webLoginUrl ?: return false
 		jsWebLoginJob = launchLoadingJob(Dispatchers.IO) {
@@ -214,12 +214,12 @@ class SourceSettingsViewModel @Inject constructor(
 	}
 
 	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-		if (repository is CachingMangaRepository) {
+		if (repository is CachingContentRepository) {
 			if (key != SourceSettings.KEY_SLOWDOWN && key != SourceSettings.KEY_SORT_ORDER) {
 				repository.invalidateCache()
 			}
 		}
-		if (repository is ParserMangaRepository) {
+		if (repository is ParserContentRepository) {
 			if (key == SourceSettings.KEY_DOMAIN) {
 				browserUrl.value = "https://${repository.domain}"
 			}
@@ -232,13 +232,13 @@ class SourceSettingsViewModel @Inject constructor(
 	}
 
 	fun onResume() {
-		if (usernameLoadJob?.isActive != true && repository is ParserMangaRepository) {
+		if (usernameLoadJob?.isActive != true && repository is ParserContentRepository) {
 			loadUsername(repository.getAuthProvider())
 		}
 	}
 
 	fun clearCookies() {
-		if (repository !is ParserMangaRepository) return
+		if (repository !is ParserContentRepository) return
 		launchLoadingJob(Dispatchers.Default) {
 			val url = HttpUrl.Builder()
 				.scheme("https")
@@ -252,7 +252,7 @@ class SourceSettingsViewModel @Inject constructor(
 
 	fun setEnabled(value: Boolean) {
 		launchJob(Dispatchers.Default) {
-			val tvBoxLocator = (source as? JsonMangaSource)
+			val tvBoxLocator = (source as? JsonContentSource)
 				?.takeIf { it.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX && value }
 				?.let { TVBoxStoredConfig.parse(it.entity.config).meta.sourceLocator }
 				?.takeIf { !it.isNullOrBlank() }
@@ -264,7 +264,7 @@ class SourceSettingsViewModel @Inject constructor(
 		}
 	}
 
-    private fun loadUsername(authProvider: MangaParserAuthProvider?) {
+    private fun loadUsername(authProvider: ContentParserAuthProvider?) {
         launchLoadingJob(Dispatchers.Default) {
             try {
                 username.value = null
@@ -280,12 +280,12 @@ class SourceSettingsViewModel @Inject constructor(
     }
 
     fun loginByCredentials(username: String, password: String) {
-        val authProvider = (repository as? ParserMangaRepository)?.getAuthProvider() as? MangaParserCredentialsAuthProvider
+        val authProvider = (repository as? ParserContentRepository)?.getAuthProvider() as? ContentParserCredentialsAuthProvider
         if (authProvider == null) return
         launchLoadingJob(Dispatchers.IO) {
             val success = authProvider.login(username, password)
             // 登录成功后刷新授权状态与用户名展示
-            val refreshed = (repository as? ParserMangaRepository)?.getAuthProvider()
+            val refreshed = (repository as? ParserContentRepository)?.getAuthProvider()
             isAuthorized.value = success
             if (success) {
                 // 先用输入的 username 进行乐观更新，避免解析失败导致界面报错

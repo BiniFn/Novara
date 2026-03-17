@@ -26,7 +26,7 @@ import org.skepsun.kototoro.core.util.ext.setValueRounded
 import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.core.util.progress.ImageRequestIndicatorListener
 import org.skepsun.kototoro.databinding.ActivityColorFilterBinding
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.reader.domain.ReaderColorFilter
 import javax.inject.Inject
@@ -126,7 +126,7 @@ class ColorFilterConfigActivity :
 		viewBinding.imageViewAfter.colorFilter = readerColorFilter?.toColorFilter()
 	}
 
-	private fun loadPreview(page: MangaPage) = with(viewBinding.imageViewBefore) {
+	private fun loadPreview(page: ContentPage) = with(viewBinding.imageViewBefore) {
 		addImageRequestListener(
 			ImageRequestIndicatorListener(
 				listOf(

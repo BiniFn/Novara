@@ -17,7 +17,7 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
-class MangaDirectoriesViewModel @Inject constructor(
+class ContentDirectoriesViewModel @Inject constructor(
     private val storageManager: LocalStorageManager,
     private val settings: AppSettings,
 ) : BaseViewModel() {
@@ -42,14 +42,14 @@ class MangaDirectoriesViewModel @Inject constructor(
                 throw AccessDeniedException(dir)
             }
             if (dir !in storageManager.getApplicationStorageDirs()) {
-                settings.userSpecifiedMangaDirectories += dir
+                settings.userSpecifiedContentDirectories += dir
                 loadList()
             }
         }
     }
 
     fun onRemoveClick(directory: File) {
-        settings.userSpecifiedMangaDirectories -= directory
+        settings.userSpecifiedContentDirectories -= directory
         if (settings.mangaStorageDir == directory) {
             settings.mangaStorageDir = null
         }
@@ -62,7 +62,7 @@ class MangaDirectoriesViewModel @Inject constructor(
             prevJob?.cancelAndJoin()
             val downloadDir = storageManager.getDefaultWriteableDir()
             val applicationDirs = storageManager.getApplicationStorageDirs()
-            val customDirs = settings.userSpecifiedMangaDirectories - applicationDirs
+            val customDirs = settings.userSpecifiedContentDirectories - applicationDirs
             items.value = buildList(applicationDirs.size + customDirs.size) {
                 applicationDirs.mapTo(this) { dir ->
                     dir.toDirectoryModel(

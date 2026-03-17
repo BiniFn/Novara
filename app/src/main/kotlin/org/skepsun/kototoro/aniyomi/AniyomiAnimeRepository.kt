@@ -7,29 +7,29 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.cache.MemoryContentCache
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource
 import org.skepsun.kototoro.aniyomi.model.getPublicAnimeUrl
 import org.skepsun.kototoro.aniyomi.model.toAniyomiAnime
 import org.skepsun.kototoro.aniyomi.model.toAniyomiEpisode
 import org.skepsun.kototoro.aniyomi.model.toKotoChapter
-import org.skepsun.kototoro.aniyomi.model.toKotoManga
+import org.skepsun.kototoro.aniyomi.model.toKotoContent
 import org.skepsun.kototoro.aniyomi.model.toKotoPage
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 /**
- * Repository that adapts an Aniyomi AnimeCatalogueSource to Kototoro's MangaRepository interface.
+ * Repository that adapts an Aniyomi AnimeCatalogueSource to Kototoro's ContentRepository interface.
  */
 class AniyomiAnimeRepository(
     override val source: AniyomiAnimeSource,
     cache: MemoryContentCache,
-) : CachingMangaRepository(cache) {
+) : CachingContentRepository(cache) {
     
     private var lastOffset = -1
     private var currentPage = 1
@@ -43,8 +43,8 @@ class AniyomiAnimeRepository(
         }
     }
     
-    override val filterCapabilities: MangaListFilterCapabilities
-        get() = MangaListFilterCapabilities(
+    override val filterCapabilities: ContentListFilterCapabilities
+        get() = ContentListFilterCapabilities(
             isSearchSupported = true,
             isMultipleTagsSupported = true,
             isSearchWithFiltersSupported = true,
@@ -55,8 +55,8 @@ class AniyomiAnimeRepository(
     override suspend fun getList(
         offset: Int,
         order: SortOrder?,
-        filter: MangaListFilter?,
-    ): List<Manga> = withContext(Dispatchers.IO) {
+        filter: ContentListFilter?,
+    ): List<Content> = withContext(Dispatchers.IO) {
         if (offset == 0) {
             currentPage = 1
         } else if (offset > lastOffset) {
@@ -84,14 +84,14 @@ class AniyomiAnimeRepository(
         }
         
         animesPage.animes.map { sAnime ->
-            sAnime.toKotoManga(
+            sAnime.toKotoContent(
                 source = source,
                 publicUrl = (aniyomiSource as? AnimeHttpSource)?.getPublicAnimeUrl(sAnime) ?: "",
             )
         }
     }
     
-    override suspend fun getDetailsImpl(manga: Manga): Manga = withContext(Dispatchers.IO) {
+    override suspend fun getDetailsImpl(manga: Content): Content = withContext(Dispatchers.IO) {
         val sAnime = manga.toAniyomiAnime()
         
         val details = try {
@@ -156,14 +156,14 @@ class AniyomiAnimeRepository(
         
         val publicUrl = (aniyomiSource as? AnimeHttpSource)?.getPublicAnimeUrl(details) ?: ""
         
-        details.toKotoManga(
+        details.toKotoContent(
             source = source,
             chapters = chapters,
             publicUrl = publicUrl,
         ).copy(id = manga.id)
     }
     
-    override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = withContext(Dispatchers.IO) {
+    override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> = withContext(Dispatchers.IO) {
         android.util.Log.d("AniyomiRepo", "getPagesImpl called for chapter: ${chapter.title} (${chapter.url})")
         val sEpisode = chapter.toAniyomiEpisode()
         val videos = fetchVideoList(sEpisode)
@@ -174,19 +174,19 @@ class AniyomiAnimeRepository(
         }
     }
 
-    suspend fun getVideoListForChapter(chapter: MangaChapter): List<Video> = withContext(Dispatchers.IO) {
+    suspend fun getVideoListForChapter(chapter: ContentChapter): List<Video> = withContext(Dispatchers.IO) {
         val sEpisode = chapter.toAniyomiEpisode()
         fetchVideoList(sEpisode)
     }
     
-    override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> = emptyList()
+    override suspend fun getRelatedContentImpl(seed: Content): List<Content> = emptyList()
     
-    override suspend fun getPageUrl(page: MangaPage): String = withContext(Dispatchers.IO) {
+    override suspend fun getPageUrl(page: ContentPage): String = withContext(Dispatchers.IO) {
         // For video, the URL is already the stream URL
         page.url
     }
     
-    override suspend fun getFilterOptions(): MangaListFilterOptions {
+    override suspend fun getFilterOptions(): ContentListFilterOptions {
         val aniyomiFilters = try {
             aniyomiSource.getFilterList()
         } catch (e: Exception) {
@@ -196,7 +196,7 @@ class AniyomiAnimeRepository(
         return AniyomiFilterMapper.mapOptions(aniyomiFilters, source)
     }
 
-    private fun MangaListFilter.toAniyomiFilterList(): AnimeFilterList {
+    private fun ContentListFilter.toAniyomiFilterList(): AnimeFilterList {
         val aniyomiFilters = try {
             aniyomiSource.getFilterList()
         } catch (e: Exception) {

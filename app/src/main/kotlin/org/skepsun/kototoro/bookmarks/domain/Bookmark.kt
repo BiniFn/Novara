@@ -3,12 +3,12 @@ package org.skepsun.kototoro.bookmarks.domain
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.isImage
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentPage
 import java.time.Instant
 
 data class Bookmark(
-	val manga: Manga,
+	val manga: Content,
 	val pageId: Long,
 	val chapterId: Long,
 	val page: Int,
@@ -25,7 +25,7 @@ data class Bookmark(
 			page == other.page
 	}
 
-	fun toMangaPage() = MangaPage(
+	fun toContentPage() = ContentPage(
 		id = pageId,
 		url = imageUrl,
 		preview = imageUrl.takeIf {

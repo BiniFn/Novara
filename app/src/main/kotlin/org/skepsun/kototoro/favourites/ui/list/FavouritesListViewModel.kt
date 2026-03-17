@@ -18,7 +18,7 @@ import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -31,18 +31,18 @@ import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.
 import org.skepsun.kototoro.history.domain.MarkAsReadUseCase
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
-import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.flowOf
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
@@ -55,15 +55,15 @@ private const val PAGE_SIZE = 16
 class FavouritesListViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	private val repository: FavouritesRepository,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 	private val markAsReadUseCase: MarkAsReadUseCase,
 	quickFilterFactory: FavoritesListQuickFilter.Factory,
 	private val sourceGroupManager: SourceGroupManager,
 	settings: AppSettings,
-	mangaDataRepository: MangaDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
+	mangaDataRepository: ContentDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
-) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener {
+) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener {
 
 	val categoryId: Long = savedStateHandle[AppRouter.KEY_ID] ?: NO_ID
 	private val quickFilter = quickFilterFactory.create(categoryId)
@@ -110,7 +110,7 @@ class FavouritesListViewModel @Inject constructor(
 		currentSourceTags,
 		selectedCategoryIds,
 	) { values: Array<Any?> ->
-		val list = values[0] as List<org.skepsun.kototoro.parsers.model.Manga>
+		val list = values[0] as List<org.skepsun.kototoro.parsers.model.Content>
 		val filters = values[1] as Set<ListFilterOption>
 		val mode = values[2] as ListMode
 		// val refreshTrigger = values[3]
@@ -137,7 +137,7 @@ class FavouritesListViewModel @Inject constructor(
 
 	override fun clearFilter() = quickFilter.clearFilter()
 
-	fun markAsRead(items: Set<Manga>) {
+	fun markAsRead(items: Set<Content>) {
 		launchLoadingJob(Dispatchers.Default) {
 			markAsReadUseCase(items)
 			onRefresh()
@@ -174,7 +174,7 @@ class FavouritesListViewModel @Inject constructor(
 	}
 
 	private suspend fun mapList(
-		list: List<Manga>,
+		list: List<Content>,
 		filters: Set<ListFilterOption>,
 		mode: ListMode,
 		groupTab: BrowseGroupTab,
@@ -232,7 +232,7 @@ class FavouritesListViewModel @Inject constructor(
 
 		val result = ArrayList<ListModel>(visibleItems.size + 1)
 		quickFilter.filterItem(filters)?.let(result::add)
-		mangaListMapper.toListModelList(result, visibleItems, mode, MangaListMapper.NO_FAVORITE)
+		mangaListMapper.toListModelList(result, visibleItems, mode, ContentListMapper.NO_FAVORITE)
 		return result
 	}
 

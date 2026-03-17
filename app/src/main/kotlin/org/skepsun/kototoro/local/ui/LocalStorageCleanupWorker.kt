@@ -25,7 +25,7 @@ import dagger.assisted.AssistedInject
 import dagger.assisted.AssistedFactory
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.domain.DeleteReadChaptersUseCase
@@ -36,8 +36,8 @@ class LocalStorageCleanupWorker @AssistedInject constructor(
 	@Assisted appContext: Context,
 	@Assisted params: WorkerParameters,
 	private val settings: AppSettings,
-	private val localMangaRepository: LocalMangaRepository,
-	private val dataRepository: MangaDataRepository,
+	private val localContentRepository: LocalMangaRepository,
+	private val dataRepository: ContentDataRepository,
 	private val deleteReadChaptersUseCase: DeleteReadChaptersUseCase,
 ) : CoroutineWorker(appContext, params) {
 
@@ -45,8 +45,8 @@ class LocalStorageCleanupWorker @AssistedInject constructor(
 		if (settings.isAutoLocalChaptersCleanupEnabled) {
 			deleteReadChaptersUseCase.invoke()
 		}
-		return if (localMangaRepository.cleanup()) {
-			dataRepository.cleanupLocalManga()
+		return if (localContentRepository.cleanup()) {
+			dataRepository.cleanupLocalContent()
 			Result.success()
 		} else {
 			Result.retry()

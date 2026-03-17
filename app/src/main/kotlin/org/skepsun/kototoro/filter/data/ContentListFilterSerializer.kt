@@ -12,34 +12,34 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.encoding.encodeStructure
 import kotlinx.serialization.serializer
-import org.skepsun.kototoro.core.model.MangaSource
+import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import java.util.Locale
 
-object MangaListFilterSerializer : KSerializer<MangaListFilter> {
+object ContentListFilterSerializer : KSerializer<ContentListFilter> {
 
     override val descriptor: SerialDescriptor =
-        buildClassSerialDescriptor(MangaListFilter::class.java.name) {
+        buildClassSerialDescriptor(ContentListFilter::class.java.name) {
             element<String?>("query", isOptional = true)
             element(
                 elementName = "tags",
-                descriptor = SetSerializer(MangaTagSerializer).descriptor,
+                descriptor = SetSerializer(ContentTagSerializer).descriptor,
                 isOptional = true,
             )
             element(
                 elementName = "tagsExclude",
-                descriptor = SetSerializer(MangaTagSerializer).descriptor,
+                descriptor = SetSerializer(ContentTagSerializer).descriptor,
                 isOptional = true,
             )
             element<String?>("locale", isOptional = true)
             element<String?>("originalLocale", isOptional = true)
-            element<Set<MangaState>>("states", isOptional = true)
+            element<Set<ContentState>>("states", isOptional = true)
             element<Set<ContentRating>>("contentRating", isOptional = true)
             element<Set<ContentType>>("types", isOptional = true)
             element<Set<Demographic>>("demographics", isOptional = true)
@@ -51,11 +51,11 @@ object MangaListFilterSerializer : KSerializer<MangaListFilter> {
 
     override fun serialize(
         encoder: Encoder,
-        value: MangaListFilter
+        value: ContentListFilter
     ) = encoder.encodeStructure(descriptor) {
         encodeNullableSerializableElement(descriptor, 0, String.serializer(), value.query)
-        encodeSerializableElement(descriptor, 1, SetSerializer(MangaTagSerializer), value.tags)
-        encodeSerializableElement(descriptor, 2, SetSerializer(MangaTagSerializer), value.tagsExclude)
+        encodeSerializableElement(descriptor, 1, SetSerializer(ContentTagSerializer), value.tags)
+        encodeSerializableElement(descriptor, 2, SetSerializer(ContentTagSerializer), value.tagsExclude)
         encodeNullableSerializableElement(descriptor, 3, String.serializer(), value.locale?.toLanguageTag())
         encodeNullableSerializableElement(descriptor, 4, String.serializer(), value.originalLocale?.toLanguageTag())
         encodeSerializableElement(descriptor, 5, SetSerializer(serializer()), value.states)
@@ -70,26 +70,26 @@ object MangaListFilterSerializer : KSerializer<MangaListFilter> {
 
     override fun deserialize(
         decoder: Decoder
-    ): MangaListFilter = decoder.decodeStructure(descriptor) {
-        var query: String? = MangaListFilter.EMPTY.query
-        var tags: Set<MangaTag> = MangaListFilter.EMPTY.tags
-        var tagsExclude: Set<MangaTag> = MangaListFilter.EMPTY.tagsExclude
-        var locale: Locale? = MangaListFilter.EMPTY.locale
-        var originalLocale: Locale? = MangaListFilter.EMPTY.originalLocale
-        var states: Set<MangaState> = MangaListFilter.EMPTY.states
-        var contentRating: Set<ContentRating> = MangaListFilter.EMPTY.contentRating
-        var types: Set<ContentType> = MangaListFilter.EMPTY.types
-        var demographics: Set<Demographic> = MangaListFilter.EMPTY.demographics
-        var year: Int = MangaListFilter.EMPTY.year
-        var yearFrom: Int = MangaListFilter.EMPTY.yearFrom
-        var yearTo: Int = MangaListFilter.EMPTY.yearTo
-        var author: String? = MangaListFilter.EMPTY.author
+    ): ContentListFilter = decoder.decodeStructure(descriptor) {
+        var query: String? = ContentListFilter.EMPTY.query
+        var tags: Set<ContentTag> = ContentListFilter.EMPTY.tags
+        var tagsExclude: Set<ContentTag> = ContentListFilter.EMPTY.tagsExclude
+        var locale: Locale? = ContentListFilter.EMPTY.locale
+        var originalLocale: Locale? = ContentListFilter.EMPTY.originalLocale
+        var states: Set<ContentState> = ContentListFilter.EMPTY.states
+        var contentRating: Set<ContentRating> = ContentListFilter.EMPTY.contentRating
+        var types: Set<ContentType> = ContentListFilter.EMPTY.types
+        var demographics: Set<Demographic> = ContentListFilter.EMPTY.demographics
+        var year: Int = ContentListFilter.EMPTY.year
+        var yearFrom: Int = ContentListFilter.EMPTY.yearFrom
+        var yearTo: Int = ContentListFilter.EMPTY.yearTo
+        var author: String? = ContentListFilter.EMPTY.author
 
         while (true) {
             when (decodeElementIndex(descriptor)) {
                 0 -> query = decodeNullableSerializableElement(descriptor, 0, serializer<String>())
-                1 -> tags = decodeSerializableElement(descriptor, 1, SetSerializer(MangaTagSerializer))
-                2 -> tagsExclude = decodeSerializableElement(descriptor, 2, SetSerializer(MangaTagSerializer))
+                1 -> tags = decodeSerializableElement(descriptor, 1, SetSerializer(ContentTagSerializer))
+                2 -> tagsExclude = decodeSerializableElement(descriptor, 2, SetSerializer(ContentTagSerializer))
                 3 -> locale = decodeNullableSerializableElement(descriptor, 3, serializer<String>())?.toLocaleOrNull()
                 4 -> originalLocale =
                     decodeNullableSerializableElement(descriptor, 4, serializer<String>())?.toLocaleOrNull()
@@ -106,7 +106,7 @@ object MangaListFilterSerializer : KSerializer<MangaListFilter> {
             }
         }
 
-        MangaListFilter(
+        ContentListFilter(
             query = query,
             tags = tags,
             tagsExclude = tagsExclude,
@@ -123,21 +123,21 @@ object MangaListFilterSerializer : KSerializer<MangaListFilter> {
         )
     }
 
-    private object MangaTagSerializer : KSerializer<MangaTag> {
+    private object ContentTagSerializer : KSerializer<ContentTag> {
 
-        override val descriptor: SerialDescriptor = buildClassSerialDescriptor(MangaTag::class.java.name) {
+        override val descriptor: SerialDescriptor = buildClassSerialDescriptor(ContentTag::class.java.name) {
             element<String>("title")
             element<String>("key")
             element<String>("source")
         }
 
-        override fun serialize(encoder: Encoder, value: MangaTag) = encoder.encodeStructure(descriptor) {
+        override fun serialize(encoder: Encoder, value: ContentTag) = encoder.encodeStructure(descriptor) {
             encodeStringElement(descriptor, 0, value.title)
             encodeStringElement(descriptor, 1, value.key)
             encodeStringElement(descriptor, 2, value.source.name)
         }
 
-        override fun deserialize(decoder: Decoder): MangaTag = decoder.decodeStructure(descriptor) {
+        override fun deserialize(decoder: Decoder): ContentTag = decoder.decodeStructure(descriptor) {
             var title: String? = null
             var key: String? = null
             var source: String? = null
@@ -151,10 +151,10 @@ object MangaListFilterSerializer : KSerializer<MangaListFilter> {
                 }
             }
 
-            MangaTag(
+            ContentTag(
                 title = title ?: error("Missing 'title' field"),
                 key = key ?: error("Missing 'key' field"),
-                source = MangaSource(source),
+                source = ContentSource(source),
             )
         }
     }

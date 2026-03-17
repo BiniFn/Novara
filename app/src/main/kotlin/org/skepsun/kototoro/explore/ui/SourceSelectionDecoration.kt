@@ -13,7 +13,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.list.decor.AbstractSelectionItemDecoration
 import org.skepsun.kototoro.core.util.ext.getItem
 import org.skepsun.kototoro.core.util.ext.getThemeColor
-import org.skepsun.kototoro.explore.ui.model.MangaSourceItem
+import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import androidx.appcompat.R as appcompatR
 import com.google.android.material.R as materialR
 
@@ -36,7 +36,7 @@ class SourceSelectionDecoration(context: Context) : AbstractSelectionItemDecorat
 
 	override fun getItemId(parent: RecyclerView, child: View): Long {
 		val holder = parent.getChildViewHolder(child) ?: return NO_ID
-		val item = holder.getItem(MangaSourceItem::class.java) ?: return NO_ID
+		val item = holder.getItem(ContentSourceItem::class.java) ?: return NO_ID
 		return item.id
 	}
 

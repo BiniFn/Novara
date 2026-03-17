@@ -9,13 +9,13 @@ import org.skepsun.kototoro.core.prefs.DownloadFormat
 import org.skepsun.kototoro.core.util.ext.MimeType
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toFileNameSafe
-import org.skepsun.kototoro.local.data.input.LocalMangaParser
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.local.data.input.LocalContentParser
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
 
-sealed class LocalMangaOutput(
+sealed class LocalContentOutput(
 	val rootFile: File,
 ) : Closeable {
 
@@ -23,11 +23,11 @@ sealed class LocalMangaOutput(
 
 	abstract suspend fun addCover(file: File, type: MimeType?)
 
-	abstract suspend fun addPage(chapter: IndexedValue<MangaChapter>, file: File, pageNumber: Int, type: MimeType?)
+	abstract suspend fun addPage(chapter: IndexedValue<ContentChapter>, file: File, pageNumber: Int, type: MimeType?)
 	
 	abstract suspend fun putChapterImages(chapterId: Long, remoteImages: Map<String, String>)
 
-	abstract suspend fun flushChapter(chapter: MangaChapter): Boolean
+	abstract suspend fun flushChapter(chapter: ContentChapter): Boolean
 
 	abstract suspend fun finish()
 
@@ -41,9 +41,9 @@ sealed class LocalMangaOutput(
 
 		suspend fun getOrCreate(
 			root: File,
-			manga: Manga,
+			manga: Content,
 			format: DownloadFormat,
-		): LocalMangaOutput = withContext(Dispatchers.IO) {
+		): LocalContentOutput = withContext(Dispatchers.IO) {
 			val targetFormat = if (format == DownloadFormat.AUTOMATIC) {
 				if (manga.chapters.let { it != null && it.size <= 3 }) {
 					DownloadFormat.SINGLE_CBZ
@@ -56,16 +56,16 @@ sealed class LocalMangaOutput(
 			checkNotNull(getImpl(root, manga, onlyIfExists = false, format = targetFormat))
 		}
 
-		suspend fun get(root: File, manga: Manga): LocalMangaOutput? = withContext(Dispatchers.IO) {
+		suspend fun get(root: File, manga: Content): LocalContentOutput? = withContext(Dispatchers.IO) {
 			getImpl(root, manga, onlyIfExists = true, format = DownloadFormat.AUTOMATIC)
 		}
 
 		private suspend fun getImpl(
 			root: File,
-			manga: Manga,
+			manga: Content,
 			onlyIfExists: Boolean,
 			format: DownloadFormat,
-		): LocalMangaOutput? {
+		): LocalContentOutput? {
 			mutex.withLock {
 				var i = 0
 				val baseName = manga.title.toFileNameSafe()
@@ -77,22 +77,22 @@ sealed class LocalMangaOutput(
 					return when {
 						dir.isDirectory -> {
 							if (canWriteTo(dir, manga)) {
-								LocalMangaDirOutput(dir, manga)
+								LocalContentDirOutput(dir, manga)
 							} else {
 								continue
 							}
 						}
 
 						zip.isFile -> if (canWriteTo(zip, manga)) {
-							LocalMangaZipOutput(zip, manga)
+							LocalContentZipOutput(zip, manga)
 						} else {
 							continue
 						}
 
 						!onlyIfExists -> when (format) {
 							DownloadFormat.AUTOMATIC -> null
-							DownloadFormat.SINGLE_CBZ -> LocalMangaZipOutput(zip, manga)
-							DownloadFormat.MULTIPLE_CBZ -> LocalMangaDirOutput(dir, manga)
+							DownloadFormat.SINGLE_CBZ -> LocalContentZipOutput(zip, manga)
+							DownloadFormat.MULTIPLE_CBZ -> LocalContentDirOutput(dir, manga)
 						}
 
 						else -> null
@@ -101,9 +101,9 @@ sealed class LocalMangaOutput(
 			}
 		}
 
-		private suspend fun canWriteTo(file: File, manga: Manga): Boolean {
+		private suspend fun canWriteTo(file: File, manga: Content): Boolean {
 			val info = runCatchingCancellable {
-				LocalMangaParser(file).getMangaInfo()
+				LocalContentParser(file).getContentInfo()
 			}.onFailure {
 				it.printStackTraceDebug()
 			}.getOrNull() ?: return false

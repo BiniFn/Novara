@@ -5,7 +5,7 @@ import android.util.Log
 import fi.iki.elonen.NanoHTTPD
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -23,7 +23,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 @Singleton
 class VideoLocalCacheProxy @Inject constructor(
     @ApplicationContext context: Context,
-    @MangaHttpClient private val okHttpClient: OkHttpClient,
+    @ContentHttpClient private val okHttpClient: OkHttpClient,
 ) {
     fun interface DynamicSourceHandler {
         fun handle(request: DynamicRequest): DynamicResponse

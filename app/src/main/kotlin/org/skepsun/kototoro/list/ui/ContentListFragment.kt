@@ -60,24 +60,24 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
-import org.skepsun.kototoro.list.ui.adapter.MangaListAdapter
-import org.skepsun.kototoro.list.ui.adapter.MangaListListener
+import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
+import org.skepsun.kototoro.list.ui.adapter.ContentListListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.search.ui.MangaListActivity
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.search.ui.ContentListActivity
 import javax.inject.Inject
 
 @AndroidEntryPoint
-abstract class MangaListFragment :
+abstract class ContentListFragment :
 	BaseFragment<FragmentListBinding>(),
 	PaginationScrollListener.Callback,
-	MangaListListener,
+	ContentListListener,
 	RecyclerViewOwner,
 	SwipeRefreshLayout.OnRefreshListener,
 	ListSelectionController.Callback,
@@ -90,7 +90,7 @@ abstract class MangaListFragment :
 	@Inject
 	lateinit var settings: AppSettings
 
-	private var listAdapter: MangaListAdapter? = null
+	private var listAdapter: ContentListAdapter? = null
 	private var paginationListener: PaginationScrollListener? = null
 	private var selectionController: ListSelectionController? = null
 	private var spanResolver: GridSpanResolver? = null
@@ -104,12 +104,12 @@ abstract class MangaListFragment :
 	private val sourceTagChipIds = mutableMapOf<SourceTag, Int>()
 	private val categoryChipIds = mutableMapOf<Long, Int>()
 
-	protected abstract val viewModel: MangaListViewModel
+	protected abstract val viewModel: ContentListViewModel
 
 	protected val selectedItemsIds: Set<Long>
 		get() = selectionController?.snapshot().orEmpty()
 
-	protected val selectedItems: Set<Manga>
+	protected val selectedItems: Set<Content>
 		get() = collectSelectedItems()
 
 	override val recyclerView: RecyclerView?
@@ -128,7 +128,7 @@ abstract class MangaListFragment :
 			spanResolver?.setGridSize(settings.gridSize / 100f, binding.recyclerView)
 			selectionController = ListSelectionController(
 				appCompatDelegate = checkNotNull(findAppCompatDelegate()),
-				decoration = MangaSelectionDecoration(binding.root.context),
+				decoration = ContentSelectionDecoration(binding.root.context),
 				registryOwner = this,
 				callback = this,
 			)
@@ -139,13 +139,13 @@ abstract class MangaListFragment :
 			checkNotNull(selectionController).attachToRecyclerView(this)
 			addItemDecoration(TypedListSpacingDecoration(context, false))
 			addOnScrollListener(checkNotNull(paginationListener))
-			fastScroller.setFastScrollListener(this@MangaListFragment)
+			fastScroller.setFastScrollListener(this@ContentListFragment)
 		}
 		with(binding.swipeRefreshLayout) {
-			setOnRefreshListener(this@MangaListFragment)
+			setOnRefreshListener(this@ContentListFragment)
 			isEnabled = isSwipeRefreshEnabled
 		}
-		addMenuProvider(MangaListMenuProvider(this))
+		addMenuProvider(ContentListMenuProvider(this))
 
 		viewModel.listMode.observe(viewLifecycleOwner, ::onListModeChanged)
 		viewModel.gridScale.observe(viewLifecycleOwner, ::onGridScaleChanged)
@@ -241,30 +241,30 @@ abstract class MangaListFragment :
 		super.onDestroyView()
 	}
 
-	override fun onItemClick(item: MangaListModel, view: View) {
+	override fun onItemClick(item: ContentListModel, view: View) {
 		if (selectionController?.onItemClick(item.id) != true) {
-			val manga = item.toMangaWithOverride()
-			if ((activity as? MangaListActivity)?.showPreview(manga) != true) {
+			val manga = item.toContentWithOverride()
+			if ((activity as? ContentListActivity)?.showPreview(manga) != true) {
 				router.openDetails(manga)
 			}
 		}
 	}
 
-	override fun onItemLongClick(item: MangaListModel, view: View): Boolean {
+	override fun onItemLongClick(item: ContentListModel, view: View): Boolean {
 		return selectionController?.onItemLongClick(view, item.id) == true
 	}
 
-	override fun onItemContextClick(item: MangaListModel, view: View): Boolean {
+	override fun onItemContextClick(item: ContentListModel, view: View): Boolean {
 		return selectionController?.onItemContextClick(view, item.id) == true
 	}
 
-	override fun onReadClick(manga: Manga, view: View) {
+	override fun onReadClick(manga: Content, view: View) {
 		if (selectionController?.onItemClick(manga.id) != true) {
 			router.openReader(manga)
 		}
 	}
 
-	override fun onTagClick(manga: Manga, tag: MangaTag, view: View) {
+	override fun onTagClick(manga: Content, tag: ContentTag, view: View) {
 		if (selectionController?.onItemClick(manga.id) != true) {
 			router.showTagDialog(tag)
 		}
@@ -320,8 +320,8 @@ abstract class MangaListFragment :
 		}
 	}
 
-	protected open fun onCreateAdapter(): MangaListAdapter {
-		return MangaListAdapter(
+	protected open fun onCreateAdapter(): ContentListAdapter {
+		return ContentListAdapter(
 			listener = this,
 			sizeResolver = DynamicItemSizeResolver(resources, viewLifecycleOwner, settings, adjustWidth = false),
 		)
@@ -392,14 +392,14 @@ abstract class MangaListFragment :
 		return when (item.itemId) {
 			R.id.action_select_all -> {
 				val ids = listAdapter?.items?.mapNotNull {
-					(it as? MangaListModel)?.id
+					(it as? ContentListModel)?.id
 				} ?: return false
 				selectionController?.addAll(ids)
 				true
 			}
 
 			R.id.action_share -> {
-				ShareHelper(requireContext()).shareMangaLinks(selectedItems)
+				ShareHelper(requireContext()).shareContentLinks(selectedItems)
 				mode?.finish()
 				true
 			}
@@ -417,7 +417,7 @@ abstract class MangaListFragment :
 			}
 
 			R.id.action_edit_override -> {
-				router.openMangaOverrideConfig(selectedItems.singleOrNull() ?: return false)
+				router.openContentOverrideConfig(selectedItems.singleOrNull() ?: return false)
 				mode?.finish()
 				true
 			}
@@ -454,12 +454,12 @@ abstract class MangaListFragment :
 		requireViewBinding().swipeRefreshLayout.isEnabled = isSwipeRefreshEnabled
 	}
 
-	private fun collectSelectedItems(): Set<Manga> {
+	private fun collectSelectedItems(): Set<Content> {
 		val checkedIds = selectionController?.peekCheckedIds() ?: return emptySet()
 		val items = listAdapter?.items ?: return emptySet()
-		val result = ArraySet<Manga>(checkedIds.size)
+		val result = ArraySet<Content>(checkedIds.size)
 		for (item in items) {
-			if (item is MangaListModel && item.id in checkedIds) {
+			if (item is ContentListModel && item.id in checkedIds) {
 				result.add(item.manga)
 			}
 		}

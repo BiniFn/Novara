@@ -1,7 +1,7 @@
 package org.skepsun.kototoro.scrobbling.shikimori.domain
 
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -16,7 +16,7 @@ private const val RATING_MAX = 10f
 class ShikimoriScrobbler @Inject constructor(
 	private val repository: ShikimoriRepository,
 	db: MangaDatabase,
-	mangaRepositoryFactory: MangaRepository.Factory,
+	mangaRepositoryFactory: ContentRepository.Factory,
 ) : Scrobbler(db, ScrobblerService.SHIKIMORI, repository, mangaRepositoryFactory) {
 
 	init {

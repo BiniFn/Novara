@@ -16,7 +16,7 @@ class SearchSuggestionAdapter(
 			.addDelegate(searchSuggestionSourceAD(listener))
 			.addDelegate(searchSuggestionSourceTipAD(listener))
 			.addDelegate(searchSuggestionTagsAD(listener))
-			.addDelegate(searchSuggestionMangaListAD(listener))
+			.addDelegate(searchSuggestionContentListAD(listener))
 			.addDelegate(searchSuggestionQueryHintAD(listener))
 			.addDelegate(searchSuggestionAuthorAD(listener))
 			.addDelegate(searchSuggestionTextAD())

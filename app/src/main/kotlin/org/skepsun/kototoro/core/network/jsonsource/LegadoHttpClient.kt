@@ -10,9 +10,9 @@ import okhttp3.OkHttpClient
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.Response
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,10 +34,10 @@ class LegadoHttpClient @Inject constructor(
      * Execute a GET request
      * @param url Target URL
      * @param headers Optional custom headers
-     * @param source Optional MangaSource for request tagging
+     * @param source Optional ContentSource for request tagging
      * @return HTTP response
      */
-    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), source: MangaSource? = null): Response {
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), source: ContentSource? = null): Response {
         return withContext(Dispatchers.IO) {
             val request = buildRequest(url, headers, source = source)
             okHttpClient.newCall(request).execute()
@@ -76,7 +76,7 @@ class LegadoHttpClient @Inject constructor(
         url: String,
         formData: Map<String, String>,
         headers: Map<String, String> = emptyMap(),
-        source: MangaSource? = null
+        source: ContentSource? = null
     ): Response {
         val formBody = FormBody.Builder().apply {
             formData.forEach { (key, value) ->
@@ -93,7 +93,7 @@ class LegadoHttpClient @Inject constructor(
         url: String,
         body: okhttp3.RequestBody,
         headers: Map<String, String> = emptyMap(),
-        source: MangaSource? = null
+        source: ContentSource? = null
     ): Response {
         return withContext(Dispatchers.IO) {
             val request = buildRequest(url, headers, method = "POST", body = body, source = source)
@@ -109,7 +109,7 @@ class LegadoHttpClient @Inject constructor(
         customHeaders: Map<String, String>,
         method: String = "GET",
         body: okhttp3.RequestBody? = null,
-        source: MangaSource? = null
+        source: ContentSource? = null
     ): Request {
         val finalUrl = url
         val headersBuilder = Headers.Builder()
@@ -176,7 +176,7 @@ class LegadoHttpClient @Inject constructor(
         
         // Tag the request with the source if provided
         if (source != null) {
-            requestBuilder.tag(MangaSource::class.java, source)
+            requestBuilder.tag(ContentSource::class.java, source)
         }
         
         // Log cookies for debugging

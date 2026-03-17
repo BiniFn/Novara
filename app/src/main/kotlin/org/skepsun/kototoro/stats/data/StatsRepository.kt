@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.db.entity.toManga
+import org.skepsun.kototoro.core.db.entity.toContent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.stats.domain.StatsPeriod
@@ -33,7 +33,7 @@ class StatsRepository @Inject constructor(
 		var other = StatsRecord(null, 0)
 		val total = stats.values.sum()
 		for ((mangaEntity, duration) in stats) {
-			val manga = mangaEntity.toManga(emptySet(), null)
+			val manga = mangaEntity.toContent(emptySet(), null)
 			val percent = duration.toDouble() / total
 			if (percent < 0.05) {
 				other = other.copy(duration = other.duration + duration)
@@ -65,7 +65,7 @@ class StatsRepository @Inject constructor(
 		return db.getStatsDao().getReadPagesCount(mangaId)
 	}
 
-	suspend fun getMangaTimeline(mangaId: Long): NavigableMap<Long, Int> {
+	suspend fun getContentTimeline(mangaId: Long): NavigableMap<Long, Int> {
 		val entities = db.getStatsDao().findAll(mangaId)
 		val map = TreeMap<Long, Int>()
 		for (e in entities) {

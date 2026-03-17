@@ -31,7 +31,7 @@ class StorageAndNetworkSettingsViewModel @Inject constructor(
         val availableSpace = storageManager.computeAvailableSize()
         val totalBytes = pagesCacheSize + otherCacheSize + storageSize + availableSpace
         return StorageUsage(
-            savedManga = StorageUsage.Item(
+            savedContent = StorageUsage.Item(
                 bytes = storageSize,
                 percent = (storageSize.toDouble() / totalBytes).toFloat(),
             ),

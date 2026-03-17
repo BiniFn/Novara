@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 import org.skepsun.kototoro.core.util.ext.buildContentValues
 
 @Serializable
-data class MangaSyncDto(
+data class ContentSyncDto(
 	@SerialName("manga_id") val id: Long,
 	@SerialName("title") val title: String,
 	@SerialName("alt_title") val altTitle: String?,
@@ -17,13 +17,13 @@ data class MangaSyncDto(
 	@SerialName("content_rating") val contentRating: String?,
 	@SerialName("cover_url") val coverUrl: String,
 	@SerialName("large_cover_url") val largeCoverUrl: String?,
-	@SerialName("tags") val tags: Set<MangaTagSyncDto>,
+	@SerialName("tags") val tags: Set<ContentTagSyncDto>,
 	@SerialName("state") val state: String?,
 	@SerialName("author") val author: String?,
 	@SerialName("source") val source: String,
 ) {
 
-	constructor(cursor: Cursor, tags: Set<MangaTagSyncDto>) : this(
+	constructor(cursor: Cursor, tags: Set<ContentTagSyncDto>) : this(
 		id = cursor.getLong(cursor.getColumnIndexOrThrow("manga_id")),
 		title = cursor.getString(cursor.getColumnIndexOrThrow("title")),
 		altTitle = cursor.getStringOrNull(cursor.getColumnIndexOrThrow("alt_title")),

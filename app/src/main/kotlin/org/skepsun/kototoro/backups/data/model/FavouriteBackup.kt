@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.skepsun.kototoro.core.db.entity.MangaWithTags
 import org.skepsun.kototoro.favourites.data.FavouriteEntity
-import org.skepsun.kototoro.favourites.data.FavouriteManga
+import org.skepsun.kototoro.favourites.data.FavouriteContent
 
 @Serializable
 class FavouriteBackup(
@@ -15,10 +15,10 @@ class FavouriteBackup(
 	@SerialName("created_at") val createdAt: Long,
 	@SerialName("deleted_at") val deletedAt: Long = 0L,
 	@SerialName("updated_at") val updatedAt: Long = 0L,
-	@SerialName("manga") val manga: MangaBackup,
+	@SerialName("manga") val manga: ContentBackup,
 ) {
 
-	constructor(entity: FavouriteManga) : this(
+	constructor(entity: FavouriteContent) : this(
 		mangaId = entity.manga.id,
 		categoryId = entity.favourite.categoryId,
 		sortKey = entity.favourite.sortKey,
@@ -26,7 +26,7 @@ class FavouriteBackup(
 		createdAt = entity.favourite.createdAt,
 		deletedAt = entity.favourite.deletedAt,
 		updatedAt = entity.favourite.updatedAt,
-		manga = MangaBackup(MangaWithTags(entity.manga, entity.tags)),
+		manga = ContentBackup(MangaWithTags(entity.manga, entity.tags)),
 	)
 
 	fun toEntity() = FavouriteEntity(

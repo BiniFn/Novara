@@ -20,13 +20,13 @@ import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.proxy.ProxyProvider
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxPlayback
 import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
 import org.skepsun.kototoro.core.util.ext.configureForParser
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
@@ -45,7 +45,7 @@ class WebViewExecutor @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val proxyProvider: ProxyProvider,
 	private val cookieJar: MutableCookieJar,
-	private val mangaRepositoryFactoryProvider: Provider<MangaRepository.Factory>,
+	private val mangaRepositoryFactoryProvider: Provider<ContentRepository.Factory>,
 ) {
 
 	private var webViewCached: WeakReference<WebView>? = null
@@ -316,8 +316,8 @@ class WebViewExecutor @Inject constructor(
 		}
 	}
 
-	private fun MangaSource.getUserAgent(): String? {
-		val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserMangaRepository
+	private fun ContentSource.getUserAgent(): String? {
+		val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserContentRepository
 		return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
 	}
 

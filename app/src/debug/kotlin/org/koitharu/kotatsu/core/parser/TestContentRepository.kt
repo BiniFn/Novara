@@ -1,14 +1,14 @@
 package org.skepsun.kototoro.core.parser
 
 import org.skepsun.kototoro.core.cache.MemoryContentCache
-import org.skepsun.kototoro.core.model.TestMangaSource
-import org.skepsun.kototoro.parsers.MangaLoaderContext
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.core.model.TestContentSource
+import org.skepsun.kototoro.parsers.ContentLoaderContext
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 import java.util.EnumSet
 
@@ -16,12 +16,12 @@ import java.util.EnumSet
  This class is for parser development and testing purposes
  You can open it in the app via Settings -> Debug
  */
-class TestMangaRepository(
-	@Suppress("unused") private val loaderContext: MangaLoaderContext,
+class TestContentRepository(
+	@Suppress("unused") private val loaderContext: ContentLoaderContext,
 	cache: MemoryContentCache
-) : CachingMangaRepository(cache) {
+) : CachingContentRepository(cache) {
 
-	override val source = TestMangaSource
+	override val source = TestContentSource
 
 	override val sortOrders: Set<SortOrder> = EnumSet.allOf(SortOrder::class.java)
 
@@ -29,30 +29,30 @@ class TestMangaRepository(
 		get() = sortOrders.first()
 		set(value) = Unit
 
-	override val filterCapabilities = MangaListFilterCapabilities()
+	override val filterCapabilities = ContentListFilterCapabilities()
 
-	override suspend fun getFilterOptions() = MangaListFilterOptions()
+	override suspend fun getFilterOptions() = ContentListFilterOptions()
 
 	override suspend fun getList(
 		offset: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?
-	): List<Manga> = TODO("Get manga list by filter")
+		filter: ContentListFilter?
+	): List<Content> = TODO("Get manga list by filter")
 
 	override suspend fun getDetailsImpl(
-		manga: Manga
-	): Manga = TODO("Fetch manga details")
+		manga: Content
+	): Content = TODO("Fetch manga details")
 
 	override suspend fun getPagesImpl(
-		chapter: MangaChapter,
+		chapter: ContentChapter,
 		nextChapterUrl: String?
-	): List<MangaPage> = TODO("Get pages for specific chapter")
+	): List<ContentPage> = TODO("Get pages for specific chapter")
 
 	override suspend fun getPageUrl(
-		page: MangaPage
+		page: ContentPage
 	): String = TODO("Return direct url of page image or page.url if it is already a direct url")
 
-	override suspend fun getRelatedMangaImpl(
-		seed: Manga
-	): List<Manga> = TODO("Get list of related manga. This method is optional and parser library has a default implementation")
+	override suspend fun getRelatedContentImpl(
+		seed: Content
+	): List<Content> = TODO("Get list of related manga. This method is optional and parser library has a default implementation")
 }

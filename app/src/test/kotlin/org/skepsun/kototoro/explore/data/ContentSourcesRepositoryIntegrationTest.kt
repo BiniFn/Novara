@@ -8,13 +8,13 @@ import org.junit.Before
 import org.junit.Test
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 
 /**
- * Integration tests for MangaSourcesRepository with JSON source support.
+ * Integration tests for ContentSourcesRepository with JSON source support.
  * 
  * These tests verify that:
  * - JSON sources are correctly integrated with native sources
@@ -24,7 +24,7 @@ import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
  * NOTE: These tests are currently disabled as they require Mockito which is not
  * available in the project. They can be re-enabled if Mockito is added as a dependency.
  */
-class MangaSourcesRepositoryIntegrationTest {
+class ContentSourcesRepositoryIntegrationTest {
 	
 	// Tests commented out - require Mockito
 	/*
@@ -53,8 +53,8 @@ class MangaSourcesRepositoryIntegrationTest {
 			isPinned = false,
 		)
 		
-		// When we wrap it as a MangaSource
-		val source = JsonMangaSource(entity)
+		// When we wrap it as a ContentSource
+		val source = JsonContentSource(entity)
 		
 		// Then it should have the correct properties
 		assertEquals("JSON_LEGADO_TEST_SOURCE", source.name)
@@ -175,8 +175,8 @@ class MangaSourcesRepositoryIntegrationTest {
 			updatedAt = System.currentTimeMillis(),
 		)
 		
-		val source1 = JsonMangaSource(entity1)
-		val source2 = JsonMangaSource(entity2)
+		val source1 = JsonContentSource(entity1)
+		val source2 = JsonContentSource(entity2)
 		
 		// Then they should be equal (based on ID)
 		assertEquals(source1, source2)
@@ -196,7 +196,7 @@ class MangaSourcesRepositoryIntegrationTest {
 			updatedAt = System.currentTimeMillis(),
 		)
 		
-		val source = JsonMangaSource(entity)
+		val source = JsonContentSource(entity)
 		
 		// When we convert it to string
 		val str = source.toString()

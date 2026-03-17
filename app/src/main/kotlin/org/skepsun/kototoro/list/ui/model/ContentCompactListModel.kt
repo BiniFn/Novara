@@ -1,11 +1,11 @@
 package org.skepsun.kototoro.list.ui.model
 
-import org.skepsun.kototoro.core.ui.model.MangaOverride
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.core.ui.model.ContentOverride
+import org.skepsun.kototoro.parsers.model.Content
 
-data class MangaCompactListModel(
-	override val manga: Manga,
-	override val override: MangaOverride?,
+data class ContentCompactListModel(
+	override val manga: Content,
+	override val override: ContentOverride?,
 	val subtitle: String,
 	override val counter: Int,
-) : MangaListModel()
+) : ContentListModel()

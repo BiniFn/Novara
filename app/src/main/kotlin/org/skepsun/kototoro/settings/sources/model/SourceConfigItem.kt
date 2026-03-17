@@ -4,12 +4,12 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 sealed interface SourceConfigItem : ListModel {
 
 	data class SourceItem(
-		val source: MangaSource,
+		val source: ContentSource,
 		val isEnabled: Boolean,
 		val isDraggable: Boolean,
 		val isAvailable: Boolean,

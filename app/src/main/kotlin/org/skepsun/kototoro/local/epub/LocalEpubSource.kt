@@ -4,7 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.parsers.model.*
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.File
@@ -28,7 +28,7 @@ class LocalEpubSource @Inject constructor(
     @ApplicationContext private val context: Context,
     private val epubStorageManager: EpubStorageManager,
     private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
-) : MangaSource {
+) : ContentSource {
 
     override val name: String = "Local EPUB"
 
@@ -38,7 +38,7 @@ class LocalEpubSource @Inject constructor(
      * 
      * 新架构：支持多个EPUB文件，从数据库读取所有内部章节
      */
-    suspend fun getDetails(manga: Manga): Manga = withContext(Dispatchers.IO) {
+    suspend fun getDetails(manga: Content): Content = withContext(Dispatchers.IO) {
         val epubDir = epubStorageManager.getEpubDir(manga.id)
         if (!epubDir.exists()) {
             throw IllegalStateException("EPUB directory not found for manga ${manga.id}")
@@ -57,7 +57,7 @@ class LocalEpubSource @Inject constructor(
         
         // 从数据库读取所有内部章节
         val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
-        val allMappings = epubChapterMappingDao.findByMangaId(manga.id)
+        val allMappings = epubChapterMappingDao.findByContentId(manga.id)
         
         android.util.Log.d("LocalEpubSource", "Found ${allMappings.size} chapter mappings in database")
         
@@ -67,12 +67,12 @@ class LocalEpubSource @Inject constructor(
             android.util.Log.d("LocalEpubSource", "No mappings found, parsing EPUB file: ${epubFile.name}")
             
             val parser = LocalEpubParser(epubFile)
-            val epubManga = parser.parseManga()
+            val epubContent = parser.parseContent()
                 ?: throw IllegalStateException("Failed to parse EPUB file: ${epubFile.absolutePath}")
             
-            val chapters = epubManga.chapters ?: emptyList()
+            val chapters = epubContent.chapters ?: emptyList()
             val epubChapters = chapters.mapIndexed { index, chapter ->
-                MangaChapter(
+                ContentChapter(
                     id = generateChapterId(manga.id, index),
                     title = chapter.title ?: "Chapter ${index + 1}",
                     number = index.toFloat(),
@@ -96,7 +96,7 @@ class LocalEpubSource @Inject constructor(
         val epubChapters = allMappings
             .sortedWith(compareBy({ it.parentChapterId }, { it.chapterIndex }))
             .mapIndexed { globalIndex, mapping: org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity ->
-                MangaChapter(
+                ContentChapter(
                     id = mapping.internalChapterId,
                     title = mapping.chapterTitle,
                     number = (globalIndex + 1).toFloat(),  // 使用全局索引作为章节号，从1开始
@@ -121,7 +121,7 @@ class LocalEpubSource @Inject constructor(
      * 获取漫画详情，但保留原始source信息
      * 用于下载完成后解析章节，避免覆盖原始来源（如NoveliaWenku）
      */
-    suspend fun getDetailsPreservingSource(manga: Manga): Manga = withContext(Dispatchers.IO) {
+    suspend fun getDetailsPreservingSource(manga: Content): Content = withContext(Dispatchers.IO) {
         val epubFile = epubStorageManager.getEpubFile(manga.id)
             ?: throw IllegalStateException("EPUB file not found for manga ${manga.id}")
         
@@ -133,15 +133,15 @@ class LocalEpubSource @Inject constructor(
         
         // 解析EPUB文件
         val parser = LocalEpubParser(epubFile)
-        val epubManga = parser.parseManga()
+        val epubContent = parser.parseContent()
             ?: throw IllegalStateException("Failed to parse EPUB file: ${epubFile.absolutePath}")
         
-        val chapters = epubManga.chapters ?: emptyList()
+        val chapters = epubContent.chapters ?: emptyList()
         android.util.Log.d("LocalEpubSource", "Parsed ${chapters.size} chapters from EPUB")
         
         // 转换章节，使用epub://协议的URL，但保留原始source
         val epubChapters = chapters.mapIndexed { index, chapter ->
-            MangaChapter(
+            ContentChapter(
                 id = generateChapterId(manga.id, index),
                 title = chapter.title ?: "Chapter ${index + 1}",
                 number = index.toFloat(),
@@ -167,7 +167,7 @@ class LocalEpubSource @Inject constructor(
      * 获取章节页面
      * 对于EPUB，返回一个特殊的页面，内容由EpubReader加载
      */
-    suspend fun getPages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
+    suspend fun getPages(chapter: ContentChapter): List<ContentPage> = withContext(Dispatchers.IO) {
         val (mangaId, chapterIndex) = parseEpubUrl(chapter.url)
         
         android.util.Log.d("LocalEpubSource", "Getting pages for chapter: mangaId=$mangaId, index=$chapterIndex")
@@ -175,7 +175,7 @@ class LocalEpubSource @Inject constructor(
         // 返回一个特殊的页面，URL指向EPUB章节
         // 实际内容由NovelContentLoader通过EpubReader加载
         listOf(
-            MangaPage(
+            ContentPage(
                 id = 0,
                 url = chapter.url,
                 preview = null,
@@ -248,7 +248,7 @@ class LocalEpubSource @Inject constructor(
         /**
          * 检查章节是否是EPUB章节
          */
-        fun isEpubChapter(chapter: MangaChapter): Boolean {
+        fun isEpubChapter(chapter: ContentChapter): Boolean {
             return isEpubUrl(chapter.url)
         }
     }

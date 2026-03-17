@@ -28,17 +28,17 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
-import org.skepsun.kototoro.core.parser.MangaLoaderContextImpl
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
+import org.skepsun.kototoro.core.parser.ContentLoaderContextImpl
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.model.SortOrder
 import java.io.IOException
 import java.util.Base64
@@ -57,17 +57,17 @@ import android.content.SharedPreferences
  *
  * Returns empty data instead of throwing UnsupportedSourceException to avoid UI crashes.
  */
-class JsMangaRepository(
-	override val source: MangaSource,
-	private val mangaLoaderContext: MangaLoaderContextImpl,
-) : MangaRepository {
+class JsContentRepository(
+	override val source: ContentSource,
+	private val mangaLoaderContext: ContentLoaderContextImpl,
+) : ContentRepository {
 
 	private var cachedExploreTitle: String? = null
 
 	init {
-		Log.d("JsMangaRepository", "Created JsMangaRepository for ${source.name}")
+		Log.d("JsContentRepository", "Created JsContentRepository for ${source.name}")
 		if (cachedExploreTitle.isNullOrBlank()) {
-			val display = (source as? JsonMangaSource)?.displayName
+			val display = (source as? JsonContentSource)?.displayName
 			if (!display.isNullOrBlank()) {
 				cachedExploreTitle = display
 			}
@@ -78,11 +78,11 @@ class JsMangaRepository(
 
 	override var defaultSortOrder: SortOrder = SortOrder.NEWEST
 
-	override val filterCapabilities: MangaListFilterCapabilities = MangaListFilterCapabilities(
+	override val filterCapabilities: ContentListFilterCapabilities = ContentListFilterCapabilities(
 		isMultipleTagsSupported = true,
 	)
 
-	override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> {
+	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
 		val signature = buildExploreSignature(order, filter)
 		if (offset == 0) {
 			resetExploreTokens(signature)
@@ -94,19 +94,19 @@ class JsMangaRepository(
 		if (first.isSuccess) return first.getOrDefault(emptyList())
 		val err = first.exceptionOrNull()
 		if (err is com.dokar.quickjs.QuickJsException && err.message?.contains("stack overflow", true) == true) {
-			Log.w("JsMangaRepository", "JS list retry without init for ${source.name} due to stack overflow")
+			Log.w("JsContentRepository", "JS list retry without init for ${source.name} due to stack overflow")
 			return runCatching { executeExploreList(pageNumber, order, filter, signature, skipInit = true) }
-				.onFailure { Log.w("JsMangaRepository", "JS list failed retry for ${source.name}", it) }
+				.onFailure { Log.w("JsContentRepository", "JS list failed retry for ${source.name}", it) }
 				.getOrElse { emptyList() }
 		}
-		Log.w("JsMangaRepository", "JS list failed for ${source.name}", err)
+		Log.w("JsContentRepository", "JS list failed for ${source.name}", err)
 		return emptyList()
 	}
 
-	override suspend fun getDetails(manga: Manga): Manga {
+	override suspend fun getDetails(manga: Content): Content {
 		val idStr = manga.url ?: manga.publicUrl ?: manga.id.toString()
 		val details = runCatching { executeDetail(idStr) }
-			.onFailure { Log.w("JsMangaRepository", "JS detail failed for ${source.name}", it) }
+			.onFailure { Log.w("JsContentRepository", "JS detail failed for ${source.name}", it) }
 			.getOrNull()
 		if (details == null) return manga
 		return manga.copy(
@@ -121,7 +121,7 @@ class JsMangaRepository(
 		)
 	}
 
-	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
+	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
 		val parsed = parseChapterUrl(chapter.url)
 		val mangaId = parsed?.mangaId ?: chapter.url.ifBlank { chapter.source.name }
 		val epId = parsed?.chapterId ?: chapter.url
@@ -129,12 +129,12 @@ class JsMangaRepository(
 		val res = pageCache[cacheKey] ?: try {
 			executePages(mangaId, epId).also { pageCache[cacheKey] = it }
 		} catch (e: Exception) {
-			Log.w("JsMangaRepository", "JS pages failed for ${source.name}", e)
+			Log.w("JsContentRepository", "JS pages failed for ${source.name}", e)
 			emptyList()
 		}
 		if (res.isEmpty()) return emptyList()
 		return res.mapIndexed { idx, entry ->
-			MangaPage(
+			ContentPage(
 				id = (chapter.id shl 32) + idx,
 				url = entry.url,
 				preview = entry.url,
@@ -144,23 +144,23 @@ class JsMangaRepository(
 		}
 	}
 
-	override suspend fun getPageUrl(page: MangaPage): String {
+	override suspend fun getPageUrl(page: ContentPage): String {
 		return page.url
 	}
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions {
+	override suspend fun getFilterOptions(): ContentListFilterOptions {
 		if (lastFilterOptions == null) {
 			runCatching { ensureFilterOptions() }
 		}
-		return lastFilterOptions ?: MangaListFilterOptions()
+		return lastFilterOptions ?: ContentListFilterOptions()
 	}
 
-	override suspend fun getRelated(seed: Manga): List<Manga> = emptyList()
+	override suspend fun getRelated(seed: Content): List<Content> = emptyList()
 
-	// 复用 MangaHttpClient（带通用 UA/Referer/Cloudflare/RateLimit 拦截器）
+	// 复用 ContentHttpClient（带通用 UA/Referer/Cloudflare/RateLimit 拦截器）
 	private val okHttp: OkHttpClient = mangaLoaderContext.httpClient
 	private val runtimeBootstrap: String by lazy { buildBootstrapScript() }
-	private var lastFilterOptions: MangaListFilterOptions? = null
+	private var lastFilterOptions: ContentListFilterOptions? = null
 	private val settingsPrefs: SharedPreferences =
 		mangaLoaderContext.getSourcePreferences(source.name)
 	private var cachedJsKey: String? = null
@@ -169,12 +169,12 @@ class JsMangaRepository(
 	private suspend fun executeExploreList(
 		page: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?,
+		filter: ContentListFilter?,
 		signature: String,
 		skipInit: Boolean,
-	): List<Manga> {
-		Log.d("JsMangaRepository", "executeExploreList start for ${source.name} page=$page skipInit=$skipInit")
-		val jsSource = (source as? JsonMangaSource)?.entity
+	): List<Content> {
+		Log.d("JsContentRepository", "executeExploreList start for ${source.name} page=$page skipInit=$skipInit")
+		val jsSource = (source as? JsonContentSource)?.entity
 			?: return emptyList()
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
@@ -265,10 +265,10 @@ class JsMangaRepository(
 				val initErr = runCatching {
 					runSourceInit(qjs)
 				}.onFailure {
-					Log.w("JsMangaRepository", "init() evaluation skipped for ${source.name}", it)
+					Log.w("JsContentRepository", "init() evaluation skipped for ${source.name}", it)
 				}.getOrNull()
 				if (!initErr.isNullOrBlank()) {
-					Log.w("JsMangaRepository", "init() error for ${source.name}: $initErr")
+					Log.w("JsContentRepository", "init() error for ${source.name}: $initErr")
 				}
 				}
 			val hasCategoryFilters = filter?.tags?.any { tag ->
@@ -276,14 +276,14 @@ class JsMangaRepository(
 			} == true
 			// multiPageComicList 的 explore 页通常是首页；当用户选择分类/选项后，才切换到 categoryComics.load
 			val shouldUseCategoryList = hasCategoryComics && (exploreType != "multiPageComicList" || hasCategoryFilters)
-			if (Log.isLoggable("JsMangaRepository", Log.DEBUG)) {
+			if (Log.isLoggable("JsContentRepository", Log.DEBUG)) {
 				val selectedCategoryTag = filter?.tags.orEmpty().lastOrNull { it.key.startsWith(TAG_CATEGORY_PREFIX) }?.key
 				val selectedOptionTags = filter?.tags.orEmpty()
 					.filter { it.key.startsWith(TAG_OPTION_PREFIX) }
 					.map { it.key }
 					.sorted()
 				Log.d(
-					"JsMangaRepository",
+					"JsContentRepository",
 					"explore routing source=${source.name} page=$page exploreType=$exploreType hasCategoryComics=$hasCategoryComics " +
 						"hasCategoryFilters=$hasCategoryFilters shouldUseCategoryList=$shouldUseCategoryList " +
 						"selectedCategoryTag=$selectedCategoryTag selectedOptionTags=$selectedOptionTags"
@@ -292,9 +292,9 @@ class JsMangaRepository(
 			val jsonStr = if (shouldUseCategoryList) {
 				val selection = resolveCategorySelection(filter, categoryMeta)
 				val options = resolveOptionSelection(filter, optionGroups, selection?.label)
-				if (Log.isLoggable("JsMangaRepository", Log.DEBUG)) {
+				if (Log.isLoggable("JsContentRepository", Log.DEBUG)) {
 					Log.d(
-						"JsMangaRepository",
+						"JsContentRepository",
 						"category params source=${source.name} page=$page categoryLabel=${selection?.label} categoryParam=${selection?.param} options=$options"
 					)
 				}
@@ -369,7 +369,7 @@ class JsMangaRepository(
 					"<load>"
 				) ?: "{}"
 			}
-			val result = mapResultToMangaResult(jsonStr)
+			val result = mapResultToContentResult(jsonStr)
 			if (result.items.isNotEmpty()) {
 				updatePageSize(signature, result.items.size)
 				explorePageIndexCache[signature] = page
@@ -385,22 +385,22 @@ class JsMangaRepository(
 					tokenMap[page + 1] = END_TOKEN
 				}
 			}
-			Log.d("JsMangaRepository", "executeExploreList mapped ${result.items.size} items for ${source.name}")
+			Log.d("JsContentRepository", "executeExploreList mapped ${result.items.size} items for ${source.name}")
 			result.items
 		}
 	}
 
-	private fun mapResultToMangaResult(raw: String): MangaListResult {
-		val list = mutableListOf<Manga>()
-		Log.d("JsMangaRepository", "mapResultToManga raw snippet=${raw.take(4000)}")
+	private fun mapResultToContentResult(raw: String): ContentListResult {
+		val list = mutableListOf<Content>()
+		Log.d("JsContentRepository", "mapResultToContent raw snippet=${raw.take(4000)}")
 		val resultObj = runCatching { jsonConverter.parseToJsonElement(raw).jsonObject }.getOrNull()
 			?: run {
-				Log.w("JsMangaRepository", "mapResultToManga cannot parse json")
-				return MangaListResult(emptyList(), null, null)
+				Log.w("JsContentRepository", "mapResultToContent cannot parse json")
+				return ContentListResult(emptyList(), null, null)
 			}
 		resultObj["error"]?.jsonPrimitive?.contentOrNull?.let {
-			Log.w("JsMangaRepository", "mapResultToManga error=$it")
-			return MangaListResult(emptyList(), null, null)
+			Log.w("JsContentRepository", "mapResultToContent error=$it")
+			return ContentListResult(emptyList(), null, null)
 		}
 		val nextToken = extractToken(resultObj["next"])
 		val maxPage = resultObj["maxPage"]?.jsonPrimitive?.intOrNull
@@ -419,7 +419,7 @@ class JsMangaRepository(
 				val merged = resultObj.values.filterIsInstance<JsonArray>().flatMap { arr ->
 					arr.mapNotNull { it as? JsonObject }
 				}
-				if (merged.isNotEmpty()) JsonArray(merged) else return MangaListResult(emptyList(), nextToken, maxPage)
+				if (merged.isNotEmpty()) JsonArray(merged) else return ContentListResult(emptyList(), nextToken, maxPage)
 			}
 		val comicsContainer = if (comicsElement is JsonObject && comicsElement.containsKey("comics")) {
 			comicsElement["comics"]
@@ -435,7 +435,7 @@ class JsMangaRepository(
 				else -> emptyList()
 			}
 		}
-		Log.d("JsMangaRepository", "mapResultToManga comicsElement type=${comicsContainer?.let { it::class.simpleName }} count=${comics.size}")
+		Log.d("JsContentRepository", "mapResultToContent comicsElement type=${comicsContainer?.let { it::class.simpleName }} count=${comics.size}")
 		comics.forEachIndexed { idx, obj ->
 			val idStr = obj["id"]?.jsonPrimitive?.content ?: "${obj.hashCode()}"
 			val title = obj["title"]?.jsonPrimitive?.content ?: "Untitled"
@@ -443,19 +443,19 @@ class JsMangaRepository(
 			val cover = obj["cover"]?.jsonPrimitive?.contentOrNull
 			val description = obj["description"]?.jsonPrimitive?.contentOrNull
 			val tagsJson = obj["tags"]
-			val tags: Set<MangaTag> = try {
+			val tags: Set<ContentTag> = try {
 				when (tagsJson) {
 					is JsonArray -> tagsJson.mapNotNull { it.jsonPrimitive.contentOrNull }
 					is JsonObject -> tagsJson.keys
 					else -> emptyList()
-				}.map { MangaTag(it, it, source) }.toSet()
+				}.map { ContentTag(it, it, source) }.toSet()
 			} catch (e: Exception) {
 				emptySet()
 			}
 			val authors: Set<String> = emptySet()
 			val mangaId = idStr.hashCode().toLong() + idx
 			list.add(
-				Manga(
+				Content(
 					id = mangaId,
 					title = title,
 					altTitles = emptySet(),
@@ -472,7 +472,7 @@ class JsMangaRepository(
 				)
 			)
 		}
-		return MangaListResult(list, nextToken, maxPage)
+		return ContentListResult(list, nextToken, maxPage)
 	}
 
 	private fun parseExploreMeta(obj: JsonObject): ExploreMeta? {
@@ -497,9 +497,9 @@ class JsMangaRepository(
 	}
 
 	private fun applyFilterOptions(meta: ExploreMeta) {
-		val tags = meta.tags.map { MangaTag(it, it, source) }.toSet()
+		val tags = meta.tags.map { ContentTag(it, it, source) }.toSet()
 		val groups = if (tags.isNotEmpty()) {
-			listOf(MangaTagGroup(meta.title ?: "Tags", tags))
+			listOf(ContentTagGroup(meta.title ?: "Tags", tags))
 		} else {
 			emptyList()
 		}
@@ -507,23 +507,23 @@ class JsMangaRepository(
 	}
 
 	private fun applyFilterOptions(categoryMeta: CategoryMeta?, optionGroups: List<OptionGroup>) {
-		val tagGroups = mutableListOf<MangaTagGroup>()
-		val availableTags = mutableSetOf<MangaTag>()
+		val tagGroups = mutableListOf<ContentTagGroup>()
+		val availableTags = mutableSetOf<ContentTag>()
 		categoryMeta?.parts?.forEachIndexed { partIdx, part ->
 			val tags = part.categories.mapIndexed { idx, entry ->
-				MangaTag(entry.label, "$TAG_CATEGORY_PREFIX$partIdx:$idx", source)
+				ContentTag(entry.label, "$TAG_CATEGORY_PREFIX$partIdx:$idx", source)
 			}.toSet()
 			if (tags.isNotEmpty()) {
-				tagGroups.add(MangaTagGroup(part.name.ifBlank { "分类${partIdx + 1}" }, tags))
+				tagGroups.add(ContentTagGroup(part.name.ifBlank { "分类${partIdx + 1}" }, tags))
 				availableTags.addAll(tags)
 			}
 		}
 		optionGroups.forEachIndexed { groupIdx, group ->
 			val tags = group.options.mapIndexed { idx, option ->
-				MangaTag(option.label, "$TAG_OPTION_PREFIX$groupIdx:$idx", source)
+				ContentTag(option.label, "$TAG_OPTION_PREFIX$groupIdx:$idx", source)
 			}.toSet()
 			if (tags.isNotEmpty()) {
-				tagGroups.add(MangaTagGroup(group.title.ifBlank { "选项${groupIdx + 1}" }, tags))
+				tagGroups.add(ContentTagGroup(group.title.ifBlank { "选项${groupIdx + 1}" }, tags))
 				availableTags.addAll(tags)
 			}
 		}
@@ -534,10 +534,10 @@ class JsMangaRepository(
 		val title: String,
 		val description: String?,
 		val coverUrl: String?,
-		val tags: Set<MangaTag>,
+		val tags: Set<ContentTag>,
 		val authors: Set<String>,
 		val url: String?,
-		val chapters: List<MangaChapter>,
+		val chapters: List<ContentChapter>,
 	)
 
 	private data class ExploreMeta(
@@ -606,13 +606,13 @@ class JsMangaRepository(
 	)
 
 	private fun getJsSourceContent(): Pair<String, String?>? {
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return null
+		val jsSource = (source as? JsonContentSource)?.entity ?: return null
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 		return jsContent to preferredClass
 	}
-	private data class MangaListResult(
-		val items: List<Manga>,
+	private data class ContentListResult(
+		val items: List<Content>,
 		val nextToken: String?,
 		val maxPage: Int?,
 	)
@@ -669,7 +669,7 @@ class JsMangaRepository(
 	}
 
 	private suspend fun executeDetail(id: String): JsDetailResult? {
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return null
+		val jsSource = (source as? JsonContentSource)?.entity ?: return null
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 
@@ -684,7 +684,7 @@ class JsMangaRepository(
 			}.getOrNull()?.takeIf { it.isNotBlank() } ?: cachedJsKey
 			initializeSettingsDefaults(qjs)
 			runCatching { runSourceInit(qjs) }
-				.onFailure { Log.w("JsMangaRepository", "init() error for ${source.name}", it) }
+				.onFailure { Log.w("JsContentRepository", "init() error for ${source.name}", it) }
 			qjs.evaluate<Any?>(
 				"""
 				var __detail_result = {};
@@ -783,11 +783,11 @@ class JsMangaRepository(
 			) ?: "{}"
 			val result = jsonConverter.parseToJsonElement(jsonStr).jsonObject
 			result["error"]?.jsonPrimitive?.contentOrNull?.let {
-				Log.w("JsMangaRepository", "detail error=$it for ${source.name}")
+				Log.w("JsContentRepository", "detail error=$it for ${source.name}")
 				return null
 			}
 				Log.d(
-					"JsMangaRepository",
+					"JsContentRepository",
 					"detail json snippet=${result.toString().take(4000)} for ${source.name}"
 				)
 			val title = result["title"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -799,10 +799,10 @@ class JsMangaRepository(
 			val cover = result["cover"]?.jsonPrimitive?.contentOrNull
 			val url = result["url"]?.jsonPrimitive?.contentOrNull
 			val authors = (result["authors"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toSet().orEmpty()
-			val tags = mutableSetOf<MangaTag>()
+			val tags = mutableSetOf<ContentTag>()
 			tagsObj?.forEach { (k, v) ->
 				if (v is JsonArray) {
-					v.mapNotNull { it.jsonPrimitive.contentOrNull }.forEach { tags.add(MangaTag(it, k, source)) }
+					v.mapNotNull { it.jsonPrimitive.contentOrNull }.forEach { tags.add(ContentTag(it, k, source)) }
 				}
 			}
 			val authorFallback = if (authors.isEmpty()) {
@@ -810,7 +810,7 @@ class JsMangaRepository(
 			} else {
 				emptySet()
 			}
-			val chapters = mutableListOf<MangaChapter>()
+			val chapters = mutableListOf<ContentChapter>()
 			val chaptersArr = result["chapters"] as? JsonArray
 			chaptersArr?.forEachIndexed { idx, elem ->
 				val obj = elem as? JsonObject ?: return@forEachIndexed
@@ -824,7 +824,7 @@ class JsMangaRepository(
 				}
 				val chNumericId = abs((urlValue.hashCode().toLong() shl 16) + idx)
 				chapters.add(
-					MangaChapter(
+					ContentChapter(
 						id = chNumericId,
 						title = titleValue,
 						number = (idx + 1).toFloat(),
@@ -841,7 +841,7 @@ class JsMangaRepository(
 				val chNumericId = abs((id.hashCode().toLong() shl 16) + 1)
 				val compositeUrl = "$id$CHAPTER_URL_SEPARATOR$id"
 				chapters.add(
-					MangaChapter(
+					ContentChapter(
 						id = chNumericId,
 						title = "Chapter 1",
 						number = 1f,
@@ -864,7 +864,7 @@ class JsMangaRepository(
 				chapters = chapters,
 			)
 			Log.d(
-				"JsMangaRepository",
+				"JsContentRepository",
 				"detail parsed title=$title chapters=${detail.chapters.size} authors=${detail.authors} desc=${detail.description} source=${source.name}"
 			)
 			detail
@@ -872,7 +872,7 @@ class JsMangaRepository(
 	}
 
 	private suspend fun executePages(id: String, epId: String?): List<PageEntry> {
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return emptyList()
+		val jsSource = (source as? JsonContentSource)?.entity ?: return emptyList()
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 
@@ -887,7 +887,7 @@ class JsMangaRepository(
 				}.getOrNull()?.takeIf { it.isNotBlank() } ?: cachedJsKey
 				initializeSettingsDefaults(qjs)
 				runCatching { runSourceInit(qjs) }
-					.onFailure { Log.w("JsMangaRepository", "init() error for ${source.name}", it) }
+					.onFailure { Log.w("JsContentRepository", "init() error for ${source.name}", it) }
 				qjs.evaluate<Any?>(
 				"""
 				var __pages_result = [];
@@ -1004,19 +1004,19 @@ class JsMangaRepository(
 			) ?: "{}"
 			val result = jsonConverter.parseToJsonElement(jsonStr).jsonObject
 			result["error"]?.jsonPrimitive?.contentOrNull?.let {
-				Log.w("JsMangaRepository", "pages error=$it for ${source.name}")
+				Log.w("JsContentRepository", "pages error=$it for ${source.name}")
 				return emptyList()
 			}
-			if (Log.isLoggable("JsMangaRepository", Log.DEBUG)) {
+			if (Log.isLoggable("JsContentRepository", Log.DEBUG)) {
 				Log.d(
-					"JsMangaRepository",
+					"JsContentRepository",
 					"pages raw images=${result["images"]} configs=${result["configs"]} source=${source.name}"
 				)
 			}
 			val images = result["images"] as? JsonArray ?: return emptyList()
 			val configsArr = result["configs"] as? JsonArray
 			Log.d(
-				"JsMangaRepository",
+				"JsContentRepository",
 				"pages configsCount=${configsArr?.size ?: 0} imagesCount=${images.size} for ${source.name}"
 			)
 			val configs = configsArr?.mapNotNull { elem ->
@@ -1040,7 +1040,7 @@ class JsMangaRepository(
 			}
 			if (list.isNotEmpty()) {
 				Log.d(
-					"JsMangaRepository",
+					"JsContentRepository",
 					"pages mapped=${list.size} for ${source.name} first=${list.first().url} headers=${list.first().headers}"
 				)
 			}
@@ -1049,7 +1049,7 @@ class JsMangaRepository(
 	}
 
 	private suspend fun executeJsAction(action: String, script: String): JsonObject? {
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return null
+		val jsSource = (source as? JsonContentSource)?.entity ?: return null
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 
@@ -1166,7 +1166,7 @@ class JsMangaRepository(
 				}
 				return@FunctionBinding toSafeJson(result)
 			} catch (e: Exception) {
-				Log.w("JsMangaRepository", "sendMessage handler failed", e)
+				Log.w("JsContentRepository", "sendMessage handler failed", e)
 				return@FunctionBinding toSafeJson(mapOf("error" to (e.message ?: e.toString())))
 			}
 		})
@@ -1249,7 +1249,7 @@ class JsMangaRepository(
 		val builder = Request.Builder()
 			.url(url)
 			// 传递来源，便于 CommonHeadersInterceptor 注入默认 UA/Referer
-			.tag(MangaSource::class.java, source)
+			.tag(ContentSource::class.java, source)
 			.header(CommonHeaders.MANGA_SOURCE, source.name)
 		(headersAny as? Map<*, *>)?.forEach { (k, v) ->
 			val name = k?.toString()?.trim().orEmpty()
@@ -1280,7 +1280,7 @@ class JsMangaRepository(
 			else -> builder.get()
 		}
 		val request = builder.build()
-		Log.d("JsMangaRepository", "HTTP ${method.uppercase()} $url headers=${headersAny?.toString()?.take(200)} body=${data?.toString()?.take(200)}")
+		Log.d("JsContentRepository", "HTTP ${method.uppercase()} $url headers=${headersAny?.toString()?.take(200)} body=${data?.toString()?.take(200)}")
 		val call: Call = okHttp.newCall(request)
 		val response = runCatching { call.execute() }.getOrNull()
 		if (response == null) {
@@ -1290,11 +1290,11 @@ class JsMangaRepository(
 		val status = response.code
 		val headers = response.headers.associate { it.first.lowercase() to it.second }
 		val bodyResult: Any? = if (bytes) {
-			Log.d("JsMangaRepository", "HTTP resp ${response.code} bytes len=${rawBytes.size}")
+			Log.d("JsContentRepository", "HTTP resp ${response.code} bytes len=${rawBytes.size}")
 			rawBytes
 		} else {
 			val bodyStr = runCatching { String(rawBytes) }.getOrDefault(String(rawBytes, Charsets.ISO_8859_1))
-			Log.d("JsMangaRepository", "HTTP resp ${response.code} len=${rawBytes.size} bodySnippet=${bodyStr.take(300)}")
+			Log.d("JsContentRepository", "HTTP resp ${response.code} len=${rawBytes.size} bodySnippet=${bodyStr.take(300)}")
 			bodyStr
 			}
 			response.close()
@@ -1856,7 +1856,7 @@ class JsMangaRepository(
 
 	suspend fun fetchSettingsSchema(): List<JsSettingItem> {
 		cachedSettingsSchema?.let { return it }
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return emptyList()
+		val jsSource = (source as? JsonContentSource)?.entity ?: return emptyList()
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 		val quickJs = createQuickJs()
@@ -1930,7 +1930,7 @@ class JsMangaRepository(
 	}
 
 	suspend fun executeSettingCallback(settingKey: String) {
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return
+		val jsSource = (source as? JsonContentSource)?.entity ?: return
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 		val quickJs = createQuickJs()
@@ -1959,11 +1959,11 @@ class JsMangaRepository(
 	}
 
 	fun getJsSettingValue(settingKey: String): Any? {
-		return loadJsSetting(cachedJsKey ?: (source as? JsonMangaSource)?.entity?.id ?: source.name, settingKey)
+		return loadJsSetting(cachedJsKey ?: (source as? JsonContentSource)?.entity?.id ?: source.name, settingKey)
 	}
 
 	fun saveJsSettingValue(settingKey: String, value: Any?) {
-		saveJsSetting(cachedJsKey ?: (source as? JsonMangaSource)?.entity?.id ?: source.name, settingKey, value)
+		saveJsSetting(cachedJsKey ?: (source as? JsonContentSource)?.entity?.id ?: source.name, settingKey, value)
 	}
 
 	fun getJsKey(): String? = cachedJsKey
@@ -2012,7 +2012,7 @@ class JsMangaRepository(
 		return joinToString(prefix = "[", postfix = "]") { it.jsonStringLiteral() }
 	}
 
-	private fun buildExploreSignature(order: SortOrder?, filter: MangaListFilter?): String {
+	private fun buildExploreSignature(order: SortOrder?, filter: ContentListFilter?): String {
 		val query = filter?.query.orEmpty()
 		val author = filter?.author.orEmpty()
 		val tagKeys = filter?.tags?.map { it.key }?.sorted()?.joinToString(",").orEmpty()
@@ -2048,7 +2048,7 @@ class JsMangaRepository(
 
 	private suspend fun ensureFilterOptions() {
 		if (lastFilterOptions != null) return
-		val jsSource = (source as? JsonMangaSource)?.entity ?: return
+		val jsSource = (source as? JsonContentSource)?.entity ?: return
 		val jsContent = jsSource.config
 		val preferredClass = classNameRegex.find(jsContent)?.groupValues?.getOrNull(1)
 		val quickJs = createQuickJs()
@@ -2084,21 +2084,21 @@ class JsMangaRepository(
 		}
 	}
 
-	private fun mergeFilterOptions(newTags: Set<MangaTag>, newGroups: List<MangaTagGroup>) {
+	private fun mergeFilterOptions(newTags: Set<ContentTag>, newGroups: List<ContentTagGroup>) {
 		val existing = lastFilterOptions
-		val tagMap = linkedMapOf<String, MangaTag>()
+		val tagMap = linkedMapOf<String, ContentTag>()
 		existing?.availableTags?.forEach { tagMap[it.key] = it }
 		newTags.forEach { tagMap[it.key] = it }
 
-		val groupMap = linkedMapOf<String, MutableSet<MangaTag>>()
+		val groupMap = linkedMapOf<String, MutableSet<ContentTag>>()
 		existing?.tagGroups?.forEach { groupMap[it.title] = it.tags.toMutableSet() }
 		newGroups.forEach { group ->
 			val set = groupMap.getOrPut(group.title) { mutableSetOf() }
 			set.addAll(group.tags)
 		}
-		val mergedGroups = groupMap.map { (title, tags) -> MangaTagGroup(title, tags.toSet()) }
+		val mergedGroups = groupMap.map { (title, tags) -> ContentTagGroup(title, tags.toSet()) }
 
-		lastFilterOptions = MangaListFilterOptions(
+		lastFilterOptions = ContentListFilterOptions(
 			availableTags = tagMap.values.toSet(),
 			tagGroups = mergedGroups,
 		)
@@ -2200,7 +2200,7 @@ class JsMangaRepository(
 		}
 	}
 
-	private fun resolveCategorySelection(filter: MangaListFilter?, categoryMeta: CategoryMeta?): CategorySelection? {
+	private fun resolveCategorySelection(filter: ContentListFilter?, categoryMeta: CategoryMeta?): CategorySelection? {
 		if (categoryMeta == null) return null
 		// FilterCoordinator 允许多选；分类在 venera 语义上是“单选”，这里取最后一次选中的分类
 		val selected = filter?.tags.orEmpty().toList().lastOrNull { it.key.startsWith(TAG_CATEGORY_PREFIX) }?.key
@@ -2219,7 +2219,7 @@ class JsMangaRepository(
 		return defaultEntry?.let { CategorySelection(it.label, it.param) }
 	}
 
-	private fun resolveOptionSelection(filter: MangaListFilter?, optionGroups: List<OptionGroup>, categoryLabel: String? = null): List<String> {
+	private fun resolveOptionSelection(filter: ContentListFilter?, optionGroups: List<OptionGroup>, categoryLabel: String? = null): List<String> {
 		if (optionGroups.isEmpty()) return emptyList()
 		val selectedMap = mutableMapOf<Int, Int>()
 		// option 在 venera 语义上也是“每组单选”，这里用“后写覆盖前写”来近似最后一次选择
@@ -2235,10 +2235,10 @@ class JsMangaRepository(
 			val notOk = categoryLabel != null && g.notShowWhen.contains(categoryLabel)
 			showOk && !notOk
 		}
-		if (Log.isLoggable("JsMangaRepository", Log.DEBUG)) {
+		if (Log.isLoggable("JsContentRepository", Log.DEBUG)) {
 			val filteredIdx = filteredGroups.map { it.first }
 			Log.d(
-				"JsMangaRepository",
+				"JsContentRepository",
 				"option select source=${source.name} categoryLabel=$categoryLabel selectedMap=$selectedMap filteredGroupIdx=$filteredIdx"
 			)
 		}

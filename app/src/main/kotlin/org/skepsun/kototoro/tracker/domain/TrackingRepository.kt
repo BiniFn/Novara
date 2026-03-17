@@ -7,19 +7,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onStart
 import org.skepsun.kototoro.core.db.MangaDatabase
-import org.skepsun.kototoro.core.db.entity.toManga
-import org.skepsun.kototoro.core.db.entity.toMangaTags
+import org.skepsun.kototoro.core.db.entity.toContent
+import org.skepsun.kototoro.core.db.entity.toContentTags
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.mapItems
 import org.skepsun.kototoro.core.util.ext.toInstantOrNull
 import org.skepsun.kototoro.details.domain.ProgressUpdateUseCase
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.tracker.data.TrackEntity
 import org.skepsun.kototoro.tracker.data.TrackLogEntity
 import org.skepsun.kototoro.tracker.data.toTrackingLogItem
-import org.skepsun.kototoro.tracker.domain.model.MangaTracking
+import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import org.skepsun.kototoro.tracker.domain.model.MangaUpdates
 import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import java.util.concurrent.atomic.AtomicBoolean
@@ -46,8 +46,8 @@ class TrackingRepository @Inject constructor(
 	}
 
 	@Deprecated("")
-	fun observeUpdatedMangaCount(): Flow<Int> {
-		return db.getTracksDao().observeUpdateMangaCount()
+	fun observeUpdatedContentCount(): Flow<Int> {
+		return db.getTracksDao().observeUpdateContentCount()
 			.onStart { gcIfNotCalled() }
 	}
 
@@ -55,11 +55,11 @@ class TrackingRepository @Inject constructor(
 		return db.getTrackLogsDao().observeUnreadCount()
 	}
 
-	fun observeUpdatedManga(limit: Int, filterOptions: Set<ListFilterOption>): Flow<List<MangaTracking>> {
-		return db.getTracksDao().observeUpdatedManga(limit, filterOptions)
+	fun observeUpdatedContent(limit: Int, filterOptions: Set<ListFilterOption>): Flow<List<ContentTracking>> {
+		return db.getTracksDao().observeUpdatedContent(limit, filterOptions)
 			.mapItems {
-				MangaTracking(
-					manga = it.manga.toManga(it.tags.toMangaTags(), null),
+				ContentTracking(
+					manga = it.manga.toContent(it.tags.toContentTags(), null),
 					lastChapterId = it.track.lastChapterId,
 					lastCheck = it.track.lastCheckTime.toInstantOrNull(),
 					lastChapterDate = it.track.lastChapterDate.toInstantOrNull(),
@@ -69,10 +69,10 @@ class TrackingRepository @Inject constructor(
 			.onStart { gcIfNotCalled() }
 	}
 
-	suspend fun getTracks(offset: Int, limit: Int): List<MangaTracking> {
+	suspend fun getTracks(offset: Int, limit: Int): List<ContentTracking> {
 		return db.getTracksDao().findAll(offset = offset, limit = limit).map {
-			MangaTracking(
-				manga = it.manga.toManga(emptySet(), null),
+			ContentTracking(
+				manga = it.manga.toContent(emptySet(), null),
 				lastChapterId = it.track.lastChapterId,
 				lastCheck = it.track.lastCheckTime.toInstantOrNull(),
 				lastChapterDate = it.track.lastChapterDate.toInstantOrNull(),
@@ -82,8 +82,8 @@ class TrackingRepository @Inject constructor(
 	}
 
 	@Deprecated("")
-	suspend fun getTrack(manga: Manga): MangaTracking {
-		return getTrackOrNull(manga) ?: MangaTracking(
+	suspend fun getTrack(manga: Content): ContentTracking {
+		return getTrackOrNull(manga) ?: ContentTracking(
 			manga = manga,
 			lastChapterId = NO_ID,
 			lastCheck = null,
@@ -92,9 +92,9 @@ class TrackingRepository @Inject constructor(
 		)
 	}
 
-	suspend fun getTrackOrNull(manga: Manga): MangaTracking? {
+	suspend fun getTrackOrNull(manga: Content): ContentTracking? {
 		val track = db.getTracksDao().find(manga.id) ?: return null
-		return MangaTracking(
+		return ContentTracking(
 			manga = manga,
 			lastChapterId = track.lastChapterId,
 			lastCheck = track.lastCheckTime.toInstantOrNull(),
@@ -159,7 +159,7 @@ class TrackingRepository @Inject constructor(
 		}
 	}
 
-	suspend fun mergeWith(tracking: MangaTracking) {
+	suspend fun mergeWith(tracking: ContentTracking) {
 		val entity = TrackEntity(
 			mangaId = tracking.manga.id,
 			lastChapterId = tracking.lastChapterId,

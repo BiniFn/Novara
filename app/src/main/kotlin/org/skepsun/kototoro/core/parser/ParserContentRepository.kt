@@ -8,30 +8,30 @@ import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.exceptions.ProxyConfigException
 import org.skepsun.kototoro.core.prefs.SourceSettings
-import org.skepsun.kototoro.parsers.MangaParser
+import org.skepsun.kototoro.parsers.ContentParser
 import org.skepsun.kototoro.parsers.CategorizedFavoritesProvider
 import org.skepsun.kototoro.parsers.FavoritesProvider
 import org.skepsun.kototoro.parsers.FavoritesSyncProvider
-import org.skepsun.kototoro.parsers.MangaParserAuthProvider
+import org.skepsun.kototoro.parsers.ContentParserAuthProvider
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.model.Favicons
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 
-class ParserMangaRepository(
-	private val parser: MangaParser,
+class ParserContentRepository(
+	private val parser: ContentParser,
 	private val mirrorSwitcher: MirrorSwitcher,
 	cache: MemoryContentCache,
-) : CachingMangaRepository(cache), Interceptor {
+) : CachingContentRepository(cache), Interceptor {
 
 	private val filterOptionsLazy = suspendLazy(Dispatchers.Default) {
 		withMirrors {
@@ -39,13 +39,13 @@ class ParserMangaRepository(
 		}
 	}
 
-	override val source: MangaParserSource
+	override val source: ContentParserSource
 		get() = parser.source
 
 	override val sortOrders: Set<SortOrder>
 		get() = parser.availableSortOrders
 
-	override val filterCapabilities: MangaListFilterCapabilities
+	override val filterCapabilities: ContentListFilterCapabilities
 		get() = parser.filterCapabilities
 
 	override var defaultSortOrder: SortOrder
@@ -65,44 +65,44 @@ class ParserMangaRepository(
 
 	override fun intercept(chain: Interceptor.Chain): Response = parser.intercept(chain)
 
-	override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> {
+	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
 		return withMirrors {
-			parser.getList(offset, order ?: defaultSortOrder, filter ?: MangaListFilter.EMPTY)
+			parser.getList(offset, order ?: defaultSortOrder, filter ?: ContentListFilter.EMPTY)
 		}
 	}
 
 	override suspend fun getPagesImpl(
-		chapter: MangaChapter,
+		chapter: ContentChapter,
 		nextChapterUrl: String?
-	): List<MangaPage> = withMirrors {
+	): List<ContentPage> = withMirrors {
 		parser.getPages(chapter)
 	}
 
-	override suspend fun getPageUrl(page: MangaPage): String = withMirrors {
+	override suspend fun getPageUrl(page: ContentPage): String = withMirrors {
 		parser.getPageUrl(page).also { result ->
 			check(result.isNotEmpty()) { "Page url is empty" }
 		}
 	}
 
-	override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): org.skepsun.kototoro.parsers.model.NovelChapterContent? {
+	override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): org.skepsun.kototoro.parsers.model.NovelChapterContent? {
 		return runCatching {
 			withMirrors { parser.getChapterContent(chapter) ?: throw IllegalStateException("Chapter content is null") }
 		}.getOrNull()
 	}
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions = filterOptionsLazy.get()
+	override suspend fun getFilterOptions(): ContentListFilterOptions = filterOptionsLazy.get()
 
 	suspend fun getFavicons(): Favicons = withMirrors {
 		parser.getFavicons()
 	}
 
-	override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> = parser.getRelatedManga(seed)
+	override suspend fun getRelatedContentImpl(seed: Content): List<Content> = parser.getRelatedContent(seed)
 
-	override suspend fun getDetailsImpl(manga: Manga): Manga = withMirrors {
+	override suspend fun getDetailsImpl(manga: Content): Content = withMirrors {
 		parser.getDetails(manga)
 	}
 
-	fun getAuthProvider(): MangaParserAuthProvider? = parser.authorizationProvider
+	fun getAuthProvider(): ContentParserAuthProvider? = parser.authorizationProvider
 
 	override fun getRequestHeaders(): Map<String, String> {
 		val headers = parser.getRequestHeaders()
@@ -117,7 +117,7 @@ class ParserMangaRepository(
 		return map
 	}
 
-	override fun createPageRequest(pageUrl: String, page: MangaPage): okhttp3.Request {
+	override fun createPageRequest(pageUrl: String, page: ContentPage): okhttp3.Request {
 		return org.skepsun.kototoro.reader.domain.PageLoader.createPageRequest(pageUrl, page)
 	}
 
@@ -138,7 +138,7 @@ class ParserMangaRepository(
 		}
 	}
 
-	private fun resolveFavoritesProvider(p: MangaParser, visited: MutableSet<Any> = mutableSetOf()): FavoritesProvider? {
+	private fun resolveFavoritesProvider(p: ContentParser, visited: MutableSet<Any> = mutableSetOf()): FavoritesProvider? {
 		if (p in visited) return null
 		visited += p
 		if (p is FavoritesProvider) return p
@@ -147,14 +147,14 @@ class ParserMangaRepository(
 			field.isAccessible = true
 			val value = runCatching { field.get(p) }.getOrNull() ?: continue
 			if (value is FavoritesProvider) return value
-			if (value is MangaParser) {
+			if (value is ContentParser) {
 				resolveFavoritesProvider(value, visited)?.let { return it }
 			}
 		}
 		return null
 	}
 
-	private fun resolveFavoritesSyncProvider(p: MangaParser, visited: MutableSet<Any> = mutableSetOf()): FavoritesSyncProvider? {
+	private fun resolveFavoritesSyncProvider(p: ContentParser, visited: MutableSet<Any> = mutableSetOf()): FavoritesSyncProvider? {
 		if (p in visited) return null
 		visited += p
 		if (p is FavoritesSyncProvider) return p
@@ -162,14 +162,14 @@ class ParserMangaRepository(
 			field.isAccessible = true
 			val value = runCatching { field.get(p) }.getOrNull() ?: continue
 			if (value is FavoritesSyncProvider) return value
-			if (value is MangaParser) {
+			if (value is ContentParser) {
 				resolveFavoritesSyncProvider(value, visited)?.let { return it }
 			}
 		}
 		return null
 	}
 
-	private fun resolveCategorizedFavoritesProvider(p: MangaParser, visited: MutableSet<Any> = mutableSetOf()): CategorizedFavoritesProvider? {
+	private fun resolveCategorizedFavoritesProvider(p: ContentParser, visited: MutableSet<Any> = mutableSetOf()): CategorizedFavoritesProvider? {
 		if (p in visited) return null
 		visited += p
 		if (p is CategorizedFavoritesProvider) return p
@@ -177,7 +177,7 @@ class ParserMangaRepository(
 			field.isAccessible = true
 			val value = runCatching { field.get(p) }.getOrNull() ?: continue
 			if (value is CategorizedFavoritesProvider) return value
-			if (value is MangaParser) {
+			if (value is ContentParser) {
 				resolveCategorizedFavoritesProvider(value, visited)?.let { return it }
 			}
 		}

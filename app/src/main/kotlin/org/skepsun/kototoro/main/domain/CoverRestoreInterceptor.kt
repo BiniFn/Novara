@@ -7,12 +7,12 @@ import coil3.request.ImageResult
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.ext.bookmarkKey
 import org.skepsun.kototoro.core.util.ext.mangaKey
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -20,9 +20,9 @@ import java.util.Collections
 import javax.inject.Inject
 
 class CoverRestoreInterceptor @Inject constructor(
-	private val dataRepository: MangaDataRepository,
+	private val dataRepository: ContentDataRepository,
 	private val bookmarksRepository: BookmarksRepository,
-	private val repositoryFactory: MangaRepository.Factory,
+	private val repositoryFactory: ContentRepository.Factory,
 ) : Interceptor {
 
 	private val blacklist = Collections.synchronizedSet(ArraySet<String>())
@@ -39,7 +39,7 @@ class CoverRestoreInterceptor @Inject constructor(
 				}
 			}
 			request.extras[mangaKey]?.let {
-				return if (restoreManga(it)) {
+				return if (restoreContent(it)) {
 					chain.withRequest(request.newBuilder().build()).proceed()
 				} else {
 					result
@@ -49,13 +49,13 @@ class CoverRestoreInterceptor @Inject constructor(
 		return result
 	}
 
-	private suspend fun restoreManga(manga: Manga): Boolean {
+	private suspend fun restoreContent(manga: Content): Boolean {
 		val key = manga.publicUrl
 		if (!blacklist.add(key)) {
 			return false
 		}
 		val restored = runCatchingCancellable {
-			restoreMangaImpl(manga)
+			restoreContentImpl(manga)
 		}.onFailure { e ->
 			e.printStackTraceDebug()
 		}.getOrDefault(false)
@@ -65,14 +65,14 @@ class CoverRestoreInterceptor @Inject constructor(
 		return restored
 	}
 
-	private suspend fun restoreMangaImpl(manga: Manga): Boolean {
-		if (dataRepository.findMangaById(manga.id, withChapters = false) == null || manga.isLocal) {
+	private suspend fun restoreContentImpl(manga: Content): Boolean {
+		if (dataRepository.findContentById(manga.id, withChapters = false) == null || manga.isLocal) {
 			return false
 		}
 		val repo = repositoryFactory.create(manga.source)
 		val fixed = repo.find(manga) ?: return false
 		return if (fixed != manga) {
-			dataRepository.storeManga(fixed, replaceExisting = true)
+			dataRepository.storeContent(fixed, replaceExisting = true)
 			fixed.coverUrl != manga.coverUrl
 		} else {
 			false

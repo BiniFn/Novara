@@ -8,16 +8,16 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import org.json.JSONObject
 import org.skepsun.kototoro.core.model.LocalNovelSource
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.local.data.LocalStorageManager
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 import java.io.File
 import java.util.EnumSet
@@ -27,7 +27,7 @@ import javax.inject.Singleton
 @Singleton
 class LocalNovelRepository @Inject constructor(
 	private val storageManager: LocalStorageManager,
-) : MangaRepository {
+) : ContentRepository {
 
 	override val source = LocalNovelSource
 
@@ -36,10 +36,10 @@ class LocalNovelRepository @Inject constructor(
 		get() = SortOrder.ALPHABETICAL
 		set(@Suppress("UNUSED_PARAMETER") value) {}
 
-	override val filterCapabilities: MangaListFilterCapabilities
-		get() = MangaListFilterCapabilities(isSearchSupported = true)
+	override val filterCapabilities: ContentListFilterCapabilities
+		get() = ContentListFilterCapabilities(isSearchSupported = true)
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions = MangaListFilterOptions()
+	override suspend fun getFilterOptions(): ContentListFilterOptions = ContentListFilterOptions()
 
 	private suspend fun findNovelDirs(): List<File> {
 		// 统一使用 files/novel 存储根，不再复用漫画存储根
@@ -50,9 +50,9 @@ class LocalNovelRepository @Inject constructor(
 		}
 	}
 
-	override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> {
+	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
 		if (offset > 0) return emptyList()
-		val items = mutableListOf<Manga>()
+		val items = mutableListOf<Content>()
 		findNovelDirs().forEach { dir ->
 			parseIndex(dir)?.let { items.add(it.first) }
 		}
@@ -63,7 +63,7 @@ class LocalNovelRepository @Inject constructor(
 	}
 
 
-	override suspend fun getDetails(manga: Manga): Manga {
+	override suspend fun getDetails(manga: Content): Content {
 		// Try to find by filename pattern first (for multi-CBZ format)
 		val dirByName = findNovelDirs().firstOrNull { it.name.startsWith(manga.id.toString()) }
 		if (dirByName != null) {
@@ -82,14 +82,14 @@ class LocalNovelRepository @Inject constructor(
 		return manga
 	}
 
-	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
+	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
 		val uri = runCatching { android.net.Uri.parse(chapter.url) }.getOrNull()
 		if (uri != null && (uri.scheme == "file" || uri.scheme == "zip" || uri.scheme == "cbz")) {
-			return org.skepsun.kototoro.local.data.input.LocalMangaParser(uri).getPages(chapter)
+			return org.skepsun.kototoro.local.data.input.LocalContentParser(uri).getPages(chapter)
 		}
 		
 		return listOf(
-			MangaPage(
+			ContentPage(
 				id = chapter.id,
 				url = chapter.url,
 				preview = null,
@@ -98,54 +98,54 @@ class LocalNovelRepository @Inject constructor(
 		)
 	}
 
-	override suspend fun getPageUrl(page: MangaPage): String = page.url
+	override suspend fun getPageUrl(page: ContentPage): String = page.url
 
-	override suspend fun getRelated(seed: Manga): List<Manga> = emptyList()
+	override suspend fun getRelated(seed: Content): List<Content> = emptyList()
 
 	/**
 	 * 列出所有本地小说（用于本地索引）。
 	 */
-	suspend fun getAllLocalNovels(): List<LocalManga> {
+	suspend fun getAllLocalNovels(): List<LocalContent> {
 		return findNovelDirs()
 			.filter { it.isDirectory && File(it, "index.json").exists() }
 			.mapNotNull { dir -> getLocalNovel(dir, withDetails = false) }
 	}
 
 	/**
-	 * 从目录读取小说并包装为 LocalManga；若目录不合法返回 null。
+	 * 从目录读取小说并包装为 LocalContent；若目录不合法返回 null。
 	 */
-	fun getLocalNovel(dir: File, withDetails: Boolean): LocalManga? {
+	fun getLocalNovel(dir: File, withDetails: Boolean): LocalContent? {
 		val parsed = parseIndex(dir) ?: return null
 		val manga = if (withDetails) {
 			parsed.first
 		} else {
 			parsed.first.copy(chapters = null)
 		}
-		return LocalManga(manga, dir)
+		return LocalContent(manga, dir)
 	}
 
 	@WorkerThread
-	internal fun parseIndex(dir: File): Pair<Manga, List<MangaChapter>>? {
+	internal fun parseIndex(dir: File): Pair<Content, List<ContentChapter>>? {
 		// Handle single CBZ files
 		if (dir.isFile && (dir.extension.equals("cbz", ignoreCase = true) || dir.extension.equals("zip", ignoreCase = true))) {
 			return runCatching {
-				val parser = org.skepsun.kototoro.local.data.input.LocalMangaParser(dir)
-				val localManga = runBlocking { parser.getManga(withDetails = true) }
-				val transformedChapters = localManga.manga.chapters?.map { chapter ->
+				val parser = org.skepsun.kototoro.local.data.input.LocalContentParser(dir)
+				val localContent = runBlocking { parser.getContent(withDetails = true) }
+				val transformedChapters = localContent.manga.chapters?.map { chapter ->
 					chapter.copy(source = source)
 				}
-				val transformedManga = localManga.manga.copy(
+				val transformedContent = localContent.manga.copy(
 					chapters = transformedChapters,
 					source = source
 				)
-				transformedManga to (transformedChapters ?: emptyList())
+				transformedContent to (transformedChapters ?: emptyList())
 			}.getOrNull()
 		}
 		
 		// Handle multi-CBZ format (directory-based)
 		val indexFile = File(dir, "index.json")
-		val index = org.skepsun.kototoro.local.data.MangaIndex.read(indexFile) ?: return null
-		val mangaInfo = index.getMangaInfo() ?: return null
+		val index = org.skepsun.kototoro.local.data.ContentIndex.read(indexFile) ?: return null
+		val mangaInfo = index.getContentInfo() ?: return null
 		
 		val transformedChapters = mangaInfo.chapters?.map { chapter ->
 			val fileName = index.getChapterFileName(chapter.id)
@@ -175,15 +175,15 @@ class LocalNovelRepository @Inject constructor(
 			}
 		}
 		
-		val transformedManga = mangaInfo.copy(
+		val transformedContent = mangaInfo.copy(
 			id = mangaInfo.id,
 			title = mangaInfo.title,
 			chapters = transformedChapters,
 			url = dir.toUri().toString(),
-			source = if (mangaInfo.source != org.skepsun.kototoro.core.model.UnknownMangaSource && 
+			source = if (mangaInfo.source != org.skepsun.kototoro.core.model.UnknownContentSource && 
 						!mangaInfo.source.name.startsWith("LOCAL")) mangaInfo.source else source
 		)
 		
-		return transformedManga to (transformedChapters ?: emptyList())
+		return transformedContent to (transformedChapters ?: emptyList())
 	}
 }

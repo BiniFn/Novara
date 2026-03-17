@@ -14,11 +14,11 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.list.decor.AbstractSelectionItemDecoration
 import org.skepsun.kototoro.core.util.ext.getItem
 import org.skepsun.kototoro.core.util.ext.getThemeColor
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import androidx.appcompat.R as appcompatR
 import com.google.android.material.R as materialR
 
-open class MangaSelectionDecoration(context: Context) : AbstractSelectionItemDecoration() {
+open class ContentSelectionDecoration(context: Context) : AbstractSelectionItemDecoration() {
 
 	protected val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 	protected val strokeColor = context.getThemeColor(appcompatR.attr.colorPrimary, Color.RED)
@@ -38,7 +38,7 @@ open class MangaSelectionDecoration(context: Context) : AbstractSelectionItemDec
 
 	override fun getItemId(parent: RecyclerView, child: View): Long {
 		val holder = parent.getChildViewHolder(child) ?: return NO_ID
-		val item = holder.getItem(MangaListModel::class.java) ?: return NO_ID
+		val item = holder.getItem(ContentListModel::class.java) ?: return NO_ID
 		return item.id
 	}
 

@@ -12,10 +12,10 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.databinding.FragmentListBinding
-import org.skepsun.kototoro.list.ui.MangaListFragment
+import org.skepsun.kototoro.list.ui.ContentListFragment
 
 @dagger.hilt.android.AndroidEntryPoint
-class SuggestionsFragment : MangaListFragment() {
+class SuggestionsFragment : ContentListFragment() {
 
 	override val viewModel by viewModels<SuggestionsViewModel>()
 	override val isSwipeRefreshEnabled = false

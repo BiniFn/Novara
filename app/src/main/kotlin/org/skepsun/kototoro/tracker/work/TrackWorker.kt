@@ -65,7 +65,7 @@ import org.skepsun.kototoro.parsers.util.toIntUp
 import org.skepsun.kototoro.settings.work.PeriodicWorkScheduler
 import org.skepsun.kototoro.tracker.domain.CheckNewChaptersUseCase
 import org.skepsun.kototoro.tracker.domain.GetTracksUseCase
-import org.skepsun.kototoro.tracker.domain.model.MangaTracking
+import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import org.skepsun.kototoro.tracker.domain.model.MangaUpdates
 import org.skepsun.kototoro.tracker.work.TrackerNotificationHelper.NotificationInfo
 import java.util.concurrent.TimeUnit
@@ -128,7 +128,7 @@ class TrackWorker @AssistedInject constructor(
 	}
 
 	@CheckResult
-	private suspend fun checkUpdatesAsync(tracks: List<MangaTracking>): List<NotificationInfo> {
+	private suspend fun checkUpdatesAsync(tracks: List<ContentTracking>): List<NotificationInfo> {
 		val semaphore = Semaphore(MAX_PARALLELISM)
 		return channelFlow {
 			for (track in tracks) {
@@ -254,8 +254,8 @@ class TrackWorker @AssistedInject constructor(
 		when (settings.trackerDownloadStrategy) {
 			TrackerDownloadStrategy.DISABLED -> Unit
 			TrackerDownloadStrategy.DOWNLOADED -> {
-				val localManga = localRepositoryLazy.get().findSavedManga(mangaUpdates.manga)
-				if (localManga != null) {
+				val localContent = localRepositoryLazy.get().findSavedContent(mangaUpdates.manga)
+				if (localContent != null) {
 					val task = DownloadTask(
 						mangaId = mangaUpdates.manga.id,
 						isPaused = false,

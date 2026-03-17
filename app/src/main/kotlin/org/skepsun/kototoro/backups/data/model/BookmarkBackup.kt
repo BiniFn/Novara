@@ -8,7 +8,7 @@ import org.skepsun.kototoro.parsers.util.mapToSet
 
 @Serializable
 class BookmarkBackup(
-	@SerialName("manga") val manga: MangaBackup,
+	@SerialName("manga") val manga: ContentBackup,
 	@SerialName("tags") val tags: Set<TagBackup>,
 	@SerialName("bookmarks") val bookmarks: List<Bookmark>,
 ) {
@@ -38,7 +38,7 @@ class BookmarkBackup(
 	}
 
 	constructor(manga: MangaWithTags, entities: List<BookmarkEntity>) : this(
-		manga = MangaBackup(manga.copy(tags = emptyList())),
+		manga = ContentBackup(manga.copy(tags = emptyList())),
 		tags = manga.tags.mapToSet { TagBackup(it) },
 		bookmarks = entities.map {
 			Bookmark(

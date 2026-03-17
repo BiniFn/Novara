@@ -1,19 +1,19 @@
 package org.skepsun.kototoro.core.jsonsource
 
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
- * Wrapper class that adapts a JsonSourceEntity to the MangaSource interface.
+ * Wrapper class that adapts a JsonSourceEntity to the ContentSource interface.
  * 
- * This allows JSON sources to be used interchangeably with native MangaParserSource
+ * This allows JSON sources to be used interchangeably with native ContentParserSource
  * instances throughout the application.
  * 
  * @property entity The underlying JSON source entity from the database
  */
-data class JsonMangaSource(
+data class JsonContentSource(
 	val entity: JsonSourceEntity
-) : MangaSource {
+) : ContentSource {
 	
 	/**
 	 * The source name, which is the unique identifier for JSON sources.
@@ -42,7 +42,7 @@ data class JsonMangaSource(
 	
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
-		if (other !is JsonMangaSource) return false
+		if (other !is JsonContentSource) return false
 		return entity.id == other.entity.id
 	}
 	
@@ -51,6 +51,6 @@ data class JsonMangaSource(
 	}
 	
 	override fun toString(): String {
-		return "JsonMangaSource(id=${entity.id}, name=${entity.name}, type=${entity.type})"
+		return "JsonContentSource(id=${entity.id}, name=${entity.name}, type=${entity.type})"
 	}
 }

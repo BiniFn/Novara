@@ -6,13 +6,13 @@ import coil3.request.ImageResult
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.util.ext.mangaSourceKey
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
 
-class MangaSourceHeaderInterceptor : Interceptor {
+class ContentSourceHeaderInterceptor : Interceptor {
 
 	override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
 		val mangaSource = chain.request.extras[mangaSourceKey]?.unwrap()
-		if (mangaSource !is MangaParserSource 
+		if (mangaSource !is ContentParserSource 
 			&& mangaSource !is org.skepsun.kototoro.mihon.model.MihonMangaSource
 			&& mangaSource !is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource) {
 			return chain.proceed()

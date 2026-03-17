@@ -24,12 +24,12 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
-import org.skepsun.kototoro.list.ui.MangaListFragment
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.list.ui.ContentListFragment
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.search.domain.SearchKind
 
 @AndroidEntryPoint
-class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.OnClickListener {
+class RemoteListFragment : ContentListFragment(), FilterCoordinator.Owner, View.OnClickListener {
 
     override val viewModel by viewModels<RemoteListViewModel>()
 
@@ -39,9 +39,9 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
     override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
         super.onViewBindingCreated(binding, savedInstanceState)
         addMenuProvider(RemoteListMenuProvider())
-        addMenuProvider(MangaSearchMenuProvider(filterCoordinator, viewModel))
+        addMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
         viewModel.isRandomLoading.observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
-        viewModel.onOpenManga.observeEvent(viewLifecycleOwner) { router.openDetails(it) }
+        viewModel.onOpenContent.observeEvent(viewLifecycleOwner) { router.openDetails(it) }
         viewModel.onSourceBroken.observeEvent(viewLifecycleOwner) { showSourceBrokenWarning() }
         // 确保进入 JS 源时标题使用解析后的 displayName，而不是 JSON_JS_* 占位
         activity?.title = viewModel.source.getTitle(requireContext())
@@ -156,7 +156,7 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
 
         const val ARG_SOURCE = "provider"
 
-        fun newInstance(source: MangaSource) = RemoteListFragment().withArgs(1) {
+        fun newInstance(source: ContentSource) = RemoteListFragment().withArgs(1) {
             putString(ARG_SOURCE, source.name)
         }
     }

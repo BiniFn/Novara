@@ -43,10 +43,10 @@ import org.jetbrains.annotations.Blocking
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
 import org.skepsun.kototoro.core.network.CommonHeaders
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.ui.image.TrimTransformation
@@ -74,8 +74,8 @@ import org.skepsun.kototoro.core.util.progress.ProgressDeferred
 import org.skepsun.kototoro.download.ui.worker.DownloadSlowdownDispatcher
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.PageCache
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.requireBody
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -93,11 +93,11 @@ import kotlin.coroutines.CoroutineContext
 class PageLoader @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	lifecycle: ActivityRetainedLifecycle,
-	@MangaHttpClient private val okHttp: OkHttpClient,
+	@ContentHttpClient private val okHttp: OkHttpClient,
 	@PageCache private val cache: LocalStorageCache,
 	private val coil: ImageLoader,
 	private val settings: AppSettings,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 	private val downloadSlowdownDispatcher: DownloadSlowdownDispatcher,
 	private val translationProcessor: ReaderPageTranslationProcessor,
@@ -115,8 +115,8 @@ class PageLoader @Inject constructor(
 	private val translationJobs = LongSparseArray<Job>()
 
 	@Volatile
-	private var repository: MangaRepository? = null
-	private val prefetchQueue = LinkedList<MangaPage>()
+	private var repository: ContentRepository? = null
+	private val prefetchQueue = LinkedList<ContentPage>()
 	private val counter = AtomicInteger(0)
 	private var prefetchQueueLimit = settings.readerPrefetchLimit
 	private val edgeDetector = EdgeDetector(context)
@@ -139,7 +139,7 @@ class PageLoader @Inject constructor(
 	}
 
 	fun isPrefetchApplicable(): Boolean {
-		return repository is CachingMangaRepository
+		return repository is CachingContentRepository
 			&& settings.isPagesPreloadEnabled
 			&& !context.isPowerSaveMode()
 			&& !isLowRam()
@@ -152,7 +152,7 @@ class PageLoader @Inject constructor(
 				if (tasks.containsKey(page.id)) {
 					continue
 				}
-				prefetchQueue.offerFirst(page.toMangaPage())
+				prefetchQueue.offerFirst(page.toContentPage())
 				if (prefetchQueue.size > prefetchQueueLimit) {
 					prefetchQueue.pollLast()
 				}
@@ -163,7 +163,7 @@ class PageLoader @Inject constructor(
 		}
 	}
 
-	suspend fun loadPreview(page: MangaPage): ImageSource? {
+	suspend fun loadPreview(page: ContentPage): ImageSource? {
 		// JS/JSON 源缺少通用 Referer，预览请求容易带不上头导致 400，直接跳过
 		if (page.source.name.startsWith("JSON_")) return null
 		val preview = page.preview
@@ -200,7 +200,7 @@ class PageLoader @Inject constructor(
 		return null
 	}
 
-	fun loadPageAsync(page: MangaPage, force: Boolean): ProgressDeferred<Uri, Float> {
+	fun loadPageAsync(page: ContentPage, force: Boolean): ProgressDeferred<Uri, Float> {
 		val currentSignature = currentTranslationWorkSignature()
 		var task = tasks[page.id]
 			?.takeIf { it.translationWorkSignature == currentSignature }
@@ -221,7 +221,7 @@ class PageLoader @Inject constructor(
 		return task
 	}
 
-	suspend fun loadPage(page: MangaPage, force: Boolean): Uri {
+	suspend fun loadPage(page: ContentPage, force: Boolean): Uri {
 		return loadPageAsync(page, force).await()
 	}
 
@@ -257,7 +257,7 @@ class PageLoader @Inject constructor(
 		error.printStackTraceDebug()
 	}.getOrNull()
 
-	suspend fun getPageUrl(page: MangaPage): String {
+	suspend fun getPageUrl(page: ContentPage): String {
 		return getRepository(page.source).getPageUrl(page)
 	}
 
@@ -305,7 +305,7 @@ class PageLoader @Inject constructor(
 	fun getTranslationDebugLog(pageId: Long): String = translationProcessor.getPageDebugLog(pageId)
 
 	suspend fun resolveDisplayVariant(
-		page: MangaPage,
+		page: ContentPage,
 		currentUri: Uri,
 		showTranslated: Boolean,
 	): Uri? {
@@ -359,7 +359,7 @@ class PageLoader @Inject constructor(
 	}
 
 	private fun loadPageAsyncImpl(
-		page: MangaPage,
+		page: ContentPage,
 		skipCache: Boolean,
 		isPrefetch: Boolean,
 	): ProgressDeferred<Uri, Float> {
@@ -383,7 +383,7 @@ class PageLoader @Inject constructor(
 	}
 
 	@Synchronized
-	private fun getRepository(source: MangaSource): MangaRepository {
+	private fun getRepository(source: ContentSource): ContentRepository {
 		val result = repository
 		return if (result != null && result.source == source) {
 			result
@@ -393,7 +393,7 @@ class PageLoader @Inject constructor(
 	}
 
 	private suspend fun loadPageImpl(
-		page: MangaPage,
+		page: ContentPage,
 		progress: MutableStateFlow<Float>,
 		isPrefetch: Boolean,
 		skipCache: Boolean,
@@ -476,7 +476,7 @@ class PageLoader @Inject constructor(
 		return readyUri
 	}
 
-	private fun scheduleTranslation(page: MangaPage, sourceUri: Uri) {
+	private fun scheduleTranslation(page: ContentPage, sourceUri: Uri) {
 		synchronized(translationLock) {
 			val existing = translationJobs[page.id]
 			if (existing?.isActive == true) {
@@ -510,7 +510,7 @@ class PageLoader @Inject constructor(
 		return context.ramAvailable <= FileSize.MEGABYTES.convert(PREFETCH_MIN_RAM_MB, FileSize.BYTES)
 	}
 
-	private fun isTranslationBypassedForSource(source: MangaSource): Boolean {
+	private fun isTranslationBypassedForSource(source: ContentSource): Boolean {
 		val sourceLang = source.getLocale()?.language?.lowercase().orEmpty()
 		if (sourceLang.isBlank()) return false
 		val targetLang = settings.readerTranslationTargetLanguage
@@ -546,13 +546,13 @@ class PageLoader @Inject constructor(
 		private const val PREFETCH_LIMIT_DEFAULT = 6
 		private const val PREFETCH_MIN_RAM_MB = 80L
 
-		fun createPageRequest(pageUrl: String, page: MangaPage): Request {
+		fun createPageRequest(pageUrl: String, page: ContentPage): Request {
 			val builder = Request.Builder()
 				.url(pageUrl)
 				.get()
 				.header(CommonHeaders.ACCEPT, "image/avif,image/webp,image/png;q=0.9,image/jpeg,*/*;q=0.8")
 				.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
-				.tag(MangaSource::class.java, page.source)
+				.tag(ContentSource::class.java, page.source)
 				// 传递 source 名称，便于下游拦截器获知来源
 				.header(CommonHeaders.MANGA_SOURCE, page.source.name)
 			page.headers?.forEach { (k, v) -> builder.header(k, v) }
@@ -570,8 +570,8 @@ class PageLoader @Inject constructor(
 			return request
 		}
 
-		// Backward-compatible helper; strongly prefer the MangaPage overload to carry headers.
-		fun createPageRequest(pageUrl: String, mangaSource: MangaSource, headers: Map<String, String>? = null): Request {
+		// Backward-compatible helper; strongly prefer the ContentPage overload to carry headers.
+		fun createPageRequest(pageUrl: String, mangaSource: ContentSource, headers: Map<String, String>? = null): Request {
 			val builder = Request.Builder()
 				.url(pageUrl)
 				.get()
@@ -579,7 +579,7 @@ class PageLoader @Inject constructor(
 				.cacheControl(CommonHeaders.CACHE_CONTROL_NO_STORE)
 				// 传递来源，便于下游拦截器注入默认 UA/Referer
 				.header(CommonHeaders.MANGA_SOURCE, mangaSource.name)
-				.tag(MangaSource::class.java, mangaSource)
+				.tag(ContentSource::class.java, mangaSource)
 			headers?.forEach { (k, v) -> builder.header(k, v) }
 			return builder.build()
 		}

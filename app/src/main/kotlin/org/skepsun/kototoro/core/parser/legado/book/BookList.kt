@@ -4,8 +4,8 @@ import android.util.Log
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.parser.legado.*
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 /**
  * Handles search and explore list parsing using ruleSearch / ruleExplore.
@@ -38,11 +38,11 @@ object BookList {
     fun parse(
         content: String,
         baseUrl: String,
-        source: MangaSource,
+        source: ContentSource,
         config: LegadoBookSource,
         isSearch: Boolean,
         sandbox: LegadoSandbox
-    ): List<Manga> {
+    ): List<Content> {
         // 优先使用搜索规则兜底，避免 explore 为空对象但缺少 bookList 时直接返回空
         val rule = if (isSearch) {
             config.ruleSearch
@@ -114,10 +114,10 @@ object BookList {
         items: List<Any?>,
         rule: org.skepsun.kototoro.core.model.jsonsource.SearchRule,
         baseUrl: String,
-        source: MangaSource,
+        source: ContentSource,
         sandbox: LegadoSandbox,
         reverse: Boolean
-    ): List<Manga> {
+    ): List<Content> {
         val mangas = items.mapIndexedNotNull { index, item ->
             if (item == null) return@mapIndexedNotNull null
             // Create a new analyzer for the specific item
@@ -146,8 +146,8 @@ object BookList {
             }.takeIf { it.isNotBlank() }
             val intro = itemAnalyzer.getString(rule.intro)
             
-            Manga(
-                id = generateMangaId(absoluteUrl),
+            Content(
+                id = generateContentId(absoluteUrl),
                 title = title,
                 altTitles = emptySet(),
                 url = absoluteUrl,
@@ -165,7 +165,7 @@ object BookList {
             )
         }
 
-        val deduped = LinkedHashSet<Manga>(mangas)
+        val deduped = LinkedHashSet<Content>(mangas)
         val result = deduped.toMutableList()
         Log.d(TAG, "bookList parsed=${result.size} reverse=$reverse")
         if (reverse) {
@@ -195,7 +195,7 @@ object BookList {
         }
     }
 
-    private fun generateMangaId(url: String): Long {
+    private fun generateContentId(url: String): Long {
         return url.hashCode().toLong()
     }
 }

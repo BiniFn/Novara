@@ -1,9 +1,9 @@
 package org.skepsun.kototoro.core.model
 
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
-data class MangaSourceInfo(
-	val mangaSource: MangaSource,
+data class ContentSourceInfo(
+	val mangaSource: ContentSource,
 	val isEnabled: Boolean,
 	val isPinned: Boolean,
-) : MangaSource by mangaSource
+) : ContentSource by mangaSource

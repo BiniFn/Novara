@@ -24,10 +24,10 @@ import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.databinding.DialogDirectorySelectBinding
 
 @AndroidEntryPoint
-class MangaDirectorySelectDialog : AlertDialogFragment<DialogDirectorySelectBinding>(),
+class ContentDirectorySelectDialog : AlertDialogFragment<DialogDirectorySelectBinding>(),
 	OnListItemClickListener<DirectoryModel> {
 
-	private val viewModel: MangaDirectorySelectViewModel by viewModels()
+	private val viewModel: ContentDirectorySelectViewModel by viewModels()
 	private val pickFileTreeLauncher = OpenDocumentTreeHelper(
 		activityResultCaller = this,
 		flags = Intent.FLAG_GRANT_READ_URI_PERMISSION

@@ -9,10 +9,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import okhttp3.Response
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.legado.book.BookChapterList
 import org.skepsun.kototoro.core.parser.legado.book.BookContent
 import org.skepsun.kototoro.core.parser.legado.book.BookInfo
@@ -41,12 +41,12 @@ import java.util.concurrent.ConcurrentHashMap
  * Target size: ~200 lines (Refactored from 1875 lines)
  */
 class LegadoRepository(
-    override val source: MangaSource,
+    override val source: ContentSource,
     private val httpClient: LegadoHttpClient,
     private val jsEngine: JavaScriptEngine,
     private val memoryCache: MemoryContentCache? = null,
     private val browserLauncher: org.skepsun.kototoro.core.javascript.BrowserLauncher? = null
-) : MangaRepository {
+) : ContentRepository {
 
     companion object {
         private const val TAG = "LegadoRepository"
@@ -58,7 +58,7 @@ class LegadoRepository(
         }
     }
 
-    private val jsonSource: JsonMangaSource = source as JsonMangaSource
+    private val jsonSource: JsonContentSource = source as JsonContentSource
     private val config: LegadoBookSource by lazy {
         json.decodeFromString<LegadoBookSource>(jsonSource.entity.config)
     }
@@ -69,8 +69,8 @@ class LegadoRepository(
 
     private val manhuataiChapterNewIdCache = ConcurrentHashMap<Int, Map<String, String>>()
 
-    override val listPagingMode: MangaRepository.ListPagingMode
-        get() = MangaRepository.ListPagingMode.PAGE_INDEX
+    override val listPagingMode: ContentRepository.ListPagingMode
+        get() = ContentRepository.ListPagingMode.PAGE_INDEX
 
     /**
      * 清理该源的内存缓存（详情/目录/页面）。
@@ -125,8 +125,8 @@ class LegadoRepository(
     override val sortOrders: Set<SortOrder> = EnumSet.allOf(SortOrder::class.java)
     override var defaultSortOrder: SortOrder = SortOrder.NEWEST
 
-    override val filterCapabilities: MangaListFilterCapabilities
-        get() = MangaListFilterCapabilities(
+    override val filterCapabilities: ContentListFilterCapabilities
+        get() = ContentListFilterCapabilities(
             isSearchSupported = !config.searchUrl.isNullOrBlank(),
             isSearchWithFiltersSupported = false,
             isMultipleTagsSupported = false,
@@ -244,7 +244,7 @@ class LegadoRepository(
         return parseExploreKinds().firstOrNull { !it.url.isNullOrBlank() }?.url
     }
 
-    override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> {
+    override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
         val query = filter?.query
         val isSearch = !query.isNullOrBlank()
         val selectedCategoryUrl = filter?.tags?.find { it.key.startsWith("category:") }
@@ -467,9 +467,9 @@ class LegadoRepository(
     }
 
 
-    override suspend fun getDetails(manga: Manga): Manga {
-        val normalizedMangaUrl = AnalyzeUrl.normalizeUrl(manga.url)
-        memoryCache?.getDetails(source, normalizedMangaUrl)?.let {
+    override suspend fun getDetails(manga: Content): Content {
+        val normalizedContentUrl = AnalyzeUrl.normalizeUrl(manga.url)
+        memoryCache?.getDetails(source, normalizedContentUrl)?.let {
             val hasTocRule = !config.ruleToc?.chapterList.isNullOrBlank()
             val cachedChapters = it.chapters.orEmpty()
             if (!hasTocRule || cachedChapters.isNotEmpty()) {
@@ -510,20 +510,20 @@ class LegadoRepository(
             getChaptersHelper(infoResult.manga, tocUrl)
         }
         
-        val finalManga = infoResult.manga.copy(chapters = chapters)
+        val finalContent = infoResult.manga.copy(chapters = chapters)
         
         android.util.Log.d(TAG, "Memory cache FILL (getDetails) for book: ${manga.title}")
         memoryCache?.putDetails(
             source, 
-            normalizedMangaUrl, 
-            SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(finalManga) })
+            normalizedContentUrl, 
+            SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(finalContent) })
         )
         
-        return finalManga
+        return finalContent
     }
 
 
-    override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> {
+    override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
         val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
         memoryCache?.getPages(source, normalizedUrl)?.let {
             android.util.Log.d(TAG, "Memory cache HIT (getPages) for chapter: ${chapter.title}")
@@ -532,7 +532,7 @@ class LegadoRepository(
         return getPagesFlow(chapter, nextChapterUrl).toList().lastOrNull() ?: emptyList()
     }
 
-    override fun getPagesFlow(chapter: MangaChapter, nextChapterUrl: String?): Flow<List<MangaPage>> = kotlinx.coroutines.flow.channelFlow {
+    override fun getPagesFlow(chapter: ContentChapter, nextChapterUrl: String?): Flow<List<ContentPage>> = kotlinx.coroutines.flow.channelFlow {
         val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
         memoryCache?.getPages(source, normalizedUrl)?.let {
             android.util.Log.d(TAG, "Memory cache HIT (getPagesFlow) for chapter: ${chapter.title}")
@@ -541,7 +541,7 @@ class LegadoRepository(
         }
         
         val visited = mutableSetOf<String>()
-        val pages = mutableListOf<MangaPage>()
+        val pages = mutableListOf<ContentPage>()
         val queue: ArrayDeque<String> = ArrayDeque()
         queue.add(chapter.url)
 
@@ -688,11 +688,11 @@ class LegadoRepository(
             .trim()
     }
 
-    override suspend fun getPageUrl(page: MangaPage): String {
+    override suspend fun getPageUrl(page: ContentPage): String {
         return page.url
     }
 
-    override suspend fun getChapterContent(chapter: MangaChapter, nextChapterUrl: String?): NovelChapterContent? {
+    override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): NovelChapterContent? {
         val pages = getPages(chapter, nextChapterUrl)
         if (pages.isEmpty()) return null
 
@@ -739,22 +739,22 @@ class LegadoRepository(
         }
     }
 
-    override suspend fun getFilterOptions(): MangaListFilterOptions {
+    override suspend fun getFilterOptions(): ContentListFilterOptions {
         val kinds = parseExploreKinds()
         
-        // Convert ExploreKind to MangaTag for the filter system
+        // Convert ExploreKind to ContentTag for the filter system
         val categoryTags = kinds.mapNotNull { kind ->
             if (kind.url.isNullOrBlank()) null
-            else MangaTag(kind.title, "category:${kind.url}", source)
+            else ContentTag(kind.title, "category:${kind.url}", source)
         }.toSet()
         
         if (categoryTags.isEmpty()) {
-            return MangaListFilterOptions()
+            return ContentListFilterOptions()
         }
         
-        return MangaListFilterOptions(
+        return ContentListFilterOptions(
             availableTags = categoryTags,
-            tagGroups = listOf(MangaTagGroup("分类", categoryTags))
+            tagGroups = listOf(ContentTagGroup("分类", categoryTags))
         )
     }
 
@@ -776,16 +776,16 @@ class LegadoRepository(
         return headers.filterValues { isHeaderValueSafe(it) }
     }
 
-    override suspend fun getRelated(seed: Manga): List<Manga> {
+    override suspend fun getRelated(seed: Content): List<Content> {
         return emptyList()
     }
 
     private suspend fun getChaptersHelper(
-        manga: Manga,
+        manga: Content,
         tocUrl: String,
         initialContent: String? = null,
         initialFinalUrl: String? = null
-    ): List<MangaChapter> {
+    ): List<ContentChapter> {
         // 设置当前书籍上下文，供 JS 侧 book.getVariable("custom") 等读取。
         sandbox.setBook(
             LegadoSandbox.BookContext(
@@ -800,7 +800,7 @@ class LegadoRepository(
         val tocPageLimit = computeTocPageLimitFromSourceComment() // nullable
 
         val visited = mutableSetOf<String>()
-        val chapters = mutableListOf<MangaChapter>()
+        val chapters = mutableListOf<ContentChapter>()
         var shouldReverse = false
         val queue: ArrayDeque<String> = ArrayDeque()
         queue.add(tocUrl)
@@ -858,7 +858,7 @@ class LegadoRepository(
             }
         }
         
-        val deduped = linkedMapOf<String, MangaChapter>()
+        val deduped = linkedMapOf<String, ContentChapter>()
         chapters.forEach { chapter ->
             deduped.putIfAbsent(chapter.url, chapter)
         }

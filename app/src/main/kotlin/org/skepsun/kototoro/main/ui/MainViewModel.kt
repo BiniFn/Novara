@@ -15,10 +15,10 @@ import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.main.domain.ReadingResumeEnabledUseCase
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import javax.inject.Inject
 
@@ -29,10 +29,10 @@ class MainViewModel @Inject constructor(
 	trackingRepository: TrackingRepository,
 	private val settings: AppSettings,
 	readingResumeEnabledUseCase: ReadingResumeEnabledUseCase,
-	private val sourcesRepository: MangaSourcesRepository,
+	private val sourcesRepository: ContentSourcesRepository,
 ) : BaseViewModel() {
 
-	val onOpenReader = MutableEventFlow<Manga>()
+	val onOpenReader = MutableEventFlow<Content>()
 	val onFirstStart = MutableEventFlow<Unit>()
 
 	val isResumeEnabled = readingResumeEnabledUseCase()

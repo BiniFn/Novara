@@ -24,7 +24,7 @@ import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getPreferredBranch
-import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.TriStateOption
@@ -32,25 +32,25 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.computeSize
 import org.skepsun.kototoro.core.util.ext.onEachWhile
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.BranchComparator
 import org.skepsun.kototoro.details.domain.DetailsInteractor
 import org.skepsun.kototoro.details.domain.DetailsLoadUseCase
 import org.skepsun.kototoro.details.domain.ProgressUpdateUseCase
 import org.skepsun.kototoro.details.domain.ReadingTimeUseCase
-import org.skepsun.kototoro.details.domain.RelatedMangaUseCase
+import org.skepsun.kototoro.details.domain.RelatedContentUseCase
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
-import org.skepsun.kototoro.details.ui.model.MangaBranch
+import org.skepsun.kototoro.details.ui.model.ContentBranch
 import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_DOWNLOADED
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.list.domain.MangaListMapper
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.domain.ContentListMapper
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.DeleteLocalMangaUseCase
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.ui.ReaderState
@@ -69,13 +69,13 @@ class DetailsViewModel @Inject constructor(
 	bookmarksRepository: BookmarksRepository,
 	settings: AppSettings,
 	private val scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
 	downloadScheduler: DownloadWorker.Scheduler,
 	interactor: DetailsInteractor,
 	savedStateHandle: SavedStateHandle,
-	deleteLocalMangaUseCase: DeleteLocalMangaUseCase,
-	private val relatedMangaUseCase: RelatedMangaUseCase,
-	private val mangaListMapper: MangaListMapper,
+	deleteLocalContentUseCase: DeleteLocalContentUseCase,
+	private val relatedContentUseCase: RelatedContentUseCase,
+	private val mangaListMapper: ContentListMapper,
 	private val detailsLoadUseCase: DetailsLoadUseCase,
 	private val progressUpdateUseCase: ProgressUpdateUseCase,
 	private val readingTimeUseCase: ReadingTimeUseCase,
@@ -90,19 +90,19 @@ class DetailsViewModel @Inject constructor(
 	bookmarksRepository = bookmarksRepository,
 	historyRepository = historyRepository,
 	downloadScheduler = downloadScheduler,
-	deleteLocalMangaUseCase = deleteLocalMangaUseCase,
+	deleteLocalContentUseCase = deleteLocalContentUseCase,
 	localStorageChanges = localStorageChanges,
 ) {
 
-	private val intent = MangaIntent(savedStateHandle)
+	private val intent = ContentIntent(savedStateHandle)
 	private var loadingJob: Job
 	val mangaId = intent.mangaId
 
 	init {
-		mangaDetails.value = intent.manga?.let { MangaDetails(it) }
+		mangaDetails.value = intent.manga?.let { ContentDetails(it) }
 		videoDownloadIndex.changes
-			.onEach { changedMangaId ->
-				if (changedMangaId == mangaId) {
+			.onEach { changedContentId ->
+				if (changedContentId == mangaId) {
 					notifyDownloadChanged()
 				}
 			}
@@ -123,7 +123,7 @@ class DetailsViewModel @Inject constructor(
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
 
-	val remoteManga = MutableStateFlow<Manga?>(null)
+	val remoteContent = MutableStateFlow<Content?>(null)
 
 	val historyInfo: StateFlow<HistoryInfo> = combine(
 		mangaDetails,
@@ -141,7 +141,7 @@ class DetailsViewModel @Inject constructor(
 		)
 
 	val localSize = mangaDetails
-		.map { it }  // 获取完整的MangaDetails
+		.map { it }  // 获取完整的ContentDetails
 		.distinctUntilChanged()
 		.combine(localStorageChanges.onStart { emit(null) }) { details, _ -> details }
 		.map { details ->
@@ -155,7 +155,7 @@ class DetailsViewModel @Inject constructor(
 				}.getOrDefault(0L)
 			} else {
 				// 检查是否有EPUB文件（对于非本地但有EPUB下载的manga）
-				val manga = details.toManga()
+				val manga = details.toContent()
 				runCatchingCancellable {
 					val epubDir = epubStorageManager.getEpubDir(manga.id)
 					if (epubDir.exists()) {
@@ -174,10 +174,10 @@ class DetailsViewModel @Inject constructor(
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
-	val relatedManga: StateFlow<List<MangaListModel>> = manga.mapLatest {
-		if (it != null && settings.isRelatedMangaEnabled) {
+	val relatedContent: StateFlow<List<ContentListModel>> = manga.mapLatest {
+		if (it != null && settings.isRelatedContentEnabled) {
 			mangaListMapper.toListModelList(
-				manga = relatedMangaUseCase(it).orEmpty(),
+				manga = relatedContentUseCase(it).orEmpty(),
 				mode = ListMode.GRID,
 			)
 		} else {
@@ -189,7 +189,7 @@ class DetailsViewModel @Inject constructor(
 		mangaListMapper.mapTags(it?.tags.orEmpty())
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
-	val branches: StateFlow<List<MangaBranch>> = combine(
+	val branches: StateFlow<List<ContentBranch>> = combine(
 		mangaDetails,
 		selectedBranch,
 		history,
@@ -200,7 +200,7 @@ class DetailsViewModel @Inject constructor(
 		}
 		val currentBranch = h?.let { m.allChapters.findById(it.chapterId) }?.branch
 		c.map { x ->
-			MangaBranch(
+			ContentBranch(
 				name = x.key,
 				count = x.value.size,
 				isSelected = x.key == b,
@@ -218,12 +218,12 @@ class DetailsViewModel @Inject constructor(
 			val manga = mangaDetails.firstOrNull { !it?.chapters.isNullOrEmpty() } ?: return@launchJob
 			val h = history.firstOrNull()
 			if (h != null) {
-				progressUpdateUseCase(manga.toManga())
+				progressUpdateUseCase(manga.toContent())
 			}
 		}
 		launchJob(Dispatchers.Default) {
 			val manga = mangaDetails.firstOrNull { it != null && it.isLocal } ?: return@launchJob
-			remoteManga.value = interactor.findRemote(manga.toManga())
+			remoteContent.value = interactor.findRemote(manga.toContent())
 		}
 	}
 
@@ -264,7 +264,7 @@ class DetailsViewModel @Inject constructor(
 		detailsLoadUseCase.invoke(intent, force)
 			.onEachWhile {
 				if (it.allChapters.isNotEmpty()) {
-					val manga = it.toManga()
+					val manga = it.toContent()
 					// find default branch
 					val hist = historyRepository.getOne(manga)
 					selectedBranch.value = manga.getPreferredBranch(hist)
@@ -321,7 +321,7 @@ class DetailsViewModel @Inject constructor(
 	 */
 	override suspend fun expandEpubChaptersIfNeeded(chapters: List<org.skepsun.kototoro.details.ui.model.ChapterListItem>): List<org.skepsun.kototoro.details.ui.model.ChapterListItem> {
 		android.util.Log.d("DetailsViewModel", "expandEpubChaptersIfNeeded: NEW ARCHITECTURE - returning chapters as-is (${chapters.size} chapters)")
-		val manga = mangaDetails.value?.toManga() ?: return chapters
+		val manga = mangaDetails.value?.toContent() ?: return chapters
 		val contentType = manga.source.getContentType()
 		if (contentType != ContentType.VIDEO && contentType != ContentType.HENTAI_VIDEO) {
 			return chapters

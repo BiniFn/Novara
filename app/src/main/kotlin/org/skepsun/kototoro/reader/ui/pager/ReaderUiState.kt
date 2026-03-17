@@ -2,11 +2,11 @@ package org.skepsun.kototoro.reader.ui.pager
 
 import android.content.res.Resources
 import org.skepsun.kototoro.core.model.getLocalizedTitle
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 data class ReaderUiState(
 	val mangaName: String?,
-	val chapter: MangaChapter,
+	val chapter: ContentChapter,
 	val chapterIndex: Int,
 	val chaptersTotal: Int,
 	val currentPage: Int,

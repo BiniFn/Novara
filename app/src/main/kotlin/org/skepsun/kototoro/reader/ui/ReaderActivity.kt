@@ -63,7 +63,7 @@ import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.zipWithPrevious
 import org.skepsun.kototoro.databinding.ActivityReaderBinding
 import org.skepsun.kototoro.details.ui.pager.pages.PagesSavedObserver
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.reader.data.TapGridSettings
 import org.skepsun.kototoro.reader.domain.TapGridArea
 import org.skepsun.kototoro.reader.ui.config.ReaderConfigSheet
@@ -229,7 +229,7 @@ class ReaderActivity :
     }
 
     override fun getParentActivityIntent(): Intent? {
-        val manga = viewModel.getMangaOrNull() ?: return null
+        val manga = viewModel.getContentOrNull() ?: return null
         return AppRouter.detailsIntent(this, manga)
     }
 
@@ -253,10 +253,10 @@ class ReaderActivity :
 
     override fun onProvideAssistContent(outContent: AssistContent) {
         super.onProvideAssistContent(outContent)
-        viewModel.getMangaOrNull()?.publicUrl?.toUriOrNull()?.let { outContent.webUri = it }
+        viewModel.getContentOrNull()?.publicUrl?.toUriOrNull()?.let { outContent.webUri = it }
     }
 
-    override fun isNsfwContent(): Flow<Boolean> = viewModel.isMangaNsfw
+    override fun isNsfwContent(): Flow<Boolean> = viewModel.isContentNsfw
 
     override fun onIdle() {
         viewModel.saveCurrentState(readerManager.currentReader?.getCurrentState())
@@ -386,7 +386,7 @@ class ReaderActivity :
         return controlDelegate.onKeyUp(keyCode, event) || super.onKeyUp(keyCode, event)
     }
 
-    override fun onChapterSelected(chapter: MangaChapter): Boolean {
+    override fun onChapterSelected(chapter: ContentChapter): Boolean {
         viewModel.switchChapter(chapter.id, 0)
         return true
     }

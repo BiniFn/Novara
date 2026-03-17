@@ -4,7 +4,7 @@ import androidx.room.Embedded
 import androidx.room.Relation
 import org.skepsun.kototoro.core.db.entity.MangaEntity
 
-class TrackWithManga(
+class TrackWithContent(
 	@Embedded val track: TrackEntity,
 	@Relation(
 		parentColumn = "manga_id",

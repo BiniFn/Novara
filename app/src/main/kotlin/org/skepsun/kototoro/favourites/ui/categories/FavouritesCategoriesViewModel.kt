@@ -132,7 +132,7 @@ class FavouritesCategoriesViewModel @Inject constructor(
 			allFavoritesSortOrder
 		}.mapLatest { order ->
 			repository.getAllFavoritesCovers(order, limit = 3)
-		}.combine(repository.observeMangaCount()) { covers, count ->
+		}.combine(repository.observeContentCount()) { covers, count ->
 			count to covers
 		}
 	}

@@ -7,7 +7,7 @@ import org.skepsun.kototoro.core.db.entity.MangaEntity
 import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
 import org.skepsun.kototoro.core.db.entity.TagEntity
 
-class TrackLogWithManga(
+class TrackLogWithContent(
 	@Embedded val trackLog: TrackLogEntity,
 	@Relation(
 		parentColumn = "manga_id",

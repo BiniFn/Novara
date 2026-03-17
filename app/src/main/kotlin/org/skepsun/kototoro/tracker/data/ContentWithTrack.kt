@@ -7,7 +7,7 @@ import org.skepsun.kototoro.core.db.entity.MangaEntity
 import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
 import org.skepsun.kototoro.core.db.entity.TagEntity
 
-class MangaWithTrack(
+class ContentWithTrack(
 	@Embedded val track: TrackEntity,
 	@Relation(
 		parentColumn = "manga_id",

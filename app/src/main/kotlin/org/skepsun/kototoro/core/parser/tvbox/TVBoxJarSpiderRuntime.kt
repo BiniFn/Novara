@@ -16,17 +16,17 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaTag
-import org.skepsun.kototoro.parsers.model.MangaTagGroup
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 internal class TVBoxJarSpiderRuntime(
-	private val source: JsonMangaSource,
+	private val source: JsonContentSource,
 	private val config: TVBoxStoredConfig,
 	private val context: Context,
 	private val httpClient: LegadoHttpClient,
@@ -86,7 +86,7 @@ internal class TVBoxJarSpiderRuntime(
 	private var homeCache: TVBoxJarHomeResult? = null
 
 	@Volatile
-	private var filterOptionsCache: MangaListFilterOptions? = null
+	private var filterOptionsCache: ContentListFilterOptions? = null
 
 	override fun describeCapability(config: TVBoxStoredConfig): String {
 		return "DexClassLoader(type=3/csp, FongMi-style in-process host runtime)"
@@ -109,8 +109,8 @@ internal class TVBoxJarSpiderRuntime(
 	override suspend fun getList(
 		offset: Int,
 		order: SortOrder?,
-		filter: MangaListFilter?,
-	): List<Manga>? {
+		filter: ContentListFilter?,
+	): List<Content>? {
 		val spider = getSpiderOrNull() ?: return null
 		val page = offset + 1
 		val query = filter?.query?.trim().orEmpty()
@@ -123,7 +123,7 @@ internal class TVBoxJarSpiderRuntime(
 				offset == 0 -> {
 					val homeVodItems = loadHomeVod(spider)
 					if (homeVodItems.isNotEmpty()) {
-						homeVodItems.map { it.toManga(source) }
+						homeVodItems.map { it.toContent(source) }
 					} else {
 						loadInitialCategoryFallback(spider, loadHome(spider), page)
 					}
@@ -137,11 +137,11 @@ internal class TVBoxJarSpiderRuntime(
 		}.getOrNull()
 	}
 
-	override suspend fun getDetails(manga: Manga): Manga? {
+	override suspend fun getDetails(manga: Content): Content? {
 		val spider = getSpiderOrNull() ?: return null
 		return runCatching {
 			val detail = loadDetail(spider, manga) ?: return manga
-			detail.toManga(source).copy(
+			detail.toContent(source).copy(
 				id = manga.id,
 				url = manga.url,
 				publicUrl = manga.publicUrl,
@@ -151,12 +151,12 @@ internal class TVBoxJarSpiderRuntime(
 		}.getOrNull()
 	}
 
-	override suspend fun getPages(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage>? {
+	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage>? {
 		val spider = getSpiderOrNull() ?: return null
 		return runCatching {
 			val locator = parseChapterLocator(chapter.url)
 				?: return listOf(
-					MangaPage(
+					ContentPage(
 						id = positiveHash("${chapter.url}|page"),
 						url = chapter.url,
 						preview = null,
@@ -167,7 +167,7 @@ internal class TVBoxJarSpiderRuntime(
 			val directLocator = TVBoxPlayback.normalizeLocator(locator.id)
 			if (directLocator.startsWith("http://", ignoreCase = true) || directLocator.startsWith("https://", ignoreCase = true)) {
 				return listOf(
-					MangaPage(
+					ContentPage(
 						id = positiveHash("${chapter.url}|page"),
 						url = directLocator,
 						preview = null,
@@ -186,7 +186,7 @@ internal class TVBoxJarSpiderRuntime(
 				resolvedUrl
 			}
 			listOf(
-				MangaPage(
+				ContentPage(
 					id = positiveHash("${chapter.url}|page"),
 					url = finalUrl,
 					preview = null,
@@ -203,7 +203,7 @@ internal class TVBoxJarSpiderRuntime(
 		}.getOrNull()
 	}
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions? {
+	override suspend fun getFilterOptions(): ContentListFilterOptions? {
 		filterOptionsCache?.let { return it }
 		val spider = getSpiderOrNull() ?: return null
 		return filterOptionsMutex.withLock {
@@ -211,18 +211,18 @@ internal class TVBoxJarSpiderRuntime(
 			runCatching {
 				val home = loadHome(spider)
 				if (home.categories.isEmpty()) {
-					MangaListFilterOptions()
+					ContentListFilterOptions()
 				} else {
 					val tags = home.categories.mapTo(linkedSetOf()) { category ->
-						MangaTag(
+						ContentTag(
 							title = category.name,
 							key = "$TAG_CATEGORY_PREFIX${category.id}",
 							source = source,
 						)
 					}
-					MangaListFilterOptions(
+					ContentListFilterOptions(
 						availableTags = tags,
-						tagGroups = listOf(MangaTagGroup("分类", tags)),
+						tagGroups = listOf(ContentTagGroup("分类", tags)),
 					)
 				}
 			}.onFailure {
@@ -394,7 +394,7 @@ internal class TVBoxJarSpiderRuntime(
 		categoryId: String,
 		page: Int,
 		timeoutMs: Long = SPIDER_CALL_TIMEOUT_MS,
-	): List<Manga> {
+	): List<Content> {
 		Log.i(TAG, "Loading TVBox category for ${source.name}: categoryId=$categoryId page=$page")
 		val raw = invokeSpider(
 			action = "categoryContent(tid=$categoryId, pg=$page)",
@@ -402,14 +402,14 @@ internal class TVBoxJarSpiderRuntime(
 		) {
 			spider.categoryContent(categoryId, page.toString(), true, hashMapOf())
 		}.orEmpty()
-		return parseVodList(raw).map { it.toManga(source) }
+		return parseVodList(raw).map { it.toContent(source) }
 	}
 
 	private suspend fun loadInitialCategoryFallback(
 		spider: Spider,
 		home: TVBoxJarHomeResult,
 		page: Int,
-	): List<Manga> {
+	): List<Content> {
 		val categories = home.categories.take(HOME_CATEGORY_FALLBACK_LIMIT)
 		if (categories.isEmpty()) {
 			Log.i(TAG, "TVBox home has no categories for ${source.name}")
@@ -435,7 +435,7 @@ internal class TVBoxJarSpiderRuntime(
 		return emptyList()
 	}
 
-	private suspend fun search(spider: Spider, query: String, page: Int): List<Manga> {
+	private suspend fun search(spider: Spider, query: String, page: Int): List<Content> {
 		val raw = invokeSpider("searchContent(query=$query, page=$page)") {
 			runCatching {
 				spider.searchContent(query, false, page.toString())
@@ -443,10 +443,10 @@ internal class TVBoxJarSpiderRuntime(
 				spider.searchContent(query, false)
 			}
 		}.orEmpty()
-		return parseVodList(raw).map { it.toManga(source) }
+		return parseVodList(raw).map { it.toContent(source) }
 	}
 
-	private suspend fun loadDetail(spider: Spider, manga: Manga): TVBoxJarDetailResult? {
+	private suspend fun loadDetail(spider: Spider, manga: Content): TVBoxJarDetailResult? {
 		val itemId = (manga.url ?: manga.publicUrl).orEmpty().ifBlank { manga.id.toString() }
 		detailCache[itemId]?.let { return it }
 		return detailMutex.withLock {
@@ -701,8 +701,8 @@ internal class TVBoxJarSpiderRuntime(
 		val category = node.firstNonBlank("type_name", "vod_class", "class")
 		val remarks = node.firstNonBlank("vod_remarks", "remarks", "note")
 		val tags = buildSet {
-			category?.let { add(MangaTag(it, "category:${it.lowercase()}", source)) }
-			remarks?.let { add(MangaTag(it, "remark:${it.lowercase()}", source)) }
+			category?.let { add(ContentTag(it, "category:${it.lowercase()}", source)) }
+			remarks?.let { add(ContentTag(it, "remark:${it.lowercase()}", source)) }
 		}
 		val description = buildString {
 			node.firstNonBlank("vod_content", "content", "vod_blurb")?.let { append(it) }
@@ -753,7 +753,7 @@ internal class TVBoxJarSpiderRuntime(
 		val chapters = if (playSources.isNotEmpty()) {
 			playSources.flatMapIndexed { groupIndex, sourceGroup ->
 				sourceGroup.items.mapIndexed { index, playItem ->
-					MangaChapter(
+					ContentChapter(
 						id = positiveHash("${item.itemId}|${sourceGroup.flag}|${playItem.id}|$groupIndex|$index"),
 						title = playItem.title,
 						number = (index + 1).toFloat(),
@@ -768,7 +768,7 @@ internal class TVBoxJarSpiderRuntime(
 			}
 		} else {
 			listOf(
-				MangaChapter(
+				ContentChapter(
 					id = positiveHash("${item.itemId}|single"),
 					title = item.title,
 					number = 1f,
@@ -784,7 +784,7 @@ internal class TVBoxJarSpiderRuntime(
 		return TVBoxJarDetailResult(item = item, chapters = chapters)
 	}
 
-	private fun buildFallbackDetailResult(raw: String, seed: Manga): TVBoxJarDetailResult? {
+	private fun buildFallbackDetailResult(raw: String, seed: Content): TVBoxJarDetailResult? {
 		val jsonValue = raw.toJsonValue() ?: return null
 		val root = when (jsonValue) {
 			is JSONObject -> jsonValue
@@ -806,7 +806,7 @@ internal class TVBoxJarSpiderRuntime(
 			tags = seed.tags,
 		)
 		val chapters = listOf(
-			MangaChapter(
+			ContentChapter(
 				id = positiveHash("${item.itemId}|fallback"),
 				title = item.title,
 				number = 1f,
@@ -1220,9 +1220,9 @@ internal class TVBoxJarSpiderRuntime(
 		val title: String,
 		val coverUrl: String?,
 		val description: String?,
-		val tags: Set<MangaTag>,
+		val tags: Set<ContentTag>,
 	) {
-		fun toManga(source: JsonMangaSource): Manga = Manga(
+		fun toContent(source: JsonContentSource): Content = Content(
 			id = id,
 			title = title,
 			altTitles = emptySet(),
@@ -1243,9 +1243,9 @@ internal class TVBoxJarSpiderRuntime(
 
 	private data class TVBoxJarDetailResult(
 		val item: TVBoxJarVodItem,
-		val chapters: List<MangaChapter>,
+		val chapters: List<ContentChapter>,
 	) {
-		fun toManga(source: JsonMangaSource): Manga = item.toManga(source).copy(chapters = chapters)
+		fun toContent(source: JsonContentSource): Content = item.toContent(source).copy(chapters = chapters)
 	}
 
 	private data class TVBoxJarPlaySource(

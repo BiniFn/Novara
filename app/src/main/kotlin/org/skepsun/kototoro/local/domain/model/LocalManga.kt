@@ -5,12 +5,12 @@ import androidx.core.net.toFile
 import androidx.core.net.toUri
 import org.skepsun.kototoro.core.util.ext.contains
 import org.skepsun.kototoro.core.util.ext.creationTime
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import java.io.File
 
-data class LocalManga(
-	val manga: Manga,
+data class LocalContent(
+	val manga: Content,
 	val file: File = manga.url.toUri().toFile(),
 ) {
 
@@ -39,11 +39,11 @@ data class LocalManga(
 		return tags.any { tag -> tag in manga.tags }
 	}
 
-	private operator fun Collection<MangaTag>.contains(title: String): Boolean {
+	private operator fun Collection<ContentTag>.contains(title: String): Boolean {
 		return any { it.title.equals(title, ignoreCase = true) }
 	}
 
 	override fun toString(): String {
-		return "LocalManga(${file.path}: ${manga.title})"
+		return "LocalContent(${file.path}: ${manga.title})"
 	}
 }

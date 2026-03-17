@@ -2,15 +2,15 @@ package org.skepsun.kototoro.alternatives.ui
 
 import org.skepsun.kototoro.core.model.chaptersCount
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaGridModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.parsers.model.Content
 
-data class MangaAlternativeModel(
-	val mangaModel: MangaGridModel,
+data class ContentAlternativeModel(
+	val mangaModel: ContentGridModel,
 	private val referenceChapters: Int,
 ) : ListModel {
 
-	val manga: Manga
+	val manga: Content
 		get() = mangaModel.manga
 
 	val chaptersCount = manga.chaptersCount()
@@ -19,10 +19,10 @@ data class MangaAlternativeModel(
 		get() = if (referenceChapters == 0 || chaptersCount == 0) 0 else chaptersCount - referenceChapters
 
 	override fun areItemsTheSame(other: ListModel): Boolean {
-		return other is MangaAlternativeModel && other.manga.id == manga.id
+		return other is ContentAlternativeModel && other.manga.id == manga.id
 	}
 
-	override fun getChangePayload(previousState: ListModel): Any? = if (previousState is MangaAlternativeModel) {
+	override fun getChangePayload(previousState: ListModel): Any? = if (previousState is ContentAlternativeModel) {
 		mangaModel.getChangePayload(previousState.mangaModel)
 	} else {
 		null

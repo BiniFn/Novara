@@ -7,7 +7,7 @@ import org.skepsun.kototoro.core.db.entity.MangaEntity
 import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
 import org.skepsun.kototoro.core.db.entity.TagEntity
 
-class HistoryWithManga(
+class HistoryWithContent(
 	@Embedded val history: HistoryEntity,
 	@Relation(
 		parentColumn = "manga_id",

@@ -3,8 +3,8 @@ package org.skepsun.kototoro.core.parser.legado.book
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.parser.legado.*
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 
 /**
  * Handles book details parsing using ruleBookInfo.
@@ -12,7 +12,7 @@ import org.skepsun.kototoro.parsers.model.MangaTag
 object BookInfo {
 
     data class Result(
-        val manga: Manga,
+        val manga: Content,
         val tocUrl: String?
     )
     
@@ -20,7 +20,7 @@ object BookInfo {
      * Parse book details from HTML/JSON content
      */
     fun parse(
-        manga: Manga,
+        manga: Content,
         content: String,
         baseUrl: String,
         config: LegadoBookSource,
@@ -67,7 +67,7 @@ object BookInfo {
         
         val source = manga.source
         val tags = if (kind.isNotBlank()) {
-            kind.split(",", " ", "|").map { it.trim() }.filter { it.isNotBlank() }.map { MangaTag(it, it, source) }.toSet()
+            kind.split(",", " ", "|").map { it.trim() }.filter { it.isNotBlank() }.map { ContentTag(it, it, source) }.toSet()
         } else {
             manga.tags
         }

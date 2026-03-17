@@ -4,23 +4,23 @@ import android.content.ContentResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import org.skepsun.kototoro.core.cache.MemoryContentCache
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
+import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import java.util.EnumSet
 
-class ExternalMangaRepository(
+class ExternalContentRepository(
 	contentResolver: ContentResolver,
-	override val source: ExternalMangaSource,
+	override val source: ExternalContentSource,
 	cache: MemoryContentCache,
-) : CachingMangaRepository(cache) {
+) : CachingContentRepository(cache) {
 
 	private val contentSource = ExternalPluginContentSource(contentResolver, source)
 
@@ -37,31 +37,31 @@ class ExternalMangaRepository(
 	override val sortOrders: Set<SortOrder>
 		get() = capabilities?.availableSortOrders ?: EnumSet.of(SortOrder.POPULARITY)
 
-	override val filterCapabilities: MangaListFilterCapabilities
-		get() = capabilities?.listFilterCapabilities ?: MangaListFilterCapabilities()
+	override val filterCapabilities: ContentListFilterCapabilities
+		get() = capabilities?.listFilterCapabilities ?: ContentListFilterCapabilities()
 
 	override var defaultSortOrder: SortOrder
 		get() = capabilities?.availableSortOrders?.firstOrNull() ?: SortOrder.ALPHABETICAL
 		set(value) = Unit
 
-	override suspend fun getFilterOptions(): MangaListFilterOptions = filterOptions.get()
+	override suspend fun getFilterOptions(): ContentListFilterOptions = filterOptions.get()
 
-	override suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga> =
+	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> =
 		runInterruptible(Dispatchers.IO) {
-			contentSource.getList(offset, order ?: defaultSortOrder, filter ?: MangaListFilter.EMPTY)
+			contentSource.getList(offset, order ?: defaultSortOrder, filter ?: ContentListFilter.EMPTY)
 		}
 
-	override suspend fun getDetailsImpl(manga: Manga): Manga = runInterruptible(Dispatchers.IO) {
+	override suspend fun getDetailsImpl(manga: Content): Content = runInterruptible(Dispatchers.IO) {
 		contentSource.getDetails(manga)
 	}
 
-	override suspend fun getPagesImpl(chapter: MangaChapter, nextChapterUrl: String?): List<MangaPage> = runInterruptible(Dispatchers.IO) {
+	override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> = runInterruptible(Dispatchers.IO) {
 		contentSource.getPages(chapter)
 	}
 
-override suspend fun getPageUrl(page: MangaPage): String = runInterruptible(Dispatchers.IO) {
+override suspend fun getPageUrl(page: ContentPage): String = runInterruptible(Dispatchers.IO) {
 	contentSource.getPageUrl(page.url)
 }
 
-	override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> = emptyList() // TODO
+	override suspend fun getRelatedContentImpl(seed: Content): List<Content> = emptyList() // TODO
 }

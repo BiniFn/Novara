@@ -12,11 +12,11 @@ import org.skepsun.kototoro.bookmarks.data.toEntity
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.toEntities
 import org.skepsun.kototoro.core.db.entity.toEntity
-import org.skepsun.kototoro.core.db.entity.toManga
+import org.skepsun.kototoro.core.db.entity.toContent
 import org.skepsun.kototoro.core.ui.util.ReversibleHandle
 import org.skepsun.kototoro.core.util.ext.mapItems
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @Reusable
@@ -24,19 +24,19 @@ class BookmarksRepository @Inject constructor(
 	private val db: MangaDatabase,
 ) {
 
-	fun observeBookmark(manga: Manga, chapterId: Long, page: Int): Flow<Bookmark?> {
+	fun observeBookmark(manga: Content, chapterId: Long, page: Int): Flow<Bookmark?> {
 		return db.getBookmarksDao().observe(manga.id, chapterId, page).map { it?.toBookmark(manga) }
 	}
 
-	fun observeBookmarks(manga: Manga): Flow<List<Bookmark>> {
+	fun observeBookmarks(manga: Content): Flow<List<Bookmark>> {
 		return db.getBookmarksDao().observe(manga.id).mapItems { it.toBookmark(manga) }
 	}
 
-	fun observeBookmarks(): Flow<Map<Manga, List<Bookmark>>> {
+	fun observeBookmarks(): Flow<Map<Content, List<Bookmark>>> {
 		return db.getBookmarksDao().observe().map { map ->
-			val res = LinkedHashMap<Manga, List<Bookmark>>(map.size)
+			val res = LinkedHashMap<Content, List<Bookmark>>(map.size)
 			for ((k, v) in map) {
-				val manga = k.toManga()
+				val manga = k.toContent()
 				res[manga] = v.toBookmarks(manga)
 			}
 			res

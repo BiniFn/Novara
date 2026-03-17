@@ -20,7 +20,7 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.mapSortedByCount
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
@@ -28,20 +28,20 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.EnumSet
 import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class SourcesCatalogViewModel @Inject constructor(
-	private val repository: MangaSourcesRepository,
+	private val repository: ContentSourcesRepository,
 	db: MangaDatabase,
 	settings: AppSettings,
 ) : BaseViewModel() {
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
-	val locales: Set<String?> = repository.allMangaSources.mapTo(HashSet<String?>()) { it.getLocale()?.language }.also {
+	val locales: Set<String?> = repository.allContentSources.mapTo(HashSet<String?>()) { it.getLocale()?.language }.also {
 		it.add(null)
 	}
 
@@ -82,7 +82,7 @@ class SourcesCatalogViewModel @Inject constructor(
 		appliedFilter.value = appliedFilter.value.copy(locale = value)
 	}
 
-	fun addSource(source: MangaSource) {
+	fun addSource(source: ContentSource) {
 		launchJob(Dispatchers.Default) {
 			val rollback = repository.setSourcesEnabled(setOf(source), true)
 			onActionDone.call(ReversibleAction(R.string.source_enabled, rollback))
@@ -154,9 +154,9 @@ class SourcesCatalogViewModel @Inject constructor(
 	@WorkerThread
 	private fun getContentTypes(isNsfwDisabled: Boolean): List<ContentType> {
 		val sources = if (isNsfwDisabled) {
-			repository.allMangaSources.filterNot { it.isNsfw() }
+			repository.allContentSources.filterNot { it.isNsfw() }
 		} else {
-			repository.allMangaSources
+			repository.allContentSources
 		}
 		return sources.mapSortedByCount { it.getContentType() }
 	}

@@ -30,7 +30,7 @@ sealed class SourceFilter(
 	/**
 	 * Show only manga sources
 	 */
-	object MangaOnly : SourceFilter(R.string.manga, "manga")
+	object ContentOnly : SourceFilter(R.string.manga, "manga")
 	
 	/**
 	 * Show only novel sources
@@ -50,7 +50,7 @@ sealed class SourceFilter(
 			All,
 			Native,
 			JsonOnly,
-			MangaOnly,
+			ContentOnly,
 			NovelOnly,
 			VideoOnly,
 		)
@@ -62,7 +62,7 @@ sealed class SourceFilter(
 			"all" -> All
 			"native" -> Native
 			"json" -> JsonOnly
-			"manga" -> MangaOnly
+			"manga" -> ContentOnly
 			"novel" -> NovelOnly
 			"video" -> VideoOnly
 			else -> All
@@ -74,7 +74,7 @@ sealed class SourceFilter(
 	 */
 	fun matchesContentGroup(group: ContentGroup): Boolean = when (this) {
 		All, Native, JsonOnly -> true
-		MangaOnly -> group == ContentGroup.MANGA || group == ContentGroup.HENTAI_MANGA
+		ContentOnly -> group == ContentGroup.MANGA || group == ContentGroup.HENTAI_MANGA
 		NovelOnly -> group == ContentGroup.NOVEL || group == ContentGroup.HENTAI_NOVEL
 		VideoOnly -> group == ContentGroup.VIDEO || group == ContentGroup.HENTAI_VIDEO
 	}
@@ -86,6 +86,6 @@ sealed class SourceFilter(
 		All -> true
 		Native -> group == OriginGroup.NATIVE
 		JsonOnly -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON
-		MangaOnly, NovelOnly, VideoOnly -> true // Content filters don't filter by origin
+		ContentOnly, NovelOnly, VideoOnly -> true // Content filters don't filter by origin
 	}
 }

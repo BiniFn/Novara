@@ -7,17 +7,17 @@ import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
 import com.hannesdorfmann.adapterdelegates4.ListDelegationAdapter
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.ui.list.decor.SpacingItemDecoration
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.textAndVisible
 import org.skepsun.kototoro.databinding.ItemListGroupBinding
-import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
+import org.skepsun.kototoro.list.ui.ContentSelectionDecoration
 import org.skepsun.kototoro.list.ui.adapter.mangaGridItemAD
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
 
@@ -25,8 +25,8 @@ import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
 fun searchResultsAD(
 	sharedPool: RecycledViewPool,
 	sizeResolver: ItemSizeResolver,
-	selectionDecoration: MangaSelectionDecoration,
-	listener: OnListItemClickListener<MangaListModel>,
+	selectionDecoration: ContentSelectionDecoration,
+	listener: OnListItemClickListener<ContentListModel>,
 	itemClickListener: OnListItemClickListener<SearchResultsListModel>,
 ) = adapterDelegateViewBinding<SearchResultsListModel, ListModel, ItemListGroupBinding>(
 	{ layoutInflater, parent -> ItemListGroupBinding.inflate(layoutInflater, parent, false) },
@@ -43,7 +43,7 @@ fun searchResultsAD(
 
 	bind {
 		binding.textViewTitle.text = item.getTitle(context)
-		binding.buttonMore.isVisible = item.source !== UnknownMangaSource
+		binding.buttonMore.isVisible = item.source !== UnknownContentSource
 		adapter.items = item.list
 		adapter.notifyDataSetChanged()
 		binding.recyclerView.isGone = item.list.isEmpty()

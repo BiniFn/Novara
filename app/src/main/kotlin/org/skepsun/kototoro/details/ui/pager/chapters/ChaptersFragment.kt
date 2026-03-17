@@ -121,7 +121,7 @@ class ChaptersFragment :
 		} else {
 			router.openReader(
 				ReaderIntent.Builder(view.context)
-					.manga(viewModel.getMangaOrNull() ?: return)
+					.manga(viewModel.getContentOrNull() ?: return)
 					.state(ReaderState(item.chapter.id, 0, 0))
 					.build(),
 			)

@@ -152,7 +152,7 @@
 			android:exported="false"
 			android:label="@string/edit_source" />
 		<activity
-			android:name="org.skepsun.kototoro.search.ui.MangaListActivity"
+			android:name="org.skepsun.kototoro.search.ui.ContentListActivity"
 			android:exported="true"
 			android:label="@string/manga_list">
 			<intent-filter>
@@ -175,7 +175,7 @@
 			android:name="org.skepsun.kototoro.suggestions.ui.SuggestionsActivity"
 			android:label="@string/suggestions" />
 		<activity
-			android:name="org.skepsun.kototoro.details.ui.related.RelatedMangaActivity"
+			android:name="org.skepsun.kototoro.details.ui.related.RelatedContentActivity"
 			android:label="@string/related_manga" />
 		<activity
 			android:name="org.skepsun.kototoro.settings.SettingsActivity"
@@ -196,7 +196,7 @@
 			android:name="org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity"
 			android:label="@string/reader_actions" />
 		<activity
-			android:name="org.skepsun.kototoro.settings.storage.directories.MangaDirectoriesActivity"
+			android:name="org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity"
 			android:label="@string/local_manga_directories" />
 		<activity
 			android:name="org.skepsun.kototoro.browser.BrowserActivity"
@@ -426,15 +426,15 @@
 				android:resource="@xml/sync_history" />
 		</service>
 		<service
-			android:name="org.skepsun.kototoro.details.service.MangaPrefetchService"
+			android:name="org.skepsun.kototoro.details.service.ContentPrefetchService"
 			android:exported="false"
 			android:label="@string/prefetch_content" />
 		<service
 			android:name="org.skepsun.kototoro.browser.AdListUpdateService"
 			android:exported="false" />
 		<provider
-			android:name="org.skepsun.kototoro.search.ui.MangaSuggestionsProvider"
-			android:authorities="${applicationId}.MangaSuggestionsProvider"
+			android:name="org.skepsun.kototoro.search.ui.ContentSuggestionsProvider"
+			android:authorities="${applicationId}.ContentSuggestionsProvider"
 			android:exported="false" />
 		<provider
 			android:name="androidx.core.content.FileProvider"

@@ -6,7 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.model.DateTimeAgo
@@ -18,12 +18,12 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltViewModel
-class MangaStatsViewModel @Inject constructor(
+class ContentStatsViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	private val repository: StatsRepository,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
 	val stats = MutableStateFlow(emptyIntList())
 	val startDate = MutableStateFlow<DateTimeAgo?>(null)
@@ -31,7 +31,7 @@ class MangaStatsViewModel @Inject constructor(
 
 	init {
 		launchLoadingJob(Dispatchers.Default) {
-			val timeline = repository.getMangaTimeline(manga.id)
+			val timeline = repository.getContentTimeline(manga.id)
 			if (timeline.isEmpty()) {
 				startDate.value = null
 				stats.value = emptyIntList()

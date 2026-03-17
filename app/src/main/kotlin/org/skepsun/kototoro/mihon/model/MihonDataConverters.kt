@@ -5,28 +5,28 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import org.skepsun.kototoro.parsers.model.ContentRating
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 
 /**
  * Extension functions for converting between Mihon and Kototoro data models.
  */
 
-// ============ SManga <-> Manga ============
+// ============ SManga <-> Content ============
 
 /**
- * Convert Mihon SManga to Kototoro Manga.
+ * Convert Mihon SManga to Kototoro Content.
  */
-fun SManga.toKotoManga(
+fun SManga.toKotoContent(
     source: MihonMangaSource,
-    chapters: List<MangaChapter>? = null,
+    chapters: List<ContentChapter>? = null,
     publicUrl: String = "",
-): Manga {
+): Content {
     // Get baseUrl from source if available to resolve relative URLs
     val baseUrl = (source.catalogueSource as? HttpSource)?.baseUrl ?: ""
     
@@ -43,10 +43,10 @@ fun SManga.toKotoManga(
     val safeDescription = try { description } catch (e: UninitializedPropertyAccessException) { null }
     val safeStatus = try { status } catch (e: UninitializedPropertyAccessException) { SManga.UNKNOWN }
     
-    android.util.Log.i("MihonDataConverters", "toKotoManga: title='$safeTitle' url='$safeUrl' -> absoluteThumbnail='$absoluteThumbnailUrl'")
+    android.util.Log.i("MihonDataConverters", "toKotoContent: title='$safeTitle' url='$safeUrl' -> absoluteThumbnail='$absoluteThumbnailUrl'")
     
-    return Manga(
-        id = generateMangaId(safeUrl, source.name),
+    return Content(
+        id = generateContentId(safeUrl, source.name),
         title = safeTitle,
         altTitles = emptySet(),
         url = safeUrl,
@@ -54,25 +54,25 @@ fun SManga.toKotoManga(
         rating = RATING_UNKNOWN,
         contentRating = run {
             val adultGenres = setOf("adult", "hentai", "18+", "nsfw", "mature", "ecchi")
-            val isMangaNsfw = source.isNsfw || safeGenres?.any { it.lowercase() in adultGenres } == true
-            if (isMangaNsfw) ContentRating.ADULT else null
+            val isContentNsfw = source.isNsfw || safeGenres?.any { it.lowercase() in adultGenres } == true
+            if (isContentNsfw) ContentRating.ADULT else null
         },
         coverUrl = absoluteThumbnailUrl,
         largeCoverUrl = absoluteThumbnailUrl, // Also set largeCoverUrl for details page
         tags = safeGenres?.map { genreName: String ->
-            MangaTag(
+            ContentTag(
                 title = genreName,
                 key = genreName.lowercase().replace(" ", "_"),
                 source = source,
             )
         }?.toSet() ?: emptySet(),
         state = when (safeStatus) {
-            SManga.ONGOING -> MangaState.ONGOING
-            SManga.COMPLETED -> MangaState.FINISHED
-            SManga.ON_HIATUS -> MangaState.PAUSED
-            SManga.CANCELLED -> MangaState.ABANDONED
-            SManga.LICENSED -> MangaState.RESTRICTED  // Map LICENSED to RESTRICTED
-            SManga.PUBLISHING_FINISHED -> MangaState.FINISHED
+            SManga.ONGOING -> ContentState.ONGOING
+            SManga.COMPLETED -> ContentState.FINISHED
+            SManga.ON_HIATUS -> ContentState.PAUSED
+            SManga.CANCELLED -> ContentState.ABANDONED
+            SManga.LICENSED -> ContentState.RESTRICTED  // Map LICENSED to RESTRICTED
+            SManga.PUBLISHING_FINISHED -> ContentState.FINISHED
             else -> null
         },
         authors = buildSet {
@@ -86,9 +86,9 @@ fun SManga.toKotoManga(
 }
 
 /**
- * Convert Kototoro Manga to Mihon SManga (for calling Mihon APIs).
+ * Convert Kototoro Content to Mihon SManga (for calling Mihon APIs).
  */
-fun Manga.toMihonManga(): SManga {
+fun Content.toMihonManga(): SManga {
     // Get baseUrl from source if available
     val baseUrl = (source as? MihonMangaSource)?.let { mihonSource ->
         (mihonSource.catalogueSource as? HttpSource)?.baseUrl ?: ""
@@ -140,11 +140,11 @@ fun Manga.toMihonManga(): SManga {
         this.description = this@toMihonManga.description
         this.genre = this@toMihonManga.tags.joinToString(", ") { it.title }
         this.status = when (this@toMihonManga.state) {
-            MangaState.ONGOING -> SManga.ONGOING
-            MangaState.FINISHED -> SManga.COMPLETED
-            MangaState.PAUSED -> SManga.ON_HIATUS
-            MangaState.ABANDONED -> SManga.CANCELLED
-            MangaState.RESTRICTED -> SManga.LICENSED  // Map RESTRICTED to LICENSED
+            ContentState.ONGOING -> SManga.ONGOING
+            ContentState.FINISHED -> SManga.COMPLETED
+            ContentState.PAUSED -> SManga.ON_HIATUS
+            ContentState.ABANDONED -> SManga.CANCELLED
+            ContentState.RESTRICTED -> SManga.LICENSED  // Map RESTRICTED to LICENSED
             else -> SManga.UNKNOWN
         }
         this.thumbnail_url = this@toMihonManga.coverUrl
@@ -152,18 +152,18 @@ fun Manga.toMihonManga(): SManga {
     }
 }
 
-// ============ SChapter <-> MangaChapter ============
+// ============ SChapter <-> ContentChapter ============
 
 /**
- * Convert Mihon SChapter to Kototoro MangaChapter.
+ * Convert Mihon SChapter to Kototoro ContentChapter.
  */
-fun SChapter.toKotoChapter(source: MangaSource, overrideNumber: Float? = null): MangaChapter {
+fun SChapter.toKotoChapter(source: ContentSource, overrideNumber: Float? = null): ContentChapter {
     val chapterId = generateChapterId(url, source.name)
     val finalNumber = overrideNumber ?: (if (chapter_number >= 0) chapter_number else 0f)
     
     android.util.Log.d("MihonDataConverters", "toKotoChapter: name='$name' url='$url' -> id=$chapterId number=$finalNumber")
     
-    return MangaChapter(
+    return ContentChapter(
         id = chapterId,
         title = name.takeIf { it.isNotBlank() },
         number = finalNumber,
@@ -177,9 +177,9 @@ fun SChapter.toKotoChapter(source: MangaSource, overrideNumber: Float? = null): 
 }
 
 /**
- * Convert Kototoro MangaChapter to Mihon SChapter.
+ * Convert Kototoro ContentChapter to Mihon SChapter.
  */
-fun MangaChapter.toMihonChapter(): SChapter {
+fun ContentChapter.toMihonChapter(): SChapter {
     return SChapter.create().apply {
         this.url = this@toMihonChapter.url
         this.name = this@toMihonChapter.title ?: "Chapter ${this@toMihonChapter.number}"
@@ -189,25 +189,25 @@ fun MangaChapter.toMihonChapter(): SChapter {
     }
 }
 
-// ============ Page <-> MangaPage ============
+// ============ Page <-> ContentPage ============
 
 /**
- * Convert Mihon Page to Kototoro MangaPage.
+ * Convert Mihon Page to Kototoro ContentPage.
  * 
  * NOTE: The chapter parameter is needed to generate unique page IDs.
  * Without it, all chapters would have pages with IDs 0, 1, 2... which causes
  * cache conflicts in the reader.
  */
 fun Page.toKotoPage(
-    source: MangaSource, 
+    source: ContentSource, 
     chapter: eu.kanade.tachiyomi.source.model.SChapter,
     headers: Map<String, String> = emptyMap()
-): MangaPage {
+): ContentPage {
     // Generate a unique page ID by combining chapter URL and page index
     // This prevents cache collisions between pages from different chapters
     val pageId = "${chapter.url}|page|$index".hashCode().toLong() and Long.MAX_VALUE
     
-    return MangaPage(
+    return ContentPage(
         id = pageId,
         url = imageUrl ?: url,
         preview = null,
@@ -217,9 +217,9 @@ fun Page.toKotoPage(
 }
 
 /**
- * Convert Kototoro MangaPage to Mihon Page.
+ * Convert Kototoro ContentPage to Mihon Page.
  */
-fun MangaPage.toMihonPage(): Page {
+fun ContentPage.toMihonPage(): Page {
     return Page(
         index = id.toInt(),
         url = url,
@@ -232,7 +232,7 @@ fun MangaPage.toMihonPage(): Page {
 /**
  * Generate a stable ID for a manga based on URL and source.
  */
-private fun generateMangaId(url: String, sourceName: String): Long {
+private fun generateContentId(url: String, sourceName: String): Long {
     return "$sourceName|manga|$url".hashCode().toLong() and Long.MAX_VALUE
 }
 
@@ -248,9 +248,9 @@ private fun generateChapterId(url: String, sourceName: String): Long {
 /**
  * Get the public URL for a manga from an HttpSource.
  */
-fun HttpSource.getPublicMangaUrl(manga: SManga): String {
+fun HttpSource.getPublicContentUrl(manga: SManga): String {
     return try {
-        getMangaUrl(manga)
+        getContentUrl(manga)
     } catch (e: Exception) {
         ""
     }

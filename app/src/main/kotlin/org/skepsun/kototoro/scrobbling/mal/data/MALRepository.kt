@@ -18,8 +18,8 @@ import org.skepsun.kototoro.parsers.util.parseJson
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerMangaInfo
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -88,7 +88,7 @@ class MALRepository @Inject constructor(
 		return db.getScrobblingDao().delete(ScrobblerService.MAL.id, mangaId)
 	}
 
-	override suspend fun findManga(query: String, offset: Int): List<ScrobblerManga> {
+	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("manga")
 			.addQueryParameter("offset", offset.toString())
@@ -100,10 +100,10 @@ class MALRepository @Inject constructor(
 		val response = okHttp.newCall(request).await().parseJson()
 		check(response.has("data")) { "Invalid response: \"$response\"" }
 		val data = response.getJSONArray("data")
-		return data.mapJSONNotNull { jsonToManga(it, query) }
+		return data.mapJSONNotNull { jsonToContent(it, query) }
 	}
 
-	override suspend fun getMangaInfo(id: Long): ScrobblerMangaInfo {
+	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("manga")
 			.addPathSegment(id.toString())
@@ -111,16 +111,16 @@ class MALRepository @Inject constructor(
 			.build()
 		val request = Request.Builder().url(url)
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerMangaInfo(response)
+		return ScrobblerContentInfo(response)
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerMangaId: Long) {
+	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val body = FormBody.Builder()
 			.add("status", "reading")
 			.add("score", "0")
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("manga")
-			.addPathSegment(scrobblerMangaId.toString())
+			.addPathSegment(scrobblerContentId.toString())
 			.addPathSegment("my_list_status")
 			.addQueryParameter("fields", "synopsis")
 			.build()
@@ -129,7 +129,7 @@ class MALRepository @Inject constructor(
 			.put(body.build())
 			.build()
 		val response = okHttp.newCall(request).await().parseJson()
-		saveRate(response, mangaId, scrobblerMangaId)
+		saveRate(response, mangaId, scrobblerContentId)
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int) {
@@ -200,12 +200,12 @@ class MALRepository @Inject constructor(
 				val listStatus = entry.optJSONObject("list_status") ?: continue
 				val mangaId = node.optLong("id", 0L)
 				if (mangaId == 0L) continue
-				val mappedMangaId = oldMappings[mangaId] ?: 0L
+				val mappedContentId = oldMappings[mangaId] ?: 0L
 				synced.add(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.MAL.id,
 						id = mangaId.toInt(),
-						mangaId = mappedMangaId,
+						mangaId = mappedContentId,
 						targetId = mangaId,
 						status = listStatus.optString("status", ""),
 						chapter = listStatus.optInt("num_chapters_read", 0),
@@ -228,12 +228,12 @@ class MALRepository @Inject constructor(
 		return synced.size
 	}
 
-	private suspend fun saveRate(json: JSONObject, mangaId: Long, scrobblerMangaId: Long) {
+	private suspend fun saveRate(json: JSONObject, mangaId: Long, scrobblerContentId: Long) {
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.MAL.id,
-			id = scrobblerMangaId.toInt(),
+			id = scrobblerContentId.toInt(),
 			mangaId = mangaId,
-			targetId = scrobblerMangaId,
+			targetId = scrobblerContentId,
 			status = json.getString("status"),
 			chapter = json.getInt("num_chapters_read"),
 			comment = json.getString("comments"),
@@ -246,10 +246,10 @@ class MALRepository @Inject constructor(
 		storage.clear()
 	}
 
-	private fun jsonToManga(json: JSONObject, sourceTitle: String): ScrobblerManga {
+	private fun jsonToContent(json: JSONObject, sourceTitle: String): ScrobblerContent {
 		val node = json.getJSONObject("node")
 		val title = node.getString("title")
-		return ScrobblerManga(
+		return ScrobblerContent(
 			id = node.getLong("id"),
 			name = title,
 			altName = null,
@@ -259,7 +259,7 @@ class MALRepository @Inject constructor(
 		)
 	}
 
-	private fun ScrobblerMangaInfo(json: JSONObject) = ScrobblerMangaInfo(
+	private fun ScrobblerContentInfo(json: JSONObject) = ScrobblerContentInfo(
 		id = json.getLong("id"),
 		name = json.getString("title"),
 		cover = json.getJSONObject("main_picture").getString("large"),

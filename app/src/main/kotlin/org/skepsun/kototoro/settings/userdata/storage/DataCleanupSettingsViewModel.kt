@@ -13,7 +13,7 @@ import kotlinx.coroutines.runInterruptible
 import okhttp3.Cache
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
@@ -22,7 +22,7 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.local.data.CacheDir
 import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.domain.DeleteReadChaptersUseCase
-import org.skepsun.kototoro.search.domain.MangaSearchRepository
+import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import java.util.EnumMap
 import javax.inject.Inject
@@ -34,11 +34,11 @@ import kotlin.coroutines.suspendCoroutine
 class DataCleanupSettingsViewModel @Inject constructor(
     private val storageManager: LocalStorageManager,
     private val httpCache: Cache,
-    private val searchRepository: MangaSearchRepository,
+    private val searchRepository: ContentSearchRepository,
     private val trackingRepository: TrackingRepository,
     private val cookieJar: MutableCookieJar,
     private val deleteReadChaptersUseCase: DeleteReadChaptersUseCase,
-    private val mangaDataRepositoryProvider: Provider<MangaDataRepository>,
+    private val mangaDataRepositoryProvider: Provider<ContentDataRepository>,
     private val coil: ImageLoader,
 ) : BaseViewModel() {
 
@@ -153,13 +153,13 @@ class DataCleanupSettingsViewModel @Inject constructor(
         }
     }
 
-    fun clearMangaData() {
+    fun clearContentData() {
         launchJob(Dispatchers.Default) {
             try {
                 loadingKeys.update { it + AppSettings.KEY_CLEAR_MANGA_DATA }
                 trackingRepository.gc()
                 val repository = mangaDataRepositoryProvider.get()
-                repository.cleanupLocalManga()
+                repository.cleanupLocalContent()
                 repository.cleanupDatabase()
                 onActionDone.call(ReversibleAction(R.string.updates_feed_cleared, null))
             } finally {

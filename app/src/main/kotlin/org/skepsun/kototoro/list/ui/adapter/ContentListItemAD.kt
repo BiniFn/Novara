@@ -6,15 +6,15 @@ import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.util.ext.setTooltipCompat
 import org.skepsun.kototoro.core.util.ext.textAndVisible
-import org.skepsun.kototoro.databinding.ItemMangaListBinding
+import org.skepsun.kototoro.databinding.ItemContentListBinding
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaCompactListModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 
 fun mangaListItemAD(
-	clickListener: OnListItemClickListener<MangaListModel>,
-) = adapterDelegateViewBinding<MangaCompactListModel, ListModel, ItemMangaListBinding>(
-	{ inflater, parent -> ItemMangaListBinding.inflate(inflater, parent, false) },
+	clickListener: OnListItemClickListener<ContentListModel>,
+) = adapterDelegateViewBinding<ContentCompactListModel, ListModel, ItemContentListBinding>(
+	{ inflater, parent -> ItemContentListBinding.inflate(inflater, parent, false) },
 ) {
 
 	AdapterDelegateClickListenerAdapter(this, clickListener).attach(itemView)

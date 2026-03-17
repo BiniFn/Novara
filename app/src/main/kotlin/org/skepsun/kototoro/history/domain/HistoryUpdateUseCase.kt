@@ -9,7 +9,7 @@ import org.skepsun.kototoro.core.db.dao.EpubChapterMappingDao
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.ui.ReaderState
 import javax.inject.Inject
@@ -19,7 +19,7 @@ class HistoryUpdateUseCase @Inject constructor(
 	private val epubChapterMappingDao: EpubChapterMappingDao,
 ) {
 
-	suspend operator fun invoke(manga: Manga, readerState: ReaderState, percent: Float) {
+	suspend operator fun invoke(manga: Content, readerState: ReaderState, percent: Float) {
 		// 从数据库查询父章节ID（用于EPUB内部章节）
 		val parentChapterId = extractParentChapterIdFromDatabase(manga.id, readerState.chapterId)
 		
@@ -58,7 +58,7 @@ class HistoryUpdateUseCase @Inject constructor(
 	}
 
 	fun invokeAsync(
-		manga: Manga,
+		manga: Content,
 		readerState: ReaderState,
 		percent: Float
 	) = processLifecycleScope.launch(Dispatchers.Default, CoroutineStart.ATOMIC) {

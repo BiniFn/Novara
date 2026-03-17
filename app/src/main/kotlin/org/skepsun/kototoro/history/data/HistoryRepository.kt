@@ -7,26 +7,26 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.toEntity
-import org.skepsun.kototoro.core.db.entity.toManga
-import org.skepsun.kototoro.core.db.entity.toMangaList
-import org.skepsun.kototoro.core.db.entity.toMangaTags
-import org.skepsun.kototoro.core.db.entity.toMangaTagsList
-import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.core.db.entity.toContent
+import org.skepsun.kototoro.core.db.entity.toContentList
+import org.skepsun.kototoro.core.db.entity.toContentTags
+import org.skepsun.kototoro.core.db.entity.toContentTagsList
+import org.skepsun.kototoro.core.model.ContentHistory
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
-import org.skepsun.kototoro.core.model.toMangaSources
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.model.toContentSources
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode
 import org.skepsun.kototoro.core.ui.util.ReversibleHandle
 import org.skepsun.kototoro.core.util.ext.mapItems
-import org.skepsun.kototoro.history.domain.model.MangaWithHistory
+import org.skepsun.kototoro.history.domain.model.ContentWithHistory
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.list.domain.ReadingProgress
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
@@ -41,17 +41,17 @@ class HistoryRepository @Inject constructor(
 	private val db: MangaDatabase,
 	private val settings: AppSettings,
 	private val scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
-	private val mangaRepository: MangaDataRepository,
+	private val mangaRepository: ContentDataRepository,
 	private val localObserver: HistoryLocalObserver,
 	private val newChaptersUseCaseProvider: Provider<CheckNewChaptersUseCase>,
 ) {
 
-	suspend fun getList(offset: Int, limit: Int): List<Manga> {
+	suspend fun getList(offset: Int, limit: Int): List<Content> {
 		val entities = db.getHistoryDao().findAll(offset, limit)
-		return entities.map { it.toManga() }
+		return entities.map { it.toContent() }
 	}
 
-	suspend fun search(query: String, kind: SearchKind, limit: Int): List<Manga> {
+	suspend fun search(query: String, kind: SearchKind, limit: Int): List<Content> {
 		val dao = db.getHistoryDao()
 		val q = "%$query%"
 		val entities = when (kind) {
@@ -61,30 +61,30 @@ class HistoryRepository @Inject constructor(
 			SearchKind.AUTHOR -> dao.searchByAuthor(q, limit)
 			SearchKind.TAG -> dao.searchByTag(q, limit)
 		}
-		return entities.toMangaList()
+		return entities.toContentList()
 	}
 
-	suspend fun getLastOrNull(): Manga? {
+	suspend fun getLastOrNull(): Content? {
 		val entity = db.getHistoryDao().findAll(0, 1).firstOrNull() ?: return null
-		return entity.toManga()
+		return entity.toContent()
 	}
 
-	fun observeLast(): Flow<Manga?> {
+	fun observeLast(): Flow<Content?> {
 		return db.getHistoryDao().observeAll(1).map {
 			val first = it.firstOrNull()
-			first?.toManga()
+			first?.toContent()
 		}
 	}
 
-	fun observeAll(): Flow<List<Manga>> {
+	fun observeAll(): Flow<List<Content>> {
 		return db.getHistoryDao().observeAll().mapItems {
-			it.toManga()
+			it.toContent()
 		}
 	}
 
-	fun observeAll(limit: Int): Flow<List<Manga>> {
+	fun observeAll(limit: Int): Flow<List<Content>> {
 		return db.getHistoryDao().observeAll(limit).mapItems {
-			it.toManga()
+			it.toContent()
 		}
 	}
 
@@ -92,27 +92,27 @@ class HistoryRepository @Inject constructor(
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
 		limit: Int
-	): Flow<List<MangaWithHistory>> {
+	): Flow<List<ContentWithHistory>> {
 		if (ListFilterOption.Downloaded in filterOptions) {
 			return localObserver.observeAll(order, filterOptions, limit)
 		}
 		return db.getHistoryDao().observeAll(order, filterOptions, limit).mapItems {
-			MangaWithHistory(
-				it.toManga(),
-				it.history.toMangaHistory(),
+			ContentWithHistory(
+				it.toContent(),
+				it.history.toContentHistory(),
 			)
 		}
 	}
 
-	fun observeOne(id: Long): Flow<MangaHistory?> {
+	fun observeOne(id: Long): Flow<ContentHistory?> {
 		return db.getHistoryDao().observe(id).map {
 			android.util.Log.d("HistoryRepository", "observeOne: mangaId=$id, entity=${it?.let { "chapterId=${it.chapterId}, parentChapterId=${it.parentChapterId}" } ?: "null"}")
-			it?.toMangaHistory()
+			it?.toContentHistory()
 		}
 	}
 
 	suspend fun addOrUpdate(
-		manga: Manga, 
+		manga: Content, 
 		chapterId: Long, 
 		page: Int, 
 		scroll: Int, 
@@ -131,7 +131,7 @@ class HistoryRepository @Inject constructor(
 		}
 		assert(manga.chapters != null)
 		db.withTransaction {
-			mangaRepository.storeManga(manga, replaceExisting = true)
+			mangaRepository.storeContent(manga, replaceExisting = true)
 			val branch = manga.chapters?.findById(chapterId)?.branch
 			val entity = HistoryEntity(
 				mangaId = manga.id,
@@ -158,12 +158,12 @@ class HistoryRepository @Inject constructor(
 		}
 	}
 
-	suspend fun getOne(manga: Manga): MangaHistory? {
+	suspend fun getOne(manga: Content): ContentHistory? {
 		val entity = db.getHistoryDao().find(manga.id)
 		android.util.Log.d("HistoryRepository", "getOne: mangaId=${manga.id}, entity=${entity?.let { "chapterId=${it.chapterId}, parentChapterId=${it.parentChapterId}" } ?: "null"}")
 		val recovered = entity?.recoverIfNeeded(manga)
 		android.util.Log.d("HistoryRepository", "getOne after recover: ${recovered?.let { "chapterId=${it.chapterId}, parentChapterId=${it.parentChapterId}" } ?: "null"}")
-		return recovered?.toMangaHistory()
+		return recovered?.toContentHistory()
 	}
 
 	suspend fun getProgress(mangaId: Long, mode: ProgressIndicatorMode): ReadingProgress? {
@@ -180,7 +180,7 @@ class HistoryRepository @Inject constructor(
 		db.getHistoryDao().clear()
 	}
 
-	suspend fun delete(manga: Manga) = db.withTransaction {
+	suspend fun delete(manga: Content) = db.withTransaction {
 		db.getHistoryDao().delete(manga.id)
 		mangaRepository.gcChaptersCache()
 	}
@@ -211,23 +211,23 @@ class HistoryRepository @Inject constructor(
 	 * Try to replace one manga with another one
 	 * Useful for replacing saved manga on deleting it with remote source
 	 */
-	suspend fun deleteOrSwap(manga: Manga, alternative: Manga?) {
+	suspend fun deleteOrSwap(manga: Content, alternative: Content?) {
 		if (alternative == null || db.getMangaDao().update(alternative.toEntity()) <= 0) {
 			delete(manga)
 		}
 	}
 
-	suspend fun getPopularTags(limit: Int): List<MangaTag> {
-		return db.getHistoryDao().findPopularTags(limit).toMangaTagsList()
+	suspend fun getPopularTags(limit: Int): List<ContentTag> {
+		return db.getHistoryDao().findPopularTags(limit).toContentTagsList()
 	}
 
-	suspend fun getPopularSources(limit: Int): List<MangaSource> {
-		return db.getHistoryDao().findPopularSources(limit).toMangaSources()
+	suspend fun getPopularSources(limit: Int): List<ContentSource> {
+		return db.getHistoryDao().findPopularSources(limit).toContentSources()
 	}
 
-	fun shouldSkip(manga: Manga): Boolean = settings.isIncognitoModeEnabled(manga.isNsfw())
+	fun shouldSkip(manga: Content): Boolean = settings.isIncognitoModeEnabled(manga.isNsfw())
 
-	fun observeShouldSkip(manga: Manga): Flow<Boolean> {
+	fun observeShouldSkip(manga: Content): Flow<Boolean> {
 		return settings.observe(AppSettings.KEY_INCOGNITO_MODE, AppSettings.KEY_INCOGNITO_NSFW)
 			.map { shouldSkip(manga) }
 			.distinctUntilChanged()
@@ -241,7 +241,7 @@ class HistoryRepository @Inject constructor(
 		}
 	}
 
-	private suspend fun HistoryEntity.recoverIfNeeded(manga: Manga): HistoryEntity {
+	private suspend fun HistoryEntity.recoverIfNeeded(manga: Content): HistoryEntity {
 		val chapters = manga.chapters
 		if (manga.isLocal || chapters.isNullOrEmpty() || chapters.findById(chapterId) != null) {
 			return this
@@ -266,5 +266,5 @@ class HistoryRepository @Inject constructor(
 		return newEntity
 	}
 
-	private fun HistoryWithManga.toManga() = manga.toManga(tags.toMangaTags(), null)
+	private fun HistoryWithContent.toContent() = manga.toContent(tags.toContentTags(), null)
 }

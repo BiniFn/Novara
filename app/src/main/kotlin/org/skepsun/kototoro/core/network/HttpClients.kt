@@ -8,4 +8,4 @@ annotation class BaseHttpClient
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
-annotation class MangaHttpClient
+annotation class ContentHttpClient

@@ -72,7 +72,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 		val clickListener = View.OnClickListener { v ->
 			when (v.id) {
 				R.id.button_retry -> viewModel.retry(
-					page = boundData?.toMangaPage() ?: return@OnClickListener,
+					page = boundData?.toContentPage() ?: return@OnClickListener,
 					isFromUser = true,
 				)
 
@@ -95,7 +95,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 		lastTranslationContentSignature = translationContentSignature
 		settings.applyBackground(itemView)
 		if (translationDisplayChanged || translationContentChanged) {
-			val page = boundData?.toMangaPage()
+			val page = boundData?.toContentPage()
 			if (page != null) {
 				if (translationDisplayChanged && !translationContentChanged) {
 					viewModel.switchDisplayLayer(page)
@@ -120,7 +120,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	fun bind(data: ReaderPage) {
 		boundData = data
-		viewModel.onBind(data.toMangaPage())
+		viewModel.onBind(data.toContentPage())
 		onBind(data)
 	}
 
@@ -138,7 +138,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 		super.onResume()
 		ssiv.applyDownSampling(isForeground = true)
 		if (viewModel.state.value is PageState.Error && !viewModel.isLoading()) {
-			boundData?.let { viewModel.retry(it.toMangaPage(), isFromUser = false) }
+			boundData?.let { viewModel.retry(it.toContentPage(), isFromUser = false) }
 		}
 	}
 

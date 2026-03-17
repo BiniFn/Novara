@@ -5,7 +5,7 @@ import androidx.room.Query
 import androidx.room.Upsert
 
 @Dao
-interface LocalMangaIndexDao {
+interface LocalContentIndexDao {
 
 	@Query("SELECT path FROM local_index WHERE manga_id = :mangaId")
 	suspend fun findPath(mangaId: Long): String?
@@ -17,7 +17,7 @@ interface LocalMangaIndexDao {
 	suspend fun findTags(isNsfw: Boolean): List<String>
 
 	@Upsert
-	suspend fun upsert(entity: LocalMangaIndexEntity)
+	suspend fun upsert(entity: LocalContentIndexEntity)
 
 	@Query("DELETE FROM local_index WHERE manga_id = :mangaId")
 	suspend fun delete(mangaId: Long)

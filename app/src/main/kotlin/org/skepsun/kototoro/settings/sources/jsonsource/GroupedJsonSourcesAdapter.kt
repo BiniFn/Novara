@@ -13,7 +13,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroupInfo
-import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.databinding.ItemJsonSourceBinding
 import org.skepsun.kototoro.databinding.ItemSourceGroupHeaderBinding
 
@@ -127,11 +127,11 @@ class GroupedJsonSourcesAdapter(
 			
 			// Set source name
 			binding.textViewName.text = when (mangaSource) {
-				is org.skepsun.kototoro.core.jsonsource.JsonMangaSource -> mangaSource.displayName.ifBlank { mangaSource.name }
+				is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> mangaSource.displayName.ifBlank { mangaSource.name }
 				else -> sourceInfo.name
 			}
 			
-			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
+			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonContentSource) {
 				val meta = parseSourceMeta(mangaSource.entity)
 				
 				// Set URL with content type and groups
@@ -315,10 +315,10 @@ class GroupedJsonSourcesAdapter(
 			}
 		}
 		
-		private fun getContentTypeLabel(sourceInfo: MangaSourceInfo): String {
-			// Check if it's a MangaParserSource (which has contentType)
+		private fun getContentTypeLabel(sourceInfo: ContentSourceInfo): String {
+			// Check if it's a ContentParserSource (which has contentType)
 			val source = sourceInfo.mangaSource
-			if (source is org.skepsun.kototoro.parsers.model.MangaParserSource) {
+			if (source is org.skepsun.kototoro.parsers.model.ContentParserSource) {
 				return when (source.contentType) {
 					org.skepsun.kototoro.parsers.model.ContentType.MANGA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHWA,
@@ -404,7 +404,7 @@ sealed class GroupedSourceItem {
 	/**
 	 * A source item.
 	 */
-	data class Source(val sourceInfo: MangaSourceInfo) : GroupedSourceItem()
+	data class Source(val sourceInfo: ContentSourceInfo) : GroupedSourceItem()
 }
 
 /**

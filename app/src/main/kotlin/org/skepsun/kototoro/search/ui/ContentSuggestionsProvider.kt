@@ -9,7 +9,7 @@ import android.provider.SearchRecentSuggestions
 import androidx.core.net.toUri
 import org.skepsun.kototoro.BuildConfig
 
-class MangaSuggestionsProvider : SearchRecentSuggestionsProvider() {
+class ContentSuggestionsProvider : SearchRecentSuggestionsProvider() {
 
 	init {
 		setupSuggestions(AUTHORITY, MODE)
@@ -17,7 +17,7 @@ class MangaSuggestionsProvider : SearchRecentSuggestionsProvider() {
 
 	companion object {
 
-		private const val AUTHORITY = "${BuildConfig.APPLICATION_ID}.MangaSuggestionsProvider"
+		private const val AUTHORITY = "${BuildConfig.APPLICATION_ID}.ContentSuggestionsProvider"
 		private const val MODE = DATABASE_MODE_QUERIES
 
 		fun createSuggestions(context: Context): SearchRecentSuggestions {

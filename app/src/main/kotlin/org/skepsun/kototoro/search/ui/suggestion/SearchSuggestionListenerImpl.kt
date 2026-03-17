@@ -6,10 +6,10 @@ import android.widget.TextView
 import androidx.core.net.toUri
 import com.google.android.material.search.SearchView
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaLinkResolver
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.core.parser.ContentLinkResolver
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.search.domain.SearchKind
 
 class SearchSuggestionListenerImpl(
@@ -18,13 +18,13 @@ class SearchSuggestionListenerImpl(
 	private val viewModel: SearchSuggestionViewModel,
 ) : SearchSuggestionListener {
 
-	override fun onMangaClick(manga: Manga) {
+	override fun onContentClick(manga: Content) {
 		router.openDetails(manga)
 	}
 
 	override fun onQueryClick(query: String, kind: SearchKind, submit: Boolean) {
 		if (submit && query.isNotEmpty()) {
-			if (kind == SearchKind.SIMPLE && MangaLinkResolver.isValidLink(query)) {
+			if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
 				router.openDetails(query.toUri())
 			} else {
 				router.openSearch(
@@ -43,7 +43,7 @@ class SearchSuggestionListenerImpl(
 		}
 	}
 
-	override fun onTagClick(tag: MangaTag) {
+	override fun onTagClick(tag: ContentTag) {
 		router.openSearch(
 			query = tag.title,
 			kind = SearchKind.TAG,
@@ -52,11 +52,11 @@ class SearchSuggestionListenerImpl(
 		)
 	}
 
-	override fun onSourceToggle(source: MangaSource, isEnabled: Boolean) {
+	override fun onSourceToggle(source: ContentSource, isEnabled: Boolean) {
 		viewModel.onSourceToggle(source, isEnabled)
 	}
 
-	override fun onSourceClick(source: MangaSource) {
+	override fun onSourceClick(source: ContentSource) {
 		router.openList(source, null, null)
 	}
 

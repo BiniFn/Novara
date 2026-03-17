@@ -9,43 +9,43 @@ import androidx.collection.ScatterSet
 import dagger.Reusable
 import dagger.hilt.android.qualifiers.ApplicationContext
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.list.ui.model.MangaCompactListModel
-import org.skepsun.kototoro.list.ui.model.MangaDetailedListModel
-import org.skepsun.kototoro.list.ui.model.MangaGridModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
-import org.skepsun.kototoro.local.data.index.LocalMangaIndex
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.local.data.index.LocalContentIndex
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 import javax.inject.Inject
 
 @Reusable
-class MangaListMapper @Inject constructor(
+class ContentListMapper @Inject constructor(
 	@ApplicationContext context: Context,
 	private val settings: AppSettings,
 	private val trackingRepository: TrackingRepository,
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,
-	private val localMangaIndex: LocalMangaIndex,
-	private val dataRepository: MangaDataRepository,
+	private val localContentIndex: LocalContentIndex,
+	private val dataRepository: ContentDataRepository,
 ) {
 
 	private val dict by lazy { readTagsDict(context) }
 
 	suspend fun toListModelList(
-		manga: Collection<Manga>,
+		manga: Collection<Content>,
 		mode: ListMode,
 		@Flags flags: Int = DEFAULTS,
-	): List<MangaListModel> = ArrayList<MangaListModel>(manga.size).apply {
+	): List<ContentListModel> = ArrayList<ContentListModel>(manga.size).apply {
 		toListModelList(
 			destination = this,
 			manga = manga,
@@ -55,8 +55,8 @@ class MangaListMapper @Inject constructor(
 	}
 
 	suspend fun toListModelList(
-		destination: MutableCollection<in MangaListModel>,
-		manga: Collection<Manga>,
+		destination: MutableCollection<in ContentListModel>,
+		manga: Collection<Content>,
 		mode: ListMode,
 		@Flags flags: Int = DEFAULTS,
 	) {
@@ -68,10 +68,10 @@ class MangaListMapper @Inject constructor(
 	}
 
 	suspend fun toListModel(
-		manga: Manga,
+		manga: Content,
 		mode: ListMode,
 		@Flags flags: Int = DEFAULTS,
-	): MangaListModel = toListModelImpl(
+	): ContentListModel = toListModelImpl(
 		manga = manga,
 		mode = mode,
 		options = getOptions(flags),
@@ -86,7 +86,7 @@ class MangaListMapper @Inject constructor(
 		isNew = logItem.isNew,
 	)
 
-	fun mapTags(tags: Collection<MangaTag>) = tags.map {
+	fun mapTags(tags: Collection<ContentTag>) = tags.map {
 		ChipsView.ChipModel(
 			tint = getTagTint(it),
 			title = it.title,
@@ -95,10 +95,10 @@ class MangaListMapper @Inject constructor(
 	}
 
 	private suspend fun toCompactListModel(
-		manga: Manga,
+		manga: Content,
 		@Options options: Int,
-		override: MangaOverride?,
-	) = MangaCompactListModel(
+		override: ContentOverride?,
+	) = ContentCompactListModel(
 		manga = manga,
 		override = override,
 		subtitle = manga.tags.joinToString(", ") { it.title },
@@ -106,10 +106,10 @@ class MangaListMapper @Inject constructor(
 	)
 
 	private suspend fun toDetailedListModel(
-		manga: Manga,
+		manga: Content,
 		@Options options: Int,
-		override: MangaOverride?,
-	) = MangaDetailedListModel(
+		override: ContentOverride?,
+	) = ContentDetailedListModel(
 		subtitle = manga.altTitles.firstOrNull(),
 		manga = manga,
 		override = override,
@@ -121,10 +121,10 @@ class MangaListMapper @Inject constructor(
 	)
 
 	private suspend fun toGridModel(
-		manga: Manga,
+		manga: Content,
 		@Options options: Int,
-		override: MangaOverride?
-	) = MangaGridModel(
+		override: ContentOverride?
+	) = ContentGridModel(
 		manga = manga,
 		override = override,
 		counter = getCounter(manga.id, options),
@@ -134,11 +134,11 @@ class MangaListMapper @Inject constructor(
 	)
 
 	private suspend fun toListModelImpl(
-		manga: Manga,
+		manga: Content,
 		mode: ListMode,
 		@Options options: Int,
-		override: MangaOverride?,
-	): MangaListModel = when (mode) {
+		override: ContentOverride?,
+	): ContentListModel = when (mode) {
 		ListMode.LIST -> toCompactListModel(manga, options, override)
 		ListMode.DETAILED_LIST -> toDetailedListModel(manga, options, override)
 		ListMode.GRID -> toGridModel(manga, options, override)
@@ -165,11 +165,11 @@ class MangaListMapper @Inject constructor(
 	}
 
 	private suspend fun isSaved(mangaId: Long, @Options options: Int): Boolean {
-		return options.isBadgeEnabled(SAVED) && mangaId in localMangaIndex
+		return options.isBadgeEnabled(SAVED) && mangaId in localContentIndex
 	}
 
 	@ColorRes
-	private fun getTagTint(tag: MangaTag): Int {
+	private fun getTagTint(tag: ContentTag): Int {
 		return if (settings.isTagsWarningsEnabled && tag.title.lowercase() in dict) {
 			R.color.warning
 		} else {
@@ -195,7 +195,7 @@ class MangaListMapper @Inject constructor(
 	@Options
 	@SuppressLint("WrongConstant")
 	private fun getOptions(@Flags flags: Int): Int {
-		var options = settings.getMangaListBadges() or PROGRESS
+		var options = settings.getContentListBadges() or PROGRESS
 		options = options and flags.inv()
 		return options
 	}

@@ -2,8 +2,8 @@ package org.skepsun.kototoro.reader.ui
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
-import org.skepsun.kototoro.core.model.MangaHistory
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.core.model.ContentHistory
+import org.skepsun.kototoro.parsers.model.Content
 
 @Parcelize
 data class ReaderState(
@@ -12,13 +12,13 @@ data class ReaderState(
 	val scroll: Int,
 ) : Parcelable {
 
-	constructor(history: MangaHistory) : this(
+	constructor(history: ContentHistory) : this(
 		chapterId = history.chapterId,
 		page = history.page,
 		scroll = history.scroll,
 	)
 
-	constructor(manga: Manga, branch: String?) : this(
+	constructor(manga: Content, branch: String?) : this(
 		chapterId = manga.chapters?.let {
 			it.firstOrNull { x -> x.branch == branch } ?: it.firstOrNull()
 		}?.id ?: error("Cannot find first chapter"),

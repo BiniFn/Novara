@@ -7,7 +7,7 @@ import org.skepsun.kototoro.core.db.entity.MangaEntity
 import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
 import org.skepsun.kototoro.core.db.entity.TagEntity
 
-data class SuggestionWithManga(
+data class SuggestionWithContent(
 	@Embedded val suggestion: SuggestionEntity,
 	@Relation(
 		parentColumn = "manga_id",

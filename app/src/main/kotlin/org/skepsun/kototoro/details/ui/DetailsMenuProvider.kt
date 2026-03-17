@@ -50,12 +50,12 @@ class DetailsMenuProvider(
 		menu.findItem(R.id.action_alternatives).isVisible = manga?.source != LocalMangaSource
 		menu.findItem(R.id.action_shortcut).isVisible = ShortcutManagerCompat.isRequestPinShortcutSupported(activity)
 		menu.findItem(R.id.action_scrobbling).isVisible = viewModel.isScrobblingAvailable
-		menu.findItem(R.id.action_online).isVisible = viewModel.remoteManga.value != null
+		menu.findItem(R.id.action_online).isVisible = viewModel.remoteContent.value != null
 		menu.findItem(R.id.action_stats).isVisible = viewModel.isStatsAvailable.value
 	}
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-		val manga = viewModel.getMangaOrNull() ?: return false
+		val manga = viewModel.getContentOrNull() ?: return false
 		when (menuItem.itemId) {
 			R.id.action_share -> {
 				router.showShareDialog(manga)
@@ -79,7 +79,7 @@ class DetailsMenuProvider(
 			}
 
 			R.id.action_online -> {
-				router.openDetails(viewModel.remoteManga.value ?: return false)
+				router.openDetails(viewModel.remoteContent.value ?: return false)
 			}
 
 			R.id.action_related -> {

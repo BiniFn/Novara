@@ -12,15 +12,15 @@ import org.skepsun.kototoro.core.util.ext.writeEnumSet
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentState
 
-object MangaListFilterParceler : Parceler<MangaListFilter> {
+object ContentListFilterParceler : Parceler<ContentListFilter> {
 
-	override fun MangaListFilter.write(parcel: Parcel, flags: Int) {
+	override fun ContentListFilter.write(parcel: Parcel, flags: Int) {
 		parcel.writeString(query)
-		parcel.writeParcelable(ParcelableMangaTags(tags), 0)
-		parcel.writeParcelable(ParcelableMangaTags(tagsExclude), 0)
+		parcel.writeParcelable(ParcelableContentTags(tags), 0)
+		parcel.writeParcelable(ParcelableContentTags(tagsExclude), 0)
 		parcel.writeSerializable(locale)
 		parcel.writeSerializable(originalLocale)
 		parcel.writeEnumSet(states)
@@ -33,13 +33,13 @@ object MangaListFilterParceler : Parceler<MangaListFilter> {
 		parcel.writeString(author)
 	}
 
-	override fun create(parcel: Parcel) = MangaListFilter(
+	override fun create(parcel: Parcel) = ContentListFilter(
 		query = parcel.readString(),
-		tags = parcel.readParcelableCompat<ParcelableMangaTags>()?.tags.orEmpty(),
-		tagsExclude = parcel.readParcelableCompat<ParcelableMangaTags>()?.tags.orEmpty(),
+		tags = parcel.readParcelableCompat<ParcelableContentTags>()?.tags.orEmpty(),
+		tagsExclude = parcel.readParcelableCompat<ParcelableContentTags>()?.tags.orEmpty(),
 		locale = parcel.readSerializableCompat(),
 		originalLocale = parcel.readSerializableCompat(),
-		states = parcel.readEnumSet<MangaState>().orEmpty(),
+		states = parcel.readEnumSet<ContentState>().orEmpty(),
 		contentRating = parcel.readEnumSet<ContentRating>().orEmpty(),
 		types = parcel.readEnumSet<ContentType>().orEmpty(),
 		demographics = parcel.readEnumSet<Demographic>().orEmpty(),
@@ -51,5 +51,5 @@ object MangaListFilterParceler : Parceler<MangaListFilter> {
 }
 
 @Parcelize
-@TypeParceler<MangaListFilter, MangaListFilterParceler>
-data class ParcelableMangaListFilter(val filter: MangaListFilter) : Parcelable
+@TypeParceler<ContentListFilter, ContentListFilterParceler>
+data class ParcelableContentListFilter(val filter: ContentListFilter) : Parcelable

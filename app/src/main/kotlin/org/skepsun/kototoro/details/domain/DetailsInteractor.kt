@@ -11,12 +11,12 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.TriStateOption
 import org.skepsun.kototoro.core.prefs.observeAsFlow
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.local.domain.model.LocalManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
@@ -27,7 +27,7 @@ import javax.inject.Inject
 class DetailsInteractor @Inject constructor(
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,
-	private val localMangaRepository: LocalMangaRepository,
+	private val localContentRepository: LocalMangaRepository,
 	private val trackingRepository: TrackingRepository,
 	private val settings: AppSettings,
 	private val scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
@@ -56,7 +56,7 @@ class DetailsInteractor @Inject constructor(
 		}
 	}
 
-	fun observeIncognitoMode(mangaFlow: Flow<Manga?>): Flow<TriStateOption> {
+	fun observeIncognitoMode(mangaFlow: Flow<Content?>): Flow<TriStateOption> {
 		return mangaFlow
 			.filterNotNull()
 			.distinctUntilChangedBy { it.isNsfw() }
@@ -69,18 +69,18 @@ class DetailsInteractor @Inject constructor(
 			}
 	}
 
-	suspend fun updateLocal(subject: MangaDetails?, localManga: LocalManga): MangaDetails? {
+	suspend fun updateLocal(subject: ContentDetails?, localContent: LocalContent): ContentDetails? {
 		subject ?: return null
-		return if (subject.id == localManga.manga.id) {
+		return if (subject.id == localContent.manga.id) {
 			if (subject.isLocal) {
 				subject.copy(
-					manga = localManga.manga,
+					manga = localContent.manga,
 				)
 			} else {
 				subject.copy(
-					localManga = runCatchingCancellable {
-						localManga.copy(
-							manga = localMangaRepository.getDetails(localManga.manga),
+					localContent = runCatchingCancellable {
+						localContent.copy(
+							manga = localContentRepository.getDetails(localContent.manga),
 						)
 					}.getOrNull() ?: subject.local,
 				)
@@ -90,7 +90,7 @@ class DetailsInteractor @Inject constructor(
 		}
 	}
 
-	suspend fun findRemote(seed: Manga) = localMangaRepository.getRemoteManga(seed)
+	suspend fun findRemote(seed: Content) = localContentRepository.getRemoteContent(seed)
 
 	private fun observeIncognitoMode() = settings.observeAsFlow(AppSettings.KEY_INCOGNITO_MODE) {
 		isIncognitoModeEnabled

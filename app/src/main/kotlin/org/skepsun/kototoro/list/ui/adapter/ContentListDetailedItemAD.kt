@@ -5,15 +5,15 @@ import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
 import org.skepsun.kototoro.core.util.ext.textAndVisible
-import org.skepsun.kototoro.databinding.ItemMangaListDetailsBinding
+import org.skepsun.kototoro.databinding.ItemContentListDetailsBinding
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaDetailedListModel
+import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 
 fun mangaListDetailedItemAD(
-	clickListener: MangaDetailsClickListener,
-) = adapterDelegateViewBinding<MangaDetailedListModel, ListModel, ItemMangaListDetailsBinding>(
-	{ inflater, parent -> ItemMangaListDetailsBinding.inflate(inflater, parent, false) },
+	clickListener: ContentDetailsClickListener,
+) = adapterDelegateViewBinding<ContentDetailedListModel, ListModel, ItemContentListDetailsBinding>(
+	{ inflater, parent -> ItemContentListDetailsBinding.inflate(inflater, parent, false) },
 ) {
 
 	AdapterDelegateClickListenerAdapter(this, clickListener)

@@ -21,8 +21,8 @@ import org.skepsun.kototoro.filter.ui.model.FilterHeaderModel
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.YEAR_UNKNOWN
 import java.util.Locale
 import javax.inject.Inject
@@ -54,7 +54,7 @@ class FilterHeaderFragment : BaseFragment<FragmentFilterHeaderBinding>(), ChipsV
 
     override fun onChipClick(chip: Chip, data: Any?) {
         when (data) {
-            is MangaTag -> filter.toggleTag(data, !chip.isChecked)
+            is ContentTag -> filter.toggleTag(data, !chip.isChecked)
             is PersistableFilter -> if (chip.isChecked) {
                 filter.reset()
             } else {
@@ -77,7 +77,7 @@ class FilterHeaderFragment : BaseFragment<FragmentFilterHeaderBinding>(), ChipsV
             is ContentRating -> filter.toggleContentRating(data, false)
             is Demographic -> filter.toggleDemographic(data, false)
             is ContentType -> filter.toggleContentType(data, false)
-            is MangaState -> filter.toggleState(data, false)
+            is ContentState -> filter.toggleState(data, false)
             is Locale -> filter.setLocale(null)
             is Int -> filter.setYear(YEAR_UNKNOWN)
             is IntRange -> filter.setYearRange(YEAR_UNKNOWN, YEAR_UNKNOWN)

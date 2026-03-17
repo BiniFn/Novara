@@ -4,10 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
-import org.skepsun.kototoro.core.model.parcelable.ParcelableMangaPage
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContentPage
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -20,15 +20,15 @@ import javax.inject.Inject
 class ColorFilterConfigViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	private val settings: AppSettings,
-	private val mangaDataRepository: MangaDataRepository,
+	private val mangaDataRepository: ContentDataRepository,
 ) : BaseViewModel() {
 
-	private val manga = savedStateHandle.require<ParcelableManga>(AppRouter.KEY_MANGA).manga
+	private val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
 	private var initialColorFilter: ReaderColorFilter? = null
 	val colorFilter = MutableStateFlow<ReaderColorFilter?>(null)
 	val onDismiss = MutableEventFlow<Unit>()
-	val preview = savedStateHandle.require<ParcelableMangaPage>(AppRouter.KEY_PAGES).page
+	val preview = savedStateHandle.require<ParcelableContentPage>(AppRouter.KEY_PAGES).page
 
 	val isChanged: Boolean
 		get() = colorFilter.value != initialColorFilter

@@ -4,9 +4,9 @@ import android.os.Bundle
 import android.view.MenuItem
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.browser.BaseBrowserActivity
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -17,8 +17,8 @@ class DiscordAuthActivity : BaseBrowserActivity(), DiscordTokenWebClient.Callbac
 
 	override fun onCreate2(
 		savedInstanceState: Bundle?,
-		source: MangaSource,
-		repository: ParserMangaRepository?
+		source: ContentSource,
+		repository: ParserContentRepository?
 	) {
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = true)
 		viewBinding.webView.settings.userAgentString = USER_AGENT

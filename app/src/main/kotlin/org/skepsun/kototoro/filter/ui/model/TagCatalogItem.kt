@@ -2,10 +2,10 @@ package org.skepsun.kototoro.filter.ui.model
 
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentTag
 
 data class TagCatalogItem(
-	val tag: MangaTag,
+	val tag: ContentTag,
 	val isChecked: Boolean,
 ) : ListModel {
 

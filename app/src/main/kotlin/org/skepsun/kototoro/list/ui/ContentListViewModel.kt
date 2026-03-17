@@ -19,7 +19,7 @@ import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.model.isNsfw
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -29,14 +29,14 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 
-abstract class MangaListViewModel(
+abstract class ContentListViewModel(
 	protected val settings: AppSettings,
-	private val mangaDataRepository: MangaDataRepository,
-	@param:LocalStorageChanges private val localStorageChanges: SharedFlow<LocalManga?>,
+	private val mangaDataRepository: ContentDataRepository,
+	@param:LocalStorageChanges private val localStorageChanges: SharedFlow<LocalContent?>,
 ) : BaseViewModel() {
 
 	abstract val content: StateFlow<List<ListModel>>
@@ -97,7 +97,7 @@ abstract class MangaListViewModel(
 
 	abstract fun onRetry()
 
-	protected fun List<Manga>.skipNsfwIfNeeded() = if (settings.isNsfwContentDisabled) {
+	protected fun List<Content>.skipNsfwIfNeeded() = if (settings.isNsfwContentDisabled) {
 		filterNot { it.isNsfw() }
 	} else {
 		this

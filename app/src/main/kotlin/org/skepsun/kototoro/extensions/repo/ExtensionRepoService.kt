@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.mihon.MihonExtensionLoader
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionLoader
 import javax.inject.Inject
@@ -17,7 +17,7 @@ import javax.inject.Singleton
 
 @Singleton
 class ExtensionRepoService @Inject constructor(
-	@MangaHttpClient private val httpClient: OkHttpClient,
+	@ContentHttpClient private val httpClient: OkHttpClient,
 	private val json: Json,
 ) {
 

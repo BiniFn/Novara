@@ -4,14 +4,14 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import org.skepsun.kototoro.core.model.isNsfw
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.contains
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.almostEquals
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
@@ -20,9 +20,9 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 private const val MATCH_THRESHOLD_DEFAULT = 0.2f
 
 class SearchV2Helper @AssistedInject constructor(
-	@Assisted private val source: MangaSource,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	private val dataRepository: MangaDataRepository,
+	@Assisted private val source: ContentSource,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	private val dataRepository: ContentDataRepository,
 	private val settings: AppSettings,
 ) {
 
@@ -43,18 +43,18 @@ class SearchV2Helper @AssistedInject constructor(
 		return SearchResults(listFilter = listFilter, sortOrder = sortOrder, manga = result)
 	}
 
-	private suspend fun MangaRepository.getFilter(query: String, kind: SearchKind): MangaListFilter? = when (kind) {
+	private suspend fun ContentRepository.getFilter(query: String, kind: SearchKind): ContentListFilter? = when (kind) {
 		SearchKind.SIMPLE,
 		SearchKind.TITLE -> if (filterCapabilities.isSearchSupported) {
-			MangaListFilter(query = query)
+			ContentListFilter(query = query)
 		} else {
 			null
 		}
 
 		SearchKind.AUTHOR -> if (filterCapabilities.isAuthorSearchSupported) {
-			MangaListFilter(author = query)
+			ContentListFilter(author = query)
 		} else if (filterCapabilities.isSearchSupported) {
-			MangaListFilter(query = query)
+			ContentListFilter(query = query)
 		} else {
 			null
 		}
@@ -67,14 +67,14 @@ class SearchV2Helper @AssistedInject constructor(
 			}.getOrDefault(emptySet())
 			val tag = tags.find { x -> x.title.equals(query, ignoreCase = true) }
 			if (tag != null) {
-				MangaListFilter(tags = setOf(tag))
+				ContentListFilter(tags = setOf(tag))
 			} else {
 				null
 			}
 		}
 	}
 
-	private fun MutableList<Manga>.postFilter(query: String, kind: SearchKind) {
+	private fun MutableList<Content>.postFilter(query: String, kind: SearchKind) {
 		if (settings.isNsfwContentDisabled) {
 			removeAll { it.isNsfw() }
 		}
@@ -92,7 +92,7 @@ class SearchV2Helper @AssistedInject constructor(
 		}
 	}
 
-	private fun MutableList<Manga>.sortByRelevance(query: String, kind: SearchKind) {
+	private fun MutableList<Content>.sortByRelevance(query: String, kind: SearchKind) {
 		when (kind) {
 			SearchKind.SIMPLE,
 			SearchKind.TITLE -> sortBy { m ->
@@ -109,7 +109,7 @@ class SearchV2Helper @AssistedInject constructor(
 		}
 	}
 
-	private fun MangaRepository.getSortOrder(kind: SearchKind): SortOrder {
+	private fun ContentRepository.getSortOrder(kind: SearchKind): SortOrder {
 		val preferred: SortOrder = when (kind) {
 			SearchKind.SIMPLE,
 			SearchKind.TITLE,
@@ -125,7 +125,7 @@ class SearchV2Helper @AssistedInject constructor(
 	}
 
 
-	private fun Manga.matches(query: String, threshold: Float): Boolean {
+	private fun Content.matches(query: String, threshold: Float): Boolean {
 		return matchesTitles(title, query, threshold) || matchesTitles(altTitle, query, threshold)
 	}
 
@@ -136,6 +136,6 @@ class SearchV2Helper @AssistedInject constructor(
 	@AssistedFactory
 	interface Factory {
 
-		fun create(source: MangaSource): SearchV2Helper
+		fun create(source: ContentSource): SearchV2Helper
 	}
 }

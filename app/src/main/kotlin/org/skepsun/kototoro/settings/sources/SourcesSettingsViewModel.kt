@@ -18,12 +18,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import javax.inject.Inject
 
 @HiltViewModel
 class SourcesSettingsViewModel @Inject constructor(
-	sourcesRepository: MangaSourcesRepository,
+	sourcesRepository: ContentSourcesRepository,
 	@ApplicationContext private val context: Context,
 ) : BaseViewModel() {
 

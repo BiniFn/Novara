@@ -19,48 +19,48 @@ abstract class ParsedHttpSource : HttpSource() {
     /**
      * Parses the response from the site and returns a [MangasPage] object.
      */
-    override fun popularMangaParse(response: Response): MangasPage {
+    override fun popularContentParse(response: Response): MangasPage {
         val document = response.asJsoup()
 
-        val mangas = document.select(popularMangaSelector()).map { element ->
-            popularMangaFromElement(element)
+        val mangas = document.select(popularContentSelector()).map { element ->
+            popularContentFromElement(element)
         }
 
-        val hasNextPage = popularMangaNextPageSelector()?.let { selector ->
+        val hasNextPage = popularContentNextPageSelector()?.let { selector ->
             document.select(selector).first()
         } != null
 
         return MangasPage(mangas, hasNextPage)
     }
 
-    protected abstract fun popularMangaSelector(): String
+    protected abstract fun popularContentSelector(): String
 
-    protected abstract fun popularMangaFromElement(element: Element): SManga
+    protected abstract fun popularContentFromElement(element: Element): SManga
 
-    protected abstract fun popularMangaNextPageSelector(): String?
+    protected abstract fun popularContentNextPageSelector(): String?
 
     /**
      * Parses the response from the site and returns a [MangasPage] object.
      */
-    override fun searchMangaParse(response: Response): MangasPage {
+    override fun searchContentParse(response: Response): MangasPage {
         val document = response.asJsoup()
 
-        val mangas = document.select(searchMangaSelector()).map { element ->
-            searchMangaFromElement(element)
+        val mangas = document.select(searchContentSelector()).map { element ->
+            searchContentFromElement(element)
         }
 
-        val hasNextPage = searchMangaNextPageSelector()?.let { selector ->
+        val hasNextPage = searchContentNextPageSelector()?.let { selector ->
             document.select(selector).first()
         } != null
 
         return MangasPage(mangas, hasNextPage)
     }
 
-    protected abstract fun searchMangaSelector(): String
+    protected abstract fun searchContentSelector(): String
 
-    protected abstract fun searchMangaFromElement(element: Element): SManga
+    protected abstract fun searchContentFromElement(element: Element): SManga
 
-    protected abstract fun searchMangaNextPageSelector(): String?
+    protected abstract fun searchContentNextPageSelector(): String?
 
     /**
      * Parses the response from the site and returns a [MangasPage] object.

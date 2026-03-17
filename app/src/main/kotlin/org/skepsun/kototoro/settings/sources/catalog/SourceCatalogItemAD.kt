@@ -46,7 +46,7 @@ fun sourceCatalogItemSourceAD(
 	bind {
 		val unwrapped = item.source.unwrap()
 		val isBroken = when (unwrapped) {
-			is org.skepsun.kototoro.parsers.model.MangaParserSource -> unwrapped.isBroken
+			is org.skepsun.kototoro.parsers.model.ContentParserSource -> unwrapped.isBroken
 			is KotatsuParserSource -> unwrapped.isBroken
 			else -> false
 		}
@@ -65,8 +65,8 @@ fun sourceCatalogItemSourceAD(
 		val sourceId = item.source.name
 		if (sourceTypeIdentifier.isJsonSource(sourceId)) {
 			// 显示人类可读名称
-			if (item.source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
-				binding.textViewTitle.text = (item.source as org.skepsun.kototoro.core.jsonsource.JsonMangaSource).displayName.ifBlank { item.source.name }
+			if (item.source is org.skepsun.kototoro.core.jsonsource.JsonContentSource) {
+				binding.textViewTitle.text = (item.source as org.skepsun.kototoro.core.jsonsource.JsonContentSource).displayName.ifBlank { item.source.name }
 			}
 		}
 	}

@@ -25,14 +25,14 @@ import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.tryLaunch
-import org.skepsun.kototoro.databinding.ActivityMangaDirectoriesBinding
+import org.skepsun.kototoro.databinding.ActivityContentDirectoriesBinding
 import org.skepsun.kototoro.settings.storage.RequestStorageManagerPermissionContract
 
 @AndroidEntryPoint
-class MangaDirectoriesActivity : BaseActivity<ActivityMangaDirectoriesBinding>(),
+class ContentDirectoriesActivity : BaseActivity<ActivityContentDirectoriesBinding>(),
 	OnListItemClickListener<DirectoryConfigModel>, View.OnClickListener {
 
-	private val viewModel: MangaDirectoriesViewModel by viewModels()
+	private val viewModel: ContentDirectoriesViewModel by viewModels()
 	private val pickFileTreeLauncher = OpenDocumentTreeHelper(
 		activityResultCaller = this,
 		flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -60,7 +60,7 @@ class MangaDirectoriesActivity : BaseActivity<ActivityMangaDirectoriesBinding>()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		setContentView(ActivityMangaDirectoriesBinding.inflate(layoutInflater))
+		setContentView(ActivityContentDirectoriesBinding.inflate(layoutInflater))
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 		val adapter = AsyncListDifferDelegationAdapter(DirectoryConfigDiffCallback(), directoryConfigAD(this))
         val spacing = resources.getDimensionPixelOffset(R.dimen.list_spacing_large)

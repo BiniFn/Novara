@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import org.skepsun.kototoro.core.db.MangaQueryBuilder
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.tracker.data.TrackLogEntity
-import org.skepsun.kototoro.tracker.data.TrackLogWithManga
+import org.skepsun.kototoro.tracker.data.TrackLogWithContent
 
 @Dao
 abstract class TrackLogsDao : MangaQueryBuilder.ConditionCallback {
@@ -19,7 +19,7 @@ abstract class TrackLogsDao : MangaQueryBuilder.ConditionCallback {
 	fun observeAll(
 		limit: Int,
 		filterOptions: Set<ListFilterOption>,
-	): Flow<List<TrackLogWithManga>> = observeAllImpl(
+	): Flow<List<TrackLogWithContent>> = observeAllImpl(
 		MangaQueryBuilder("track_logs", this)
 			.filters(filterOptions)
 			.limit(limit)
@@ -50,7 +50,7 @@ abstract class TrackLogsDao : MangaQueryBuilder.ConditionCallback {
 
 	@Transaction
 	@RawQuery(observedEntities = [TrackLogEntity::class])
-	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<TrackLogWithManga>>
+	protected abstract fun observeAllImpl(query: SupportSQLiteQuery): Flow<List<TrackLogWithContent>>
 
 	override fun getCondition(option: ListFilterOption): String? = when (option) {
 		ListFilterOption.Macro.FAVORITE -> "EXISTS(SELECT * FROM favourites WHERE favourites.manga_id = track_logs.manga_id)"

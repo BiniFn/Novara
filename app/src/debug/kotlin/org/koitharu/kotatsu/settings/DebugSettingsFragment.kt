@@ -5,7 +5,7 @@ import androidx.preference.Preference
 import leakcanary.LeakCanary
 import org.skepsun.kototoro.KototoroApp
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.TestMangaSource
+import org.skepsun.kototoro.core.model.TestContentSource
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.settings.utils.SplitSwitchPreference
@@ -38,7 +38,7 @@ class DebugSettingsFragment : BasePreferenceFragment(R.string.debug), Preference
 		}
 
 		KEY_TEST_PARSER -> {
-			router.openList(TestMangaSource, null, null)
+			router.openList(TestContentSource, null, null)
 			true
 		}
 

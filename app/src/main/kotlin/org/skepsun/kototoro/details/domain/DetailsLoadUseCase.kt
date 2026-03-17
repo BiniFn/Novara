@@ -17,43 +17,43 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.runInterruptible
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.os.NetworkState
-import org.skepsun.kototoro.core.parser.CachingMangaRepository
-import org.skepsun.kototoro.core.parser.MangaDataRepository
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.parser.CachingContentRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.core.util.ext.sanitize
-import org.skepsun.kototoro.details.data.MangaDetails
-import org.skepsun.kototoro.explore.domain.RecoverMangaUseCase
+import org.skepsun.kototoro.details.data.ContentDetails
+import org.skepsun.kototoro.explore.domain.RecoverContentUseCase
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.parsers.exception.NotFoundException
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.parsers.util.recoverNotNull
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 class DetailsLoadUseCase @Inject constructor(
-	private val mangaDataRepository: MangaDataRepository,
-	private val localMangaRepository: LocalMangaRepository,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	private val recoverUseCase: RecoverMangaUseCase,
+	private val mangaDataRepository: ContentDataRepository,
+	private val localContentRepository: LocalMangaRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	private val recoverUseCase: RecoverContentUseCase,
 	private val imageGetter: Html.ImageGetter,
 	private val networkState: NetworkState,
 	private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
 ) {
 
-	operator fun invoke(intent: MangaIntent, force: Boolean): Flow<MangaDetails> = flow {
+	operator fun invoke(intent: ContentIntent, force: Boolean): Flow<ContentDetails> = flow {
 		val manga = requireNotNull(mangaDataRepository.resolveIntent(intent, withChapters = true)) {
 			"Cannot resolve intent $intent"
 		}
 		val override = mangaDataRepository.getOverride(manga.id)
 		emit(
-			MangaDetails(
+			ContentDetails(
 				manga = manga,
-				localManga = null,
+				localContent = null,
 				override = override,
 				description = manga.description?.parseAsHtml(withImages = false),
 				isLoaded = false,
@@ -71,13 +71,13 @@ class DetailsLoadUseCase @Inject constructor(
 	 * Load local manga + try to load the linked remote one if network is not restricted
 	 * Suppress any network errors
 	 */
-	private suspend fun FlowCollector<MangaDetails>.loadLocal(manga: Manga, override: MangaOverride?, force: Boolean) {
+	private suspend fun FlowCollector<ContentDetails>.loadLocal(manga: Content, override: ContentOverride?, force: Boolean) {
 		val skipNetworkLoad = !force && networkState.isOfflineOrRestricted()
-		val localDetails = localMangaRepository.getDetails(manga)
+		val localDetails = localContentRepository.getDetails(manga)
 		emit(
-			MangaDetails(
+			ContentDetails(
 				manga = localDetails,
-				localManga = null,
+				localContent = null,
 				override = override,
 				description = localDetails.description?.parseAsHtml(withImages = false),
 				isLoaded = skipNetworkLoad,
@@ -86,23 +86,23 @@ class DetailsLoadUseCase @Inject constructor(
 		if (skipNetworkLoad) {
 			return
 		}
-		val remoteManga = localMangaRepository.getRemoteManga(manga)
-		if (remoteManga == null) {
+		val remoteContent = localContentRepository.getRemoteContent(manga)
+		if (remoteContent == null) {
 			emit(
-				MangaDetails(
+				ContentDetails(
 					manga = localDetails,
-					localManga = null,
+					localContent = null,
 					override = override,
 					description = localDetails.description?.parseAsHtml(withImages = true),
 					isLoaded = true,
 				),
 			)
 		} else {
-			val remoteDetails = getDetails(remoteManga, force).getOrNull()
+			val remoteDetails = getDetails(remoteContent, force).getOrNull()
 			emit(
-				MangaDetails(
-					manga = remoteDetails ?: remoteManga,
-					localManga = LocalManga(localDetails),
+				ContentDetails(
+					manga = remoteDetails ?: remoteContent,
+					localContent = LocalContent(localDetails),
 					override = override,
 					description = (remoteDetails ?: localDetails).description?.parseAsHtml(withImages = true),
 					isLoaded = true,
@@ -118,41 +118,41 @@ class DetailsLoadUseCase @Inject constructor(
 	 * Load remote manga + saved one if available
 	 * Throw network errors after loading local manga only
 	 */
-	private suspend fun FlowCollector<MangaDetails>.loadRemote(
-		manga: Manga,
-		override: MangaOverride?,
+	private suspend fun FlowCollector<ContentDetails>.loadRemote(
+		manga: Content,
+		override: ContentOverride?,
 		force: Boolean
 	) = coroutineScope {
 		val remoteDeferred = async {
 			getDetails(manga, force)
 		}
-		val localManga = localMangaRepository.findSavedManga(manga, withDetails = true)
-		if (localManga != null) {
+		val localContent = localContentRepository.findSavedContent(manga, withDetails = true)
+		if (localContent != null) {
 			emit(
-				MangaDetails(
+				ContentDetails(
 					manga = manga,
-					localManga = localManga,
+					localContent = localContent,
 					override = override,
-					description = localManga.manga.description?.parseAsHtml(withImages = true),
+					description = localContent.manga.description?.parseAsHtml(withImages = true),
 					isLoaded = false,
 				),
 			)
 		}
 		val remoteDetails = remoteDeferred.await().getOrThrow()
 		emit(
-			MangaDetails(
+			ContentDetails(
 				manga = remoteDetails,
-				localManga = localManga,
+				localContent = localContent,
 				override = override,
 				description = (remoteDetails.description
-					?: localManga?.manga?.description)?.parseAsHtml(withImages = true),
+					?: localContent?.manga?.description)?.parseAsHtml(withImages = true),
 				isLoaded = true,
 			),
 		)
 		mangaDataRepository.updateChapters(remoteDetails)
 	}
 
-	private suspend fun getDetails(seed: Manga, force: Boolean) = runCatchingCancellable {
+	private suspend fun getDetails(seed: Content, force: Boolean) = runCatchingCancellable {
 		val repository = mangaRepositoryFactory.create(seed.source)
 		
 		// 对于EPUB源（NoveliaWenku等），强制从服务器获取最新章节列表
@@ -161,7 +161,7 @@ class DetailsLoadUseCase @Inject constructor(
 		                   seed.source.name.contains("EPUB", ignoreCase = true)
 		val shouldForceRefresh = force || isEpubSource
 		
-		val manga = if (repository is CachingMangaRepository) {
+		val manga = if (repository is CachingContentRepository) {
 			repository.getDetails(seed, if (shouldForceRefresh) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
 		} else {
 			repository.getDetails(seed)
@@ -188,13 +188,13 @@ class DetailsLoadUseCase @Inject constructor(
 	 * 2. 对于未下载的EPUB，保留原始下载章节
 	 * 3. 保留父章节的volume和branch信息到内部章节
 	 */
-	private suspend fun expandEpubChaptersIfNeeded(manga: Manga): Manga {
+	private suspend fun expandEpubChaptersIfNeeded(manga: Content): Content {
 		val chapters = manga.chapters ?: return manga
 		
 		// 从数据库加载所有内部章节映射
 		// 不再依赖URL模式检测，直接查询数据库
 		val epubChapterMappingDao = mangaDatabase.getEpubChapterMappingDao()
-		val allMappings = epubChapterMappingDao.findByMangaId(manga.id)
+		val allMappings = epubChapterMappingDao.findByContentId(manga.id)
 		
 		if (allMappings.isEmpty()) {
 			// 没有EPUB章节映射，返回原始章节
@@ -212,7 +212,7 @@ class DetailsLoadUseCase @Inject constructor(
 		android.util.Log.d("DetailsLoadUseCase", "Downloaded parent chapter IDs: $downloadedParentIds")
 		
 		// 构建新的章节列表
-		val expandedChapters = mutableListOf<org.skepsun.kototoro.parsers.model.MangaChapter>()
+		val expandedChapters = mutableListOf<org.skepsun.kototoro.parsers.model.ContentChapter>()
 		
 		android.util.Log.d("DetailsLoadUseCase", "Processing ${chapters.size} chapters...")
 		for ((index, chapter) in chapters.withIndex()) {
@@ -230,7 +230,7 @@ class DetailsLoadUseCase @Inject constructor(
 				val internalChapters = mappings
 					.sortedBy { it.chapterIndex }
 					.map { mapping ->
-						org.skepsun.kototoro.parsers.model.MangaChapter(
+						org.skepsun.kototoro.parsers.model.ContentChapter(
 							id = mapping.internalChapterId,
 							title = mapping.chapterTitle,
 							number = mapping.chapterIndex.toFloat(),

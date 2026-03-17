@@ -5,16 +5,16 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.serialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
-object MangaSourceSerializer : KSerializer<MangaSource> {
+object ContentSourceSerializer : KSerializer<ContentSource> {
 
     override val descriptor: SerialDescriptor = serialDescriptor<String>()
 
     override fun serialize(
         encoder: Encoder,
-        value: MangaSource
+        value: ContentSource
     ) = encoder.encodeString(value.name)
 
-    override fun deserialize(decoder: Decoder): MangaSource = MangaSource(decoder.decodeString())
+    override fun deserialize(decoder: Decoder): ContentSource = ContentSource(decoder.decodeString())
 }

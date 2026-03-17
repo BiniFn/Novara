@@ -16,42 +16,42 @@ import org.skepsun.kototoro.core.db.entity.ContentRating
 import org.skepsun.kototoro.core.db.entity.MangaPrefsEntity
 import org.skepsun.kototoro.core.db.entity.toEntities
 import org.skepsun.kototoro.core.db.entity.toEntity
-import org.skepsun.kototoro.core.db.entity.toManga
-import org.skepsun.kototoro.core.db.entity.toMangaChapters
-import org.skepsun.kototoro.core.db.entity.toMangaTags
+import org.skepsun.kototoro.core.db.entity.toContent
+import org.skepsun.kototoro.core.db.entity.toContentChapters
+import org.skepsun.kototoro.core.db.entity.toContentTags
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.prefs.ReaderMode
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.reader.domain.ReaderColorFilter
 import javax.inject.Inject
 import javax.inject.Provider
 
 @Reusable
-class MangaDataRepository @Inject constructor(
+class ContentDataRepository @Inject constructor(
 	private val db: MangaDatabase,
-	private val resolverProvider: Provider<MangaLinkResolver>,
+	private val resolverProvider: Provider<ContentLinkResolver>,
 	private val appShortcutManagerProvider: Provider<AppShortcutManager>,
 ) {
 
-	suspend fun saveReaderMode(manga: Manga, mode: ReaderMode) {
+	suspend fun saveReaderMode(manga: Content, mode: ReaderMode) {
 		db.withTransaction {
-			storeManga(manga, replaceExisting = false)
+			storeContent(manga, replaceExisting = false)
 			val entity = db.getPreferencesDao().find(manga.id) ?: newEntity(manga.id)
 			db.getPreferencesDao().upsert(entity.copy(mode = mode.id))
 		}
 	}
 
-	suspend fun saveColorFilter(manga: Manga, colorFilter: ReaderColorFilter?) {
+	suspend fun saveColorFilter(manga: Content, colorFilter: ReaderColorFilter?) {
 		db.withTransaction {
-			storeManga(manga, replaceExisting = false)
+			storeContent(manga, replaceExisting = false)
 			val entity = db.getPreferencesDao().find(manga.id) ?: newEntity(manga.id)
 			db.getPreferencesDao().upsert(
 				entity.copy(
@@ -76,22 +76,22 @@ class MangaDataRepository @Inject constructor(
 		return db.getPreferencesDao().find(mangaId)?.getColorFilterOrNull()
 	}
 
-	suspend fun getOverride(mangaId: Long): MangaOverride? {
+	suspend fun getOverride(mangaId: Long): ContentOverride? {
 		return db.getPreferencesDao().find(mangaId)?.getOverrideOrNull()
 	}
 
-	suspend fun getOverrides(): LongObjectMap<MangaOverride> {
+	suspend fun getOverrides(): LongObjectMap<ContentOverride> {
 		val entities = db.getPreferencesDao().getOverrides()
-		val map = MutableLongObjectMap<MangaOverride>(entities.size)
+		val map = MutableLongObjectMap<ContentOverride>(entities.size)
 		for (entity in entities) {
 			map[entity.mangaId] = entity.getOverrideOrNull() ?: continue
 		}
 		return map
 	}
 
-	suspend fun setOverride(manga: Manga, override: MangaOverride?) {
+	suspend fun setOverride(manga: Content, override: ContentOverride?) {
 		db.withTransaction {
-			storeManga(manga, replaceExisting = false)
+			storeContent(manga, replaceExisting = false)
 			val dao = db.getPreferencesDao()
 			val entity = dao.find(manga.id) ?: newEntity(manga.id)
 			dao.upsert(
@@ -110,27 +110,27 @@ class MangaDataRepository @Inject constructor(
 			.distinctUntilChanged()
 	}
 
-	suspend fun findMangaById(mangaId: Long, withChapters: Boolean): Manga? {
+	suspend fun findContentById(mangaId: Long, withChapters: Boolean): Content? {
 		val chapters = if (withChapters) {
 			db.getChaptersDao().findAll(mangaId).takeUnless { it.isEmpty() }
 		} else {
 			null
 		}
-		return db.getMangaDao().find(mangaId)?.toManga(chapters)
+		return db.getMangaDao().find(mangaId)?.toContent(chapters)
 	}
 
-	suspend fun findMangaByPublicUrl(publicUrl: String): Manga? {
-		return db.getMangaDao().findByPublicUrl(publicUrl)?.toManga()
+	suspend fun findContentByPublicUrl(publicUrl: String): Content? {
+		return db.getMangaDao().findByPublicUrl(publicUrl)?.toContent()
 	}
 
-	suspend fun resolveIntent(intent: MangaIntent, withChapters: Boolean): Manga? = when {
+	suspend fun resolveIntent(intent: ContentIntent, withChapters: Boolean): Content? = when {
 		intent.manga != null -> intent.manga.withCachedChaptersIfNeeded(withChapters)
-		intent.mangaId != 0L -> findMangaById(intent.mangaId, withChapters)
+		intent.mangaId != 0L -> findContentById(intent.mangaId, withChapters)
 		intent.uri != null -> resolverProvider.get().resolve(intent.uri).withCachedChaptersIfNeeded(withChapters)
 		else -> null
 	}
 
-	suspend fun storeManga(manga: Manga, replaceExisting: Boolean) {
+	suspend fun storeContent(manga: Content, replaceExisting: Boolean) {
 		if (!replaceExisting && db.getMangaDao().find(manga.id) != null) {
 			return
 		}
@@ -154,7 +154,7 @@ class MangaDataRepository @Inject constructor(
 		}
 	}
 
-	suspend fun updateChapters(manga: Manga) {
+	suspend fun updateChapters(manga: Content) {
 		val chapters = manga.chapters
 		if (!chapters.isNullOrEmpty() && manga.id in db.getMangaDao()) {
 			db.getChaptersDao().replaceAll(manga.id, chapters.withIndex().toEntities(manga.id))
@@ -165,11 +165,11 @@ class MangaDataRepository @Inject constructor(
 		db.getChaptersDao().gc()
 	}
 
-	suspend fun findTags(source: MangaSource): Set<MangaTag> {
-		return db.getTagsDao().findTags(source.name).toMangaTags()
+	suspend fun findTags(source: ContentSource): Set<ContentTag> {
+		return db.getTagsDao().findTags(source.name).toContentTags()
 	}
 
-	suspend fun cleanupLocalManga() {
+	suspend fun cleanupLocalContent() {
 		val dao = db.getMangaDao()
 		val broken = dao.findAllBySource(LocalMangaSource.name)
 			.filter { x -> x.manga.url.toUri().toFileOrNull()?.exists() == false }
@@ -181,7 +181,7 @@ class MangaDataRepository @Inject constructor(
 	suspend fun cleanupDatabase() {
 		db.withTransaction {
 			gcChaptersCache()
-			val idsFromShortcuts = appShortcutManagerProvider.get().getMangaShortcuts()
+			val idsFromShortcuts = appShortcutManagerProvider.get().getContentShortcuts()
 			db.getMangaDao().cleanup(idsFromShortcuts)
 		}
 	}
@@ -196,12 +196,12 @@ class MangaDataRepository @Inject constructor(
 		emitInitialState = emitInitialState,
 	)
 
-	private suspend fun Manga.withCachedChaptersIfNeeded(flag: Boolean): Manga = if (flag && !isLocal && chapters.isNullOrEmpty()) {
+	private suspend fun Content.withCachedChaptersIfNeeded(flag: Boolean): Content = if (flag && !isLocal && chapters.isNullOrEmpty()) {
 		val cachedChapters = db.getChaptersDao().findAll(id)
 		if (cachedChapters.isEmpty()) {
 			this
 		} else {
-			copy(chapters = cachedChapters.toMangaChapters())
+			copy(chapters = cachedChapters.toContentChapters())
 		}
 	} else {
 		this
@@ -221,11 +221,11 @@ class MangaDataRepository @Inject constructor(
 		}
 	}
 
-	private fun MangaPrefsEntity.getOverrideOrNull(): MangaOverride? {
+	private fun MangaPrefsEntity.getOverrideOrNull(): ContentOverride? {
 		return if (titleOverride.isNullOrEmpty() && coverUrlOverride.isNullOrEmpty() && contentRatingOverride.isNullOrEmpty()) {
 			null
 		} else {
-			MangaOverride(
+			ContentOverride(
 				coverUrl = coverUrlOverride?.nullIfEmpty(),
 				title = titleOverride?.nullIfEmpty(),
 				contentRating = ContentRating(contentRatingOverride),

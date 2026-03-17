@@ -5,17 +5,17 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.TypeParceler
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 
-object MangaTagParceler : Parceler<MangaTag> {
-	override fun create(parcel: Parcel) = MangaTag(
+object ContentTagParceler : Parceler<ContentTag> {
+	override fun create(parcel: Parcel) = ContentTag(
 		title = requireNotNull(parcel.readString()),
 		key = requireNotNull(parcel.readString()),
-		source = MangaSource(parcel.readString()),
+		source = ContentSource(parcel.readString()),
 	)
 
-	override fun MangaTag.write(parcel: Parcel, flags: Int) {
+	override fun ContentTag.write(parcel: Parcel, flags: Int) {
 		parcel.writeString(title)
 		parcel.writeString(key)
 		parcel.writeString(source.name)
@@ -23,5 +23,5 @@ object MangaTagParceler : Parceler<MangaTag> {
 }
 
 @Parcelize
-@TypeParceler<MangaTag, MangaTagParceler>
-data class ParcelableMangaTags(val tags: Set<MangaTag>) : Parcelable
+@TypeParceler<ContentTag, ContentTagParceler>
+data class ParcelableContentTags(val tags: Set<ContentTag>) : Parcelable

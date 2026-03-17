@@ -5,9 +5,9 @@ import org.koitharu.kotatsu.parsers.model.ContentType as KTContentType
 import org.koitharu.kotatsu.parsers.model.Demographic as KTDemographic
 import org.koitharu.kotatsu.parsers.model.Favicon as KTFavicon
 import org.koitharu.kotatsu.parsers.model.Favicons as KTFavicons
-import org.koitharu.kotatsu.parsers.model.Manga as KTManga
+import org.koitharu.kotatsu.parsers.model.Content as KTContent
 import org.koitharu.kotatsu.parsers.model.MangaChapter as KTMangaChapter
-import org.koitharu.kotatsu.parsers.model.MangaListFilter as KTMangaListFilter
+import org.koitharu.kotatsu.parsers.model.MangaListFilter as KTContentListFilter
 import org.koitharu.kotatsu.parsers.model.MangaListFilterCapabilities as KTMangaListFilterCapabilities
 import org.koitharu.kotatsu.parsers.model.MangaListFilterOptions as KTMangaListFilterOptions
 import org.koitharu.kotatsu.parsers.model.MangaPage as KTMangaPage
@@ -18,14 +18,14 @@ import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
 import org.skepsun.kototoro.parsers.model.Favicon
 import org.skepsun.kototoro.parsers.model.Favicons
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaListFilterCapabilities
-import org.skepsun.kototoro.parsers.model.MangaListFilterOptions
-import org.skepsun.kototoro.parsers.model.MangaPage
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaState
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 internal fun KTContentType.toKototoro(): ContentType = when (this) {
@@ -132,33 +132,33 @@ internal fun Demographic.toKotatsu(): KTDemographic = when (this) {
 	Demographic.NONE -> KTDemographic.NONE
 }
 
-internal fun KTMangaState?.toKototoro(): MangaState? = when (this) {
-	KTMangaState.ONGOING -> MangaState.ONGOING
-	KTMangaState.FINISHED -> MangaState.FINISHED
-	KTMangaState.ABANDONED -> MangaState.ABANDONED
-	KTMangaState.PAUSED -> MangaState.PAUSED
-	KTMangaState.UPCOMING -> MangaState.UPCOMING
-	KTMangaState.RESTRICTED -> MangaState.RESTRICTED
+internal fun KTMangaState?.toKototoro(): ContentState? = when (this) {
+	KTMangaState.ONGOING -> ContentState.ONGOING
+	KTMangaState.FINISHED -> ContentState.FINISHED
+	KTMangaState.ABANDONED -> ContentState.ABANDONED
+	KTMangaState.PAUSED -> ContentState.PAUSED
+	KTMangaState.UPCOMING -> ContentState.UPCOMING
+	KTMangaState.RESTRICTED -> ContentState.RESTRICTED
 	null -> null
 }
 
-internal fun MangaState.toKotatsu(): KTMangaState = when (this) {
-	MangaState.ONGOING -> KTMangaState.ONGOING
-	MangaState.FINISHED -> KTMangaState.FINISHED
-	MangaState.ABANDONED -> KTMangaState.ABANDONED
-	MangaState.PAUSED -> KTMangaState.PAUSED
-	MangaState.UPCOMING -> KTMangaState.UPCOMING
-	MangaState.RESTRICTED -> KTMangaState.RESTRICTED
+internal fun ContentState.toKotatsu(): KTMangaState = when (this) {
+	ContentState.ONGOING -> KTMangaState.ONGOING
+	ContentState.FINISHED -> KTMangaState.FINISHED
+	ContentState.ABANDONED -> KTMangaState.ABANDONED
+	ContentState.PAUSED -> KTMangaState.PAUSED
+	ContentState.UPCOMING -> KTMangaState.UPCOMING
+	ContentState.RESTRICTED -> KTMangaState.RESTRICTED
 }
 
-internal fun org.koitharu.kotatsu.parsers.model.MangaTag.toKototoro(source: MangaSource): org.skepsun.kototoro.parsers.model.MangaTag =
-	org.skepsun.kototoro.parsers.model.MangaTag(title, key, source)
+internal fun org.koitharu.kotatsu.parsers.model.MangaTag.toKototoro(source: ContentSource): org.skepsun.kototoro.parsers.model.ContentTag =
+	org.skepsun.kototoro.parsers.model.ContentTag(title, key, source)
 
 internal fun KTFavicon.toKototoro(): Favicon = Favicon(url = url, size = size, rel = null)
 
 internal fun KTFavicons.toKototoro(): Favicons = Favicons(favicons = map { it.toKototoro() }, referer = referer)
 
-internal fun KTManga.toKototoro(source: MangaSource): Manga = Manga(
+internal fun KTContent.toKototoro(source: ContentSource): Content = Content(
 	id = id,
 	title = title,
 	altTitles = altTitles,
@@ -176,7 +176,7 @@ internal fun KTManga.toKototoro(source: MangaSource): Manga = Manga(
 	source = source,
 )
 
-internal fun KTMangaChapter.toKototoro(source: MangaSource): MangaChapter = MangaChapter(
+internal fun KTMangaChapter.toKototoro(source: ContentSource): ContentChapter = ContentChapter(
 	id = id,
 	title = title,
 	number = number,
@@ -188,7 +188,7 @@ internal fun KTMangaChapter.toKototoro(source: MangaSource): MangaChapter = Mang
 	source = source,
 )
 
-internal fun KTMangaPage.toKototoro(source: MangaSource): MangaPage = MangaPage(
+internal fun KTMangaPage.toKototoro(source: ContentSource): ContentPage = ContentPage(
 	id = id,
 	url = url,
 	preview = preview,
@@ -196,7 +196,7 @@ internal fun KTMangaPage.toKototoro(source: MangaSource): MangaPage = MangaPage(
 	source = source,
 )
 
-internal fun KTMangaListFilterOptions.toKototoro(source: MangaSource): MangaListFilterOptions = MangaListFilterOptions(
+internal fun KTMangaListFilterOptions.toKototoro(source: ContentSource): ContentListFilterOptions = ContentListFilterOptions(
 	availableTags = availableTags.mapTo(mutableSetOf()) { it.toKototoro(source) },
 	availableStates = availableStates.mapNotNullTo(mutableSetOf()) { it.toKototoro() },
 	availableContentRating = availableContentRating.mapTo(mutableSetOf()) { it.toKototoro() },
@@ -205,7 +205,7 @@ internal fun KTMangaListFilterOptions.toKototoro(source: MangaSource): MangaList
 	availableLocales = availableLocales,
 )
 
-internal fun KTMangaListFilter.toKototoro(source: MangaSource): MangaListFilter = MangaListFilter(
+internal fun KTContentListFilter.toKototoro(source: ContentSource): ContentListFilter = ContentListFilter(
 	query = query,
 	tags = tags.mapTo(mutableSetOf()) { it.toKototoro(source) },
 	tagsExclude = tagsExclude.mapTo(mutableSetOf()) { it.toKototoro(source) },
@@ -221,8 +221,8 @@ internal fun KTMangaListFilter.toKototoro(source: MangaSource): MangaListFilter 
 	author = author,
 )
 
-internal fun KTMangaListFilterCapabilities.toKototoro(): MangaListFilterCapabilities =
-	MangaListFilterCapabilities(
+internal fun KTMangaListFilterCapabilities.toKototoro(): ContentListFilterCapabilities =
+	ContentListFilterCapabilities(
 		isMultipleTagsSupported = isMultipleTagsSupported,
 		isTagsExclusionSupported = isTagsExclusionSupported,
 		isSearchSupported = isSearchSupported,
@@ -233,7 +233,7 @@ internal fun KTMangaListFilterCapabilities.toKototoro(): MangaListFilterCapabili
 		isAuthorSearchSupported = isAuthorSearchSupported,
 	)
 
-internal fun Manga.toKotatsu(source: KotatsuParserSource): KTManga = KTManga(
+internal fun Content.toKotatsu(source: KotatsuParserSource): KTContent = KTContent(
 	id = id,
 	title = title,
 	altTitles = altTitles,
@@ -251,7 +251,7 @@ internal fun Manga.toKotatsu(source: KotatsuParserSource): KTManga = KTManga(
 	source = source.delegate,
 )
 
-internal fun MangaChapter.toKotatsu(source: KotatsuParserSource): KTMangaChapter = KTMangaChapter(
+internal fun ContentChapter.toKotatsu(source: KotatsuParserSource): KTMangaChapter = KTMangaChapter(
 	id = id,
 	title = title,
 	number = number,
@@ -263,14 +263,14 @@ internal fun MangaChapter.toKotatsu(source: KotatsuParserSource): KTMangaChapter
 	source = source.delegate,
 )
 
-internal fun MangaPage.toKotatsu(source: KotatsuParserSource): KTMangaPage = KTMangaPage(
+internal fun ContentPage.toKotatsu(source: KotatsuParserSource): KTMangaPage = KTMangaPage(
 	id = id,
 	url = url,
 	preview = preview,
 	source = source.delegate,
 )
 
-internal fun MangaListFilter.toKotatsu(source: KotatsuParserSource): KTMangaListFilter = KTMangaListFilter(
+internal fun ContentListFilter.toKotatsu(source: KotatsuParserSource): KTContentListFilter = KTContentListFilter(
 	query = query,
 	tags = tags.mapTo(mutableSetOf()) { org.koitharu.kotatsu.parsers.model.MangaTag(it.title, it.key, source.delegate) },
 	tagsExclude = tagsExclude.mapTo(mutableSetOf()) { org.koitharu.kotatsu.parsers.model.MangaTag(it.title, it.key, source.delegate) },

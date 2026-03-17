@@ -4,7 +4,7 @@ import android.util.Log
 import okhttp3.Response
 import org.jsoup.Jsoup
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import java.net.HttpURLConnection.HTTP_FORBIDDEN
 import java.net.HttpURLConnection.HTTP_UNAVAILABLE
 
@@ -129,7 +129,7 @@ object LegadoCloudFlareResolver {
     /**
      * Create a CloudFlareProtectedException for the given URL and source.
      */
-    fun createException(url: String, source: MangaSource, headers: okhttp3.Headers): CloudFlareProtectedException {
+    fun createException(url: String, source: ContentSource, headers: okhttp3.Headers): CloudFlareProtectedException {
         return CloudFlareProtectedException(
             url = url,
             source = source,

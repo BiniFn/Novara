@@ -6,18 +6,18 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.util.ext.setTooltipCompat
-import org.skepsun.kototoro.databinding.ItemMangaGridBinding
+import org.skepsun.kototoro.databinding.ItemContentGridBinding
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_PROGRESS_CHANGED
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.MangaGridModel
-import org.skepsun.kototoro.list.ui.model.MangaListModel
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 
 fun mangaGridItemAD(
 	sizeResolver: ItemSizeResolver,
-	clickListener: OnListItemClickListener<MangaListModel>,
-) = adapterDelegateViewBinding<MangaGridModel, ListModel, ItemMangaGridBinding>(
-	{ inflater, parent -> ItemMangaGridBinding.inflate(inflater, parent, false) },
+	clickListener: OnListItemClickListener<ContentListModel>,
+) = adapterDelegateViewBinding<ContentGridModel, ListModel, ItemContentGridBinding>(
+	{ inflater, parent -> ItemContentGridBinding.inflate(inflater, parent, false) },
 ) {
 
 	AdapterDelegateClickListenerAdapter(this, clickListener).attach(itemView)

@@ -1,6 +1,6 @@
 package org.skepsun.kototoro.scrobbling.common.domain.model
 
-class ScrobblerMangaInfo(
+class ScrobblerContentInfo(
 	val id: Long,
 	val name: String,
 	val cover: String,

@@ -34,8 +34,8 @@ import org.skepsun.kototoro.core.os.RomCompat
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.data.index.LocalMangaIndex
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.data.index.LocalContentIndex
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.mihon.MihonExtensionManager
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
 import org.skepsun.kototoro.settings.work.WorkScheduleManager
@@ -82,7 +82,7 @@ open class BaseApp : App(), Configuration.Provider {
 		processLifecycleScope.launch(Dispatchers.Default) {
 			runCatching {
 				setupDatabaseObservers()
-				entryPoint.localStorageChanges().collect(entryPoint.localMangaIndexProvider().get())
+				entryPoint.localStorageChanges().collect(entryPoint.localContentIndexProvider().get())
 			}
 		}
 		try {
@@ -162,9 +162,9 @@ open class BaseApp : App(), Configuration.Provider {
 		fun workerFactory(): HiltWorkerFactory
 		fun appValidator(): AppValidator
 		fun workScheduleManager(): WorkScheduleManager
-		fun localMangaIndexProvider(): Provider<LocalMangaIndex>
+		fun localContentIndexProvider(): Provider<LocalContentIndex>
 		@LocalStorageChanges
-		fun localStorageChanges(): MutableSharedFlow<LocalManga?>
+		fun localStorageChanges(): MutableSharedFlow<LocalContent?>
 		fun mihonExtensionManager(): MihonExtensionManager
 		fun aniyomiExtensionManager(): AniyomiExtensionManager
 	}

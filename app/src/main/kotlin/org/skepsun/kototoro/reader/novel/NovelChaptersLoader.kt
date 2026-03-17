@@ -7,9 +7,9 @@ import android.util.Base64
 import androidx.annotation.WorkerThread
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 
 private const val PAGES_TRIM_THRESHOLD = 50  // 小说页面较多，设置较小的阈值
 
@@ -19,13 +19,13 @@ private const val PAGES_TRIM_THRESHOLD = 50  // 小说页面较多，设置较�
  */
 class NovelChaptersLoader(
     private val context: Context,
-    private val repository: MangaRepository,
+    private val repository: ContentRepository,
     private val settings: NovelReaderSettings,
 ) {
 
     private val chapterPages = NovelChapterPages()
     private val mutex = Mutex()
-    private val chapters = mutableMapOf<Long, MangaChapter>()
+    private val chapters = mutableMapOf<Long, ContentChapter>()
 
     val size: Int
         get() = chapterPages.size
@@ -33,7 +33,7 @@ class NovelChaptersLoader(
     /**
      * 初始化章节列表
      */
-    suspend fun init(manga: Manga) = mutex.withLock {
+    suspend fun init(manga: Content) = mutex.withLock {
         chapters.clear()
         manga.chapters?.forEach {
             chapters[it.id] = it
@@ -58,7 +58,7 @@ class NovelChaptersLoader(
      * 加载前一个或后一个章节
      */
     suspend fun loadPrevNextChapter(
-        manga: Manga,
+        manga: Content,
         currentId: Long,
         isNext: Boolean,
         pageWidth: Int,

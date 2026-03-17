@@ -3,8 +3,8 @@ package org.skepsun.kototoro.local.novel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import org.skepsun.kototoro.core.util.ext.toFileNameSafe
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,7 +31,7 @@ class LocalNovelStorageManager(
 	/**
 	 * 返回当前漫画的根目录，形如 {id}_{titleSafe}
 	 */
-	fun resolveMangaDir(manga: Manga): File {
+	fun resolveContentDir(manga: Content): File {
 		val titleSafe = manga.title.toFileNameSafe()
 		val dirName = if (manga.id != 0L) {
 			"${manga.id}_$titleSafe"
@@ -44,8 +44,8 @@ class LocalNovelStorageManager(
 	/**
 	 * 将章节 HTML 写入本地文件，返回文件句柄。
 	 */
-	suspend fun writeChapterHtml(manga: Manga, chapter: MangaChapter, html: String): File {
-		val mangaDir = resolveMangaDir(manga)
+	suspend fun writeChapterHtml(manga: Content, chapter: ContentChapter, html: String): File {
+		val mangaDir = resolveContentDir(manga)
 		val chapterFile = File(mangaDir, chapterFileName(chapter))
 		runInterruptible(Dispatchers.IO) {
 			chapterFile.parentFile?.mkdirs()
@@ -57,8 +57,8 @@ class LocalNovelStorageManager(
 	/**
 	 * 章节图片的本地文件路径（未写入）。
 	 */
-	fun resolveImageFile(manga: Manga, chapter: MangaChapter, index: Int, ext: String): File {
-		val mangaDir = resolveMangaDir(manga)
+	fun resolveImageFile(manga: Content, chapter: ContentChapter, index: Int, ext: String): File {
+		val mangaDir = resolveContentDir(manga)
 		val imagesDir = File(mangaDir, "images/${chapter.id}")
 		imagesDir.mkdirs()
 		val safeExt = ext.removePrefix(".")
@@ -68,10 +68,10 @@ class LocalNovelStorageManager(
 	/**
 	 * 写入 index.json 供后续本地源读取：包含漫画元数据与章节列表（文件名）。
 	 */
-	suspend fun writeIndex(manga: Manga, chapters: List<MangaChapter>) {
-		val dir = resolveMangaDir(manga)
-		val index = org.skepsun.kototoro.local.data.MangaIndex(null)
-		index.setMangaInfo(manga)
+	suspend fun writeIndex(manga: Content, chapters: List<ContentChapter>) {
+		val dir = resolveContentDir(manga)
+		val index = org.skepsun.kototoro.local.data.ContentIndex(null)
+		index.setContentInfo(manga)
 		chapters.forEachIndexed { i, c ->
 			index.addChapter(IndexedValue(i, c), chapterFileName(c))
 		}
@@ -80,7 +80,7 @@ class LocalNovelStorageManager(
 		}
 	}
 
-	private fun chapterFileName(chapter: MangaChapter): String {
+	private fun chapterFileName(chapter: ContentChapter): String {
 		val slug = chapter.title?.toFileNameSafe().orEmpty()
 		val base = buildString {
 			append("chapter_")

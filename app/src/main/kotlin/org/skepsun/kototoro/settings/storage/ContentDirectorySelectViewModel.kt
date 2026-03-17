@@ -14,7 +14,7 @@ import org.skepsun.kototoro.local.data.LocalStorageManager
 import javax.inject.Inject
 
 @HiltViewModel
-class MangaDirectorySelectViewModel @Inject constructor(
+class ContentDirectorySelectViewModel @Inject constructor(
 	private val storageManager: LocalStorageManager,
 	private val settings: AppSettings,
 ) : BaseViewModel() {

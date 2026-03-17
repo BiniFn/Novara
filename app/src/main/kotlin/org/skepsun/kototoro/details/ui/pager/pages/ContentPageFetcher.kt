@@ -17,28 +17,28 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import okio.FileSystem
 import okio.Path.Companion.toOkioPath
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.fetch
 import org.skepsun.kototoro.core.util.ext.isNetworkUri
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.PageCache
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.mimeType
 import org.skepsun.kototoro.parsers.util.requireBody
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.domain.PageLoader
 import javax.inject.Inject
 
-class MangaPageFetcher(
+class ContentPageFetcher(
 	private val okHttpClient: OkHttpClient,
 	private val pagesCache: LocalStorageCache,
 	private val options: Options,
-	private val page: MangaPage,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
+	private val page: ContentPage,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 	private val imageLoader: ImageLoader,
 ) : Fetcher {
@@ -49,7 +49,7 @@ class MangaPageFetcher(
 		val pageUrl = repo.getPageUrl(page)
 
 		if (pageUrl.isBlank()) {
-			android.util.Log.e("MangaPageFetcher", "Obtained empty page URL for source: ${page.source.name}")
+			android.util.Log.e("ContentPageFetcher", "Obtained empty page URL for source: ${page.source.name}")
 			return null
 		}
 
@@ -126,13 +126,13 @@ class MangaPageFetcher(
 	}
 
 	class Factory @Inject constructor(
-		@MangaHttpClient private val okHttpClient: OkHttpClient,
+		@ContentHttpClient private val okHttpClient: OkHttpClient,
 		@PageCache private val pagesCache: LocalStorageCache,
-		private val mangaRepositoryFactory: MangaRepository.Factory,
+		private val mangaRepositoryFactory: ContentRepository.Factory,
 		private val imageProxyInterceptor: ImageProxyInterceptor,
-	) : Fetcher.Factory<MangaPage> {
+	) : Fetcher.Factory<ContentPage> {
 
-		override fun create(data: MangaPage, options: Options, imageLoader: ImageLoader) = MangaPageFetcher(
+		override fun create(data: ContentPage, options: Options, imageLoader: ImageLoader) = ContentPageFetcher(
 			okHttpClient = okHttpClient,
 			pagesCache = pagesCache,
 			options = options,

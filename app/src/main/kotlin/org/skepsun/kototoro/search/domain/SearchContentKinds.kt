@@ -4,8 +4,8 @@ import androidx.annotation.StringRes
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 enum class SearchContentKind {
 	MANGA,
@@ -26,7 +26,7 @@ val SEARCH_CONTENT_KIND_OPTIONS: List<SearchContentKindOption> = listOf(
 	SearchContentKindOption(SearchContentKind.VIDEO, R.string.content_type_video),
 )
 
-fun SearchContentKind.matches(source: MangaSource): Boolean {
+fun SearchContentKind.matches(source: ContentSource): Boolean {
 	val contentType = source.getContentType()
 	return when (this) {
 		SearchContentKind.MANGA -> contentType !in setOf(ContentType.NOVEL, ContentType.HENTAI_NOVEL, ContentType.VIDEO, ContentType.HENTAI_VIDEO)
@@ -35,7 +35,7 @@ fun SearchContentKind.matches(source: MangaSource): Boolean {
 	}
 }
 
-fun SearchContentKind.matches(manga: Manga): Boolean = matches(manga.source)
+fun SearchContentKind.matches(manga: Content): Boolean = matches(manga.source)
 
 fun searchContentKindsFromNames(names: Collection<String>?): Set<SearchContentKind>? {
 	if (names.isNullOrEmpty()) return null

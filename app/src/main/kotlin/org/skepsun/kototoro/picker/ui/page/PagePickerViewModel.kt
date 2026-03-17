@@ -10,12 +10,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.plus
-import org.skepsun.kototoro.core.nav.MangaIntent
+import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.firstNotNull
-import org.skepsun.kototoro.details.data.MangaDetails
+import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.DetailsLoadUseCase
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
 import org.skepsun.kototoro.list.ui.model.ListHeader
@@ -31,14 +31,14 @@ class PagePickerViewModel @Inject constructor(
 	settings: AppSettings,
 ) : BaseViewModel() {
 
-	private val intent = MangaIntent(savedStateHandle)
+	private val intent = ContentIntent(savedStateHandle)
 
 	private var loadingJob: Job? = null
 	private var loadingNextJob: Job? = null
 
 	val thumbnails = MutableStateFlow<List<ListModel>>(emptyList())
 	val isLoadingDown = MutableStateFlow(false)
-	val manga = MutableStateFlow(intent.manga?.let { MangaDetails(it) })
+	val manga = MutableStateFlow(intent.manga?.let { ContentDetails(it) })
 
 	val isNoChapters = manga.map {
 		it != null && it.isLoaded && it.allChapters.isEmpty()

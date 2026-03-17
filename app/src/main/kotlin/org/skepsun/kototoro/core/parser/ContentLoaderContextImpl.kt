@@ -17,18 +17,18 @@ import okhttp3.ResponseBody.Companion.asResponseBody
 import okio.Buffer
 import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
-import org.skepsun.kototoro.core.network.MangaHttpClient
+import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.webview.WebViewExecutor
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.util.ext.toList
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import org.skepsun.kototoro.core.util.ext.use
-import org.skepsun.kototoro.parsers.MangaLoaderContext
-import org.skepsun.kototoro.parsers.MangaParser
+import org.skepsun.kototoro.parsers.ContentLoaderContext
+import org.skepsun.kototoro.parsers.ContentParser
 import org.skepsun.kototoro.parsers.bitmap.Bitmap
-import org.skepsun.kototoro.parsers.config.MangaSourceConfig
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.config.ContentSourceConfig
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.network.UserAgents
 import org.skepsun.kototoro.parsers.util.map
 import java.util.Locale
@@ -37,12 +37,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MangaLoaderContextImpl @Inject constructor(
-	@MangaHttpClient override val httpClient: OkHttpClient,
+class ContentLoaderContextImpl @Inject constructor(
+	@ContentHttpClient override val httpClient: OkHttpClient,
 	override val cookieJar: MutableCookieJar,
 	@ApplicationContext private val androidContext: Context,
 	private val webViewExecutor: WebViewExecutor,
-) : MangaLoaderContext() {
+) : ContentLoaderContext() {
 
 	private val jsTimeout = TimeUnit.SECONDS.toMillis(4)
 
@@ -56,7 +56,7 @@ class MangaLoaderContextImpl @Inject constructor(
 
 	override fun getDefaultUserAgent(): String = webViewExecutor.defaultUserAgent ?: UserAgents.FIREFOX_MOBILE
 
-	override fun getConfig(source: MangaSource): MangaSourceConfig {
+	override fun getConfig(source: ContentSource): ContentSourceConfig {
 		return SourceSettings(androidContext, source)
 	}
 
@@ -91,7 +91,7 @@ class MangaLoaderContextImpl @Inject constructor(
 	}
 
 	override fun requestBrowserAction(
-		parser: MangaParser,
+		parser: ContentParser,
 		url: String,
 	): Nothing = throw InteractiveActionRequiredException(parser.source, url)
 

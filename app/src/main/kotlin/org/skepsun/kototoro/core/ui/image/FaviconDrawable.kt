@@ -21,11 +21,11 @@ import coil3.request.ImageRequest
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.util.KototoroColors
 import org.skepsun.kototoro.core.util.ext.hasFocusStateSpecified
 import org.skepsun.kototoro.core.util.ext.mangaSourceKey
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 open class FaviconDrawable(
 	context: Context,
@@ -153,10 +153,10 @@ open class FaviconDrawable(
 internal fun sourceFallbackImage(
 	context: Context,
 	@StyleRes styleResId: Int,
-	source: MangaSource,
+	source: ContentSource,
 	animated: Boolean,
 ): Image? {
-	if (source is JsonMangaSource || source.name.startsWith("JSON_")) {
+	if (source is JsonContentSource || source.name.startsWith("JSON_")) {
 		return ContextCompat.getDrawable(context, R.drawable.ic_source_builtin)?.asImage()
 	}
 	val title = source.getTitle(context)

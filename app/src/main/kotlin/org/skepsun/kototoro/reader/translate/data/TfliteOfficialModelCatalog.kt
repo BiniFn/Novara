@@ -16,7 +16,7 @@ object TfliteOfficialModelCatalog {
     val models = listOf(
         TfliteOfficialModel(
             id = "yomihon_fast_v1_fp16",
-            title = "MangaOCR Fast v1 fp16 (Yomihon Compatible)",
+            title = "ContentOCR Fast v1 fp16 (Yomihon Compatible)",
             version = "yomihon_fast_v1_fp16",
             encoderUrl = YOMIHON_HF_BASE + "manga-ocr-mobile/resolve/main/v1_fp16/encoder.tflite?download=true",
             decoderUrl = YOMIHON_HF_BASE + "manga-ocr-mobile/resolve/main/v1_fp16/decoder.tflite?download=true",

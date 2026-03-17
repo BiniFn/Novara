@@ -1,11 +1,11 @@
 package org.skepsun.kototoro.search.domain
 
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaListFilter
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 data class SearchResults(
-	val listFilter: MangaListFilter,
+	val listFilter: ContentListFilter,
 	val sortOrder: SortOrder,
-	val manga: List<Manga>,
+	val manga: List<Content>,
 )

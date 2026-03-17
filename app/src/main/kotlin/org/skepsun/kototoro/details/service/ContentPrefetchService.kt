@@ -8,25 +8,25 @@ import org.skepsun.kototoro.core.cache.MemoryContentCache
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.parcelable.ParcelableChapter
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.ui.CoroutineIntentService
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.isPowerSaveMode
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MangaPrefetchService : CoroutineIntentService() {
+class ContentPrefetchService : CoroutineIntentService() {
 
 	@Inject
-	lateinit var mangaRepositoryFactory: MangaRepository.Factory
+	lateinit var mangaRepositoryFactory: ContentRepository.Factory
 
 	@Inject
 	lateinit var cache: MemoryContentCache
@@ -37,7 +37,7 @@ class MangaPrefetchService : CoroutineIntentService() {
 	override suspend fun IntentJobContext.processIntent(intent: Intent) {
 		when (intent.action) {
 			ACTION_PREFETCH_DETAILS -> prefetchDetails(
-				manga = intent.getParcelableExtraCompat<ParcelableManga>(EXTRA_MANGA)?.manga
+				manga = intent.getParcelableExtraCompat<ParcelableContent>(EXTRA_MANGA)?.manga
 					?: return,
 			)
 
@@ -52,12 +52,12 @@ class MangaPrefetchService : CoroutineIntentService() {
 
 	override fun IntentJobContext.onError(error: Throwable) = Unit
 
-	private suspend fun prefetchDetails(manga: Manga) {
+	private suspend fun prefetchDetails(manga: Content) {
 		val source = mangaRepositoryFactory.create(manga.source)
 		runCatchingCancellable { source.getDetails(manga) }
 	}
 
-	private suspend fun prefetchPages(chapter: MangaChapter) {
+	private suspend fun prefetchPages(chapter: ContentChapter) {
 		val source = mangaRepositoryFactory.create(chapter.source)
 		runCatchingCancellable { source.getPages(chapter) }
 	}
@@ -88,17 +88,17 @@ class MangaPrefetchService : CoroutineIntentService() {
 		private const val ACTION_PREFETCH_PAGES = "pages"
 		private const val ACTION_PREFETCH_LAST = "last"
 
-		fun prefetchDetails(context: Context, manga: Manga) {
+		fun prefetchDetails(context: Context, manga: Content) {
 			if (!isPrefetchAvailable(context, manga.source)) return
-			val intent = Intent(context, MangaPrefetchService::class.java)
+			val intent = Intent(context, ContentPrefetchService::class.java)
 			intent.action = ACTION_PREFETCH_DETAILS
-			intent.putExtra(EXTRA_MANGA, ParcelableManga(manga))
+			intent.putExtra(EXTRA_MANGA, ParcelableContent(manga))
 			tryStart(context, intent)
 		}
 
-		fun prefetchPages(context: Context, chapter: MangaChapter) {
+		fun prefetchPages(context: Context, chapter: ContentChapter) {
 			if (!isPrefetchAvailable(context, chapter.source)) return
-			val intent = Intent(context, MangaPrefetchService::class.java)
+			val intent = Intent(context, ContentPrefetchService::class.java)
 			intent.action = ACTION_PREFETCH_PAGES
 			intent.putExtra(EXTRA_CHAPTER, ParcelableChapter(chapter))
 			tryStart(context, intent)
@@ -106,12 +106,12 @@ class MangaPrefetchService : CoroutineIntentService() {
 
 		fun prefetchLast(context: Context) {
 			if (!isPrefetchAvailable(context, null)) return
-			val intent = Intent(context, MangaPrefetchService::class.java)
+			val intent = Intent(context, ContentPrefetchService::class.java)
 			intent.action = ACTION_PREFETCH_LAST
 			tryStart(context, intent)
 		}
 
-		private fun isPrefetchAvailable(context: Context, source: MangaSource?): Boolean {
+		private fun isPrefetchAvailable(context: Context, source: ContentSource?): Boolean {
 			if (source == LocalMangaSource || context.isPowerSaveMode()) {
 				return false
 			}

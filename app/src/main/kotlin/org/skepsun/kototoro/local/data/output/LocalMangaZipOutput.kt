@@ -12,24 +12,24 @@ import org.skepsun.kototoro.core.util.ext.MimeType
 import org.skepsun.kototoro.core.util.ext.deleteAwait
 import org.skepsun.kototoro.core.util.ext.readText
 import org.skepsun.kototoro.core.zip.ZipOutput
-import org.skepsun.kototoro.local.data.MangaIndex
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
+import org.skepsun.kototoro.local.data.ContentIndex
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
 import java.io.File
 import java.util.zip.ZipFile
 
-class LocalMangaZipOutput(
+class LocalContentZipOutput(
 	rootFile: File,
-	manga: Manga,
-) : LocalMangaOutput(rootFile) {
+	manga: Content,
+) : LocalContentOutput(rootFile) {
 
 	val output = ZipOutput(File(rootFile.path + ".tmp"))
-	val index = MangaIndex(null)
+	val index = ContentIndex(null)
 	private val mutex = Mutex()
 
 	init {
 		if (!manga.isLocal) {
-			index.setMangaInfo(manga)
+			index.setContentInfo(manga)
 		}
 	}
 
@@ -55,7 +55,7 @@ class LocalMangaZipOutput(
 		index.setCoverEntry(name)
 	}
 
-	override suspend fun addPage(chapter: IndexedValue<MangaChapter>, file: File, pageNumber: Int, type: MimeType?) =
+	override suspend fun addPage(chapter: IndexedValue<ContentChapter>, file: File, pageNumber: Int, type: MimeType?) =
 		mutex.withLock {
 			val name = buildString {
 				append(FILENAME_PATTERN.format(chapter.value.branch.hashCode(), chapter.index + 1, pageNumber))
@@ -75,7 +75,7 @@ class LocalMangaZipOutput(
 			index.putChapterImages(chapterId, remoteImages)
 		}
 
-	override suspend fun flushChapter(chapter: MangaChapter): Boolean = false
+	override suspend fun flushChapter(chapter: ContentChapter): Boolean = false
 
 	override suspend fun finish() = mutex.withLock {
 		runInterruptible(Dispatchers.IO) {
@@ -100,11 +100,11 @@ class LocalMangaZipOutput(
 
 	@WorkerThread
 	private fun mergeWith(other: File) {
-		var otherIndex: MangaIndex? = null
+		var otherIndex: ContentIndex? = null
 		ZipFile(other).use { zip ->
 			for (entry in zip.entries()) {
 				if (entry.name == ENTRY_NAME_INDEX) {
-					otherIndex = MangaIndex(
+					otherIndex = ContentIndex(
 						zip.getInputStream(entry).use {
 							it.reader().readText()
 						},
@@ -114,7 +114,7 @@ class LocalMangaZipOutput(
 				}
 			}
 		}
-		otherIndex?.getMangaInfo()?.chapters?.withIndex()?.let { chapters ->
+		otherIndex?.getContentInfo()?.chapters?.withIndex()?.let { chapters ->
 			for (chapter in chapters) {
 				index.addChapter(chapter, null)
 			}
@@ -125,14 +125,14 @@ class LocalMangaZipOutput(
 
 		private const val FILENAME_PATTERN = "%08d_%04d%04d"
 
-		suspend fun filterChapters(file: File, manga: Manga, idsToRemove: Set<Long>) =
+		suspend fun filterChapters(file: File, manga: Content, idsToRemove: Set<Long>) =
 			runInterruptible(Dispatchers.IO) {
-				val subject = LocalMangaZipOutput(file, manga)
+				val subject = LocalContentZipOutput(file, manga)
 				try {
 					ZipFile(subject.rootFile).use { zip ->
-						val index = MangaIndex(zip.readText(zip.getEntry(ENTRY_NAME_INDEX)))
+						val index = ContentIndex(zip.readText(zip.getEntry(ENTRY_NAME_INDEX)))
 						idsToRemove.forEach { id -> index.removeChapter(id) }
-						val patterns = requireNotNull(index.getMangaInfo()?.chapters).map {
+						val patterns = requireNotNull(index.getContentInfo()?.chapters).map {
 							index.getChapterNamesPattern(it)
 						}
 						val coverEntryName = index.getCoverEntry()

@@ -24,8 +24,8 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.ActivityPickerBinding
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.SnackbarOwner
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.picker.ui.manga.MangaPickerFragment
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.picker.ui.manga.ContentPickerFragment
 import org.skepsun.kototoro.picker.ui.page.PagePickerFragment
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
@@ -64,7 +64,7 @@ class PageImagePickActivity : BaseActivity<ActivityPickerBinding>(),
 				if (intent?.hasExtra(AppRouter.KEY_MANGA) == true) {
 					replace(R.id.container, PagePickerFragment::class.java, intent.extras)
 				} else {
-					replace(R.id.container, MangaPickerFragment::class.java, null)
+					replace(R.id.container, ContentPickerFragment::class.java, null)
 				}
 			}
 		}
@@ -81,7 +81,7 @@ class PageImagePickActivity : BaseActivity<ActivityPickerBinding>(),
 		return insets.consume(v, typeMask, top = true)
 	}
 
-	fun onMangaPicked(manga: Manga) {
+	fun onContentPicked(manga: Content) {
 		val args = Bundle(1)
 		args.putLong(AppRouter.KEY_ID, manga.id)
 		supportFragmentManager.commit {
@@ -91,12 +91,12 @@ class PageImagePickActivity : BaseActivity<ActivityPickerBinding>(),
 		}
 	}
 
-	fun onPagePicked(manga: Manga, page: ReaderPage) {
+	fun onPagePicked(manga: Content, page: ReaderPage) {
 		val task = PageSaveHelper.Task(
 			manga = manga,
 			chapterId = page.chapterId,
 			pageNumber = page.index + 1,
-			page = page.toMangaPage(),
+			page = page.toContentPage(),
 		)
 		viewModel.savePageToTempFile(pageSaveHelper, task)
 	}

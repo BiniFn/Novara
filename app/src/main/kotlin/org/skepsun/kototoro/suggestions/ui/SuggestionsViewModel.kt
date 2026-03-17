@@ -11,13 +11,13 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.util.ext.onFirst
-import org.skepsun.kototoro.list.domain.MangaListMapper
+import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
-import org.skepsun.kototoro.list.ui.MangaListViewModel
+import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
@@ -25,7 +25,7 @@ import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import org.skepsun.kototoro.suggestions.domain.SuggestionsListQuickFilter
 import javax.inject.Inject
 import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalManga
+import org.skepsun.kototoro.local.domain.model.LocalContent
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
@@ -33,20 +33,20 @@ import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.list.ui.model.ListModel
 
 @HiltViewModel
 class SuggestionsViewModel @Inject constructor(
 	repository: SuggestionRepository,
 	settings: AppSettings,
-	private val mangaListMapper: MangaListMapper,
+	private val mangaListMapper: ContentListMapper,
 	private val quickFilter: SuggestionsListQuickFilter,
 	private val suggestionsScheduler: SuggestionsWorker.Scheduler,
 	private val sourceGroupManager: SourceGroupManager,
-	mangaDataRepository: MangaDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalManga?>,
-) : MangaListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
+	mangaDataRepository: ContentDataRepository,
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
 
 	override val isFilterBarVisible = MutableStateFlow(true)
 
@@ -60,7 +60,7 @@ class SuggestionsViewModel @Inject constructor(
 		selectedGroupTab,
 		selectedSourceTags,
 	) { values: Array<Any?> ->
-		val list = values[0] as List<Manga>
+		val list = values[0] as List<Content>
 		val filters = values[1] as Set<ListFilterOption>
 		val mode = values[2] as ListMode
 		val groupTab = values[3] as BrowseGroupTab

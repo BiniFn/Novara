@@ -1,10 +1,10 @@
 package org.skepsun.kototoro.core.exceptions
 
-import org.skepsun.kototoro.details.ui.pager.EmptyMangaReason
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.details.ui.pager.EmptyContentReason
+import org.skepsun.kototoro.parsers.model.Content
 
-class EmptyMangaException(
-    val reason: EmptyMangaReason?,
-    val manga: Manga,
+class EmptyContentException(
+    val reason: EmptyContentReason?,
+    val manga: Content,
     cause: Throwable?
 ) : IllegalStateException(cause)

@@ -41,9 +41,9 @@ enum class SourceTag(
      */
     fun supportsContentTab(tab: BrowseGroupTab): Boolean = when (this) {
         BUILTIN -> true
-        MIHON -> tab == BrowseGroupTab.Manga || tab == BrowseGroupTab.All
+        MIHON -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.All
         ANIYOMI -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
-        LEGADO -> tab == BrowseGroupTab.Manga || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
+        LEGADO -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
         TVBOX -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
     }
 

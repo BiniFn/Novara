@@ -5,16 +5,16 @@ import androidx.core.text.bold
 import androidx.core.text.buildSpannedString
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.withOverride
-import org.skepsun.kototoro.core.ui.model.MangaOverride
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_ANYTHING_CHANGED
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 
-sealed class MangaListModel : ListModel {
+sealed class ContentListModel : ListModel {
 
-	abstract val override: MangaOverride?
-	abstract val manga: Manga
+	abstract val override: ContentOverride?
+	abstract val manga: Content
 	abstract val counter: Int
 
 	val id: Long
@@ -26,10 +26,10 @@ sealed class MangaListModel : ListModel {
 	val coverUrl: String?
 		get() = override?.coverUrl.ifNullOrEmpty { manga.coverUrl }
 
-	val source: MangaSource
+	val source: ContentSource
 		get() = manga.source
 
-	fun toMangaWithOverride() = manga.withOverride(override)
+	fun toContentWithOverride() = manga.withOverride(override)
 
 	open fun getSummary(context: Context): CharSequence = buildSpannedString {
 		bold {
@@ -44,11 +44,11 @@ sealed class MangaListModel : ListModel {
 	}
 
 	override fun areItemsTheSame(other: ListModel): Boolean {
-		return other is MangaListModel && other.javaClass == javaClass && id == other.id
+		return other is ContentListModel && other.javaClass == javaClass && id == other.id
 	}
 
 	override fun getChangePayload(previousState: ListModel): Any? = when {
-		previousState !is MangaListModel || previousState.manga != manga -> null
+		previousState !is ContentListModel || previousState.manga != manga -> null
 		previousState.counter != counter -> PAYLOAD_ANYTHING_CHANGED
 		else -> null
 	}

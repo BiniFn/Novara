@@ -6,22 +6,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.parser.MangaRepository
-import org.skepsun.kototoro.core.parser.ParserMangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import kotlin.coroutines.resume
 
 class ImageServerDelegate(
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	private val mangaSource: MangaSource?,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	private val mangaSource: ContentSource?,
 ) {
 
 	private val repositoryLazy = suspendLazy {
-		mangaRepositoryFactory.create(checkNotNull(mangaSource)) as ParserMangaRepository
+		mangaRepositoryFactory.create(checkNotNull(mangaSource)) as ParserContentRepository
 	}
 
 	suspend fun isAvailable() = withContext(Dispatchers.Default) {

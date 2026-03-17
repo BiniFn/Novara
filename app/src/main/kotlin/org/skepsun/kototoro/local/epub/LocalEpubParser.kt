@@ -3,10 +3,10 @@ package org.skepsun.kototoro.local.epub
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.model.LocalMangaSource
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaChapter
-import org.skepsun.kototoro.parsers.model.MangaState
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.longHashCode
 import java.io.File
 import java.util.zip.ZipFile
@@ -17,7 +17,7 @@ import java.util.zip.ZipFile
  * 功能：
  * 1. 检测CBZ文件是否包含EPUB
  * 2. 解析EPUB并提取章节
- * 3. 生成Manga对象供应用使用
+ * 3. 生成Content对象供应用使用
  */
 class LocalEpubParser(private val cbzFile: File) {
 
@@ -57,9 +57,9 @@ class LocalEpubParser(private val cbzFile: File) {
     }
 
     /**
-     * 解析EPUB文件并生成Manga对象
+     * 解析EPUB文件并生成Content对象
      */
-    suspend fun parseManga(): Manga? = withContext(Dispatchers.IO) {
+    suspend fun parseContent(): Content? = withContext(Dispatchers.IO) {
         try {
             android.util.Log.d("LocalEpubParser", "Parsing EPUB file: ${cbzFile.absolutePath}")
             android.util.Log.d("LocalEpubParser", "File exists: ${cbzFile.exists()}, size: ${cbzFile.length()} bytes")
@@ -78,14 +78,14 @@ class LocalEpubParser(private val cbzFile: File) {
             android.util.Log.d("LocalEpubParser", "Author: ${epubContent.author}")
             android.util.Log.d("LocalEpubParser", "Chapters: ${epubContent.chapters.size}")
             
-            // 生成Manga对象
+            // 生成Content对象
             val mangaId = cbzFile.absolutePath.longHashCode()
             val title = epubContent.title
             val author = epubContent.author
             
             // 生成章节列表
             val chapters = epubContent.chapters.map { epubChapter ->
-                MangaChapter(
+                ContentChapter(
                     id = "${cbzFile.absolutePath}#chapter${epubChapter.index}".longHashCode(),
                     title = epubChapter.title,
                     number = (epubChapter.index + 1).toFloat(),
@@ -101,7 +101,7 @@ class LocalEpubParser(private val cbzFile: File) {
             
             android.util.Log.d("LocalEpubParser", "Generated ${chapters.size} chapters")
             
-            Manga(
+            Content(
                 id = mangaId,
                 title = title,
                 altTitles = emptySet(),
@@ -111,13 +111,13 @@ class LocalEpubParser(private val cbzFile: File) {
                 contentRating = null,
                 coverUrl = "", // EPUB封面可以后续添加
                 tags = setOf(
-                    MangaTag(
+                    ContentTag(
                         key = "epub",
                         title = "EPUB",
                         source = LocalMangaSource,
                     ),
                 ),
-                state = MangaState.FINISHED,
+                state = ContentState.FINISHED,
                 authors = setOf(author),
                 largeCoverUrl = null,
                 description = "EPUB电子书：$title",

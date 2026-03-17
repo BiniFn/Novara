@@ -4,21 +4,21 @@ import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.io.IOException
 import javax.inject.Inject
 
-class DeleteLocalMangaUseCase @Inject constructor(
-	private val localMangaRepository: LocalMangaRepository,
+class DeleteLocalContentUseCase @Inject constructor(
+	private val localContentRepository: LocalMangaRepository,
 	private val historyRepository: HistoryRepository,
 ) {
 
-	suspend operator fun invoke(manga: Manga) {
-		val victim = if (manga.isLocal) manga else localMangaRepository.findSavedManga(manga)?.manga
+	suspend operator fun invoke(manga: Content) {
+		val victim = if (manga.isLocal) manga else localContentRepository.findSavedContent(manga)?.manga
 		checkNotNull(victim) { "Cannot find saved manga for ${manga.title}" }
-		val original = if (manga.isLocal) localMangaRepository.getRemoteManga(manga) else manga
-		localMangaRepository.delete(victim) || throw IOException("Unable to delete file")
+		val original = if (manga.isLocal) localContentRepository.getRemoteContent(manga) else manga
+		localContentRepository.delete(victim) || throw IOException("Unable to delete file")
 		runCatchingCancellable {
 			historyRepository.deleteOrSwap(victim, original)
 		}.onFailure {
@@ -27,7 +27,7 @@ class DeleteLocalMangaUseCase @Inject constructor(
 	}
 
 	suspend operator fun invoke(ids: Set<Long>) {
-		val list = localMangaRepository.getList(0, null, null)
+		val list = localContentRepository.getList(0, null, null)
 		var removed = 0
 		for (manga in list) {
 			if (manga.id in ids) {

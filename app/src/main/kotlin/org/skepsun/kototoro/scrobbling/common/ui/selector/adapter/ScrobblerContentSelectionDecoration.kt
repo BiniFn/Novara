@@ -8,10 +8,10 @@ import android.view.View
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.NO_ID
 import org.skepsun.kototoro.core.util.ext.getItem
-import org.skepsun.kototoro.list.ui.MangaSelectionDecoration
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerManga
+import org.skepsun.kototoro.list.ui.ContentSelectionDecoration
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 
-class ScrobblerMangaSelectionDecoration(context: Context) : MangaSelectionDecoration(context) {
+class ScrobblerContentSelectionDecoration(context: Context) : ContentSelectionDecoration(context) {
 
 	var checkedItemId: Long
 		get() = if (selection.size == 1) {
@@ -28,7 +28,7 @@ class ScrobblerMangaSelectionDecoration(context: Context) : MangaSelectionDecora
 
 	override fun getItemId(parent: RecyclerView, child: View): Long {
 		val holder = parent.getChildViewHolder(child) ?: return NO_ID
-		val item = holder.getItem(ScrobblerManga::class.java) ?: return NO_ID
+		val item = holder.getItem(ScrobblerContent::class.java) ?: return NO_ID
 		return item.id
 	}
 

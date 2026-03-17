@@ -13,7 +13,7 @@ import org.skepsun.kototoro.list.ui.config.ListConfigSection
 import org.skepsun.kototoro.suggestions.ui.SuggestionsFragment
 import org.skepsun.kototoro.tracker.ui.updates.UpdatesFragment
 
-class MangaListMenuProvider(
+class ContentListMenuProvider(
 	private val fragment: Fragment,
 ) : MenuProvider {
 

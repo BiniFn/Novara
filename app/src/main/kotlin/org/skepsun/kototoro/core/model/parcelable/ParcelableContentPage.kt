@@ -5,18 +5,18 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.TypeParceler
-import org.skepsun.kototoro.core.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaPage
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentPage
 
-object MangaPageParceler : Parceler<MangaPage> {
-	override fun create(parcel: Parcel) = MangaPage(
+object ContentPageParceler : Parceler<ContentPage> {
+	override fun create(parcel: Parcel) = ContentPage(
 		id = parcel.readLong(),
 		url = requireNotNull(parcel.readString()),
 		preview = parcel.readString(),
-		source = MangaSource(parcel.readString()),
+		source = ContentSource(parcel.readString()),
 	)
 
-	override fun MangaPage.write(parcel: Parcel, flags: Int) {
+	override fun ContentPage.write(parcel: Parcel, flags: Int) {
 		parcel.writeLong(id)
 		parcel.writeString(url)
 		parcel.writeString(preview)
@@ -25,5 +25,5 @@ object MangaPageParceler : Parceler<MangaPage> {
 }
 
 @Parcelize
-@TypeParceler<MangaPage, MangaPageParceler>
-class ParcelableMangaPage(val page: MangaPage) : Parcelable
+@TypeParceler<ContentPage, ContentPageParceler>
+class ParcelableContentPage(val page: ContentPage) : Parcelable

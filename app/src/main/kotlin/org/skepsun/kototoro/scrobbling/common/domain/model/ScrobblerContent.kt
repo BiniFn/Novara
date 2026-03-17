@@ -2,7 +2,7 @@ package org.skepsun.kototoro.scrobbling.common.domain.model
 
 import org.skepsun.kototoro.list.ui.model.ListModel
 
-data class ScrobblerManga(
+data class ScrobblerContent(
 	val id: Long,
 	val name: String,
 	val altName: String?,
@@ -12,10 +12,10 @@ data class ScrobblerManga(
 ) : ListModel {
 
 	override fun areItemsTheSame(other: ListModel): Boolean {
-		return other is ScrobblerManga && other.id == id
+		return other is ScrobblerContent && other.id == id
 	}
 
 	override fun toString(): String {
-		return "ScrobblerManga #$id \"$name\" $url"
+		return "ScrobblerContent #$id \"$name\" $url"
 	}
 }

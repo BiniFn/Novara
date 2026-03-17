@@ -323,8 +323,8 @@ class JsonSourceManager @Inject constructor(
 		val engine = enginePool.acquire()
 		return try {
 			val sandbox = LegadoSandbox(engine, client, config)
-			val mangaSource = JsonMangaSource(entity)
-			var results: List<org.skepsun.kototoro.parsers.model.Manga> = emptyList()
+			val mangaSource = JsonContentSource(entity)
+			var results: List<org.skepsun.kototoro.parsers.model.Content> = emptyList()
 			
 			// 1. Try Search if available
 			if (!searchUrl.isNullOrBlank()) {
@@ -372,17 +372,17 @@ class JsonSourceManager @Inject constructor(
 			}
 			
 			if (results.isEmpty()) return false
-			val firstManga = results.first()
+			val firstContent = results.first()
 			
 			// 2. Details
-			val detailsResponse = client.get(firstManga.url, parseCustomHeaders(config.header), source = null)
+			val detailsResponse = client.get(firstContent.url, parseCustomHeaders(config.header), source = null)
 			val detailsBody = detailsResponse.body?.string().orEmpty()
 			detailsResponse.close()
 			
-			val infoResult = BookInfo.parse(firstManga, detailsBody, firstManga.url, config, sandbox)
+			val infoResult = BookInfo.parse(firstContent, detailsBody, firstContent.url, config, sandbox)
 			
 			// 3. Chapter List (TOC)
-			val tocUrl = infoResult.tocUrl ?: firstManga.url
+			val tocUrl = infoResult.tocUrl ?: firstContent.url
 			val tocResponse = client.get(tocUrl, parseCustomHeaders(config.header), source = null)
 			val tocBody = tocResponse.body?.string().orEmpty()
 			tocResponse.close()

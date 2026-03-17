@@ -2,8 +2,8 @@ package org.skepsun.kototoro.core.jsonsource
 
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
@@ -31,11 +31,11 @@ class SourceGroupManager @Inject constructor(
 	 * @param source The manga source
 	 * @return The ContentGroup enum value
 	 */
-	fun getContentGroup(source: MangaSource): ContentGroup {
+	fun getContentGroup(source: ContentSource): ContentGroup {
 		val isNsfw = source.isNsfw()
 		
-		// Priority 1: Check native MangaParserSource content type
-		if (source is MangaParserSource) {
+		// Priority 1: Check native ContentParserSource content type
+		if (source is ContentParserSource) {
 			return when (source.contentType) {
 				ContentType.NOVEL, ContentType.HENTAI_NOVEL -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
 				ContentType.VIDEO, ContentType.HENTAI_VIDEO -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
@@ -52,7 +52,7 @@ class SourceGroupManager @Inject constructor(
 			return if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 		}
 		
-		if (source is org.skepsun.kototoro.core.jsonsource.JsonMangaSource) {
+		if (source is org.skepsun.kototoro.core.jsonsource.JsonContentSource) {
 			return try {
 				when (source.entity.type) {
 					org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> {
@@ -96,7 +96,7 @@ class SourceGroupManager @Inject constructor(
 	 * @param source The manga source
 	 * @return The OriginGroup enum value
 	 */
-	fun getOriginGroup(source: MangaSource): OriginGroup {
+	fun getOriginGroup(source: ContentSource): OriginGroup {
 		val sourceType = sourceTypeIdentifier.getSourceType(source.name)
 		return when (sourceType) {
 			SourceType.NATIVE -> OriginGroup.NATIVE
@@ -116,12 +116,12 @@ class SourceGroupManager @Inject constructor(
 	 * @param group The group to filter by
 	 * @return List of sources in the specified group
 	 */
-	fun getSourcesByGroup(sources: List<MangaSource>, group: SourceGroup): List<MangaSource> {
+	fun getSourcesByGroup(sources: List<ContentSource>, group: SourceGroup): List<ContentSource> {
 		return when (group) {
 			is SourceGroup.Content -> sources.filter { getContentGroup(it) == group.type }
 			is SourceGroup.Origin -> sources.filter { getOriginGroup(it) == group.type }
 			is SourceGroup.TvBoxRepository -> sources.filter { source ->
-				val jsonSource = source as? org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+				val jsonSource = source as? org.skepsun.kototoro.core.jsonsource.JsonContentSource
 					?: return@filter false
 				if (jsonSource.entity.type != org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX) {
 					return@filter group.locator == null
@@ -137,7 +137,7 @@ class SourceGroupManager @Inject constructor(
 	 * @param sources The list of all sources to count
 	 * @return Map of SourceGroup to count
 	 */
-	fun getGroupCounts(sources: List<MangaSource>): Map<SourceGroup, Int> {
+	fun getGroupCounts(sources: List<ContentSource>): Map<SourceGroup, Int> {
 		val counts = mutableMapOf<SourceGroup, Int>()
 		
 		// Count by content groups
@@ -161,7 +161,7 @@ class SourceGroupManager @Inject constructor(
  */
 enum class ContentGroup {
 	/**
-	 * Manga, manhwa, manhua, comics, and related visual content
+	 * Content, manhwa, manhua, comics, and related visual content
 	 */
 	MANGA,
 	

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
-import org.skepsun.kototoro.core.parser.MangaDataRepository
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
@@ -24,15 +24,15 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorFooter
 import org.skepsun.kototoro.list.ui.model.toErrorState
-import org.skepsun.kototoro.parsers.model.MangaParserSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.list.ui.model.ListHeader
 
 @HiltViewModel(assistedFactory = TagsCatalogViewModel.Factory::class)
 class TagsCatalogViewModel @AssistedInject constructor(
 	@Assisted private val filter: FilterCoordinator,
 	@Assisted private val isExcluded: Boolean,
-	private val mangaDataRepository: MangaDataRepository,
+	private val mangaDataRepository: ContentDataRepository,
 ) : BaseViewModel() {
 
 	val searchQuery = MutableStateFlow("")
@@ -43,7 +43,7 @@ class TagsCatalogViewModel @AssistedInject constructor(
 	@Suppress("RemoveExplicitTypeArguments")
 	private val tags: StateFlow<List<ListModel>> = combine(
         filter.getAllTagGroups(),
-        flow<Collection<MangaTag>> { emit(emptyList()); emit(mangaDataRepository.findTags(filter.mangaSource)) },
+        flow<Collection<ContentTag>> { emit(emptyList()); emit(mangaDataRepository.findTags(filter.mangaSource)) },
         filterProperty,
     ) { available, cached, property ->
         val selected = property.selectedItems.flatMap { it.selected }.toSet()
@@ -54,7 +54,7 @@ class TagsCatalogViewModel @AssistedInject constructor(
 		filterByQuery(raw, query)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, listOf(LoadingState))
 
-	fun handleTagClick(tag: MangaTag, isChecked: Boolean) {
+	fun handleTagClick(tag: ContentTag, isChecked: Boolean) {
 		if (isExcluded) {
 			filter.toggleTagExclude(tag, !isChecked)
 		} else {
@@ -64,10 +64,10 @@ class TagsCatalogViewModel @AssistedInject constructor(
 
 	private fun buildList(
         available: Result<List<UiTagGroup>>,
-        cached: Collection<MangaTag>,
-        selected: Set<MangaTag>,
+        cached: Collection<ContentTag>,
+        selected: Set<ContentTag>,
     ): List<ListModel> {
-		val locale = (filter.mangaSource as? MangaParserSource)?.locale
+		val locale = (filter.mangaSource as? ContentParserSource)?.locale
 		val comparator = TagTitleComparator(locale)
 		val result = ArrayList<ListModel>()
 

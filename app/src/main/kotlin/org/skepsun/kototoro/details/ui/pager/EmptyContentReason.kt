@@ -3,7 +3,7 @@ package org.skepsun.kototoro.details.ui.pager
 import androidx.annotation.StringRes
 import org.skepsun.kototoro.R
 
-enum class EmptyMangaReason(
+enum class EmptyContentReason(
 	@StringRes val msgResId: Int,
 ) {
 

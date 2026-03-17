@@ -54,7 +54,7 @@ import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
-import org.skepsun.kototoro.core.parser.MangaRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.LocaleComparator
 import org.skepsun.kototoro.core.util.ext.asArrayList
@@ -69,19 +69,19 @@ import org.skepsun.kototoro.core.util.ext.sanitize
 import org.skepsun.kototoro.core.util.ext.takeMostFrequent
 import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
 import org.skepsun.kototoro.core.util.ext.trySetForeground
-import org.skepsun.kototoro.explore.data.MangaSourcesRepository
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaListFilter
-import org.skepsun.kototoro.parsers.model.MangaSource
-import org.skepsun.kototoro.parsers.model.MangaTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.almostEquals
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.sizeOrZero
 import org.skepsun.kototoro.settings.work.PeriodicWorkScheduler
-import org.skepsun.kototoro.suggestions.domain.MangaSuggestion
+import org.skepsun.kototoro.suggestions.domain.ContentSuggestion
 import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import org.skepsun.kototoro.suggestions.domain.TagsBlacklist
 import java.util.concurrent.TimeUnit
@@ -101,8 +101,8 @@ class SuggestionsWorker @AssistedInject constructor(
 	private val appSettings: AppSettings,
 	private val captchaHandler: CaptchaHandler,
 	private val workManager: WorkManager,
-	private val mangaRepositoryFactory: MangaRepository.Factory,
-	private val sourcesRepository: MangaSourcesRepository,
+	private val mangaRepositoryFactory: ContentRepository.Factory,
+	private val sourcesRepository: ContentSourcesRepository,
 ) : CoroutineWorker(appContext, params) {
 
 	private val notificationManager by lazy { NotificationManagerCompat.from(appContext) }
@@ -182,7 +182,7 @@ class SuggestionsWorker @AssistedInject constructor(
 	private suspend fun doWorkImpl(): Int {
 		val seed = (
 			historyRepository.getList(0, 20) +
-				favouritesRepository.getLastManga(20)
+				favouritesRepository.getLastContent(20)
 			).distinctById()
 		val sources = getSources()
 		if (seed.isEmpty() || sources.isEmpty()) {
@@ -208,7 +208,7 @@ class SuggestionsWorker @AssistedInject constructor(
 			.flatten()
 			.take(MAX_RAW_RESULTS)
 			.map { manga ->
-				MangaSuggestion(
+				ContentSuggestion(
 					manga = manga,
 					relevance = computeRelevance(manga.tags, tags),
 				)
@@ -248,9 +248,9 @@ class SuggestionsWorker @AssistedInject constructor(
 		return suggestions.size
 	}
 
-	private suspend fun getSources(): List<MangaSource> {
+	private suspend fun getSources(): List<ContentSource> {
 		if (appSettings.isSuggestionsIncludeDisabledSources) {
-			val result = sourcesRepository.allMangaSources.toMutableList<MangaSource>()
+			val result = sourcesRepository.allContentSources.toMutableList<ContentSource>()
 			result.addAll(sourcesRepository.getExternalSources())
 			result.shuffle()
 			result.sortWith(compareBy(nullsLast(LocaleComparator())) { it.getLocale() })
@@ -261,10 +261,10 @@ class SuggestionsWorker @AssistedInject constructor(
 	}
 
 	private suspend fun getList(
-		source: MangaSource,
+		source: ContentSource,
 		tags: List<String>,
 		blacklist: TagsBlacklist,
-	): List<Manga> = runCatchingCancellable {
+	): List<Content> = runCatchingCancellable {
 		val repository = mangaRepositoryFactory.create(source)
 		val availableOrders = repository.sortOrders
 		val order = preferredSortOrders.firstOrNull { it in availableOrders }
@@ -277,7 +277,7 @@ class SuggestionsWorker @AssistedInject constructor(
 		val list = repository.getList(
 			offset = 0,
 			order = order,
-			filter = MangaListFilter(tags = setOfNotNull(tag)),
+			filter = ContentListFilter(tags = setOfNotNull(tag)),
 		).asArrayList()
 		if (appSettings.isSuggestionsExcludeNsfw) {
 			list.removeAll { it.isNsfw() }
@@ -295,7 +295,7 @@ class SuggestionsWorker @AssistedInject constructor(
 	}.getOrDefault(emptyList())
 
 	@RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-	private suspend fun showNotification(manga: Manga) {
+	private suspend fun showNotification(manga: Content) {
 		val channel = NotificationChannelCompat.Builder(MANGA_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
 			.setName(applicationContext.getString(R.string.suggestions))
 			.setDescription(applicationContext.getString(R.string.suggestions_summary))
@@ -389,7 +389,7 @@ class SuggestionsWorker @AssistedInject constructor(
 	}
 
 	@FloatRange(from = 0.0, to = 1.0)
-	private fun computeRelevance(mangaTags: Set<MangaTag>, allTags: List<String>): Float {
+	private fun computeRelevance(mangaTags: Set<ContentTag>, allTags: List<String>): Float {
 		val maxWeight = (allTags.size + allTags.size + 1 - mangaTags.size) * mangaTags.size / 2.0
 		val weight = mangaTags.sumOf { tag ->
 			val index = allTags.inexactIndexOf(tag.title, TAG_EQ_THRESHOLD)

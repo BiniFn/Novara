@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.Intent
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
-import org.skepsun.kototoro.core.model.parcelable.ParcelableManga
-import org.skepsun.kototoro.parsers.model.Manga
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.reader.ui.ReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
 
@@ -19,14 +19,14 @@ value class ReaderIntent private constructor(
 		private val intent = Intent(context, ReaderActivity::class.java)
 			.setAction(ACTION_MANGA_READ)
 
-		fun manga(manga: Manga) = apply {
-			intent.putExtra(AppRouter.KEY_MANGA, ParcelableManga(manga))
-			intent.setData(AppRouter.shortMangaUrl(manga.id))
+		fun manga(manga: Content) = apply {
+			intent.putExtra(AppRouter.KEY_MANGA, ParcelableContent(manga))
+			intent.setData(AppRouter.shortContentUrl(manga.id))
 		}
 
 		fun mangaId(mangaId: Long) = apply {
 			intent.putExtra(AppRouter.KEY_ID, mangaId)
-			intent.setData(AppRouter.shortMangaUrl(mangaId))
+			intent.setData(AppRouter.shortContentUrl(mangaId))
 		}
 
 		fun incognito() = apply {

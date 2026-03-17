@@ -2,9 +2,9 @@ package org.skepsun.kototoro.core.jsonsource
 
 import android.net.Uri
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
-import org.skepsun.kototoro.core.jsonsource.JsonMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
-import org.skepsun.kototoro.core.model.MangaSourceInfo
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 
 /**
  * Data class representing information about a source group.
@@ -25,7 +25,7 @@ import org.skepsun.kototoro.core.model.MangaSourceInfo
 data class SourceGroupInfo(
 	val group: SourceGroup,
 	val name: String,
-	val sources: List<MangaSourceInfo>,
+	val sources: List<ContentSourceInfo>,
 	val count: Int = sources.size,
 	val isCollapsed: Boolean = false,
 ) {
@@ -152,9 +152,9 @@ data class GroupedSourceList(
 	/**
 	 * Gets all sources as a flat list (ignoring grouping).
 	 * 
-	 * @return List of all MangaSourceInfo across all groups
+	 * @return List of all ContentSourceInfo across all groups
 	 */
-	fun getAllSources(): List<MangaSourceInfo> {
+	fun getAllSources(): List<ContentSourceInfo> {
 		return groups.flatMap { it.sources }
 	}
 	
@@ -175,7 +175,7 @@ data class GroupedSourceList(
 		 * @return A new GroupedSourceList with sources organized into groups
 		 */
 		fun fromSources(
-			sources: List<MangaSourceInfo>,
+			sources: List<ContentSourceInfo>,
 			groupBy: GroupingStrategy,
 			sourceGroupManager: SourceGroupManager,
 		): GroupedSourceList {
@@ -205,10 +205,10 @@ data class GroupedSourceList(
 					}
 				}
 				GroupingStrategy.BY_TVBOX_REPOSITORY -> {
-					val tvBoxGroups = linkedMapOf<Pair<String?, String>, MutableList<MangaSourceInfo>>()
-					val otherSources = mutableListOf<MangaSourceInfo>()
+					val tvBoxGroups = linkedMapOf<Pair<String?, String>, MutableList<ContentSourceInfo>>()
+					val otherSources = mutableListOf<ContentSourceInfo>()
 					sources.forEach { sourceInfo ->
-						val jsonSource = sourceInfo.mangaSource as? JsonMangaSource
+						val jsonSource = sourceInfo.mangaSource as? JsonContentSource
 						if (jsonSource?.entity?.type != JsonSourceType.TVBOX) {
 							otherSources += sourceInfo
 							return@forEach

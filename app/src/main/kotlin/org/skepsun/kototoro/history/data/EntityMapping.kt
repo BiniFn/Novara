@@ -1,9 +1,9 @@
 package org.skepsun.kototoro.history.data
 
-import org.skepsun.kototoro.core.model.MangaHistory
+import org.skepsun.kototoro.core.model.ContentHistory
 import java.time.Instant
 
-fun HistoryEntity.toMangaHistory() = MangaHistory(
+fun HistoryEntity.toContentHistory() = ContentHistory(
 	createdAt = Instant.ofEpochMilli(createdAt),
 	updatedAt = Instant.ofEpochMilli(updatedAt),
 	chapterId = chapterId,

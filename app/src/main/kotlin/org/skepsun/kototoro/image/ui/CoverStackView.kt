@@ -14,13 +14,13 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.ImageViewCompat
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.UnknownMangaSource
+import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.ui.widgets.StackLayout
 import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.databinding.ViewCoverStackBinding
 import org.skepsun.kototoro.favourites.domain.model.Cover
-import org.skepsun.kototoro.parsers.model.Manga
-import org.skepsun.kototoro.parsers.model.MangaSource
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 class CoverStackView @JvmOverloads constructor(
 	context: Context,
@@ -71,8 +71,8 @@ class CoverStackView @JvmOverloads constructor(
 		}
 	}
 
-	@JvmName("setMangaCoversAsync")
-	fun setCoversAsync(manga: List<Manga>) {
+	@JvmName("setContentCoversAsync")
+	fun setCoversAsync(manga: List<Content>) {
 		coverViews.forEachIndexed { index, view ->
 			val m = manga.getOrNull(index)
 			view.setCoverOrHide(m?.coverUrl, m, m?.source)
@@ -90,7 +90,7 @@ class CoverStackView @JvmOverloads constructor(
 		}
 	}
 
-	private fun CoverImageView.setCoverOrHide(url: String?, manga: Manga?, source: MangaSource?) {
+	private fun CoverImageView.setCoverOrHide(url: String?, manga: Content?, source: ContentSource?) {
 		if (url.isNullOrEmpty() && hideEmptyView) {
 			disposeImage()
 			isVisible = false
@@ -99,7 +99,7 @@ class CoverStackView @JvmOverloads constructor(
 			if (manga != null) {
 				setImageAsync(url, manga)
 			} else {
-				setImageAsync(url, source ?: UnknownMangaSource)
+				setImageAsync(url, source ?: UnknownContentSource)
 			}
 		}
 	}
