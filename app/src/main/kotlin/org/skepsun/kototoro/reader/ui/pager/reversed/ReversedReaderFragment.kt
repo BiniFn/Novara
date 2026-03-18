@@ -19,6 +19,7 @@ class ReversedReaderFragment : BasePagerReaderFragment() {
 	override fun onCreateAdapter() = ReversedPagesAdapter(
 		lifecycleOwner = viewLifecycleOwner,
 		loader = pageLoader,
+		enhancementController = enhancementController,
 		readerSettingsProducer = viewModel.readerSettingsProducer,
 		networkState = networkState,
 		exceptionResolver = exceptionResolver,

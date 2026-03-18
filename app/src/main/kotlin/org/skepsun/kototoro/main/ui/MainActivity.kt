@@ -1,8 +1,6 @@
 package org.skepsun.kototoro.main.ui
 
 import android.Manifest
-import android.app.BackgroundServiceStartNotAllowedException
-import android.app.ServiceStartNotAllowedException
 import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Build
@@ -45,9 +43,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupService
-import org.skepsun.kototoro.backups.ui.webdav.WebDavAutoRestoreService
-import org.skepsun.kototoro.backups.ui.webdav.DataSyncManager
+import org.skepsun.kototoro.backups.domain.BackupStartupCoordinator
 import org.skepsun.kototoro.browser.AdListUpdateService
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
@@ -97,7 +93,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	lateinit var settings: AppSettings
 
 	@Inject
-	lateinit var dataSyncManager: DataSyncManager
+	lateinit var backupStartupCoordinator: BackupStartupCoordinator
 
 	private val viewModel by viewModels<MainViewModel>()
 	private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
@@ -152,7 +148,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		if (savedInstanceState == null) {
 			onFirstStart()
 			// 首次创建 Activity 时启动 WebDAV 自动同步监听（避免重复添加观察者）
-			runCatching { dataSyncManager.start() }.onFailure { it.printStackTraceDebug() }
 		}
 
 		viewModel.onOpenReader.observeEvent(this, this::onOpenReader)
@@ -318,23 +313,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				ContentPrefetchService.prefetchLast(this@MainActivity)
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
-				startService(Intent(this@MainActivity, PeriodicalBackupService::class.java))
+					backupStartupCoordinator.startOnFirstLaunch(lifecycleScope)
 				// 延迟启动 WebDavAutoRestoreService 以避免系统级 DiskWriteViolation
 				// 并且仅在 WebDAV 自动恢复开关开启且配置完整时启动
-				lifecycleScope.launch {
-					kotlinx.coroutines.delay(3000)
-					try {
-						if (settings.isBackupWebDavAutoRestoreEnabled &&
-							!settings.backupWebDavServerUrl.isNullOrBlank() &&
-							!settings.backupWebDavUsername.isNullOrBlank() &&
-							!settings.backupWebDavPassword.isNullOrBlank()
-						) {
-							WebDavAutoRestoreService.start(this@MainActivity)
-						}
-					} catch (e: Exception) {
-						e.printStackTraceDebug()
-					}
-				}
 				if (settings.isAdBlockEnabled) {
 					startService(Intent(this@MainActivity, AdListUpdateService::class.java))
 				}

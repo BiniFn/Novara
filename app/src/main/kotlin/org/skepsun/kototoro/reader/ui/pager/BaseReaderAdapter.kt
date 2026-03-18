@@ -8,6 +8,7 @@ import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.util.ext.resetTransformations
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -15,6 +16,7 @@ import kotlin.coroutines.suspendCoroutine
 @Suppress("LeakingThis")
 abstract class BaseReaderAdapter<H : BasePageHolder<*>>(
 	private val loader: PageLoader,
+	private val enhancementController: ReaderPageEnhancementController,
 	private val readerSettingsProducer: ReaderSettings.Producer,
 	private val networkState: NetworkState,
 	private val exceptionResolver: ExceptionResolver,
@@ -58,7 +60,7 @@ abstract class BaseReaderAdapter<H : BasePageHolder<*>>(
 	final override fun onCreateViewHolder(
 		parent: ViewGroup,
 		viewType: Int,
-	): H = onCreateViewHolder(parent, loader, readerSettingsProducer, networkState, exceptionResolver)
+	): H = onCreateViewHolder(parent, loader, enhancementController, readerSettingsProducer, networkState, exceptionResolver)
 
 	suspend fun setItems(items: List<ReaderPage>) = suspendCoroutine { cont ->
 		differ.submitList(items) {
@@ -69,6 +71,7 @@ abstract class BaseReaderAdapter<H : BasePageHolder<*>>(
 	protected abstract fun onCreateViewHolder(
 		parent: ViewGroup,
 		loader: PageLoader,
+		enhancementController: ReaderPageEnhancementController,
 		readerSettingsProducer: ReaderSettings.Producer,
 		networkState: NetworkState,
 		exceptionResolver: ExceptionResolver,

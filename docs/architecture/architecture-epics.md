@@ -307,13 +307,17 @@ Reduce duplicated orchestration between Mihon and Aniyomi runtime management.
 
 ### Status
 
-Started.
+Materially advanced, but not complete.
 
 Implemented outcomes:
 
 - manager-level load-result classification has been extracted into a shared runtime processor
 - package-change reload observation has been extracted into a shared runtime helper
 - duplicate language-display mapping for Mihon and Aniyomi source wrappers has been centralized
+- manager-level extension state flows, source caches, wrapped-source caches, and reload orchestration have been consolidated into a shared runtime implementation
+- extension browser and available-install screens now share installed-extension projection and available-state resolution helpers, reducing repeated install/update state shaping across view-models
+- the extension-browser batch update queue and installer-result progression now run through a dedicated state machine instead of remaining inlined in the browser view-model
+- Mihon and Aniyomi installed-extension management screens now share a dedicated screen runtime for loading, refresh, and aggregated installed/source counts, backed by unit tests
 
 Remaining work:
 
@@ -378,6 +382,23 @@ Acceptance criteria:
 ### Objective
 
 Protect reader correctness and performance from enhancement-system complexity.
+
+### Status
+
+Started.
+
+Implemented outcomes:
+
+- translation enhancement orchestration has started moving out of [`PageLoader.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt)
+- a dedicated [`ReaderPageEnhancementController.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/ReaderPageEnhancementController.kt) now owns translation job lifecycle, enhancement state emission, and translated-variant resolution
+- reader-facing view-models and pager holders now consume enhancement-controller APIs directly instead of calling translation-related proxy methods on [`PageLoader.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt)
+- translation-related proxy methods have been removed from [`PageLoader.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt), reducing its responsibility back toward page loading and cache coordination
+
+Remaining work:
+
+- continue separating OCR and translation concerns from page loading internals
+- narrow the remaining contracts between reader core loading and enhancement execution
+- add targeted verification for fallback and regression-sensitive reader flows
 
 ### Suggested issues
 
@@ -445,6 +466,9 @@ Implemented outcomes:
 
 - key background paths now log `sync_flow` and `backup_flow` separately
 - periodic backup, WebDAV auto-sync upload, and WebDAV auto-restore now produce distinct diagnostic prefixes
+- sync and backup logging now use a shared typed flow helper, which reduces stringly-typed flow names and standardizes `reason` plus key-value detail formatting across the main services
+- backup startup orchestration has begun moving out of [`MainActivity.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/main/ui/MainActivity.kt) into [`BackupStartupCoordinator.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/backups/domain/BackupStartupCoordinator.kt), which gives periodical backup, WebDAV auto-sync upload observation, and WebDAV auto-restore separate ownership at app startup
+- [`BackupStartupCoordinatorTest.kt`](../../app/src/test/kotlin/org/skepsun/kototoro/backups/domain/BackupStartupCoordinatorTest.kt) now covers incomplete-config skip behavior and delayed auto-restore scheduling
 
 Remaining work:
 

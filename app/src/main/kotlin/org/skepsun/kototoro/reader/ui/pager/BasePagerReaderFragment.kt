@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.util.ext.recyclerView
 import org.skepsun.kototoro.core.util.ext.resetTransformations
 import org.skepsun.kototoro.databinding.FragmentReaderPagerBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.reader.ui.pager.standard.NoAnimPageTransformer
 import org.skepsun.kototoro.reader.ui.pager.standard.PageAnimTransformer
@@ -47,6 +48,9 @@ abstract class BasePagerReaderFragment : BaseReaderFragment<FragmentReaderPagerB
 
 	@Inject
 	lateinit var pageLoader: PageLoader
+
+	@Inject
+	lateinit var enhancementController: ReaderPageEnhancementController
 
 	private var pagerLifecycleDispatcher: PagerLifecycleDispatcher? = null
 
@@ -144,6 +148,7 @@ abstract class BasePagerReaderFragment : BaseReaderFragment<FragmentReaderPagerB
 	override fun onCreateAdapter(): BaseReaderAdapter<*> = PagesAdapter(
 		lifecycleOwner = viewLifecycleOwner,
 		loader = pageLoader,
+		enhancementController = enhancementController,
 		readerSettingsProducer = viewModel.readerSettingsProducer,
 		networkState = networkState,
 		exceptionResolver = exceptionResolver,

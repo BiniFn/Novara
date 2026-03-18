@@ -19,6 +19,7 @@ import org.skepsun.kototoro.core.ui.list.lifecycle.RecyclerViewLifecycleDispatch
 import org.skepsun.kototoro.core.util.ext.firstVisibleItemPosition
 import org.skepsun.kototoro.databinding.FragmentReaderDoubleBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.reader.ui.pager.BaseReaderAdapter
 import org.skepsun.kototoro.reader.ui.pager.BaseReaderFragment
@@ -34,6 +35,9 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 
 	@Inject
 	lateinit var pageLoader: PageLoader
+
+	@Inject
+	lateinit var enhancementController: ReaderPageEnhancementController
 
 	@Inject
 	lateinit var settings: AppSettings
@@ -123,6 +127,7 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 	override fun onCreateAdapter() = DoublePagesAdapter(
 		lifecycleOwner = viewLifecycleOwner,
 		loader = pageLoader,
+		enhancementController = enhancementController,
 		readerSettingsProducer = viewModel.readerSettingsProducer,
 		networkState = networkState,
 		exceptionResolver = exceptionResolver,

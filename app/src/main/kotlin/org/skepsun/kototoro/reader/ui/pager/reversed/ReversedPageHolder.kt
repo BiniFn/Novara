@@ -10,6 +10,7 @@ import org.skepsun.kototoro.core.model.ZoomMode
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.databinding.ItemPageBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.standard.PageHolder
 
@@ -17,6 +18,7 @@ class ReversedPageHolder(
 	owner: LifecycleOwner,
 	binding: ItemPageBinding,
 	loader: PageLoader,
+	enhancementController: ReaderPageEnhancementController,
 	readerSettingsProducer: ReaderSettings.Producer,
 	networkState: NetworkState,
 	exceptionResolver: ExceptionResolver,
@@ -24,6 +26,7 @@ class ReversedPageHolder(
 	owner = owner,
 	binding = binding,
 	loader = loader,
+	enhancementController = enhancementController,
 	readerSettingsProducer = readerSettingsProducer,
 	networkState = networkState,
 	exceptionResolver = exceptionResolver,

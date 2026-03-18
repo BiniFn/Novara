@@ -7,12 +7,9 @@ import eu.kanade.tachiyomi.source.Source
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import org.skepsun.kototoro.extensions.runtime.ExternalExtensionManagerRuntime
 import org.skepsun.kototoro.extensions.runtime.processExternalExtensionResults
-import org.skepsun.kototoro.extensions.runtime.registerExternalExtensionPackageObserver
 import org.skepsun.kototoro.mihon.model.MihonLoadResult
 import org.skepsun.kototoro.mihon.model.MihonMangaSource
 import javax.inject.Inject
@@ -34,123 +31,103 @@ class MihonExtensionManager @Inject constructor(
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
-    // Loaded extensions
-    private val _installedExtensions = MutableStateFlow<List<MihonLoadResult.Success>>(emptyList())
-    val installedExtensions: StateFlow<List<MihonLoadResult.Success>> = _installedExtensions.asStateFlow()
-    
-    // Failed extensions
-    private val _failedExtensions = MutableStateFlow<List<MihonLoadResult.Error>>(emptyList())
-    val failedExtensions: StateFlow<List<MihonLoadResult.Error>> = _failedExtensions.asStateFlow()
-    
-    // Loading state
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    
-    // Cache of source ID -> Source
-    private val sourceCache = mutableMapOf<Long, Source>()
-    
-    // Cache of source ID -> MihonMangaSource wrapper
-    private val mangaSourceCache = mutableMapOf<Long, MihonMangaSource>()
-
-    @Volatile
-    private var isPackageObserverRegistered = false
+    private val runtime = ExternalExtensionManagerRuntime<
+        MihonLoadResult,
+        MihonLoadResult.Success,
+        MihonLoadResult.Error,
+        Source,
+        MihonMangaSource,
+    >(
+        context = context,
+        scope = scope,
+    )
+    val installedExtensions: StateFlow<List<MihonLoadResult.Success>> = runtime.installedExtensions
+    val failedExtensions: StateFlow<List<MihonLoadResult.Error>> = runtime.failedExtensions
+    val isLoading: StateFlow<Boolean> = runtime.isLoading
     
     /**
      * Initialize the extension manager and load all extensions.
      */
     fun initialize() {
-        registerPackageObserver()
-        scope.launch {
-            loadExtensions()
-        }
+        runtime.initialize(::loadExtensions)
     }
     
     /**
      * Reload all extensions.
      */
     suspend fun loadExtensions() {
-        if (_isLoading.value) return
-        
-        _isLoading.value = true
-        
-        try {
+        runtime.loadExtensions(
+            loadResults = loader::loadExtensions,
+            processResults = { results ->
             android.util.Log.d(TAG, "load_start ecosystem=mihon")
-
-            sourceCache.clear()
-            mangaSourceCache.clear()
-            val processed = processExternalExtensionResults(
-                results = loader.loadExtensions(context),
-                successOf = { it as? MihonLoadResult.Success },
-                errorOf = { it as? MihonLoadResult.Error },
-                untrustedPackageNameOf = { (it as? MihonLoadResult.Untrusted)?.pkgName },
-                successSources = { it.sources },
-                successPackageName = { it.pkgName },
-                successIsNsfw = { it.isNsfw },
-                sourceId = { it.id },
-                asCatalogueSource = { it as? CatalogueSource },
-                catalogueSourceName = { it.name },
-                buildWrappedSource = { catalogueSource, pkgName, isNsfw, hasLanguageSuffix ->
-                    MihonMangaSource(
-                        catalogueSource = catalogueSource,
-                        pkgName = pkgName,
-                        isNsfw = isNsfw,
-                        hasLanguageSuffix = hasLanguageSuffix,
+                processExternalExtensionResults(
+                    results = results,
+                    successOf = { it as? MihonLoadResult.Success },
+                    errorOf = { it as? MihonLoadResult.Error },
+                    untrustedPackageNameOf = { (it as? MihonLoadResult.Untrusted)?.pkgName },
+                    successSources = { it.sources },
+                    successPackageName = { it.pkgName },
+                    successIsNsfw = { it.isNsfw },
+                    sourceId = { it.id },
+                    asCatalogueSource = { it as? CatalogueSource },
+                    catalogueSourceName = { it.name },
+                    buildWrappedSource = { catalogueSource, pkgName, isNsfw, hasLanguageSuffix ->
+                        MihonMangaSource(
+                            catalogueSource = catalogueSource,
+                            pkgName = pkgName,
+                            isNsfw = isNsfw,
+                            hasLanguageSuffix = hasLanguageSuffix,
+                        )
+                    },
+                    onError = { error ->
+                        android.util.Log.e(TAG, "load_error ecosystem=mihon pkg=${error.pkgName} message=${error.message}")
+                    },
+                    onUntrusted = { pkgName ->
+                        android.util.Log.w(TAG, "load_untrusted ecosystem=mihon pkg=$pkgName")
+                    },
+                ).also { processed ->
+                    android.util.Log.d(
+                        TAG,
+                        "load_complete ecosystem=mihon success=${processed.successful.size} failed=${processed.failed.size} untrusted=${processed.untrustedPackages.size} sources=${processed.wrappedSourceById.size}",
                     )
-                },
-                onError = { error ->
-                    android.util.Log.e(TAG, "load_error ecosystem=mihon pkg=${error.pkgName} message=${error.message}")
-                },
-                onUntrusted = { pkgName ->
-                    android.util.Log.w(TAG, "load_untrusted ecosystem=mihon pkg=$pkgName")
-                },
-            )
-            sourceCache.putAll(processed.sourceById)
-            mangaSourceCache.putAll(processed.wrappedSourceById)
-            _installedExtensions.value = processed.successful
-            _failedExtensions.value = processed.failed
-            android.util.Log.d(
-                TAG,
-                "load_complete ecosystem=mihon success=${processed.successful.size} failed=${processed.failed.size} untrusted=${processed.untrustedPackages.size} sources=${processed.wrappedSourceById.size}",
-            )
-            
-        } finally {
-            _isLoading.value = false
-        }
+                }
+            },
+        )
     }
     
     /**
      * Get all available CatalogueSource instances.
      */
     fun getCatalogueSources(): List<CatalogueSource> {
-        return _installedExtensions.value.flatMap { it.catalogueSources }
+        return installedExtensions.value.flatMap { it.catalogueSources }
     }
     
     /**
      * Get all MihonMangaSource wrappers.
      */
     fun getMihonMangaSources(): List<MihonMangaSource> {
-        return mangaSourceCache.values.toList()
+        return runtime.getWrappedSources()
     }
     
     /**
      * Get a source by its ID.
      */
     fun getSourceById(sourceId: Long): Source? {
-        return sourceCache[sourceId]
+        return runtime.getSourceById(sourceId)
     }
     
     /**
      * Get a CatalogueSource by its ID.
      */
     fun getCatalogueSourceById(sourceId: Long): CatalogueSource? {
-        return sourceCache[sourceId] as? CatalogueSource
+        return runtime.getSourceById(sourceId) as? CatalogueSource
     }
     
     /**
      * Get a MihonMangaSource wrapper by source ID.
      */
     fun getMihonMangaSourceById(sourceId: Long): MihonMangaSource? {
-        return mangaSourceCache[sourceId]
+        return runtime.getWrappedSourceById(sourceId)
     }
     
     /**
@@ -172,18 +149,10 @@ class MihonExtensionManager @Inject constructor(
     /**
      * Get the number of loaded sources.
      */
-    fun getSourceCount(): Int = sourceCache.size
+    fun getSourceCount(): Int = runtime.getSourceCount()
     
     /**
      * Check if any Mihon extensions are loaded.
      */
-    fun hasExtensions(): Boolean = _installedExtensions.value.isNotEmpty()
-
-    private fun registerPackageObserver() {
-        if (isPackageObserverRegistered) return
-        registerExternalExtensionPackageObserver(context) {
-            loadExtensions()
-        }
-        isPackageObserverRegistered = true
-    }
+    fun hasExtensions(): Boolean = runtime.hasExtensions()
 }

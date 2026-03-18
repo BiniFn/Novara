@@ -24,7 +24,7 @@ import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.util.ext.copyToClipboard
 import org.skepsun.kototoro.databinding.ItemTranslationTaskPanelBinding
 import org.skepsun.kototoro.databinding.SheetTranslationTaskPanelBinding
-import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
+import org.skepsun.kototoro.reader.domain.TranslationLayerState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

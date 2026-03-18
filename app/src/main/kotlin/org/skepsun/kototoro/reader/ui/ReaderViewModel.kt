@@ -68,7 +68,8 @@ import org.skepsun.kototoro.parsers.util.sizeOrZero
 import org.skepsun.kototoro.reader.domain.ChaptersLoader
 import org.skepsun.kototoro.reader.domain.DetectReaderModeUseCase
 import org.skepsun.kototoro.reader.domain.PageLoader
-import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
+import org.skepsun.kototoro.reader.domain.TranslationLayerState
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordRpc
@@ -89,6 +90,7 @@ class ReaderViewModel @Inject constructor(
     private val bookmarksRepository: BookmarksRepository,
     settings: AppSettings,
     private val pageLoader: PageLoader,
+    private val enhancementController: ReaderPageEnhancementController,
     private val chaptersLoader: ChaptersLoader,
     private val appShortcutManager: AppShortcutManager,
     private val detailsLoadUseCase: DetailsLoadUseCase,
@@ -243,8 +245,9 @@ class ReaderViewModel @Inject constructor(
     fun retranslateCurrent() {
         launchJob(Dispatchers.Default) {
             val page = getCurrentPage() ?: return@launchJob
-            pageLoader.invalidateTranslationTask(page.id)
-            pageLoader.invalidateTranslationCacheForPage(page.id)
+            pageLoader.invalidateTask(page.id)
+            enhancementController.invalidateTranslationTask(page.id)
+            enhancementController.invalidateTranslationCacheForPage(page.id)
             reload()
             onShowToast.call(R.string.reader_translation_retranslate_started)
         }
@@ -257,8 +260,9 @@ class ReaderViewModel @Inject constructor(
             var retries = 0
             pages.forEach { page ->
                 if (translationStateByPageId[page.id] == TranslationLayerState.FAILED) {
-                    pageLoader.invalidateTranslationTask(page.id)
-                    pageLoader.invalidateTranslationCacheForPage(page.id)
+                    pageLoader.invalidateTask(page.id)
+                    enhancementController.invalidateTranslationTask(page.id)
+                    enhancementController.invalidateTranslationCacheForPage(page.id)
                     retries++
                 }
             }
@@ -276,8 +280,9 @@ class ReaderViewModel @Inject constructor(
             val chapterPages = getCurrentChapterPages().orEmpty()
             if (chapterPages.isEmpty()) return@launchJob
             chapterPages.forEach { page ->
-                pageLoader.invalidateTranslationTask(page.id)
-                pageLoader.invalidateTranslationCacheForPage(page.id)
+                pageLoader.invalidateTask(page.id)
+                enhancementController.invalidateTranslationTask(page.id)
+                enhancementController.invalidateTranslationCacheForPage(page.id)
             }
             reload()
             onShowToast.call(R.string.reader_translation_retranslate_chapter_started)
@@ -286,8 +291,9 @@ class ReaderViewModel @Inject constructor(
 
     fun retryTranslationForPage(pageId: Long) {
         launchJob(Dispatchers.Default) {
-            pageLoader.invalidateTranslationTask(pageId)
-            pageLoader.invalidateTranslationCacheForPage(pageId)
+            pageLoader.invalidateTask(pageId)
+            enhancementController.invalidateTranslationTask(pageId)
+            enhancementController.invalidateTranslationCacheForPage(pageId)
             val currentPageId = getCurrentPage()?.id
             if (currentPageId == pageId) {
                 reload()
@@ -298,7 +304,7 @@ class ReaderViewModel @Inject constructor(
     fun getCurrentChapterTranslationTaskSnapshots(): List<TranslationPageTaskSnapshot> {
         val pages = getCurrentChapterPages().orEmpty()
         return pages.mapIndexed { index, page ->
-            val log = pageLoader.getTranslationDebugLog(page.id)
+            val log = enhancementController.getTranslationDebugLog(page.id)
             TranslationPageTaskSnapshot(
                 pageId = page.id,
                 pageIndex = index,
@@ -693,7 +699,7 @@ class ReaderViewModel @Inject constructor(
 
     private fun observeTranslationLayerState() {
         launchJob(Dispatchers.Default) {
-            pageLoader.observeTranslationStatusUpdates().collect { event ->
+            enhancementController.observeTranslationStatusUpdates().collect { event ->
                 translationStateByPageId[event.pageId] = event.state
                 translationStateUpdatedAtByPageId[event.pageId] = System.currentTimeMillis()
                 translationTaskPanelVersion.update { it + 1 }
@@ -707,7 +713,7 @@ class ReaderViewModel @Inject constructor(
 
     private fun observeTranslationDebugLogs() {
         launchJob(Dispatchers.Default) {
-            pageLoader.observeTranslationDebugLogUpdates().collect {
+            enhancementController.observeTranslationDebugLogUpdates().collect {
                 translationTaskPanelVersion.update { it + 1 }
             }
         }

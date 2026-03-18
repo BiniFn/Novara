@@ -51,7 +51,10 @@ class SyncController @Inject constructor(
 			logSyncFlow(
 				TAG,
 				event = "db_invalidated",
-				details = "tables=${tables.joinToString()} favourites=$favourites history=$history",
+				reason = null,
+				"tables" to tables.joinToString(),
+				"favourites" to favourites,
+				"history" to history,
 			)
 			requestSync(favourites, history)
 		}
@@ -91,7 +94,7 @@ class SyncController @Inject constructor(
 
 	private suspend fun requestSyncImpl(favourites: Boolean, history: Boolean) = mutex.withLock {
 		if (!favourites && !history) {
-			logSyncFlow(TAG, event = "request_skipped", details = "reason=no_authority_selected")
+			logSyncFlow(TAG, event = "request_skipped", reason = "no_authority_selected")
 			return
 		}
 		val db = dbProvider.get()
@@ -100,7 +103,11 @@ class SyncController @Inject constructor(
 			logSyncFlow(
 				TAG,
 				event = "gc_fallback",
-				details = "favourites=$favourites history=$history accountPresent=${account != null} masterSync=${ContentResolver.getMasterSyncAutomatically()}",
+				reason = null,
+				"favourites" to favourites,
+				"history" to history,
+				"accountPresent" to (account != null),
+				"masterSync" to ContentResolver.getMasterSyncAutomatically(),
 			)
 			db.gc(favourites, history)
 			return
@@ -109,19 +116,19 @@ class SyncController @Inject constructor(
 		var gcFavourites = false
 		if (favourites) {
 			if (ContentResolver.getSyncAutomatically(account, authorityFavourites)) {
-				logSyncFlow(TAG, event = "request_authority", details = "authority=$authorityFavourites")
+				logSyncFlow(TAG, event = "request_authority", reason = null, "authority" to authorityFavourites)
 				ContentResolver.requestSync(account, authorityFavourites, Bundle.EMPTY)
 			} else {
-				logSyncFlow(TAG, event = "gc_authority_disabled", details = "authority=$authorityFavourites")
+				logSyncFlow(TAG, event = "gc_authority_disabled", reason = null, "authority" to authorityFavourites)
 				gcFavourites = true
 			}
 		}
 		if (history) {
 			if (ContentResolver.getSyncAutomatically(account, authorityHistory)) {
-				logSyncFlow(TAG, event = "request_authority", details = "authority=$authorityHistory")
+				logSyncFlow(TAG, event = "request_authority", reason = null, "authority" to authorityHistory)
 				ContentResolver.requestSync(account, authorityHistory, Bundle.EMPTY)
 			} else {
-				logSyncFlow(TAG, event = "gc_authority_disabled", details = "authority=$authorityHistory")
+				logSyncFlow(TAG, event = "gc_authority_disabled", reason = null, "authority" to authorityHistory)
 				gcHistory = true
 			}
 		}

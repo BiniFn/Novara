@@ -15,6 +15,7 @@ import org.skepsun.kototoro.core.ErrorReporterReceiver
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.CoroutineIntentService
+import org.skepsun.kototoro.core.util.BackupFlow
 import org.skepsun.kototoro.core.util.logBackupFlow
 import org.skepsun.kototoro.core.util.ext.checkNotificationPermission
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
@@ -40,11 +41,11 @@ class PeriodicalBackupService : CoroutineIntentService() {
 	lateinit var settings: AppSettings
 
 	override suspend fun IntentJobContext.processIntent(intent: Intent) {
-	logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "backup_start")
+	logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_start")
 	// 当启用周期性备份时，如果仅上传到远端（不保留本地副本），也应执行；
 	// 因此这里不再强制要求本地目录存在，而是判断是否至少有一个目的地。
 	if (!settings.isPeriodicalBackupEnabled) {
-		logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "backup_skipped", details = "reason=feature_disabled")
+		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = "feature_disabled")
 		return
 	}
 	val hasLocalCopyDestination = settings.isBackupWebDavKeepLocalCopyEnabled && settings.periodicalBackupDirectory != null
@@ -52,7 +53,7 @@ class PeriodicalBackupService : CoroutineIntentService() {
 	val hasWebDavDestination = settings.isBackupWebDavUploadEnabled
 	if (!hasLocalCopyDestination && !hasTelegramDestination && !hasWebDavDestination) {
 		// 没有任何可用的备份目的地，跳过
-		logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "backup_skipped", details = "reason=no_destination")
+		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = "no_destination")
 		return
 	}
 
@@ -62,7 +63,7 @@ class PeriodicalBackupService : CoroutineIntentService() {
 	val webDavLast = if (hasWebDavDestination) settings.backupWebDavLastUploadTime else 0L
 	val effectiveLast = listOfNotNull(localLast, webDavLast.takeIf { it > 0L }).maxOrNull() ?: 0L
 	if (effectiveLast > 0L && effectiveLast + settings.periodicalBackupFrequencyMillis > System.currentTimeMillis()) {
-		logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "backup_skipped", details = "reason=frequency_gate")
+		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = "frequency_gate")
 		return
 	}
 
@@ -75,11 +76,11 @@ class PeriodicalBackupService : CoroutineIntentService() {
 			if (hasLocalCopyDestination) {
 				externalBackupStorage.put(output)
 				externalBackupStorage.trim(settings.periodicalBackupMaxCount)
-				logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "local_copy_written")
+				logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "local_copy_written")
 			}
 			if (settings.isBackupTelegramUploadEnabled && telegramBackupUploader.isAvailable) {
 				telegramBackupUploader.uploadBackup(output)
-				logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "telegram_upload_complete")
+				logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "telegram_upload_complete")
 			}
             if (settings.isBackupWebDavUploadEnabled) {
                 val nextVersion = settings.backupWebDavDataVersion + 1
@@ -89,9 +90,9 @@ class PeriodicalBackupService : CoroutineIntentService() {
                 settings.backupWebDavLastUploadKind = "auto"
                 // 定时备份中的 WebDAV 上传成功后也自增数据版本
                 settings.backupWebDavDataVersion = nextVersion
-                logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "webdav_upload_complete", details = "nextVersion=$nextVersion")
+                logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "webdav_upload_complete", reason = null, "nextVersion" to nextVersion)
             }
-			logBackupFlow(TAG, flow = FLOW_PERIODICAL_BACKUP, event = "backup_complete")
+			logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_complete")
         } finally {
             output.delete()
         }
@@ -141,6 +142,5 @@ class PeriodicalBackupService : CoroutineIntentService() {
 
 		const val CHANNEL_ID = BaseBackupRestoreService.CHANNEL_ID
 		const val TAG = "periodical_backup"
-		const val FLOW_PERIODICAL_BACKUP = "periodical_backup"
 	}
 }

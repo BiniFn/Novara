@@ -25,6 +25,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.removeItemDecoration
 import org.skepsun.kototoro.databinding.FragmentReaderWebtoonBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.reader.ui.pager.BaseReaderAdapter
 import org.skepsun.kototoro.reader.ui.pager.BaseReaderFragment
@@ -41,6 +42,9 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 
 	@Inject
 	lateinit var pageLoader: PageLoader
+
+	@Inject
+	lateinit var enhancementController: ReaderPageEnhancementController
 
 	private val scrollInterpolator = DecelerateInterpolator()
 
@@ -118,6 +122,7 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 	override fun onCreateAdapter() = WebtoonAdapter(
 		lifecycleOwner = viewLifecycleOwner,
 		loader = pageLoader,
+		enhancementController = enhancementController,
 		readerSettingsProducer = viewModel.readerSettingsProducer,
 		networkState = networkState,
 		exceptionResolver = exceptionResolver,

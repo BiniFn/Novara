@@ -8,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -36,34 +35,28 @@ class AvailableExtensionsViewModel @Inject constructor(
 	val type: ExternalExtensionType = enumValueOf(savedStateHandle.require<String>(ARG_EXTENSION_TYPE))
 
 	private val rawExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
-	private val installingPackages = MutableStateFlow<Set<String>>(emptySet())
 
 	val repoCount: StateFlow<Int> = repoRepository.observeByType(type)
 		.map { it.size }
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-	private val installedMap = when (type) {
-		ExternalExtensionType.MIHON -> mihonExtensionManager.installedExtensions.map { list ->
-			list.associate { it.pkgName to InstalledExtensionInfo(it.versionCode, it.libVersion, it.versionName) }
-		}
-		ExternalExtensionType.ANIYOMI -> aniyomiExtensionManager.installedExtensions.map { list ->
-			list.associate { it.pkgName to InstalledExtensionInfo(it.versionCode, it.libVersion, it.versionName) }
-		}
-	}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+	private val installedMap = observeInstalledExtensionInfoMap(
+		type = type,
+		mihonExtensionManager = mihonExtensionManager,
+		aniyomiExtensionManager = aniyomiExtensionManager,
+	).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
 	val items: StateFlow<List<AvailableExtensionListItem>> = combine(
 		rawExtensions,
 		installedMap,
-		installingPackages,
-	) { available, installed, installing ->
+		installService.downloadStates,
+	) { available, installed, downloads ->
 		available.map { extension ->
 			val installedInfo = installed[extension.pkgName]
-			val state = when {
-				extension.pkgName in installing -> AvailableExtensionState.INSTALLING
-				installedInfo == null -> AvailableExtensionState.AVAILABLE
-				extension.versionCode > installedInfo.versionCode || extension.libVersion > installedInfo.libVersion -> AvailableExtensionState.UPDATE_AVAILABLE
-				else -> AvailableExtensionState.INSTALLED
-			}
+			val state = extension.resolveAvailableState(
+				installedInfo = installedInfo,
+				isInstalling = extension.pkgName in downloads,
+			)
 			AvailableExtensionListItem(
 				extension = extension,
 				installedVersionName = installedInfo?.versionName,
@@ -94,16 +87,15 @@ class AvailableExtensionsViewModel @Inject constructor(
 
 	fun install(item: AvailableExtensionListItem) {
 		val extension = item.extension
-		if (item.state == AvailableExtensionState.INSTALLED || extension.pkgName in installingPackages.value) {
+		if (item.state == AvailableExtensionState.INSTALLED || extension.pkgName in installService.downloadStates.value) {
 			return
 		}
 		launchLoadingJob(Dispatchers.IO) {
-			installingPackages.value = installingPackages.value + extension.pkgName
 			try {
 				val intent = installService.createInstallIntent(extension)
 				onInstallIntent.call(intent)
-			} finally {
-				installingPackages.value = installingPackages.value - extension.pkgName
+			} catch (e: Throwable) {
+				errorEvent.call(e)
 			}
 		}
 	}
@@ -121,9 +113,3 @@ enum class AvailableExtensionState {
 	INSTALLED,
 	INSTALLING,
 }
-
-private data class InstalledExtensionInfo(
-	val versionCode: Long,
-	val libVersion: Double,
-	val versionName: String,
-)

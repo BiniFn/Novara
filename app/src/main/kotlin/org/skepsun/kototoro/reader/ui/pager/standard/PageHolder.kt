@@ -33,6 +33,7 @@ import org.skepsun.kototoro.core.ui.widgets.ZoomControl
 import org.skepsun.kototoro.core.util.ext.isLowRamDevice
 import org.skepsun.kototoro.databinding.ItemPageBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.BasePageHolder
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
@@ -41,12 +42,14 @@ open class PageHolder(
 	owner: LifecycleOwner,
 	binding: ItemPageBinding,
 	loader: PageLoader,
+	enhancementController: ReaderPageEnhancementController,
 	readerSettingsProducer: ReaderSettings.Producer,
 	networkState: NetworkState,
 	exceptionResolver: ExceptionResolver,
 ) : BasePageHolder<ItemPageBinding>(
 	binding = binding,
 	loader = loader,
+	enhancementController = enhancementController,
 	readerSettingsProducer = readerSettingsProducer,
 	networkState = networkState,
 	exceptionResolver = exceptionResolver,

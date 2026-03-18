@@ -27,6 +27,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.LayoutPageInfoBinding
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.vm.PageState
 import org.skepsun.kototoro.reader.ui.pager.vm.PageViewModel
@@ -35,6 +36,7 @@ import org.skepsun.kototoro.reader.ui.pager.webtoon.WebtoonHolder
 abstract class BasePageHolder<B : ViewBinding>(
 	protected val binding: B,
 	loader: PageLoader,
+	enhancementController: ReaderPageEnhancementController,
 	readerSettingsProducer: ReaderSettings.Producer,
 	networkState: NetworkState,
 	exceptionResolver: ExceptionResolver,
@@ -43,6 +45,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	protected val viewModel = PageViewModel(
 		loader = loader,
+		enhancementController = enhancementController,
 		settingsProducer = readerSettingsProducer,
 		networkState = networkState,
 		exceptionResolver = exceptionResolver,

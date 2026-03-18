@@ -8,7 +8,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,7 +48,6 @@ class ExtensionsBrowserViewModel @Inject constructor(
 
 	private val availableExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
 	private val searchQuery = MutableStateFlow("")
-	private val updateAllInProgressMutable = MutableStateFlow(false)
 	private val languageFilter = MutableStateFlow(
 		if (settings.isExtensionsFilterLangEnabled) {
 			ExtensionsLanguageFilter.SelectedContent
@@ -58,13 +56,10 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		},
 	)
 	private val collapsedLanguageGroups = MutableStateFlow<Set<ExtensionsLanguageGroupKey>>(emptySet())
-	private val pendingUpdatePackages = ArrayDeque<String>()
-
-	private var currentBatchPackage: String? = null
-	private var awaitingBatchInstallerResult = false
+	private val batchUpdateState = ExtensionBatchUpdateStateMachine()
 
 	val currentSearchQuery: StateFlow<String> = searchQuery
-	val updateAllInProgress: StateFlow<Boolean> = updateAllInProgressMutable
+	val updateAllInProgress: StateFlow<Boolean> = batchUpdateState.inProgress
 	val currentLanguageFilter: StateFlow<ExtensionsLanguageFilter> = languageFilter
 	val currentCollapsedLanguageGroups: StateFlow<Set<ExtensionsLanguageGroupKey>> = collapsedLanguageGroups
 
@@ -77,36 +72,11 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		.map { it.size }
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-	private val installedExtensions: StateFlow<List<InstalledExtensionEntry>> = when (type) {
-		ExternalExtensionType.MIHON -> mihonExtensionManager.installedExtensions.map { list ->
-			list.map { ext ->
-				InstalledExtensionEntry(
-					pkgName = ext.pkgName,
-					name = ext.appName,
-					versionName = ext.versionName,
-					versionCode = ext.versionCode,
-					libVersion = ext.libVersion,
-					lang = ext.lang,
-					isNsfw = ext.isNsfw,
-					sourceNames = ext.sources.map { it.name },
-				)
-			}
-		}
-		ExternalExtensionType.ANIYOMI -> aniyomiExtensionManager.installedExtensions.map { list ->
-			list.map { ext ->
-				InstalledExtensionEntry(
-					pkgName = ext.pkgName,
-					name = ext.appName,
-					versionName = ext.versionName,
-					versionCode = ext.versionCode,
-					libVersion = ext.libVersion,
-					lang = ext.lang,
-					isNsfw = ext.isNsfw,
-					sourceNames = ext.sources.map { it.name },
-				)
-			}
-		}
-	}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+	private val installedExtensions: StateFlow<List<InstalledExtensionEntry>> = observeInstalledExtensionEntries(
+		type = type,
+		mihonExtensionManager = mihonExtensionManager,
+		aniyomiExtensionManager = aniyomiExtensionManager,
+	).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 	private val browserInputsBase: StateFlow<BrowserInputs> = combine(
 		installedExtensions,
@@ -227,7 +197,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 	}
 
 	fun cancelInstall(item: ExtensionsBrowserListItem.Entry) {
-		if (updateAllInProgressMutable.value && currentBatchPackage == item.pkgName) {
+		if (batchUpdateState.shouldCancelCurrent(item.pkgName)) {
 			cancelUpdateAll()
 			return
 		}
@@ -267,7 +237,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 	}
 
 	fun onUpdateAllAction() {
-		if (updateAllInProgressMutable.value) {
+		if (updateAllInProgress.value) {
 			cancelUpdateAll()
 		} else {
 			startUpdateAll()
@@ -275,12 +245,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 	}
 
 	fun onInstallActivityResult() {
-		if (!awaitingBatchInstallerResult) {
-			return
-		}
-		currentBatchPackage = null
-		awaitingBatchInstallerResult = false
-		installNextUpdate()
+		handleBatchNextAction(batchUpdateState.onInstallActivityResult())
 	}
 
 	private fun requestInstall(item: ExtensionsBrowserListItem.Entry, fromBatch: Boolean) {
@@ -288,34 +253,27 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			return
 		}
 		if (fromBatch) {
-			currentBatchPackage = item.pkgName
-			awaitingBatchInstallerResult = false
+			batchUpdateState.beginInstall(item.pkgName)
 		}
 		launchLoadingJob(Dispatchers.IO) {
 			try {
 				val intent = installService.createInstallIntent(item.extension)
 				if (fromBatch) {
-					awaitingBatchInstallerResult = true
+					batchUpdateState.markInstallerIntentDispatched()
 				}
 				onInstallIntent.call(intent)
 			} catch (e: CancellationException) {
 				if (!fromBatch) {
 					onMessage.call(appContext.getString(R.string.canceled))
 				}
-				currentBatchPackage = null
-				awaitingBatchInstallerResult = false
-				if (fromBatch && updateAllInProgressMutable.value) {
-					installNextUpdate()
-				} else {
-					finishUpdateAllIfNeeded()
+				if (fromBatch) {
+					handleBatchNextAction(batchUpdateState.onInstallInterrupted())
 				}
 			} catch (e: Throwable) {
 				errorEvent.call(e)
-				currentBatchPackage = null
-				awaitingBatchInstallerResult = false
 				if (fromBatch) {
 					onMessage.call(appContext.getString(R.string.extension_update_failed, item.name))
-					installNextUpdate()
+					handleBatchNextAction(batchUpdateState.onInstallInterrupted())
 				}
 			}
 		}
@@ -323,50 +281,34 @@ class ExtensionsBrowserViewModel @Inject constructor(
 
 	private fun startUpdateAll() {
 		val updatePackages = currentUpdateEntries().map { it.pkgName }
-		if (updatePackages.isEmpty()) {
+		if (!batchUpdateState.start(updatePackages)) {
 			onMessage.call(appContext.getString(R.string.no_extension_updates_available))
 			return
 		}
-		pendingUpdatePackages.clear()
-		pendingUpdatePackages.addAll(updatePackages)
-		updateAllInProgressMutable.value = true
-		installNextUpdate()
+		handleBatchNextAction(batchUpdateState.nextAction())
 	}
 
 	private fun cancelUpdateAll() {
-		if (!updateAllInProgressMutable.value) {
+		if (!updateAllInProgress.value) {
 			return
 		}
-		updateAllInProgressMutable.value = false
-		pendingUpdatePackages.clear()
-		currentBatchPackage?.let { packageName ->
-			if (!awaitingBatchInstallerResult) {
-				installService.cancelDownload(packageName)
-			}
-		}
-		currentBatchPackage = null
-		awaitingBatchInstallerResult = false
+		batchUpdateState.cancel(installService::cancelDownload)
 		onMessage.call(appContext.getString(R.string.extension_update_all_cancelled))
 	}
 
-	private fun installNextUpdate() {
-		if (!updateAllInProgressMutable.value || currentBatchPackage != null) {
-			finishUpdateAllIfNeeded()
-			return
-		}
-		while (pendingUpdatePackages.isNotEmpty()) {
-			val packageName = pendingUpdatePackages.removeFirst()
-			val item = currentUpdateEntries().firstOrNull { it.pkgName == packageName } ?: continue
-			requestInstall(item, fromBatch = true)
-			return
-		}
-		finishUpdateAllIfNeeded()
-	}
-
-	private fun finishUpdateAllIfNeeded() {
-		if (updateAllInProgressMutable.value && currentBatchPackage == null && pendingUpdatePackages.isEmpty()) {
-			updateAllInProgressMutable.value = false
-			onMessage.call(appContext.getString(R.string.extension_update_all_complete))
+	private fun handleBatchNextAction(action: ExtensionBatchUpdateStateMachine.NextAction) {
+		when (action) {
+			ExtensionBatchUpdateStateMachine.NextAction.None -> Unit
+			ExtensionBatchUpdateStateMachine.NextAction.Completed -> {
+				onMessage.call(appContext.getString(R.string.extension_update_all_complete))
+			}
+			is ExtensionBatchUpdateStateMachine.NextAction.InstallNext -> {
+				val item = currentUpdateEntries().firstOrNull { it.pkgName == action.packageName } ?: run {
+					handleBatchNextAction(batchUpdateState.nextAction())
+					return
+				}
+				requestInstall(item, fromBatch = true)
+			}
 		}
 	}
 

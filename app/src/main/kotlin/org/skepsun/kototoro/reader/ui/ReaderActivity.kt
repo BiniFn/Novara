@@ -67,7 +67,7 @@ import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.reader.data.TapGridSettings
 import org.skepsun.kototoro.reader.domain.TapGridArea
 import org.skepsun.kototoro.reader.ui.config.ReaderConfigSheet
-import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
+import org.skepsun.kototoro.reader.domain.TranslationLayerState
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.reader.ui.tapgrid.TapGridDispatcher

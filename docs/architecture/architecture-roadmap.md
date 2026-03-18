@@ -24,6 +24,8 @@ Completed or materially advanced items:
   repository creation diagnostics now expose structured statuses and failure reasons, and several high-traffic call sites consume those diagnostics directly
 - Phase 2.3 has started:
   Mihon and Aniyomi extension managers now share common runtime processing for load-result classification, duplicate-name language suffix handling, and package-change reload observation
+- Phase 2.4 is materially advanced:
+  reader translation and enhancement orchestration has been split out of `PageLoader` into a dedicated enhancement controller, and reader UI paths now consume enhancement state and display-variant logic without routing those concerns back through the page-loading core
 - Phase 2.5 has started:
   sync and backup trigger paths now emit distinguishable `sync_flow` and `backup_flow` diagnostics in key controllers and services
 
@@ -169,6 +171,10 @@ Definition of done:
 Current status:
 
 - initial shared runtime support is now in place for manager-level load-result processing and package observer registration
+- Mihon and Aniyomi managers now also share manager-level state-flow, source-cache, wrapped-source-cache, and reload orchestration through a common runtime helper
+- extension install-browser screens now share installed-extension projection and available-state resolution helpers instead of duplicating ecosystem-specific installed-map shaping in multiple view-models
+- batch update queue state and installer-result progression in the extension browser have been moved into a dedicated state machine instead of remaining embedded in the browser view-model
+- legacy Mihon and Aniyomi installed-extension screens now share a dedicated installed-screen runtime for refresh, loading state, extension-count aggregation, and source-count aggregation, with focused unit coverage for initialization and state projection
 - duplicate orchestration still exists deeper in the loader and lifecycle layers, so this phase is not complete yet
 
 ### 4. Separate reader core from reader enhancements
@@ -206,6 +212,14 @@ Definition of done:
 
 - reader core is conceptually and operationally complete on its own
 - enhancement failures do not compromise core reading flow
+
+Current status:
+
+- `PageLoader` no longer owns the full translation-enhancement orchestration path by itself
+- translation state, translation job lifecycle, and rendered-variant resolution now live in a dedicated enhancement controller
+- reader view-model and pager view-model paths consume enhancement-controller APIs directly instead of using `PageLoader` as an enhancement proxy
+- `PageLoader` has shed its temporary enhancement proxy methods and is now closer to a pure page-loading core
+- deeper reader/OCR boundary cleanup is still pending
 
 ### 5. Clarify sync and backup as separate systems
 
@@ -248,6 +262,9 @@ Definition of done:
 Current status:
 
 - initial implementation work has started through explicit `sync_flow` versus `backup_flow` diagnostics
+- key sync and backup services now share a typed background-flow diagnostics helper instead of scattering raw flow-name strings and hand-built `reason=...` fragments
+- backup-related startup orchestration has started moving out of `MainActivity` into a dedicated coordinator, so periodical backup, WebDAV auto-sync upload observation, and delayed WebDAV auto-restore startup no longer share a single UI entry-point block
+- the new backup startup coordinator now has focused unit coverage for incomplete-config skip behavior and delayed auto-restore startup behavior
 - terminology and ownership cleanup across settings, services, and docs still remain
 
 ## Phase 3: Consolidate Platform Direction

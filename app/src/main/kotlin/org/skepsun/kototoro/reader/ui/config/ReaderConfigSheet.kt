@@ -39,7 +39,7 @@ import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.core.util.progress.IntPercentLabelFormatter
 import org.skepsun.kototoro.databinding.SheetReaderConfigBinding
 import org.skepsun.kototoro.reader.domain.PageLoader
-import org.skepsun.kototoro.reader.domain.PageLoader.TranslationLayerState
+import org.skepsun.kototoro.reader.domain.TranslationLayerState
 import org.skepsun.kototoro.reader.ui.TranslationTaskPanelSheet
 import org.skepsun.kototoro.reader.ui.ReaderViewModel
 import org.skepsun.kototoro.reader.ui.ScreenOrientationHelper

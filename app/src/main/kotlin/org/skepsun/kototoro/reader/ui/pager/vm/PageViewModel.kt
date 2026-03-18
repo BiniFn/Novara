@@ -26,10 +26,12 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.throttle
 import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 
 class PageViewModel(
 	private val loader: PageLoader,
+	private val enhancementController: ReaderPageEnhancementController,
 	val settingsProducer: ReaderSettings.Producer,
 	private val networkState: NetworkState,
 	private val exceptionResolver: ExceptionResolver,
@@ -50,7 +52,7 @@ class PageViewModel(
 	private val boundsCache = LinkedHashMap<String, Rect?>(64, 0.75f, true)
 
 	init {
-		loader.observeTranslationUpdates()
+		enhancementController.observeTranslationUpdates()
 			.onEach { pageId ->
 				val page = boundPage ?: return@onEach
 				if (page.id != pageId) return@onEach
@@ -129,7 +131,7 @@ class PageViewModel(
 		val prevJob = job
 		job = scope.launch(Dispatchers.Default) {
 			prevJob?.cancelAndJoin()
-			val targetUri = loader.resolveDisplayVariant(
+			val targetUri = enhancementController.resolveDisplayVariant(
 				page = page,
 				currentUri = currentUri,
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
@@ -204,7 +206,7 @@ class PageViewModel(
 			val uri = task.await()
 			progressObserver.cancelAndJoin()
 			previewJob.cancel()
-			val displayUri = loader.resolveDisplayVariant(
+			val displayUri = enhancementController.resolveDisplayVariant(
 				page = data,
 				currentUri = uri,
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
@@ -251,7 +253,7 @@ class PageViewModel(
 			return
 		}
 		pendingLayerSwitchPageId = null
-		val targetUri = loader.resolveDisplayVariant(
+		val targetUri = enhancementController.resolveDisplayVariant(
 			page = page,
 			currentUri = currentUri,
 			showTranslated = settingsProducer.value.isTranslationShowTranslated,
@@ -271,8 +273,8 @@ class PageViewModel(
 			else -> null
 		}
 		val currentUri = (source as? ImageSource.Uri)?.uri ?: return null
-		val originalUri = loader.resolveDisplayVariant(page, currentUri, showTranslated = false) ?: currentUri
-		val translatedUri = loader.resolveDisplayVariant(page, currentUri, showTranslated = true)
+		val originalUri = enhancementController.resolveDisplayVariant(page, currentUri, showTranslated = false) ?: currentUri
+		val translatedUri = enhancementController.resolveDisplayVariant(page, currentUri, showTranslated = true)
 		val original = originalUri.toImageSource(resolveTrimmedBounds(originalUri))
 		val translated = translatedUri?.let { it.toImageSource(resolveTrimmedBounds(it)) }
 		return LayerSources(original = original, translated = translated)
