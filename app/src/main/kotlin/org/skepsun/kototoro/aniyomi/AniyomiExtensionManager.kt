@@ -8,8 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
-import org.skepsun.kototoro.extensions.runtime.ExternalExtensionManagerRuntime
-import org.skepsun.kototoro.extensions.runtime.processExternalExtensionResults
+import org.skepsun.kototoro.extensions.runtime.ExternalExtensionManagerFacade
 import org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource
 import org.skepsun.kototoro.aniyomi.model.AniyomiLoadResult
 import javax.inject.Inject
@@ -30,129 +29,117 @@ class AniyomiExtensionManager @Inject constructor(
     }
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    
-    private val runtime = ExternalExtensionManagerRuntime<
+
+    private val facade = ExternalExtensionManagerFacade<
         AniyomiLoadResult,
         AniyomiLoadResult.Success,
         AniyomiLoadResult.Error,
         AnimeSource,
+        AnimeCatalogueSource,
         AniyomiAnimeSource,
     >(
         context = context,
         scope = scope,
+        logTag = TAG,
+        ecosystem = "aniyomi",
+        sourceNamePrefix = "ANIYOMI_",
+        loadResults = loader::loadExtensions,
+        successOf = { it as? AniyomiLoadResult.Success },
+        errorOf = { it as? AniyomiLoadResult.Error },
+        untrustedPackageNameOf = { (it as? AniyomiLoadResult.Untrusted)?.pkgName },
+        successSources = { it.sources },
+        successPackageName = { it.pkgName },
+        successIsNsfw = { it.isNsfw },
+        successCatalogueSources = { it.catalogueSources },
+        sourceId = { it.id },
+        asCatalogueSource = { it as? AnimeCatalogueSource },
+        catalogueSourceName = { it.name },
+        catalogueSourceLang = { it.lang },
+        buildWrappedSource = { catalogueSource, pkgName, isNsfw, hasLanguageSuffix ->
+            AniyomiAnimeSource(
+                animeCatalogueSource = catalogueSource,
+                pkgName = pkgName,
+                isNsfw = isNsfw,
+                hasLanguageSuffix = hasLanguageSuffix,
+            )
+        },
+        errorPackageName = { it.pkgName },
+        errorMessage = { it.message },
     )
-    val installedExtensions: StateFlow<List<AniyomiLoadResult.Success>> = runtime.installedExtensions
-    val failedExtensions: StateFlow<List<AniyomiLoadResult.Error>> = runtime.failedExtensions
-    val isLoading: StateFlow<Boolean> = runtime.isLoading
+    val installedExtensions: StateFlow<List<AniyomiLoadResult.Success>> = facade.installedExtensions
+    val failedExtensions: StateFlow<List<AniyomiLoadResult.Error>> = facade.failedExtensions
+    val isLoading: StateFlow<Boolean> = facade.isLoading
     
     /**
      * Initialize the extension manager and load all extensions.
      */
     fun initialize() {
-        runtime.initialize(::loadExtensions)
+        facade.initialize()
     }
     
     /**
      * Reload all extensions.
      */
     suspend fun loadExtensions() {
-        runtime.loadExtensions(
-            loadResults = loader::loadExtensions,
-            processResults = { results ->
-            android.util.Log.d(TAG, "load_start ecosystem=aniyomi")
-                processExternalExtensionResults(
-                    results = results,
-                    successOf = { it as? AniyomiLoadResult.Success },
-                    errorOf = { it as? AniyomiLoadResult.Error },
-                    untrustedPackageNameOf = { (it as? AniyomiLoadResult.Untrusted)?.pkgName },
-                    successSources = { it.sources },
-                    successPackageName = { it.pkgName },
-                    successIsNsfw = { it.isNsfw },
-                    sourceId = { it.id },
-                    asCatalogueSource = { it as? AnimeCatalogueSource },
-                    catalogueSourceName = { it.name },
-                    buildWrappedSource = { catalogueSource, pkgName, isNsfw, hasLanguageSuffix ->
-                        AniyomiAnimeSource(
-                            animeCatalogueSource = catalogueSource,
-                            pkgName = pkgName,
-                            isNsfw = isNsfw,
-                            hasLanguageSuffix = hasLanguageSuffix,
-                        )
-                    },
-                    onError = { error ->
-                        android.util.Log.e(TAG, "load_error ecosystem=aniyomi pkg=${error.pkgName} message=${error.message}")
-                    },
-                    onUntrusted = { pkgName ->
-                        android.util.Log.w(TAG, "load_untrusted ecosystem=aniyomi pkg=$pkgName")
-                    },
-                ).also { processed ->
-                    android.util.Log.d(
-                        TAG,
-                        "load_complete ecosystem=aniyomi success=${processed.successful.size} failed=${processed.failed.size} untrusted=${processed.untrustedPackages.size} sources=${processed.wrappedSourceById.size}",
-                    )
-                }
-            },
-        )
+        facade.loadExtensions()
     }
     
     /**
      * Get all available AnimeCatalogueSource instances.
      */
     fun getCatalogueSources(): List<AnimeCatalogueSource> {
-        return installedExtensions.value.flatMap { it.catalogueSources }
+        return facade.getCatalogueSources()
     }
     
     /**
      * Get all AniyomiAnimeSource wrappers.
      */
     fun getAniyomiAnimeSources(): List<AniyomiAnimeSource> {
-        return runtime.getWrappedSources()
+        return facade.getWrappedSources()
     }
     
     /**
      * Get a source by its ID.
      */
     fun getSourceById(sourceId: Long): AnimeSource? {
-        return runtime.getSourceById(sourceId)
+        return facade.getSourceById(sourceId)
     }
     
     /**
      * Get an AnimeCatalogueSource by its ID.
      */
     fun getCatalogueSourceById(sourceId: Long): AnimeCatalogueSource? {
-        return runtime.getSourceById(sourceId) as? AnimeCatalogueSource
+        return facade.getCatalogueSourceById(sourceId)
     }
     
     /**
      * Get an AniyomiAnimeSource wrapper by source ID.
      */
     fun getAniyomiAnimeSourceById(sourceId: Long): AniyomiAnimeSource? {
-        return runtime.getWrappedSourceById(sourceId)
+        return facade.getWrappedSourceById(sourceId)
     }
     
     /**
      * Get an AniyomiAnimeSource by its name (format: "ANIYOMI_{sourceId}").
      */
     fun getAniyomiAnimeSourceByName(name: String): AniyomiAnimeSource? {
-        if (!name.startsWith("ANIYOMI_")) return null
-        val sourceId = name.substringAfter("ANIYOMI_").toLongOrNull() ?: return null
-        return getAniyomiAnimeSourceById(sourceId)
+        return facade.getWrappedSourceByName(name)
     }
     
     /**
      * Get sources grouped by language.
      */
     fun getSourcesByLanguage(): Map<String, List<AnimeCatalogueSource>> {
-        return getCatalogueSources().groupBy { it.lang }
+        return facade.getSourcesByLanguage()
     }
     
     /**
      * Get the number of loaded sources.
      */
-    fun getSourceCount(): Int = runtime.getSourceCount()
+    fun getSourceCount(): Int = facade.getSourceCount()
     
     /**
      * Check if any Aniyomi extensions are loaded.
      */
-    fun hasExtensions(): Boolean = runtime.hasExtensions()
+    fun hasExtensions(): Boolean = facade.hasExtensions()
 }

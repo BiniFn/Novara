@@ -374,6 +374,11 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         metrics["ocr.total_ms"]?.let { lines += "OCR: ${it}ms" }
         metrics["translation.total_ms"]?.let { lines += "翻译: ${it}ms" }
         metrics["render.total_ms"]?.let { lines += "渲染: ${it}ms" }
+        metrics["ocr.pipeline.strategy"]?.let { lines += "OCR Pipeline: $it" }
+        metrics["ocr.pipeline.fallback_reason"]?.takeIf { it.isNotBlank() && it != "none" }?.let {
+            lines += "Pipeline 回退: $it"
+        }
+        metrics["ocr.pipeline.roi_first_detected_boxes"]?.let { lines += "ROI-first 检框数: $it" }
         metrics["ocr.selected_engine"]?.let { lines += "选中 OCR 引擎: $it" }
         metrics["ocr.blocks"]?.let { lines += "OCR 文本块: $it" }
         metrics["translation.bubbles"]?.let { lines += "气泡数: $it" }
@@ -411,9 +416,17 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         formatPercentileLine("渲染", samples.mapNotNull { it.renderTotalMs })?.let { lines += it }
         formatBooleanRateLine("OCR 缓存命中", samples.mapNotNull { it.ocrCacheHit })?.let { lines += it }
         formatBooleanRateLine("渲染缓存命中", samples.mapNotNull { it.renderCacheHit })?.let { lines += it }
+        formatDistributionLine("OCR Pipeline", samples.mapNotNull { it.ocrPipelineStrategy })?.let { lines += it }
+        formatDistributionLine("Pipeline 回退", samples.mapNotNull { it.ocrPipelineFallbackReason })?.let { lines += it }
+        formatPercentileLine("ROI-first 检框", samples.mapNotNull { it.roiFirstDetectedBoxes?.toLong() })?.let { lines += it }
         formatDistributionLine("选中 OCR", samples.mapNotNull { it.selectedEngine })?.let { lines += it }
         formatHybridSummaryLine(samples)?.let { lines += it }
         formatDistributionLine("失败代码", samples.mapNotNull { it.failCode })?.let { lines += it }
+        buildOcrPipelineConclusion(samples)?.let {
+            lines += ""
+            lines += "【对比结论】"
+            lines += it
+        }
         return lines.joinToString("\n")
     }
 
@@ -437,6 +450,11 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
             renderTotalMs = metrics["render.total_ms"]?.toLongOrNull(),
             ocrCacheHit = metrics["ocr.cache_hit"]?.toIntOrNull()?.let { it == 1 },
             renderCacheHit = metrics["render_cache.hit"]?.toIntOrNull()?.let { it == 1 },
+            ocrPipelineStrategy = metrics["ocr.pipeline.strategy"]?.takeIf { it.isNotBlank() },
+            ocrPipelineFallbackReason = metrics["ocr.pipeline.fallback_reason"]?.takeIf { it.isNotBlank() && it != "none" },
+            roiFirstDetectedBoxes = metrics["ocr.pipeline.roi_first_detected_boxes"]?.toIntOrNull(),
+            translatedBubbles = metrics["render.translated_bubbles"]?.toIntOrNull(),
+            translationBubbles = metrics["translation.bubbles"]?.toIntOrNull(),
             hybridFallbackRate = metrics["hybrid.fallback_rate"]?.toDoubleOrNull(),
             hybridTfliteFallbacks = metrics["hybrid.tflite_fallbacks"]?.toIntOrNull(),
             selectedEngine = metrics["ocr.selected_engine"]?.takeIf { it.isNotBlank() },
@@ -477,6 +495,54 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
             parts += "TFLite回退块 avg/p95=${formatDecimal(fallbackBlocks.average())} / ${percentile(fallbackBlocks, 0.95) ?: 0}"
         }
         return "Hybrid: ${parts.joinToString(" | ")}"
+    }
+
+    private fun buildOcrPipelineConclusion(samples: List<TranslationBenchmarkSample>): String? {
+        val roiFirstPages = samples.filter { it.ocrPipelineStrategy == "roi_first_fallback" }
+        if (roiFirstPages.isEmpty()) return null
+        val total = roiFirstPages.size
+        val noFallbackPages = roiFirstPages.count { it.ocrPipelineFallbackReason == null }
+        val fallbackPages = total - noFallbackPages
+        val avgDetectedBoxes = roiFirstPages.mapNotNull { it.roiFirstDetectedBoxes }.average().takeIf { !it.isNaN() }
+        val renderedPages = roiFirstPages.filter { (it.translatedBubbles ?: 0) > 0 }
+        val productivePages = renderedPages.size
+        val fallbackReasons = roiFirstPages.mapNotNull { it.ocrPipelineFallbackReason }
+        val topFallbackReason = fallbackReasons
+            .groupingBy { it }
+            .eachCount()
+            .maxWithOrNull(compareBy<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            ?.key
+        val renderedCoverage = "$productivePages/$total"
+        return buildString {
+            append("ROI-first 页面=")
+            append(total)
+            append("，直接命中=")
+            append(noFallbackPages)
+            append("，回退=")
+            append(fallbackPages)
+            append("。")
+            avgDetectedBoxes?.let {
+                append("平均检框=")
+                append(formatDecimal(it))
+                append("。")
+            }
+            append("产生渲染结果=")
+            append(renderedCoverage)
+            append("。")
+            if (!topFallbackReason.isNullOrBlank()) {
+                append("主要回退原因=")
+                append(topFallbackReason)
+                append("。")
+            }
+            val hasDirectWins = noFallbackPages > 0 && productivePages >= noFallbackPages
+            append(
+                when {
+                    hasDirectWins -> "当前样本显示 ROI-first 已经能在部分页面直接产生产出。"
+                    fallbackPages == total -> "当前样本基本仍依赖 page-first fallback，ROI-first 还处在保守兜底阶段。"
+                    else -> "当前样本显示 ROI-first 已开始参与，但稳定性还不足以替代 page-first。"
+                }
+            )
+        }
     }
 
     private fun percentile(values: List<Long>, percentile: Double): Long? {
@@ -538,6 +604,11 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val renderTotalMs: Long?,
         val ocrCacheHit: Boolean?,
         val renderCacheHit: Boolean?,
+        val ocrPipelineStrategy: String?,
+        val ocrPipelineFallbackReason: String?,
+        val roiFirstDetectedBoxes: Int?,
+        val translatedBubbles: Int?,
+        val translationBubbles: Int?,
         val hybridFallbackRate: Double?,
         val hybridTfliteFallbacks: Int?,
         val selectedEngine: String?,

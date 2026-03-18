@@ -15,9 +15,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.collect
 import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.BackupFlowPolicy
 import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.domain.BackupWebDavUploadCoordinator
 import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
-import org.skepsun.kototoro.backups.ui.periodical.WebDavBackupUploader
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.TABLE_CHAPTERS
 import org.skepsun.kototoro.core.db.TABLE_FAVOURITE_CATEGORIES
@@ -45,8 +46,9 @@ class DataSyncManager @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val database: MangaDatabase,
     private val settings: AppSettings,
+    private val backupFlowPolicy: BackupFlowPolicy,
     private val repository: BackupRepository,
-    private val webDavUploader: WebDavBackupUploader,
+    private val backupWebDavUploadCoordinator: BackupWebDavUploadCoordinator,
     private val externalBackupStorage: ExternalBackupStorage,
 ) {
 
@@ -111,16 +113,9 @@ class DataSyncManager @Inject constructor(
     }
 
     private fun scheduleUpload() {
-        // 条件判断：需启用自动同步且 WebDAV 上传可用、配置完整
-        if (!settings.isBackupWebDavAutoSyncEnabled || !settings.isBackupWebDavUploadEnabled) {
-            logBackupFlow(TAG, flow = BackupFlow.WEBDAV_AUTO_SYNC_UPLOAD, event = "schedule_skipped", reason = "feature_disabled")
-            return
-        }
-        val url = settings.backupWebDavServerUrl
-        val user = settings.backupWebDavUsername
-        val pass = settings.backupWebDavPassword
-        if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) {
-            logBackupFlow(TAG, flow = BackupFlow.WEBDAV_AUTO_SYNC_UPLOAD, event = "schedule_skipped", reason = "incomplete_config")
+        val decision = backupFlowPolicy.autoSyncUploadDecision()
+        if (!decision.allowed) {
+            logBackupFlow(TAG, flow = BackupFlow.WEBDAV_AUTO_SYNC_UPLOAD, event = "schedule_skipped", reason = decision.reason)
             return
         }
 
@@ -141,12 +136,8 @@ class DataSyncManager @Inject constructor(
     }
 
     private suspend fun uploadNow(force: Boolean = false) {
-        // 条件判断：需启用自动同步且 WebDAV 上传可用、配置完整
-        if (!settings.isBackupWebDavAutoSyncEnabled || !settings.isBackupWebDavUploadEnabled) return
-        val url = settings.backupWebDavServerUrl
-        val user = settings.backupWebDavUsername
-        val pass = settings.backupWebDavPassword
-        if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) return
+        val decision = backupFlowPolicy.autoSyncUploadDecision()
+        if (!decision.allowed) return
 
         // 收紧策略：仅在非计量网络上进行自动同步，且避免后台网络受限情形
         val cm = appContext.connectivityManager
@@ -178,20 +169,17 @@ class DataSyncManager @Inject constructor(
                     externalBackupStorage.put(output)
                     externalBackupStorage.trim(settings.periodicalBackupMaxCount)
                 }
-                // 使用“下一个版本号”命名远端文件，上传成功后再持久化版本
-                val nextVersion = settings.backupWebDavDataVersion + 1
-                webDavUploader.uploadBackup(output, targetVersion = nextVersion)
-                settings.backupWebDavLastUploadTime = System.currentTimeMillis()
-                settings.backupWebDavLastUploadKind = "auto"
-                // 上传成功后自增数据版本，用于版本化文件名与兼容判定
-                settings.backupWebDavDataVersion = nextVersion
+                val uploadResult = backupWebDavUploadCoordinator.uploadAndCommit(
+                    file = output,
+                    uploadKind = "auto",
+                )
                 logBackupFlow(
                     TAG,
                     flow = BackupFlow.WEBDAV_AUTO_SYNC_UPLOAD,
                     event = "upload_complete",
                     reason = null,
                     "force" to force,
-                    "nextVersion" to nextVersion,
+                    "nextVersion" to uploadResult.targetVersion,
                 )
             } finally {
                 output.delete()

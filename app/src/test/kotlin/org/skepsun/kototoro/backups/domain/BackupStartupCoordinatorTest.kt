@@ -23,6 +23,7 @@ class BackupStartupCoordinatorTest {
 	private val appContext = mockk<Context>(relaxed = true)
 	private val settings = mockk<AppSettings>(relaxed = true)
 	private val dataSyncManager = mockk<DataSyncManager>(relaxed = true)
+	private val backupFlowPolicy = BackupFlowPolicy(settings)
 
 	@AfterEach
 	fun tearDown() {
@@ -39,7 +40,7 @@ class BackupStartupCoordinatorTest {
 		mockkObject(WebDavAutoRestoreService.Companion)
 		every { WebDavAutoRestoreService.start(any()) } returns Unit
 
-		val coordinator = BackupStartupCoordinator(appContext, settings, dataSyncManager)
+		val coordinator = BackupStartupCoordinator(appContext, backupFlowPolicy, dataSyncManager)
 		coordinator.startOnFirstLaunch(this)
 		advanceUntilIdle()
 
@@ -58,7 +59,7 @@ class BackupStartupCoordinatorTest {
 		mockkObject(WebDavAutoRestoreService.Companion)
 		every { WebDavAutoRestoreService.start(any()) } returns Unit
 
-		val coordinator = BackupStartupCoordinator(appContext, settings, dataSyncManager)
+		val coordinator = BackupStartupCoordinator(appContext, backupFlowPolicy, dataSyncManager)
 		coordinator.startOnFirstLaunch(this)
 		advanceTimeBy(3000)
 		advanceUntilIdle()

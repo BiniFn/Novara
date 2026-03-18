@@ -100,6 +100,71 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		color = Color.BLACK
 		textAlign = Paint.Align.LEFT
 	}
+	private val bubbleRoiOcrCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderBubbleRoiOcrCoordinator(
+			settings = settings,
+			recognizeTextByEngine = { engine, request -> recognizeTextByEngine(engine, request) },
+			composeGroupedText = ::composeGroupedText,
+			mergeRects = ::mergeRects,
+			isLikelySpeechBubbleRegion = ::isLikelySpeechBubbleRegion,
+			dp = ::dp,
+			log = ::log,
+		)
+	}
+	private val bubbleGroupingCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderBubbleGroupingCoordinator(
+			settings = settings,
+			cvBubbleDetector = cvBubbleDetector,
+			onnxBubbleDetectorEngine = onnxBubbleDetectorEngine,
+			heuristicGroupFragments = ::groupFragmentsByBubble,
+			shouldMergeFragments = ::shouldMergeFragments,
+			mergeRects = ::mergeRects,
+			rectArea = ::rectArea,
+			dp = ::dp,
+			log = ::log,
+			formatError = ::oneLine,
+			maxIndividualFallbackFragments = MAX_INDIVIDUAL_FALLBACK_FRAGMENTS,
+			maxIndividualFallbackRatio = MAX_INDIVIDUAL_FALLBACK_RATIO,
+			maxDetectedGroupFragments = MAX_DETECTED_GROUP_FRAGMENTS,
+		)
+	}
+	private val bubbleRenderCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderBubbleRenderCoordinator(
+			isLikelyGarbledText = ::isLikelyGarbledText,
+			shouldSuppressRenderedBubble = ::shouldSuppressRenderedBubble,
+			isLikelySpeechBubbleRegion = ::isLikelySpeechBubbleRegion,
+			prepareTranslatedBubble = ::prepareTranslatedBubble,
+			qualityFilterEnabled = { settings.isReaderTranslationQualityFilterEnabled },
+			log = ::log,
+			oneLine = ::oneLine,
+		)
+	}
+	private val translationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderTranslationCoordinator(
+			settings = settings,
+			textCache = textCache,
+			onnxTranslationEngine = onnxTranslationEngine,
+			okHttpClient = okHttpClient,
+			jsonMediaType = JSON_MEDIA_TYPE,
+			defaultOpenAiModel = DEFAULT_OPENAI_MODEL,
+			openAiTranslationSystemPrompt = OPENAI_TRANSLATION_SYSTEM_PROMPT,
+			maxOpenAiBatchSize = MAX_OPENAI_BATCH_SIZE,
+			thinkTagRegex = THINK_TAG_REGEX,
+			buildTextCacheKey = ::buildTextCacheKey,
+			sanitizeTranslation = ::sanitizeTranslation,
+			isAcceptableTranslation = ::isAcceptableTranslation,
+			log = ::log,
+			oneLine = ::oneLine,
+		)
+	}
+	private val ocrPipelineCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderOcrPipelineCoordinator(
+			loadPageText = ::loadPageTextWithCache,
+			detectBubbleRects = onnxBubbleDetectorEngine::detectAttempt,
+			groupFragmentsForTranslation = ::groupFragmentsForTranslation,
+			recognizeBubbleTextsByRoi = ::recognizeBubbleTextsByRoi,
+		)
+	}
 
 	fun clearAllCaches() {
 		textCache.clear()
@@ -240,31 +305,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		var roiFallbackCount = 0
 		var roiDurationMs = 0L
 		var roiCoverageArea = 0f
+		var ocrPipelineStrategy = OcrPipelineStrategy.PAGE_FIRST
+		var ocrPipelineFallbackReason = ""
+		var roiFirstDetectedBoxes = 0
 		var processResult = "source"
 		appendPageLog(pageId, "metric.render_cache.hit=0")
 
 		// OCR result caching: skip re-OCR if we already processed this image
-		val ocrCacheKey = buildOcrCacheKey(sourceUri.toString(), sourceLang)
 		try {
-			val ocrStartMs = SystemClock.elapsedRealtime()
-			val textBlocks = textCache[ocrCacheKey]?.let { cached ->
-				ocrCacheHit = true
-				log { "ocr cache hit" }
-				deserializeOcrBlocks(cached)
-			} ?: run {
-				val blocks = recognizeTextWithFallback(sourceUri, sourceLang, pageId)
-				if (blocks.isNotEmpty()) {
-					textCache[ocrCacheKey] = serializeOcrBlocks(blocks)
-				}
-				blocks
-			}
-			ocrDurationMs = SystemClock.elapsedRealtime() - ocrStartMs
-			ocrBlocks = textBlocks.size
-			log { "ocr done blocks=${textBlocks.size}" }
-			if (textBlocks.isEmpty()) {
-				log { "fail_code=$FAIL_CODE_OCR_EMPTY" }
-				return sourceUri
-			}
 			val sourceBitmap = runInterruptible(Dispatchers.IO) {
 				BitmapDecoderCompat.decode(sourceUri.toFile())
 			}
@@ -273,15 +321,25 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				sourceBitmap.recycle()
 			}
 			val canvas = Canvas(bitmap)
-
-			val drawableBlocks = textBlocks.filter { it.boundingBox != null && it.text.trim().isNotBlank() }
-			val sourceFragments = drawableBlocks.map {
-				TextFragment(
-					rect = it.boundingBox!!,
-					text = it.text.trim(),
-				)
+			val ocrPipeline = ocrPipelineCoordinator.execute(
+				sourceUri = sourceUri,
+				sourceLang = sourceLang,
+				pageId = pageId,
+				bitmap = bitmap,
+				strategy = OcrPipelineStrategy.ROI_FIRST_FALLBACK,
+			)
+			ocrPipelineStrategy = ocrPipeline.strategy
+			ocrPipelineFallbackReason = ocrPipeline.fallbackReason
+			roiFirstDetectedBoxes = ocrPipeline.roiFirstDetectedBoxCount
+			ocrCacheHit = ocrPipeline.pageOcr?.cacheHit ?: false
+			ocrDurationMs = ocrPipeline.pageOcr?.durationMs ?: 0L
+			ocrBlocks = ocrPipeline.pageTextBlocks.size
+			val groupingResult = ocrPipeline.groupingResult
+			if (groupingResult == null) {
+				log { "fail_code=$FAIL_CODE_OCR_EMPTY" }
+				bitmap.recycle()
+				return sourceUri
 			}
-			val groupingResult = groupFragmentsForTranslation(sourceFragments, bitmap)
 			bubbleDetectorCandidates = groupingResult.detectorCandidateCount
 			bubbleDetectorMatchedFragments = groupingResult.detectorMatchedFragmentCount
 			bubbleDetectorUsedGroups = groupingResult.detectorUsedGroupCount
@@ -296,33 +354,18 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			bubbleGroupingFallbackFragments = groupingResult.fallbackFragmentCount
 			bubbleGroupingFallbackGroups = groupingResult.fallbackGroupCount
 			bubbleGroupingFallbackMode = groupingResult.fallbackMode
-			val roiResult = recognizeBubbleTextsByRoi(
-				groups = groupingResult.groups,
-				sourceUri = sourceUri,
-				sourceLang = sourceLang,
-				pageId = pageId,
-				bitmap = bitmap,
-			)
+			val roiResult = ocrPipeline.roiResult
 			roiRequestCount = roiResult.requestCount
 			roiSuccessCount = roiResult.successCount
 			roiFallbackCount = roiResult.fallbackCount
 			roiDurationMs = roiResult.totalMs
 			roiCoverageArea = roiResult.coverageArea
-			val bubbleInputs = groupingResult.groups.mapIndexedNotNull { index, group ->
-				val mergedRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: return@mapIndexedNotNull null
-				val sourceText = (roiResult.textsByGroupIndex[index] ?: composeGroupedText(group.fragments, sourceLang)).trim()
-				if (sourceText.isBlank()) {
-					return@mapIndexedNotNull null
-				}
-				val verticalPreferred = isVerticalTargetLanguage(targetLang) &&
-					sourceLang.startsWith("ja") &&
-					(isLikelyColumnLayout(group.fragments) || mergedRect.height() > mergedRect.width() * 13 / 10)
-				BubbleInput(
-					rect = mergedRect,
-					sourceText = sourceText,
-					verticalPreferred = verticalPreferred,
-				)
-			}
+			val bubbleInputs = buildBubbleInputs(
+				groups = groupingResult.groups,
+				roiResult = roiResult,
+				sourceLang = sourceLang,
+				targetLang = targetLang,
+			)
 			bubbleCount = bubbleInputs.size
 			val translateStartMs = SystemClock.elapsedRealtime()
 			val translatedMap = translateBlocksCached(
@@ -332,44 +375,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			)
 			translateDurationMs = SystemClock.elapsedRealtime() - translateStartMs
 			val renderStartMs = SystemClock.elapsedRealtime()
-			val preparedBubbles = mutableListOf<PreparedBubble>()
-			var nonEmptyTranslatedCount = 0
-			for (bubble in bubbleInputs) {
-				val translated = translatedMap[bubble.sourceText].orEmpty().trim()
-				log {
-					"bubble translate src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
-				}
-				if (translated.isBlank()) continue
-				nonEmptyTranslatedCount++
-				if (settings.isReaderTranslationQualityFilterEnabled && isLikelyGarbledText(translated)) {
-					log {
-						"bubble render skipped_garbled src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
-					}
-					continue
-				}
-				if (shouldSuppressRenderedBubble(bubble.sourceText, translated, targetLang)) {
-					log {
-						"bubble render suppressed src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect}"
-					}
-					continue
-				}
-				val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
-				val prepared = prepareTranslatedBubble(
-					rect = bubble.rect,
-					text = translated,
-					bitmapWidth = bitmap.width,
-					bitmapHeight = bitmap.height,
-					verticalPreferred = bubble.verticalPreferred,
-					bubbleLikeRegion = bubbleLikeRegion,
-				)
-				if (prepared == null) {
-					log {
-						"bubble render skipped_layout src=${oneLine(bubble.sourceText)} out=${oneLine(translated)} box=${bubble.rect} verticalPreferred=${bubble.verticalPreferred} bubbleLike=${bubbleLikeRegion}"
-					}
-					continue
-				}
-				preparedBubbles.add(prepared)
-			}
+			val renderPreparation = bubbleRenderCoordinator.prepareBubbles(
+				bubbleInputs = bubbleInputs,
+				translatedMap = translatedMap,
+				targetLang = targetLang,
+				bitmap = bitmap,
+			)
+			val preparedBubbles = renderPreparation.preparedBubbles
+			val nonEmptyTranslatedCount = renderPreparation.nonEmptyTranslatedCount
 			// Two-pass render: draw all bubble backgrounds first, then all texts to avoid later bubbles covering earlier texts.
 			for (bubble in preparedBubbles) {
 				drawBubbleBackground(canvas, bubble)
@@ -399,6 +412,9 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		} finally {
 			log { "metric.ocr.cache_hit=${if (ocrCacheHit) 1 else 0}" }
 			if (ocrDurationMs >= 0L) log { "metric.ocr.total_ms=$ocrDurationMs" }
+			log { "metric.ocr.pipeline.strategy=${ocrPipelineStrategy.name.lowercase()}" }
+			log { "metric.ocr.pipeline.fallback_reason=${ocrPipelineFallbackReason.ifBlank { "none" }}" }
+			log { "metric.ocr.pipeline.roi_first_detected_boxes=$roiFirstDetectedBoxes" }
 			log { "metric.ocr.blocks=$ocrBlocks" }
 			log { "metric.translation.bubbles=$bubbleCount" }
 			log { "metric.bubble.grouping.enabled=$bubbleGroupingEnabled" }
@@ -432,6 +448,32 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 	private fun rememberRenderedSource(renderedUri: Uri, sourceUri: Uri) {
 		renderedSourceMap.put(renderedUri.toString(), sourceUri.toString())
+	}
+
+	private suspend fun loadPageTextWithCache(sourceUri: Uri, sourceLang: String, pageId: Long): PageOcrLoadResult {
+		val startMs = SystemClock.elapsedRealtime()
+		val ocrCacheKey = buildOcrCacheKey(sourceUri.toString(), sourceLang)
+		val cached = textCache[ocrCacheKey]
+		if (cached != null) {
+			log { "ocr cache hit" }
+			val textBlocks = deserializeOcrBlocks(cached)
+			log { "ocr done blocks=${textBlocks.size}" }
+			return PageOcrLoadResult(
+				textBlocks = textBlocks,
+				cacheHit = true,
+				durationMs = SystemClock.elapsedRealtime() - startMs,
+			)
+		}
+		val textBlocks = recognizeTextWithFallback(sourceUri, sourceLang, pageId)
+		if (textBlocks.isNotEmpty()) {
+			textCache[ocrCacheKey] = serializeOcrBlocks(textBlocks)
+		}
+		log { "ocr done blocks=${textBlocks.size}" }
+		return PageOcrLoadResult(
+			textBlocks = textBlocks,
+			cacheHit = false,
+			durationMs = SystemClock.elapsedRealtime() - startMs,
+		)
 	}
 
 	private suspend fun recognizeTextWithFallback(sourceUri: Uri, sourceLang: String, pageId: Long): List<OcrTextBlock> {
@@ -527,489 +569,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		sourceLang: String,
 		targetLang: String,
 	): Map<String, String> {
-		if (texts.isEmpty()) return emptyMap()
-		val uniqueTexts = texts.distinct()
-		val translated = LinkedHashMap<String, String>(uniqueTexts.size)
-		val misses = ArrayList<String>(uniqueTexts.size)
-
-			for (text in uniqueTexts) {
-				val cacheKey = buildTextCacheKey(text, sourceLang, targetLang)
-				val cached = textCache[cacheKey]
-				if (!cached.isNullOrBlank()) {
-					val sanitized = sanitizeTranslation(cached)
-					if (sanitized.isNotBlank()) {
-						translated[text] = sanitized
-						if (sanitized != cached) {
-							textCache[cacheKey] = sanitized
-						}
-						log { "translate cache hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
-				} else {
-					textCache[cacheKey] = ""
-					misses.add(text)
-					log { "translate cache rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
-				}
-			} else {
-				misses.add(text)
-			}
-		}
-		if (misses.isEmpty()) return translated
-
-		val mode = settings.readerTranslationMode
-		val onnxModelId = settings.readerTranslationOnnxModelId.trim()
-		if (mode != ReaderTranslationMode.API_ONLY && onnxModelId.isNotBlank()) {
-			val needOnnx = misses.filter { translated[it].isNullOrBlank() }
-			if (needOnnx.isNotEmpty()) {
-				val onnxMap = runCatching {
-					onnxTranslationEngine.translateBatch(needOnnx, sourceLang, targetLang, onnxModelId)
-				}.onFailure {
-					it.printStackTraceDebug()
-					log { "translate onnx failed: ${it.message.orEmpty()}" }
-				}.getOrDefault(emptyMap())
-				for (text in needOnnx) {
-					val onnxText = onnxMap[text]?.trim().orEmpty()
-					if (onnxText.isNotBlank()) {
-						val sanitized = sanitizeTranslation(onnxText)
-						if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
-							translated[text] = sanitized
-							textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
-							log { "translate onnx hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
-						} else {
-							log { "translate onnx rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
-						}
-					}
-				}
-			}
-		}
-
-		if (mode != ReaderTranslationMode.API_ONLY) {
-			val needLocal = misses.filter { translated[it].isNullOrBlank() }
-			log { "translate local requested size=${needLocal.size}" }
-			var localResults = runCatching {
-				translateLocalBatch(needLocal, sourceLang, targetLang)
-			}.onFailure {
-				it.printStackTraceDebug()
-				log { "translate local batch failed: ${it.message.orEmpty()}" }
-			}.getOrDefault(emptyMap())
-			if (needLocal.isNotEmpty() && localResults.values.none { it.isNotBlank() }) {
-				log { "translate local batch empty, fallback to per-item translation" }
-				localResults = coroutineScope {
-					needLocal.map { text ->
-						async {
-							val local = runCatching {
-								translateLocal(text, sourceLang, targetLang)
-							}.onFailure {
-								log { "translate local fallback failed src=${oneLine(text)} err=${it.message.orEmpty()}" }
-							}.getOrDefault("").trim()
-							text to local
-						}
-					}.awaitAll().toMap()
-				}
-			}
-			for ((text, local) in localResults) {
-				val raw = local.trim()
-				if (raw.isNotBlank()) {
-					val sanitized = sanitizeTranslation(raw)
-					if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
-						translated[text] = sanitized
-						textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
-						log { "translate local hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
-					} else {
-						log { "translate local rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
-					}
-				}
-			}
-		}
-
-		if (mode == ReaderTranslationMode.LOCAL_ONLY) {
-			log { "translate mode=LOCAL_ONLY, skip api fallback" }
-			for (text in uniqueTexts) {
-				translated.putIfAbsent(text, "")
-			}
-			return translated
-		}
-
-			if (mode != ReaderTranslationMode.LOCAL_ONLY) {
-				val needApi = misses.filter { translated[it].isNullOrBlank() }
-				if (needApi.isNotEmpty()) {
-					val apiMap = translateBatchByApi(needApi, sourceLang, targetLang)
-					for (text in needApi) {
-						val apiText = apiMap[text]?.trim().orEmpty()
-						if (apiText.isNotBlank()) {
-							val sanitized = sanitizeTranslation(apiText)
-							if (sanitized.isNotBlank()) {
-								translated[text] = sanitized
-								textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
-								log { "translate api hit src=${oneLine(text)} out=${oneLine(sanitized)}" }
-							} else {
-								log { "translate api rejected src=${oneLine(text)} out=${oneLine(sanitized)}" }
-						}
-					}
-				}
-			}
-		}
-
-		for (text in uniqueTexts) {
-			translated.putIfAbsent(text, "")
-		}
-		return translated
-	}
-
-	private suspend fun translateBatchByApi(
-		texts: List<String>,
-		sourceLang: String,
-		targetLang: String,
-	): Map<String, String> {
-		val endpoint = settings.readerTranslationApiEndpoint.trim()
-		if (endpoint.isBlank() || texts.isEmpty()) {
-			return texts.associateWith { "" }
-		}
-
-		return if (isOpenAiCompatibleChatCompletionsEndpoint(endpoint)) {
-			translateBatchByOpenAi(texts, sourceLang, targetLang)
-		} else {
-			val map = LinkedHashMap<String, String>(texts.size)
-			for (text in texts) {
-				map[text] = translateByApi(text, sourceLang, targetLang)
-			}
-			map
-		}
-	}
-
-		private suspend fun translateBatchByOpenAi(
-			texts: List<String>,
-			sourceLang: String,
-			targetLang: String,
-		): Map<String, String> {
-			if (texts.isEmpty()) return emptyMap()
-			val mapped = LinkedHashMap<String, String>(texts.size)
-			val batches = buildOpenAiMicroBatches(texts)
-			log { "openai batch requests count=${batches.size} texts=${texts.size}" }
-			for (batch in batches) {
-				if (batch.size == 1) {
-					val text = batch.first()
-					mapped[text] = requestOpenAiSingle(text, sourceLang, targetLang)
-					continue
-				}
-				val batchMap = requestOpenAiBatch(batch, sourceLang, targetLang)
-				if (batchMap.isEmpty()) {
-					batch.forEach { text ->
-						mapped[text] = requestOpenAiSingle(text, sourceLang, targetLang)
-					}
-					continue
-				}
-				for (text in batch) {
-					mapped[text] = batchMap[text].orEmpty()
-				}
-			}
-			return mapped
-		}
-
-	private suspend fun requestOpenAiBatch(
-		texts: List<String>,
-		sourceLang: String,
-		targetLang: String,
-	): Map<String, String> {
-		if (texts.isEmpty()) return emptyMap()
-		val endpoint = settings.readerTranslationApiEndpoint.trim()
-		val apiKey = settings.readerTranslationApiKey.trim()
-		val model = settings.readerTranslationApiModel.trim().ifBlank { DEFAULT_OPENAI_MODEL }
-		val userPrompt = buildString {
-			appendLine("Translate manga OCR text from $sourceLang to $targetLang.")
-			appendLine("Return strict JSON only.")
-			appendLine("Use this array format:")
-			appendLine("""[{"id":1,"translation":"..."},{"id":2,"translation":"..."}]""")
-			appendLine("Keep ids unchanged. If unreadable or uncertain, use empty translation.")
-			appendLine()
-			appendLine("Texts:")
-			texts.forEachIndexed { index, text ->
-				appendLine("${index + 1}. $text")
-			}
-		}
-		val payload = JSONObject().apply {
-			put("model", model)
-			put("temperature", 0)
-			if (isDeepSeekEndpoint(endpoint)) {
-				put("thinking", JSONObject().put("type", "disabled"))
-			}
-			put(
-				"messages",
-				JSONArray()
-					.put(JSONObject().put("role", "system").put("content", OPENAI_TRANSLATION_SYSTEM_PROMPT))
-					.put(JSONObject().put("role", "user").put("content", userPrompt))
-			)
-		}
-		return runCatching {
-			val requestBuilder = Request.Builder()
-				.url(endpoint)
-				.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
-				.header("Content-Type", "application/json")
-			if (apiKey.isNotBlank()) {
-				requestBuilder.header("Authorization", "Bearer $apiKey")
-				requestBuilder.header("X-API-Key", apiKey)
-			}
-			val response = okHttpClient.newCall(requestBuilder.build()).await()
-			response.use { resp ->
-				val rawBody = resp.body.readJsonTextUtf8()
-				if (!resp.isSuccessful) {
-					log { "openai batch request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return@use emptyMap()
-				}
-				if (rawBody.isBlank()) return@use emptyMap()
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use emptyMap()
-				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return@use emptyMap()
-				log { "openai batch raw reply=${oneLine(content, 400)}" }
-				val parsed = parseBatchTranslationJson(content, texts.size)
-				if (parsed.isEmpty()) return@use emptyMap()
-				LinkedHashMap<String, String>(texts.size).apply {
-					texts.forEachIndexed { index, text ->
-						put(text, sanitizeTranslation(parsed[index + 1].orEmpty()))
-					}
-				}
-			}
-		}.onFailure {
-			log { "openai batch request failed size=${texts.size} err=${it.message.orEmpty()}" }
-		}.getOrDefault(emptyMap())
-	}
-
-	private suspend fun requestOpenAiSingle(
-		text: String,
-		sourceLang: String,
-		targetLang: String,
-	): String {
-		if (text.isBlank()) return ""
-		val endpoint = settings.readerTranslationApiEndpoint.trim()
-		val apiKey = settings.readerTranslationApiKey.trim()
-		val model = settings.readerTranslationApiModel.trim().ifBlank { DEFAULT_OPENAI_MODEL }
-		val userPrompt = buildString {
-			appendLine("Translate manga OCR text from $sourceLang to $targetLang.")
-			appendLine("Only output the translation itself.")
-			appendLine("If unreadable or uncertain, output nothing.")
-			appendLine("Keep short screams natural.")
-			append(text)
-		}
-		val payload = JSONObject().apply {
-			put("model", model)
-			put("temperature", 0)
-			if (isDeepSeekEndpoint(endpoint)) {
-				put("thinking", JSONObject().put("type", "disabled"))
-			}
-			put(
-				"messages",
-				JSONArray()
-					.put(JSONObject().put("role", "system").put("content", OPENAI_TRANSLATION_SYSTEM_PROMPT))
-					.put(JSONObject().put("role", "user").put("content", userPrompt))
-			)
-		}
-
-		return runCatching {
-			val requestBuilder = Request.Builder()
-				.url(endpoint)
-				.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
-				.header("Content-Type", "application/json")
-			if (apiKey.isNotBlank()) {
-				requestBuilder.header("Authorization", "Bearer $apiKey")
-				requestBuilder.header("X-API-Key", apiKey)
-			}
-			val response = okHttpClient.newCall(requestBuilder.build()).await()
-			response.use { resp ->
-				val rawBody = resp.body.readJsonTextUtf8()
-				if (!resp.isSuccessful) {
-					log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return@use ""
-				}
-				if (rawBody.isBlank()) return@use ""
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use ""
-				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return@use ""
-				log { "openai raw reply=${oneLine(content, 400)}" }
-				sanitizeTranslation(content)
-			}
-		}.onFailure {
-			log { "openai single request failed src=${oneLine(text)} err=${it.message.orEmpty()}" }
-		}.getOrDefault("")
-	}
-
-	private suspend fun translateLocal(text: String, sourceLang: String, targetLang: String): String {
-		val source = TranslateLanguage.fromLanguageTag(sourceLang)
-		val target = TranslateLanguage.fromLanguageTag(targetLang)
-		if (source == null || target == null) {
-			return text
-		}
-		val options = TranslatorOptions.Builder()
-			.setSourceLanguage(source)
-			.setTargetLanguage(target)
-			.build()
-		val translator = Translation.getClient(options)
-		return try {
-			translator.downloadModelIfNeeded().awaitCancellable()
-			translator.translate(text).awaitCancellable()
-		} finally {
-			translator.close()
-		}
-	}
-
-	private suspend fun translateLocalBatch(
-		texts: List<String>,
-		sourceLang: String,
-		targetLang: String,
-	): Map<String, String> {
-		if (texts.isEmpty()) return emptyMap()
-		val source = TranslateLanguage.fromLanguageTag(sourceLang)
-		val target = TranslateLanguage.fromLanguageTag(targetLang)
-		if (source == null || target == null) {
-			return texts.associateWith { "" }
-		}
-		val options = TranslatorOptions.Builder()
-			.setSourceLanguage(source)
-			.setTargetLanguage(target)
-			.build()
-		val translator = Translation.getClient(options)
-		return try {
-			log { "translate local batch start size=${texts.size} source=$sourceLang target=$targetLang" }
-			translator.downloadModelIfNeeded().awaitCancellable()
-			val results = LinkedHashMap<String, String>(texts.size)
-			for (text in texts) {
-				val out = runCatching {
-					withTimeout(15_000) {
-						translator.translate(text).awaitCancellable()
-					}
-				}.onFailure {
-					log { "translate local item failed src=${oneLine(text)} err=${it.message.orEmpty()}" }
-				}.getOrDefault("").trim()
-				results[text] = out
-			}
-			log { "translate local batch done translated=${results.count { it.value.isNotBlank() }}/${texts.size}" }
-			results
-		} finally {
-			translator.close()
-		}
-	}
-
-	private suspend fun translateByApi(text: String, sourceLang: String, targetLang: String): String {
-		val endpoint = settings.readerTranslationApiEndpoint.trim()
-		if (endpoint.isBlank()) {
-			return ""
-		}
-		val payload = JSONObject().apply {
-			put("q", text)
-			put("source", sourceLang)
-			put("target", targetLang)
-			put("format", "text")
-		}
-		val requestBuilder = Request.Builder()
-			.url(endpoint)
-			.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
-		val key = settings.readerTranslationApiKey.trim()
-		if (key.isNotBlank()) {
-			requestBuilder.header("Authorization", "Bearer $key")
-			requestBuilder.header("X-API-Key", key)
-		}
-		val request = requestBuilder.build()
-		val response = okHttpClient.newCall(request).await()
-		response.use { resp ->
-			if (!resp.isSuccessful) {
-				log { "api translate failed code=${resp.code} msg=${resp.message}" }
-				return ""
-			}
-			val body = resp.body.readJsonTextUtf8()
-			val sanitized = sanitizeTranslation(body)
-			log { "api raw reply=${oneLine(body, 300)} sanitized=${oneLine(sanitized)} src=${oneLine(text)}" }
-			if (sanitized.isNotBlank()) {
-				val cacheKey = buildTextCacheKey(text, sourceLang, targetLang)
-				textCache[cacheKey] = sanitized
-			}
-			return sanitized
-		}
-	}
-
-
-	private fun extractOpenAiMessageContent(responseJson: JSONObject): String? {
-		val choices = responseJson.optJSONArray("choices") ?: return null
-		if (choices.length() == 0) return null
-		val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return null
-		val content = message.opt("content")
-		return when (content) {
-			is String -> content
-			is JSONArray -> {
-				buildString {
-					for (i in 0 until content.length()) {
-						val chunk = content.optJSONObject(i) ?: continue
-						append(chunk.optString("text"))
-					}
-				}
-			}
-			else -> null
-		}
-	}
-
-		private fun parseBatchTranslationJson(content: String, expectedSize: Int): Map<Int, String> {
-			val clean = normalizeJsonLikeContent(stripThinkContent(content).trim())
-			if (clean.isBlank()) return emptyMap()
-
-			fun validate(map: Map<Int, String>): Map<Int, String> {
-				if (map.isEmpty() || map.size > expectedSize) {
-					log { "openai parsed invalid mapSize=${map.size} expected<=$expectedSize content=${oneLine(clean, 400)}" }
-					return emptyMap()
-				}
-				log { "openai parsed items=${map.size}" }
-				return map
-			}
-
-			fun parseStandardJson(raw: String): Map<Int, String> {
-				val map = LinkedHashMap<Int, String>(expectedSize)
-				if (raw.startsWith("[")) {
-					val arr = JSONArray(raw)
-					for (i in 0 until arr.length()) {
-						val obj = arr.optJSONObject(i) ?: continue
-						val id = obj.optInt("id", i + 1)
-						val translation = pickTranslationField(obj)
-						if (id > 0 && translation.isNotBlank()) {
-							map[id] = translation
-						}
-					}
-				} else {
-					val json = JSONObject(raw)
-					val items = json.optJSONArray("items")
-						?: json.optJSONArray("translations")
-						?: json.optJSONArray("data")
-					if (items != null) {
-						for (i in 0 until items.length()) {
-							val obj = items.optJSONObject(i) ?: continue
-							val id = obj.optInt("id", i + 1)
-							val translation = pickTranslationField(obj)
-							if (id > 0 && translation.isNotBlank()) {
-								map[id] = translation
-							}
-						}
-					}
-				}
-				return map
-			}
-
-			return runCatching {
-				validate(parseStandardJson(clean))
-			}.getOrElse {
-				val salvaged = parseMalformedBatchTranslationJson(clean, expectedSize)
-				if (salvaged.isNotEmpty()) {
-					log { "openai parse salvaged items=${salvaged.size}" }
-					validate(salvaged)
-				} else {
-					log { "openai parse exception content=${oneLine(clean, 400)}" }
-					emptyMap()
-				}
-			}
-		}
-
-
-	private fun isOpenAiCompatibleChatCompletionsEndpoint(endpoint: String): Boolean {
-		val normalized = endpoint.lowercase()
-		return normalized.contains("/v1/chat/completions") || normalized.contains("/chat/completions")
-	}
-
-	private fun isDeepSeekEndpoint(endpoint: String): Boolean {
-		val normalized = endpoint.lowercase()
-		return normalized.contains("api.deepseek.com")
+		return translationCoordinator.translateBlocksCached(
+			texts = texts,
+			sourceLang = sourceLang,
+			targetLang = targetLang,
+		)
 	}
 
 	private suspend fun ensureLocalFileUri(sourceUri: Uri): Uri? {
@@ -1042,565 +606,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}.getOrNull()
 	}
 
-	private data class PreparedBubble(
-		val rect: Rect,
-		val padding: Int,
-		val contentWidth: Int,
-		val contentHeight: Int,
-		val layout: StaticLayout?,
-		val verticalPlan: VerticalLayoutPlan?,
-	)
-
-	private data class VerticalLayoutPlan(
-		val glyphs: List<String>,
-		val textSize: Float,
-		val cellSize: Int,
-		val rowCapacity: Int,
-	)
-
-	private data class BubbleInput(
-		val rect: Rect,
-		val sourceText: String,
-		val verticalPreferred: Boolean,
-	)
-
-	private data class GroupedBubbleSource(
-		val fragments: List<TextFragment>,
-		val bubbleRect: Rect?,
-	)
-
-	private data class BubbleGroupingResult(
-		val groups: List<GroupedBubbleSource>,
-		val detectorCandidateCount: Int,
-		val detectorMatchedFragmentCount: Int,
-		val detectorUsedGroupCount: Int,
-		val detectorSubdividedGroupCount: Int,
-		val detectorSubdividedFragmentCount: Int,
-		val detectorCoverageRate: Float,
-		val detectorEngine: String,
-		val detectorModelId: String,
-		val detectorRawBoxCount: Int,
-		val detectorTotalMs: Long,
-		val detectorFallbackReason: String,
-		val fallbackFragmentCount: Int,
-		val fallbackGroupCount: Int,
-		val fallbackMode: String,
-	)
-
-	private data class BubbleDetectorOutcome(
-		val groups: List<GroupedBubbleSource>,
-		val matchedFragmentIndices: Set<Int>,
-		val candidateCount: Int,
-		val matchedFragmentCount: Int,
-		val subdividedGroupCount: Int,
-		val subdividedFragmentCount: Int,
-		val engine: String,
-		val modelId: String,
-		val rawBoxCount: Int,
-		val totalMs: Long,
-		val fallbackReason: String,
-	)
-
-	private data class IndexedFragment(
-		val index: Int,
-		val fragment: TextFragment,
-	)
-
-	private data class DetectedBubbleCandidate(
-		val rect: Rect,
-		val fragmentIndices: List<Int>,
-		val score: Float,
-	) {
-		fun isBetterThan(other: DetectedBubbleCandidate): Boolean {
-			if (score != other.score) return score > other.score
-			return rectArea(rect) < rectArea(other.rect)
-		}
-
-		private fun rectArea(rect: Rect): Float {
-			return (rect.width().coerceAtLeast(0) * rect.height().coerceAtLeast(0)).toFloat()
-		}
-	}
-
-	private data class BubbleRoiOcrResult(
-		val textsByGroupIndex: Map<Int, String>,
-		val requestCount: Int,
-		val successCount: Int,
-		val fallbackCount: Int,
-		val totalMs: Long,
-		val coverageArea: Float,
-	)
-
-	private data class TextFragment(
-		val rect: Rect,
-		val text: String,
-	)
-
 	private suspend fun groupFragmentsForTranslation(
 		fragments: List<TextFragment>,
 		bitmap: Bitmap,
 	): BubbleGroupingResult {
-		if (fragments.isEmpty()) {
-			return BubbleGroupingResult(
-				groups = emptyList(),
-				detectorCandidateCount = 0,
-				detectorMatchedFragmentCount = 0,
-				detectorUsedGroupCount = 0,
-				detectorSubdividedGroupCount = 0,
-				detectorSubdividedFragmentCount = 0,
-				detectorCoverageRate = 0f,
-				detectorEngine = "none",
-				detectorModelId = "",
-				detectorRawBoxCount = 0,
-				detectorTotalMs = 0L,
-				detectorFallbackReason = "",
-				fallbackFragmentCount = 0,
-				fallbackGroupCount = 0,
-				fallbackMode = if (settings.isReaderTranslationBubbleGroupingEnabled) "heuristic" else "individual",
-			)
-		}
-		val detectorOutcome = detectBubbleGroups(bitmap, fragments)
-		val fallbackFragments = fragments.filterIndexed { index, _ -> index !in detectorOutcome.matchedFragmentIndices }
-		val forceHeuristicFallback = !settings.isReaderTranslationBubbleGroupingEnabled &&
-			shouldForceHeuristicFallback(
-				totalFragmentCount = fragments.size,
-				fallbackFragmentCount = fallbackFragments.size,
-			)
-		val fallbackMode = when {
-			settings.isReaderTranslationBubbleGroupingEnabled -> "heuristic"
-			forceHeuristicFallback -> "individual_guarded_to_heuristic"
-			else -> "individual"
-		}
-		val fallbackGroups = if (settings.isReaderTranslationBubbleGroupingEnabled || forceHeuristicFallback) {
-			groupFragmentsByBubble(fallbackFragments, bitmap).map { group ->
-				GroupedBubbleSource(
-					fragments = group,
-					bubbleRect = null,
-				)
-			}
-		} else {
-			fallbackFragments.map { fragment ->
-				GroupedBubbleSource(
-					fragments = listOf(fragment),
-					bubbleRect = null,
-				)
-			}
-		}
-		return BubbleGroupingResult(
-			groups = detectorOutcome.groups + fallbackGroups,
-			detectorCandidateCount = detectorOutcome.candidateCount,
-			detectorMatchedFragmentCount = detectorOutcome.matchedFragmentCount,
-			detectorUsedGroupCount = detectorOutcome.groups.size,
-			detectorSubdividedGroupCount = detectorOutcome.subdividedGroupCount,
-			detectorSubdividedFragmentCount = detectorOutcome.subdividedFragmentCount,
-			detectorCoverageRate = detectorOutcome.matchedFragmentCount.toFloat() / fragments.size.toFloat(),
-			detectorEngine = detectorOutcome.engine,
-			detectorModelId = detectorOutcome.modelId,
-			detectorRawBoxCount = detectorOutcome.rawBoxCount,
-			detectorTotalMs = detectorOutcome.totalMs,
-			detectorFallbackReason = detectorOutcome.fallbackReason,
-			fallbackFragmentCount = fallbackFragments.size,
-			fallbackGroupCount = fallbackGroups.size,
-			fallbackMode = fallbackMode,
+		return bubbleGroupingCoordinator.groupFragmentsForTranslation(
+			fragments = fragments,
+			bitmap = bitmap,
 		)
-	}
-
-	private fun shouldForceHeuristicFallback(
-		totalFragmentCount: Int,
-		fallbackFragmentCount: Int,
-	): Boolean {
-		if (fallbackFragmentCount <= 0) return false
-		if (fallbackFragmentCount >= MAX_INDIVIDUAL_FALLBACK_FRAGMENTS) return true
-		if (totalFragmentCount <= 0) return false
-		return fallbackFragmentCount.toFloat() / totalFragmentCount.toFloat() >= MAX_INDIVIDUAL_FALLBACK_RATIO
-	}
-
-	private suspend fun detectBubbleGroups(
-		bitmap: Bitmap,
-		fragments: List<TextFragment>,
-	): BubbleDetectorOutcome {
-		val onnxAttempt = runCatching {
-			onnxBubbleDetectorEngine.detectAttempt(bitmap)
-		}.onFailure {
-			it.printStackTraceDebug()
-		}.getOrNull()
-		if (onnxAttempt != null) {
-			log { "metric.bubble.detector.onnx.status=${onnxAttempt.status.name.lowercase()}" }
-			log { "metric.bubble.detector.onnx.stage=${onnxAttempt.stage.ifBlank { "none" }}" }
-			log { "metric.bubble.detector.onnx.backend=${onnxAttempt.backend.ifBlank { "none" }}" }
-			log { "metric.bubble.detector.onnx.parser=${onnxAttempt.parser.ifBlank { "none" }}" }
-			log { "metric.bubble.detector.onnx.input_name=${onnxAttempt.inputName.ifBlank { "none" }}" }
-			log { "metric.bubble.detector.onnx.input_shape=${onnxAttempt.inputShape.ifBlank { "none" }}" }
-			log { "metric.bubble.detector.onnx.output_names=${onnxAttempt.outputNames.ifBlank { "none" }}" }
-			onnxAttempt.result?.let { result ->
-				log { "metric.bubble.detector.onnx.decoded_boxes=${result.decodedBoxCount}" }
-				log { "metric.bubble.detector.onnx.final_boxes=${result.finalBoxCount}" }
-			}
-			if (onnxAttempt.error.isNotBlank()) {
-				log { "bubble detector onnx error=${oneLine(onnxAttempt.error, 400)}" }
-			}
-		}
-		val onnxResult = onnxAttempt?.result
-		if (onnxResult != null) {
-			val grouped = groupFragmentsByDetectedRects(
-				fragments = fragments,
-				detectedRects = onnxResult.boxes,
-				bitmap = bitmap,
-			)
-			if (grouped.groups.isNotEmpty()) {
-				return BubbleDetectorOutcome(
-					groups = grouped.groups,
-					matchedFragmentIndices = grouped.matchedFragmentIndices,
-					candidateCount = grouped.candidateCount,
-					matchedFragmentCount = grouped.matchedFragmentCount,
-					subdividedGroupCount = grouped.subdividedGroupCount,
-					subdividedFragmentCount = grouped.subdividedFragmentCount,
-					engine = "onnx_${onnxResult.backend.lowercase()}",
-					modelId = onnxResult.modelId,
-					rawBoxCount = onnxResult.rawBoxCount,
-					totalMs = onnxResult.totalMs,
-					fallbackReason = "",
-				)
-			}
-			log {
-				"bubble detector onnx no usable groups model=${onnxResult.modelId} rawBoxes=${onnxResult.rawBoxCount}, fallback=cv"
-			}
-		}
-		val fallbackReason = when (onnxAttempt?.status) {
-			OnnxBubbleDetectorEngine.AttemptStatus.NO_MODEL_DOWNLOADED -> "onnx_no_model_downloaded"
-			OnnxBubbleDetectorEngine.AttemptStatus.RUNTIME_UNAVAILABLE -> "onnx_runtime_unavailable"
-			OnnxBubbleDetectorEngine.AttemptStatus.NO_BOXES -> "onnx_no_boxes"
-			OnnxBubbleDetectorEngine.AttemptStatus.SUCCESS -> "onnx_no_usable_groups"
-			null -> "onnx_attempt_failed"
-		}
-		val attemptedModelId = onnxAttempt?.modelId.orEmpty()
-
-		val cvStartMs = SystemClock.elapsedRealtime()
-		val detectorResult = cvBubbleDetector.detect(bitmap, fragments.map { it.rect })
-		val cvDurationMs = SystemClock.elapsedRealtime() - cvStartMs
-		val detectorMatched = linkedSetOf<Int>()
-		val detectorGroups = detectorResult.groups.mapNotNull { group ->
-			val bubbleFragments = group.fragmentIndices.mapNotNull { index ->
-				fragments.getOrNull(index)
-			}
-			if (bubbleFragments.isEmpty()) {
-				return@mapNotNull null
-			}
-			detectorMatched += group.fragmentIndices
-			GroupedBubbleSource(
-				fragments = bubbleFragments,
-				bubbleRect = group.rect,
-			)
-		}
-		return BubbleDetectorOutcome(
-			groups = detectorGroups,
-			matchedFragmentIndices = detectorMatched,
-			candidateCount = detectorResult.candidateCount,
-			matchedFragmentCount = detectorResult.matchedFragmentCount,
-			subdividedGroupCount = 0,
-			subdividedFragmentCount = 0,
-			engine = "cv",
-			modelId = attemptedModelId,
-			rawBoxCount = detectorResult.candidateCount,
-			totalMs = cvDurationMs,
-			fallbackReason = fallbackReason,
-		)
-	}
-
-	private fun groupFragmentsByDetectedRects(
-		fragments: List<TextFragment>,
-		detectedRects: List<Rect>,
-		bitmap: Bitmap,
-	): BubbleDetectorOutcome {
-		if (detectedRects.isEmpty()) {
-			return BubbleDetectorOutcome(
-				groups = emptyList(),
-				matchedFragmentIndices = emptySet(),
-				candidateCount = 0,
-				matchedFragmentCount = 0,
-				subdividedGroupCount = 0,
-				subdividedFragmentCount = 0,
-				engine = "onnx",
-				modelId = "",
-				rawBoxCount = 0,
-				totalMs = 0L,
-				fallbackReason = "",
-			)
-		}
-		val bitmapArea = (bitmap.width * bitmap.height).toFloat().coerceAtLeast(1f)
-		val uniqueCandidates = linkedMapOf<String, DetectedBubbleCandidate>()
-		for (detectedRect in detectedRects) {
-			val matched = fragments.indices.filter { index ->
-				matchesDetectedBubbleRect(detectedRect, fragments[index].rect)
-			}
-			if (matched.isEmpty()) continue
-			val unionRect = mergeRects(matched.map { fragments[it].rect }) ?: continue
-			val candidate = buildDetectedBubbleCandidate(
-				detectedRect = detectedRect,
-				unionRect = unionRect,
-				fragmentRects = fragments.map { it.rect },
-				matchedIndices = matched,
-				bitmapArea = bitmapArea,
-				bitmapWidth = bitmap.width,
-				bitmapHeight = bitmap.height,
-			) ?: continue
-			val key = candidate.fragmentIndices.joinToString(",")
-			val existing = uniqueCandidates[key]
-			if (existing == null || candidate.isBetterThan(existing)) {
-				uniqueCandidates[key] = candidate
-			}
-		}
-		if (uniqueCandidates.isEmpty()) {
-			return BubbleDetectorOutcome(
-				groups = emptyList(),
-				matchedFragmentIndices = emptySet(),
-				candidateCount = 0,
-				matchedFragmentCount = 0,
-				subdividedGroupCount = 0,
-				subdividedFragmentCount = 0,
-				engine = "onnx",
-				modelId = "",
-				rawBoxCount = detectedRects.size,
-				totalMs = 0L,
-				fallbackReason = "",
-			)
-		}
-			val claimed = linkedSetOf<Int>()
-			var subdividedGroups = 0
-			var subdividedFragments = 0
-			val groups = buildList {
-				for (candidate in uniqueCandidates.values.sortedWith(
-					compareByDescending<DetectedBubbleCandidate> { it.fragmentIndices.size }
-						.thenByDescending { it.score }
-						.thenBy { rectArea(it.rect) }
-				)) {
-					val available = candidate.fragmentIndices.filterNot { it in claimed }
-					if (available.isEmpty()) continue
-					val subdivided = splitDetectedCandidate(
-						candidate = candidate,
-						fragmentIndices = available,
-						fragments = fragments,
-						bitmap = bitmap,
-					)
-					if (subdivided.isEmpty()) continue
-					subdividedGroups += subdivided.size
-					subdividedFragments += subdivided.sumOf { it.indices.size }
-					subdivided.forEach { subgroup ->
-						claimed += subgroup.indices
-						add(
-							GroupedBubbleSource(
-								fragments = subgroup.fragments,
-								bubbleRect = subgroup.bubbleRect,
-							)
-						)
-					}
-				}
-			}
-			return BubbleDetectorOutcome(
-				groups = groups,
-				matchedFragmentIndices = claimed,
-				candidateCount = uniqueCandidates.size,
-				matchedFragmentCount = claimed.size,
-				subdividedGroupCount = subdividedGroups,
-				subdividedFragmentCount = subdividedFragments,
-				engine = "onnx",
-				modelId = "",
-				rawBoxCount = detectedRects.size,
-				totalMs = 0L,
-				fallbackReason = "",
-			)
-	}
-
-	private fun matchesDetectedBubbleRect(candidateRect: Rect, fragmentRect: Rect): Boolean {
-		if (candidateRect.contains(fragmentRect.centerX(), fragmentRect.centerY())) {
-			return true
-		}
-		val fragmentArea = rectArea(fragmentRect).coerceAtLeast(1f)
-		val directOverlap = overlapArea(candidateRect, fragmentRect) / fragmentArea
-		if (directOverlap >= 0.28f) {
-			return true
-		}
-		val padX = max(dp(6f), candidateRect.width() / 10)
-		val padY = max(dp(6f), candidateRect.height() / 10)
-		val expanded = Rect(
-			(candidateRect.left - padX).coerceAtLeast(0),
-			(candidateRect.top - padY).coerceAtLeast(0),
-			candidateRect.right + padX,
-			candidateRect.bottom + padY,
-		)
-		if (!expanded.contains(fragmentRect.centerX(), fragmentRect.centerY())) {
-			return false
-		}
-		val expandedOverlap = overlapArea(expanded, fragmentRect) / fragmentArea
-		return expandedOverlap >= 0.60f
-	}
-
-	private fun buildDetectedBubbleCandidate(
-		detectedRect: Rect,
-		unionRect: Rect,
-		fragmentRects: List<Rect>,
-		matchedIndices: List<Int>,
-		bitmapArea: Float,
-		bitmapWidth: Int,
-		bitmapHeight: Int,
-	): DetectedBubbleCandidate? {
-		val candidateArea = rectArea(detectedRect).coerceAtLeast(1f)
-		if (candidateArea > bitmapArea * 0.45f) return null
-		val touchesEdge = detectedRect.left <= 0 || detectedRect.top <= 0 ||
-			detectedRect.right >= bitmapWidth || detectedRect.bottom >= bitmapHeight
-		if (touchesEdge && candidateArea > bitmapArea * 0.24f) return null
-		val fragmentsArea = matchedIndices.sumOf { rectArea(fragmentRects[it]).toDouble() }.toFloat()
-		val unionArea = rectArea(unionRect).coerceAtLeast(1f)
-		val inflation = candidateArea / unionArea
-		val textCoverage = fragmentsArea / candidateArea
-		val matchedCount = matchedIndices.size
-		if (matchedCount > MAX_DETECTED_GROUP_FRAGMENTS) {
-			return null
-		}
-		val maxInflation = when {
-			matchedCount >= 3 -> 16f
-			matchedCount == 2 -> 20f
-			else -> 26f
-		}
-		val minCoverage = when {
-			matchedCount >= 3 -> 0.006f
-			matchedCount == 2 -> 0.010f
-			else -> 0.015f
-		}
-		if (inflation > maxInflation || textCoverage < minCoverage) {
-			return null
-		}
-		val tightenedRect = tightenDetectedBubbleRect(detectedRect, unionRect)
-		if (tightenedRect.width() <= dp(8f) || tightenedRect.height() <= dp(8f)) {
-			return null
-		}
-		val score = matchedCount * 4f + textCoverage * 120f - inflation - if (touchesEdge) 2f else 0f
-		return DetectedBubbleCandidate(
-			rect = tightenedRect,
-			fragmentIndices = matchedIndices.sorted(),
-			score = score,
-		)
-	}
-
-	private fun tightenDetectedBubbleRect(candidateRect: Rect, unionRect: Rect): Rect {
-		val padX = max(dp(8f), unionRect.width() / 5)
-		val padY = max(dp(8f), unionRect.height() / 5)
-		val left = max(candidateRect.left, unionRect.left - padX)
-		val top = max(candidateRect.top, unionRect.top - padY)
-		val right = min(candidateRect.right, unionRect.right + padX)
-		val bottom = min(candidateRect.bottom, unionRect.bottom + padY)
-		return Rect(
-			left,
-			top,
-			max(left + dp(8f), right),
-			max(top + dp(8f), bottom),
-		)
-	}
-
-	private fun overlapArea(a: Rect, b: Rect): Float {
-		val width = (min(a.right, b.right) - max(a.left, b.left)).coerceAtLeast(0)
-		val height = (min(a.bottom, b.bottom) - max(a.top, b.top)).coerceAtLeast(0)
-		return (width * height).toFloat()
-	}
-
-	private data class DetectedCandidateSubdivision(
-		val indices: List<Int>,
-		val fragments: List<TextFragment>,
-		val bubbleRect: Rect,
-	)
-
-	private fun splitDetectedCandidate(
-		candidate: DetectedBubbleCandidate,
-		fragmentIndices: List<Int>,
-		fragments: List<TextFragment>,
-		bitmap: Bitmap,
-	): List<DetectedCandidateSubdivision> {
-		val indexed = fragmentIndices.mapNotNull { index ->
-			fragments.getOrNull(index)?.let { fragment ->
-				IndexedFragment(index = index, fragment = fragment)
-			}
-		}
-		if (indexed.isEmpty()) return emptyList()
-		val groupedIndices = groupIndexedFragmentsByBubble(indexed, bitmap)
-		return groupedIndices.mapNotNull { subgroup ->
-			val subgroupFragments = subgroup.map { it.fragment }
-			val subgroupRect = mergeRects(subgroupFragments.map { it.rect }) ?: return@mapNotNull null
-			val tightened = tightenDetectedBubbleRect(candidate.rect, subgroupRect)
-			if (tightened.width() <= dp(8f) || tightened.height() <= dp(8f)) {
-				return@mapNotNull null
-			}
-			val pageArea = bitmap.width.toFloat() * bitmap.height.toFloat()
-			val rectArea = tightened.width().toFloat() * tightened.height().toFloat()
-			if (rectArea > pageArea * 0.35f || tightened.width() > bitmap.width * 0.8f || tightened.height() > bitmap.height * 0.8f) {
-				return@mapNotNull null
-			}
-			DetectedCandidateSubdivision(
-				indices = subgroup.map { it.index },
-				fragments = subgroupFragments,
-				bubbleRect = tightened,
-			)
-		}
-	}
-
-	private fun groupIndexedFragmentsByBubble(
-		fragments: List<IndexedFragment>,
-		bitmap: Bitmap,
-	): List<List<IndexedFragment>> {
-		if (fragments.isEmpty()) return emptyList()
-		val parent = IntArray(fragments.size) { it }
-
-		fun find(x: Int): Int {
-			var cur = x
-			while (parent[cur] != cur) {
-				parent[cur] = parent[parent[cur]]
-				cur = parent[cur]
-			}
-			return cur
-		}
-
-		fun union(a: Int, b: Int) {
-			val ra = find(a)
-			val rb = find(b)
-			if (ra != rb) parent[rb] = ra
-		}
-
-		for (i in fragments.indices) {
-			val fA = fragments[i].fragment
-			val aRect = fA.rect
-			for (j in i + 1 until fragments.size) {
-				val fB = fragments[j].fragment
-				val bRect = fB.rect
-
-				val xOverlap = overlapLen(aRect.left, aRect.right, bRect.left, bRect.right)
-				val yOverlap = overlapLen(aRect.top, aRect.bottom, bRect.top, bRect.bottom)
-				val gapX = axisGap(aRect.left, aRect.right, bRect.left, bRect.right)
-				val gapY = axisGap(aRect.top, aRect.bottom, bRect.top, bRect.bottom)
-
-				val minW = min(aRect.width(), bRect.width()).coerceAtLeast(1)
-				val minH = min(aRect.height(), bRect.height()).coerceAtLeast(1)
-
-				val sameCol = xOverlap > minW * 0.3f
-				val sameRow = yOverlap > minH * 0.3f
-
-				val canMerge = if (sameCol) {
-					gapX <= dp(4f) && gapY <= dp(16f)
-				} else if (sameRow) {
-					gapY <= dp(4f) && gapX <= dp(16f)
-				} else {
-					gapX <= dp(2f) && gapY <= dp(2f) && (xOverlap > 0 || yOverlap > 0)
-				}
-
-				if (canMerge && shouldMergeFragments(fA, fB, bitmap)) {
-					union(i, j)
-				}
-			}
-		}
-
-		val groups = linkedMapOf<Int, MutableList<IndexedFragment>>()
-		for (i in fragments.indices) {
-			val root = find(i)
-			groups.getOrPut(root) { mutableListOf() }.add(fragments[i])
-		}
-		return groups.values.toList()
 	}
 
 	private suspend fun recognizeBubbleTextsByRoi(
@@ -1610,84 +623,37 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		pageId: Long,
 		bitmap: Bitmap,
 	): BubbleRoiOcrResult {
-		if (groups.isEmpty()) {
-			return BubbleRoiOcrResult(emptyMap(), 0, 0, 0, 0L, 0f)
-		}
-		val engine = preferredRoiOcrEngine()
-		val textsByIndex = linkedMapOf<Int, String>()
-		var requestCount = 0
-		var successCount = 0
-		var attemptedArea = 0f
-		var successArea = 0f
-		var totalMs = 0L
-		for ((index, group) in groups.withIndex()) {
-			if (requestCount >= MAX_ROI_OCR_REQUESTS_PER_PAGE) break
-			val roiRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: continue
-			if (!shouldTryRoiOcr(roiRect, bitmap)) continue
-			requestCount++
-			attemptedArea += rectArea(roiRect)
-			val request = OcrRequest(
-				sourceUri = sourceUri,
-				sourceLang = sourceLang,
-				roi = roiRect,
-				pageId = pageId,
-				requestType = OcrRequestType.ROI,
-				debugTag = "page:$pageId:bubble:$index",
-			)
-			val startMs = SystemClock.elapsedRealtime()
-			val roiBlocks = runCatching {
-				recognizeTextByEngine(engine, request)
-			}.onFailure {
-				it.printStackTraceDebug()
-			}.getOrDefault(emptyList())
-			totalMs += SystemClock.elapsedRealtime() - startMs
-			val roiText = composeOcrBlocksText(roiBlocks, sourceLang, roiRect).trim()
-			if (roiText.isBlank()) continue
-			successCount++
-			successArea += rectArea(roiRect)
-			textsByIndex[index] = roiText
-			log { "roi ocr hit engine=${engine.name} idx=$index box=$roiRect text=${oneLine(roiText)}" }
-		}
-		return BubbleRoiOcrResult(
-			textsByGroupIndex = textsByIndex,
-			requestCount = requestCount,
-			successCount = successCount,
-			fallbackCount = (requestCount - successCount).coerceAtLeast(0),
-			totalMs = totalMs,
-			coverageArea = if (attemptedArea > 0f) successArea / attemptedArea else 0f,
+		return bubbleRoiOcrCoordinator.recognize(
+			groups = groups,
+			sourceUri = sourceUri,
+			sourceLang = sourceLang,
+			pageId = pageId,
+			bitmap = bitmap,
+			maxRequestsPerPage = MAX_ROI_OCR_REQUESTS_PER_PAGE,
 		)
 	}
 
-	private fun preferredRoiOcrEngine(): ReaderOcrEngine {
-		return when (settings.readerTranslationOcrEngine) {
-			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
-			else -> settings.readerTranslationOcrEngine
-		}
-	}
-
-	private fun shouldTryRoiOcr(rect: Rect, bitmap: Bitmap): Boolean {
-		if (rect.width() < dp(24f) || rect.height() < dp(24f)) return false
-		val pageArea = (bitmap.width * bitmap.height).toFloat().coerceAtLeast(1f)
-		if (rectArea(rect) / pageArea > 0.22f) return false
-		return isLikelySpeechBubbleRegion(bitmap, rect)
-	}
-
-	private fun composeOcrBlocksText(
-		blocks: List<OcrTextBlock>,
+	private fun buildBubbleInputs(
+		groups: List<GroupedBubbleSource>,
+		roiResult: BubbleRoiOcrResult,
 		sourceLang: String,
-		fallbackRect: Rect,
-	): String {
-		if (blocks.isEmpty()) return ""
-		val fragments = blocks.mapNotNull { block ->
-			val text = block.text.trim()
-			if (text.isBlank()) return@mapNotNull null
-			TextFragment(
-				rect = block.boundingBox ?: fallbackRect,
-				text = text,
+		targetLang: String,
+	): List<BubbleInput> {
+		return groups.mapIndexedNotNull { index, group ->
+			val mergedRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: return@mapIndexedNotNull null
+			val sourceText = (roiResult.textsByGroupIndex[index] ?: composeGroupedText(group.fragments, sourceLang)).trim()
+			if (sourceText.isBlank()) {
+				return@mapIndexedNotNull null
+			}
+			val verticalPreferred = isVerticalTargetLanguage(targetLang) &&
+				sourceLang.startsWith("ja") &&
+				(isLikelyColumnLayout(group.fragments) || mergedRect.height() > mergedRect.width() * 13 / 10)
+			BubbleInput(
+				rect = mergedRect,
+				sourceText = sourceText,
+				verticalPreferred = verticalPreferred,
 			)
 		}
-		if (fragments.isEmpty()) return ""
-		return composeGroupedText(fragments, sourceLang).trim()
 	}
 
 	private fun groupFragmentsByBubble(fragments: List<TextFragment>, bitmap: Bitmap): List<List<TextFragment>> {
@@ -2431,44 +1397,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			return ratio >= 0.28f || (digits >= 4 && separators >= 4) || Regex("""(?:\d[：:/／．.]){3,}""").containsMatchIn(text)
 		}
 
-		private fun buildOpenAiMicroBatches(texts: List<String>): List<List<String>> {
-			if (texts.isEmpty()) return emptyList()
-			if (texts.size <= MAX_OPENAI_BATCH_SIZE) return listOf(texts)
-			val result = mutableListOf<List<String>>()
-			val current = mutableListOf<String>()
-
-			fun flush() {
-				if (current.isNotEmpty()) {
-					result += current.toList()
-					current.clear()
-				}
-			}
-
-			for (text in texts) {
-				val noisy = isLikelyNoisyOcrSource(text)
-				val longText = text.length >= 28
-				val shortSfxLike = text.length <= 10 && text.count { it.isJapaneseKana() } >= 2
-				val preferSingle = noisy || longText
-				if (preferSingle) {
-					flush()
-					result += listOf(text)
-					continue
-				}
-				if (current.isNotEmpty()) {
-					val hasShortSfxLike = current.any { it.length <= 10 && it.count { ch -> ch.isJapaneseKana() } >= 2 }
-					if ((shortSfxLike && !hasShortSfxLike && current.size >= 2) || current.size >= MAX_OPENAI_BATCH_SIZE) {
-						flush()
-					}
-				}
-				current += text
-				if (current.size >= MAX_OPENAI_BATCH_SIZE) {
-					flush()
-				}
-			}
-			flush()
-			return result
-		}
-
 		private fun oneLine(text: String, limit: Int = 140): String {
 		if (text.isBlank()) return ""
 		return text.replace('\n', ' ').replace('\r', ' ').trim().let {
@@ -2553,13 +1481,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private fun buildOcrCacheKey(sourceUri: String, sourceLang: String): String {
 		val raw = listOf(sourceUri, sourceLang, settings.readerTranslationOcrEngine.name).joinToString("|")
 		return "${OCR_CACHE_PREFIX}${raw.sha256()}"
-	}
-
-	private fun ResponseBody?.readJsonTextUtf8(): String {
-		if (this == null) return ""
-		return runCatching {
-			bytes().toString(Charsets.UTF_8)
-		}.getOrDefault("")
 	}
 
 	private fun serializeOcrBlocks(blocks: List<OcrTextBlock>): String {
@@ -2726,12 +1647,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				if (lines.isEmpty()) return text
 				val body = lines.drop(1).dropLastWhile { it.trim().startsWith("```") }.joinToString("\n").trim()
 				return body.ifBlank { text }
-			}
-
-			private fun normalizeBatchReplyContent(raw: String): String {
-				val clean = stripThinkContent(raw).trim()
-				if (clean.isBlank()) return ""
-				return normalizeJsonLikeContent(clean)
 			}
 
 			private fun parseMalformedBatchTranslationJson(raw: String, expectedSize: Int): Map<Int, String> {

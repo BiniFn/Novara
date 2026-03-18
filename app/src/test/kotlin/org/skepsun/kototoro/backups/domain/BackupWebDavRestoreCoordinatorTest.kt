@@ -1,0 +1,73 @@
+package org.skepsun.kototoro.backups.domain
+
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+import org.skepsun.kototoro.core.prefs.AppSettings
+
+class BackupWebDavRestoreCoordinatorTest {
+
+	private val settings = mockk<AppSettings>(relaxed = true)
+	private val coordinator = BackupWebDavRestoreCoordinator(settings)
+
+	@Test
+	fun `commitAutoRestore updates last restore time and raises data version when newer`() {
+		every { settings.backupWebDavDataVersion } returns 5
+		every { settings.backupWebDavLastRestoreTime = any() } returns Unit
+		every { settings.backupWebDavDataVersion = any() } returns Unit
+
+		val result = coordinator.commitAutoRestore(
+			restoredVersion = 8,
+			now = 1234L,
+		)
+
+		verify(exactly = 1) { settings.backupWebDavLastRestoreTime = 1234L }
+		verify(exactly = 1) { settings.backupWebDavDataVersion = 8 }
+		assertEquals(
+			BackupWebDavRestoreCoordinator.RestoreCommitResult(
+				restoredAt = 1234L,
+				restoredVersion = 8,
+				effectiveDataVersion = 8,
+				restoreKind = "auto",
+			),
+			result,
+		)
+	}
+
+	@Test
+	fun `commitAutoRestore keeps current data version when restored version is older`() {
+		every { settings.backupWebDavDataVersion } returns 9
+		every { settings.backupWebDavLastRestoreTime = any() } returns Unit
+
+		val result = coordinator.commitAutoRestore(
+			restoredVersion = 4,
+			now = 1234L,
+		)
+
+		verify(exactly = 1) { settings.backupWebDavLastRestoreTime = 1234L }
+		verify(exactly = 0) { settings.backupWebDavDataVersion = any() }
+		assertEquals(9, result.effectiveDataVersion)
+	}
+
+	@Test
+	fun `commitManualRestore updates manual restore timestamp only`() {
+		every { settings.backupWebDavDataVersion } returns 6
+		every { settings.backupWebDavLastManualRestoreTime = any() } returns Unit
+
+		val result = coordinator.commitManualRestore(now = 2222L)
+
+		verify(exactly = 1) { settings.backupWebDavLastManualRestoreTime = 2222L }
+		verify(exactly = 0) { settings.backupWebDavDataVersion = any() }
+		assertEquals(
+			BackupWebDavRestoreCoordinator.RestoreCommitResult(
+				restoredAt = 2222L,
+				restoredVersion = null,
+				effectiveDataVersion = 6,
+				restoreKind = "manual",
+			),
+			result,
+		)
+	}
+}

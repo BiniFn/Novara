@@ -9,7 +9,6 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupService
 import org.skepsun.kototoro.backups.ui.webdav.DataSyncManager
 import org.skepsun.kototoro.backups.ui.webdav.WebDavAutoRestoreService
-import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.BackupFlow
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.logBackupFlow
@@ -19,7 +18,7 @@ import javax.inject.Singleton
 @Singleton
 class BackupStartupCoordinator @Inject constructor(
 	@ApplicationContext private val appContext: Context,
-	private val settings: AppSettings,
+	private val backupFlowPolicy: BackupFlowPolicy,
 	private val dataSyncManager: DataSyncManager,
 ) {
 
@@ -50,12 +49,13 @@ class BackupStartupCoordinator @Inject constructor(
 	}
 
 	private fun scheduleAutoRestore(scope: CoroutineScope) {
-		if (!hasCompleteAutoRestoreConfig()) {
+		val decision = backupFlowPolicy.autoRestoreStartupDecision()
+		if (!decision.allowed) {
 			logBackupFlow(
 				TAG,
 				flow = BackupFlow.WEBDAV_AUTO_RESTORE,
 				event = "startup_skipped",
-				reason = "feature_disabled_or_incomplete_config",
+				reason = decision.reason,
 			)
 			return
 		}
@@ -76,13 +76,6 @@ class BackupStartupCoordinator @Inject constructor(
 				it.printStackTraceDebug()
 			}
 		}
-	}
-
-	private fun hasCompleteAutoRestoreConfig(): Boolean {
-		return settings.isBackupWebDavAutoRestoreEnabled &&
-			!settings.backupWebDavServerUrl.isNullOrBlank() &&
-			!settings.backupWebDavUsername.isNullOrBlank() &&
-			!settings.backupWebDavPassword.isNullOrBlank()
 	}
 
 	private companion object {

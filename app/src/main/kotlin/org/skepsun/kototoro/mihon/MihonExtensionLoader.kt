@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.kanade.tachiyomi.source.CatalogueSource
@@ -14,6 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
+import org.skepsun.kototoro.extensions.runtime.ExternalExtensionLoaderSupport
+import org.skepsun.kototoro.extensions.runtime.ExternalExtensionMetadataSupport
+import org.skepsun.kototoro.extensions.runtime.ExternalExtensionSourceLoaderSupport
 import org.skepsun.kototoro.mihon.compat.KotoInjektBridge
 import org.skepsun.kototoro.mihon.model.MihonExtensionInfo
 import org.skepsun.kototoro.mihon.model.MihonLoadResult
@@ -46,13 +48,6 @@ class MihonExtensionLoader @Inject constructor(
         const val LIB_VERSION_MIN = 1.2
         const val LIB_VERSION_MAX = 1.9
         
-        // Package flags for querying extension info
-        @Suppress("DEPRECATION")
-        private val PACKAGE_FLAGS = PackageManager.GET_CONFIGURATIONS or
-            PackageManager.GET_META_DATA or
-            PackageManager.GET_SIGNATURES or
-            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) 
-                PackageManager.GET_SIGNING_CERTIFICATES else 0)
     }
     
     /**
@@ -69,11 +64,11 @@ class MihonExtensionLoader @Inject constructor(
             val pkgManager = context.packageManager
             
             // Get all installed packages
-            val installedPkgs = getInstalledPackages(pkgManager)
+            val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.filter { pkg ->
+            val extPkgs = installedPkgs.filter { pkg: PackageInfo ->
                 val isExt = isPackageAnExtension(pkg)
                 if (pkg.packageName.contains("coomer", ignoreCase = true)) {
                     android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
@@ -89,7 +84,7 @@ class MihonExtensionLoader @Inject constructor(
             android.util.Log.d(TAG, "Found ${extPkgs.size} Mihon extension(s)")
             
             // Load extensions in parallel
-            extPkgs.map { pkgInfo ->
+            extPkgs.map { pkgInfo: PackageInfo ->
                 async { loadExtension(context, pkgInfo) }
             }.awaitAll()
         } catch (e: Throwable) {
@@ -105,19 +100,8 @@ class MihonExtensionLoader @Inject constructor(
         injektBridge.get().initialize()
         
         val pkgManager = context.packageManager
-        val pkgInfo = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pkgManager.getPackageInfo(
-                    packageName,
-                    PackageManager.PackageInfoFlags.of(PACKAGE_FLAGS.toLong())
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pkgManager.getPackageInfo(packageName, PACKAGE_FLAGS)
-            }
-        } catch (e: PackageManager.NameNotFoundException) {
-            return@withContext null
-        }
+        val pkgInfo = ExternalExtensionLoaderSupport.getPackageInfoOrNull(pkgManager, packageName)
+            ?: return@withContext null
         
         if (!isPackageAnExtension(pkgInfo)) {
             return@withContext null
@@ -131,35 +115,11 @@ class MihonExtensionLoader @Inject constructor(
      */
     fun getInstalledExtensions(context: Context): List<MihonExtensionInfo> {
         val pkgManager = context.packageManager
-        val installedPkgs = getInstalledPackages(pkgManager)
+        val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
         
         return installedPkgs
             .filter { isPackageAnExtension(it) }
             .mapNotNull { extractExtensionInfo(it) }
-    }
-    
-    /**
-     * Package flags for initial scanning (lightweight)
-     */
-    private val SCAN_FLAGS = PackageManager.GET_META_DATA or PackageManager.GET_CONFIGURATIONS
-
-    private fun getInstalledPackages(pkgManager: PackageManager): List<PackageInfo> {
-        android.util.Log.d(TAG, "Querying installed packages...")
-        return try {
-            val pkgs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pkgManager.getInstalledPackages(
-                    PackageManager.PackageInfoFlags.of(SCAN_FLAGS.toLong())
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pkgManager.getInstalledPackages(SCAN_FLAGS)
-            }
-            android.util.Log.d(TAG, "Found ${pkgs.size} total packages installed")
-            pkgs
-        } catch (e: Exception) {
-            android.util.Log.e(TAG, "Error querying packages", e)
-            emptyList()
-        }
     }
     
     private fun isPackageAnExtension(pkgInfo: PackageInfo): Boolean {
@@ -174,8 +134,11 @@ class MihonExtensionLoader @Inject constructor(
                             pkgName.startsWith("org.keiyoushi.")
         
         // Method 3: Check for metadata in application info
-        val hasMetaData = pkgInfo.applicationInfo?.metaData?.containsKey(METADATA_SOURCE_CLASS) == true ||
-                         pkgInfo.applicationInfo?.metaData?.containsKey(METADATA_SOURCE_FACTORY) == true
+        val hasMetaData = ExternalExtensionMetadataSupport.hasDeclaredSource(
+            metaData = pkgInfo.applicationInfo?.metaData,
+            sourceClassKey = METADATA_SOURCE_CLASS,
+            sourceFactoryKey = METADATA_SOURCE_FACTORY,
+        )
         
         // Mihon strictly checks for the feature, but we can be more inclusive
         val isExtension = hasFeature || (hasPackageName && hasMetaData)
@@ -209,7 +172,7 @@ class MihonExtensionLoader @Inject constructor(
     
     private fun extractExtensionInfo(pkgInfo: PackageInfo): MihonExtensionInfo? {
         val appInfo = pkgInfo.applicationInfo ?: return null
-        val metaData = appInfo.metaData ?: return null
+        val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo) ?: return null
         
         val versionName = pkgInfo.versionName ?: return null
         
@@ -223,18 +186,22 @@ class MihonExtensionLoader @Inject constructor(
             1.4 // Default to 1.4 if parsing fails
         }
         
-        val sourceClassName = metaData.getString(METADATA_SOURCE_CLASS)
-            ?: metaData.getString(METADATA_SOURCE_FACTORY)
+        val declaredSource = ExternalExtensionMetadataSupport.getDeclaredSourceMetadataOrNull(
+            metaData = metaData,
+            sourceClassKey = METADATA_SOURCE_CLASS,
+            sourceFactoryKey = METADATA_SOURCE_FACTORY,
+            nsfwKey = METADATA_NSFW,
+        )
             ?: return null
         
         // Get app name safely
         val appName = try {
-            applicationContext.packageManager.getApplicationLabel(appInfo).toString()
+            ExternalExtensionLoaderSupport.getAppLabel(applicationContext, appInfo)
         } catch (e: Exception) {
             null
         } ?: pkgInfo.packageName.substringAfterLast('.')
         
-        val lang = extractLanguage(pkgInfo.packageName)
+        val lang = ExternalExtensionLoaderSupport.extractLanguage(pkgInfo.packageName, "extension")
         
         return MihonExtensionInfo(
             pkgName = pkgInfo.packageName,
@@ -243,8 +210,8 @@ class MihonExtensionLoader @Inject constructor(
             versionName = versionName,
             libVersion = libVersion,
             lang = lang,
-            isNsfw = metaData.getInt(METADATA_NSFW, 0) == 1,
-            sourceClassName = sourceClassName,
+            isNsfw = declaredSource.isNsfw,
+            sourceClassName = declaredSource.sourceClassName,
             apkPath = appInfo.sourceDir ?: return null,
         )
     }
@@ -277,19 +244,21 @@ class MihonExtensionLoader @Inject constructor(
             )
         }
         
-        val metaData = appInfo.metaData
+        val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo)
             ?: return MihonLoadResult.Error(pkgName, "No meta-data in manifest")
         
         // Get source class name(s)
-        val sourceClassName = metaData.getString(METADATA_SOURCE_CLASS)
-            ?: metaData.getString(METADATA_SOURCE_FACTORY)
+        val declaredSource = ExternalExtensionMetadataSupport.getDeclaredSourceMetadataOrNull(
+            metaData = metaData,
+            sourceClassKey = METADATA_SOURCE_CLASS,
+            sourceFactoryKey = METADATA_SOURCE_FACTORY,
+            nsfwKey = METADATA_NSFW,
+        )
             ?: return MihonLoadResult.Error(pkgName, "No source class specified in manifest")
         
-        val isNsfw = metaData.getInt(METADATA_NSFW, 0) == 1
-        
         // Get app name and language
-        val appName = getAppLabel(context, appInfo)
-        val lang = extractLanguage(pkgName)
+        val appName = ExternalExtensionLoaderSupport.getAppLabel(context, appInfo)
+        val lang = ExternalExtensionLoaderSupport.extractLanguage(pkgName, "extension")
         
         // Create ClassLoader for this extension
         val classLoader = try {
@@ -304,7 +273,7 @@ class MihonExtensionLoader @Inject constructor(
         
         // Load source classes
         val sources = try {
-            loadSources(pkgName, sourceClassName, classLoader)
+            loadSources(pkgName, declaredSource.sourceClassName, classLoader)
         } catch (e: Throwable) {
             android.util.Log.e(TAG, "Failed to load sources from $pkgName", e)
             return MihonLoadResult.Error(pkgName, "Failed to load sources: ${e.message}", e)
@@ -319,7 +288,7 @@ class MihonExtensionLoader @Inject constructor(
             versionName = versionName,
             libVersion = libVersion,
             lang = lang,
-            isNsfw = isNsfw,
+            isNsfw = declaredSource.isNsfw,
             sources = sources,
         )
     }
@@ -329,46 +298,16 @@ class MihonExtensionLoader @Inject constructor(
         sourceClassNames: String,
         classLoader: ClassLoader,
     ): List<Source> {
-        return sourceClassNames.split(";").flatMap { className ->
-            val fullClassName = if (className.trim().startsWith(".")) {
-                pkgName + className.trim()
-            } else {
-                className.trim()
-            }
-            
-            android.util.Log.d(TAG, "Loading class: $fullClassName")
-            
-            val clazz = Class.forName(fullClassName, false, classLoader)
-            val instance = clazz.getDeclaredConstructor().newInstance()
-            
-            when (instance) {
-                is Source -> listOf(instance)
-                is SourceFactory -> instance.createSources()
-                else -> {
-                    android.util.Log.w(TAG, "Unknown instance type: ${instance.javaClass.name}")
-                    emptyList()
-                }
-            }
-        }
+        return ExternalExtensionSourceLoaderSupport.loadSources(
+            pkgName = pkgName,
+            sourceClassNames = sourceClassNames,
+            classLoader = classLoader,
+            asSource = { it as? Source },
+            createSourcesFromFactory = { (it as? SourceFactory)?.createSources() },
+            onUnknownInstance = { className ->
+                android.util.Log.w(TAG, "Unknown instance type: $className")
+            },
+        )
     }
     
-    private fun getAppLabel(context: Context, appInfo: ApplicationInfo): String {
-        return try {
-            context.packageManager.getApplicationLabel(appInfo).toString()
-        } catch (e: Exception) {
-            appInfo.packageName.substringAfterLast('.')
-        }
-    }
-    
-    private fun extractLanguage(pkgName: String): String {
-        // Package names are typically like: eu.kanade.tachiyomi.extension.en.mangadex
-        // We want to extract the language code (en)
-        val parts = pkgName.split(".")
-        val extensionIndex = parts.indexOf("extension")
-        return if (extensionIndex >= 0 && extensionIndex + 1 < parts.size) {
-            parts[extensionIndex + 1]
-        } else {
-            "all"
-        }
-    }
 }

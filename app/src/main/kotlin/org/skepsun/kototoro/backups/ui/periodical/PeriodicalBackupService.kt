@@ -8,7 +8,9 @@ import androidx.core.app.PendingIntentCompat
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.BackupFlowPolicy
 import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.domain.BackupWebDavUploadCoordinator
 import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
 import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
 import org.skepsun.kototoro.core.ErrorReporterReceiver
@@ -32,38 +34,40 @@ class PeriodicalBackupService : CoroutineIntentService() {
 	lateinit var telegramBackupUploader: TelegramBackupUploader
 
 	@Inject
-	lateinit var webDavBackupUploader: WebDavBackupUploader
-
-	@Inject
 	lateinit var repository: BackupRepository
 
 	@Inject
 	lateinit var settings: AppSettings
 
+	@Inject
+	lateinit var backupFlowPolicy: BackupFlowPolicy
+
+	@Inject
+	lateinit var backupWebDavUploadCoordinator: BackupWebDavUploadCoordinator
+
 	override suspend fun IntentJobContext.processIntent(intent: Intent) {
 	logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_start")
-	// 当启用周期性备份时，如果仅上传到远端（不保留本地副本），也应执行；
-	// 因此这里不再强制要求本地目录存在，而是判断是否至少有一个目的地。
-	if (!settings.isPeriodicalBackupEnabled) {
-		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = "feature_disabled")
+	val plan = backupFlowPolicy.periodicalBackupPlan(telegramBackupUploader.isAvailable)
+	if (!plan.decision.allowed) {
+		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = plan.decision.reason)
 		return
 	}
-	val hasLocalCopyDestination = settings.isBackupWebDavKeepLocalCopyEnabled && settings.periodicalBackupDirectory != null
-	val hasTelegramDestination = settings.isBackupTelegramUploadEnabled && telegramBackupUploader.isAvailable
-	val hasWebDavDestination = settings.isBackupWebDavUploadEnabled
-	if (!hasLocalCopyDestination && !hasTelegramDestination && !hasWebDavDestination) {
-		// 没有任何可用的备份目的地，跳过
-		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = "no_destination")
-		return
-	}
+	val hasLocalCopyDestination = plan.destinations.hasLocalCopyDestination
+	val hasTelegramDestination = plan.destinations.hasTelegramDestination
+	val hasWebDavDestination = plan.destinations.hasWebDavDestination
 
 	// 频率判定：如果保留本地副本，则参考本地最近一次备份时间；
 	// 如果不保留本地副本但启用了 WebDAV 上传，则参考最近一次 WebDAV 上传时间。
 	val localLast = if (hasLocalCopyDestination) externalBackupStorage.getLastBackupDate()?.time else null
 	val webDavLast = if (hasWebDavDestination) settings.backupWebDavLastUploadTime else 0L
-	val effectiveLast = listOfNotNull(localLast, webDavLast.takeIf { it > 0L }).maxOrNull() ?: 0L
-	if (effectiveLast > 0L && effectiveLast + settings.periodicalBackupFrequencyMillis > System.currentTimeMillis()) {
-		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = "frequency_gate")
+	val frequencyDecision = backupFlowPolicy.periodicalBackupFrequencyDecision(
+		now = System.currentTimeMillis(),
+		localLastBackupTime = localLast,
+		webDavLastUploadTime = webDavLast,
+		destinations = plan.destinations,
+	)
+	if (!frequencyDecision.allowed) {
+		logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_skipped", reason = frequencyDecision.reason)
 		return
 	}
 
@@ -83,14 +87,11 @@ class PeriodicalBackupService : CoroutineIntentService() {
 				logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "telegram_upload_complete")
 			}
             if (settings.isBackupWebDavUploadEnabled) {
-                val nextVersion = settings.backupWebDavDataVersion + 1
-                webDavBackupUploader.uploadBackup(output, targetVersion = nextVersion)
-                // 记录最近一次 WebDAV 上传时间，用于频率判定与最近操作展示
-                settings.backupWebDavLastUploadTime = System.currentTimeMillis()
-                settings.backupWebDavLastUploadKind = "auto"
-                // 定时备份中的 WebDAV 上传成功后也自增数据版本
-                settings.backupWebDavDataVersion = nextVersion
-                logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "webdav_upload_complete", reason = null, "nextVersion" to nextVersion)
+                val uploadResult = backupWebDavUploadCoordinator.uploadAndCommit(
+                    file = output,
+                    uploadKind = "auto",
+                )
+                logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "webdav_upload_complete", reason = null, "nextVersion" to uploadResult.targetVersion)
             }
 			logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "backup_complete")
         } finally {

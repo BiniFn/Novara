@@ -5,9 +5,7 @@ import android.accounts.AccountManager
 import android.content.ContentResolver
 import android.content.ContentResolver.SYNC_OBSERVER_TYPE_ACTIVE
 import android.content.Context
-import android.os.Bundle
 import androidx.room.InvalidationTracker
-import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -25,15 +23,15 @@ import org.skepsun.kototoro.core.db.TABLE_FAVOURITE_CATEGORIES
 import org.skepsun.kototoro.core.db.TABLE_HISTORY
 import org.skepsun.kototoro.core.util.logSyncFlow
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
-import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class SyncController @Inject constructor(
 	@ApplicationContext context: Context,
-	private val dbProvider: Provider<MangaDatabase>,
+	private val syncRequestPlanner: SyncRequestPlanner,
+	private val syncGcCoordinator: SyncGcCoordinator,
+	private val syncAuthorityExecutor: SyncAuthorityExecutor,
 ) : InvalidationTracker.Observer(arrayOf(TABLE_HISTORY, TABLE_FAVOURITES, TABLE_FAVOURITE_CATEGORIES)) {
 
 	private val authorityHistory = context.getString(R.string.sync_authority_history)
@@ -41,22 +39,25 @@ class SyncController @Inject constructor(
 	private val am = AccountManager.get(context)
 	private val accountType = context.getString(R.string.account_type_sync)
 	private val mutex = Mutex()
-	private val defaultGcPeriod = TimeUnit.DAYS.toMillis(2) // gc period if sync disabled
-
 	override fun onInvalidated(tables: Set<String>) {
-		val favourites = (TABLE_FAVOURITES in tables || TABLE_FAVOURITE_CATEGORIES in tables)
-			&& !isSyncActiveOrPending(authorityFavourites)
-		val history = TABLE_HISTORY in tables && !isSyncActiveOrPending(authorityHistory)
-		if (favourites || history) {
+		val decision = syncRequestPlanner.planInvalidation(
+			tables = tables,
+			favouritesTable = TABLE_FAVOURITES,
+			favouriteCategoriesTable = TABLE_FAVOURITE_CATEGORIES,
+			historyTable = TABLE_HISTORY,
+			isFavouritesSyncActiveOrPending = isSyncActiveOrPending(authorityFavourites),
+			isHistorySyncActiveOrPending = isSyncActiveOrPending(authorityHistory),
+		)
+		if (decision.shouldRequestSync) {
 			logSyncFlow(
 				TAG,
 				event = "db_invalidated",
 				reason = null,
 				"tables" to tables.joinToString(),
-				"favourites" to favourites,
-				"history" to history,
+				"favourites" to decision.favourites,
+				"history" to decision.history,
 			)
-			requestSync(favourites, history)
+			requestSync(decision.favourites, decision.history)
 		}
 	}
 
@@ -97,7 +98,6 @@ class SyncController @Inject constructor(
 			logSyncFlow(TAG, event = "request_skipped", reason = "no_authority_selected")
 			return
 		}
-		val db = dbProvider.get()
 		val account = peekAccount()
 		if (account == null || !ContentResolver.getMasterSyncAutomatically()) {
 			logSyncFlow(
@@ -109,47 +109,46 @@ class SyncController @Inject constructor(
 				"accountPresent" to (account != null),
 				"masterSync" to ContentResolver.getMasterSyncAutomatically(),
 			)
-			db.gc(favourites, history)
+			syncGcCoordinator.gcIfNeeded(
+				favourites = favourites,
+				history = history,
+				gcFavourites = favourites,
+				gcHistory = history,
+			)
 			return
 		}
-		var gcHistory = false
-		var gcFavourites = false
-		if (favourites) {
-			if (ContentResolver.getSyncAutomatically(account, authorityFavourites)) {
-				logSyncFlow(TAG, event = "request_authority", reason = null, "authority" to authorityFavourites)
-				ContentResolver.requestSync(account, authorityFavourites, Bundle.EMPTY)
-			} else {
-				logSyncFlow(TAG, event = "gc_authority_disabled", reason = null, "authority" to authorityFavourites)
-				gcFavourites = true
-			}
+		val executionPlan = syncRequestPlanner.planAuthorityExecution(
+			favouritesRequested = favourites,
+			historyRequested = history,
+			authorityFavourites = authorityFavourites,
+			authorityHistory = authorityHistory,
+			isFavouritesAuthorityEnabled = ContentResolver.getSyncAutomatically(account, authorityFavourites),
+			isHistoryAuthorityEnabled = ContentResolver.getSyncAutomatically(account, authorityHistory),
+		)
+		val result = syncAuthorityExecutor.execute(
+			account = account,
+			plan = executionPlan,
+			authorityFavourites = authorityFavourites,
+			authorityHistory = authorityHistory,
+		)
+		result.requestedAuthorities.forEach { authority ->
+			logSyncFlow(TAG, event = "request_authority", reason = null, "authority" to authority)
 		}
-		if (history) {
-			if (ContentResolver.getSyncAutomatically(account, authorityHistory)) {
-				logSyncFlow(TAG, event = "request_authority", reason = null, "authority" to authorityHistory)
-				ContentResolver.requestSync(account, authorityHistory, Bundle.EMPTY)
-			} else {
-				logSyncFlow(TAG, event = "gc_authority_disabled", reason = null, "authority" to authorityHistory)
-				gcHistory = true
-			}
+		result.disabledAuthorities.forEach { authority ->
+			logSyncFlow(TAG, event = "gc_authority_disabled", reason = null, "authority" to authority)
 		}
-		if (gcHistory || gcFavourites) {
-			db.gc(gcFavourites, gcHistory)
+		if (executionPlan.gcHistory || executionPlan.gcFavourites) {
+			syncGcCoordinator.gcIfNeeded(
+				favourites = favourites,
+				history = history,
+				gcFavourites = executionPlan.gcFavourites,
+				gcHistory = executionPlan.gcHistory,
+			)
 		}
 	}
 
 	private fun peekAccount(): Account? {
 		return am.getAccountsByType(accountType).firstOrNull()
-	}
-
-	private suspend fun MangaDatabase.gc(favourites: Boolean, history: Boolean) = withTransaction {
-		val deletedAt = System.currentTimeMillis() - defaultGcPeriod
-		if (history) {
-			getHistoryDao().gc(deletedAt)
-		}
-		if (favourites) {
-			getFavouritesDao().gc(deletedAt)
-			getFavouriteCategoriesDao().gc(deletedAt)
-		}
 	}
 
 	private fun isSyncActiveOrPending(authority: String): Boolean {

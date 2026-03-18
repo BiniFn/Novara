@@ -8,6 +8,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.domain.BackupWebDavRestoreCoordinator
+import org.skepsun.kototoro.backups.domain.BackupWebDavUploadCoordinator
 import org.skepsun.kototoro.backups.domain.BackupUtils
 import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -24,6 +26,8 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 	private val settings: AppSettings,
 	private val telegramUploader: TelegramBackupUploader,
 	private val webDavUploader: WebDavBackupUploader,
+	private val backupWebDavUploadCoordinator: BackupWebDavUploadCoordinator,
+	private val backupWebDavRestoreCoordinator: BackupWebDavRestoreCoordinator,
 	private val backupStorage: ExternalBackupStorage,
 	private val repository: org.skepsun.kototoro.backups.data.BackupRepository,
 	@ApplicationContext private val appContext: Context,
@@ -82,14 +86,11 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 					backupStorage.put(output)
 					backupStorage.trim(settings.periodicalBackupMaxCount)
 				}
-                // 上传到 WebDAV（使用下一个版本号命名）
-                val nextVersion = settings.backupWebDavDataVersion + 1
-                webDavUploader.uploadBackup(output, targetVersion = nextVersion)
+                backupWebDavUploadCoordinator.uploadAndCommit(
+                    file = output,
+                    uploadKind = "manual",
+                )
                 onActionDone.call(ReversibleAction(R.string.webdav_upload_success, null))
-                settings.backupWebDavLastUploadTime = System.currentTimeMillis()
-                settings.backupWebDavLastUploadKind = "manual"
-                // 手动上传成功后自增数据版本
-                settings.backupWebDavDataVersion = nextVersion
                 // 仅在保留本地副本时，更新上次本地备份时间展示
                 if (settings.isBackupWebDavKeepLocalCopyEnabled) {
                     updateLastBackupDate()
@@ -124,8 +125,8 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 					java.util.zip.ZipInputStream(java.io.FileInputStream(tempFile)).use { zis ->
 						repository.restoreBackup(zis, allSections, null)
 					}
+					backupWebDavRestoreCoordinator.commitManualRestore()
 					onActionDone.call(ReversibleAction(R.string.webdav_restore_success, null))
-					settings.backupWebDavLastManualRestoreTime = System.currentTimeMillis()
 					updateWebDavLastAction()
 				} finally {
 					if (tempFile.exists()) tempFile.delete()
