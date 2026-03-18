@@ -13,6 +13,8 @@ class ExternalContentRepositoryProvider @Inject constructor(
 	private val contentCache: MemoryContentCache,
 ) : ContentRepositoryProvider {
 
+	override fun supports(source: ContentSource): Boolean = source is ExternalContentSource
+
 	override fun create(source: ContentSource): ContentRepository? {
 		if (source !is ExternalContentSource) return null
 		return if (source.isAvailable(context)) {

@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.db.TABLE_MANGA_TAGS
 import org.skepsun.kototoro.core.db.TABLE_SOURCES
 import org.skepsun.kototoro.core.db.TABLE_TAGS
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.logBackupFlow
 import org.skepsun.kototoro.core.util.ext.connectivityManager
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import java.util.zip.ZipOutputStream
@@ -54,6 +55,8 @@ class DataSyncManager @Inject constructor(
     private val uploadMutex = Mutex()
 
     private companion object {
+        private const val TAG = "DataSyncManager"
+        private const val FLOW_AUTO_SYNC_UPLOAD = "webdav_auto_sync_upload"
         // 自动同步的最小间隔，防止过于频繁的上传（12 小时）
         private const val AUTO_SYNC_MIN_INTERVAL_MS: Long = 12L * 60L * 60_000L
         // 去抖动聚合时长保持 30 秒
@@ -79,6 +82,7 @@ class DataSyncManager @Inject constructor(
 
     /** 启动监听（幂等） */
     fun start() {
+        logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "observer_started")
         runCatching {
             database.invalidationTracker.addObserver(observer)
         }.onFailure { it.printStackTraceDebug() }
@@ -89,6 +93,7 @@ class DataSyncManager @Inject constructor(
             settings.observe(AppSettings.KEY_BACKUP_WEBDAV_DATA_VERSION).collect { key ->
                 if (key == AppSettings.KEY_BACKUP_WEBDAV_DATA_VERSION) {
                     // 数据版本变化时立即上传，忽略最小间隔限制
+                    logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "version_changed_force_upload")
                     runCatching { uploadNow(force = true) }.onFailure { it.printStackTraceDebug() }
                 }
             }
@@ -97,6 +102,7 @@ class DataSyncManager @Inject constructor(
 
     /** 停止监听并取消任务 */
     fun stop() {
+        logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "observer_stopped")
         runCatching {
             database.invalidationTracker.removeObserver(observer)
         }.onFailure { it.printStackTraceDebug() }
@@ -106,17 +112,27 @@ class DataSyncManager @Inject constructor(
 
     private fun scheduleUpload() {
         // 条件判断：需启用自动同步且 WebDAV 上传可用、配置完整
-        if (!settings.isBackupWebDavAutoSyncEnabled || !settings.isBackupWebDavUploadEnabled) return
+        if (!settings.isBackupWebDavAutoSyncEnabled || !settings.isBackupWebDavUploadEnabled) {
+            logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "schedule_skipped", details = "reason=feature_disabled")
+            return
+        }
         val url = settings.backupWebDavServerUrl
         val user = settings.backupWebDavUsername
         val pass = settings.backupWebDavPassword
-        if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) return
+        if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) {
+            logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "schedule_skipped", details = "reason=incomplete_config")
+            return
+        }
 
         // 收紧策略：若距离上次上传不足最小间隔，则跳过本次调度
         val lastUpload = settings.backupWebDavLastUploadTime
-        if (lastUpload > 0L && System.currentTimeMillis() - lastUpload < AUTO_SYNC_MIN_INTERVAL_MS) return
+        if (lastUpload > 0L && System.currentTimeMillis() - lastUpload < AUTO_SYNC_MIN_INTERVAL_MS) {
+            logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "schedule_skipped", details = "reason=min_interval")
+            return
+        }
 
         debounceJob?.cancel()
+        logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "scheduled", details = "debounceMs=$AUTO_SYNC_DEBOUNCE_MS")
         debounceJob = scope.launch {
             // 聚合 30 秒内的变更
             delay(AUTO_SYNC_DEBOUNCE_MS)
@@ -151,6 +167,7 @@ class DataSyncManager @Inject constructor(
         }
 
         uploadMutex.withLock {
+            logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "upload_start", details = "force=$force")
             val output = BackupUtils.createTempFile(appContext)
             try {
                 ZipOutputStream(output.outputStream()).use {
@@ -168,6 +185,7 @@ class DataSyncManager @Inject constructor(
                 settings.backupWebDavLastUploadKind = "auto"
                 // 上传成功后自增数据版本，用于版本化文件名与兼容判定
                 settings.backupWebDavDataVersion = nextVersion
+                logBackupFlow(TAG, flow = FLOW_AUTO_SYNC_UPLOAD, event = "upload_complete", details = "force=$force nextVersion=$nextVersion")
             } finally {
                 output.delete()
             }

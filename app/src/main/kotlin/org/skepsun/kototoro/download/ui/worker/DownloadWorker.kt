@@ -57,6 +57,7 @@ import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
 import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.requireAvailableRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.DownloadFormat
 import org.skepsun.kototoro.core.util.MimeTypes
@@ -253,7 +254,10 @@ class DownloadWorker @AssistedInject constructor(
 					manga = localContentRepository.getRemoteContent(manga)
 						?: error("Cannot obtain remote manga instance")
 				}
-				val repo = mangaRepositoryFactory.create(manga.source)
+				val repo = mangaRepositoryFactory.createWithDiagnostics(manga.source).requireAvailableRepository(
+					tag = "DownloadWorker",
+					prefix = "downloadContentImpl_repository_unavailable",
+				) { "Download source ${manga.source.name} is not available" }
 				Log.d("DownloadWorker", "downloadContentImpl repo=${repo.source.name}")
 				val mangaDetails = if (manga.chapters.isNullOrEmpty() || manga.description.isNullOrEmpty()) repo.getDetails(manga) else manga
 				Log.d("DownloadWorker", "downloadContentImpl detailsChapters=${mangaDetails.chapters?.size ?: 0}")
@@ -1178,7 +1182,10 @@ class DownloadWorker @AssistedInject constructor(
 		val videoRoot = localStorageManager.getVideoRoot()
 		checkNotNull(videoRoot) { applicationContext.getString(R.string.cannot_find_available_storage) }
 		val mangaDir = File(videoRoot, manga.title.toFileNameSafe()).apply { mkdirs() }
-		val repo = mangaRepositoryFactory.create(manga.source)
+		val repo = mangaRepositoryFactory.createWithDiagnostics(manga.source).requireAvailableRepository(
+			tag = "DownloadWorker",
+			prefix = "downloadVideoImpl_repository_unavailable",
+		) { "Download source ${manga.source.name} is not available" }
 		for ((index, chapter) in chapters.withIndex()) {
 			if (chapter.value.id in excludedIds) {
 				downloaded += 1

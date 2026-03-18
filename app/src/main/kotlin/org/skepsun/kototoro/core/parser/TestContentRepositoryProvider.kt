@@ -11,6 +11,8 @@ class TestContentRepositoryProvider @Inject constructor(
 	private val contentCache: MemoryContentCache,
 ) : ContentRepositoryProvider {
 
+	override fun supports(source: ContentSource): Boolean = source == TestContentSource
+
 	override fun create(source: ContentSource): ContentRepository? {
 		if (source != TestContentSource) return null
 		return TestContentRepository(

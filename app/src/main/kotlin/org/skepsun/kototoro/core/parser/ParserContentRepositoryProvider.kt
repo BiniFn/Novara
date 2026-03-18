@@ -12,6 +12,8 @@ class ParserContentRepositoryProvider @Inject constructor(
 	private val mirrorSwitcher: MirrorSwitcher,
 ) : ContentRepositoryProvider {
 
+	override fun supports(source: ContentSource): Boolean = source is ContentParserSource
+
 	override fun create(source: ContentSource): ContentRepository? {
 		if (source !is ContentParserSource) return null
 		return ParserContentRepository(

@@ -10,8 +10,12 @@ class JsonContentSourceResolver @Inject constructor(
 	private val jsonSourceManager: JsonSourceManager,
 ) : ContentSourceResolver {
 
+	override fun supports(source: ContentSource): Boolean {
+		return source !is JsonContentSource && source.name.startsWith(JSON_PREFIX)
+	}
+
 	override fun resolve(source: ContentSource): ContentSource? {
-		if (source is JsonContentSource || !source.name.startsWith(JSON_PREFIX)) {
+		if (!supports(source)) {
 			return null
 		}
 		return runBlocking {

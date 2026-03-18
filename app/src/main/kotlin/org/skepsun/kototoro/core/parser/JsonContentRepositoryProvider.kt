@@ -24,6 +24,8 @@ class JsonContentRepositoryProvider @Inject constructor(
 	private val videoLocalCacheProxy: VideoLocalCacheProxy,
 ) : ContentRepositoryProvider {
 
+	override fun supports(source: ContentSource): Boolean = source is JsonContentSource
+
 	override fun create(source: ContentSource): ContentRepository? {
 		if (source !is JsonContentSource) return null
 		return when (source.entity.type) {

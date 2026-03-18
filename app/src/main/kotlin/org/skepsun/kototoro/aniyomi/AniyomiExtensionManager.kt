@@ -1,10 +1,6 @@
 package org.skepsun.kototoro.aniyomi
 
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.Build
-import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
 import eu.kanade.tachiyomi.animesource.AnimeSource
@@ -15,7 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.skepsun.kototoro.core.util.ext.goAsync
+import org.skepsun.kototoro.extensions.runtime.processExternalExtensionResults
+import org.skepsun.kototoro.extensions.runtime.registerExternalExtensionPackageObserver
 import org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource
 import org.skepsun.kototoro.aniyomi.model.AniyomiLoadResult
 import javax.inject.Inject
@@ -77,57 +74,44 @@ class AniyomiExtensionManager @Inject constructor(
         _isLoading.value = true
         
         try {
-            android.util.Log.d(TAG, "Loading Aniyomi extensions...")
+            android.util.Log.d(TAG, "load_start ecosystem=aniyomi")
 
             sourceCache.clear()
             animeSourceCache.clear()
-            
-            val results = loader.loadExtensions(context)
-            
-            val successful = mutableListOf<AniyomiLoadResult.Success>()
-            val failed = mutableListOf<AniyomiLoadResult.Error>()
-            
-            // First pass: collect all sources and their names to detect multi-language sources
-            val allSourcesWithMeta = mutableListOf<Triple<AnimeCatalogueSource, String, Boolean>>()
-            
-            results.forEach { result ->
-                when (result) {
-                    is AniyomiLoadResult.Success -> {
-                        successful.add(result)
-                        result.sources.forEach { source ->
-                            sourceCache[source.id] = source
-                            val catalogueSource = source as? AnimeCatalogueSource ?: return@forEach
-                            allSourcesWithMeta.add(Triple(catalogueSource, result.pkgName, result.isNsfw))
-                        }
-                    }
-                    is AniyomiLoadResult.Error -> {
-                        failed.add(result)
-                        android.util.Log.e(TAG, "Failed to load ${result.pkgName}: ${result.message}")
-                    }
-                    is AniyomiLoadResult.Untrusted -> {
-                        android.util.Log.w(TAG, "Untrusted extension: ${result.pkgName}")
-                    }
-                }
-            }
-            
-            // Count how many sources share each name
-            val nameCountMap = allSourcesWithMeta.groupBy { it.first.name }.mapValues { it.value.size }
-            
-            // Second pass: create AniyomiAnimeSource with appropriate language suffix
-            allSourcesWithMeta.forEach { (catalogueSource, pkgName, isNsfw) ->
-                val needsLanguageSuffix = nameCountMap[catalogueSource.name]?.let { it > 1 } ?: false
-                animeSourceCache[catalogueSource.id] = AniyomiAnimeSource(
-                    animeCatalogueSource = catalogueSource,
-                    pkgName = pkgName,
-                    isNsfw = isNsfw,
-                    hasLanguageSuffix = needsLanguageSuffix,
-                )
-            }
-            
-            _installedExtensions.value = successful
-            _failedExtensions.value = failed
-            
-            android.util.Log.d(TAG, "Loaded ${successful.size} extension(s), ${failed.size} failed, ${animeSourceCache.size} sources total")
+            val processed = processExternalExtensionResults(
+                results = loader.loadExtensions(context),
+                successOf = { it as? AniyomiLoadResult.Success },
+                errorOf = { it as? AniyomiLoadResult.Error },
+                untrustedPackageNameOf = { (it as? AniyomiLoadResult.Untrusted)?.pkgName },
+                successSources = { it.sources },
+                successPackageName = { it.pkgName },
+                successIsNsfw = { it.isNsfw },
+                sourceId = { it.id },
+                asCatalogueSource = { it as? AnimeCatalogueSource },
+                catalogueSourceName = { it.name },
+                buildWrappedSource = { catalogueSource, pkgName, isNsfw, hasLanguageSuffix ->
+                    AniyomiAnimeSource(
+                        animeCatalogueSource = catalogueSource,
+                        pkgName = pkgName,
+                        isNsfw = isNsfw,
+                        hasLanguageSuffix = hasLanguageSuffix,
+                    )
+                },
+                onError = { error ->
+                    android.util.Log.e(TAG, "load_error ecosystem=aniyomi pkg=${error.pkgName} message=${error.message}")
+                },
+                onUntrusted = { pkgName ->
+                    android.util.Log.w(TAG, "load_untrusted ecosystem=aniyomi pkg=$pkgName")
+                },
+            )
+            sourceCache.putAll(processed.sourceById)
+            animeSourceCache.putAll(processed.wrappedSourceById)
+            _installedExtensions.value = processed.successful
+            _failedExtensions.value = processed.failed
+            android.util.Log.d(
+                TAG,
+                "load_complete ecosystem=aniyomi success=${processed.successful.size} failed=${processed.failed.size} untrusted=${processed.untrustedPackages.size} sources=${processed.wrappedSourceById.size}",
+            )
             
         } finally {
             _isLoading.value = false
@@ -197,30 +181,9 @@ class AniyomiExtensionManager @Inject constructor(
 
     private fun registerPackageObserver() {
         if (isPackageObserverRegistered) return
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                goAsync {
-                    loadExtensions()
-                }
-            }
+        registerExternalExtensionPackageObserver(context) {
+            loadExtensions()
         }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.RECEIVER_EXPORTED
-        } else {
-            0
-        }
-        ContextCompat.registerReceiver(
-            context,
-            receiver,
-            IntentFilter().apply {
-                addAction(Intent.ACTION_PACKAGE_ADDED)
-                addAction(Intent.ACTION_PACKAGE_REPLACED)
-                addAction(Intent.ACTION_PACKAGE_REMOVED)
-                addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
-                addDataScheme("package")
-            },
-            flags,
-        )
         isPackageObserverRegistered = true
     }
 }

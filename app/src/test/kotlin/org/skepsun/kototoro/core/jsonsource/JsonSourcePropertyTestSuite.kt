@@ -8,12 +8,14 @@ import io.kotest.matchers.string.shouldStartWith
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.*
 import io.kotest.property.checkAll
+import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jsoup.Jsoup
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 import org.skepsun.kototoro.core.parser.rule.DefaultRuleEngine
 import org.skepsun.kototoro.core.parser.rule.RuleCache
@@ -57,7 +59,7 @@ class JsonSourcePropertyTestSuite : StringSpec({
      */
     "Property 1: JSON source identifiers are unique for different names".config(invocations = 50) {
         val mockDao = MockJsonSourceDao()
-        val manager = JsonSourceManager(mockDao)
+        val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
         
         checkAll(arbSourceName, arbSourceName, Arb.enum<JsonSourceType>()) { name1, name2, type ->
             if (name1.isNotBlank() && name2.isNotBlank() && name1 != name2) {
@@ -82,7 +84,7 @@ class JsonSourcePropertyTestSuite : StringSpec({
      */
     "Property 2: Source type identification is consistent".config(invocations = 50) {
         val mockDao = MockJsonSourceDao()
-        val manager = JsonSourceManager(mockDao)
+        val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
         
         checkAll(arbSourceName, Arb.enum<JsonSourceType>()) { name, type ->
             if (name.isNotBlank()) {
@@ -198,7 +200,7 @@ class JsonSourcePropertyTestSuite : StringSpec({
      */
     "Property 10: Source identifier format is compliant".config(invocations = 50) {
         val mockDao = MockJsonSourceDao()
-        val manager = JsonSourceManager(mockDao)
+        val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
         
         checkAll(arbSourceName, Arb.enum<JsonSourceType>()) { name, type ->
             if (name.isNotBlank()) {

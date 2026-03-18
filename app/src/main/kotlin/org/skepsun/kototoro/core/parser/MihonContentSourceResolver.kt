@@ -9,8 +9,12 @@ class MihonContentSourceResolver @Inject constructor(
 	private val mihonExtensionManager: MihonExtensionManager,
 ) : ContentSourceResolver {
 
+	override fun supports(source: ContentSource): Boolean {
+		return source !is MihonMangaSource && source.name.startsWith(MIHON_PREFIX)
+	}
+
 	override fun resolve(source: ContentSource): ContentSource? {
-		if (source is MihonMangaSource || !source.name.startsWith(MIHON_PREFIX)) {
+		if (!supports(source)) {
 			return null
 		}
 		android.util.Log.d("MihonResolver", "Resolving source: ${source.name}")

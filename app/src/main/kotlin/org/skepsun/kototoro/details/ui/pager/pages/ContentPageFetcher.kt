@@ -20,6 +20,8 @@ import okio.Path.Companion.toOkioPath
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.getAvailableRepositoryOrNull
+import org.skepsun.kototoro.core.parser.requireAvailableRepository
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.fetch
 import org.skepsun.kototoro.core.util.ext.isNetworkUri
@@ -45,7 +47,10 @@ class ContentPageFetcher(
 
 	override suspend fun fetch(): FetchResult? {
 		// 预览图不携带 headers 会导致拦截器无法注入来源，避免在有 headers 时走无头请求
-		val repo = mangaRepositoryFactory.create(page.source)
+		val repo = mangaRepositoryFactory.createWithDiagnostics(page.source).getAvailableRepositoryOrNull(
+			tag = "ContentPageFetcher",
+			prefix = "repository_unavailable",
+		) ?: return null
 		val pageUrl = repo.getPageUrl(page)
 
 		if (pageUrl.isBlank()) {
@@ -90,7 +95,10 @@ class ContentPageFetcher(
 	}
 
 	private suspend fun fetchPage(pageUrl: String): FetchResult {
-		val repo = mangaRepositoryFactory.create(page.source)
+		val repo = mangaRepositoryFactory.createWithDiagnostics(page.source).requireAvailableRepository(
+			tag = "ContentPageFetcher",
+			prefix = "fetchPage_repository_unavailable",
+		) { "Page source ${page.source.name} is not available" }
 		val request = repo.createPageRequest(pageUrl, page)
 		return imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use { response ->
 			if (!response.isSuccessful) {

@@ -23,6 +23,7 @@ import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.TABLE_FAVOURITES
 import org.skepsun.kototoro.core.db.TABLE_FAVOURITE_CATEGORIES
 import org.skepsun.kototoro.core.db.TABLE_HISTORY
+import org.skepsun.kototoro.core.util.logSyncFlow
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -47,6 +48,11 @@ class SyncController @Inject constructor(
 			&& !isSyncActiveOrPending(authorityFavourites)
 		val history = TABLE_HISTORY in tables && !isSyncActiveOrPending(authorityHistory)
 		if (favourites || history) {
+			logSyncFlow(
+				TAG,
+				event = "db_invalidated",
+				details = "tables=${tables.joinToString()} favourites=$favourites history=$history",
+			)
 			requestSync(favourites, history)
 		}
 	}
@@ -75,6 +81,7 @@ class SyncController @Inject constructor(
 	}
 
 	suspend fun requestFullSync() = withContext(Dispatchers.Default) {
+		logSyncFlow(TAG, event = "request_full_sync")
 		requestSyncImpl(favourites = true, history = true)
 	}
 
@@ -84,11 +91,17 @@ class SyncController @Inject constructor(
 
 	private suspend fun requestSyncImpl(favourites: Boolean, history: Boolean) = mutex.withLock {
 		if (!favourites && !history) {
+			logSyncFlow(TAG, event = "request_skipped", details = "reason=no_authority_selected")
 			return
 		}
 		val db = dbProvider.get()
 		val account = peekAccount()
 		if (account == null || !ContentResolver.getMasterSyncAutomatically()) {
+			logSyncFlow(
+				TAG,
+				event = "gc_fallback",
+				details = "favourites=$favourites history=$history accountPresent=${account != null} masterSync=${ContentResolver.getMasterSyncAutomatically()}",
+			)
 			db.gc(favourites, history)
 			return
 		}
@@ -96,15 +109,19 @@ class SyncController @Inject constructor(
 		var gcFavourites = false
 		if (favourites) {
 			if (ContentResolver.getSyncAutomatically(account, authorityFavourites)) {
+				logSyncFlow(TAG, event = "request_authority", details = "authority=$authorityFavourites")
 				ContentResolver.requestSync(account, authorityFavourites, Bundle.EMPTY)
 			} else {
+				logSyncFlow(TAG, event = "gc_authority_disabled", details = "authority=$authorityFavourites")
 				gcFavourites = true
 			}
 		}
 		if (history) {
 			if (ContentResolver.getSyncAutomatically(account, authorityHistory)) {
+				logSyncFlow(TAG, event = "request_authority", details = "authority=$authorityHistory")
 				ContentResolver.requestSync(account, authorityHistory, Bundle.EMPTY)
 			} else {
+				logSyncFlow(TAG, event = "gc_authority_disabled", details = "authority=$authorityHistory")
 				gcHistory = true
 			}
 		}
@@ -134,6 +151,8 @@ class SyncController @Inject constructor(
 	}
 
 	companion object {
+
+		private const val TAG = "SyncController"
 
 		@JvmStatic
 		fun setLastSync(context: Context, account: Account, authority: String, time: Long) {

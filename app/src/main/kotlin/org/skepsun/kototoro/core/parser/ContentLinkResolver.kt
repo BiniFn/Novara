@@ -42,7 +42,10 @@ class ContentLinkResolver @Inject constructor(
 		val sourceName = requireNotNull(uri.getQueryParameter("source")) { "Source is not specified" }
 		val source = ContentSource(sourceName)
 		require(source != UnknownContentSource) { "Content source $sourceName is not supported" }
-		val repo = repositoryFactory.create(source)
+		val repo = repositoryFactory.createWithDiagnostics(source).requireAvailableRepository(
+			tag = "ContentLinkResolver",
+			prefix = "app_link_repository_unavailable",
+		) { "Content source $sourceName is not available" }
 		return repo.findExact(
 			url = uri.getQueryParameter("url"),
 			title = uri.getQueryParameter("name"),

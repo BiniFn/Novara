@@ -604,6 +604,163 @@ The current docs are already good for task-oriented guidance. The next step is m
 - sync vs backup boundary explanation
 - extension runtime overview
 
+## Recommended Priority After the Manga-to-Content Rename
+
+The broad naming migration from manga-centric generic classes to content-centric ones is already being handled separately. Excluding that work, the remaining improvements are best prioritized by architectural pressure, blast radius, debugging value, and dependency ordering.
+
+### P0: Do first
+
+#### 1. Separate source resolution from repository instantiation
+
+This is the highest-value structural change because it sits directly on the main content-access path and is already showing signs of becoming a maintenance bottleneck.
+
+Why this comes first:
+
+- it is a high-traffic architectural chokepoint
+- every new source ecosystem increases its complexity
+- poor separation here makes future testing and debugging harder
+- this refactor unlocks cleaner follow-up work in extension runtime and platform abstractions
+
+Suggested scope:
+
+- split source normalization and identity handling from repository selection
+- split repository construction from instance caching
+- preserve current behavior while reducing responsibility density
+
+#### 2. Invest in observability for compatibility-heavy subsystems
+
+Kototoro depends on several high-variance subsystems that fail due to external change rather than only internal regressions. That makes observability an immediate engineering multiplier.
+
+Why this comes first:
+
+- it reduces diagnosis cost across networking, OCR, sync, and extensions
+- it lowers the risk of later refactors by making failures visible
+- it improves contributor productivity without requiring a large architecture rewrite
+
+Suggested scope:
+
+- add structured logging around source resolution and repository creation
+- add clearer extension loading diagnostics
+- trace sync triggers and execution paths
+- expose OCR stage failures and fallback decisions
+- capture network compatibility events with actionable metadata
+
+### P1: High priority
+
+#### 3. Control Mihon and Aniyomi runtime duplication
+
+The current symmetry is understandable, but duplicated orchestration logic will become expensive if it keeps spreading.
+
+Why this is high priority:
+
+- it is a clear DRY pressure point
+- behavior drift between two similar ecosystems becomes likely over time
+- future extension-management work will otherwise require double implementation
+
+Suggested scope:
+
+- identify shared runtime lifecycle concerns first
+- extract common install, update, state, and loading flows where practical
+- keep ecosystem-specific adapters where differences are real
+
+#### 4. Keep reader core separate from reader enhancements
+
+The OCR and translation pipeline is valuable, but it should remain an enhancement layer rather than becoming part of the correctness path of the reader itself.
+
+Why this is high priority:
+
+- reader stability is a core product requirement
+- enhancement complexity should not dictate base reading architecture
+- this boundary helps protect performance and maintainability
+
+Suggested scope:
+
+- define a reader core that remains complete without OCR or translation
+- isolate enhancement hooks for overlays, OCR, translation, and analysis
+- make fallback behavior explicit when enhancement stages fail
+
+#### 5. Clarify the boundary between sync and backup
+
+These systems are related but conceptually different. If the distinction stays blurry, both implementation and documentation will continue to accumulate ambiguity.
+
+Why this is high priority:
+
+- users and contributors can easily interpret multiple systems as one kind of sync
+- unclear boundaries lead to confusing settings, triggers, and ownership
+- this is a relatively cheap clarity win with broad product impact
+
+Suggested scope:
+
+- define system responsibilities and terminology explicitly
+- document trigger models and expected outcomes separately
+- align implementation boundaries with those definitions where needed
+
+### P2: Medium priority
+
+#### 6. Define an explicit external extension platform model
+
+This is strategically important, but it should build on top of cleaner source and runtime boundaries rather than trying to hide current complexity behind a new abstraction too early.
+
+Why this is medium priority:
+
+- the direction is strong, but the foundation should be stabilized first
+- premature platformization risks adding vocabulary without reducing complexity
+
+Suggested scope:
+
+- define the minimal model for repository, package, trust, install state, and runtime handle
+- use that model to guide later UI and orchestration cleanup
+
+#### 7. Add more system-view documentation
+
+This is low-risk, relatively cheap, and useful throughout the rest of the roadmap, but it should follow or accompany real architecture clarification rather than substitute for it.
+
+Why this is medium priority:
+
+- it improves onboarding and design communication
+- it helps preserve architectural intent during refactors
+- it becomes more useful once core boundaries are made more explicit
+
+Suggested first documents:
+
+- content access architecture
+- extension runtime overview
+- reader subsystem overview
+- sync vs backup boundary explanation
+
+### P3: Long-term priority
+
+#### 8. Formalize a content-platform layer
+
+This is the right long-term mental model, but it should emerge from incremental architectural convergence rather than a large top-down framework effort.
+
+Why this is later:
+
+- the direction is already visible in the codebase and docs
+- forcing a broad platform abstraction too early risks YAGNI and unnecessary indirection
+- the best version of this abstraction will be clearer after the higher-pressure boundaries are cleaned up
+
+Suggested scope:
+
+- evolve platform vocabulary gradually
+- introduce abstractions only when multiple subsystems already need them
+- let source, reader, and extension refactors inform the eventual platform model
+
+## Recommended Delivery Sequence
+
+For practical execution, the most effective order is:
+
+1. separate source resolution, repository selection, and instance caching
+2. add observability around the compatibility-heavy paths
+3. reduce Mihon and Aniyomi runtime duplication
+4. tighten reader core versus reader enhancement boundaries
+5. clarify sync versus backup as separate systems
+6. formalize the extension platform model on top of the improved foundation
+7. expand system-view documentation alongside the clarified architecture
+8. continue converging toward a true content-platform model over time
+
+For an execution-oriented version of this priority order, see [`architecture-roadmap.md`](./architecture-roadmap.md).
+
 ## Overall Assessment
 
 Kototoro is already beyond the level of a simple reader fork. It is evolving into a unified Android content platform for manga, novels, video, OCR-enhanced reading, and external ecosystem compatibility.

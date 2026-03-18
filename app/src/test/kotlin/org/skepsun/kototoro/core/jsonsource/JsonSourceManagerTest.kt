@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.core.jsonsource
 
+import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 /**
  * Fake DAO implementation for testing without database
@@ -67,7 +69,10 @@ class JsonSourceManagerTest {
 	
 	@BeforeEach
 	fun setup() {
-		jsonSourceManager = JsonSourceManager(FakeJsonSourceDao())
+		jsonSourceManager = JsonSourceManager(
+			jsonSourceDao = FakeJsonSourceDao(),
+			appSettings = mockk<AppSettings>(relaxed = true),
+		)
 	}
 	
 	// Validation Tests

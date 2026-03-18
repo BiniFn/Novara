@@ -24,6 +24,7 @@ import org.skepsun.kototoro.backups.domain.BackupSection
 import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
 import org.skepsun.kototoro.backups.ui.periodical.WebDavBackupUploader
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.util.logBackupFlow
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import java.io.File
 import java.io.FileInputStream
@@ -70,6 +71,7 @@ class WebDavAutoRestoreService : Service() {
 			settings.backupWebDavUsername.isNullOrBlank() ||
 			settings.backupWebDavPassword.isNullOrBlank()
 		) {
+			logBackupFlow(TAG, flow = FLOW_AUTO_RESTORE, event = "start_skipped", details = "reason=feature_disabled_or_incomplete_config")
 			stopSelf()
 			return START_NOT_STICKY
 		}
@@ -78,7 +80,7 @@ class WebDavAutoRestoreService : Service() {
 		val lastCheck = settings.backupWebDavLastAutoRestoreCheckTime
 		val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 		if (lastCheck > 0 && df.format(Date(lastCheck)) == df.format(Date())) {
-			Log.d(TAG, "Auto restore check already performed today; skipping")
+			logBackupFlow(TAG, flow = FLOW_AUTO_RESTORE, event = "start_skipped", details = "reason=already_checked_today")
 			stopSelf()
 			return START_NOT_STICKY
 		}
@@ -105,13 +107,13 @@ class WebDavAutoRestoreService : Service() {
     private suspend fun performAutoRestore() {
         val currentTime = System.currentTimeMillis()
 
-        Log.d(TAG, "Starting WebDAV auto restore check")
+        logBackupFlow(TAG, flow = FLOW_AUTO_RESTORE, event = "restore_check_started")
 
         try {
             // 拉取远端文件列表并按数据版本选择
             val remoteFiles = webDavUploader.listBackupFiles()
             if (remoteFiles.isEmpty()) {
-                Log.d(TAG, "No backup files found on WebDAV server")
+                logBackupFlow(TAG, flow = FLOW_AUTO_RESTORE, event = "restore_skipped", details = "reason=no_remote_backups")
                 return
             }
 
@@ -126,7 +128,12 @@ class WebDavAutoRestoreService : Service() {
                 remoteFiles.maxByOrNull { it.lastModified }!!
             }
 
-            Log.d(TAG, "Selected backup: ${candidate.name}, modified: ${candidate.lastModified}, dataVersion: ${candidate.dataVersion}")
+            logBackupFlow(
+                TAG,
+                flow = FLOW_AUTO_RESTORE,
+                event = "backup_selected",
+                details = "name=${candidate.name} version=${candidate.dataVersion} modified=${candidate.lastModified}",
+            )
 
             // 下载并恢复备份
             val tempFile = File.createTempFile("webdav_backup", ".bk.zip", this.cacheDir)
@@ -159,7 +166,12 @@ class WebDavAutoRestoreService : Service() {
                         settings.backupWebDavDataVersion = v
                     }
                 }
-                Log.d(TAG, "WebDAV auto restore completed successfully")
+                logBackupFlow(
+                    TAG,
+                    flow = FLOW_AUTO_RESTORE,
+                    event = "restore_complete",
+                    details = "changesApplied=$changesApplied version=${candidate.dataVersion}",
+                )
 
                 // 仅在“合并后的本地备份”与“拉取的远端备份”内容不同的情况下，上传一次
                 kotlin.runCatching {
@@ -175,9 +187,9 @@ class WebDavAutoRestoreService : Service() {
                             settings.backupWebDavLastUploadTime = System.currentTimeMillis()
                             settings.backupWebDavLastUploadKind = "auto"
                             settings.backupWebDavDataVersion = nextVersion
-                            Log.d(TAG, "Post-restore upload completed (content differed)")
+                            logBackupFlow(TAG, flow = FLOW_AUTO_RESTORE, event = "post_restore_upload_complete", details = "nextVersion=$nextVersion")
                         } else {
-                            Log.d(TAG, "Post-restore upload skipped (content identical)")
+                            logBackupFlow(TAG, flow = FLOW_AUTO_RESTORE, event = "post_restore_upload_skipped", details = "reason=identical_content")
                         }
                     } finally {
                         out.delete()
@@ -204,6 +216,7 @@ class WebDavAutoRestoreService : Service() {
 	companion object {
 		private const val TAG = "WebDavAutoRestore"
 		private const val NOTIFICATION_ID = 2001
+		private const val FLOW_AUTO_RESTORE = "webdav_auto_restore"
 
 		fun start(context: Context) {
 			val intent = Intent(context, WebDavAutoRestoreService::class.java)

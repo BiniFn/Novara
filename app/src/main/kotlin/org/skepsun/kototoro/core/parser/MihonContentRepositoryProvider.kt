@@ -10,6 +10,8 @@ class MihonContentRepositoryProvider @Inject constructor(
 	private val contentCache: MemoryContentCache,
 ) : ContentRepositoryProvider {
 
+	override fun supports(source: ContentSource): Boolean = source is MihonMangaSource
+
 	override fun create(source: ContentSource): ContentRepository? {
 		android.util.Log.d("MihonProvider", "create() called with source: ${source.name}, type: ${source::class.simpleName}")
 		if (source !is MihonMangaSource) {

@@ -11,11 +11,13 @@ import io.kotest.property.arbitrary.enum
 import io.kotest.property.arbitrary.list
 import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
+import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 /**
  * Property-based tests for JSON source identifier generation and type recognition.
@@ -38,7 +40,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 	 */
 	"generated identifiers are unique for different source names".config(invocations = 100) {
 		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao)
+		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
 		checkAll(
 			Arb.list(Arb.string(1..50), 2..10),
@@ -74,7 +76,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 	 */
 	"duplicate source names get unique identifiers with numeric suffixes".config(invocations = 50) {
 		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao)
+		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
 		checkAll(
 			Arb.string(1..30),
@@ -126,7 +128,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 	"source type identification is consistent with identifier prefix".config(invocations = 100) {
 		val identifier = SourceTypeIdentifier()
 		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao)
+		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
 		checkAll(
 			Arb.string(1..30),
@@ -183,7 +185,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 	 */
 	"generated identifiers follow the correct format".config(invocations = 100) {
 		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao)
+		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
 		// Use alphanumeric strings to ensure we get valid identifiers
 		checkAll<String, JsonSourceType>(
@@ -214,7 +216,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 	 */
 	"special characters in source names are properly normalized".config(invocations = 50) {
 		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao)
+		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
 		val testCases = listOf(
 			"My Source!" to "MY_SOURCE",
@@ -246,7 +248,7 @@ class SourceIdentifierPropertyTest : StringSpec({
 	"type labels are consistent with detected source types".config(invocations = 50) {
 		val identifier = SourceTypeIdentifier()
 		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao)
+		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
 		checkAll(
 			Arb.string(1..30),

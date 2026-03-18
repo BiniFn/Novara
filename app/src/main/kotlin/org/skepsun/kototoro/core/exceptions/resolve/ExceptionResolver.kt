@@ -36,6 +36,7 @@ import org.skepsun.kototoro.scrobbling.common.ui.ScrobblerAuthHelper
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
+import org.skepsun.kototoro.core.parser.logUnavailable
 import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
 import org.skepsun.kototoro.parsers.model.ContentParserSource
 import java.security.cert.CertPathValidatorException
@@ -146,11 +147,13 @@ class ExceptionResolver private constructor(
 
     private fun isCredentialBased(source: ContentSource): Boolean {
         if (source !is ContentParserSource) return false
-        val repo = mangaRepositoryFactory.create(source)
-        if (repo is ParserContentRepository) {
-            return repo.getAuthProvider() is ContentParserCredentialsAuthProvider
+        val creation = mangaRepositoryFactory.createWithDiagnostics(source)
+        val repo = creation.repository
+        if (repo !is ParserContentRepository) {
+            creation.logUnavailable("ExceptionResolver", "credential_auth_check_skipped")
+            return false
         }
-        return false
+        return repo.getAuthProvider() is ContentParserCredentialsAuthProvider
     }
 
     fun getResolveStringId(e: Throwable): Int {

@@ -9,8 +9,12 @@ class AniyomiContentSourceResolver @Inject constructor(
 	private val aniyomiExtensionManager: AniyomiExtensionManager,
 ) : ContentSourceResolver {
 
+	override fun supports(source: ContentSource): Boolean {
+		return source !is AniyomiAnimeSource && source.name.startsWith(ANIYOMI_PREFIX)
+	}
+
 	override fun resolve(source: ContentSource): ContentSource? {
-		if (source is AniyomiAnimeSource || !source.name.startsWith(ANIYOMI_PREFIX)) {
+		if (!supports(source)) {
 			return null
 		}
 		android.util.Log.d("AniyomiResolver", "Resolving source: ${source.name}")

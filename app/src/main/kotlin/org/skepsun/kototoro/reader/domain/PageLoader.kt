@@ -47,6 +47,7 @@ import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.network.imageproxy.ImageProxyInterceptor
 import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.logUnavailable
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.ui.image.TrimTransformation
@@ -388,7 +389,9 @@ class PageLoader @Inject constructor(
 		return if (result != null && result.source == source) {
 			result
 		} else {
-			mangaRepositoryFactory.create(source).also { repository = it }
+			val creation = mangaRepositoryFactory.createWithDiagnostics(source)
+			creation.logUnavailable("PageLoader", "repository_unavailable")
+			creation.repository.also { repository = it }
 		}
 	}
 
