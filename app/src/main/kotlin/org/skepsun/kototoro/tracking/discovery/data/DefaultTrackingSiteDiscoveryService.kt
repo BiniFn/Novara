@@ -7,9 +7,9 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCapabilities
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
-import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDetails
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
-import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteListItem
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,7 +39,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		)
 	}
 
-	override suspend fun getTrending(catalog: TrackingSiteCatalog): List<TrackingSiteListItem> {
+	override suspend fun getTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
 		if (catalog.service != ScrobblerService.BANGUMI) {
 			return emptyList()
 		}
@@ -47,7 +47,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			.map { item -> item.toTrackingListItem(ScrobblerService.BANGUMI) }
 	}
 
-	override suspend fun search(catalog: TrackingSiteCatalog): List<TrackingSiteListItem> {
+	override suspend fun search(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
 		val query = catalog.query?.trim().orEmpty()
 		if (query.isEmpty()) {
 			return getTrending(catalog)
@@ -57,14 +57,14 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			.map { item -> item.toTrackingListItem(catalog.service) }
 	}
 
-	override suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteDetails {
+	override suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteItemDetails {
 		return repositoryMap[service]
 			.getContentInfo(remoteId)
 			.toTrackingDetails(service)
 	}
 
-	private fun ScrobblerContent.toTrackingListItem(service: ScrobblerService): TrackingSiteListItem {
-		return TrackingSiteListItem(
+	private fun ScrobblerContent.toTrackingListItem(service: ScrobblerService): TrackingSiteItem {
+		return TrackingSiteItem(
 			service = service,
 			remoteId = id,
 			title = name,
@@ -74,8 +74,8 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		)
 	}
 
-	private fun ScrobblerContentInfo.toTrackingDetails(service: ScrobblerService): TrackingSiteDetails {
-		return TrackingSiteDetails(
+	private fun ScrobblerContentInfo.toTrackingDetails(service: ScrobblerService): TrackingSiteItemDetails {
+		return TrackingSiteItemDetails(
 			service = service,
 			remoteId = id,
 			title = name,

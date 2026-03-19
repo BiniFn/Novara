@@ -15,6 +15,12 @@ abstract class ScrobblingDao {
 	@Query("SELECT * FROM scrobblings WHERE scrobbler = :scrobbler AND manga_id = :mangaId")
 	abstract fun observe(scrobbler: Int, mangaId: Long): Flow<ScrobblingEntity?>
 
+	@Query("SELECT * FROM scrobblings WHERE scrobbler = :scrobbler AND target_id = :targetId LIMIT 1")
+	abstract suspend fun findByTargetId(scrobbler: Int, targetId: Long): ScrobblingEntity?
+
+	@Query("SELECT * FROM scrobblings WHERE scrobbler = :scrobbler AND target_id = :targetId LIMIT 1")
+	abstract fun observeByTargetId(scrobbler: Int, targetId: Long): Flow<ScrobblingEntity?>
+
 	@Query("SELECT * FROM scrobblings WHERE scrobbler = :scrobbler")
 	abstract fun observe(scrobbler: Int): Flow<List<ScrobblingEntity>>
 

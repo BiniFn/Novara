@@ -36,6 +36,7 @@ import coil3.size.Precision
 import coil3.transform.RoundedCornersTransformation
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.chip.Chip
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.constraintlayout.widget.Guideline
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.Flow
@@ -219,6 +220,9 @@ class DetailsActivity :
 		}
 		viewModel.isLoading.observe(this, ::onLoadingStateChanged)
 		viewModel.scrobblingInfo.observe(this, ::onScrobblingInfoChanged)
+		viewModel.trackingMatchSuggestion.observe(this) { suggestion ->
+			renderTrackingMatchSuggestion(suggestion)
+		}
 		viewModel.localSize.observe(this, ::onLocalSizeChanged)
 		viewModel.relatedContent.observe(this, ::onRelatedContentChanged)
 		viewModel.favouriteCategories.observe(this, ::onFavoritesChanged)
@@ -291,8 +295,9 @@ class DetailsActivity :
 			}
 
 			R.id.button_scrobbling_more -> {
+				val manga = viewModel.getContentOrNull() ?: return
 				router.showScrobblingSelectorSheet(
-					manga = viewModel.getContentOrNull() ?: return,
+					manga = manga,
 					scrobblerService = viewModel.scrobblingInfo.value.firstOrNull()?.scrobbler,
 				)
 			}
@@ -441,16 +446,79 @@ class DetailsActivity :
 	}
 
 	private fun onScrobblingInfoChanged(scrobblings: List<ScrobblingInfo>) {
+		val preferredScrobbler = settings.preferredTrackingSite
+		val sortedScrobblings = scrobblings.sortedWith(
+			compareByDescending<ScrobblingInfo> { it.scrobbler == preferredScrobbler }
+				.thenBy { it.scrobbler.id },
+		)
+		val hasScrobblings = scrobblings.isNotEmpty()
 		var adapter = viewBinding.recyclerViewScrobbling.adapter as? ScrollingInfoAdapter
-		viewBinding.groupScrobbling.isGone = scrobblings.isEmpty()
+		viewBinding.groupScrobbling.isVisible = true
+		viewBinding.recyclerViewScrobbling.isVisible = hasScrobblings
+		viewBinding.textViewScrobblingEmpty.isVisible = !hasScrobblings
+		viewBinding.buttonScrobblingMore.setText(if (hasScrobblings) R.string.manage else R.string.add)
 		if (adapter != null) {
-			adapter.items = scrobblings
+			adapter.items = sortedScrobblings
 		} else {
-			adapter = ScrollingInfoAdapter(router)
-			adapter.items = scrobblings
+			adapter = ScrollingInfoAdapter(router) { settings.preferredTrackingSite }
+			adapter.items = sortedScrobblings
 			viewBinding.recyclerViewScrobbling.adapter = adapter
 			viewBinding.recyclerViewScrobbling.addItemDecoration(ScrobblingItemDecoration())
 		}
+	}
+
+	private fun renderTrackingMatchSuggestion(match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?) {
+		val suggestionView = checkNotNull(viewBinding).textViewScrobblingSuggestion!!
+		suggestionView.isVisible = match != null
+		suggestionView.text = match?.let {
+			if (it.isLinked) {
+				getString(
+					R.string.tracking_linked_match_text,
+					it.title,
+				)
+			} else {
+				getString(
+					R.string.tracking_auto_match_text,
+					getString(it.service.titleResId),
+					it.title,
+					it.confidence * 100f,
+				)
+			}
+		}
+		suggestionView.setOnClickListener {
+			if (match != null) {
+				showTrackingMatchActions(match)
+			}
+		}
+	}
+
+	private fun showTrackingMatchActions(match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) {
+		val isLinked = match.isLinked
+		val actions = if (isLinked) {
+			arrayOf(
+				getString(R.string.tracking_open_linked_match_action),
+				getString(R.string.tracking_manage_binding_action),
+				getString(R.string.tracking_remove_binding_action),
+			)
+		} else {
+			arrayOf(
+				getString(R.string.tracking_auto_match_action),
+				getString(R.string.tracking_bind_suggestion_action),
+			)
+		}
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.tracking_match_actions_title)
+			.setMessage(match.title)
+			.setItems(actions) { _, which ->
+				when {
+					isLinked && which == 0 -> router.openTrackingSiteDetails(match.service, match.remoteId)
+					isLinked && which == 1 -> router.openScrobblerBinding(match.service, match.remoteId, match.title, match.url)
+					isLinked && which == 2 -> viewModel.removeTrackingMatch(match)
+					!isLinked && which == 0 -> router.openTrackingSiteDetails(match.service, match.remoteId)
+					!isLinked && which == 1 -> viewModel.bindTrackingMatch(match)
+				}
+			}
+			.show()
 	}
 
 	private fun onContentUpdated(details: ContentDetails) {

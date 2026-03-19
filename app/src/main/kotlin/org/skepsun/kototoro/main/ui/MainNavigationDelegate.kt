@@ -37,6 +37,7 @@ import org.skepsun.kototoro.core.util.ext.buildBundle
 import org.skepsun.kototoro.core.util.ext.setContentDescriptionAndTooltip
 import org.skepsun.kototoro.core.util.ext.smoothScrollToTop
 import org.skepsun.kototoro.databinding.NavigationRailFabBinding
+import org.skepsun.kototoro.discover.ui.DiscoverFragment
 import org.skepsun.kototoro.explore.ui.ExploreFragment
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
 import org.skepsun.kototoro.home.ui.HomeFragment
@@ -190,6 +191,7 @@ class MainNavigationDelegate(
 			R.id.nav_history -> HistoryListFragment::class.java
 			R.id.nav_favorites -> FavouritesContainerFragment::class.java
 			R.id.nav_explore -> ExploreFragment::class.java
+			R.id.nav_discover -> DiscoverFragment::class.java
 			R.id.nav_feed -> FeedFragment::class.java
 			R.id.nav_local -> LocalListFragment::class.java
 			R.id.nav_suggestions -> SuggestionsFragment::class.java
@@ -209,6 +211,7 @@ class MainNavigationDelegate(
 		is HistoryListFragment -> R.id.nav_history
 		is FavouritesContainerFragment -> R.id.nav_favorites
 		is ExploreFragment -> R.id.nav_explore
+		is DiscoverFragment -> R.id.nav_discover
 		is FeedFragment -> R.id.nav_feed
 		is LocalListFragment -> R.id.nav_local
 		is SuggestionsFragment -> R.id.nav_suggestions

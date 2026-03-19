@@ -1192,6 +1192,12 @@
     <string name="search_and_bind_local">在本地搜索并关联</string>
     <string name="search_content_kind">选择搜索范围</string>
     <string name="bind_manga_success">已成功关联到「%s」</string>
+    <string name="tracking_linked_match_text">已关联项目：%1$s</string>
+    <string name="tracking_match_actions_title">追踪关联</string>
+    <string name="tracking_open_linked_match_action">打开已关联项目</string>
+    <string name="tracking_manage_binding_action">管理关联</string>
+    <string name="tracking_bind_suggestion_action">关联推荐项目</string>
+    <string name="tracking_remove_binding_action">移除关联</string>
     <string name="video_double_tap_seek">双击快进快退</string>
     <string name="pref_panorama_cover">全景封面</string>
     <string name="pref_panorama_cover_summary">在详情页顶部标题后方显示横幅式的封面背景图</string>

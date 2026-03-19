@@ -39,6 +39,7 @@ import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.getOriginLabel
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatcher
 import javax.inject.Inject
 
 @HiltViewModel
@@ -50,6 +51,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 	private val historyRepository: HistoryRepository,
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val favouritesRepository: FavouritesRepository,
+	private val trackingSiteMatcher: TrackingSiteMatcher,
 	@LocalizedAppContext private val context: Context,
 ) : BaseViewModel() {
 
@@ -130,6 +132,9 @@ class ScrobblerConfigViewModel @Inject constructor(
 				db.getScrobblingDao().upsert(newEntity)
 			}
 			android.util.Log.d("ScrobblerConfigVM", "bindContent: upsert done")
+			runCatching {
+				trackingSiteMatcher.confirmMatch(scrobbler.scrobblerService, mangaId, info.targetId)
+			}
 
 			// 3. Sync Reading Progress
 			if (info.chapter > 0) {
@@ -173,6 +178,8 @@ class ScrobblerConfigViewModel @Inject constructor(
 		if (mangaId == 0L) return false
 		return db.getMangaDao().find(mangaId) != null
 	}
+
+	fun getScrobblerService(): ScrobblerService = scrobblerService
 
 	private suspend fun autoAssignSourceCategory(manga: Content) {
 		val source = manga.source

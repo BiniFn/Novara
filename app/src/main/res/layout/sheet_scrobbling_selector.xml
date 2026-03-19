@@ -53,6 +53,19 @@
 
 	</com.google.android.material.appbar.MaterialToolbar>
 
+	<com.google.android.material.textview.MaterialTextView
+		android:id="@+id/textView_auth_hint"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:paddingStart="@dimen/list_spacing_normal"
+		android:paddingTop="@dimen/list_spacing_small"
+		android:paddingEnd="@dimen/list_spacing_normal"
+		android:paddingBottom="@dimen/list_spacing_small"
+		android:textAppearance="?attr/textAppearanceBodySmall"
+		android:textColor="?attr/colorOnSurfaceVariant"
+		android:visibility="gone"
+		tools:text="Search works without login. Sign in to link with MyAnimeList." />
+
 	<androidx.recyclerview.widget.RecyclerView
 		android:id="@+id/recyclerView"
 		android:layout_width="match_parent"

@@ -64,6 +64,7 @@ import org.skepsun.kototoro.details.ui.DetailsActivity
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
 import org.skepsun.kototoro.details.ui.related.RelatedContentActivity
 import org.skepsun.kototoro.details.ui.scrobbling.ScrobblingInfoSheet
+import org.skepsun.kototoro.discover.ui.details.TrackingSiteDetailsActivity
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogFragment
 import org.skepsun.kototoro.download.ui.list.DownloadsActivity
 import org.skepsun.kototoro.favourites.ui.FavouritesActivity
@@ -182,6 +183,14 @@ class AppRouter private constructor(
         startActivity(
             Intent(contextOrNull() ?: return, DetailsActivity::class.java)
                 .setData(link),
+        )
+    }
+
+    fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long) {
+        startActivity(
+            Intent(contextOrNull() ?: return, TrackingSiteDetailsActivity::class.java)
+                .putExtra(KEY_ID, service.id)
+                .putExtra(KEY_REMOTE_ID, remoteId),
         )
     }
 
@@ -531,6 +540,21 @@ class AppRouter private constructor(
         startActivity(
             Intent(contextOrNull() ?: return, ScrobblerConfigActivity::class.java)
                 .putExtra(KEY_ID, scrobbler.id),
+        )
+    }
+
+    fun openScrobblerBinding(
+        scrobbler: ScrobblerService,
+        remoteId: Long,
+        title: String,
+        url: String?,
+    ) {
+        startActivity(
+            Intent(contextOrNull() ?: return, ScrobblerConfigActivity::class.java)
+                .putExtra(KEY_ID, scrobbler.id)
+                .putExtra(KEY_REMOTE_ID, remoteId)
+                .putExtra(KEY_TITLE, title)
+                .putExtra(KEY_URL, url),
         )
     }
 
@@ -1086,6 +1110,7 @@ class AppRouter private constructor(
         const val KEY_PREVIEW = "preview"
         const val KEY_PICK_MODE = "pick_mode"
         const val KEY_QUERY = "query"
+        const val KEY_REMOTE_ID = "remote_id"
         const val KEY_READER_MODE = "reader_mode"
         const val KEY_SORT_ORDER = "sort_order"
         const val KEY_SOURCE = "source"

@@ -6,9 +6,9 @@ interface TrackingSiteDiscoveryService {
 
 	fun getCapabilities(service: ScrobblerService): TrackingSiteCapabilities
 
-	suspend fun getTrending(catalog: TrackingSiteCatalog): List<TrackingSiteListItem>
+	suspend fun getTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem>
 
-	suspend fun search(catalog: TrackingSiteCatalog): List<TrackingSiteListItem>
+	suspend fun search(catalog: TrackingSiteCatalog): List<TrackingSiteItem>
 
-	suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteDetails
+	suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteItemDetails
 }

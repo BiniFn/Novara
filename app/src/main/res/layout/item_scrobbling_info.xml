@@ -30,16 +30,34 @@
 			android:id="@+id/textView_title"
 			android:layout_width="0dp"
 			android:layout_height="wrap_content"
-			android:layout_marginHorizontal="16dp"
-			android:layout_toEndOf="@id/imageView_cover"
+			android:layout_marginStart="16dp"
+			android:layout_marginEnd="8dp"
 			android:singleLine="true"
 			android:textAppearance="?textAppearanceTitleSmall"
 			app:layout_constraintBottom_toTopOf="@id/textView_status"
-			app:layout_constraintEnd_toStartOf="@id/imageView_cover"
+			app:layout_constraintEnd_toStartOf="@id/textView_preferred"
 			app:layout_constraintStart_toEndOf="@id/imageView_icon"
 			app:layout_constraintTop_toTopOf="parent"
 			app:layout_constraintVertical_chainStyle="packed"
 			tools:text="@string/shikimori" />
+
+		<TextView
+			android:id="@+id/textView_preferred"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginEnd="16dp"
+			android:background="?colorSecondaryContainer"
+			android:paddingStart="8dp"
+			android:paddingTop="2dp"
+			android:paddingEnd="8dp"
+			android:paddingBottom="2dp"
+			android:text="@string/preferred_tracking_site"
+			android:textAppearance="?attr/textAppearanceLabelSmall"
+			android:textColor="?attr/colorOnSecondaryContainer"
+			android:visibility="gone"
+			app:layout_constraintBaseline_toBaselineOf="@id/textView_title"
+			app:layout_constraintEnd_toStartOf="@id/imageView_cover"
+			tools:visibility="visible" />
 
 		<RatingBar
 			android:id="@+id/ratingBar"

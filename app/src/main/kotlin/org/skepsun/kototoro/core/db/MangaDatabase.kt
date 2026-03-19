@@ -22,6 +22,7 @@ import org.skepsun.kototoro.core.db.dao.MangaSourcesDao
 import org.skepsun.kototoro.core.db.dao.PreferencesDao
 import org.skepsun.kototoro.core.db.dao.TagsDao
 import org.skepsun.kototoro.core.db.dao.TrackLogsDao
+import org.skepsun.kototoro.core.db.dao.TrackingSiteDao
 import org.skepsun.kototoro.core.db.entity.ChapterEntity
 // import org.skepsun.kototoro.core.db.entity.EpubChapterEntity
 import org.skepsun.kototoro.core.db.entity.EpubChapterMappingEntity
@@ -32,6 +33,8 @@ import org.skepsun.kototoro.core.db.entity.MangaPrefsEntity
 import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
 import org.skepsun.kototoro.core.db.entity.MangaTagsEntity
 import org.skepsun.kototoro.core.db.entity.TagEntity
+import org.skepsun.kototoro.core.db.entity.TrackingSiteItemEntity
+import org.skepsun.kototoro.core.db.entity.TrackingSiteLinkEntity
 import org.skepsun.kototoro.core.db.migrations.Migration10To11
 import org.skepsun.kototoro.core.db.migrations.Migration11To12
 import org.skepsun.kototoro.core.db.migrations.Migration12To13
@@ -57,6 +60,7 @@ import org.skepsun.kototoro.core.db.migrations.Migration29To30
 import org.skepsun.kototoro.core.db.migrations.Migration30To31
 import org.skepsun.kototoro.core.db.migrations.Migration31To32
 import org.skepsun.kototoro.core.db.migrations.Migration32To33
+import org.skepsun.kototoro.core.db.migrations.Migration33To34
 import org.skepsun.kototoro.core.db.migrations.Migration2To3
 import org.skepsun.kototoro.core.db.migrations.Migration3To4
 import org.skepsun.kototoro.core.db.migrations.Migration4To5
@@ -84,7 +88,7 @@ import org.skepsun.kototoro.tracker.data.TrackEntity
 import org.skepsun.kototoro.tracker.data.TrackLogEntity
 import org.skepsun.kototoro.tracker.data.TracksDao
 
-const val DATABASE_VERSION = 33
+const val DATABASE_VERSION = 34
 
 @Database(
 	entities = [
@@ -93,6 +97,7 @@ const val DATABASE_VERSION = 33
 		TrackLogEntity::class, SuggestionEntity::class, BookmarkEntity::class, ScrobblingEntity::class,
 		MangaSourceEntity::class, StatsEntity::class, LocalContentIndexEntity::class, EpubChapterMappingEntity::class,
 		JsonSourceEntity::class, ExternalExtensionRepoEntity::class,
+		TrackingSiteItemEntity::class, TrackingSiteLinkEntity::class,
 		// EpubChapterEntity::class,
 	],
 	version = DATABASE_VERSION,
@@ -135,6 +140,8 @@ abstract class MangaDatabase : RoomDatabase() {
 
 	abstract fun getExternalExtensionRepoDao(): ExternalExtensionRepoDao
 
+	abstract fun getTrackingSiteDao(): TrackingSiteDao
+
 	// abstract fun getEpubChapterDao(): EpubChapterDao
 }
 
@@ -172,6 +179,7 @@ fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
 	Migration30To31(),
 	Migration31To32(),
 	Migration32To33(),
+	Migration33To34(),
 )
 
 fun MangaDatabase(context: Context): MangaDatabase = Room

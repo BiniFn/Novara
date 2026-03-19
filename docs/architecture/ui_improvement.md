@@ -2,8 +2,8 @@
                                                                                                                                                                                                                                                                                                                                  
   ## 文档版本                                                                                                                                                                                                                                                                                                                      
   - 创建日期：2026-03-18                                                                                                                                                                                                                                                                                                           
-  - 最后更新：2026-03-18                                                                                                                                                                                                                                                                                                           
-  - 状态：设计阶段                                                                                                                                                                                                                                                                                                                 
+  - 最后更新：2026-03-19                                                                                                                                                                                                                                                                                                           
+  - 状态：进行中（部分方案已落地）                                                                                                                                                                                                                                                                                                                 
                                                                                                                                                                                                                                                                                                                                    
   ---
 
@@ -11,7 +11,7 @@
   1. [主页（Dashboard）设计](#1-主页dashboard设计)
   2. [导航栏优化](#2-导航栏优化)
   3. [过滤器界面改进](#3-过滤器界面改进)
-  4. [追踪网站集成（Bangumi）](#4-追踪网站集成bangumi)
+  4. [追踪站点集成](#4-追踪站点集成)
   5. [实现优先级](#5-实现优先级)
 
   ---
@@ -223,7 +223,7 @@
   - 建议 (Suggestions)：通过主页或浏览页面访问
   - 书签 (Bookmarks)：通过详情页或阅读器访问
   - 更新 (Updates)：合并到订阅页面
-  - 发现 (Discover/Bangumi)：新增独立页面（见第4节）
+  - 发现 (Discover)：新增独立页面（见第4节）
 
   2.2.3 可配置导航栏
 
@@ -430,22 +430,25 @@
   - ic_source_tvbox.xml - TVBox 源
 
   ---
-  4. 追踪网站集成（Bangumi）
+  4. 追踪站点集成
 
-  4.1 功能概述
+  4.1 站点无关产品层
+
+  4.1.1 功能概述
 
   集成 Bangumi 等二次元追踪网站，提供：
   - 权威的内容库和元数据
   - 排行榜和推荐
   - 跨源内容聚合
   - 阅读进度同步
+  - 当前进度：`Discover`、追踪站点详情页、详情页追踪增强与本地缓存骨架已落地，后续继续补同步增强与更完整的多站点交互
 
-  4.2 新增"发现"页面
+  4.1.2 新增"发现"页面（Discover）
 
-  4.2.1 页面结构
+  4.1.2.1 页面结构
 
   ┌─────────────────────────────────────┐
-  │  🔍 搜索 Bangumi                     │
+  │  🔍 搜索发现内容                     │
   ├─────────────────────────────────────┤
   │  [📚 漫画] [📖 小说] [🎬 动画]       │  ← 内容类型切换
   ├─────────────────────────────────────┤
@@ -466,27 +469,29 @@
   │  [2026] [2025] [2024]...            │
   └─────────────────────────────────────┘
 
-  4.2.2 功能模块
+  4.1.2.2 功能模块
 
-  1. 排行榜：显示 Bangumi 的热门作品
+  1. 排行榜：显示追踪站点的热门作品（默认 Bangumi）
   2. 本季新番：当季新作品
   3. 标签浏览：按类型、标签筛选
   4. 年份/季度：按时间筛选
-  5. 搜索：搜索 Bangumi 数据库
+  5. 搜索：搜索追踪站点数据库（默认 Bangumi，当前已落地 MVP）
 
-  4.3 Bangumi 详情页设计
+  4.1.3 追踪站点详情页设计
 
-  4.3.1 页面结构
+  当前实现已落地最小详情页容器，可展示远端详情、已绑定状态、本地入口、绑定/管理入口与站外打开入口。
+
+  4.1.3.1 页面结构
 
   ┌─────────────────────────────────────┐
   │  ← 返回                              │
   │                                      │
   │  [封面图]    作品名称                │
-  │              ⭐ 8.5 (Bangumi)       │
+  │              ⭐ 8.5 (站点评分)       │
   │              📅 2024年1月            │
   │              🏷️  恋爱 · 校园          │
   │                                      │
-  │  [❤️  想看] [📖 在看] [✓ 看过]       │  ← Bangumi 状态同步
+  │  [❤️  想看] [📖 在看] [✓ 看过]       │  ← 站点状态同步
   │                                      │
   ├─────────────────────────────────────┤
   │  📚 可用来源 (3)                     │  ← 核心功能
@@ -507,23 +512,25 @@
   │  📝 简介                             │
   │  这是一部关于...                     │
   │                                      │
-  │  💬 Bangumi 评论 (123)              │
+  │  💬 站点评论 (123)                  │
   │  [查看更多评论]                      │
   │                                      │
   │  🔗 相关作品                         │
   │  [续集] [前传] [同系列]              │
   └─────────────────────────────────────┘
 
-  4.3.2 核心功能：自动源匹配
+  4.1.3.2 核心功能：自动源匹配
 
   - 自动搜索所有已启用的源
   - 使用多维度匹配算法（标题、年份、作者）
   - 显示匹配置信度
   - 支持手动搜索和关联
 
-  4.4 现有详情页增强
+  4.1.4 现有详情页增强
 
-  4.4.1 添加 Bangumi 信息卡片
+  4.1.4.1 添加追踪信息卡片
+
+  当前实现仍复用既有 `scrobbling` 区块作为详情页入口，不再单独保留平行卡片。
 
   在现有的内容详情页（DetailsActivity）中添加：
 
@@ -534,7 +541,7 @@
   ├─────────────────────────────────────┤
   │  🔗 追踪信息                         │
   │  ┌─────────────────────────────────┐│
-  │  │ Bangumi                          ││
+  │  │ 追踪站点                         ││
   │  │ ⭐ 8.5 · #123                    ││
   │  │ [❤️  想看] [📖 在看] [✓ 看过]    ││
   │  │ [查看详情]                       ││
@@ -544,16 +551,67 @@
   │  ...                                 │
   └─────────────────────────────────────┘
 
-  4.4.2 自动关联功能
+  4.1.4.2 自动关联功能
 
-  - 打开详情页时自动搜索 Bangumi
+  - 打开详情页时自动搜索默认追踪站点
   - 显示匹配结果和置信度
   - 用户可以确认或手动选择
   - 关联后保存到数据库
+  - 当前实现已支持自动建议、已关联/推荐动作菜单与手动确认落表
 
-  4.5 数据模型
+  4.2 Bangumi 默认实现层
 
-  4.5.1 Bangumi 数据
+  4.2.1 数据模型
+
+  说明：
+  - 产品层统一面向站点无关概念，例如 `TrackingSiteItem`、`TrackingSiteState`、`TrackingSiteLink`
+  - `BangumiItem`、`BangumiTrackingEntity`、`BangumiSourceLinkEntity` 只是默认实现层的具体命名
+  - 后续如接入 AniList / MAL，应保持通用接口不变，仅新增对应站点的实现模型与映射层
+  - 当前进度：`TrackingSiteItem` / `TrackingSiteItemDetails` / `TrackingSiteLink` 已落地，`TrackingSiteState` 仍预留给后续同步增强
+
+  4.2.1.1 Bangumi 数据
+
+  推荐的通用抽象命名如下：
+
+  data class TrackingSiteItem(
+      val site: TrackingSite,
+      val remoteId: String,
+      val title: String,
+      val altTitles: List<String>,
+      val type: TrackingContentType,
+      val rating: Float?,
+      val rank: Int?,
+      val summary: String?,
+      val tags: List<String>,
+      val year: Int?,
+      val authors: List<String>,
+      val coverUrl: String?,
+      val totalEpisodes: Int?,
+      val publishDate: String?
+  )
+
+  data class TrackingSiteState(
+      val site: TrackingSite,
+      val remoteId: String,
+      val status: TrackingStatus,
+      val matchedSources: List<MatchedSource>,
+      val lastSyncTime: Long,
+      val currentEpisode: Int?,
+      val score: Int?
+  )
+
+  data class TrackingSiteLink(
+      val site: TrackingSite,
+      val remoteId: String,
+      val contentId: Long,
+      val sourceName: String,
+      val confidence: Float,
+      val isManual: Boolean,
+      val createdAt: Long
+  )
+
+  其中，Bangumi 默认实现负责把 `BangumiItem` / `BangumiTrackingEntity` / `BangumiSourceLinkEntity`
+  映射到这些通用模型，而不是让上层 UI 或交互直接依赖 Bangumi-specific 类型。
 
   data class BangumiItem(
       val id: Long,
@@ -580,7 +638,7 @@
       REAL     // 三次元
   }
 
-  4.5.2 匹配结果
+  4.2.1.2 匹配结果
 
   data class MatchedSource(
       val source: ContentSource,
@@ -589,7 +647,7 @@
       val isManuallyLinked: Boolean = false
   )
 
-  4.5.3 追踪状态
+  4.2.1.3 追踪状态
 
   data class TrackingState(
       val bangumiId: Long,
@@ -608,9 +666,9 @@
       DROPPED    // 弃坑
   }
 
-  4.6 数据库设计
+  4.2.2 数据库设计
 
-  4.6.1 Bangumi 条目表
+  4.2.2.1 Bangumi 条目表
 
   @Entity(tableName = "bangumi_items")
   data class BangumiItemEntity(
@@ -631,7 +689,7 @@
       val cachedAt: Long
   )
 
-  4.6.2 追踪状态表
+  4.2.2.2 追踪状态表
 
   @Entity(
       tableName = "bangumi_tracking",
@@ -652,7 +710,7 @@
       val lastSyncTime: Long
   )
 
-  4.6.3 源关联表
+  4.2.2.3 源关联表
 
   @Entity(
       tableName = "bangumi_source_links",
@@ -685,9 +743,9 @@
       val createdAt: Long
   )
 
-  4.7 自动匹配算法
+  4.2.3 自动匹配算法
 
-  4.7.1 匹配流程
+  4.2.3.1 匹配流程
 
   class ContentMatcher @Inject constructor(
       private val sourcesRepository: ContentSourcesRepository,
@@ -709,4 +767,3 @@
               async(Dispatchers.IO) {
                   searchInSource(source, titles)
               }
-

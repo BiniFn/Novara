@@ -33,6 +33,12 @@
 - `Issue 6` 已完成：`Explore` 过滤器已改为两行固定布局，移除了横向滚动依赖。
 - `Issue 7` 已实质完成：源类型图标体系已补齐到当前实现范围，额外新增了 `JavaScript` 源类型与图标，并打通到 `Explore`、搜索等共享标签模型。
 - 追踪站点切换预留接口已落地：已新增站点无关的 discovery / matcher / preferred-site 抽象，以及默认实现骨架与 `AppSettings` 持久化入口。
+- tracking/discovery 术语已开始对齐：发现列表模型已收敛到 `TrackingSiteItem`，并明确 `State` / `Link` 属于后续同步与持久化层。
+- tracking/discovery 术语继续收敛：详情模型已对齐为 `TrackingSiteItemDetails`，与 `TrackingSiteItem` 命名保持同层级一致。
+- `Issue 11` 已推进：详情页原有 `scrobbling` 区块已补齐基础空态、未关联引导与首选站点优先展示，后续增强继续基于现有追踪入口合并演进，不再新增平行卡片。
+- `Issue 14` 已推进：`Discover` 最小骨架已接入主导航，已支持基于首选追踪站点的最小站点切换、热门列表、站内搜索与站内详情跳转。
+- `Issue 12` 已推进：已落地追踪站点本地缓存骨架，并接入 `Discover` 与详情页的缓存读写链路，后续再补状态表与更完整的同步能力。
+- `Issue 15` 已推进：追踪站点详情页已落地最小容器，可展示远端详情、已绑定状态、本地内容入口、绑定/管理入口与站外打开入口。
 
 ### 当前主页首版包含内容
 
@@ -68,14 +74,18 @@
   - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt`
   - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/AppSettingsPreferredTrackingSiteProvider.kt`
   - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/TrackingDiscoveryModule.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverFragment.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverViewModel.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverAdapter.kt`
+  - `app/src/main/res/layout/item_discover_site.xml`
 
 ### 尚未开始或尚未进入可交付状态
 
 - `Issue 8`：主页卡片配置化尚未开始
-- 详情页追踪信息卡尚未接入站点无关 discovery 抽象
-- `Discover` 页面一期尚未开始
+- 详情页追踪增强尚未覆盖自动关联与更完整的多站点交互
+- `Discover` 页面一期已进入 MVP 阶段
 - 自动关联、手动纠正、追踪状态增强同步尚未开始
-- Bangumi 本地缓存表与跨站点详情模型尚未进入最终形态
+- Bangumi 本地缓存表与跨站点详情模型已进入数据库骨架阶段，但尚未进入最终形态
 
 ---
 
@@ -101,7 +111,7 @@
 - `Issue 10`
 - `Issue 11`
 
-状态：仅完成抽象层骨架，详情页接入未开始
+状态：已完成抽象层骨架，详情页增强方案已收敛到复用既有 scrobbling 入口
 
 ### M4：追踪站点扩展能力
 - `Issue 12`
@@ -109,7 +119,7 @@
 - `Issue 14`
 - `Issue 15`
 
-状态：未开始
+状态：已进入 Discover MVP 与站点详情页最小闭环阶段
 
 ### M5：主页增强
 - `Issue 8`
@@ -173,27 +183,27 @@
 ### Issue 11：详情页追踪信息卡一期
 - 目标：在现有详情页中显示站点无关追踪信息
 - 工作量：M
-- 状态：未开始
+- 状态：进行中（已复用既有 scrobbling 区块，并补齐空态引导、首选站点优先展示与推荐项动作菜单）
 
 ### Issue 12：追踪站点本地模型与缓存表设计
 - 目标：为发现页和详情页提供本地可缓存模型
 - 工作量：M
-- 状态：未开始
+- 状态：进行中（已落地通用缓存表、链接表、DAO 与数据库迁移，并接入 `Discover`/详情页读写链路）
 
 ### Issue 13：追踪站点自动关联基础版
 - 目标：实现本地内容与远端条目的最小可用匹配
 - 工作量：L
-- 状态：未开始
+- 状态：进行中（已落地 matcher、自动建议、已关联/推荐动作菜单与手动确认落表）
 
 ### Issue 14：发现页 Discover 一期
 - 目标：实现站点切换、搜索、热门列表和详情跳转
 - 工作量：M
-- 状态：未开始
+- 状态：进行中（已落地导航入口、最小站点切换、热门列表、搜索与站内详情跳转）
 
 ### Issue 15：追踪站点详情页一期
 - 目标：展示远端详情与本地入口
 - 工作量：M
-- 状态：未开始
+- 状态：进行中（已落地最小详情页容器、远端详情展示、已绑定状态、本地内容入口、绑定/管理入口与站外打开入口）
 
 ### Issue 16：追踪状态同步增强
 - 目标：支持站点状态、评分、进度同步增强
@@ -204,7 +214,7 @@
 
 ## 当前建议的下一步顺序
 
-1. 详情页追踪信息卡接入 `tracking/discovery` 抽象，先形成站点无关展示入口
-2. 在此基础上落地 `Discover` 一期，默认由 Bangumi 提供数据
-3. 再补追踪站点本地缓存模型与详情页
-4. 最后做自动关联、状态同步增强与主页配置化
+1. 基于 `tracking_site_links` 推进自动关联基础版
+2. 在此基础上推进状态同步增强
+3. 继续增强追踪站点详情页与本地详情页的双向联动
+4. 最后做主页卡片配置化

@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.AsyncListDiffer
@@ -28,6 +29,7 @@ import org.skepsun.kototoro.core.util.ext.firstVisibleItemPosition
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.setContentDescriptionAndTooltip
 import org.skepsun.kototoro.core.util.ext.setProgressIcon
 import org.skepsun.kototoro.core.util.ext.setTabsEnabled
 import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
@@ -94,7 +96,7 @@ class ScrobblingSelectorSheet :
 			if (isLoading) {
 				binding.buttonDone.setProgressIcon()
 			} else {
-				binding.buttonDone.setIconResource(R.drawable.ic_check)
+				updateDoneButton(viewModel.selectedScrobblerIndex.value)
 			}
 			binding.tabs.setTabsEnabled(!isLoading)
 		}
@@ -103,6 +105,7 @@ class ScrobblingSelectorSheet :
 			if (tab != null && !tab.isSelected) {
 				tab.select()
 			}
+			updateAuthHint(index)
 		}
 	}
 
@@ -235,15 +238,53 @@ class ScrobblingSelectorSheet :
 		tabs.removeAllTabs()
 		tabs.clearOnTabSelectedListeners()
 		tabs.addOnTabSelectedListener(this)
-		for (entry in entries) {
+		for ((index, entry) in entries.withIndex()) {
 			val tab = tabs.newTab()
 			tab.tag = entry.scrobblerService
 			tab.setIcon(entry.scrobblerService.iconResId)
-			tab.setText(entry.scrobblerService.titleResId)
+			val title = getString(entry.scrobblerService.titleResId)
+			tab.text = if (viewModel.isScrobblerAuthorized(index)) {
+				title
+			} else {
+				getString(
+					R.string.scrobbler_search_requires_login_label,
+					title,
+					getString(R.string.filter_need_login),
+				)
+			}
 			tabs.addTab(tab)
 			if (entry.scrobblerService.id == selectedId) {
 				tab.select()
 			}
+		}
+		updateAuthHint(viewModel.selectedScrobblerIndex.value)
+	}
+
+	private fun updateAuthHint(index: Int) {
+		val binding = viewBinding ?: return
+		val service = viewModel.availableScrobblers.getOrNull(index)?.scrobblerService ?: return
+		val requiresLogin = !viewModel.isScrobblerAuthorized(index)
+		updateDoneButton(index)
+		binding.textViewAuthHint.isVisible = requiresLogin
+		if (requiresLogin) {
+			binding.textViewAuthHint.text = getString(
+				R.string.scrobbler_search_auth_hint,
+				getString(service.titleResId),
+			)
+		}
+	}
+
+	private fun updateDoneButton(index: Int) {
+		val binding = viewBinding ?: return
+		if (viewModel.isLoading.value == true) {
+			return
+		}
+		if (viewModel.isScrobblerAuthorized(index)) {
+			binding.buttonDone.setIconResource(R.drawable.ic_check)
+			binding.buttonDone.setContentDescriptionAndTooltip(R.string.done)
+		} else {
+			binding.buttonDone.setIconResource(R.drawable.ic_lock)
+			binding.buttonDone.setContentDescriptionAndTooltip(R.string.sign_in)
 		}
 	}
 }

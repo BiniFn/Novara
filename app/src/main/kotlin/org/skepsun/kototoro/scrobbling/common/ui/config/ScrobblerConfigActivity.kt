@@ -39,6 +39,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 
 	private val viewModel: ScrobblerConfigViewModel by viewModels()
 	private var pendingBindInfo: ScrobblingInfo? = null
+	private var pendingBindHandled = false
 
 	private val pickContentLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
 		android.util.Log.d("ScrobblerConfig", "pickContentLauncher: resultCode=${result.resultCode}, hasData=${result.data != null}")
@@ -100,6 +101,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
 		setIntent(intent)
+		pendingBindHandled = false
 		processIntent(intent)
 	}
 
@@ -183,6 +185,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 	}
 
 	private fun processIntent(intent: Intent) {
+		extractPendingBindInfo(intent)
 		if (intent.action == Intent.ACTION_VIEW) {
 			val uri = intent.data ?: return
 			val code = uri.getQueryParameter("code")
@@ -190,6 +193,32 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 				viewModel.onAuthCodeReceived(code)
 			}
 		}
+		val info = pendingBindInfo
+		if (info != null && !pendingBindHandled) {
+			pendingBindHandled = true
+			showSearchContentKindDialog(info)
+		}
+	}
+
+	private fun extractPendingBindInfo(intent: Intent) {
+		val remoteId = intent.getLongExtra(AppRouter.KEY_REMOTE_ID, 0L)
+		val title = intent.getStringExtra(AppRouter.KEY_TITLE)
+		if (remoteId == 0L || title.isNullOrBlank()) {
+			return
+		}
+		pendingBindInfo = ScrobblingInfo(
+			scrobbler = viewModel.getScrobblerService(),
+			mangaId = 0L,
+			targetId = remoteId,
+			status = null,
+			chapter = 0,
+			comment = null,
+			rating = 0f,
+			title = title,
+			coverUrl = "",
+			description = null,
+			externalUrl = intent.getStringExtra(AppRouter.KEY_URL).orEmpty(),
+		)
 	}
 
 	private fun onUserChanged(user: ScrobblerUser?) {

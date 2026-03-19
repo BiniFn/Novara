@@ -9,6 +9,7 @@ interface TrackingSiteMatcher {
 		service: ScrobblerService,
 		content: Content,
 		limit: Int = 5,
+		persistAutoMatch: Boolean = true,
 	): List<TrackingSiteMatchResult>
 
 	suspend fun confirmMatch(

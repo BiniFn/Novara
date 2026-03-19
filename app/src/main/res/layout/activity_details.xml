@@ -228,8 +228,8 @@
 					tools:ignore="UnusedAttribute"
 					tools:text="@tools:sample/lorem/random" />
 
-				<org.skepsun.kototoro.core.ui.widgets.ChipsView
-					android:id="@+id/chips_tags"
+			<org.skepsun.kototoro.core.ui.widgets.ChipsView
+				android:id="@+id/chips_tags"
 					android:layout_width="0dp"
 					android:layout_height="wrap_content"
 					android:layout_marginHorizontal="@dimen/screen_padding"
@@ -238,11 +238,11 @@
 					app:chipSpacingVertical="6dp"
 					app:layout_constraintEnd_toEndOf="parent"
 					app:layout_constraintStart_toStartOf="parent"
-					app:layout_constraintTop_toBottomOf="@+id/textView_description" />
+				app:layout_constraintTop_toBottomOf="@+id/textView_description" />
 
-				<TextView
-					android:id="@+id/textView_scrobbling_title"
-					android:layout_width="0dp"
+			<TextView
+				android:id="@+id/textView_scrobbling_title"
+				android:layout_width="0dp"
 					android:layout_height="wrap_content"
 					android:layout_marginStart="@dimen/margin_small"
 					android:layout_marginTop="@dimen/margin_normal"
@@ -281,17 +281,56 @@
 					app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
 					app:layout_constraintEnd_toEndOf="parent"
 					app:layout_constraintStart_toStartOf="parent"
-					app:layout_constraintTop_toBottomOf="@id/textView_scrobbling_title"
+					app:layout_constraintTop_toBottomOf="@id/textView_scrobbling_suggestion"
 					tools:itemCount="2"
 					tools:listitem="@layout/item_scrobbling_info"
 					tools:visibility="visible" />
+
+				<com.google.android.material.textview.MaterialTextView
+					android:id="@+id/textView_scrobbling_empty"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="16dp"
+					android:layout_marginEnd="16dp"
+					android:layout_marginBottom="12dp"
+					android:text="@string/scrobbling_empty_hint"
+					android:textAppearance="?attr/textAppearanceBodySmall"
+					android:textColor="?attr/colorOnSurfaceVariant"
+					android:visibility="gone"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/textView_scrobbling_suggestion"
+					tools:visibility="visible" />
+
+				<com.google.android.material.textview.MaterialTextView
+					android:id="@+id/textView_scrobbling_suggestion"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="16dp"
+					android:layout_marginTop="8dp"
+					android:layout_marginEnd="16dp"
+					android:textAppearance="?attr/textAppearanceBodySmall"
+					android:textColor="?attr/colorPrimary"
+					android:visibility="gone"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/textView_scrobbling_title"
+					tools:text="@string/tracking_auto_match_text"
+					tools:visibility="visible" />
+
+				<androidx.constraintlayout.widget.Barrier
+					android:id="@+id/barrier_scrobbling_bottom"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					app:barrierDirection="bottom"
+					app:constraint_referenced_ids="recyclerView_scrobbling,textView_scrobbling_empty" />
 
 				<androidx.constraintlayout.widget.Group
 					android:id="@+id/group_scrobbling"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
 					android:visibility="gone"
-					app:constraint_referenced_ids="recyclerView_scrobbling,textView_scrobbling_title,button_scrobbling_more"
+					app:constraint_referenced_ids="recyclerView_scrobbling,textView_scrobbling_empty,textView_scrobbling_suggestion,textView_scrobbling_title,button_scrobbling_more"
 					tools:visibility="visible" />
 
 				<TextView
@@ -308,7 +347,7 @@
 					android:textAppearance="?textAppearanceTitleSmall"
 					app:layout_constraintEnd_toStartOf="@id/button_related_more"
 					app:layout_constraintStart_toStartOf="parent"
-					app:layout_constraintTop_toBottomOf="@id/recyclerView_scrobbling" />
+					app:layout_constraintTop_toBottomOf="@id/barrier_scrobbling_bottom" />
 
 				<Button
 					android:id="@+id/button_related_more"

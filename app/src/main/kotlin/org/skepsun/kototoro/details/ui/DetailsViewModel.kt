@@ -12,10 +12,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
@@ -23,6 +25,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -59,6 +62,8 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.stats.data.StatsRepository
 import org.skepsun.kototoro.video.data.VideoDownloadIndex
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatcher
 import javax.inject.Inject
 import kotlin.experimental.or
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -84,6 +89,7 @@ class DetailsViewModel @Inject constructor(
 	private val localEpubSource: org.skepsun.kototoro.local.epub.LocalEpubSource,
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 	private val videoDownloadIndex: VideoDownloadIndex,
+	private val trackingSiteMatcher: TrackingSiteMatcher,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -174,6 +180,8 @@ class DetailsViewModel @Inject constructor(
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
+	val trackingMatchSuggestion = MutableStateFlow<TrackingSiteMatchResult?>(null)
+
 	val relatedContent: StateFlow<List<ContentListModel>> = manga.mapLatest {
 		if (it != null && settings.isRelatedContentEnabled) {
 			mangaListMapper.toListModelList(
@@ -214,6 +222,11 @@ class DetailsViewModel @Inject constructor(
 
 	init {
 		loadingJob = doLoad(force = false)
+		scrobblingInfo
+			.onEach {
+				refreshTrackingMatchSuggestion()
+			}
+			.launchIn(viewModelScope + Dispatchers.Default)
 		launchJob(Dispatchers.Default + SkipErrors) {
 			val manga = mangaDetails.firstOrNull { !it?.chapters.isNullOrEmpty() } ?: return@launchJob
 			val h = history.firstOrNull()
@@ -224,6 +237,14 @@ class DetailsViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			val manga = mangaDetails.firstOrNull { it != null && it.isLocal } ?: return@launchJob
 			remoteContent.value = interactor.findRemote(manga.toContent())
+		}
+		launchJob(Dispatchers.Default) {
+			val content = manga.filterNotNull().firstOrNull() ?: return@launchJob
+			if (!content.isLocal) {
+				trackingMatchSuggestion.value = null
+				return@launchJob
+			}
+			refreshTrackingMatchSuggestion()
 		}
 	}
 
@@ -250,6 +271,22 @@ class DetailsViewModel @Inject constructor(
 			scrobbler.unregisterScrobbling(
 				mangaId = mangaId,
 			)
+		}
+	}
+
+	fun bindTrackingMatch(match: TrackingSiteMatchResult) {
+		launchJob(Dispatchers.Default) {
+			val content = manga.filterNotNull().firstOrNull() ?: return@launchJob
+			trackingSiteMatcher.confirmMatch(match.service, content.id, match.remoteId)
+			refreshTrackingMatchSuggestion()
+		}
+	}
+
+	fun removeTrackingMatch(match: TrackingSiteMatchResult) {
+		launchJob(Dispatchers.Default) {
+			val content = manga.filterNotNull().firstOrNull() ?: return@launchJob
+			trackingSiteMatcher.removeMatch(match.service, content.id)
+			refreshTrackingMatchSuggestion()
 		}
 	}
 
@@ -292,8 +329,29 @@ class DetailsViewModel @Inject constructor(
 					details
 				}
 				
-				mangaDetails.value = finalDetails
+					mangaDetails.value = finalDetails
+				}
+	}
+
+	private fun refreshTrackingMatchSuggestion() {
+		launchJob(Dispatchers.Default) {
+			val content = manga.filterNotNull().firstOrNull() ?: return@launchJob
+			if (!content.isLocal) {
+				trackingMatchSuggestion.value = null
+				return@launchJob
 			}
+			val preferredService = settings.preferredTrackingSite
+			val match = trackingSiteMatcher
+				.matchLocalContent(preferredService, content, limit = 5, persistAutoMatch = false)
+				.firstOrNull { it.confidence >= 0.82f }
+			val hasPreferredScrobbling = scrobblingInfo.value.any { it.scrobbler == preferredService }
+			trackingMatchSuggestion.value = when {
+				match == null -> null
+				match.isLinked -> match
+				!hasPreferredScrobbling -> match
+				else -> null
+			}
+		}
 	}
 
 	private fun getScrobbler(index: Int): Scrobbler? {

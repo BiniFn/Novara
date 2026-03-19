@@ -30,6 +30,7 @@ import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
+import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerAuthRequiredException
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.scrobbling.common.ui.selector.model.ScrobblerHint
@@ -44,7 +45,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 
 	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
-	val availableScrobblers = scrobblers.filter { it.isEnabled }
+	val availableScrobblers = scrobblers.sortedBy { it.scrobblerService.id }
 
 	val selectedScrobblerIndex = MutableStateFlow(0)
 
@@ -150,6 +151,11 @@ class ScrobblingSelectorViewModel @Inject constructor(
 		val targetId = selectedItemId.value
 		if (targetId == NO_ID) {
 			onClose.call(Unit)
+			return
+		}
+		if (!currentScrobbler.isEnabled) {
+			errorEvent.call(ScrobblerAuthRequiredException(currentScrobbler.scrobblerService))
+			return
 		}
 		doneJob = launchLoadingJob(Dispatchers.Default) {
 			val prevInfo = currentScrobbler.getScrobblingInfoOrNull(manga.id)
@@ -179,6 +185,10 @@ class ScrobblingSelectorViewModel @Inject constructor(
 		if (index == selectedScrobblerIndex.value || index !in availableScrobblers.indices) return
 		selectedScrobblerIndex.value = index
 		initialize()
+	}
+
+	fun isScrobblerAuthorized(index: Int): Boolean {
+		return availableScrobblers.getOrNull(index)?.isEnabled == true
 	}
 
 	private fun initialize() {

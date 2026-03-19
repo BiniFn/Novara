@@ -4,6 +4,12 @@ import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
+/**
+ * Discovery 层只负责站点浏览、搜索、详情和匹配候选。
+ *
+ * `TrackingSiteState` / `TrackingSiteLink` 属于后续的同步与持久化层，
+ * 不在当前 discovery package 中定义，避免把不同职责的模型混在一起。
+ */
 data class TrackingSiteCatalog(
 	val service: ScrobblerService,
 	val query: String? = null,
@@ -11,7 +17,7 @@ data class TrackingSiteCatalog(
 	val page: Int = 0,
 )
 
-data class TrackingSiteListItem(
+data class TrackingSiteItem(
 	val service: ScrobblerService,
 	val remoteId: Long,
 	val title: String,
@@ -22,7 +28,13 @@ data class TrackingSiteListItem(
 	val url: String? = null,
 )
 
-data class TrackingSiteDetails(
+@Deprecated(
+	message = "Use TrackingSiteItem",
+	replaceWith = ReplaceWith("TrackingSiteItem"),
+)
+typealias TrackingSiteListItem = TrackingSiteItem
+
+data class TrackingSiteItemDetails(
 	val service: ScrobblerService,
 	val remoteId: Long,
 	val title: String,
@@ -37,6 +49,12 @@ data class TrackingSiteDetails(
 	val totalEpisodes: Int? = null,
 	val url: String? = null,
 )
+
+@Deprecated(
+	message = "Use TrackingSiteItemDetails",
+	replaceWith = ReplaceWith("TrackingSiteItemDetails"),
+)
+typealias TrackingSiteDetails = TrackingSiteItemDetails
 
 data class TrackingSiteCapabilities(
 	val supportsDiscovery: Boolean,
@@ -53,6 +71,8 @@ data class TrackingSiteMatchResult(
 	val localContent: Content? = null,
 	val confidence: Float,
 	val title: String,
+	val url: String? = null,
 	val reason: String? = null,
+	val isLinked: Boolean = false,
 	val isManual: Boolean = false,
 )
