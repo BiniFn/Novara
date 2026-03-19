@@ -234,7 +234,7 @@ class ExploreFragment :
 		SourceTag.entries.forEach { tag ->
 			val chip = createCompactChip(
 				text = getString(tag.titleRes),
-				iconRes = tag.iconRes,
+				iconRes = null,
 				colors = colors,
 				density = density,
 			)
@@ -289,39 +289,37 @@ class ExploreFragment :
 	
 	private fun createCompactChip(
 		text: String,
-		@androidx.annotation.DrawableRes iconRes: Int,
+		@androidx.annotation.DrawableRes iconRes: Int?,
 		colors: ChipColors,
 		density: Float,
 	): Chip {
 		return Chip(requireContext()).apply {
 			id = View.generateViewId()
-			// Use empty text for icon-only look, but set content description/tooltip
-			this.text = ""
+			this.text = text
 			contentDescription = text
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 				tooltipText = text
 			}
-			
+
 			isCheckable = true
-			isChipIconVisible = true
-			setChipIconResource(iconRes)
-			chipIconSize = 20f * density
-			chipIconTint = colors.text
-			
-			// Modern Premium visuals - Icon Only
+			isChipIconVisible = iconRes != null
+			if (iconRes != null) {
+				setChipIconResource(iconRes)
+				chipIconSize = 20f * density
+				chipIconTint = colors.text
+			}
+
 			chipMinHeight = 32 * density
 			minHeight = 0
-			// Equal padding for circle/square look
-			chipStartPadding = 8 * density
-			chipEndPadding = 8 * density
-			textStartPadding = 0f
+			chipStartPadding = 12 * density
+			chipEndPadding = 12 * density
+			textStartPadding = if (iconRes != null) 6 * density else 0f
 			textEndPadding = 0f
 			setEnsureMinTouchTargetSize(false)
-			
+
 			chipStrokeWidth = 0f
 			chipBackgroundColor = colors.bg
-			// text color not strictly needed if text is empty but good for consistency
-			setTextColor(colors.text) 
+			setTextColor(colors.text)
 		}
 	}
 	

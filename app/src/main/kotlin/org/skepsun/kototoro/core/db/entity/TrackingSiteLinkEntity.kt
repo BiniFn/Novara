@@ -2,11 +2,16 @@ package org.skepsun.kototoro.core.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import org.skepsun.kototoro.core.db.TABLE_TRACKING_SITE_LINKS
 
 @Entity(
 	tableName = TABLE_TRACKING_SITE_LINKS,
 	primaryKeys = ["service", "remote_id", "manga_id"],
+	indices = [
+		Index(value = ["manga_id"]),
+		Index(value = ["service", "remote_id"]),
+	],
 )
 data class TrackingSiteLinkEntity(
 	@ColumnInfo(name = "service") val service: Int,

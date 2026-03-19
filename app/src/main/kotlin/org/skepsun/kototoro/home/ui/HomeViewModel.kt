@@ -1,33 +1,44 @@
 package org.skepsun.kototoro.home.ui
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import org.skepsun.kototoro.core.model.ContentHistory
-import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.OriginGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import org.skepsun.kototoro.tracking.discovery.domain.PreferredTrackingSiteProvider
 import javax.inject.Inject
 
+private const val HOME_RECENT_HISTORY_LIMIT = 5
+private const val HOME_RECENT_UPDATES_LIMIT = 12
+
 data class HomeRecentItem(
 	val content: Content,
 ) {
 	val title: String
 		get() = content.title
+
+	@get:StringRes
+	val typeLabelResId: Int?
+		get() = content.source.getContentType().toHomeTab()?.titleResId
 }
 
 data class HomeUpdateItem(
@@ -44,6 +55,12 @@ data class HomeResumeState(
 ) {
 	val isAvailable: Boolean
 		get() = content != null
+}
+
+enum class HomeContentTab(@StringRes val titleResId: Int) {
+	MANGA(R.string.manga),
+	NOVEL(R.string.novel),
+	VIDEO(R.string.video),
 }
 
 enum class HomeSourceOrigin {
@@ -69,6 +86,7 @@ data class HomeSyncState(
 )
 
 data class HomeSummaryState(
+	val selectedTab: HomeContentTab = HomeContentTab.MANGA,
 	val recentHistoryCount: Int = 0,
 	val recentHistoryItems: List<HomeRecentItem> = emptyList(),
 	val resumeState: HomeResumeState = HomeResumeState(),
@@ -92,6 +110,7 @@ class HomeViewModel @Inject constructor(
 	private val settings: AppSettings,
 ) : ViewModel() {
 
+	private val selectedTabFlow = MutableStateFlow(HomeContentTab.MANGA)
 	private val lastHistoryContentFlow = historyRepository.observeLast()
 	private val resumeStateFlow = lastHistoryContentFlow
 		.flatMapLatest { content ->
@@ -106,11 +125,11 @@ class HomeViewModel @Inject constructor(
 				}
 			}
 		}
-	private val recentHistoryFlow = historyRepository.observeAll(limit = 5)
+	private val recentHistoryFlow = historyRepository.observeAll(limit = HOME_RECENT_HISTORY_LIMIT)
 	private val favoritesCountFlow = favouritesRepository.observeContentCount()
 	private val favoriteCategoriesCountFlow = favouritesRepository.observeCategories().map { it.size }
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
-	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = 3, filterOptions = emptySet())
+	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_RECENT_UPDATES_LIMIT, filterOptions = emptySet())
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
 		.map { counts ->
@@ -142,6 +161,7 @@ class HomeViewModel @Inject constructor(
 	}
 
 	val summaryState = combine(
+		selectedTabFlow,
 		combine(
 			combine(
 				resumeStateFlow,
@@ -175,26 +195,27 @@ class HomeViewModel @Inject constructor(
 		) { enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState ->
 			Quadruple(enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState)
 		},
-	) { left, right ->
-		val resumeState = left.first
-		val recentHistory = left.second
+	) { selectedTab, left, right ->
+		val resumeState = left.first.filtered(selectedTab)
+		val recentHistory = left.second.filterContentsByTab(selectedTab)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
-		val recentUpdates = left.sixth
+		val recentUpdates = left.sixth.filterTrackingsByTab(selectedTab)
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
 		val preferredTrackingSite = right.third
 		val syncState = right.fourth
 
 		HomeSummaryState(
+			selectedTab = selectedTab,
 			recentHistoryCount = recentHistory.size,
 			recentHistoryItems = recentHistory.take(3).map { HomeRecentItem(it) },
 			resumeState = resumeState,
 			favoritesCount = favoritesCount,
 			favoriteCategoriesCount = favoriteCategoriesCount,
 			unreadUpdatesCount = unreadUpdatesCount,
-			recentUpdates = recentUpdates.map { it.toHomeUpdateItem() },
+			recentUpdates = recentUpdates.take(3).map { it.toHomeUpdateItem() },
 			enabledSourcesCount = enabledSourcesCount,
 			sourceBreakdown = sourceBreakdown,
 			preferredTrackingSite = preferredTrackingSite,
@@ -205,6 +226,10 @@ class HomeViewModel @Inject constructor(
 		started = SharingStarted.WhileSubscribed(5_000),
 		initialValue = HomeSummaryState(),
 	)
+
+	fun setSelectedTab(tab: HomeContentTab) {
+		selectedTabFlow.value = tab
+	}
 }
 
 private data class Quadruple<A, B, C, D>(
@@ -242,7 +267,43 @@ private fun Map<SourceGroup, Int>.countOf(key: OriginGroup): Int? {
 	return this[SourceGroup.Origin(key)]
 }
 
-private fun ContentHistory?.toProgressPercent(): Int? {
+private fun Content.filterMatches(tab: HomeContentTab): Boolean {
+	return source.getContentType().toHomeTab() == tab
+}
+
+private fun List<Content>.filterContentsByTab(tab: HomeContentTab): List<Content> {
+	return filter { it.filterMatches(tab) }
+}
+
+private fun List<ContentTracking>.filterTrackingsByTab(tab: HomeContentTab): List<ContentTracking> {
+	return filter { it.manga.filterMatches(tab) }
+}
+
+private fun HomeResumeState.filtered(tab: HomeContentTab): HomeResumeState {
+	return if (content?.filterMatches(tab) == true) this else HomeResumeState()
+}
+
+private fun ContentType.toHomeTab(): HomeContentTab? = when (this) {
+	ContentType.NOVEL,
+	ContentType.HENTAI_NOVEL -> HomeContentTab.NOVEL
+
+	ContentType.VIDEO,
+	ContentType.HENTAI_VIDEO -> HomeContentTab.VIDEO
+
+	ContentType.MANGA,
+	ContentType.HENTAI_MANGA,
+	ContentType.COMICS,
+	ContentType.MANHWA,
+	ContentType.MANHUA,
+	ContentType.ONE_SHOT,
+	ContentType.DOUJINSHI,
+	ContentType.IMAGE_SET,
+	ContentType.ARTIST_CG,
+	ContentType.GAME_CG,
+	ContentType.OTHER -> HomeContentTab.MANGA
+}
+
+private fun org.skepsun.kototoro.core.model.ContentHistory?.toProgressPercent(): Int? {
 	val percent = this?.percent ?: return null
 	return (percent * 100f).toInt().coerceIn(0, 100)
 }

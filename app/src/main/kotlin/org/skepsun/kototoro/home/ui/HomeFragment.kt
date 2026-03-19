@@ -1,21 +1,27 @@
 package org.skepsun.kototoro.home.ui
 
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.ViewGroup
 import android.text.format.DateUtils
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
+import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 
 @AndroidEntryPoint
-class HomeFragment : BaseFragment<FragmentHomeBinding>() {
+class HomeFragment : BaseFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetChangedListener {
 
 	private val viewModel by viewModels<HomeViewModel>()
 
@@ -25,6 +31,11 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 
 	override fun onViewBindingCreated(binding: FragmentHomeBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
+		val appBar = (activity as? AppBarOwner)?.appBar
+		appBar?.addOnOffsetChangedListener(this)
+		binding.root.doOnPreDraw {
+			appBar?.setExpanded(false, false)
+		}
 		with(binding) {
 			buttonSettings.setOnClickListener { router.openSettings() }
 			buttonReaderSettings.setOnClickListener { router.openReaderSettings() }
@@ -43,9 +54,20 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 					router.openDetails(content)
 				}
 			}
+			chipHomeManga.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.MANGA) }
+			chipHomeNovel.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.NOVEL) }
+			chipHomeVideo.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.VIDEO) }
 		}
 
 		viewModel.summaryState.observe(viewLifecycleOwner) { state ->
+			binding.chipGroupHomeContentType.check(
+				when (state.selectedTab) {
+					HomeContentTab.MANGA -> binding.chipHomeManga.id
+					HomeContentTab.NOVEL -> binding.chipHomeNovel.id
+					HomeContentTab.VIDEO -> binding.chipHomeVideo.id
+				},
+			)
+			updateUpdatesButtonLabel(state.selectedTab)
 			binding.textViewRecentCount.text = state.recentHistoryCount.toString()
 			binding.textViewLibraryFavoritesCount.text = state.favoritesCount.toString()
 			binding.textViewLibraryCategoriesCount.text = state.favoriteCategoriesCount.toString()
@@ -91,35 +113,56 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 				resumeContent != null -> getString(R.string.home_recent_open_details)
 				else -> getString(R.string.home_resume_empty_subtitle)
 			}
+			bindCover(binding.imageViewResumeCover, resumeContent)
 			binding.buttonResumeRead.isEnabled = state.resumeState.isAvailable
 			binding.buttonResumeDetails.isEnabled = state.resumeState.isAvailable
 			binding.buttonResumeRead.alpha = if (state.resumeState.isAvailable) 1f else 0.6f
 			binding.buttonResumeDetails.alpha = if (state.resumeState.isAvailable) 1f else 0.6f
+			binding.imageViewResumeCover.alpha = if (state.resumeState.isAvailable) 1f else 0.6f
 
 			val historyRows = listOf(
-				binding.textViewRecentItem1 to binding.textViewRecentItem1Meta,
-				binding.textViewRecentItem2 to binding.textViewRecentItem2Meta,
-				binding.textViewRecentItem3 to binding.textViewRecentItem3Meta,
+				RecentRowViews(
+					container = binding.recentItem1Container,
+					title = binding.textViewRecentItem1,
+					meta = binding.textViewRecentItem1Meta,
+					cover = binding.imageViewRecentItem1Cover,
+				),
+				RecentRowViews(
+					container = binding.recentItem2Container,
+					title = binding.textViewRecentItem2,
+					meta = binding.textViewRecentItem2Meta,
+					cover = binding.imageViewRecentItem2Cover,
+				),
+				RecentRowViews(
+					container = binding.recentItem3Container,
+					title = binding.textViewRecentItem3,
+					meta = binding.textViewRecentItem3Meta,
+					cover = binding.imageViewRecentItem3Cover,
+				),
 			)
-			historyRows.forEachIndexed { index, (titleView, metaView) ->
+			historyRows.forEachIndexed { index, row ->
 				val item = state.recentHistoryItems.getOrNull(index)
-				titleView.text = item?.title
-					?: titleView.context.getString(R.string.history_is_empty)
-				metaView.text = if (item != null) {
-					getString(R.string.home_recent_open_details)
-				} else {
-					getString(R.string.home_recent_empty_subtitle)
+				val typeLabelResId = item?.typeLabelResId
+				row.title.text = item?.title
+					?: row.title.context.getString(R.string.history_is_empty)
+				row.meta.text = when {
+					typeLabelResId != null -> getString(typeLabelResId)
+					item != null -> getString(R.string.home_recent_open_details)
+					else -> getString(R.string.home_recent_empty_subtitle)
 				}
+				bindCover(row.cover, item?.content)
 				val isEnabled = item != null
-				titleView.isEnabled = isEnabled
-				metaView.isEnabled = isEnabled
-				titleView.alpha = if (isEnabled) 1f else 0.6f
-				metaView.alpha = if (isEnabled) 1f else 0.6f
-				val clickListener = android.view.View.OnClickListener {
+				row.container.isEnabled = isEnabled
+				row.title.isEnabled = isEnabled
+				row.meta.isEnabled = isEnabled
+				val alpha = if (isEnabled) 1f else 0.6f
+				row.container.alpha = alpha
+				row.title.alpha = alpha
+				row.meta.alpha = alpha
+				row.cover.alpha = alpha
+				row.container.setOnClickListener {
 					item?.let { recent -> router.openDetails(recent.content) }
 				}
-				titleView.setOnClickListener(clickListener)
-				metaView.setOnClickListener(clickListener)
 			}
 
 			val updateRows = listOf(
@@ -145,7 +188,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 				metaView.isEnabled = isEnabled
 				titleView.alpha = if (isEnabled) 1f else 0.6f
 				metaView.alpha = if (isEnabled) 1f else 0.6f
-				val clickListener = android.view.View.OnClickListener {
+				val clickListener = View.OnClickListener {
 					item?.let { update -> router.openDetails(update.content) }
 				}
 				titleView.setOnClickListener(clickListener)
@@ -174,13 +217,42 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 		}
 	}
 
-	override fun onApplyWindowInsets(view: android.view.View, insets: WindowInsetsCompat): WindowInsetsCompat {
+	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
+		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 		requireViewBinding().root.updatePadding(
-			left = insets.getInsets(WindowInsetsCompat.Type.systemBars()).left,
-			right = insets.getInsets(WindowInsetsCompat.Type.systemBars()).right,
-			bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom,
+			left = systemBars.left,
+			right = systemBars.right,
+			bottom = systemBars.bottom,
+		)
+		requireViewBinding().homeContentContainer.updatePadding(
+			bottom = systemBars.bottom + resources.getDimensionPixelOffset(R.dimen.list_spacing_normal),
 		)
 		return insets
+	}
+
+	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
+		val appBar = appBarLayout ?: return
+		if (appBar.bottom > 0) {
+			appBar.setExpanded(false, false)
+		}
+	}
+
+	override fun onDestroyView() {
+		(activity as? AppBarOwner)?.appBar?.removeOnOffsetChangedListener(this)
+		super.onDestroyView()
+	}
+
+	private fun updateUpdatesButtonLabel(tab: HomeContentTab) {
+		requireViewBinding().buttonViewAllUpdates.text = when (tab) {
+			HomeContentTab.MANGA -> getString(R.string.view_all)
+			HomeContentTab.NOVEL -> getString(R.string.view_all)
+			HomeContentTab.VIDEO -> getString(R.string.view_all)
+		}
+	}
+
+	private fun bindCover(imageView: org.skepsun.kototoro.image.ui.CoverImageView, content: Content?) {
+		val coverUrl = content?.largeCoverUrl.ifNullOrEmpty { content?.coverUrl }
+		imageView.setImageAsync(coverUrl, content)
 	}
 
 	private fun getSourceOriginLabel(origin: HomeSourceOrigin): String {
@@ -194,4 +266,11 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 			HomeSourceOrigin.EXTERNAL -> getString(R.string.external_source)
 		}
 	}
+
+	private data class RecentRowViews(
+		val container: View,
+		val title: android.widget.TextView,
+		val meta: android.widget.TextView,
+		val cover: org.skepsun.kototoro.image.ui.CoverImageView,
+	)
 }

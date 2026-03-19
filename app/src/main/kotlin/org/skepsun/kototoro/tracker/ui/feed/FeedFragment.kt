@@ -169,7 +169,12 @@ class FeedFragment :
 
 		val tabs = listOf(BrowseGroupTab.Content, BrowseGroupTab.Novel, BrowseGroupTab.Video)
 		for (tab in tabs) {
-			val chip = createCompactChip(getString(tab.titleRes), tab.iconRes, colors, density)
+			val chip = createCompactChip(
+				text = getString(tab.titleRes),
+				iconRes = tab.iconRes,
+				colors = colors,
+				density = density,
+			)
 			val id = View.generateViewId()
 			chip.id = id
 			contentTypeChipIds[tab.id] = id
@@ -195,7 +200,12 @@ class FeedFragment :
 
 		val tags = SourceTag.entries
 		for (tag in tags) {
-			val chip = createCompactChip(getString(tag.titleRes), tag.iconRes, colors, density)
+			val chip = createCompactChip(
+				text = getString(tag.titleRes),
+				iconRes = null,
+				colors = colors,
+				density = density,
+			)
 			val id = View.generateViewId()
 			chip.id = id
 			sourceTagChipIds[tag.id] = id
@@ -291,29 +301,31 @@ class FeedFragment :
 		)
 	}
 
-	private fun createCompactChip(text: String, iconRes: Int, colors: ChipColors, density: Float): Chip {
+	private fun createCompactChip(text: String, iconRes: Int?, colors: ChipColors, density: Float): Chip {
 		return Chip(requireContext()).apply {
 			id = View.generateViewId()
-			this.text = ""
+			this.text = text
 			contentDescription = text
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 				tooltipText = text
 			}
-			
+
 			isCheckable = true
-			isChipIconVisible = true
-			setChipIconResource(iconRes)
-			chipIconSize = 20f * density
-			chipIconTint = colors.text
-			
+			isChipIconVisible = iconRes != null
+			if (iconRes != null) {
+				setChipIconResource(iconRes)
+				chipIconSize = 20f * density
+				chipIconTint = colors.text
+			}
+
 			chipMinHeight = 32 * density
 			minHeight = 0
-			chipStartPadding = 8 * density
-			chipEndPadding = 8 * density
-			textStartPadding = 0f
+			chipStartPadding = 12 * density
+			chipEndPadding = 12 * density
+			textStartPadding = if (iconRes != null) 6 * density else 0f
 			textEndPadding = 0f
 			setEnsureMinTouchTargetSize(false)
-			
+
 			chipStrokeWidth = 0f
 			chipBackgroundColor = colors.bg
 			setTextColor(colors.text)

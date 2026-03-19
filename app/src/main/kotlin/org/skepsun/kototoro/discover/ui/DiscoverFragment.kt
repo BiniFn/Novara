@@ -53,8 +53,6 @@ class DiscoverFragment :
 		super.onViewBindingCreated(binding, savedInstanceState)
 		binding.chipGroupSourceTag.visibility = View.GONE
 		binding.chipGroupCategory.visibility = View.GONE
-		binding.filterSeparator.visibility = View.GONE
-		binding.filterSeparator2.visibility = View.GONE
 		val adapter = DiscoverAdapter(this, ::onDiscoverItemClick)
 		with(binding.recyclerView) {
 			layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)

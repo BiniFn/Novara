@@ -212,11 +212,9 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		
 		if (available.isEmpty()) {
 			binding.chipGroupSourceTag.isVisible = false
-			binding.filterSeparator.isVisible = false
 			return
 		}
 		binding.chipGroupSourceTag.isVisible = true
-		binding.filterSeparator.isVisible = true
 
 		val colors = createChipColors()
 		val density = resources.displayMetrics.density
@@ -224,7 +222,7 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		available.forEach { tag ->
 			val chip = createCompactChip(
 				text = getString(tag.titleRes),
-				iconRes = tag.iconRes,
+				iconRes = null,
 				colors = colors,
 				density = density,
 			)
@@ -298,29 +296,31 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 
 	private fun createCompactChip(
 		text: String,
-		@androidx.annotation.DrawableRes iconRes: Int,
+		iconRes: Int?,
 		colors: ChipColors,
 		density: Float,
 	): Chip {
 		return Chip(requireContext()).apply {
 			id = View.generateViewId()
-			this.text = ""
+			this.text = text
 			contentDescription = text
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 				tooltipText = text
 			}
 
 			isCheckable = true
-			isChipIconVisible = true
-			setChipIconResource(iconRes)
-			chipIconSize = 20f * density
-			chipIconTint = colors.text
+			isChipIconVisible = iconRes != null
+			if (iconRes != null) {
+				setChipIconResource(iconRes)
+				chipIconSize = 20f * density
+				chipIconTint = colors.text
+			}
 
 			chipMinHeight = 32 * density
 			minHeight = 0
-			chipStartPadding = 8 * density
-			chipEndPadding = 8 * density
-			textStartPadding = 0f
+			chipStartPadding = 12 * density
+			chipEndPadding = 12 * density
+			textStartPadding = if (iconRes != null) 6 * density else 0f
 			textEndPadding = 0f
 			setEnsureMinTouchTargetSize(false)
 

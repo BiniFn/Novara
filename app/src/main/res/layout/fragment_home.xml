@@ -8,6 +8,7 @@
 	tools:context=".home.ui.HomeFragment">
 
 	<LinearLayout
+		android:id="@+id/homeContentContainer"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:orientation="vertical"
@@ -16,129 +17,301 @@
 		android:paddingEnd="20dp"
 		android:paddingBottom="24dp">
 
-		<TextView
-			android:id="@+id/textViewTitle"
+		<com.google.android.material.chip.ChipGroup
+			android:id="@+id/chipGroupHomeContentType"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:text="@string/home_placeholder_title"
-			android:textAppearance="?attr/textAppearanceHeadlineSmall"
-			android:textStyle="bold" />
+			app:chipSpacingHorizontal="8dp"
+			app:chipSpacingVertical="8dp"
+			app:singleLine="false"
+			app:singleSelection="true"
+			app:selectionRequired="true">
 
-		<TextView
-			android:id="@+id/textViewSubtitle"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			android:text="@string/home_placeholder_subtitle"
-			android:textAppearance="?attr/textAppearanceBodyMedium"
-			android:textColor="?android:attr/textColorSecondary" />
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="16dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
+			<com.google.android.material.chip.Chip
+				android:id="@+id/chipHomeManga"
+				style="@style/Widget.Material3.Chip.Filter"
+				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
+				android:text="@string/manga"
+				app:chipIcon="@drawable/ic_content_manga"
+				app:chipIconVisible="true" />
 
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:text="@string/home_overview_title"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
+			<com.google.android.material.chip.Chip
+				android:id="@+id/chipHomeNovel"
+				style="@style/Widget.Material3.Chip.Filter"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="@string/novel"
+				app:chipIcon="@drawable/ic_content_novel"
+				app:chipIconVisible="true" />
+
+			<com.google.android.material.chip.Chip
+				android:id="@+id/chipHomeVideo"
+				style="@style/Widget.Material3.Chip.Filter"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="@string/video"
+				app:chipIcon="@drawable/ic_content_video"
+				app:chipIconVisible="true" />
+
+		</com.google.android.material.chip.ChipGroup>
+
+		<GridLayout
+			android:id="@+id/homeCardGrid"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:alignmentMode="alignMargins"
+			android:columnCount="2"
+			android:rowOrderPreserved="false"
+			android:useDefaultMargins="false">
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_columnSpan="2"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="2"
+				app:cardUseCompatPadding="true">
 
 				<LinearLayout
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:orientation="horizontal">
+					android:orientation="vertical"
+					android:padding="16dp">
+
+					<TextView
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/home_overview_title"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
 
 					<LinearLayout
-						android:layout_width="0dp"
+						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
-						android:layout_weight="1"
-						android:orientation="vertical">
+						android:layout_marginTop="16dp"
+						android:orientation="horizontal">
 
-						<TextView
-							android:layout_width="match_parent"
+						<LinearLayout
+							android:layout_width="0dp"
 							android:layout_height="wrap_content"
-							android:text="@string/recent_history"
-							android:textAppearance="?attr/textAppearanceLabelMedium"
-							android:textColor="?android:attr/textColorSecondary" />
+							android:layout_weight="1"
+							android:orientation="vertical">
 
-						<TextView
-							android:id="@+id/textViewRecentCount"
-							android:layout_width="match_parent"
+							<TextView
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="@string/recent_history"
+								android:textAppearance="?attr/textAppearanceLabelMedium"
+								android:textColor="?android:attr/textColorSecondary" />
+
+							<TextView
+								android:id="@+id/textViewRecentCount"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="4dp"
+								android:text="0"
+								android:textAppearance="?attr/textAppearanceHeadlineSmall"
+								android:textStyle="bold"
+								tools:text="5" />
+
+						</LinearLayout>
+
+						<LinearLayout
+							android:layout_width="0dp"
 							android:layout_height="wrap_content"
-							android:layout_marginTop="4dp"
-							android:text="0"
-							android:textAppearance="?attr/textAppearanceHeadlineSmall"
-							android:textStyle="bold"
-							tools:text="5" />
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="@string/unread_updates"
+								android:textAppearance="?attr/textAppearanceLabelMedium"
+								android:textColor="?android:attr/textColorSecondary" />
+
+							<TextView
+								android:id="@+id/textViewUpdatesCount"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="4dp"
+								android:text="0"
+								android:textAppearance="?attr/textAppearanceHeadlineSmall"
+								android:textStyle="bold"
+								tools:text="3" />
+
+						</LinearLayout>
 
 					</LinearLayout>
 
 					<LinearLayout
-						android:layout_width="0dp"
+						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
-						android:layout_weight="1"
-						android:orientation="vertical">
+						android:layout_marginTop="16dp"
+						android:orientation="horizontal">
 
-						<TextView
-							android:layout_width="match_parent"
+						<LinearLayout
+							android:layout_width="0dp"
 							android:layout_height="wrap_content"
-							android:text="@string/unread_updates"
-							android:textAppearance="?attr/textAppearanceLabelMedium"
-							android:textColor="?android:attr/textColorSecondary" />
+							android:layout_weight="1"
+							android:orientation="vertical">
 
-						<TextView
-							android:id="@+id/textViewUpdatesCount"
-							android:layout_width="match_parent"
+							<TextView
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="@string/preferred_tracking_site"
+								android:textAppearance="?attr/textAppearanceLabelMedium"
+								android:textColor="?android:attr/textColorSecondary" />
+
+							<TextView
+								android:id="@+id/textViewTrackingSite"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="4dp"
+								android:textAppearance="?attr/textAppearanceTitleMedium"
+								android:textStyle="bold"
+								tools:text="BANGUMI" />
+
+						</LinearLayout>
+
+						<LinearLayout
+							android:layout_width="0dp"
 							android:layout_height="wrap_content"
-							android:layout_marginTop="4dp"
-							android:text="0"
-							android:textAppearance="?attr/textAppearanceHeadlineSmall"
-							android:textStyle="bold"
-							tools:text="3" />
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="@string/sync_status"
+								android:textAppearance="?attr/textAppearanceLabelMedium"
+								android:textColor="?android:attr/textColorSecondary" />
+
+							<TextView
+								android:id="@+id/textViewOverviewSyncStatus"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="4dp"
+								android:textAppearance="?attr/textAppearanceTitleMedium"
+								android:textStyle="bold"
+								tools:text="WebDAV Auto Sync" />
+
+						</LinearLayout>
 
 					</LinearLayout>
 
 				</LinearLayout>
 
+			</com.google.android.material.card.MaterialCardView>
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_columnSpan="2"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="2"
+				app:cardUseCompatPadding="true">
+
 				<LinearLayout
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:orientation="horizontal">
+					android:gravity="center_vertical"
+					android:orientation="horizontal"
+					android:padding="16dp">
+
+					<org.skepsun.kototoro.image.ui.CoverImageView
+						android:id="@+id/imageViewResumeCover"
+						android:layout_width="96dp"
+						android:layout_height="wrap_content"
+						android:contentDescription="@null"
+						android:importantForAccessibility="no"
+						app:aspectRationHeight="18"
+						app:aspectRationWidth="13"
+						tools:ignore="ImageContrastCheck" />
 
 					<LinearLayout
 						android:layout_width="0dp"
 						android:layout_height="wrap_content"
+						android:layout_marginStart="16dp"
 						android:layout_weight="1"
 						android:orientation="vertical">
 
 						<TextView
 							android:layout_width="match_parent"
 							android:layout_height="wrap_content"
-							android:text="@string/preferred_tracking_site"
-							android:textAppearance="?attr/textAppearanceLabelMedium"
-							android:textColor="?android:attr/textColorSecondary" />
+							android:text="@string/home_resume_title"
+							android:textAppearance="?attr/textAppearanceTitleMedium"
+							android:textStyle="bold" />
 
 						<TextView
-							android:id="@+id/textViewTrackingSite"
+							android:id="@+id/textViewResumeTitle"
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content"
+							android:layout_marginTop="12dp"
+							android:ellipsize="end"
+							android:maxLines="2"
+							android:textAppearance="?attr/textAppearanceBodyLarge"
+							android:textStyle="bold"
+							tools:text="Last read content title" />
+
+						<TextView
+							android:id="@+id/textViewResumeSubtitle"
 							android:layout_width="match_parent"
 							android:layout_height="wrap_content"
 							android:layout_marginTop="4dp"
-							android:textAppearance="?attr/textAppearanceTitleMedium"
-							android:textStyle="bold"
-							tools:text="BANGUMI" />
+							android:textAppearance="?attr/textAppearanceBodyMedium"
+							android:textColor="?android:attr/textColorSecondary"
+							tools:text="Progress 42%" />
+
+						<LinearLayout
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content"
+							android:layout_marginTop="12dp"
+							android:orientation="horizontal">
+
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonResumeRead"
+								style="?attr/materialButtonStyle"
+								android:layout_width="0dp"
+								android:layout_height="wrap_content"
+								android:layout_weight="1"
+								android:text="@string/read" />
+
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonResumeDetails"
+								style="?attr/materialButtonOutlinedStyle"
+								android:layout_width="0dp"
+								android:layout_height="wrap_content"
+								android:layout_marginStart="12dp"
+								android:layout_weight="1"
+								android:text="@string/details" />
+
+						</LinearLayout>
 
 					</LinearLayout>
+
+				</LinearLayout>
+
+			</com.google.android.material.card.MaterialCardView>
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_columnSpan="2"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="2"
+				app:cardUseCompatPadding="true">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:gravity="center_vertical"
+					android:orientation="horizontal"
+					android:padding="16dp">
 
 					<LinearLayout
 						android:layout_width="0dp"
@@ -150,557 +323,543 @@
 							android:layout_width="match_parent"
 							android:layout_height="wrap_content"
 							android:text="@string/sync_status"
-							android:textAppearance="?attr/textAppearanceLabelMedium"
-							android:textColor="?android:attr/textColorSecondary" />
+							android:textAppearance="?attr/textAppearanceTitleMedium"
+							android:textStyle="bold" />
 
 						<TextView
-							android:id="@+id/textViewOverviewSyncStatus"
+							android:id="@+id/textViewSyncStatus"
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content"
+							android:layout_marginTop="8dp"
+							android:textAppearance="?attr/textAppearanceBodyLarge"
+							tools:text="WebDAV Auto Sync" />
+
+						<TextView
+							android:id="@+id/textViewSyncSubtitle"
 							android:layout_width="match_parent"
 							android:layout_height="wrap_content"
 							android:layout_marginTop="4dp"
-							android:textAppearance="?attr/textAppearanceTitleMedium"
-							android:textStyle="bold"
-							tools:text="WebDAV Auto Sync" />
+							android:textAppearance="?attr/textAppearanceBodyMedium"
+							android:textColor="?android:attr/textColorSecondary"
+							tools:text="2 minutes ago" />
 
 					</LinearLayout>
 
-				</LinearLayout>
-
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:text="@string/home_resume_title"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
-
-				<TextView
-					android:id="@+id/textViewResumeTitle"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:ellipsize="end"
-					android:maxLines="2"
-					android:textAppearance="?attr/textAppearanceBodyLarge"
-					android:textStyle="bold"
-					tools:text="Last read content title" />
-
-				<TextView
-					android:id="@+id/textViewResumeSubtitle"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="Progress 42%" />
-
-				<LinearLayout
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:orientation="horizontal">
-
 					<com.google.android.material.button.MaterialButton
-						android:id="@+id/buttonResumeRead"
-						style="?attr/materialButtonStyle"
-						android:layout_width="0dp"
-						android:layout_height="wrap_content"
-						android:layout_weight="1"
-						android:text="@string/read" />
-
-					<com.google.android.material.button.MaterialButton
-						android:id="@+id/buttonResumeDetails"
+						android:id="@+id/buttonSyncSettings"
 						style="?attr/materialButtonOutlinedStyle"
-						android:layout_width="0dp"
+						android:layout_width="wrap_content"
 						android:layout_height="wrap_content"
 						android:layout_marginStart="12dp"
-						android:layout_weight="1"
-						android:text="@string/details" />
+						android:text="@string/sync_settings" />
 
 				</LinearLayout>
 
-			</LinearLayout>
+			</com.google.android.material.card.MaterialCardView>
 
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
 				android:layout_height="wrap_content"
-				android:gravity="center_vertical"
-				android:orientation="horizontal"
-				android:padding="16dp">
+				android:layout_columnSpan="2"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="2"
+				app:cardUseCompatPadding="true">
 
 				<LinearLayout
-					android:layout_width="0dp"
+					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_weight="1"
-					android:orientation="vertical">
+					android:orientation="vertical"
+					android:padding="16dp">
 
 					<TextView
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
-						android:text="@string/sync_status"
+						android:text="@string/recent_history"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
+
+					<LinearLayout
+						android:id="@+id/recentItem1Container"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:background="?attr/selectableItemBackground"
+						android:clickable="true"
+						android:focusable="true"
+						android:gravity="center_vertical"
+						android:minHeight="64dp"
+						android:orientation="horizontal"
+						android:padding="8dp">
+
+						<org.skepsun.kototoro.image.ui.CoverImageView
+							android:id="@+id/imageViewRecentItem1Cover"
+							android:layout_width="44dp"
+							android:layout_height="wrap_content"
+							android:contentDescription="@null"
+							android:importantForAccessibility="no"
+							app:aspectRationHeight="18"
+							app:aspectRationWidth="13" />
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_marginStart="12dp"
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:id="@+id/textViewRecentItem1"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:ellipsize="end"
+								android:maxLines="1"
+								android:textAppearance="?attr/textAppearanceBodyMedium"
+								android:textStyle="bold"
+								tools:text="Recent title 1" />
+
+							<TextView
+								android:id="@+id/textViewRecentItem1Meta"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="2dp"
+								android:textAppearance="?attr/textAppearanceBodySmall"
+								android:textColor="?android:attr/textColorSecondary"
+								tools:text="Open details" />
+
+						</LinearLayout>
+
+					</LinearLayout>
+
+					<LinearLayout
+						android:id="@+id/recentItem2Container"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:background="?attr/selectableItemBackground"
+						android:clickable="true"
+						android:focusable="true"
+						android:gravity="center_vertical"
+						android:minHeight="64dp"
+						android:orientation="horizontal"
+						android:padding="8dp">
+
+						<org.skepsun.kototoro.image.ui.CoverImageView
+							android:id="@+id/imageViewRecentItem2Cover"
+							android:layout_width="44dp"
+							android:layout_height="wrap_content"
+							android:contentDescription="@null"
+							android:importantForAccessibility="no"
+							app:aspectRationHeight="18"
+							app:aspectRationWidth="13" />
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_marginStart="12dp"
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:id="@+id/textViewRecentItem2"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:ellipsize="end"
+								android:maxLines="1"
+								android:textAppearance="?attr/textAppearanceBodyMedium"
+								android:textStyle="bold"
+								tools:text="Recent title 2" />
+
+							<TextView
+								android:id="@+id/textViewRecentItem2Meta"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="2dp"
+								android:textAppearance="?attr/textAppearanceBodySmall"
+								android:textColor="?android:attr/textColorSecondary"
+								tools:text="Open details" />
+
+						</LinearLayout>
+
+					</LinearLayout>
+
+					<LinearLayout
+						android:id="@+id/recentItem3Container"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:background="?attr/selectableItemBackground"
+						android:clickable="true"
+						android:focusable="true"
+						android:gravity="center_vertical"
+						android:minHeight="64dp"
+						android:orientation="horizontal"
+						android:padding="8dp">
+
+						<org.skepsun.kototoro.image.ui.CoverImageView
+							android:id="@+id/imageViewRecentItem3Cover"
+							android:layout_width="44dp"
+							android:layout_height="wrap_content"
+							android:contentDescription="@null"
+							android:importantForAccessibility="no"
+							app:aspectRationHeight="18"
+							app:aspectRationWidth="13" />
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_marginStart="12dp"
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:id="@+id/textViewRecentItem3"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:ellipsize="end"
+								android:maxLines="1"
+								android:textAppearance="?attr/textAppearanceBodyMedium"
+								android:textStyle="bold"
+								tools:text="Recent title 3" />
+
+							<TextView
+								android:id="@+id/textViewRecentItem3Meta"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="2dp"
+								android:textAppearance="?attr/textAppearanceBodySmall"
+								android:textColor="?android:attr/textColorSecondary"
+								tools:text="Open details" />
+
+						</LinearLayout>
+
+					</LinearLayout>
+
+					<com.google.android.material.button.MaterialButton
+						android:id="@+id/buttonViewAllRecent"
+						style="?attr/materialButtonOutlinedStyle"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:text="@string/view_all" />
+
+				</LinearLayout>
+
+			</com.google.android.material.card.MaterialCardView>
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="1"
+				app:cardUseCompatPadding="true">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:padding="16dp">
+
+					<TextView
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/home_library_overview"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
+
+					<LinearLayout
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="16dp"
+						android:orientation="horizontal">
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="@string/favorite_count"
+								android:textAppearance="?attr/textAppearanceLabelMedium"
+								android:textColor="?android:attr/textColorSecondary" />
+
+							<TextView
+								android:id="@+id/textViewLibraryFavoritesCount"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="4dp"
+								android:text="0"
+								android:textAppearance="?attr/textAppearanceHeadlineSmall"
+								android:textStyle="bold"
+								tools:text="12" />
+
+						</LinearLayout>
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_weight="1"
+							android:orientation="vertical">
+
+							<TextView
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="@string/categories"
+								android:textAppearance="?attr/textAppearanceLabelMedium"
+								android:textColor="?android:attr/textColorSecondary" />
+
+							<TextView
+								android:id="@+id/textViewLibraryCategoriesCount"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:layout_marginTop="4dp"
+								android:text="0"
+								android:textAppearance="?attr/textAppearanceHeadlineSmall"
+								android:textStyle="bold"
+								tools:text="4" />
+
+						</LinearLayout>
+
+					</LinearLayout>
+
+					<com.google.android.material.button.MaterialButton
+						android:id="@+id/buttonLibraryOpen"
+						style="?attr/materialButtonOutlinedStyle"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:text="@string/favourites" />
+
+				</LinearLayout>
+
+			</com.google.android.material.card.MaterialCardView>
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_columnSpan="2"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="2"
+				app:cardUseCompatPadding="true">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:padding="16dp">
+
+					<TextView
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/home_recent_updates"
 						android:textAppearance="?attr/textAppearanceTitleMedium"
 						android:textStyle="bold" />
 
 					<TextView
-						android:id="@+id/textViewSyncStatus"
+						android:id="@+id/textViewUpdateItem1"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:background="?attr/selectableItemBackground"
+						android:clickable="true"
+						android:ellipsize="end"
+						android:focusable="true"
+						android:maxLines="1"
+						android:padding="8dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="Updated title 1" />
+
+					<TextView
+						android:id="@+id/textViewUpdateItem1Meta"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="8dp"
+						android:layout_marginTop="2dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						android:textColor="?android:attr/textColorSecondary"
+						tools:text="+2 chapters" />
+
+					<TextView
+						android:id="@+id/textViewUpdateItem2"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:layout_marginTop="8dp"
-						android:textAppearance="?attr/textAppearanceBodyLarge"
-						tools:text="WebDAV Auto Sync" />
+						android:background="?attr/selectableItemBackground"
+						android:clickable="true"
+						android:ellipsize="end"
+						android:focusable="true"
+						android:maxLines="1"
+						android:padding="8dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="Updated title 2" />
 
 					<TextView
-						android:id="@+id/textViewSyncSubtitle"
+						android:id="@+id/textViewUpdateItem2Meta"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="8dp"
+						android:layout_marginTop="2dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						android:textColor="?android:attr/textColorSecondary"
+						tools:text="+1 chapter" />
+
+					<TextView
+						android:id="@+id/textViewUpdateItem3"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:background="?attr/selectableItemBackground"
+						android:clickable="true"
+						android:ellipsize="end"
+						android:focusable="true"
+						android:maxLines="1"
+						android:padding="8dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="Updated title 3" />
+
+					<TextView
+						android:id="@+id/textViewUpdateItem3Meta"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="8dp"
+						android:layout_marginTop="2dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						android:textColor="?android:attr/textColorSecondary"
+						tools:text="+4 chapters" />
+
+					<com.google.android.material.button.MaterialButton
+						android:id="@+id/buttonViewAllUpdates"
+						style="?attr/materialButtonOutlinedStyle"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:text="@string/view_all" />
+
+				</LinearLayout>
+
+			</com.google.android.material.card.MaterialCardView>
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="1"
+				app:cardUseCompatPadding="true">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:padding="16dp">
+
+					<TextView
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/home_sources_overview"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
+
+					<TextView
+						android:id="@+id/textViewSourcesSummary"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:layout_marginTop="4dp"
 						android:textAppearance="?attr/textAppearanceBodyMedium"
 						android:textColor="?android:attr/textColorSecondary"
-						tools:text="2 minutes ago" />
+						tools:text="18 enabled sources" />
+
+					<TextView
+						android:id="@+id/textViewSourceItem1"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="Built-in · 8" />
+
+					<TextView
+						android:id="@+id/textViewSourceItem2"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="Mihon · 4" />
+
+					<TextView
+						android:id="@+id/textViewSourceItem3"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="TVBox · 3" />
+
+					<com.google.android.material.button.MaterialButton
+						android:id="@+id/buttonSourceSettings"
+						style="?attr/materialButtonOutlinedStyle"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:text="@string/manage_sources" />
 
 				</LinearLayout>
 
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonSyncSettings"
-					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="12dp"
-					android:text="@string/sync_settings" />
+			</com.google.android.material.card.MaterialCardView>
 
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
 				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:text="@string/recent_history"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
-
-				<TextView
-					android:id="@+id/textViewRecentItem1"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:background="?attr/selectableItemBackground"
-					android:clickable="true"
-					android:ellipsize="end"
-					android:maxLines="1"
-					android:padding="8dp"
-					android:focusable="true"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Recent title 1" />
-
-				<TextView
-					android:id="@+id/textViewRecentItem1Meta"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="8dp"
-					android:layout_marginTop="2dp"
-					android:textAppearance="?attr/textAppearanceBodySmall"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="Open details" />
-
-				<TextView
-					android:id="@+id/textViewRecentItem2"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:background="?attr/selectableItemBackground"
-					android:clickable="true"
-					android:ellipsize="end"
-					android:maxLines="1"
-					android:padding="8dp"
-					android:focusable="true"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Recent title 2" />
-
-				<TextView
-					android:id="@+id/textViewRecentItem2Meta"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="8dp"
-					android:layout_marginTop="2dp"
-					android:textAppearance="?attr/textAppearanceBodySmall"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="Open details" />
-
-				<TextView
-					android:id="@+id/textViewRecentItem3"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:background="?attr/selectableItemBackground"
-					android:clickable="true"
-					android:ellipsize="end"
-					android:maxLines="1"
-					android:padding="8dp"
-					android:focusable="true"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Recent title 3" />
-
-				<TextView
-					android:id="@+id/textViewRecentItem3Meta"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="8dp"
-					android:layout_marginTop="2dp"
-					android:textAppearance="?attr/textAppearanceBodySmall"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="Open details" />
-
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonViewAllRecent"
-					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:text="@string/view_all" />
-
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:text="@string/home_library_overview"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
+				android:layout_gravity="fill_horizontal"
+				android:layout_margin="4dp"
+				android:layout_columnWeight="1"
+				app:cardUseCompatPadding="true">
 
 				<LinearLayout
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:orientation="horizontal">
+					android:orientation="vertical"
+					android:padding="16dp">
 
-					<LinearLayout
-						android:layout_width="0dp"
+					<TextView
+						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
-						android:layout_weight="1"
-						android:orientation="vertical">
+						android:text="@string/quick_access"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
 
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/favorite_count"
-							android:textAppearance="?attr/textAppearanceLabelMedium"
-							android:textColor="?android:attr/textColorSecondary" />
-
-						<TextView
-							android:id="@+id/textViewLibraryFavoritesCount"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:layout_marginTop="4dp"
-							android:text="0"
-							android:textAppearance="?attr/textAppearanceHeadlineSmall"
-							android:textStyle="bold"
-							tools:text="12" />
-
-					</LinearLayout>
-
-					<LinearLayout
-						android:layout_width="0dp"
+					<TextView
+						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
-						android:layout_weight="1"
-						android:orientation="vertical">
+						android:layout_marginTop="4dp"
+						android:text="@string/home_quick_access_subtitle"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						android:textColor="?android:attr/textColorSecondary" />
 
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/categories"
-							android:textAppearance="?attr/textAppearanceLabelMedium"
-							android:textColor="?android:attr/textColorSecondary" />
+					<com.google.android.material.button.MaterialButton
+						android:id="@+id/buttonReaderSettings"
+						style="?attr/materialButtonOutlinedStyle"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="16dp"
+						android:text="@string/reader_settings" />
 
-						<TextView
-							android:id="@+id/textViewLibraryCategoriesCount"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:layout_marginTop="4dp"
-							android:text="0"
-							android:textAppearance="?attr/textAppearanceHeadlineSmall"
-							android:textStyle="bold"
-							tools:text="4" />
-
-					</LinearLayout>
+					<com.google.android.material.button.MaterialButton
+						android:id="@+id/buttonSettings"
+						style="?attr/materialButtonStyle"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:text="@string/settings" />
 
 				</LinearLayout>
 
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonLibraryOpen"
-					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:text="@string/favourites" />
+			</com.google.android.material.card.MaterialCardView>
 
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="20dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:text="@string/home_recent_updates"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
-
-				<TextView
-					android:id="@+id/textViewUpdateItem1"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:background="?attr/selectableItemBackground"
-					android:clickable="true"
-					android:ellipsize="end"
-					android:focusable="true"
-					android:maxLines="1"
-					android:padding="8dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Updated title 1" />
-
-				<TextView
-					android:id="@+id/textViewUpdateItem1Meta"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="8dp"
-					android:layout_marginTop="2dp"
-					android:textAppearance="?attr/textAppearanceBodySmall"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="+2 chapters" />
-
-				<TextView
-					android:id="@+id/textViewUpdateItem2"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:background="?attr/selectableItemBackground"
-					android:clickable="true"
-					android:ellipsize="end"
-					android:focusable="true"
-					android:maxLines="1"
-					android:padding="8dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Updated title 2" />
-
-				<TextView
-					android:id="@+id/textViewUpdateItem2Meta"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="8dp"
-					android:layout_marginTop="2dp"
-					android:textAppearance="?attr/textAppearanceBodySmall"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="+1 chapter" />
-
-				<TextView
-					android:id="@+id/textViewUpdateItem3"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:background="?attr/selectableItemBackground"
-					android:clickable="true"
-					android:ellipsize="end"
-					android:focusable="true"
-					android:maxLines="1"
-					android:padding="8dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Updated title 3" />
-
-				<TextView
-					android:id="@+id/textViewUpdateItem3Meta"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginStart="8dp"
-					android:layout_marginTop="2dp"
-					android:textAppearance="?attr/textAppearanceBodySmall"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="+4 chapters" />
-
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonViewAllUpdates"
-					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:text="@string/view_all" />
-
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:text="@string/home_sources_overview"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
-
-				<TextView
-					android:id="@+id/textViewSourcesSummary"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					android:textColor="?android:attr/textColorSecondary"
-					tools:text="18 enabled sources" />
-
-				<TextView
-					android:id="@+id/textViewSourceItem1"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Built-in 路 8" />
-
-				<TextView
-					android:id="@+id/textViewSourceItem2"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="Mihon 路 4" />
-
-				<TextView
-					android:id="@+id/textViewSourceItem3"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					tools:text="TVBox 路 3" />
-
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonSourceSettings"
-					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:text="@string/manage_sources" />
-
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
-
-		<com.google.android.material.card.MaterialCardView
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
-			app:cardUseCompatPadding="true">
-
-			<LinearLayout
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="16dp">
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="0dp"
-					android:text="@string/quick_access"
-					android:textAppearance="?attr/textAppearanceTitleMedium"
-					android:textStyle="bold" />
-
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:text="@string/home_quick_access_subtitle"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					android:textColor="?android:attr/textColorSecondary" />
-
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonReaderSettings"
-					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:text="@string/reader_settings" />
-
-				<com.google.android.material.button.MaterialButton
-					android:id="@+id/buttonSettings"
-					style="?attr/materialButtonStyle"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:text="@string/settings" />
-
-			</LinearLayout>
-
-		</com.google.android.material.card.MaterialCardView>
+		</GridLayout>
 
 	</LinearLayout>
 

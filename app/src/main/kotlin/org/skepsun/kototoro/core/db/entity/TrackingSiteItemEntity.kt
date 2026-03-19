@@ -2,11 +2,15 @@ package org.skepsun.kototoro.core.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import org.skepsun.kototoro.core.db.TABLE_TRACKING_SITE_ITEMS
 
 @Entity(
 	tableName = TABLE_TRACKING_SITE_ITEMS,
 	primaryKeys = ["service", "remote_id"],
+	indices = [
+		Index(value = ["service", "updated_at"], orders = [Index.Order.ASC, Index.Order.DESC]),
+	],
 )
 data class TrackingSiteItemEntity(
 	@ColumnInfo(name = "service") val service: Int,

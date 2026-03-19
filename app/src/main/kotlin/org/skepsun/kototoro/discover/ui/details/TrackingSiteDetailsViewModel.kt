@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
@@ -39,11 +40,14 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 
 	val details = _details
 	val error = _error
-	val linkedContent = db.getScrobblingDao()
-		.observeByTargetId(service.id, remoteId)
-		.mapLatest { entity ->
-			entity?.let { db.getMangaDao().find(it.mangaId)?.toContent() }
-		}
+	val linkedContent = combine(
+		db.getTrackingSiteDao().observeLinks(service.id, remoteId),
+		db.getScrobblingDao().observeByTargetId(service.id, remoteId),
+	) { links, scrobbling ->
+		links.firstOrNull()?.mangaId ?: scrobbling?.mangaId
+	}.mapLatest { mangaId ->
+		mangaId?.let { db.getMangaDao().find(it)?.toContent() }
+	}
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
 	init {
