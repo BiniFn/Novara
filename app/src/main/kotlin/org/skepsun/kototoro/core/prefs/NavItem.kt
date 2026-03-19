@@ -13,6 +13,7 @@ enum class NavItem(
 	@DrawableRes val icon: Int,
 ) {
 
+	HOME(R.id.nav_home, R.string.home, R.drawable.ic_home_selector),
 	HISTORY(R.id.nav_history, R.string.history, R.drawable.ic_history_selector),
 	FAVORITES(R.id.nav_favorites, R.string.favourites, R.drawable.ic_favourites_selector),
 	LOCAL(R.id.nav_local, R.string.on_device, R.drawable.ic_storage_selector),

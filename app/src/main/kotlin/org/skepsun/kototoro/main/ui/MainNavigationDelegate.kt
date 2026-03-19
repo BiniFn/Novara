@@ -39,6 +39,7 @@ import org.skepsun.kototoro.core.util.ext.smoothScrollToTop
 import org.skepsun.kototoro.databinding.NavigationRailFabBinding
 import org.skepsun.kototoro.explore.ui.ExploreFragment
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
+import org.skepsun.kototoro.home.ui.HomeFragment
 import org.skepsun.kototoro.history.ui.HistoryListFragment
 import org.skepsun.kototoro.local.ui.LocalListFragment
 import org.skepsun.kototoro.suggestions.ui.SuggestionsFragment
@@ -185,6 +186,7 @@ class MainNavigationDelegate(
 
 	private fun onNavigationItemSelected(@IdRes itemId: Int): Boolean {
 		val newFragment = when (itemId) {
+			R.id.nav_home -> HomeFragment::class.java
 			R.id.nav_history -> HistoryListFragment::class.java
 			R.id.nav_favorites -> FavouritesContainerFragment::class.java
 			R.id.nav_explore -> ExploreFragment::class.java
@@ -203,6 +205,7 @@ class MainNavigationDelegate(
 	}
 
 	private fun getItemId(fragment: Fragment) = when (fragment) {
+		is HomeFragment -> R.id.nav_home
 		is HistoryListFragment -> R.id.nav_history
 		is FavouritesContainerFragment -> R.id.nav_favorites
 		is ExploreFragment -> R.id.nav_explore

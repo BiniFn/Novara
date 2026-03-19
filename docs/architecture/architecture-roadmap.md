@@ -401,6 +401,20 @@ To keep the roadmap aligned with KISS, DRY, SOLID, and YAGNI, implementation sho
 
 For a task-level decomposition into epics and issues, see [`architecture-epics.md`](./architecture-epics.md).
 
+For the UI improvement workstream, use this document set as the entry point:
+
+- [`ui_improvement.md`](./ui_improvement.md): source design proposal and target interaction model
+- [`ui_improvement_tasks.md`](./ui_improvement_tasks.md): execution-oriented issue and milestone breakdown
+- [`ui_improvement_priority.md`](./ui_improvement_priority.md): phase order, dependency rules, and recommended branch sequence
+
+Current UI workstream status as of 2026-03-19:
+
+- Home navigation integration and default-home startup path are complete
+- the first dashboard-style Home screen is materially complete and backed by real reading, library, source, tracking-site, and sync summary data
+- Explore filters have been converted from a horizontal scroll layout to a two-row fixed layout
+- shared source-tag support now includes JavaScript sources and icon coverage for the current UI path
+- tracking-site discovery abstractions have been added so future Discover and details-page work does not depend directly on a Bangumi-only implementation
+
 ## Success Criteria
 
 This roadmap is succeeding if the project becomes easier to change in the following ways:

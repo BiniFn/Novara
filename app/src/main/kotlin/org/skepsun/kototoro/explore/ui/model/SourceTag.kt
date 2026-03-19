@@ -23,6 +23,7 @@ enum class SourceTag(
     MIHON(R.string.mihon_sources, R.drawable.ic_source_mihon, "mihon"),
     ANIYOMI(R.string.aniyomi_sources, R.drawable.ic_source_aniyomi, "aniyomi"),
     LEGADO(R.string.source_type_legado, R.drawable.ic_source_legado, "legado"),
+    JAVASCRIPT(R.string.source_type_js, R.drawable.ic_source_js, "js"),
     TVBOX(R.string.source_type_tvbox, R.drawable.ic_source_tvbox, "tvbox");
 
     /**
@@ -33,6 +34,7 @@ enum class SourceTag(
         MIHON -> originGroup == OriginGroup.MIHON
         ANIYOMI -> originGroup == OriginGroup.ANIYOMI
         LEGADO -> originGroup == OriginGroup.LEGADO_JSON
+        JAVASCRIPT -> originGroup == OriginGroup.JS_JSON
         TVBOX -> originGroup == OriginGroup.TVBOX_JSON
     }
 
@@ -44,6 +46,7 @@ enum class SourceTag(
         MIHON -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.All
         ANIYOMI -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
         LEGADO -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
+        JAVASCRIPT -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
         TVBOX -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
     }
 

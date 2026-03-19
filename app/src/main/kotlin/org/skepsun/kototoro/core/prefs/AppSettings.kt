@@ -44,6 +44,7 @@ import org.skepsun.kototoro.core.util.ext.putEnumValue
 import org.skepsun.kototoro.core.util.ext.takeIfReadable
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.reader.domain.ReaderColorFilter
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import java.io.File
 import java.net.Proxy
 import java.util.EnumSet
@@ -76,9 +77,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() {
 			val raw = prefs.getString(KEY_NAV_MAIN, null)?.split(',')
 			return if (raw.isNullOrEmpty()) {
-				listOf(NavItem.HISTORY, NavItem.FAVORITES, NavItem.EXPLORE, NavItem.FEED)
+				listOf(NavItem.HOME, NavItem.HISTORY, NavItem.FAVORITES, NavItem.EXPLORE, NavItem.FEED)
 			} else {
-				raw.mapNotNull { x -> NavItem.entries.find(x) }.ifEmpty { listOf(NavItem.EXPLORE) }
+				raw.mapNotNull { x -> NavItem.entries.find(x) }.ifEmpty { listOf(NavItem.HOME) }
 			}
 		}
 		set(value) {
@@ -230,6 +231,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val isTrackerNotificationsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_TRACKER_NOTIFICATIONS, true)
+
+	var preferredTrackingSite: ScrobblerService
+		get() = prefs.getEnumValue(KEY_PREFERRED_TRACKING_SITE, ScrobblerService.BANGUMI)
+		set(value) = prefs.edit { putEnumValue(KEY_PREFERRED_TRACKING_SITE, value) }
 
 	val isTrackerNsfwDisabled: Boolean
 		get() = prefs.getBoolean(KEY_TRACKER_NO_NSFW, false)
@@ -1207,6 +1212,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_TRACK_CATEGORIES = "track_categories"
 		const val KEY_TRACK_WARNING = "track_warning"
 		const val KEY_TRACKER_NOTIFICATIONS = "tracker_notifications"
+		const val KEY_PREFERRED_TRACKING_SITE = "preferred_tracking_site"
 		const val KEY_TRACKER_NO_NSFW = "tracker_no_nsfw"
 		const val KEY_TRACKER_DOWNLOAD = "tracker_download"
 		const val KEY_NOTIFICATIONS_SETTINGS = "notifications_settings"

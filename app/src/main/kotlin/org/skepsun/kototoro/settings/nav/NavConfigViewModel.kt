@@ -72,7 +72,7 @@ class NavConfigViewModel @Inject constructor(
 		val newList = items.value.toMutableList()
 		newList.remove(item)
 		if (newList.isEmpty()) {
-			newList.add(NavItem.EXPLORE)
+			newList.add(NavItem.HOME)
 		}
 		items.value = newList
 		commit(newList)
