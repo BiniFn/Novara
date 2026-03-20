@@ -76,8 +76,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 		viewModel.summaryState.observe(viewLifecycleOwner) { state ->
 			syncSelectedTab(state.selectedTab)
 			binding.textViewRecentCount.text = state.recentHistoryCount.toString()
-			binding.textViewLibraryFavoritesCount.text = state.favoritesCount.toString()
-			binding.textViewLibraryCategoriesCount.text = state.favoriteCategoriesCount.toString()
 			binding.textViewUpdatesCount.text = state.unreadUpdatesCount.toString()
 			binding.textViewRecommendationsCount.text = state.recommendationsCount.toString()
 			val isWebDavConfigured = state.syncState.isWebDavEnabled

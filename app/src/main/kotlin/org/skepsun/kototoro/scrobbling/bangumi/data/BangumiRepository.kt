@@ -25,9 +25,18 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.parsers.model.ContentTagGroup
+import org.skepsun.kototoro.parsers.model.SortOrder
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.ConcurrentHashMap
 
 private const val REDIRECT_URI = "kototoro://bangumi-auth"
 private const val BASE_URL = "https://bgm.tv/"
@@ -43,6 +52,7 @@ class BangumiRepository @Inject constructor(
 
 	private val clientId = context.getString(R.string.bangumi_clientId)
 	private val clientSecret = context.getString(R.string.bangumi_clientSecret)
+	private val browserFiltersCache = ConcurrentHashMap<String, BangumiBrowserFilters>()
 
 	override val oauthUrl: String
 		get() = "${BASE_URL}oauth/authorize?client_id=$clientId&" +
@@ -124,27 +134,27 @@ class BangumiRepository @Inject constructor(
 	suspend fun getRankings(
 		category: String, 
 		page: Int,
-		sortOrder: org.skepsun.kototoro.parsers.model.SortOrder? = null,
-		listFilter: org.skepsun.kototoro.parsers.model.ContentListFilter? = null
+		sortOrder: SortOrder? = null,
+		listFilter: ContentListFilter? = null
 	): List<ScrobblerContent> {
-		val typePath = when(category) {
-			"anime" -> "anime/browser"
-			"book" -> "book/browser"
-			"music" -> "music/browser"
-			"game" -> "game/browser"
-			"real" -> "real/browser"
-			else -> "anime/browser"
-		}
-
-		val tags = listFilter?.tags?.joinToString("") { it.key } ?: ""
-		val sortStr = when (sortOrder) {
-			org.skepsun.kototoro.parsers.model.SortOrder.UPDATED -> "date"
-			org.skepsun.kototoro.parsers.model.SortOrder.ALPHABETICAL -> "title"
-			else -> "rank"
+		val typePath = getBrowserPath(category)
+		val tagPath = buildBrowserTagPath(listFilter)
+		val sortStr = sortOrder.toBangumiSortKey()
+		val url = buildString {
+			append("https://bangumi.tv/")
+			append(typePath)
+			if (tagPath.isNotBlank()) {
+				append("/")
+				append(tagPath)
+			}
+			append("?sort=")
+			append(sortStr)
+			append("&page=")
+			append(page)
 		}
 
 		val request = Request.Builder()
-			.url("https://bgm.tv/$typePath$tags?sort=$sortStr&page=$page")
+			.url(url)
 			.get()
 			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
 			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -171,6 +181,30 @@ class BangumiRepository @Inject constructor(
 				isBestMatch = false
 			)
 		}
+	}
+
+	suspend fun getBrowserFilterOptions(category: String, source: ContentSource): ContentListFilterOptions {
+		if (category.startsWith("calendar")) {
+			return ContentListFilterOptions()
+		}
+		val filters = browserFiltersCache.getOrPut(category) {
+			loadBrowserFilters(category)
+		}
+		return ContentListFilterOptions(
+			tagGroups = filters.groups.mapIndexed { index, group ->
+				ContentTagGroup(
+					title = group.title,
+					tags = group.options.mapTo(LinkedHashSet()) { option ->
+						ContentTag(
+							title = option.title,
+							key = buildBrowserTagKey(index, option.segment),
+							source = source,
+						)
+					},
+					isExclusive = true,
+				)
+			},
+		)
 	}
 
 	suspend fun getDailyCalendar(): Map<Int, List<ScrobblerContent>> {
@@ -200,14 +234,20 @@ class BangumiRepository @Inject constructor(
 
 			val items = weekEl.select(".coverList .thumbTip").map { el ->
 				val id = el.attr("href").substringAfter("subject/").toLongOrNull() ?: 0L
-				val name = el.attr("title").orEmpty()
+				val rawName = el.attr("title").orEmpty()
+				val name = rawName.split("<br")[0].trim()
+				val altName = if (rawName.contains("<small>")) {
+					rawName.substringAfter("<small>").substringBefore("</small>").trim()
+				} else {
+					name
+				}
 				val coverUrl = el.selectFirst("img")?.attr("src").orEmpty()
-				val cleanCover = coverUrl.replace("/s/", "/l/").replace("/m/", "/l/")
+				val cleanCover = coverUrl.replace("/g/", "/l/").replace("/s/", "/l/").replace("/m/", "/l/").replace("/c/", "/l/")
 
 				ScrobblerContent(
 					id = id,
 					name = name,
-					altName = name,
+					altName = altName,
 					cover = if (cleanCover.startsWith("//")) "https:$cleanCover" else cleanCover,
 					url = "https://bgm.tv/subject/$id",
 					isBestMatch = false
@@ -217,6 +257,132 @@ class BangumiRepository @Inject constructor(
 			map[dayInt] = items
 		}
 		return map
+	}
+
+private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters {
+		val request = Request.Builder()
+			.url("https://bangumi.tv/${getBrowserPath(category)}")
+			.get()
+			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+			.build()
+		val doc = Jsoup.parse(okHttp.newCall(request).await().body?.string().orEmpty())
+		val root = doc.selectFirst("#columnSubjectBrowserB .sideInner") ?: return BangumiBrowserFilters(emptyList())
+		val groups = mutableListOf<BangumiBrowserFilterGroup>()
+		var currentTitle: String? = null
+		root.children().forEach { child ->
+			when {
+				child.tagName() == "h2" && child.hasClass("subtitle") -> {
+					currentTitle = child.text().trim()
+				}
+				child.tagName() == "ul" && child.hasClass("grouped") -> {
+					val title = currentTitle ?: return@forEach
+					currentTitle = null
+					parseBrowserFilterGroup(category, title, child)?.let(groups::add)
+				}
+			}
+		}
+		return BangumiBrowserFilters(groups)
+	}
+
+	private fun parseBrowserFilterGroup(category: String, title: String, list: org.jsoup.nodes.Element): BangumiBrowserFilterGroup? {
+		if (title == "标签" || title.contains("拼音")) {
+			return null
+		}
+		val rawOptions = list.select("a.l[href]")
+			.mapNotNull { anchor ->
+				val href = anchor.attr("href").trim()
+				if (href.isBlank() || href.startsWith("javascript:")) {
+					return@mapNotNull null
+				}
+				val optionTitle = anchor.text().trim()
+				if (optionTitle.isBlank() || optionTitle == "全部") {
+					return@mapNotNull null
+				}
+				val segment = href.substringAfter("/$category/browser/", "")
+					.substringBefore("?")
+					.trim('/')
+					.takeIf { it.isNotBlank() }
+					?.let(::decodeBrowserSegment)
+					?: return@mapNotNull null
+				BangumiBrowserOption(optionTitle, segment)
+			}
+			.distinctBy { it.segment }
+		if (rawOptions.isEmpty()) {
+			return null
+		}
+		if (title == "时间") {
+			val expandedOptions = LinkedHashMap<String, BangumiBrowserOption>()
+			rawOptions.forEach { option ->
+				expandedOptions[option.segment] = option
+				val year = option.segment.removePrefix("airtime/").toIntOrNull()
+				if (year != null) {
+					val year年 = year.toString() + "\u5E74"
+					BANGUMI_SEASONS.forEach { (month, seasonLabel) ->
+						val segment = "airtime/$year-$month"
+						expandedOptions.putIfAbsent(
+							segment,
+							BangumiBrowserOption("$year年$seasonLabel", segment),
+						)
+					}
+				}
+			}
+			return BangumiBrowserFilterGroup(title = title, options = expandedOptions.values.toList())
+		}
+		return BangumiBrowserFilterGroup(title = title, options = rawOptions)
+	}
+
+	private fun decodeBrowserSegment(value: String): String {
+		return URLDecoder.decode(value, StandardCharsets.UTF_8)
+	}
+
+	private fun buildBrowserTagPath(filter: ContentListFilter?): String {
+		if (filter == null) {
+			return ""
+		}
+		return filter.tags
+			.mapNotNull { tag -> parseBrowserTagKey(tag.key) }
+			.groupBy { selection -> selection.groupIndex }
+			.toSortedMap()
+			.values
+			.mapNotNull { selections -> selections.firstOrNull()?.segment }
+			.joinToString("/")
+	}
+
+	private fun buildBrowserTagKey(groupIndex: Int, segment: String): String {
+		return "bgm|$groupIndex|$segment"
+	}
+
+	private fun parseBrowserTagKey(key: String): BrowserTagSelection? {
+		val firstSeparator = key.indexOf('|')
+		val secondSeparator = key.indexOf('|', firstSeparator + 1)
+		if (firstSeparator < 0 || secondSeparator < 0 || !key.startsWith("bgm|")) {
+			return null
+		}
+		val groupIndex = key.substring(firstSeparator + 1, secondSeparator).toIntOrNull() ?: return null
+		val segment = key.substring(secondSeparator + 1).takeIf { it.isNotBlank() } ?: return null
+		return BrowserTagSelection(groupIndex, segment)
+	}
+
+	private fun getBrowserPath(category: String): String = when (category) {
+		"anime" -> "anime/browser"
+		"book" -> "book/browser"
+		"music" -> "music/browser"
+		"game" -> "game/browser"
+		"real" -> "real/browser"
+		else -> "anime/browser"
+	}
+
+	private fun SortOrder?.toBangumiSortKey(): String = when (this) {
+		SortOrder.POPULARITY -> "trends"
+		SortOrder.ADDED -> "collects"
+		SortOrder.NEWEST,
+		SortOrder.UPDATED -> "date"
+		SortOrder.ALPHABETICAL,
+		SortOrder.ALPHABETICAL_DESC -> "title"
+		SortOrder.RATING,
+		null -> "rank"
+		else -> "rank"
 	}
 
 	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
@@ -471,5 +637,33 @@ class BangumiRepository @Inject constructor(
 			}
 		}
 		return synced.size
+	}
+
+	private data class BangumiBrowserFilters(
+		val groups: List<BangumiBrowserFilterGroup>,
+	)
+
+	private data class BangumiBrowserFilterGroup(
+		val title: String,
+		val options: List<BangumiBrowserOption>,
+	)
+
+	private data class BangumiBrowserOption(
+		val title: String,
+		val segment: String,
+	)
+
+	private data class BrowserTagSelection(
+		val groupIndex: Int,
+		val segment: String,
+	)
+
+	private companion object {
+		val BANGUMI_SEASONS = listOf(
+			"01" to "冬",
+			"04" to "春",
+			"07" to "夏",
+			"10" to "秋",
+		)
 	}
 }

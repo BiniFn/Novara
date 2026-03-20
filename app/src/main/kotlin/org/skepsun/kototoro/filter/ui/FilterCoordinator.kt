@@ -70,7 +70,13 @@ class FilterCoordinator @Inject constructor(
     private val currentListFilter = MutableStateFlow(ContentListFilter.EMPTY)
     private val currentSortOrder = MutableStateFlow(repository.defaultSortOrder)
 
-    private val availableSortOrders = repository.sortOrders
+    private val availableSortOrders = repository.sortOrders.let { orders ->
+        if (repository.source.name.startsWith("TRACKING_BANGUMI_")) {
+            orders.toList()
+        } else {
+            orders.sortedByOrdinal()
+        }
+    }
     private val filterRefreshTrigger = MutableStateFlow(0)
     private val filterOptions: StateFlow<Result<ContentListFilterOptions>> = filterRefreshTrigger.flatMapLatest {
         flow {
@@ -91,7 +97,7 @@ class FilterCoordinator @Inject constructor(
 
     val sortOrder: StateFlow<FilterProperty<SortOrder>> = currentSortOrder.map { selected ->
         FilterProperty(
-            availableItems = availableSortOrders.sortedByOrdinal(),
+            availableItems = availableSortOrders,
             selectedItem = selected,
         )
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.LOADING)
@@ -655,5 +661,3 @@ class FilterCoordinator @Inject constructor(
 }
 
 // 当前 parser 模型不再暴露 tag group 的独占元信息，过滤 UI 统一回退为非独占。
-private val ContentTagGroup.isExclusive: Boolean
-    get() = false

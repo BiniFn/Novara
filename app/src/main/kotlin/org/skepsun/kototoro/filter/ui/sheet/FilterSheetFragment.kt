@@ -301,17 +301,37 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
         if (value.isEmpty()) {
             return
         }
+        val filter = FilterCoordinator.require(this)
         val selected = value.selectedItems.single()
         b.spinnerOrder.adapter = ArrayAdapter(
             b.spinnerOrder.context,
             android.R.layout.simple_spinner_dropdown_item,
             android.R.id.text1,
-            value.availableItems.map { b.spinnerOrder.context.getString(it.titleRes) },
+            value.availableItems.map { order ->
+                resolveSortOrderLabel(
+                    sourceName = filter.mangaSource.name,
+                    order = order,
+                )
+            },
         )
         val selectedIndex = value.availableItems.indexOf(selected)
         if (selectedIndex >= 0) {
             b.spinnerOrder.setSelection(selectedIndex, false)
         }
+    }
+
+    private fun resolveSortOrderLabel(sourceName: String, order: SortOrder): String {
+        if (sourceName.startsWith("TRACKING_BANGUMI_")) {
+            return when (order) {
+                SortOrder.RATING -> "排名"
+                SortOrder.POPULARITY -> "热度"
+                SortOrder.ADDED -> "收藏"
+                SortOrder.NEWEST -> "日期"
+                SortOrder.ALPHABETICAL -> "名称"
+                else -> getString(order.titleRes)
+            }
+        }
+        return getString(order.titleRes)
     }
 
     private fun onLocaleChanged(value: FilterProperty<Locale?>) {

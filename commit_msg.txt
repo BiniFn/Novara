@@ -1,0 +1,8 @@
+UI: Refine Home cards layout, fix Bangumi tracking parser & translations
+
+- Streamline Home Sync and Source overview cards to use concise text buttons in top-right.
+- Modify Home recent filter toggle group to use text instead of icons.
+- Remove library counts in Quick Access card.
+- Fix low resolution covers in Bangumi daily schedule.
+- Strip HTML tags from Bangumi daily schedule titles.
+- Add Chinese translations for discover categories.

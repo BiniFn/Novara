@@ -6,20 +6,16 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import org.skepsun.kototoro.databinding.ItemDiscoverCarouselBinding
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
 import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
 import org.skepsun.kototoro.list.ui.adapter.ContentListListener
-import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.list.ui.size.StaticItemSizeResolver
 
 class DiscoverCarouselAdapter(
-	private val settings: AppSettings,
 	private val contentListener: ContentListListener,
 	private val onMoreClick: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory) -> Unit,
 ) : RecyclerView.Adapter<DiscoverCarouselAdapter.CarouselViewHolder>() {
 
 	private var items: List<DiscoverCarouselRow> = emptyList()
+	private val sharedViewPool = RecyclerView.RecycledViewPool()
 
 	fun submitList(newItems: List<DiscoverCarouselRow>) {
 		this.items = newItems
@@ -46,9 +42,18 @@ class DiscoverCarouselAdapter(
 		)
 
 		init {
-			binding.recyclerViewCarousel.layoutManager = LinearLayoutManager(binding.root.context, LinearLayoutManager.HORIZONTAL, false)
+			binding.recyclerViewCarousel.layoutManager = LinearLayoutManager(
+				binding.root.context,
+				LinearLayoutManager.HORIZONTAL,
+				false,
+			).apply {
+				initialPrefetchItemCount = PREFETCH_ITEM_COUNT
+			}
 			binding.recyclerViewCarousel.adapter = horizontalAdapter
+			binding.recyclerViewCarousel.setRecycledViewPool(sharedViewPool)
 			binding.recyclerViewCarousel.setHasFixedSize(true)
+			binding.recyclerViewCarousel.isNestedScrollingEnabled = false
+			binding.recyclerViewCarousel.itemAnimator = null
 			binding.recyclerViewCarousel.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
 				private var startX = 0f
 				private var startY = 0f
@@ -78,9 +83,12 @@ class DiscoverCarouselAdapter(
 		fun bind(row: DiscoverCarouselRow) {
 			binding.textViewCategoryTitle.setText(row.category.nameResId)
 			binding.buttonMore.setOnClickListener { onMoreClick(row.category) }
-			MainScope().launch {
-				horizontalAdapter.emit(row.items)
-			}
+			horizontalAdapter.items = row.items
+			binding.recyclerViewCarousel.scrollToPosition(0)
 		}
+	}
+
+	private companion object {
+		const val PREFETCH_ITEM_COUNT = 8
 	}
 }

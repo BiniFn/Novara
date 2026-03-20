@@ -5,7 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
@@ -40,7 +40,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 @AndroidEntryPoint
 class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>(), SwipeRefreshLayout.OnRefreshListener, org.skepsun.kototoro.filter.ui.FilterCoordinator.Owner {
 
-	private val viewModel by viewModels<DiscoverCategoryViewModel>()
+	private val viewModel by activityViewModels<DiscoverCategoryViewModel>()
 	private var paginationListener: PaginationScrollListener? = null
 	private var spanResolver: GridSpanResolver? = null
 	

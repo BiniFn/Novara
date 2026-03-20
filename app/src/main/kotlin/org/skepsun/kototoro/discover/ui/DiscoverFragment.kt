@@ -118,7 +118,6 @@ class DiscoverFragment :
 		})
 
 		val carouselAdapter = DiscoverCarouselAdapter(
-			settings = settings,
 			contentListener = listListener,
 			onMoreClick = { category ->
 				val service = viewModel.activeService.value
