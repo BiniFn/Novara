@@ -3,19 +3,27 @@ package org.skepsun.kototoro.discover.ui
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.yield
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.discover.ui.model.DiscoverItem
+import org.skepsun.kototoro.list.domain.ContentListMapper
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
@@ -25,7 +33,10 @@ import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
 import org.skepsun.kototoro.tracking.discovery.domain.PreferredTrackingSiteProvider
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.core.model.ContentSource
 import javax.inject.Inject
 
 @HiltViewModel
@@ -33,11 +44,14 @@ class DiscoverViewModel @Inject constructor(
 	preferredTrackingSiteProvider: PreferredTrackingSiteProvider,
 	private val discoveryService: TrackingSiteDiscoveryService,
 	private val cacheRepository: TrackingSiteCacheRepository,
+	private val contentListMapper: ContentListMapper,
+	private val appSettings: AppSettings,
 ) : BaseViewModel() {
 
 	private val refreshTrigger = MutableStateFlow(0)
 	private val searchQuery = MutableStateFlow("")
 	private val selectedServiceOverride = MutableStateFlow<ScrobblerService?>(null)
+	private val selectedCategoryOverride = MutableStateFlow<String?>(null)
 
 	private val preferredService = preferredTrackingSiteProvider.preferredSite
 		.stateIn(
@@ -70,71 +84,144 @@ class DiscoverViewModel @Inject constructor(
 			ScrobblerService.BANGUMI,
 		)
 
-	val content = combine(activeService, refreshTrigger, searchQuery) { service, _, query ->
-		service to query.trim()
-	}
-		.flatMapLatest { (service, query) ->
-			flow<List<ListModel>> {
-				val cachedItems = if (query.isBlank()) {
-					runCatching { cacheRepository.readTrending(service) }.getOrElse { emptyList() }
-				} else {
-					emptyList()
-				}
-				if (cachedItems.isNotEmpty()) {
-					emit(cachedItems.toDiscoverModels())
-				}
-
-				val items = runCatching {
-					val catalog = TrackingSiteCatalog(
-						service = service,
-						query = query.ifEmpty { null },
-					)
-					if (query.isEmpty()) {
-						discoveryService.getTrending(catalog)
-					} else {
-						discoveryService.search(catalog)
-					}
-				}.getOrElse { error ->
-					if (cachedItems.isEmpty()) {
-						emit(listOf(error.toErrorState(canRetry = true)))
-					}
-					return@flow
-				}
-
-				if (query.isBlank()) {
-					runCatching { cacheRepository.saveTrending(items) }
-				}
-				if (items.isEmpty()) {
-					if (cachedItems.isEmpty()) {
-						emit(
-							listOf(
-								EmptyState(
-									icon = R.drawable.ic_bangumi_outline,
-									textPrimary = if (query.isEmpty()) {
-										R.string.discover_empty_title
-									} else {
-										R.string.discover_search_empty_title
-									},
-									textSecondary = if (query.isEmpty()) {
-										R.string.discover_empty_text
-									} else {
-										R.string.discover_search_empty_text
-									},
-									actionStringRes = 0,
-								),
-							),
-						)
-					}
-				} else {
-					emit(items.toDiscoverModels())
-				}
-			}.withLoading()
+	val activeCategory = combine(activeService, selectedCategoryOverride) { service, category ->
+		val caps = discoveryService.getCapabilities(service)
+		if (caps.discoveryCategories.isNotEmpty()) {
+			category ?: caps.discoveryCategories.first().id
+		} else {
+			null
 		}
-		.stateIn(
-			viewModelScope + Dispatchers.Default,
-			SharingStarted.Eagerly,
-			listOf(LoadingState),
-		)
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.Eagerly,
+		null,
+	)
+
+	val trackingSiteCategories = activeService.map { service ->
+		discoveryService.getCapabilities(service).discoveryCategories
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.Eagerly,
+		emptyList(),
+	)
+
+	private val _items = MutableStateFlow<List<TrackingSiteItem>>(emptyList())
+	private val _page = MutableStateFlow(0)
+	private val _contentState = MutableStateFlow<List<ListModel>>(listOf(LoadingState))
+	private var isPageLoading = false
+
+	val content: StateFlow<List<ListModel>> = _contentState.asStateFlow()
+
+	private var loadJob: kotlinx.coroutines.Job? = null
+
+	init {
+		viewModelScope.launch {
+			combine(activeService, activeCategory, refreshTrigger, searchQuery) { service, category, _, query ->
+				Triple(service, category, query.trim())
+			}
+				.debounce(200) // Wait for all StateFlows to settle
+				.distinctUntilChanged()
+				.collect { payload: Triple<ScrobblerService, String?, String> ->
+					val service = payload.first
+					val category = payload.second
+					val query = payload.third
+					
+					loadJob?.cancel()
+					_items.value = emptyList()
+					_page.value = 0
+					loadJob = viewModelScope.launch {
+						loadData(service, category, query, 0)
+					}
+				}
+		}
+	}
+
+	fun loadNextPage() {
+		if (isPageLoading) return
+		val nextPage = _page.value + 1
+		val service = activeService.value
+		val category = activeCategory.value
+		val query = searchQuery.value.trim()
+		viewModelScope.launch {
+			isPageLoading = true
+			try {
+				loadData(service, category, query, nextPage)
+			} finally {
+				isPageLoading = false
+			}
+		}
+	}
+
+	private suspend fun loadData(service: ScrobblerService, category: String?, query: String, pageRequested: Int) {
+		android.util.Log.d("DiscoverPagination", "loadData initiated: Category=$category, PageRequested=$pageRequested")
+		val isFirstPage = pageRequested == 0
+
+		if (isFirstPage) {
+			_contentState.value = listOf(LoadingState)
+		}
+
+		if (query.isBlank()) {
+			// Multi-carousel layout for base UI!
+			val caps = discoveryService.getCapabilities(service)
+			if (caps.discoveryCategories.isEmpty()) {
+				val result = runCatching { discoveryService.getTrending(TrackingSiteCatalog(service = service, page = 0)) }
+				val flat = result.getOrNull()?.toDiscoverModels() ?: emptyList()
+				_contentState.value = flat.ifEmpty { listOf(EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
+				return
+			}
+			
+			// Parallel fetch top 10 for every category (with retry)
+			val rows = caps.discoveryCategories.map { cat ->
+				viewModelScope.async(Dispatchers.IO) {
+					var items = emptyList<TrackingSiteItem>()
+					for (attempt in 1..3) {
+						items = runCatching {
+							discoveryService.getTrending(TrackingSiteCatalog(service = service, category = cat.id, page = 0))
+						}.getOrElse { emptyList() }
+						if (items.isNotEmpty()) break
+						if (attempt < 3) kotlinx.coroutines.delay(800L * attempt)
+					}
+					
+					if (items.isNotEmpty()) {
+						DiscoverCarouselRow(category = cat, items = items.toDiscoverModels())
+					} else null
+				}
+			}.awaitAll().filterNotNull()
+			
+			_contentState.value = rows.ifEmpty { listOf(EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
+		} else {
+			// Search Query layout (flat list pagination)
+			val result = runCatching {
+				val catalog = TrackingSiteCatalog(
+					service = service,
+					query = query.ifEmpty { null },
+					category = category,
+					page = pageRequested,
+				)
+				discoveryService.search(catalog)
+			}
+
+			val loadedItems = result.getOrElse { error ->
+				if (_items.value.isEmpty()) {
+					_contentState.value = listOf(error.toErrorState(canRetry = true))
+				}
+				return
+			}
+
+			if (loadedItems.isEmpty() && isFirstPage) {
+				_contentState.value = listOf(EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_search_empty_title, textSecondary = R.string.discover_search_empty_text, actionStringRes = 0))
+				return
+			}
+
+			val accumulated = if (isFirstPage) loadedItems else _items.value + loadedItems
+			_items.value = accumulated.distinctBy { it.remoteId }
+			val hasMore = loadedItems.isNotEmpty()
+			val models = _items.value.toDiscoverModels()
+			_contentState.value = if (hasMore) models + listOf(LoadingState) else models
+
+			_page.value = pageRequested
+		}
+	}
 
 	fun refresh() {
 		refreshTrigger.value += 1
@@ -153,6 +240,11 @@ class DiscoverViewModel @Inject constructor(
 			return
 		}
 		selectedServiceOverride.value = service
+		selectedCategoryOverride.value = null // reset category
+	}
+
+	fun selectCategory(categoryId: String) {
+		selectedCategoryOverride.value = categoryId
 	}
 
 	fun isServiceSelectable(service: ScrobblerService): Boolean {
@@ -204,7 +296,23 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
-	private fun List<TrackingSiteItem>.toDiscoverModels(): List<ListModel> {
-		return mapTo(ArrayList<ListModel>(size)) { DiscoverItem(it) }
+	private suspend fun List<TrackingSiteItem>.toDiscoverModels(): List<ListModel> {
+		val proxyContents = this.map { item ->
+			Content(
+				id = item.remoteId,
+				title = item.title,
+				altTitle = item.subtitle ?: item.altTitle,
+				url = item.url ?: "",
+				publicUrl = item.url ?: "",
+				rating = item.score ?: 0f,
+				isNsfw = false,
+				coverUrl = item.coverUrl,
+				tags = emptySet(),
+				state = org.skepsun.kototoro.parsers.model.ContentState.ONGOING,
+				author = null,
+				source = ContentSource("TRACKING_${item.service.name}"),
+			)
+		}
+		return contentListMapper.toListModelList(proxyContents, appSettings.listMode)
 	}
 }

@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.viewModels
@@ -19,10 +20,25 @@ import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.ui.list.FitHeightGridLayoutManager
+import org.skepsun.kototoro.core.ui.list.FitHeightLinearLayoutManager
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.ui.GridSpanResolver
+import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
+import org.skepsun.kototoro.list.ui.adapter.ContentListListener
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.consume
+import org.skepsun.kototoro.core.ui.list.PaginationScrollListener
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.discover.ui.model.DiscoverItem
@@ -40,7 +56,12 @@ class DiscoverFragment :
 	SearchView.OnQueryTextListener {
 
 	private val viewModel by viewModels<DiscoverViewModel>()
+	private var paginationListener: PaginationScrollListener? = null
 	private val serviceChipIds = LinkedHashMap<ScrobblerService, Int>()
+	private var spanResolver: GridSpanResolver? = null
+	
+	@javax.inject.Inject
+	lateinit var settings: AppSettings
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -53,17 +74,91 @@ class DiscoverFragment :
 		super.onViewBindingCreated(binding, savedInstanceState)
 		binding.chipGroupSourceTag.visibility = View.GONE
 		binding.chipGroupCategory.visibility = View.GONE
-		val adapter = DiscoverAdapter(this, ::onDiscoverItemClick)
-		with(binding.recyclerView) {
-			layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)
-			this.adapter = adapter
-			setHasFixedSize(true)
-			addItemDecoration(TypedListSpacingDecoration(context, true))
-		}
-		binding.swipeRefreshLayout.setOnRefreshListener(this)
-		addMenuProvider(DiscoverSearchMenuProvider())
 
-		viewModel.content.observe(viewLifecycleOwner, adapter)
+		spanResolver = GridSpanResolver(binding.root.resources)
+		spanResolver?.setGridSize(settings.gridSize / 100f, binding.recyclerView)
+
+		val listListener = object : ContentListListener {
+			override fun onItemClick(item: ContentListModel, view: View) {
+				val serviceName = item.manga.source.name.removePrefix("TRACKING_")
+				val trackingService = viewModel.availableServices.value.find { it.name == serviceName } ?: return
+				if (viewModel.supportsDetails(trackingService)) {
+					router.openTrackingSiteDetails(trackingService, item.manga.id)
+				} else {
+					val url = item.manga.url ?: item.manga.publicUrl
+					if (!url.isNullOrBlank()) {
+						router.openExternalBrowser(url)
+					}
+				}
+			}
+			override fun onItemLongClick(item: ContentListModel, view: View) = false
+			override fun onItemContextClick(item: ContentListModel, view: View) = false
+			override fun onEmptyActionClick() = this@DiscoverFragment.onEmptyActionClick()
+			override fun onRetryClick(error: Throwable) = this@DiscoverFragment.onRetryClick(error)
+			override fun onListHeaderClick(item: ListHeader, view: View) {}
+			override fun onPrimaryButtonClick(tipView: TipView) {}
+			override fun onSecondaryButtonClick(tipView: TipView) {}
+			override fun onFilterOptionClick(option: ListFilterOption) {}
+			override fun onFilterClick(view: View?) {}
+			override fun onReadClick(manga: Content, view: View) {}
+			override fun onTagClick(manga: Content, tag: ContentTag, view: View) {}
+		}
+
+		val adapter = ContentListAdapter(
+			listener = listListener,
+			sizeResolver = DynamicItemSizeResolver(resources, viewLifecycleOwner, settings, adjustWidth = false),
+		)
+
+		applyListMode(settings.listMode, binding.recyclerView)
+
+		paginationListener = PaginationScrollListener(4, object : PaginationScrollListener.Callback {
+			override fun onScrolledToEnd() {
+				viewModel.loadNextPage()
+			}
+		})
+
+		val carouselAdapter = DiscoverCarouselAdapter(
+			settings = settings,
+			contentListener = listListener,
+			onMoreClick = { category ->
+				val service = viewModel.activeService.value
+				router.openTrackingDiscoveryCategory(service, category.id, category.nameResId)
+			}
+		)
+
+		viewModel.content.observe(viewLifecycleOwner) { items -> 
+			val isLoadingOnly = items.size == 1 && items.first() is org.skepsun.kototoro.list.ui.model.LoadingState
+			val isCarousel = items.firstOrNull() is org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow || (items.firstOrNull() is org.skepsun.kototoro.list.ui.model.EmptyState && viewModel.query.value.isBlank())
+			
+			val progressBar = binding.root.findViewById<View>(R.id.progressBar)
+			
+			if (isLoadingOnly) {
+				// Show centered standalone progress bar
+				progressBar?.isVisible = true
+				binding.recyclerView.isVisible = false
+			} else {
+				progressBar?.isVisible = false
+				binding.recyclerView.isVisible = true
+				
+				val currentAdapter = binding.recyclerView.adapter
+				if (isCarousel) {
+					if (currentAdapter != carouselAdapter) {
+						binding.recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(binding.recyclerView.context)
+						binding.recyclerView.adapter = carouselAdapter
+						paginationListener?.let { binding.recyclerView.removeOnScrollListener(it) }
+					}
+					carouselAdapter.submitList(items.filterIsInstance<org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow>())
+				} else {
+					if (currentAdapter != adapter) {
+						applyListMode(settings.listMode, binding.recyclerView)
+						binding.recyclerView.adapter = adapter
+						paginationListener?.let { binding.recyclerView.addOnScrollListener(it) }
+					}
+					adapter.emit(items)
+				}
+			}
+		}
+
 		viewModel.isLoading.observe(viewLifecycleOwner) {
 			binding.swipeRefreshLayout.isRefreshing = it
 		}
@@ -75,6 +170,19 @@ class DiscoverFragment :
 		}
 		viewModel.query.observe(viewLifecycleOwner) {
 			rebuildServiceChips(binding, viewModel.availableServices.value)
+		}
+	}
+
+	private fun applyListMode(mode: ListMode, recyclerView: RecyclerView) {
+		recyclerView.removeOnLayoutChangeListener(spanResolver)
+		when (mode) {
+			ListMode.LIST, ListMode.DETAILED_LIST -> {
+				recyclerView.layoutManager = FitHeightLinearLayoutManager(recyclerView.context)
+			}
+			ListMode.GRID -> {
+				recyclerView.layoutManager = FitHeightGridLayoutManager(recyclerView.context, checkNotNull(spanResolver).spanCount)
+				recyclerView.addOnLayoutChangeListener(spanResolver)
+			}
 		}
 	}
 
@@ -119,12 +227,7 @@ class DiscoverFragment :
 	override fun onQueryTextChange(newText: String?): Boolean = false
 
 	private fun onDiscoverItemClick(item: DiscoverItem) {
-		if (viewModel.supportsDetails(item.item.service)) {
-			router.openTrackingSiteDetails(item.item.service, item.item.remoteId)
-			return
-		}
-		val url = item.item.url ?: return
-		router.openExternalBrowser(url)
+		// Method preserved as a stub just in case
 	}
 
 	private fun rebuildServiceChips(
@@ -140,9 +243,12 @@ class DiscoverFragment :
 				addView(chip)
 			}
 		}
+		binding.chipGroupContentType.visibility = if (services.size > 1) View.VISIBLE else View.GONE
 		binding.filterScrollView.visibility = if (services.size > 1) View.VISIBLE else View.GONE
 		updateServiceChipSelection(binding, viewModel.activeService.value)
 	}
+
+
 
 	private fun updateServiceChipSelection(
 		binding: FragmentListBinding,

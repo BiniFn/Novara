@@ -14,7 +14,10 @@ data class TrackingSiteCatalog(
 	val service: ScrobblerService,
 	val query: String? = null,
 	val contentType: ContentType? = null,
+	val category: String? = null,
 	val page: Int = 0,
+	val sortOrder: org.skepsun.kototoro.parsers.model.SortOrder? = null,
+	val listFilter: org.skepsun.kototoro.parsers.model.ContentListFilter? = null,
 )
 
 data class TrackingSiteItem(
@@ -48,13 +51,36 @@ data class TrackingSiteItemDetails(
 	val year: Int? = null,
 	val totalEpisodes: Int? = null,
 	val url: String? = null,
-)
+	val infoboxProperties: List<Pair<String, String>> = emptyList(),
+	val episodes: List<EpisodeInfo> = emptyList(),
+	val relatedWorks: List<RelatedWork> = emptyList(),
+	val recommendations: List<RelatedWork> = emptyList(),
+) {
+	data class EpisodeInfo(
+		val number: String,
+		val title: String,
+		val url: String,
+	)
+
+	data class RelatedWork(
+		val id: Long,
+		val title: String,
+		val coverUrl: String,
+		val relationship: String? = null,
+		val url: String,
+	)
+}
 
 @Deprecated(
 	message = "Use TrackingSiteItemDetails",
 	replaceWith = ReplaceWith("TrackingSiteItemDetails"),
 )
 typealias TrackingSiteDetails = TrackingSiteItemDetails
+
+data class TrackingSiteCategory(
+	val id: String,
+	val nameResId: Int,
+)
 
 data class TrackingSiteCapabilities(
 	val supportsDiscovery: Boolean,
@@ -63,6 +89,7 @@ data class TrackingSiteCapabilities(
 	val supportsDetails: Boolean,
 	val supportsStatusSync: Boolean,
 	val supportsManualBinding: Boolean,
+	val discoveryCategories: List<TrackingSiteCategory> = emptyList(),
 )
 
 data class TrackingSiteMatchResult(

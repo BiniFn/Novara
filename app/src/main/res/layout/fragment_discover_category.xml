@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:orientation="vertical">
+
+	<!-- Calendar Date Strip (Hidden by default) -->
+	<HorizontalScrollView
+		android:id="@+id/calendarFilterScroll"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:scrollbars="none"
+		android:visibility="gone"
+		android:background="?attr/colorSurfaceContainer">
+
+		<com.google.android.material.chip.ChipGroup
+			android:id="@+id/calendarChips"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:paddingStart="16dp"
+			android:paddingEnd="16dp"
+			android:paddingTop="8dp"
+			android:paddingBottom="8dp"
+			app:singleLine="true"
+			app:singleSelection="true" />
+	</HorizontalScrollView>
+
+	<FrameLayout
+		android:layout_width="match_parent"
+		android:layout_height="0dp"
+		android:layout_weight="1">
+
+		<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+			android:id="@+id/swipeRefreshLayout"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent">
+
+			<androidx.recyclerview.widget.RecyclerView
+				android:id="@+id/recyclerView"
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:clipToPadding="false"
+				android:scrollbarStyle="outsideOverlay"
+				android:scrollbars="vertical" />
+		</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+		<com.google.android.material.progressindicator.CircularProgressIndicator
+			android:id="@+id/progressBar"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center"
+			android:indeterminate="true"
+			android:visibility="gone" />
+
+	</FrameLayout>
+
+</LinearLayout>

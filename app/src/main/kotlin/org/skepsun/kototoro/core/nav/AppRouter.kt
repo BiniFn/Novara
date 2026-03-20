@@ -195,6 +195,16 @@ class AppRouter private constructor(
         )
     }
 
+	fun openTrackingDiscoveryCategory(service: ScrobblerService, categoryId: String, titleResId: Int) {
+		startActivity(
+			Intent(contextOrNull() ?: return, org.skepsun.kototoro.discover.ui.category.DiscoverCategoryActivity::class.java)
+				.putExtra(KEY_ID, service.name)
+				.putExtra(KEY_KIND, categoryId)
+				.putExtra(KEY_TITLE, titleResId)
+				.putExtra(org.skepsun.kototoro.remotelist.ui.RemoteListFragment.ARG_SOURCE, (if (service.name == "BANGUMI") "TRACKING_BANGUMI_" else "TRACKING_SHIKIMORI_") + categoryId)
+		)
+	}
+
 	fun openReader(manga: Content, anchor: View? = null) {
 		val source = manga.source.unwrap()
         val contentType = getContentType(source)

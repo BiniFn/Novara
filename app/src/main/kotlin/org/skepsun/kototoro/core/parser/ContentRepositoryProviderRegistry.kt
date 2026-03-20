@@ -14,6 +14,7 @@ class ContentRepositoryProviderRegistry @Inject constructor(
 	private val mihonContentRepositoryProvider: MihonContentRepositoryProvider,
 	private val aniyomiContentRepositoryProvider: AniyomiContentRepositoryProvider,
 	private val jsonContentRepositoryProvider: JsonContentRepositoryProvider,
+	private val trackingContentRepositoryProvider: org.skepsun.kototoro.tracking.discovery.data.TrackingContentRepositoryProvider,
 ) {
 
 	private val providers: List<ContentRepositoryProvider> by lazy(LazyThreadSafetyMode.NONE) {
@@ -26,6 +27,7 @@ class ContentRepositoryProviderRegistry @Inject constructor(
 			mihonContentRepositoryProvider,
 			aniyomiContentRepositoryProvider,
 			jsonContentRepositoryProvider,
+			trackingContentRepositoryProvider,
 		)
 	}
 

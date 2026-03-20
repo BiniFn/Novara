@@ -59,6 +59,10 @@ fun ContentSource(name: String?): ContentSource {
 		android.util.Log.d("ContentSource", "Detected JSON source name: $name, returning stable ContentSource")
 		return AnonymousContentSource(name)
 	}
+	// Check if it's a Tracking source (starts with TRACKING_ prefix)
+	if (name.startsWith("TRACKING_")) {
+		return AnonymousContentSource(name)
+	}
 	// Check if it's a Mihon source (starts with MIHON_ prefix)
 	if (name.startsWith("MIHON_")) {
 		android.util.Log.d("ContentSource", "Detected Mihon source name: $name, returning stable ContentSource")
@@ -191,6 +195,7 @@ fun ContentSource.getContentType(): ContentType = when (val source = unwrap()) {
 				ContentType.NOVEL
 			}
 			sourceName.startsWith("JSON_JS_") -> ContentType.MANGA
+			sourceName.startsWith("TRACKING_") -> ContentType.OTHER
 			else -> ContentType.MANGA
 		}
 	}
@@ -261,14 +266,16 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 	}
 	else -> {
 		val type = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier().getSourceType(name)
-		when (type) {
-			org.skepsun.kototoro.core.jsonsource.SourceType.MIHON -> "Mihon"
-			org.skepsun.kototoro.core.jsonsource.SourceType.ANIYOMI -> "Aniyomi"
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado"
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
-			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "JS"
-			org.skepsun.kototoro.core.jsonsource.SourceType.EXTERNAL -> context.getString(R.string.external_source)
-			org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE -> null
+		when {
+			name.startsWith("TRACKING_") -> name.removePrefix("TRACKING_")
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.MIHON -> "Mihon"
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.ANIYOMI -> "Aniyomi"
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado"
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "JS"
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.EXTERNAL -> context.getString(R.string.external_source)
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE -> null
+			else -> null
 		}
 	}
 }
@@ -291,6 +298,8 @@ fun ContentSource.getTitle(context: Context): String = when (val source = unwrap
 			"Loading JSON source..."
 		} else if (source.name.startsWith("ANIYOMI_")) {
 			"Loading Aniyomi source..."
+		} else if (source.name.startsWith("TRACKING_")) {
+			source.name.removePrefix("TRACKING_")
 		} else {
 			context.getString(R.string.unknown)
 		}

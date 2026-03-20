@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
-	android:layout_height="match_parent">
+	android:layout_height="match_parent"
+	android:clipToPadding="false"
+	tools:ignore="ViewBindingType"
+	tools:viewBindingType="android.view.ViewGroup">
 
 	<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 		android:id="@+id/swipeRefreshLayout"
@@ -12,232 +15,588 @@
 		android:layout_height="match_parent">
 
 		<androidx.core.widget.NestedScrollView
+			android:id="@+id/scrollView"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:clipToPadding="false">
+			android:clipToPadding="false"
+			android:scrollIndicators="top"
+			android:scrollbars="vertical">
 
-			<LinearLayout
+			<androidx.constraintlayout.widget.ConstraintLayout
 				android:id="@+id/contentGroup"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:padding="@dimen/list_spacing_normal"
+				android:background="?android:attr/colorBackground"
+				android:paddingBottom="@dimen/margin_normal"
 				android:visibility="gone"
 				tools:visibility="visible">
 
+				<androidx.constraintlayout.widget.Guideline
+					android:id="@+id/guideline_status_bar"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:orientation="horizontal"
+					app:layout_constraintGuide_begin="0dp" />
+
+				<ImageView
+					android:id="@+id/imageView_panorama"
+					android:layout_width="0dp"
+					android:layout_height="0dp"
+					android:scaleType="centerCrop"
+					android:alpha="0.45"
+					app:layout_constraintBottom_toBottomOf="@id/barrier_header"
+					android:layout_marginBottom="-120dp"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toTopOf="parent"
+					tools:ignore="ContentDescription" />
+
+				<View
+					android:id="@+id/view_panorama_scrim"
+					android:layout_width="0dp"
+					android:layout_height="0dp"
+					android:background="@drawable/bg_panorama_scrim"
+					app:layout_constraintBottom_toBottomOf="@id/barrier_header"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toTopOf="parent" />
+
+				<View
+					android:id="@+id/view_panorama_bottom_gradient"
+					android:layout_width="0dp"
+					android:layout_height="120dp"
+					android:background="@drawable/bg_panorama_bottom_gradient"
+					app:layout_constraintBottom_toBottomOf="@id/barrier_header"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent" />
+
+				<View
+					android:id="@+id/view_content_background"
+					android:layout_width="0dp"
+					android:layout_height="0dp"
+					android:background="?android:attr/colorBackground"
+					app:layout_constraintTop_toTopOf="@id/barrier_header"
+					app:layout_constraintBottom_toBottomOf="parent"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent" />
+
 				<org.skepsun.kototoro.image.ui.CoverImageView
 					android:id="@+id/imageViewCover"
-					android:layout_width="160dp"
-					android:layout_height="240dp"
-					android:layout_gravity="center_horizontal"
-					android:contentDescription="@null"
-					android:scaleType="centerCrop"
-					tools:src="@drawable/ic_bangumi_outline" />
-
-				<TextView
-					android:id="@+id/textViewTitle"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
+					android:layout_width="0dp"
+					android:layout_height="0dp"
+					android:layout_marginStart="16dp"
 					android:layout_marginTop="16dp"
-					android:gravity="center"
+					android:background="?colorSecondaryContainer"
+					android:clipToOutline="true"
+					android:foreground="?selectableItemBackground"
+					android:scaleType="centerCrop"
+					app:allowRgb565="false"
+					app:aspectRationHeight="0"
+					app:aspectRationWidth="0"
+					app:layout_constraintDimensionRatio="H,13:18"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/guideline_status_bar"
+					app:layout_constraintWidth_percent="0.35"
+					app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Kototoro.Cover"
+					app:useExistingDrawable="true"
+					tools:background="@tools:sample/backgrounds/scenic[5]"
+					tools:ignore="ContentDescription,UnusedAttribute" />
+
+				<org.skepsun.kototoro.core.ui.widgets.SelectableTextView
+					android:id="@+id/textViewTitle"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="16dp"
+					android:layout_marginTop="16dp"
+					android:layout_marginEnd="16dp"
+					android:ellipsize="end"
+					android:maxLines="@integer/details_title_lines"
 					android:textAppearance="?attr/textAppearanceHeadlineSmall"
-					tools:text="Title" />
+					android:textIsSelectable="true"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toEndOf="@id/imageViewCover"
+					app:layout_constraintTop_toBottomOf="@id/guideline_status_bar"
+					tools:text="@tools:sample/lorem" />
+
+				<org.skepsun.kototoro.core.ui.widgets.SelectableTextView
+					android:id="@+id/textViewAltTitle"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="16dp"
+					android:layout_marginTop="4dp"
+					android:layout_marginEnd="16dp"
+					android:ellipsize="end"
+					android:maxLines="3"
+					android:textAppearance="?attr/textAppearanceBodyMedium"
+					android:textIsSelectable="true"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toEndOf="@id/imageViewCover"
+					app:layout_constraintTop_toBottomOf="@id/textViewTitle"
+					tools:text="@tools:sample/lorem[12]" />
+
+				<androidx.constraintlayout.widget.Barrier
+					android:id="@+id/barrier_header"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					app:barrierDirection="bottom"
+					app:barrierMargin="@dimen/margin_normal"
+					app:constraint_referenced_ids="imageViewCover,textViewAltTitle" />
+
+				<!-- Table equivalent -->
+				<com.google.android.material.card.MaterialCardView
+					android:id="@+id/card_details"
+					style="?materialCardViewFilledStyle"
+					android:layout_width="0dp"
+					android:layout_height="0dp"
+					android:layout_marginHorizontal="@dimen/screen_padding"
+					android:layout_marginBottom="-12dp"
+					app:layout_constraintBottom_toBottomOf="@id/textViewBindingStatus"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/barrier_header" />
 
 				<TextView
-					android:id="@+id/textViewAltTitle"
-					android:layout_width="match_parent"
+					android:id="@+id/textView_site_label"
+					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:gravity="center"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					android:textColor="?android:textColorSecondary"
-					tools:text="Alternative title" />
+					android:layout_marginStart="12dp"
+					android:layout_marginTop="12dp"
+					android:singleLine="true"
+					android:text="@string/source"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintStart_toStartOf="@id/card_details"
+					app:layout_constraintTop_toBottomOf="@id/barrier_header" />
 
 				<TextView
 					android:id="@+id/textViewSite"
-					android:layout_width="match_parent"
+					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:gravity="center"
-					android:textAppearance="?attr/textAppearanceTitleSmall"
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="12dp"
+					android:singleLine="true"
+					android:textAppearance="?textAppearanceBodyMedium"
+					app:layout_constrainedWidth="true"
+					app:layout_constraintBaseline_toBaselineOf="@id/textView_site_label"
+					app:layout_constraintEnd_toEndOf="@id/card_details"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toEndOf="@id/barrier_table"
 					tools:text="Bangumi" />
 
 				<TextView
-					android:id="@+id/textViewScore"
-					android:layout_width="match_parent"
+					android:id="@+id/textView_score_label"
+					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:gravity="center"
-					android:textAppearance="?attr/textAppearanceBodyLarge"
+					android:layout_marginStart="12dp"
+					android:layout_marginTop="8dp"
+					android:singleLine="true"
+					android:text="@string/rating"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintStart_toStartOf="@id/card_details"
+					app:layout_constraintTop_toBottomOf="@id/textView_site_label" />
+
+				<TextView
+					android:id="@+id/textViewScore"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="16dp"
+					android:textAppearance="?textAppearanceBodyMedium"
+					app:layout_constrainedWidth="true"
+					app:layout_constraintBaseline_toBaselineOf="@id/textView_score_label"
+					app:layout_constraintEnd_toEndOf="@id/card_details"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toEndOf="@id/barrier_table"
 					tools:text="8.5" />
+
+				<androidx.constraintlayout.widget.Group
+					android:id="@+id/layoutYear"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					app:constraint_referenced_ids="textView_year_label,textViewYear" />
+
+				<TextView
+					android:id="@+id/textView_year_label"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginTop="8dp"
+					android:singleLine="true"
+					android:text="@string/year"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintStart_toStartOf="@id/card_details"
+					app:layout_constraintTop_toBottomOf="@id/textView_score_label" />
+
+				<TextView
+					android:id="@+id/textViewYear"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="16dp"
+					android:textAppearance="?textAppearanceBodyMedium"
+					app:layout_constrainedWidth="true"
+					app:layout_constraintBaseline_toBaselineOf="@id/textView_year_label"
+					app:layout_constraintEnd_toEndOf="@id/card_details"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toEndOf="@id/barrier_table"
+					tools:text="2024" />
+
+				<androidx.constraintlayout.widget.Group
+					android:id="@+id/layoutEpisodes"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					app:constraint_referenced_ids="textView_episodes_label,textViewEpisodes" />
+
+				<TextView
+					android:id="@+id/textView_episodes_label"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginTop="8dp"
+					android:singleLine="true"
+					android:text="@string/discover_total_episodes"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintStart_toStartOf="@id/card_details"
+					app:layout_constraintTop_toBottomOf="@id/textView_year_label" />
+
+				<TextView
+					android:id="@+id/textViewEpisodes"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="16dp"
+					android:textAppearance="?textAppearanceBodyMedium"
+					app:layout_constrainedWidth="true"
+					app:layout_constraintBaseline_toBaselineOf="@id/textView_episodes_label"
+					app:layout_constraintEnd_toEndOf="@id/card_details"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toEndOf="@id/barrier_table"
+					tools:text="12" />
+
+				<TextView
+					android:id="@+id/textView_rank_label"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginTop="8dp"
+					android:singleLine="true"
+					android:text="Rank"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintStart_toStartOf="@id/card_details"
+					app:layout_constraintTop_toBottomOf="@id/textView_episodes_label" />
 
 				<TextView
 					android:id="@+id/textViewRank"
-					android:layout_width="match_parent"
+					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:gravity="center"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					android:textColor="?android:textColorSecondary"
-					tools:text="Rank #123" />
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="16dp"
+					android:textAppearance="?textAppearanceBodyMedium"
+					app:layout_constrainedWidth="true"
+					app:layout_constraintBaseline_toBaselineOf="@id/textView_rank_label"
+					app:layout_constraintEnd_toEndOf="@id/card_details"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toEndOf="@id/barrier_table"
+					tools:text="123" />
+
+				<TextView
+					android:id="@+id/textView_status_label"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_marginTop="8dp"
+					android:singleLine="true"
+					android:text="@string/state"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintStart_toStartOf="@id/card_details"
+					app:layout_constraintTop_toBottomOf="@id/textView_rank_label" />
 
 				<TextView
 					android:id="@+id/textViewBindingStatus"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
-					android:gravity="center"
-					android:textAppearance="?attr/textAppearanceBodyMedium"
-					android:textColor="?android:textColorSecondary"
-					tools:text="Linked to local content" />
-
-				<LinearLayout
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:orientation="vertical">
-
-					<LinearLayout
-						android:id="@+id/layoutYear"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="vertical"
-						android:paddingVertical="4dp">
-
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/year"
-							android:textAppearance="?attr/textAppearanceTitleSmall" />
-
-						<TextView
-							android:id="@+id/textViewYear"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:textAppearance="?attr/textAppearanceBodyMedium"
-							tools:text="2024" />
-					</LinearLayout>
-
-					<LinearLayout
-						android:id="@+id/layoutEpisodes"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="vertical"
-						android:paddingVertical="4dp">
-
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/discover_total_episodes"
-							android:textAppearance="?attr/textAppearanceTitleSmall" />
-
-						<TextView
-							android:id="@+id/textViewEpisodes"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:textAppearance="?attr/textAppearanceBodyMedium"
-							tools:text="12" />
-					</LinearLayout>
-
-					<LinearLayout
-						android:id="@+id/layoutAuthors"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="vertical"
-						android:paddingVertical="4dp">
-
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/authors"
-							android:textAppearance="?attr/textAppearanceTitleSmall" />
-
-						<TextView
-							android:id="@+id/textViewAuthors"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:textAppearance="?attr/textAppearanceBodyMedium"
-							tools:text="Author A, Author B" />
-					</LinearLayout>
-
-					<LinearLayout
-						android:id="@+id/layoutTags"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="vertical"
-						android:paddingVertical="4dp">
-
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/discover_tags"
-							android:textAppearance="?attr/textAppearanceTitleSmall" />
-
-						<TextView
-							android:id="@+id/textViewTags"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:textAppearance="?attr/textAppearanceBodyMedium"
-							tools:text="Drama, Action" />
-					</LinearLayout>
-
-					<LinearLayout
-						android:id="@+id/layoutDescription"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="vertical"
-						android:paddingVertical="4dp">
-
-						<TextView
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:text="@string/description"
-							android:textAppearance="?attr/textAppearanceTitleSmall" />
-
-						<TextView
-							android:id="@+id/textViewDescription"
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:layout_marginTop="4dp"
-							android:textAppearance="?attr/textAppearanceBodyMedium"
-							tools:text="Description" />
-					</LinearLayout>
-				</LinearLayout>
-
-				<LinearLayout
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_gravity="center_horizontal"
-					android:layout_marginTop="16dp"
-					android:gravity="center"
-					android:orientation="horizontal">
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="16dp"
+					android:layout_marginBottom="12dp"
+					android:background="@drawable/custom_selectable_item_background"
+					android:padding="4dp"
+					android:pointerIcon="hand"
+					android:textColor="?attr/colorPrimary"
+					android:textAppearance="?textAppearanceBodyMedium"
+					app:layout_constrainedWidth="true"
+					app:layout_constraintBottom_toBottomOf="@id/card_details"
+					app:layout_constraintEnd_toEndOf="@id/card_details"
+					app:layout_constraintHorizontal_bias="0"
+					app:layout_constraintStart_toEndOf="@id/barrier_table"
+					app:layout_constraintTop_toTopOf="@id/textView_status_label"
+					tools:text="Linked to local content" />
 
-					<com.google.android.material.button.MaterialButton
-						android:id="@+id/buttonOpenLocal"
-						style="?attr/materialButtonOutlinedStyle"
+				<androidx.constraintlayout.widget.Barrier
+					android:id="@+id/barrier_table"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					app:barrierDirection="end"
+					app:constraint_referenced_ids="textView_site_label,textView_score_label,textView_year_label,textView_episodes_label,textView_rank_label,textView_status_label" />
+
+
+				<TextView
+					android:id="@+id/textView_description_title"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="@dimen/margin_small"
+					android:layout_marginTop="@dimen/margin_normal"
+					android:gravity="center_vertical|start"
+					android:padding="@dimen/grid_spacing"
+					android:text="@string/description"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/card_details" />
+
+				<org.skepsun.kototoro.core.ui.widgets.SelectableTextView
+					android:id="@+id/textViewDescription"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="@dimen/margin_normal"
+					android:layout_marginTop="@dimen/margin_small"
+					android:layout_marginEnd="@dimen/margin_normal"
+					android:ellipsize="end"
+					android:lineSpacingMultiplier="1.2"
+					android:textAppearance="?attr/textAppearanceBodyMedium"
+					android:textIsSelectable="true"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/textView_description_title"
+					tools:text="@tools:sample/lorem/random" />
+
+				<androidx.constraintlayout.widget.Group
+					android:id="@+id/layoutDescription"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					app:constraint_referenced_ids="textView_description_title,textViewDescription" />
+
+				<TextView
+					android:id="@+id/textView_authors_title"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="@dimen/margin_small"
+					android:layout_marginTop="@dimen/margin_normal"
+					android:gravity="center_vertical|start"
+					android:padding="@dimen/grid_spacing"
+					android:text="@string/authors"
+					android:textAppearance="?textAppearanceTitleSmall"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/textViewDescription" />
+
+				<TextView
+					android:id="@+id/textViewAuthors"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="@dimen/margin_normal"
+					android:layout_marginTop="@dimen/margin_small"
+					android:layout_marginEnd="@dimen/margin_normal"
+					android:textAppearance="?attr/textAppearanceBodyMedium"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/textView_authors_title"
+					tools:text="Author Name" />
+
+				<androidx.constraintlayout.widget.Group
+					android:id="@+id/layoutAuthors"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					app:constraint_referenced_ids="textView_authors_title,textViewAuthors" />
+
+				<org.skepsun.kototoro.core.ui.widgets.ChipsView
+					android:id="@+id/chips_tags"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginHorizontal="@dimen/screen_padding"
+					android:layout_marginTop="@dimen/margin_normal"
+					app:chipSpacingHorizontal="6dp"
+					app:chipSpacingVertical="6dp"
+					app:layout_constraintEnd_toEndOf="parent"
+					app:layout_constraintStart_toStartOf="parent"
+					app:layout_constraintTop_toBottomOf="@id/textViewAuthors" />
+
+			<LinearLayout
+				android:id="@+id/layoutInfobox"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:layout_marginTop="@dimen/margin_normal"
+				android:paddingHorizontal="@dimen/screen_padding"
+				android:visibility="gone"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/chips_tags"
+				tools:visibility="visible">
+
+				<TextView
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="作品信息"
+					android:textAppearance="?textAppearanceTitleSmall"
+					android:padding="@dimen/grid_spacing" />
+
+				<LinearLayout
+					android:id="@+id/infoboxContainer"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical" />
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/buttonInfoboxToggle"
+					style="@style/Widget.Material3.Button.TextButton"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="展开更多"
+					android:visibility="gone" />
+			</LinearLayout>
+
+			<!-- Episodes list -->
+			<LinearLayout
+				android:id="@+id/layoutEpisodesList"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:layout_marginTop="@dimen/margin_normal"
+				android:paddingHorizontal="@dimen/screen_padding"
+				android:visibility="gone"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/layoutInfobox"
+				tools:visibility="visible">
+
+				<TextView
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="章节"
+					android:textAppearance="?textAppearanceTitleSmall"
+					android:padding="@dimen/grid_spacing" />
+
+				<LinearLayout
+					android:id="@+id/episodesContainer"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical" />
+			</LinearLayout>
+
+			<!-- Related Works -->
+			<LinearLayout
+				android:id="@+id/layoutRelatedWorks"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:layout_marginTop="@dimen/margin_normal"
+				android:visibility="gone"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/layoutEpisodesList"
+				tools:visibility="visible">
+
+				<TextView
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="关联条目"
+					android:textAppearance="?textAppearanceTitleSmall"
+					android:paddingHorizontal="@dimen/screen_padding"
+					android:padding="@dimen/grid_spacing" />
+
+				<HorizontalScrollView
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:scrollbars="none"
+					android:clipToPadding="false"
+					android:paddingHorizontal="@dimen/screen_padding">
+
+					<LinearLayout
+						android:id="@+id/relatedWorksContainer"
 						android:layout_width="wrap_content"
 						android:layout_height="wrap_content"
-						android:layout_marginEnd="8dp"
-						android:text="@string/discover_open_local" />
+						android:orientation="horizontal" />
+				</HorizontalScrollView>
+			</LinearLayout>
 
-					<com.google.android.material.button.MaterialButton
-						android:id="@+id/buttonOpenSite"
-						style="?attr/materialButtonOutlinedStyle"
+			<!-- Recommendations -->
+			<LinearLayout
+				android:id="@+id/layoutRecommendations"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:layout_marginTop="@dimen/margin_normal"
+				android:visibility="gone"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/layoutRelatedWorks"
+				tools:visibility="visible">
+
+				<TextView
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="猜你喜欢"
+					android:textAppearance="?textAppearanceTitleSmall"
+					android:paddingHorizontal="@dimen/screen_padding"
+					android:padding="@dimen/grid_spacing" />
+
+				<HorizontalScrollView
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:scrollbars="none"
+					android:clipToPadding="false"
+					android:paddingHorizontal="@dimen/screen_padding">
+
+					<LinearLayout
+						android:id="@+id/recommendationsContainer"
 						android:layout_width="wrap_content"
 						android:layout_height="wrap_content"
-						android:text="@string/discover_open_site" />
-				</LinearLayout>
+						android:orientation="horizontal" />
+				</HorizontalScrollView>
+			</LinearLayout>
+
+			<!-- Action buttons moved after all content sections -->
+			<LinearLayout
+				android:id="@+id/layoutActionButtons"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="horizontal"
+				android:layout_marginTop="@dimen/margin_normal"
+				android:paddingHorizontal="@dimen/screen_padding"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/layoutRecommendations">
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/buttonOpenLocal"
+					style="?attr/materialButtonOutlinedStyle"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					android:layout_marginEnd="8dp"
+					android:text="@string/discover_open_local" />
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/buttonOpenSite"
+					style="?attr/materialButtonOutlinedStyle"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					android:text="@string/discover_open_site" />
 
 				<com.google.android.material.button.MaterialButton
 					android:id="@+id/buttonManageBinding"
 					style="?attr/materialButtonOutlinedStyle"
-					android:layout_width="wrap_content"
+					android:layout_width="0dp"
 					android:layout_height="wrap_content"
-					android:layout_gravity="center_horizontal"
-					android:layout_marginTop="12dp"
+					android:layout_weight="1"
+					android:layout_marginStart="8dp"
 					android:text="@string/discover_bind_local" />
-
 			</LinearLayout>
+
+		</androidx.constraintlayout.widget.ConstraintLayout>
+
 		</androidx.core.widget.NestedScrollView>
 	</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
@@ -279,4 +638,21 @@
 		android:layout_gravity="center"
 		android:visibility="gone" />
 
-</FrameLayout>
+	<com.google.android.material.appbar.AppBarLayout
+		android:id="@+id/appbar"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:background="@android:color/transparent"
+		android:elevation="10dp"
+		app:elevation="0dp"
+		app:liftOnScroll="false">
+
+		<com.google.android.material.appbar.MaterialToolbar
+			android:id="@+id/toolbar"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:background="@android:color/transparent" />
+
+	</com.google.android.material.appbar.AppBarLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

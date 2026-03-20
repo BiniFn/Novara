@@ -16,6 +16,7 @@ import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSON
 import org.skepsun.kototoro.parsers.util.parseJson
+import org.jsoup.Jsoup
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
@@ -120,6 +121,104 @@ class BangumiRepository @Inject constructor(
 		}
 	}
 
+	suspend fun getRankings(
+		category: String, 
+		page: Int,
+		sortOrder: org.skepsun.kototoro.parsers.model.SortOrder? = null,
+		listFilter: org.skepsun.kototoro.parsers.model.ContentListFilter? = null
+	): List<ScrobblerContent> {
+		val typePath = when(category) {
+			"anime" -> "anime/browser"
+			"book" -> "book/browser"
+			"music" -> "music/browser"
+			"game" -> "game/browser"
+			"real" -> "real/browser"
+			else -> "anime/browser"
+		}
+
+		val tags = listFilter?.tags?.joinToString("") { it.key } ?: ""
+		val sortStr = when (sortOrder) {
+			org.skepsun.kototoro.parsers.model.SortOrder.UPDATED -> "date"
+			org.skepsun.kototoro.parsers.model.SortOrder.ALPHABETICAL -> "title"
+			else -> "rank"
+		}
+
+		val request = Request.Builder()
+			.url("https://bgm.tv/$typePath$tags?sort=$sortStr&page=$page")
+			.get()
+			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+			.build()
+
+		val doc = Jsoup.parse(okHttp.newCall(request).await().body?.string().orEmpty())
+		return doc.select("ul#browserItemList > li").map { el ->
+			val id = el.attr("id").substringAfter("item_").toLongOrNull() ?: 0L
+			val titleWrapper = el.selectFirst("a.l")
+			val name = titleWrapper?.text().orEmpty()
+			val altName = el.selectFirst("small.grey")?.text() ?: name
+			val coverUrl = el.selectFirst("a.subjectCover img.cover")?.attr("src") ?: ""
+			var cleanCover = coverUrl.replace("/s/", "/l/").replace("/m/", "/l/") // Get large cover instead of small
+			if (cleanCover.startsWith("//")) {
+				cleanCover = "https:$cleanCover"
+			}
+			
+			ScrobblerContent(
+				id = id,
+				name = name,
+				altName = altName,
+				cover = if (cleanCover.startsWith("//")) "https:$cleanCover" else cleanCover,
+				url = "https://bgm.tv/subject/$id",
+				isBestMatch = false
+			)
+		}
+	}
+
+	suspend fun getDailyCalendar(): Map<Int, List<ScrobblerContent>> {
+		val request = Request.Builder()
+			.url("https://bgm.tv/")
+			.get()
+			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+			.build()
+
+		val doc = Jsoup.parse(okHttp.newCall(request).await().body?.string().orEmpty())
+		val map = mutableMapOf<Int, List<ScrobblerContent>>()
+		
+		doc.select("#home_calendar .week").forEach { weekEl ->
+			val dayClass = weekEl.classNames().firstOrNull { it in listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun") }
+			val dayInt = when (dayClass) {
+				"Mon" -> 1
+				"Tue" -> 2
+				"Wed" -> 3
+				"Thu" -> 4
+				"Fri" -> 5
+				"Sat" -> 6
+				"Sun" -> 7
+				else -> 0
+			}
+			if (dayInt == 0) return@forEach
+
+			val items = weekEl.select(".coverList .thumbTip").map { el ->
+				val id = el.attr("href").substringAfter("subject/").toLongOrNull() ?: 0L
+				val name = el.attr("title").orEmpty()
+				val coverUrl = el.selectFirst("img")?.attr("src").orEmpty()
+				val cleanCover = coverUrl.replace("/s/", "/l/").replace("/m/", "/l/")
+
+				ScrobblerContent(
+					id = id,
+					name = name,
+					altName = name,
+					cover = if (cleanCover.startsWith("//")) "https:$cleanCover" else cleanCover,
+					url = "https://bgm.tv/subject/$id",
+					isBestMatch = false
+				)
+			}.filter { it.id > 0L }.distinctBy { it.id }
+			
+			map[dayInt] = items
+		}
+		return map
+	}
+
 	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.BANGUMI.id,
@@ -176,15 +275,137 @@ class BangumiRepository @Inject constructor(
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
-			.url("${API_URL}v0/subjects/$id")
+			.url("https://bgm.tv/subject/$id")
 			.get()
-		val json = okHttp.newCall(request.build()).await().parseJson()
+			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+			
+		val responseHtml = okHttp.newCall(request.build()).await().body?.string().orEmpty()
+		val doc = Jsoup.parse(responseHtml)
+
+		val nameNative = doc.selectFirst("#headerSubject .nameSingle > a")?.text().orEmpty()
+		val nameCn = doc.selectFirst("#headerSubject .nameSingle > a")?.attr("title").orEmpty()
+		val finalName = if (nameCn.isNotBlank()) nameCn else nameNative
+		
+		val coverUrl = doc.selectFirst("img.cover")?.attr("src")?.replace("/c/", "/l/").orEmpty()
+		val cover = if (coverUrl.startsWith("//")) "https:$coverUrl" else coverUrl
+
+		val summary = doc.selectFirst("#subject_summary")?.html().orEmpty()
+		
+		// Real user tags from .subject_tag_section
+		val tagList = mutableListOf<String>()
+		doc.select(".subject_tag_section .inner a span").forEach { span ->
+			val tagName = span.text().trim()
+			if (tagName.isNotBlank()) tagList.add(tagName)
+		}
+		
+		// Infobox properties as key-value pairs
+		val infoboxProperties = mutableListOf<Pair<String, String>>()
+		doc.select("#infobox > li").forEach { li ->
+			val tip = li.selectFirst("span.tip")?.text()?.trimEnd() ?: ""
+			val value = li.text().removePrefix(tip).trim()
+			if (tip.isNotBlank() && value.isNotBlank()) {
+				infoboxProperties.add(tip.trimEnd(':').trimEnd(':', ' ') to value)
+			} else if (li.text().isNotBlank()) {
+				val text = li.text()
+				val colonIdx = text.indexOf(':')
+				if (colonIdx > 0) {
+					infoboxProperties.add(text.substring(0, colonIdx).trim() to text.substring(colonIdx + 1).trim())
+				}
+			}
+		}
+		
+		// Episodes from prg_list
+		val episodes = mutableListOf<ScrobblerContentInfo.EpisodeInfo>()
+		doc.select("ul.prg_list li a").forEach { a ->
+			val epTitle = a.attr("title").trim()
+			val epNumber = a.text().trim()
+			val epUrl = a.attr("href")
+			if (epTitle.isNotBlank()) {
+				episodes.add(ScrobblerContentInfo.EpisodeInfo(
+					number = epNumber,
+					title = epTitle,
+					url = if (epUrl.startsWith("/")) "https://bgm.tv$epUrl" else epUrl,
+				))
+			}
+		}
+
+		// Related works (关联条目)
+		val relatedWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		val relatedSection = doc.select(".subject_section").firstOrNull { section ->
+			section.selectFirst("h2.subtitle")?.text()?.contains("关联条目") == true
+		}
+		relatedSection?.select("ul.browserCoverMedium li")?.forEach { li ->
+			val relationship = li.selectFirst("span.sub")?.text()?.trim().orEmpty()
+			val titleEl = li.selectFirst("a.title")
+			val title = titleEl?.text().orEmpty()
+			val href = titleEl?.attr("href").orEmpty()
+			val relId = href.substringAfter("/subject/").toLongOrNull() ?: 0L
+			val bgStyle = li.selectFirst("span.coverNeue")?.attr("style").orEmpty()
+			val bgUrl = bgStyle.substringAfter("url('").substringBefore("')")
+			val relCover = if (bgUrl.startsWith("//")) "https:$bgUrl" else bgUrl
+			if (relId > 0 && title.isNotBlank()) {
+				relatedWorks.add(ScrobblerContentInfo.RelatedWork(
+					id = relId,
+					title = title,
+					coverUrl = relCover,
+					relationship = relationship.ifBlank { null },
+					url = "https://bgm.tv/subject/$relId",
+				))
+			}
+		}
+
+		// Recommendations (喜欢...的会员大概会喜欢)
+		val recommendations = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		val recSection = doc.select(".subject_section").firstOrNull { section ->
+			section.selectFirst("h2.subtitle")?.text()?.contains("会员大概会喜欢") == true
+		}
+		recSection?.select("ul.coversSmall li")?.forEach { li ->
+			val recLink = li.selectFirst("a.avatar")
+			val recTitle = recLink?.attr("title")?.trim().orEmpty()
+			val recHref = recLink?.attr("href").orEmpty()
+			val recId = recHref.substringAfter("/subject/").toLongOrNull() ?: 0L
+			val recBgStyle = li.selectFirst("span.coverNeue")?.attr("style").orEmpty()
+			val recBgUrl = recBgStyle.substringAfter("url('").substringBefore("')")
+			val recCover = if (recBgUrl.startsWith("//")) "https:$recBgUrl" else recBgUrl
+			// Fallback title from p.info a
+			val displayTitle = recTitle.ifBlank { li.selectFirst("p.info a")?.text().orEmpty() }
+			if (recId > 0 && displayTitle.isNotBlank()) {
+				recommendations.add(ScrobblerContentInfo.RelatedWork(
+					id = recId,
+					title = displayTitle,
+					coverUrl = recCover,
+					url = "https://bgm.tv/subject/$recId",
+				))
+			}
+		}
+
+		// Characters/voice actors
+		val authorsList = mutableListOf<String>()
+		doc.select("#browserItemList > li").forEach { charItem ->
+			val charName = charItem.selectFirst("a.l")?.text().orEmpty()
+			val actorName = charItem.selectFirst(".badge_actor a")?.text().orEmpty()
+			if (charName.isNotBlank()) {
+				if (actorName.isNotBlank()) {
+					authorsList.add("$charName (CV: $actorName)")
+				} else {
+					authorsList.add(charName)
+				}
+			}
+		}
+
 		return ScrobblerContentInfo(
-			id = json.getLong("id"),
-			name = json.getString("name_cn").ifBlank { json.getString("name") },
-			cover = json.getJSONObject("images").getString("large"),
-			url = "https://bgm.tv/subject/${json.getLong("id")}",
-			descriptionHtml = json.getString("summary"),
+			id = id,
+			name = finalName.ifBlank { "Unknown" },
+			cover = cover,
+			url = "https://bgm.tv/subject/$id",
+			descriptionHtml = summary,
+			tags = tagList,
+			authors = authorsList,
+			infoboxProperties = infoboxProperties,
+			episodes = episodes,
+			relatedWorks = relatedWorks,
+			recommendations = recommendations,
 		)
 	}
 

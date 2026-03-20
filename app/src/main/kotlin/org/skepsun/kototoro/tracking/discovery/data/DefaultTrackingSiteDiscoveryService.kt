@@ -1,3 +1,4 @@
+
 package org.skepsun.kototoro.tracking.discovery.data
 
 import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository
@@ -7,6 +8,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCapabilities
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
@@ -27,6 +29,14 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsDetails = true,
 			supportsStatusSync = true,
 			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("calendar", org.skepsun.kototoro.R.string.discover_category_calendar),
+				TrackingSiteCategory("anime", org.skepsun.kototoro.R.string.discover_category_anime_rank),
+				TrackingSiteCategory("book", org.skepsun.kototoro.R.string.discover_category_book_rank),
+				TrackingSiteCategory("music", org.skepsun.kototoro.R.string.discover_category_music_rank),
+				TrackingSiteCategory("game", org.skepsun.kototoro.R.string.discover_category_game_rank),
+				TrackingSiteCategory("real", org.skepsun.kototoro.R.string.discover_category_real_rank),
+			),
 		)
 
 		else -> TrackingSiteCapabilities(
@@ -43,8 +53,32 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		if (catalog.service != ScrobblerService.BANGUMI) {
 			return emptyList()
 		}
-		return bangumiRepository.findContent(query = "", offset = catalog.page * 10)
-			.map { item -> item.toTrackingListItem(ScrobblerService.BANGUMI) }
+		
+		val requestCategory = catalog.category ?: "anime"
+
+		if (requestCategory.startsWith("calendar")) {
+			// Calendar scrape returns all schedule items at once, so paging is ignored
+			if (catalog.page > 0) return emptyList()
+			
+			val dailyCalendar = bangumiRepository.getDailyCalendar()
+			val dayFilter = requestCategory.substringAfter("_", "").toIntOrNull()
+			
+			val targetDay = dayFilter ?: run {
+				val cal = java.util.Calendar.getInstance()
+				val today = cal.get(java.util.Calendar.DAY_OF_WEEK)
+				if (today == java.util.Calendar.SUNDAY) 7 else today - 1
+			}
+
+			return dailyCalendar[targetDay].orEmpty()
+				.map { item -> item.toTrackingListItem(ScrobblerService.BANGUMI) }
+		}
+		
+		return bangumiRepository.getRankings(
+			category = requestCategory, 
+			page = catalog.page + 1,
+			sortOrder = catalog.sortOrder,
+			listFilter = catalog.listFilter
+		).map { item -> item.toTrackingListItem(ScrobblerService.BANGUMI) }
 	}
 
 	override suspend fun search(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
@@ -81,7 +115,34 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			title = name,
 			coverUrl = cover,
 			description = descriptionHtml,
+			tags = tags,
+			authors = authors,
 			url = url,
+			infoboxProperties = infoboxProperties,
+			episodes = episodes.map { ep ->
+				TrackingSiteItemDetails.EpisodeInfo(
+					number = ep.number,
+					title = ep.title,
+					url = ep.url,
+				)
+			},
+			relatedWorks = relatedWorks.map { rw ->
+				TrackingSiteItemDetails.RelatedWork(
+					id = rw.id,
+					title = rw.title,
+					coverUrl = rw.coverUrl,
+					relationship = rw.relationship,
+					url = rw.url,
+				)
+			},
+			recommendations = recommendations.map { rec ->
+				TrackingSiteItemDetails.RelatedWork(
+					id = rec.id,
+					title = rec.title,
+					coverUrl = rec.coverUrl,
+					url = rec.url,
+				)
+			},
 		)
 	}
 }

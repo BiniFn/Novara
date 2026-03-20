@@ -15,8 +15,13 @@ class BangumiInterceptor(private val storage: ScrobblerStorage) : Interceptor {
 	override fun intercept(chain: Interceptor.Chain): Response {
 		val sourceRequest = chain.request()
 		val request = sourceRequest.newBuilder()
-		request.header(CommonHeaders.USER_AGENT, "Kototoro/1.0 (Android) (https://github.com/skepsun/Kototoro)")
-		request.header(CommonHeaders.ACCEPT, JSON)
+		// Only set default headers if not already provided by the caller (e.g., browser scraping)
+		if (sourceRequest.header(CommonHeaders.USER_AGENT) == null) {
+			request.header(CommonHeaders.USER_AGENT, "Kototoro/1.0 (Android) (https://github.com/skepsun/Kototoro)")
+		}
+		if (sourceRequest.header(CommonHeaders.ACCEPT) == null) {
+			request.header(CommonHeaders.ACCEPT, JSON)
+		}
 		
 		val isAuthRequest = sourceRequest.url.pathSegments.contains("oauth")
 		if (!isAuthRequest) {
