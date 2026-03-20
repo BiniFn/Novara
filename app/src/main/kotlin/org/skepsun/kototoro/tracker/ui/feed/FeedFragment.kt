@@ -198,7 +198,7 @@ class FeedFragment :
 		val colors = createChipColors()
 		val density = resources.displayMetrics.density
 
-		val tags = SourceTag.entries
+		val tags = SourceTag.quickFilterEntries
 		for (tag in tags) {
 			val chip = createCompactChip(
 				text = getString(tag.titleRes),

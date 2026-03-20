@@ -6,24 +6,29 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.doOnPreDraw
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
+import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.viewModels
-import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import kotlin.math.abs
 
 @AndroidEntryPoint
-class HomeFragment : BaseFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetChangedListener {
+class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 
 	private val viewModel by viewModels<HomeViewModel>()
+	private var homeScrollAnchorY = 0
+	private var isHomeChromeHidden = false
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentHomeBinding {
 		return FragmentHomeBinding.inflate(inflater, container, false)
@@ -31,54 +36,40 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetC
 
 	override fun onViewBindingCreated(binding: FragmentHomeBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.addOnOffsetChangedListener(this)
-		binding.root.doOnPreDraw {
-			appBar?.setExpanded(false, false)
-		}
 		with(binding) {
 			buttonSettings.setOnClickListener { router.openSettings() }
 			buttonReaderSettings.setOnClickListener { router.openReaderSettings() }
-			buttonSyncSettings.setOnClickListener { router.openSettings() }
-			buttonViewAllRecent.setOnClickListener { router.openHistory() }
-			buttonViewAllUpdates.setOnClickListener { router.openMangaUpdates() }
-			buttonSourceSettings.setOnClickListener { router.openManageSources() }
+			buttonSyncSettings.setOnClickListener { router.openSyncSettings() }
+			buttonViewAllRecent.setOnClickListener { router.openHistory(currentBrowseGroupTab()) }
+			buttonViewAllUpdates.setOnClickListener { router.openMangaUpdates(currentBrowseGroupTab()) }
+			buttonViewAllRecommendations.setOnClickListener { router.openSuggestions(currentBrowseGroupTab()) }
+			buttonSourceSettings.setOnClickListener { router.openSourcesSettings() }
 			buttonLibraryOpen.setOnClickListener { router.openFavorites() }
-			buttonResumeRead.setOnClickListener {
-				viewModel.summaryState.value.resumeState.content?.let { content ->
-					router.openReader(content)
-				}
-			}
-			buttonResumeDetails.setOnClickListener {
-				viewModel.summaryState.value.resumeState.content?.let { content ->
-					router.openDetails(content)
-				}
-			}
-			chipHomeManga.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.MANGA) }
-			chipHomeNovel.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.NOVEL) }
-			chipHomeVideo.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.VIDEO) }
+			buttonRecentFilterManga.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.MANGA) }
+			buttonRecentFilterNovel.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.NOVEL) }
+			buttonRecentFilterVideo.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.VIDEO) }
+			buttonUpdatesFilterManga.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.MANGA) }
+			buttonUpdatesFilterNovel.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.NOVEL) }
+			buttonUpdatesFilterVideo.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.VIDEO) }
+			buttonRecommendationsFilterManga.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.MANGA) }
+			buttonRecommendationsFilterNovel.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.NOVEL) }
+			buttonRecommendationsFilterVideo.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.VIDEO) }
 		}
+		setupHomeScrollChrome(binding.root)
+		showHomeChrome()
 
 		viewModel.summaryState.observe(viewLifecycleOwner) { state ->
-			binding.chipGroupHomeContentType.check(
-				when (state.selectedTab) {
-					HomeContentTab.MANGA -> binding.chipHomeManga.id
-					HomeContentTab.NOVEL -> binding.chipHomeNovel.id
-					HomeContentTab.VIDEO -> binding.chipHomeVideo.id
-				},
-			)
-			updateUpdatesButtonLabel(state.selectedTab)
+			syncSelectedTab(state.selectedTab)
 			binding.textViewRecentCount.text = state.recentHistoryCount.toString()
 			binding.textViewLibraryFavoritesCount.text = state.favoritesCount.toString()
 			binding.textViewLibraryCategoriesCount.text = state.favoriteCategoriesCount.toString()
 			binding.textViewUpdatesCount.text = state.unreadUpdatesCount.toString()
-			binding.textViewTrackingSite.text = getString(state.preferredTrackingSite.titleResId)
+			binding.textViewRecommendationsCount.text = state.recommendationsCount.toString()
 			val syncStatusText = when {
 				state.syncState.isWebDavEnabled && state.syncState.isAutoSyncEnabled -> getString(R.string.home_sync_status_auto)
 				state.syncState.isWebDavEnabled -> getString(R.string.home_sync_status_ready)
 				else -> getString(R.string.home_sync_status_not_configured)
 			}
-			binding.textViewOverviewSyncStatus.text = syncStatusText
 			binding.textViewSyncStatus.text = syncStatusText
 			binding.textViewSyncSubtitle.text = when {
 				state.syncState.lastUploadTime > 0L -> {
@@ -100,99 +91,58 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetC
 				state.enabledSourcesCount,
 			)
 
-			val resumeContent = state.resumeState.content
-			binding.textViewResumeTitle.text = resumeContent?.title
-				?: getString(R.string.home_resume_empty_title)
-			binding.textViewResumeSubtitle.text = when {
-				state.resumeState.progressPercent != null -> {
-					getString(
-						R.string.home_resume_progress,
-						state.resumeState.progressPercent,
-					)
-				}
-				resumeContent != null -> getString(R.string.home_recent_open_details)
-				else -> getString(R.string.home_resume_empty_subtitle)
-			}
-			bindCover(binding.imageViewResumeCover, resumeContent)
-			binding.buttonResumeRead.isEnabled = state.resumeState.isAvailable
-			binding.buttonResumeDetails.isEnabled = state.resumeState.isAvailable
-			binding.buttonResumeRead.alpha = if (state.resumeState.isAvailable) 1f else 0.6f
-			binding.buttonResumeDetails.alpha = if (state.resumeState.isAvailable) 1f else 0.6f
-			binding.imageViewResumeCover.alpha = if (state.resumeState.isAvailable) 1f else 0.6f
-
 			val historyRows = listOf(
-				RecentRowViews(
-					container = binding.recentItem1Container,
-					title = binding.textViewRecentItem1,
-					meta = binding.textViewRecentItem1Meta,
+				CoverSlotViews(
+					container = binding.recentCover1Container,
 					cover = binding.imageViewRecentItem1Cover,
 				),
-				RecentRowViews(
-					container = binding.recentItem2Container,
-					title = binding.textViewRecentItem2,
-					meta = binding.textViewRecentItem2Meta,
+				CoverSlotViews(
+					container = binding.recentCover2Container,
 					cover = binding.imageViewRecentItem2Cover,
 				),
-				RecentRowViews(
-					container = binding.recentItem3Container,
-					title = binding.textViewRecentItem3,
-					meta = binding.textViewRecentItem3Meta,
+				CoverSlotViews(
+					container = binding.recentCover3Container,
 					cover = binding.imageViewRecentItem3Cover,
 				),
 			)
-			historyRows.forEachIndexed { index, row ->
-				val item = state.recentHistoryItems.getOrNull(index)
-				val typeLabelResId = item?.typeLabelResId
-				row.title.text = item?.title
-					?: row.title.context.getString(R.string.history_is_empty)
-				row.meta.text = when {
-					typeLabelResId != null -> getString(typeLabelResId)
-					item != null -> getString(R.string.home_recent_open_details)
-					else -> getString(R.string.home_recent_empty_subtitle)
-				}
-				bindCover(row.cover, item?.content)
-				val isEnabled = item != null
-				row.container.isEnabled = isEnabled
-				row.title.isEnabled = isEnabled
-				row.meta.isEnabled = isEnabled
-				val alpha = if (isEnabled) 1f else 0.6f
-				row.container.alpha = alpha
-				row.title.alpha = alpha
-				row.meta.alpha = alpha
-				row.cover.alpha = alpha
-				row.container.setOnClickListener {
-					item?.let { recent -> router.openDetails(recent.content) }
-				}
+			bindCoverSlots(historyRows, state.recentHistoryItems.map { it.content }) { recent ->
+				router.openDetails(recent)
 			}
 
 			val updateRows = listOf(
-				binding.textViewUpdateItem1 to binding.textViewUpdateItem1Meta,
-				binding.textViewUpdateItem2 to binding.textViewUpdateItem2Meta,
-				binding.textViewUpdateItem3 to binding.textViewUpdateItem3Meta,
+				CoverSlotViews(
+					container = binding.updateCover1Container,
+					cover = binding.imageViewUpdateItem1Cover,
+				),
+				CoverSlotViews(
+					container = binding.updateCover2Container,
+					cover = binding.imageViewUpdateItem2Cover,
+				),
+				CoverSlotViews(
+					container = binding.updateCover3Container,
+					cover = binding.imageViewUpdateItem3Cover,
+				),
 			)
-			updateRows.forEachIndexed { index, (titleView, metaView) ->
-				val item = state.recentUpdates.getOrNull(index)
-				titleView.text = item?.title
-					?: titleView.context.getString(R.string.home_updates_empty_title)
-				metaView.text = if (item != null) {
-					resources.getQuantityString(
-						R.plurals.home_updates_new_chapters,
-						item.newChapters,
-						item.newChapters,
-					)
-				} else {
-					getString(R.string.home_updates_empty_subtitle)
-				}
-				val isEnabled = item != null
-				titleView.isEnabled = isEnabled
-				metaView.isEnabled = isEnabled
-				titleView.alpha = if (isEnabled) 1f else 0.6f
-				metaView.alpha = if (isEnabled) 1f else 0.6f
-				val clickListener = View.OnClickListener {
-					item?.let { update -> router.openDetails(update.content) }
-				}
-				titleView.setOnClickListener(clickListener)
-				metaView.setOnClickListener(clickListener)
+			bindCoverSlots(updateRows, state.recentUpdates.map { it.content }) { update ->
+				router.openDetails(update)
+			}
+
+			val recommendationRows = listOf(
+				CoverSlotViews(
+					container = binding.recommendationCover1Container,
+					cover = binding.imageViewRecommendationItem1Cover,
+				),
+				CoverSlotViews(
+					container = binding.recommendationCover2Container,
+					cover = binding.imageViewRecommendationItem2Cover,
+				),
+				CoverSlotViews(
+					container = binding.recommendationCover3Container,
+					cover = binding.imageViewRecommendationItem3Cover,
+				),
+			)
+			bindCoverSlots(recommendationRows, state.recommendations.map { it.content }) { recommendation ->
+				router.openDetails(recommendation)
 			}
 
 			val sourceBreakdown = state.sourceBreakdown
@@ -230,29 +180,74 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetC
 		return insets
 	}
 
-	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
-		val appBar = appBarLayout ?: return
-		if (appBar.bottom > 0) {
-			appBar.setExpanded(false, false)
+	private fun syncSelectedTab(tab: HomeContentTab) {
+		val binding = requireViewBinding()
+		val recentCheckedId = when (tab) {
+			HomeContentTab.MANGA -> binding.buttonRecentFilterManga.id
+			HomeContentTab.NOVEL -> binding.buttonRecentFilterNovel.id
+			HomeContentTab.VIDEO -> binding.buttonRecentFilterVideo.id
+		}
+		val updatesCheckedId = when (tab) {
+			HomeContentTab.MANGA -> binding.buttonUpdatesFilterManga.id
+			HomeContentTab.NOVEL -> binding.buttonUpdatesFilterNovel.id
+			HomeContentTab.VIDEO -> binding.buttonUpdatesFilterVideo.id
+		}
+		val recommendationsCheckedId = when (tab) {
+			HomeContentTab.MANGA -> binding.buttonRecommendationsFilterManga.id
+			HomeContentTab.NOVEL -> binding.buttonRecommendationsFilterNovel.id
+			HomeContentTab.VIDEO -> binding.buttonRecommendationsFilterVideo.id
+		}
+		binding.toggleGroupRecentContentType.check(recentCheckedId)
+		binding.toggleGroupUpdatesContentType.check(updatesCheckedId)
+		binding.toggleGroupRecommendationsContentType.check(recommendationsCheckedId)
+	}
+
+	private fun currentBrowseGroupTab(): BrowseGroupTab {
+		return when (viewModel.summaryState.value.selectedTab) {
+			HomeContentTab.MANGA -> BrowseGroupTab.Content
+			HomeContentTab.NOVEL -> BrowseGroupTab.Novel
+			HomeContentTab.VIDEO -> BrowseGroupTab.Video
 		}
 	}
 
 	override fun onDestroyView() {
-		(activity as? AppBarOwner)?.appBar?.removeOnOffsetChangedListener(this)
+		requireViewBinding().root.setOnScrollChangeListener(null as NestedScrollView.OnScrollChangeListener?)
+		showHomeChrome()
 		super.onDestroyView()
-	}
-
-	private fun updateUpdatesButtonLabel(tab: HomeContentTab) {
-		requireViewBinding().buttonViewAllUpdates.text = when (tab) {
-			HomeContentTab.MANGA -> getString(R.string.view_all)
-			HomeContentTab.NOVEL -> getString(R.string.view_all)
-			HomeContentTab.VIDEO -> getString(R.string.view_all)
-		}
 	}
 
 	private fun bindCover(imageView: org.skepsun.kototoro.image.ui.CoverImageView, content: Content?) {
 		val coverUrl = content?.largeCoverUrl.ifNullOrEmpty { content?.coverUrl }
 		imageView.setImageAsync(coverUrl, content)
+	}
+
+	private fun bindCoverSlot(
+		slot: CoverSlotViews,
+		content: Content?,
+		title: String?,
+		onClick: (Content) -> Unit,
+	) {
+		bindCover(slot.cover, content)
+		val isEnabled = content != null
+		slot.container.isEnabled = isEnabled
+		slot.container.isVisible = true
+		slot.container.alpha = if (isEnabled) 1f else 0.35f
+		slot.cover.alpha = if (isEnabled) 1f else 0.35f
+		slot.container.contentDescription = title ?: getString(R.string.history_is_empty)
+		slot.container.setOnClickListener {
+			content?.let(onClick)
+		}
+	}
+
+	private fun bindCoverSlots(
+		slots: List<CoverSlotViews>,
+		contents: List<Content>,
+		onClick: (Content) -> Unit,
+	) {
+		slots.forEachIndexed { index, slot ->
+			val content = contents.getOrNull(index)
+			bindCoverSlot(slot, content, content?.title, onClick)
+		}
 	}
 
 	private fun getSourceOriginLabel(origin: HomeSourceOrigin): String {
@@ -267,10 +262,47 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetC
 		}
 	}
 
-	private data class RecentRowViews(
+	private fun setupHomeScrollChrome(scrollView: NestedScrollView) {
+		val scrollThreshold = resources.getDimensionPixelOffset(R.dimen.list_spacing_large) * 2
+		homeScrollAnchorY = scrollView.scrollY
+		scrollView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+			val delta = scrollY - homeScrollAnchorY
+			when {
+				scrollY <= 0 -> {
+					homeScrollAnchorY = 0
+					showHomeChrome()
+				}
+
+				abs(delta) < scrollThreshold -> Unit
+
+				delta > 0 -> {
+					homeScrollAnchorY = scrollY
+					hideHomeChrome()
+				}
+
+				else -> {
+					homeScrollAnchorY = scrollY
+					showHomeChrome()
+				}
+			}
+		}
+	}
+
+	private fun hideHomeChrome() {
+		if (isHomeChromeHidden) return
+		(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
+		(activity as? BottomNavOwner)?.bottomNav?.hide()
+		isHomeChromeHidden = true
+	}
+
+	private fun showHomeChrome() {
+		(activity as? AppBarOwner)?.appBar?.setExpanded(true, true)
+		(activity as? BottomNavOwner)?.bottomNav?.show()
+		isHomeChromeHidden = false
+	}
+
+	private data class CoverSlotViews(
 		val container: View,
-		val title: android.widget.TextView,
-		val meta: android.widget.TextView,
 		val cover: org.skepsun.kototoro.image.ui.CoverImageView,
 	)
 }

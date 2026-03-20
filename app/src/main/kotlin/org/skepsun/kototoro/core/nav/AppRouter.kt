@@ -74,6 +74,7 @@ import org.skepsun.kototoro.favourites.ui.categories.select.FavoriteDialog
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
 import org.skepsun.kototoro.filter.ui.tags.TagsCatalogSheet
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.history.ui.HistoryActivity
 import org.skepsun.kototoro.image.ui.ImageActivity
 import org.skepsun.kototoro.list.ui.config.ListConfigBottomSheet
@@ -444,8 +445,8 @@ class AppRouter private constructor(
 
     fun openAppUpdate() = startActivity(AppUpdateActivity::class.java)
 
-    fun openSuggestions() {
-        startActivity(suggestionsIntent(contextOrNull() ?: return))
+    fun openSuggestions(groupTab: BrowseGroupTab? = null) {
+        startActivity(suggestionsIntent(contextOrNull() ?: return, groupTab))
     }
 
     fun openSourcesCatalog() = startActivity(SourcesCatalogActivity::class.java)
@@ -472,7 +473,9 @@ class AppRouter private constructor(
         )
     }
 
-    fun openHistory() = startActivity(HistoryActivity::class.java)
+    fun openHistory(groupTab: BrowseGroupTab? = null) {
+        startActivity(historyIntent(contextOrNull() ?: return, groupTab))
+    }
 
     fun openFavorites() = startActivity(FavouritesActivity::class.java)
 
@@ -495,8 +498,8 @@ class AppRouter private constructor(
 
     fun openFavoriteCategoryCreate() = openFavoriteCategoryEdit(FavouritesCategoryEditActivity.NO_ID)
 
-    fun openMangaUpdates() {
-        startActivity(mangaUpdatesIntent(contextOrNull() ?: return))
+    fun openMangaUpdates(groupTab: BrowseGroupTab? = null) {
+        startActivity(mangaUpdatesIntent(contextOrNull() ?: return, groupTab))
     }
 
     fun openContentOverrideConfig(manga: Content) {
@@ -508,6 +511,14 @@ class AppRouter private constructor(
 
     fun openReaderSettings() {
         startActivity(readerSettingsIntent(contextOrNull() ?: return))
+    }
+
+    fun openSyncSettings() {
+        startActivity(syncSettingsIntent(contextOrNull() ?: return))
+    }
+
+    fun openPeriodicBackupSettings() {
+        openSyncSettings()
     }
 
     fun openProxySettings() {
@@ -995,11 +1006,28 @@ class AppRouter private constructor(
             .putExtra(KEY_TITLE, title)
             .putExtra(KEY_SOURCE, source?.name)
 
-        fun suggestionsIntent(context: Context) = Intent(context, SuggestionsActivity::class.java)
+        fun suggestionsIntent(context: Context, groupTab: BrowseGroupTab? = null) =
+            Intent(context, SuggestionsActivity::class.java).apply {
+                if (groupTab != null) {
+                    putExtra(KEY_GROUP_TAB, groupTab.id)
+                }
+            }
 
         fun homeIntent(context: Context) = Intent(context, MainActivity::class.java)
 
-        fun mangaUpdatesIntent(context: Context) = Intent(context, UpdatesActivity::class.java)
+        fun historyIntent(context: Context, groupTab: BrowseGroupTab? = null) =
+            Intent(context, HistoryActivity::class.java).apply {
+                if (groupTab != null) {
+                    putExtra(KEY_GROUP_TAB, groupTab.id)
+                }
+            }
+
+        fun mangaUpdatesIntent(context: Context, groupTab: BrowseGroupTab? = null) =
+            Intent(context, UpdatesActivity::class.java).apply {
+                if (groupTab != null) {
+                    putExtra(KEY_GROUP_TAB, groupTab.id)
+                }
+            }
 
         fun readerSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
@@ -1012,6 +1040,10 @@ class AppRouter private constructor(
         fun trackerSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_TRACKER)
+
+        fun syncSettingsIntent(context: Context) =
+            Intent(context, SettingsActivity::class.java)
+                .setAction(ACTION_SYNC_SETTINGS)
 
         fun periodicBackupSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
@@ -1116,6 +1148,7 @@ class AppRouter private constructor(
         const val KEY_SOURCE = "source"
         const val KEY_SOURCE_TYPES = "source_types"
         const val KEY_CONTENT_KINDS = "content_kinds"
+        const val KEY_GROUP_TAB = "group_tab"
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"
         const val KEY_URL = "url"
@@ -1131,6 +1164,7 @@ class AppRouter private constructor(
         val ACTION_SOURCES = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SOURCES"
         val ACTION_MANAGE_DISCORD = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DISCORD"
         val ACTION_SUGGESTIONS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SUGGESTIONS"
+        val ACTION_SYNC_SETTINGS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SYNC_SETTINGS"
         val ACTION_TRACKER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRACKER"
         val ACTION_PERIODIC_BACKUP = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PERIODIC_BACKUP"
 

@@ -9,6 +9,7 @@ import androidx.fragment.app.viewModels
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.ui.list.RecyclerScrollKeeper
@@ -16,6 +17,8 @@ import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.ContentListFragment
 import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
 
@@ -24,8 +27,12 @@ class HistoryListFragment : ContentListFragment() {
 
 	override val viewModel by viewModels<HistoryListViewModel>()
 	override val isSwipeRefreshEnabled = false
+	override fun sourceTagChipEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
 	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+		arguments?.getString(AppRouter.KEY_GROUP_TAB)
+			?.let(BrowseGroupTab::fromId)
+			?.let(viewModel::setSelectedGroupTab)
 		super.onViewBindingCreated(binding, savedInstanceState)
 		RecyclerScrollKeeper(binding.recyclerView).attach()
 		addMenuProvider(HistoryListMenuProvider(binding.root.context, router, viewModel))

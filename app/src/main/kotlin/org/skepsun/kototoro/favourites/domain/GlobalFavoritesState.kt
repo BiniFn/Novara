@@ -71,14 +71,15 @@ class GlobalFavoritesState @Inject constructor(
 
 	// Source Tags (Mihon, Local, etc.)
 	private val _selectedSourceTags = MutableStateFlow<Set<SourceTag>>(
-		SourceTag.fromIds(settings.getSelectedSourceTags())
+		SourceTag.sanitizeQuickFilterSelection(SourceTag.fromIds(settings.getSelectedSourceTags()))
 	)
 	val selectedSourceTags = _selectedSourceTags.asStateFlow()
 
 	fun setSelectedSourceTags(tags: Set<SourceTag>) {
-		if (_selectedSourceTags.value == tags) return
-		_selectedSourceTags.value = tags
-		settings.setSelectedSourceTags(tags.map { it.id }.toSet())
+		val sanitizedTags = SourceTag.sanitizeQuickFilterSelection(tags)
+		if (_selectedSourceTags.value == sanitizedTags) return
+		_selectedSourceTags.value = sanitizedTags
+		settings.setSelectedSourceTags(sanitizedTags.map { it.id }.toSet())
 	}
 
 	fun toggleSourceTag(tag: SourceTag) {

@@ -120,6 +120,8 @@ abstract class ContentListFragment :
 		container: ViewGroup?,
 	) = FragmentListBinding.inflate(inflater, container, false)
 
+	protected open fun sourceTagChipEntries(): List<SourceTag> = SourceTag.entries
+
 		override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 			super.onViewBindingCreated(binding, savedInstanceState)
 			listAdapter = onCreateAdapter()
@@ -549,7 +551,7 @@ abstract class ContentListFragment :
 		val density = resources.displayMetrics.density
 		val currentTags = viewModel.currentSourceTags.value
 
-		SourceTag.entries.forEach { tag ->
+		sourceTagChipEntries().forEach { tag ->
 			val chip = createCompactChip(
 				text = getString(tag.titleRes),
 				iconRes = null,

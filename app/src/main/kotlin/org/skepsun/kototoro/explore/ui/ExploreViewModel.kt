@@ -32,22 +32,17 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.explore.ui.model.ExploreButtons
 import org.skepsun.kototoro.explore.ui.model.SourceFilter
 import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
-import org.skepsun.kototoro.explore.ui.model.RecommendationsItem
 import org.skepsun.kototoro.list.ui.model.EmptyHint
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
-import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
-import org.skepsun.kototoro.parsers.util.runCatchingCancellable
-import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import javax.inject.Inject
 
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
 	private val settings: AppSettings,
-	private val suggestionRepository: SuggestionRepository,
 	private val exploreRepository: ExploreRepository,
 	private val sourcesRepository: ContentSourcesRepository,
 	private val shortcutManager: AppShortcutManager,
@@ -200,7 +195,6 @@ class ExploreViewModel @Inject constructor(
 
 	private fun createContentFlow() = kotlinx.coroutines.flow.combine(
 			sourcesRepository.observeEnabledBrowseSources(),
-			getSuggestionFlow(),
 			isGrid,
 			isAllSourcesEnabled,
 			sourcesRepository.observeHasNewSourcesForBadge(),
@@ -210,18 +204,16 @@ class ExploreViewModel @Inject constructor(
 			@Suppress("UNCHECKED_CAST")
 			buildList(
 				values[0] as List<ContentSourceInfo>,
-				values[1] as List<Content>,
+				values[1] as Boolean,
 				values[2] as Boolean,
 				values[3] as Boolean,
-				values[4] as Boolean,
-				values[5] as BrowseGroupTab,
-				values[6] as Set<SourceTag>,
+				values[4] as BrowseGroupTab,
+				values[5] as Set<SourceTag>,
 			)
 		}.withErrorHandling()
 
 	private fun buildList(
 		sources: List<ContentSourceInfo>,
-		recommendation: List<Content>,
 		isGrid: Boolean,
 		allSourcesEnabled: Boolean,
 		hasNewSources: Boolean,
@@ -232,10 +224,6 @@ class ExploreViewModel @Inject constructor(
 		val filteredSources = applyGroupTabFilter(sources, groupTab, sourceTags)
 		
 		val result = ArrayList<ListModel>(filteredSources.size + 3)
-		if (recommendation.isNotEmpty()) {
-			result += ListHeader(R.string.suggestions, R.string.more, R.id.nav_suggestions)
-			result += RecommendationsItem(recommendation.toRecommendationList())
-		}
 		if (filteredSources.isNotEmpty()) {
 			result += ListHeader(
 				textRes = R.string.remote_sources,
@@ -306,29 +294,9 @@ class ExploreViewModel @Inject constructor(
 		LoadingState,
 	)
 
-	private fun getSuggestionFlow() = isSuggestionsEnabled.mapLatest { isEnabled ->
-		if (isEnabled) {
-			runCatchingCancellable {
-				suggestionRepository.getRandomList(SUGGESTIONS_COUNT)
-			}.getOrDefault(emptyList())
-		} else {
-			emptyList()
-		}
-	}
-
-	private fun List<Content>.toRecommendationList() = map { manga ->
-		ContentCompactListModel(
-			manga = manga,
-			override = null,
-			subtitle = manga.tags.joinToString { it.title },
-			counter = 0,
-		)
-	}
-
 	companion object {
 
 		private const val TIP_SUGGESTIONS = "suggestions"
-		private const val SUGGESTIONS_COUNT = 8
 	}
 
 }

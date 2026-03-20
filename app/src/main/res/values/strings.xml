@@ -199,7 +199,7 @@
     <string name="home_overview_title">At a glance</string>
     <string name="sync_status">Sync status</string>
     <string name="home_sync_status_auto">WebDAV Auto Sync</string>
-    <string name="home_sync_status_ready">WebDAV Backup</string>
+    <string name="home_sync_status_ready">WebDAV Sync Ready</string>
     <string name="home_sync_status_not_configured">Not configured</string>
     <string name="home_sync_subtitle_ready">Ready</string>
     <string name="home_sync_subtitle_configure">Open settings to configure</string>
@@ -585,6 +585,7 @@
     <string name="sync_auth_hint">You can sign in into an existing account or create a new one</string>
     <string name="find_similar">Find similar</string>
     <string name="sync_settings">Synchronization settings</string>
+    <string name="sync_settings_summary">Configure WebDAV sync, backup, and restore.</string>
     <string name="server_address">Server address</string>
     <string name="sync_host_description">You can use a self-hosted synchronization server or a default one. Don\'t change this if you\'re not sure what you\'re doing.</string>
     <string name="ignore_ssl_errors">Ignore SSL errors</string>
@@ -742,6 +743,7 @@
     <string name="sync_favourites_skip_no_category">Skip %1$s (no local category)</string>
     <string name="online_variant">Online variant</string>
     <string name="periodic_backups">Periodic backups</string>
+    <string name="sync_local_backup_section">Local backup</string>
     <string name="backup_frequency">Backup creation frequency</string>
     <string name="frequency_every_6_hours">Every 6 hours</string>
     <string name="frequency_every_day">Every day</string>
@@ -750,6 +752,8 @@
     <string name="frequency_twice_per_month">Twice per month</string>
     <string name="frequency_once_per_month">Once per month</string>
     <string name="periodic_backups_enable">Enable periodic backups</string>
+    <string name="sync_auto_backup_enable">Enable automatic backups</string>
+    <string name="sync_auto_backup_enable_summary">Create local backups on a schedule. WebDAV sync can reuse them when keeping a local copy.</string>
     <string name="backups_output_directory">Backups output directory</string>
     <string name="last_successful_backup">Last successful backup: %s</string>
     <string name="speed_value">x%.1f</string>
@@ -1330,6 +1334,8 @@
     <string name="telegram_integration">Telegram integration</string>
     <!-- WebDAV -->
     <string name="webdav_integration">WebDAV integration</string>
+    <string name="sync_webdav_enable">Enable WebDAV sync</string>
+    <string name="sync_webdav_enable_summary">Keep reading data available across devices through WebDAV.</string>
     <string name="send_backups_webdav">Upload backups to WebDAV</string>
     <string name="webdav_server_url">WebDAV server URL</string>
     <string name="webdav_username">WebDAV username</string>

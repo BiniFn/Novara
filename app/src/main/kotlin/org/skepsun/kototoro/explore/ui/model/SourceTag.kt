@@ -51,6 +51,17 @@ enum class SourceTag(
     }
 
     companion object {
+        val quickFilterEntries: List<SourceTag> = listOf(
+            BUILTIN,
+            MIHON,
+            ANIYOMI,
+            LEGADO,
+            TVBOX,
+        )
+
+        fun sanitizeQuickFilterSelection(tags: Set<SourceTag>): Set<SourceTag> =
+            tags.filterTo(linkedSetOf()) { it in quickFilterEntries }
+
         fun fromIds(ids: Collection<String>): Set<SourceTag> =
             ids.mapNotNull { id ->
                 when (id) {

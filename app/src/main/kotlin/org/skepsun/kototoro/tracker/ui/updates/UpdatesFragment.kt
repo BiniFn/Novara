@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.tracker.ui.updates
 
+import android.os.Bundle
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
@@ -7,7 +8,10 @@ import androidx.appcompat.view.ActionMode
 import androidx.fragment.app.viewModels
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
+import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.list.ui.ContentListFragment
 
 @AndroidEntryPoint
@@ -15,6 +19,13 @@ class UpdatesFragment : ContentListFragment() {
 
 	override val viewModel by viewModels<UpdatesViewModel>()
 	override val isSwipeRefreshEnabled = false
+
+	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+		arguments?.getString(AppRouter.KEY_GROUP_TAB)
+			?.let(BrowseGroupTab::fromId)
+			?.let(viewModel::setSelectedGroupTab)
+		super.onViewBindingCreated(binding, savedInstanceState)
+	}
 
 	override fun onScrolledToEnd() = Unit
 

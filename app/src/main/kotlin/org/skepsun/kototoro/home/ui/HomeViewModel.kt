@@ -22,6 +22,7 @@ import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import org.skepsun.kototoro.tracking.discovery.domain.PreferredTrackingSiteProvider
@@ -44,6 +45,13 @@ data class HomeRecentItem(
 data class HomeUpdateItem(
 	val content: Content,
 	val newChapters: Int,
+) {
+	val title: String
+		get() = content.title
+}
+
+data class HomeRecommendationItem(
+	val content: Content,
 ) {
 	val title: String
 		get() = content.title
@@ -94,6 +102,8 @@ data class HomeSummaryState(
 	val favoriteCategoriesCount: Int = 0,
 	val unreadUpdatesCount: Int = 0,
 	val recentUpdates: List<HomeUpdateItem> = emptyList(),
+	val recommendationsCount: Int = 0,
+	val recommendations: List<HomeRecommendationItem> = emptyList(),
 	val enabledSourcesCount: Int = 0,
 	val sourceBreakdown: List<HomeSourceBreakdown> = emptyList(),
 	val preferredTrackingSite: ScrobblerService = ScrobblerService.BANGUMI,
@@ -105,6 +115,7 @@ class HomeViewModel @Inject constructor(
 	historyRepository: HistoryRepository,
 	favouritesRepository: FavouritesRepository,
 	trackingRepository: TrackingRepository,
+	suggestionRepository: SuggestionRepository,
 	contentSourcesRepository: ContentSourcesRepository,
 	preferredTrackingSiteProvider: PreferredTrackingSiteProvider,
 	private val settings: AppSettings,
@@ -130,6 +141,7 @@ class HomeViewModel @Inject constructor(
 	private val favoriteCategoriesCountFlow = favouritesRepository.observeCategories().map { it.size }
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
 	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_RECENT_UPDATES_LIMIT, filterOptions = emptySet())
+	private val recommendationsFlow = suggestionRepository.observeAll()
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
 		.map { counts ->
@@ -174,17 +186,19 @@ class HomeViewModel @Inject constructor(
 				favoriteCategoriesCountFlow,
 				unreadUpdatesCountFlow,
 				recentUpdatesFlow,
-			) { favoriteCategoriesCount, unreadUpdatesCount, recentUpdates ->
-				Triple(favoriteCategoriesCount, unreadUpdatesCount, recentUpdates)
+				recommendationsFlow,
+			) { favoriteCategoriesCount, unreadUpdatesCount, recentUpdates, recommendations ->
+				Quadruple(favoriteCategoriesCount, unreadUpdatesCount, recentUpdates, recommendations)
 			},
 		) { left, right ->
-			Sextuple(
+			Septuple(
 				left.first,
 				left.second,
 				left.third,
 				right.first,
 				right.second,
 				right.third,
+				right.fourth,
 			)
 		},
 		combine(
@@ -202,6 +216,7 @@ class HomeViewModel @Inject constructor(
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
 		val recentUpdates = left.sixth.filterTrackingsByTab(selectedTab)
+		val recommendations = left.seventh.filterContentsByTab(selectedTab)
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
 		val preferredTrackingSite = right.third
@@ -216,6 +231,8 @@ class HomeViewModel @Inject constructor(
 			favoriteCategoriesCount = favoriteCategoriesCount,
 			unreadUpdatesCount = unreadUpdatesCount,
 			recentUpdates = recentUpdates.take(3).map { it.toHomeUpdateItem() },
+			recommendationsCount = recommendations.size,
+			recommendations = recommendations.take(3).map { HomeRecommendationItem(it) },
 			enabledSourcesCount = enabledSourcesCount,
 			sourceBreakdown = sourceBreakdown,
 			preferredTrackingSite = preferredTrackingSite,
@@ -246,6 +263,16 @@ private data class Sextuple<A, B, C, D, E, F>(
 	val fourth: D,
 	val fifth: E,
 	val sixth: F,
+)
+
+private data class Septuple<A, B, C, D, E, F, G>(
+	val first: A,
+	val second: B,
+	val third: C,
+	val fourth: D,
+	val fifth: E,
+	val sixth: F,
+	val seventh: G,
 )
 
 private fun ContentTracking.toHomeUpdateItem(): HomeUpdateItem {

@@ -9,7 +9,6 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.get
 import dagger.Reusable
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsFragment
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.settings.AppearanceSettingsFragment
 import org.skepsun.kototoro.settings.DownloadsSettingsFragment
@@ -48,7 +47,12 @@ class SettingsSearchHelper @Inject constructor(
             emptyList(),
             StorageAndNetworkSettingsFragment::class.java,
         )
-        preferenceManager.inflateTo(result, R.xml.pref_backups, emptyList(), BackupsSettingsFragment::class.java)
+        preferenceManager.inflateTo(
+            result,
+            R.xml.pref_backups,
+            listOf(context.getString(R.string.services)),
+            BackupsSettingsFragment::class.java,
+        )
         preferenceManager.inflateTo(
             result,
             R.xml.pref_data_cleanup,
@@ -59,12 +63,6 @@ class SettingsSearchHelper @Inject constructor(
         preferenceManager.inflateTo(result, R.xml.pref_tracker, emptyList(), TrackerSettingsFragment::class.java)
         preferenceManager.inflateTo(result, R.xml.pref_services, emptyList(), ServicesSettingsFragment::class.java)
         preferenceManager.inflateTo(result, R.xml.pref_about, emptyList(), AboutSettingsFragment::class.java)
-        preferenceManager.inflateTo(
-            result,
-            R.xml.pref_backup_periodic,
-            listOf(context.getString(R.string.backup_restore)),
-            PeriodicalBackupSettingsFragment::class.java,
-        )
         preferenceManager.inflateTo(
             result,
             R.xml.pref_proxy,

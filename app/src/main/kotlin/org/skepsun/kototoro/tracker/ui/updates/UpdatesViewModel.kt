@@ -76,9 +76,9 @@ class UpdatesViewModel @Inject constructor(
 				listOfNotNull(
 					quickFilter.filterItem(filters),
 					EmptyState(
-						icon = R.drawable.ic_empty_history,
-						textPrimary = R.string.text_history_holder_primary,
-						textSecondary = R.string.text_history_holder_secondary,
+						icon = R.drawable.ic_empty_feed,
+						textPrimary = R.string.text_empty_holder_primary,
+						textSecondary = R.string.text_feed_holder,
 						actionStringRes = 0,
 					),
 				)

@@ -21,7 +21,6 @@ import kotlinx.coroutines.launch
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsFragment
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseActivity
@@ -161,8 +160,9 @@ class SettingsActivity :
 			AppRouter.ACTION_READER -> ReaderSettingsFragment()
 			AppRouter.ACTION_SUGGESTIONS -> SuggestionsSettingsFragment()
 			AppRouter.ACTION_HISTORY -> BackupsSettingsFragment()
+			AppRouter.ACTION_SYNC_SETTINGS -> BackupsSettingsFragment()
 			AppRouter.ACTION_TRACKER -> TrackerSettingsFragment()
-			AppRouter.ACTION_PERIODIC_BACKUP -> PeriodicalBackupSettingsFragment()
+			AppRouter.ACTION_PERIODIC_BACKUP -> BackupsSettingsFragment()
 			AppRouter.ACTION_SOURCES -> SourcesSettingsFragment()
 			AppRouter.ACTION_MANAGE_DISCORD -> DiscordSettingsFragment()
 			AppRouter.ACTION_PROXY -> ProxySettingsFragment()

@@ -57,8 +57,8 @@ class FavouritesContainerViewModel @Inject constructor(
 
 	val currentGroupTab = globalFavoritesState.selectedGroupTab
 	val selectedSourceTags = globalFavoritesState.selectedSourceTags
-	val availableSourceTags = flowOf(SourceTag.entries.toSet())
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, SourceTag.entries.toSet())
+	val availableSourceTags = flowOf(SourceTag.quickFilterEntries.toSet())
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, SourceTag.quickFilterEntries.toSet())
 
 	fun setSelectedGroupTab(tab: BrowseGroupTab) {
 		if (globalFavoritesState.selectedGroupTab.value == tab) {

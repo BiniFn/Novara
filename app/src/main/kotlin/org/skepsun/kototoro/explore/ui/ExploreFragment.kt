@@ -231,7 +231,7 @@ class ExploreFragment :
 		val density = resources.displayMetrics.density
 		val currentTags = viewModel.currentSourceTags.value ?: emptySet()
 		
-		SourceTag.entries.forEach { tag ->
+		SourceTag.quickFilterEntries.forEach { tag ->
 			val chip = createCompactChip(
 				text = getString(tag.titleRes),
 				iconRes = null,
