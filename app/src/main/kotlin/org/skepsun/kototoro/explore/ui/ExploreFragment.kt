@@ -101,13 +101,9 @@ class ExploreFragment :
 		rebuildSourceTagChips(binding)
 		
 		// Setup menu with quick access actions
-		val menuProvider = ExploreMenuProvider(router) { viewModel.openRandom() }
+		val menuProvider = ExploreMenuProvider(router)
 		addMenuProvider(menuProvider)
 		
-		// Observe random loading state to update menu
-		viewModel.isRandomLoading.observe(viewLifecycleOwner) { isLoading ->
-			menuProvider.setRandomLoading(isLoading)
-		}
 		
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))

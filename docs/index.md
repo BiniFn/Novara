@@ -35,10 +35,10 @@ features:
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, or Legado ecosystems.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
-- Read [TVBox Integration Plan](./architecture/tvbox-integration-implementation-plan.md) if you want to continue the TVBox source work.
+- Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
+- Read [UI Improvement](./architecture/ui_improvement.md) to track UI enhancements.
 - Read [Automatic Translation](./automatic-translation.md) if you want local OCR + translation inside the reader.
 - Read [Development](./development.md) and [Contributing](./contributing.md) if you want to build or modify the app.
-- Read [Extensions Management Handoff](./architecture/extensions-management-handoff-2026-03.md) if you want to continue the unified Mihon / Aniyomi extension management work.
 
 ## What Makes Kototoro Different
 

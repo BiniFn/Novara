@@ -2,12 +2,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto">
 
-	<!-- Quick access actions grid -->
-	<item
-		android:id="@+id/action_quick_grid"
-		android:title="@string/quick_access"
-		app:actionLayout="@layout/layout_explore_quick_actions"
-		app:showAsAction="always" />
+
 
 	<!-- Overflow menu -->
 	<item

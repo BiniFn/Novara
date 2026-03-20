@@ -509,6 +509,10 @@ class AppRouter private constructor(
 
     fun openSettings() = startActivity(SettingsActivity::class.java)
 
+    fun openTranslationSettings() {
+        startActivity(translationSettingsIntent(contextOrNull() ?: return))
+    }
+
     fun openReaderSettings() {
         startActivity(readerSettingsIntent(contextOrNull() ?: return))
     }
@@ -1033,6 +1037,10 @@ class AppRouter private constructor(
             Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_READER)
 
+        fun translationSettingsIntent(context: Context) =
+            Intent(context, SettingsActivity::class.java)
+                .setAction(ACTION_TRANSLATION)
+
         fun suggestionsSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_SUGGESTIONS)
@@ -1166,6 +1174,7 @@ class AppRouter private constructor(
         val ACTION_SUGGESTIONS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SUGGESTIONS"
         val ACTION_SYNC_SETTINGS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SYNC_SETTINGS"
         val ACTION_TRACKER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRACKER"
+        val ACTION_TRANSLATION = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRANSLATION"
         val ACTION_PERIODIC_BACKUP = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PERIODIC_BACKUP"
 
         private const val ACCOUNT_KEY = "account"

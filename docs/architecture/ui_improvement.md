@@ -36,23 +36,20 @@
   │  │ [立即同步]                       ││
   │  └─────────────────────────────────┘│
   │                                      │
-  │  📖 最近阅读 (5)              [更多>]│
+  │  📖 历史 (8)         [筛选][更多]   │
   │  ┌─────┬─────┬─────┬─────┬─────┐   │
   │  │     │     │     │     │     │ → │  ← 横向滚动
   │  └─────┴─────┴─────┴─────┴─────┘   │
   │                                      │
-  │  ⭐ 收藏更新 (3)              [更多>]│
-  │  ┌─────────────────────────────────┐│
-  │  │ 作品A - 新增第10话               ││
-  │  │ 作品B - 新增第5话                ││
-  │  │ 作品C - 新增第12话               ││
-  │  └─────────────────────────────────┘│
+  │  ⭐ 更新 (8)          [筛选][更多]   │
+  │  ┌─────┬─────┬─────┬─────┬─────┐   │
+  │  │     │     │     │     │     │ → │  ← 横向滚动
+  │  └─────┴─────┴─────┴─────┴─────┘   │
   │                                      │
-  │  🔔 订阅动态 (2)              [更多>]│
-  │  ┌─────────────────────────────────┐│
-  │  │ 源1 更新了 5 部作品              ││
-  │  │ 源2 更新了 3 部作品              ││
-  │  └─────────────────────────────────┘│
+  │  🔔 推荐 (8)          [筛选][更多]   │
+  │  ┌─────┬─────┬─────┬─────┬─────┐   │
+  │  │     │     │     │     │     │ → │  ← 横向滚动
+  │  └─────┴─────┴─────┴─────┴─────┘   │
   │                                      │
   │  🔌 源管理                    [管理>]│
   │  ┌─────────────────────────────────┐│
@@ -69,18 +66,21 @@
   - 快速同步按钮
   - 同步冲突提示
 
-  #### 1.3.2 最近阅读卡片
-  - 横向滚动列表
-  - 显示最近 5-10 个阅读记录
+  #### 1.3.2 历史卡片
+  - 横向滚动封面列表
+  - 默认预览 8 个最近阅读记录
   - 封面 + 标题 + 阅读进度
   - 点击直接继续阅读
+  - 过滤器右侧提供紧凑型"更多"按钮
   - "更多"按钮跳转到完整历史页面
 
-  #### 1.3.3 收藏更新卡片
-  - 显示有新章节的收藏作品
-  - 作品名 + 更新信息
+  #### 1.3.3 更新卡片
+  - 横向滚动封面列表
+  - 默认预览 8 个最近更新作品
+  - 封面 + 更新信息
   - 点击跳转到详情页
-  - "更多"按钮跳转到完整收藏页面
+  - 过滤器右侧提供紧凑型"更多"按钮
+  - "更多"按钮跳转到完整更新页面
 
   #### 1.3.4 订阅动态卡片
   - 显示订阅源的更新摘要
@@ -767,3 +767,436 @@
               async(Dispatchers.IO) {
                   searchInSource(source, titles)
               }
+
+
+## 6. Implementation Priority & Sequence
+
+
+## 目标
+
+定义 `ui_improvement.md` 的推荐实施顺序，明确：
+
+- 哪些任务必须先做
+- 哪些任务可以并行
+- 哪些任务属于增强项，不应阻塞主线
+- 如何避免把追踪站点能力写死为 Bangumi 单站点实现
+
+---
+
+## 当前状态概览（2026-03-19）
+
+### 已完成或已实质完成的阶段
+
+- `P0` 信息架构稳定：已完成
+  - 主页导航入口已接入
+  - 默认启动链路已切到主页
+  - 导航配置页已兼容 `Home`
+- `P1` 主页最小可用版本：已实质完成
+  - 主页 Dashboard 首版已可用
+  - 真实数据聚合已接入
+- `P2` Explore 过滤器体验优化：已实质完成
+  - 两行固定布局已落地
+  - 横向滚动已移除
+  - `JavaScript` 源类型标签与图标已补齐
+- `P3` 追踪站点抽象层：已继续推进
+  - discovery / matcher / preferred-site 抽象已落地
+  - 详情页增强方案已收敛为复用既有 `scrobbling` 入口，并补齐空态引导
+
+### 尚未开始的阶段
+
+- `P4` Discover 一期
+- `P5` 自动关联与同步增强
+- `P6` 主页配置化增强
+
+---
+
+## 总体优先级
+
+### P0：信息架构稳定
+- 主页导航入口
+- 默认启动页策略
+- 导航配置兼容 `Home`
+
+状态：已完成
+
+### P1：主页最小可用版本
+- 主页容器与卡片列表
+- 主页状态聚合
+- 继续阅读、最近阅读、Library、最近更新、源概览、同步状态
+
+状态：已实质完成
+
+### P2：Explore 过滤器体验优化
+- 两行固定布局
+- 去除横向滚动
+- 补齐源类型图标资源
+
+状态：已实质完成
+
+### P3：追踪站点抽象与详情页增强
+- 梳理现有 `scrobbling/common`
+- 建立站点无关 discovery 抽象
+- 详情页追踪信息卡增强
+
+状态：抽象层已落地，详情页增强已复用既有 scrobbling 区块并补齐空态与首选站点优先展示
+
+### P4：发现页 Discover 一期
+- 页面结构
+- 站点切换
+- 默认 Bangumi 实现
+- 搜索、热门列表、详情跳转
+
+状态：进行中，已落地导航入口、最小站点切换、热门列表、搜索与站内详情跳转
+
+### P4.5：追踪站点详情页一期
+- 远端详情展示
+- 已绑定状态与本地入口
+- 绑定/管理入口
+- 站外打开入口
+- 后续接入本地入口与绑定能力
+
+状态：进行中，已落地最小详情页容器、远端详情展示、已绑定状态、本地入口与绑定/管理入口
+
+### P5：自动关联与同步增强
+- 自动匹配
+- 手动纠正
+- 状态、评分、进度同步增强
+
+状态：未开始
+
+### P6：配置化增强
+- 主页卡片显隐
+- 主页卡片数量
+- 主页卡片顺序
+
+状态：未开始
+
+---
+
+## 推荐阶段划分
+
+### 阶段 1：入口稳定
+- Issue 1：新增主页导航入口
+- Issue 4：导航配置页兼容 Home
+- Issue 5：主页默认启动页策略
+
+状态：已完成
+
+### 阶段 2：主页 MVP
+- Issue 2：主页模块 MVP 落地
+- Issue 3：主页数据聚合与状态模型收敛
+
+状态：已实质完成
+
+### 阶段 3：Explore 过滤器改造
+- Issue 6：Explore 过滤器改为两行固定布局
+- Issue 7：补齐 Explore 源类型图标资源
+
+状态：已实质完成
+
+### 阶段 4：追踪站点抽象层
+- Issue 9：梳理并复用现有追踪站点基础能力
+- Issue 10：预留追踪站点切换接口
+- Issue 12：追踪站点本地模型与缓存表设计
+
+状态：前两项已完成基础骨架，Issue 12 已进入读写接入阶段
+
+### 阶段 5：详情页追踪增强
+- Issue 11：详情页追踪信息卡一期
+
+状态：进行中（方案已收敛到复用既有入口，空态引导已落地）
+
+### 阶段 6：Discover 一期
+- Issue 14：发现页 Discover 一期
+- Issue 15：追踪站点详情页一期
+
+状态：进行中（Discover MVP 与追踪站点详情页一期均已进入可运行状态）
+
+### 阶段 7：自动关联与同步增强
+- Issue 13：追踪站点自动关联基础版
+- Issue 16：追踪状态同步增强
+
+状态：进行中（Issue 13 已进入 matcher、关联落表与推荐项动作菜单阶段）
+
+### 阶段 8：主页配置化增强
+- Issue 8：主页卡片配置能力
+
+状态：未开始
+
+---
+
+## 推荐执行顺序
+
+当前推荐顺序如下：
+
+1. 基于既有 scrobbling 入口完善详情页追踪增强
+2. 发现页 Discover 一期
+3. 追踪站点详情页一期
+4. 追踪站点本地模型与缓存表设计
+5. 自动关联基础版
+6. 追踪状态同步增强
+7. 主页卡片配置能力
+
+原因：
+
+- 主页与 Explore 主线已经收敛到可交付状态
+- discovery 抽象已落地，下一步应尽快接到真实 UI 入口
+- 详情页追踪卡比 Discover 更贴近当前主阅读链路，价值更直接
+- 自动关联和同步增强复杂度最高，应排在展示链路稳定之后
+
+---
+
+## 并行开发建议
+
+### 可并行组合 A
+- 分支 1：详情页追踪信息卡
+- 分支 2：追踪站点本地模型与缓存表
+
+原因：
+
+- 一个偏 UI 聚合，一个偏数据层
+- 改动边界相对独立
+
+### 可并行组合 B
+- 分支 3：Discover 一期
+- 分支 4：主页配置化增强
+
+原因：
+
+- 两者业务边界独立
+- 主页配置化不阻塞追踪站点主线
+
+---
+
+## 推荐分支顺序
+
+1. `feature/details-tracking-card`
+2. `feature/discover-page-v1`
+3. `feature/tracking-site-cache-model`
+4. `feature/tracking-auto-match`
+5. `feature/tracking-sync-enhancement`
+6. `feature/home-dashboard-config`
+
+---
+
+## 判断原则
+
+- KISS：先把现有抽象接到真实页面，不先做通用平台
+- YAGNI：未进入当前排期的评论聚合、跨站统一排序先不做
+- DRY：继续复用 `scrobbling/common` 与现有详情页能力
+- SOLID：UI 仅依赖站点无关接口，不直接依赖 `BangumiRepository`
+
+
+## 7. Tasks & Issues
+
+
+## 目标
+
+将 `ui_improvement.md` 中的设计方案拆分为可执行任务，并明确当前已落地进度、未完成部分和下一步顺序。
+
+约束如下：
+
+- 先稳定主页与主导航信息架构
+- 再完成 `Explore` 过滤器体验优化
+- 追踪站点能力必须基于站点无关抽象扩展，不能把 Bangumi 写死为唯一实现
+- 优先交付最小可运行闭环，避免过度设计
+
+---
+
+## 当前实现进度（2026-03-19）
+
+### 已完成或已实质落地
+
+- `Issue 1` 已完成：`Home` 已接入主导航，默认导航顺序已调整，并兼容现有导航配置入口。
+- `Issue 2` 已实质完成：主页已从占位页推进为可用的 Dashboard 首版。
+- `Issue 3` 已实质完成：主页状态已接入真实数据聚合，覆盖阅读历史、收藏、分类、更新、源数量、源分布、首选追踪站点与同步状态。
+- `Issue 4` 已完成：导航配置页已兼容 `Home`。
+- `Issue 5` 已完成：主页已作为默认导航首项接入启动链路。
+- `Issue 6` 已完成：`Explore` 过滤器已改为两行固定布局，移除了横向滚动依赖。
+- `Issue 7` 已实质完成：源类型图标体系已补齐到当前实现范围，额外新增了 `JavaScript` 源类型与图标，并打通到 `Explore`、搜索等共享标签模型。
+- 追踪站点切换预留接口已落地：已新增站点无关的 discovery / matcher / preferred-site 抽象，以及默认实现骨架与 `AppSettings` 持久化入口。
+- tracking/discovery 术语已开始对齐：发现列表模型已收敛到 `TrackingSiteItem`，并明确 `State` / `Link` 属于后续同步与持久化层。
+- tracking/discovery 术语继续收敛：详情模型已对齐为 `TrackingSiteItemDetails`，与 `TrackingSiteItem` 命名保持同层级一致。
+- `Issue 11` 已推进：详情页原有 `scrobbling` 区块已补齐基础空态、未关联引导与首选站点优先展示，后续增强继续基于现有追踪入口合并演进，不再新增平行卡片。
+- `Issue 14` 已推进：`Discover` 最小骨架已接入主导航，已支持基于首选追踪站点的最小站点切换、热门列表、站内搜索与站内详情跳转。
+- `Issue 12` 已推进：已落地追踪站点本地缓存骨架，并接入 `Discover` 与详情页的缓存读写链路，后续再补状态表与更完整的同步能力。
+- `Issue 15` 已推进：追踪站点详情页已落地最小容器，可展示远端详情、绑定/管理入口与站外打开入口，绑定状态与本地内容入口正统一到 `tracking_site_links` 链路。
+
+### 当前主页首版包含内容
+
+- 总览卡：最近阅读数量、未读更新数量、首选追踪站点、同步状态
+- 继续阅读卡：阅读入口与详情入口
+- 历史卡：默认 8 个最近阅读封面，支持横向滑动
+- Library 卡：收藏总数、分类数、进入收藏页入口
+- 更新卡：默认 8 个最近更新封面，支持横向滑动
+- 源概览卡：启用源数量、来源分布、进入源管理入口
+- 快捷入口卡：`Reader settings` 与 `Settings`
+
+### 已落地代码入口
+
+- 主页与导航：
+  - `app/src/main/kotlin/org/skepsun/kototoro/core/prefs/NavItem.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/core/prefs/AppSettings.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/main/ui/MainNavigationDelegate.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/settings/nav/NavConfigViewModel.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/home/ui/HomeFragment.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/home/ui/HomeViewModel.kt`
+  - `app/src/main/res/layout/fragment_home.xml`
+- Explore：
+  - `app/src/main/res/layout/fragment_explore.xml`
+  - `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/model/SourceTag.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/model/BrowseGroupTab.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/search/domain/SearchSourceTypes.kt`
+  - `app/src/main/res/drawable/ic_source_js.xml`
+- 追踪站点 discovery 抽象：
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingSiteDiscoveryService.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingSiteMatcher.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/PreferredTrackingSiteProvider.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingDiscoveryModels.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/AppSettingsPreferredTrackingSiteProvider.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/TrackingDiscoveryModule.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverFragment.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverViewModel.kt`
+  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverAdapter.kt`
+  - `app/src/main/res/layout/item_discover_site.xml`
+
+### 尚未开始或尚未进入可交付状态
+
+- `Issue 8`：主页卡片配置化尚未开始
+- 详情页追踪增强尚未覆盖自动关联与更完整的多站点交互
+- `Discover` 页面一期已进入 MVP 阶段
+- 自动关联、手动纠正与详情页消费 `tracking_site_links` 的最小闭环已进入收尾阶段，追踪状态增强同步尚未开始
+- Bangumi 本地缓存表与跨站点详情模型已进入数据库骨架阶段，但尚未进入最终形态
+
+---
+
+## 里程碑
+
+### M1：主页与导航稳定
+- `Issue 1`
+- `Issue 2`
+- `Issue 3`
+- `Issue 4`
+- `Issue 5`
+
+状态：已完成或已实质完成
+
+### M2：Explore 过滤器优化
+- `Issue 6`
+- `Issue 7`
+
+状态：已完成或已实质完成
+
+### M3：追踪站点最小价值闭环
+- `Issue 9`
+- `Issue 10`
+- `Issue 11`
+
+状态：已完成抽象层骨架，详情页增强方案已收敛到复用既有 scrobbling 入口
+
+### M4：追踪站点扩展能力
+- `Issue 12`
+- `Issue 13`
+- `Issue 14`
+- `Issue 15`
+
+状态：已进入 Discover MVP 与站点详情页最小闭环阶段
+
+### M5：主页增强
+- `Issue 8`
+
+状态：未开始
+
+---
+
+## Issue 列表
+
+### Issue 1：新增主页导航入口
+- 目标：在主导航中引入 `Home`，并作为默认信息聚合入口
+- 工作量：S
+- 状态：已完成
+
+### Issue 2：主页模块 MVP 落地
+- 目标：实现最小可用 Dashboard
+- 工作量：M
+- 状态：已实质完成
+
+### Issue 3：主页数据聚合与状态模型收敛
+- 目标：让主页基于真实数据流渲染
+- 工作量：M
+- 状态：已实质完成
+
+### Issue 4：导航配置页兼容 Home
+- 目标：让现有导航配置能力支持 `Home`
+- 工作量：S
+- 状态：已完成
+
+### Issue 5：主页默认启动页策略
+- 目标：把主页变成默认启动页
+- 工作量：S
+- 状态：已完成
+
+### Issue 6：Explore 过滤器改为两行固定布局
+- 目标：消除横向滚动，改成两行布局
+- 工作量：M
+- 状态：已完成
+
+### Issue 7：补齐 Explore 源类型图标资源
+- 目标：为过滤器提供统一图标，并补齐共享标签模型
+- 工作量：S
+- 状态：已实质完成
+
+### Issue 8：主页卡片配置能力
+- 目标：支持卡片显隐、数量和顺序配置
+- 工作量：M
+- 状态：未开始
+
+### Issue 9：梳理并复用现有追踪站点基础能力
+- 目标：明确现有 `scrobbling/common` 能力边界
+- 工作量：S
+- 状态：已完成基础梳理
+
+### Issue 10：预留追踪站点切换接口
+- 目标：站点发现与详情能力通过站点无关接口暴露
+- 工作量：M
+- 状态：已完成接口与默认实现骨架
+
+### Issue 11：详情页追踪信息卡一期
+- 目标：在现有详情页中显示站点无关追踪信息
+- 工作量：M
+- 状态：进行中（已复用既有 scrobbling 区块，并补齐空态引导、首选站点优先展示与推荐项动作菜单）
+
+### Issue 12：追踪站点本地模型与缓存表设计
+- 目标：为发现页和详情页提供本地可缓存模型
+- 工作量：M
+- 状态：进行中（已落地通用缓存表、链接表、DAO 与数据库迁移，并接入 `Discover`/详情页读写链路）
+
+### Issue 13：追踪站点自动关联基础版
+- 目标：实现本地内容与远端条目的最小可用匹配
+- 工作量：L
+- 状态：进行中（已落地 matcher、自动建议、已关联/推荐动作菜单与手动确认落表，详情页对 `tracking_site_links` 的消费链路正在补齐）
+
+### Issue 14：发现页 Discover 一期
+- 目标：实现站点切换、搜索、热门列表和详情跳转
+- 工作量：M
+- 状态：进行中（已落地导航入口、最小站点切换、热门列表、搜索与站内详情跳转）
+
+### Issue 15：追踪站点详情页一期
+- 目标：展示远端详情与本地入口
+- 工作量：M
+- 状态：进行中（已落地最小详情页容器、远端详情展示、绑定/管理入口与站外打开入口，绑定状态与本地内容入口正统一到 `tracking_site_links` 链路）
+
+### Issue 16：追踪状态同步增强
+- 目标：支持站点状态、评分、进度同步增强
+- 工作量：M
+- 状态：未开始
+
+---
+
+## 当前建议的下一步顺序
+
+1. 基于 `tracking_site_links` 推进自动关联基础版
+2. 在此基础上推进状态同步增强
+3. 继续增强追踪站点详情页与本地详情页的双向联动
+4. 最后做主页卡片配置化

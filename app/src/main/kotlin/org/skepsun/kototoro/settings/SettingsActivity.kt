@@ -162,6 +162,7 @@ class SettingsActivity :
 			AppRouter.ACTION_HISTORY -> BackupsSettingsFragment()
 			AppRouter.ACTION_SYNC_SETTINGS -> BackupsSettingsFragment()
 			AppRouter.ACTION_TRACKER -> TrackerSettingsFragment()
+			AppRouter.ACTION_TRANSLATION -> org.skepsun.kototoro.settings.TranslationSettingsFragment()
 			AppRouter.ACTION_PERIODIC_BACKUP -> BackupsSettingsFragment()
 			AppRouter.ACTION_SOURCES -> SourcesSettingsFragment()
 			AppRouter.ACTION_MANAGE_DISCORD -> DiscordSettingsFragment()

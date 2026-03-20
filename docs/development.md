@@ -71,10 +71,10 @@ Deployment model:
 - [Troubleshooting](./troubleshooting.md)
 - [Contributing](./contributing.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [Architecture Review](./architecture/architecture-review.md)
+- [Architecture Roadmap](./architecture/architecture-roadmap.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
-- [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
-- [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)
-- [Extensions Management Handoff (March 2026)](./architecture/extensions-management-handoff-2026-03.md)
+- [UI Improvement](./architecture/ui_improvement.md)
 
 ## Development Expectations
 
@@ -95,7 +95,7 @@ For contribution expectations, see [Contributing](./contributing.md).
 ## Advanced References
 
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [Architecture Review](./architecture/architecture-review.md)
+- [Architecture Roadmap](./architecture/architecture-roadmap.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
-- [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
-- [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)
-- [Extensions Management Handoff (March 2026)](./architecture/extensions-management-handoff-2026-03.md)
+- [UI Improvement](./architecture/ui_improvement.md)

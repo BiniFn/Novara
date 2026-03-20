@@ -208,10 +208,10 @@
     <string name="home_resume_empty_title">Nothing to resume</string>
     <string name="home_resume_empty_subtitle">Your latest reading progress will appear here</string>
     <string name="home_resume_progress">Progress %1$d%%</string>
-    <string name="recent_history">Recent history</string>
+    <string name="recent_history">History</string>
     <string name="home_recent_open_details">Open details</string>
     <string name="home_recent_empty_subtitle">Start reading to populate this card</string>
-    <string name="home_recent_updates">Recent updates</string>
+    <string name="home_recent_updates">Updates</string>
     <string name="home_updates_empty_title">No recent updates</string>
     <string name="home_updates_empty_subtitle">Tracked items with new chapters will appear here</string>
     <string name="view_all">View all</string>

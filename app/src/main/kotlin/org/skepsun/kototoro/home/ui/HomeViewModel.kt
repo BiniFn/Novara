@@ -11,10 +11,20 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.jsonsource.OriginGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.model.getContentType
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import org.skepsun.kototoro.backups.data.BackupRepository
+import org.skepsun.kototoro.backups.domain.BackupWebDavRestoreCoordinator
+import org.skepsun.kototoro.backups.domain.BackupWebDavUploadCoordinator
+import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
+import org.skepsun.kototoro.backups.ui.periodical.WebDavBackupUploader
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
@@ -27,9 +37,6 @@ import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import org.skepsun.kototoro.tracking.discovery.domain.PreferredTrackingSiteProvider
 import javax.inject.Inject
-
-private const val HOME_RECENT_HISTORY_LIMIT = 5
-private const val HOME_RECENT_UPDATES_LIMIT = 12
 
 data class HomeRecentItem(
 	val content: Content,
@@ -118,7 +125,14 @@ class HomeViewModel @Inject constructor(
 	suggestionRepository: SuggestionRepository,
 	contentSourcesRepository: ContentSourcesRepository,
 	preferredTrackingSiteProvider: PreferredTrackingSiteProvider,
+	private val exploreRepository: org.skepsun.kototoro.explore.domain.ExploreRepository,
 	private val settings: AppSettings,
+	private val webDavUploader: WebDavBackupUploader,
+	private val backupWebDavUploadCoordinator: BackupWebDavUploadCoordinator,
+	private val backupWebDavRestoreCoordinator: BackupWebDavRestoreCoordinator,
+	private val backupStorage: ExternalBackupStorage,
+	private val repository: BackupRepository,
+	@ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
 	private val selectedTabFlow = MutableStateFlow(HomeContentTab.MANGA)
@@ -136,11 +150,11 @@ class HomeViewModel @Inject constructor(
 				}
 			}
 		}
-	private val recentHistoryFlow = historyRepository.observeAll(limit = HOME_RECENT_HISTORY_LIMIT)
+	private val recentHistoryFlow = historyRepository.observeAll(limit = HOME_COVER_PREVIEW_LIMIT)
 	private val favoritesCountFlow = favouritesRepository.observeContentCount()
 	private val favoriteCategoriesCountFlow = favouritesRepository.observeCategories().map { it.size }
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
-	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_RECENT_UPDATES_LIMIT, filterOptions = emptySet())
+	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT, filterOptions = emptySet())
 	private val recommendationsFlow = suggestionRepository.observeAll()
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
@@ -225,14 +239,14 @@ class HomeViewModel @Inject constructor(
 		HomeSummaryState(
 			selectedTab = selectedTab,
 			recentHistoryCount = recentHistory.size,
-			recentHistoryItems = recentHistory.take(3).map { HomeRecentItem(it) },
+			recentHistoryItems = recentHistory.take(HOME_COVER_PREVIEW_LIMIT).map { HomeRecentItem(it) },
 			resumeState = resumeState,
 			favoritesCount = favoritesCount,
 			favoriteCategoriesCount = favoriteCategoriesCount,
 			unreadUpdatesCount = unreadUpdatesCount,
-			recentUpdates = recentUpdates.take(3).map { it.toHomeUpdateItem() },
+			recentUpdates = recentUpdates.take(HOME_COVER_PREVIEW_LIMIT).map { it.toHomeUpdateItem() },
 			recommendationsCount = recommendations.size,
-			recommendations = recommendations.take(3).map { HomeRecommendationItem(it) },
+			recommendations = recommendations.take(HOME_COVER_PREVIEW_LIMIT).map { HomeRecommendationItem(it) },
 			enabledSourcesCount = enabledSourcesCount,
 			sourceBreakdown = sourceBreakdown,
 			preferredTrackingSite = preferredTrackingSite,
@@ -246,6 +260,83 @@ class HomeViewModel @Inject constructor(
 
 	fun setSelectedTab(tab: HomeContentTab) {
 		selectedTabFlow.value = tab
+	}
+
+	val isRandomLoading = MutableStateFlow(false)
+	val onOpenContent = org.skepsun.kototoro.core.util.ext.MutableEventFlow<Content>()
+
+	fun openRandom() {
+		if (isRandomLoading.value) return
+		viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+			isRandomLoading.value = true
+			try {
+				val manga = exploreRepository.findRandomContent(tagsLimit = 8)
+				onOpenContent.call(manga)
+			} finally {
+				isRandomLoading.value = false
+			}
+		}
+	}
+
+	fun uploadWebDavNow() {
+		viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+			val output = org.skepsun.kototoro.backups.domain.BackupUtils.createTempFile(appContext)
+			try {
+				val zip = java.util.zip.ZipOutputStream(output.outputStream())
+				try {
+					repository.createBackup(zip, null)
+				} finally {
+					zip.close()
+				}
+				
+				if (settings.isBackupWebDavKeepLocalCopyEnabled) {
+					backupStorage.put(output)
+					backupStorage.trim(settings.periodicalBackupMaxCount)
+				}
+				backupWebDavUploadCoordinator.uploadAndCommit(
+					file = output,
+					uploadKind = "manual",
+				)
+			} catch (e: Exception) {
+				e.printStackTraceDebug()
+			} finally {
+				output.delete()
+			}
+		}
+	}
+
+	fun restoreWebDavNow() {
+		viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+			try {
+				val latest = webDavUploader.getLatestBackup()
+				if (latest == null) {
+					return@launch
+				}
+				val tempFile = java.io.File.createTempFile("webdav_backup_manual", ".bk.zip", appContext.cacheDir)
+				try {
+					webDavUploader.downloadBackup(latest.name, tempFile)
+					val allSections = setOf(
+						org.skepsun.kototoro.backups.domain.BackupSection.HISTORY,
+						org.skepsun.kototoro.backups.domain.BackupSection.CATEGORIES,
+						org.skepsun.kototoro.backups.domain.BackupSection.FAVOURITES,
+						org.skepsun.kototoro.backups.domain.BackupSection.BOOKMARKS,
+						org.skepsun.kototoro.backups.domain.BackupSection.SOURCES,
+						org.skepsun.kototoro.backups.domain.BackupSection.SETTINGS,
+					)
+					val zis = java.util.zip.ZipInputStream(java.io.FileInputStream(tempFile))
+					try {
+						repository.restoreBackup(zis, allSections, null)
+					} finally {
+						zis.close()
+					}
+					backupWebDavRestoreCoordinator.commitManualRestore()
+				} finally {
+					if (tempFile.exists()) tempFile.delete()
+				}
+			} catch (e: Exception) {
+				e.printStackTraceDebug()
+			}
+		}
 	}
 }
 

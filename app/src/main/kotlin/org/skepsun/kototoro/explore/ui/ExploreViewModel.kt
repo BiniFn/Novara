@@ -70,10 +70,7 @@ class ExploreViewModel @Inject constructor(
 	val onOpenContent = MutableEventFlow<Content>()
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val onShowSuggestionsTip = MutableEventFlow<Unit>()
-	
-	// Exposed for menu bar loading indicator
-	val isRandomLoading = MutableStateFlow(false)
-	
+
 	/**
 	 * Observable selected group tab for UI
 	 */
@@ -141,20 +138,6 @@ class ExploreViewModel @Inject constructor(
 		}
 	}
 
-	fun openRandom() {
-		if (isRandomLoading.value) {
-			return
-		}
-		launchJob(Dispatchers.Default) {
-			isRandomLoading.value = true
-			try {
-				val manga = exploreRepository.findRandomContent(tagsLimit = 8)
-				onOpenContent.call(manga)
-			} finally {
-				isRandomLoading.value = false
-			}
-		}
-	}
 
 	fun disableSources(sources: Collection<ContentSource>) {
 		launchJob(Dispatchers.Default) {

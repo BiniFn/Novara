@@ -8,7 +8,7 @@ export default defineConfig({
   description: "Documentation for Kototoro: manga, novels, video, OCR translation, and source integrations.",
   lang: "en-US",
   base,
-  ignoreDeadLinks: [/app\/src\//],
+  ignoreDeadLinks: [/app\/src\//, /\/build\.gradle/],
   lastUpdated: true,
   cleanUrls: true,
   head: [
@@ -51,12 +51,10 @@ export default defineConfig({
         text: "Reference",
         items: [
           { text: "Architecture Review", link: "/architecture/architecture-review" },
-          { text: "Mihon Integration", link: "/reference/mihon-integration" },
-          { text: "TVBox Integration Plan", link: "/architecture/tvbox-integration-implementation-plan" },
+          { text: "Architecture Roadmap", link: "/architecture/architecture-roadmap" },
           { text: "OCR Pipeline", link: "/architecture/ocr-pipeline-v2" },
-          { text: "Extensions Management Design", link: "/architecture/extensions-management-unification" },
-          { text: "Extensions Management Plan", link: "/architecture/extensions-management-implementation-plan" },
-          { text: "Extensions Management Handoff (2026-03)", link: "/architecture/extensions-management-handoff-2026-03" },
+          { text: "UI Improvement", link: "/architecture/ui_improvement" },
+          { text: "Mihon Integration", link: "/reference/mihon-integration" },
         ],
       },
       {

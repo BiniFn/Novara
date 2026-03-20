@@ -75,11 +75,17 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	var mainNavItems: List<NavItem>
 		get() {
-			val raw = prefs.getString(KEY_NAV_MAIN, null)?.split(',')
+			val rawStr = prefs.getString(KEY_NAV_MAIN, null)
+			if (rawStr == "HOME,HISTORY,FAVORITES,EXPLORE,FEED") {
+				val newDefaults = listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE)
+				prefs.edit { putString(KEY_NAV_MAIN, newDefaults.joinToString(",") { it.name }) }
+				return newDefaults
+			}
+			val raw = rawStr?.split(',')
 			return if (raw.isNullOrEmpty()) {
-				listOf(NavItem.HOME, NavItem.HISTORY, NavItem.FAVORITES, NavItem.EXPLORE, NavItem.FEED)
+				listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE)
 			} else {
-				raw.mapNotNull { x -> NavItem.entries.find(x) }.ifEmpty { listOf(NavItem.HOME) }
+				raw.mapNotNull { x -> NavItem.entries.find(x) }.ifEmpty { listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE) }
 			}
 		}
 		set(value) {

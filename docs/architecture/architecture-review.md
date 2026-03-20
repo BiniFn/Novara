@@ -342,7 +342,7 @@ Relevant code and docs:
 - [`aniyomi/AniyomiExtensionManager.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/aniyomi/AniyomiExtensionManager.kt)
 - [`extensions/repo/ExternalExtensionRepoRepository.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/extensions/repo/ExternalExtensionRepoRepository.kt)
 - [`settings/sources/extensions/ExtensionsBrowserViewModel.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/settings/sources/extensions/ExtensionsBrowserViewModel.kt)
-- [`docs/architecture/extensions-management-unification.md`](./extensions-management-unification.md)
+- [`docs/architecture/architecture-roadmap.md`](./architecture-roadmap.md)
 
 ### Important observation
 

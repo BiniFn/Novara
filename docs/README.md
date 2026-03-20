@@ -30,12 +30,10 @@ This directory is organized by task, not by internal implementation. Start with 
 ### For advanced users
 
 - [Architecture Review](./architecture/architecture-review.md)
-- [Mihon Integration Reference](./reference/mihon-integration.md)
-- [TVBox Integration Implementation Plan](./architecture/tvbox-integration-implementation-plan.md)
+- [Architecture Roadmap](./architecture/architecture-roadmap.md)
+- [UI Improvement](./architecture/ui_improvement.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
-- [Unified Extensions Management Design](./architecture/extensions-management-unification.md)
-- [Extensions Management Implementation Plan](./architecture/extensions-management-implementation-plan.md)
-- [Extensions Management Handoff (March 2026)](./architecture/extensions-management-handoff-2026-03.md)
+- [Mihon Integration Reference](./reference/mihon-integration.md)
 
 ### For contributors
 

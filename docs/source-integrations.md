@@ -109,7 +109,6 @@ Common repository:
 - [Documentation Hub](./README.md)
 - [Getting Started](./getting-started.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
-- [TVBox Integration Implementation Plan](./architecture/tvbox-integration-implementation-plan.md)
 - [Reader Features](./reader-features.md)
 - [FAQ](./faq.md)
 - [Troubleshooting](./troubleshooting.md)
