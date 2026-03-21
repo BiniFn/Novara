@@ -173,17 +173,206 @@ class KitsuRepository(
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
-		val request = Request.Builder()
-			.get()
-			.url("$BASE_WEB_URL/api/edge/manga/$id")
-		val data = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().getJSONObject("data")
-		val attrs = data.getJSONObject("attributes")
+		// Try manga first, fall back to anime
+		val (data, mediaType) = try {
+			val req = Request.Builder().get()
+				.url("$BASE_WEB_URL/api/edge/manga/$id?include=categories,mediaRelationships.destination")
+			val json = okHttp.newCall(req.build()).await().parseJson().ensureSuccess()
+			json to "manga"
+		} catch (_: Exception) {
+			val req = Request.Builder().get()
+				.url("$BASE_WEB_URL/api/edge/anime/$id?include=categories,mediaRelationships.destination")
+			val json = okHttp.newCall(req.build()).await().parseJson().ensureSuccess()
+			json to "anime"
+		}
+
+		val mainData = data.getJSONObject("data")
+		val attrs = mainData.getJSONObject("attributes")
+		val included = data.optJSONArray("included")
+
+		// --- Basic info ---
+		val canonicalTitle = attrs.optString("canonicalTitle", "")
+		val titlesObj = attrs.optJSONObject("titles")
+		val slug = attrs.optString("slug", "")
+		val synopsis = attrs.optString("synopsis", "").replace("\\n", "<br>")
+		val posterImage = attrs.optJSONObject("posterImage")
+		val cover = posterImage?.getStringOrNull("large")
+			?: posterImage?.getStringOrNull("medium").orEmpty()
+
+		// --- Infobox properties ---
+		val infobox = mutableListOf<Pair<String, String>>()
+
+		// Titles
+		titlesObj?.let { titles ->
+			titles.getStringOrNull("ja_jp")?.let { infobox.add("日语" to it) }
+			titles.getStringOrNull("en_jp")?.let { infobox.add("日语 (Romaji)" to it) }
+			titles.getStringOrNull("en")?.let { infobox.add("英语" to it) }
+		}
+
+		// Type
+		attrs.getStringOrNull("subtype")?.let { subtype ->
+			infobox.add("类型" to subtype.replaceFirstChar { it.uppercase() })
+		}
+
+		// Status
+		attrs.getStringOrNull("status")?.let { status ->
+			val statusLabel = when (status) {
+				"current" -> "正在播出"
+				"finished" -> "已完结"
+				"tba" -> "待定"
+				"unreleased" -> "未播出"
+				"upcoming" -> "即将播出"
+				else -> status
+			}
+			infobox.add("状态" to statusLabel)
+		}
+
+		// Dates
+		attrs.getStringOrNull("startDate")?.let { infobox.add("开始日期" to it) }
+		attrs.getStringOrNull("endDate")?.let { infobox.add("结束日期" to it) }
+
+		// Age rating
+		val ageRating = attrs.getStringOrNull("ageRating")
+		val ageGuide = attrs.getStringOrNull("ageRatingGuide")
+		if (ageRating != null) {
+			val ratingStr = if (ageGuide != null) "$ageRating - $ageGuide" else ageRating
+			infobox.add("评分" to ratingStr)
+		}
+
+		// Episode count & length
+		val episodeCount = attrs.optInt("episodeCount", 0)
+		if (episodeCount > 0) {
+			infobox.add("集数" to episodeCount.toString())
+		}
+		val episodeLength = attrs.optInt("episodeLength", 0)
+		if (episodeLength > 0) {
+			infobox.add("时长" to "${episodeLength}分钟/集")
+		}
+
+		// Average rating
+		attrs.getStringOrNull("averageRating")?.let { infobox.add("平均评分" to "$it%") }
+
+		// Rankings
+		val popularityRank = attrs.optInt("popularityRank", 0)
+		if (popularityRank > 0) infobox.add("受欢迎排名" to "#$popularityRank")
+		val ratingRank = attrs.optInt("ratingRank", 0)
+		if (ratingRank > 0) infobox.add("好评排名" to "#$ratingRank")
+
+		// --- Tags (categories) ---
+		val tags = mutableListOf<String>()
+		if (included != null) {
+			for (i in 0 until included.length()) {
+				val item = included.optJSONObject(i) ?: continue
+				if (item.optString("type") == "categories") {
+					item.optJSONObject("attributes")?.getStringOrNull("title")?.let { tags.add(it) }
+				}
+			}
+		}
+
+		// --- Related works ---
+		val relatedWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		if (included != null) {
+			// Build a map of included media by type+id for quick lookup
+			val mediaMap = HashMap<String, JSONObject>()
+			for (i in 0 until included.length()) {
+				val item = included.optJSONObject(i) ?: continue
+				val type = item.optString("type")
+				if (type == "anime" || type == "manga") {
+					val itemId = item.optString("id")
+					mediaMap["$type:$itemId"] = item
+				}
+			}
+
+			// Parse mediaRelationships to get role and destination
+			for (i in 0 until included.length()) {
+				val item = included.optJSONObject(i) ?: continue
+				if (item.optString("type") != "mediaRelationships") continue
+				val role = item.optJSONObject("attributes")?.getStringOrNull("role") ?: continue
+				val destData = item.optJSONObject("relationships")
+					?.optJSONObject("destination")
+					?.optJSONObject("data") ?: continue
+				val destType = destData.optString("type")
+				val destId = destData.optString("id")
+				val destMedia = mediaMap["$destType:$destId"] ?: continue
+				val destAttrs = destMedia.optJSONObject("attributes") ?: continue
+				val destTitle = destAttrs.optString("canonicalTitle", "")
+				val destSlug = destAttrs.optString("slug", "")
+				val destPoster = destAttrs.optJSONObject("posterImage")
+				val destCover = destPoster?.getStringOrNull("small")
+					?: destPoster?.getStringOrNull("medium").orEmpty()
+				val destIdLong = destId.toLongOrNull() ?: continue
+
+				val roleLabel = when (role) {
+					"sequel" -> "续集"
+					"prequel" -> "前传"
+					"alternative_setting" -> "替代设定"
+					"alternative_version" -> "替代版本"
+					"side_story" -> "番外篇"
+					"parent_story" -> "母篇"
+					"summary" -> "总集篇"
+					"full_story" -> "完整版"
+					"spinoff" -> "衍生作"
+					"adaptation" -> "改编"
+					"character" -> "角色"
+					"other" -> "其他"
+					else -> role
+				}
+
+				relatedWorks.add(
+					ScrobblerContentInfo.RelatedWork(
+						id = destIdLong,
+						title = destTitle,
+						coverUrl = destCover,
+						relationship = roleLabel,
+						url = "$BASE_WEB_URL/$destType/$destSlug",
+					),
+				)
+			}
+		}
+
+		// --- Episodes (separate request, only for anime or if applicable) ---
+		val episodes = mutableListOf<ScrobblerContentInfo.EpisodeInfo>()
+		try {
+			val epRequest = Request.Builder().get()
+				.url("$BASE_WEB_URL/api/edge/$mediaType/$id/episodes?page[limit]=40&sort=number")
+			val epResponse = okHttp.newCall(epRequest.build()).await().parseJson()
+			val epData = epResponse.optJSONArray("data")
+			if (epData != null) {
+				for (i in 0 until epData.length()) {
+					val ep = epData.optJSONObject(i) ?: continue
+					val epAttrs = ep.optJSONObject("attributes") ?: continue
+					val epNum = epAttrs.optInt("number", i + 1)
+					val epTitle = epAttrs.optString("canonicalTitle", "").ifBlank {
+						"Episode $epNum"
+					}
+					val thumbnail = epAttrs.optJSONObject("thumbnail")
+					val thumbUrl = thumbnail?.getStringOrNull("original")
+						?: thumbnail?.getStringOrNull("large")
+						?: thumbnail?.getStringOrNull("small")
+					episodes.add(
+						ScrobblerContentInfo.EpisodeInfo(
+							number = epNum.toString(),
+							title = epTitle,
+							url = "$BASE_WEB_URL/$mediaType/$slug/episodes/$epNum",
+							thumbnailUrl = thumbUrl,
+						),
+					)
+				}
+			}
+		} catch (_: Exception) {
+			// Episodes not available for some content types, that's OK
+		}
+
 		return ScrobblerContentInfo(
-			id = data.getAsLong("id"),
-			name = attrs.getString("canonicalTitle"),
-			cover = attrs.getJSONObject("posterImage").getString("medium"),
-			url = "$BASE_WEB_URL/manga/${attrs.getString("slug")}",
-			descriptionHtml = attrs.getString("description").replace("\\n", "<br>"),
+			id = mainData.getAsLong("id"),
+			name = canonicalTitle.ifBlank { "Unknown" },
+			cover = cover,
+			url = "$BASE_WEB_URL/$mediaType/$slug",
+			descriptionHtml = synopsis,
+			tags = tags,
+			infoboxProperties = infobox,
+			episodes = episodes,
+			relatedWorks = relatedWorks,
 		)
 	}
 

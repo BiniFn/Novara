@@ -8,7 +8,7 @@ data class ScrobblerContent(
 	val altName: String?,
 	val cover: String?,
 	val url: String,
-	val isBestMatch: Boolean,
+	val isBestMatch: Boolean = false,
 ) : ListModel {
 
 	override fun areItemsTheSame(other: ListModel): Boolean {

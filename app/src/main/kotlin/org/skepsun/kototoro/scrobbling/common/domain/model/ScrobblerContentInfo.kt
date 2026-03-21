@@ -17,6 +17,7 @@ class ScrobblerContentInfo(
 		val number: String,
 		val title: String,
 		val url: String,
+		val thumbnailUrl: String? = null,
 	)
 
 	data class RelatedWork(
