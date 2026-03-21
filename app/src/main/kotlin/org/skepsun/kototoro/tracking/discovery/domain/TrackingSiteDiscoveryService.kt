@@ -10,5 +10,5 @@ interface TrackingSiteDiscoveryService {
 
 	suspend fun search(catalog: TrackingSiteCatalog): List<TrackingSiteItem>
 
-	suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteItemDetails
+	suspend fun getDetails(service: ScrobblerService, remoteId: Long, urlHint: String? = null): TrackingSiteItemDetails
 }

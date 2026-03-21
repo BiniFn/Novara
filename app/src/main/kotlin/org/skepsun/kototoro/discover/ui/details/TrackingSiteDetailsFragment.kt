@@ -341,6 +341,7 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 				router.openTrackingSiteDetails(
 					service = viewModel.details.value?.service ?: return@setOnClickListener,
 					remoteId = work.id,
+					url = work.url,
 				)
 			}
 		}

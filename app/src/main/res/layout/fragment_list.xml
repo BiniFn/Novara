@@ -32,24 +32,26 @@
 				app:chipSpacingVertical="8dp"
 				app:singleLine="false"
 				app:singleSelection="true"
-				app:selectionRequired="false" />
+				app:selectionRequired="false"
+				android:visibility="gone" />
 
 			<com.google.android.material.chip.ChipGroup
 				android:id="@+id/chipGroupSourceTag"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:layout_marginTop="12dp"
+				android:layout_marginTop="8dp"
 				app:chipSpacingHorizontal="8dp"
 				app:chipSpacingVertical="8dp"
 				app:singleLine="false"
 				app:singleSelection="true"
-				app:selectionRequired="false" />
+				app:selectionRequired="false"
+				android:visibility="gone" />
 
 			<com.google.android.material.chip.ChipGroup
 				android:id="@+id/chipGroupCategory"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:layout_marginTop="12dp"
+				android:layout_marginTop="8dp"
 				app:chipSpacingHorizontal="8dp"
 				app:chipSpacingVertical="8dp"
 				app:singleLine="false"

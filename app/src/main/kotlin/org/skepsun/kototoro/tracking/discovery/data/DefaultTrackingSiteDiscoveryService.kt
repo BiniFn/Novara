@@ -23,6 +23,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private val bangumiRepository: BangumiRepository,
 	private val kitsuRepository: KitsuRepository,
 	private val malRepository: MALRepository,
+	private val cacheRepository: TrackingSiteCacheRepository,
 ) : TrackingSiteDiscoveryService {
 
 	override fun getCapabilities(service: ScrobblerService): TrackingSiteCapabilities = when (service) {
@@ -231,10 +232,29 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		return items.map { it.toTrackingListItem(ScrobblerService.MAL) }
 	}
 
-	override suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteItemDetails {
+	override suspend fun getDetails(service: ScrobblerService, remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
+		if (service == ScrobblerService.MAL) {
+			return getMalDetails(remoteId, urlHint)
+		}
 		return repositoryMap[service]
 			.getContentInfo(remoteId)
 			.toTrackingDetails(service)
+	}
+
+	private suspend fun getMalDetails(remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
+		// Use URL hint from the intent, or fall back to cached URL
+		val url = urlHint ?: runCatching {
+			cacheRepository.readDetails(ScrobblerService.MAL, remoteId)?.url
+		}.getOrNull()
+
+		val isAnime = url?.contains("/anime/") == true
+
+		val info = if (isAnime) {
+			malRepository.getAnimeInfo(remoteId)
+		} else {
+			malRepository.getContentInfo(remoteId)
+		}
+		return info.toTrackingDetails(ScrobblerService.MAL)
 	}
 
 	private fun ScrobblerContent.toTrackingListItem(service: ScrobblerService): TrackingSiteItem {

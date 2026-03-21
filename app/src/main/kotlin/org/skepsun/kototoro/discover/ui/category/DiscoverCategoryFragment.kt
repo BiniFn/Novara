@@ -75,8 +75,9 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 				override fun onItemClick(item: ContentListModel, view: View) {
 					if (viewModel.supportsDetails(serviceName)) {
 						router.openTrackingSiteDetails(
-							org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService.entries.first { it.name == serviceName }, 
-							item.manga.id
+							org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService.entries.first { it.name == serviceName },
+							item.manga.id,
+							item.manga.publicUrl,
 						)
 					} else {
 						val url = item.manga.url ?: item.manga.publicUrl

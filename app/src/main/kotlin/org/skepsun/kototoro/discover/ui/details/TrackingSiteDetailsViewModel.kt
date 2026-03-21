@@ -35,6 +35,8 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 	private val remoteId = savedStateHandle.get<Long>(AppRouter.KEY_REMOTE_ID)
 		?: error("Missing tracking remote id argument")
 
+	private val urlHint = savedStateHandle.get<String>(AppRouter.KEY_URL)
+
 	private val _details = kotlinx.coroutines.flow.MutableStateFlow<TrackingSiteItemDetails?>(null)
 	private val _error = kotlinx.coroutines.flow.MutableStateFlow<Throwable?>(null)
 
@@ -68,7 +70,7 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 			_error.value = null
 			val cached = _details.value != null
 			val details = runCatching {
-				discoveryService.getDetails(service, remoteId)
+				discoveryService.getDetails(service, remoteId, urlHint)
 			}.getOrElse { error ->
 				if (!cached) {
 					_error.value = error

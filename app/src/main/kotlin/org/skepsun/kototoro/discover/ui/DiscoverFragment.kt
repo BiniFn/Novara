@@ -7,16 +7,16 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.PopupMenu
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
-import androidx.core.view.MenuProvider
 import androidx.fragment.app.viewModels
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.chip.Chip
+import com.google.android.material.color.MaterialColors
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
@@ -44,6 +44,7 @@ import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.discover.ui.model.DiscoverItem
 import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 @AndroidEntryPoint
@@ -57,7 +58,6 @@ class DiscoverFragment :
 
 	private val viewModel by viewModels<DiscoverViewModel>()
 	private var paginationListener: PaginationScrollListener? = null
-	private val serviceChipIds = LinkedHashMap<ScrobblerService, Int>()
 	private var spanResolver: GridSpanResolver? = null
 	
 	@javax.inject.Inject
@@ -72,7 +72,6 @@ class DiscoverFragment :
 
 	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		binding.chipGroupSourceTag.visibility = View.GONE
 		binding.chipGroupCategory.visibility = View.GONE
 
 		spanResolver = GridSpanResolver(binding.root.resources)
@@ -83,7 +82,7 @@ class DiscoverFragment :
 				val serviceName = item.manga.source.name.removePrefix("TRACKING_")
 				val trackingService = viewModel.availableServices.value.find { it.name == serviceName } ?: return
 				if (viewModel.supportsDetails(trackingService)) {
-					router.openTrackingSiteDetails(trackingService, item.manga.id)
+					router.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
 				} else {
 					val url = item.manga.url ?: item.manga.publicUrl
 					if (!url.isNullOrBlank()) {
@@ -162,14 +161,14 @@ class DiscoverFragment :
 			binding.swipeRefreshLayout.isRefreshing = it
 		}
 		viewModel.availableServices.observe(viewLifecycleOwner) {
-			rebuildServiceChips(binding, it)
+			// Service selection now handled via SearchBar service menu provider
 		}
 		viewModel.activeService.observe(viewLifecycleOwner) {
-			updateServiceChipSelection(binding, it)
+			// Service selection now handled via SearchBar service menu provider
 		}
-		viewModel.query.observe(viewLifecycleOwner) {
-			rebuildServiceChips(binding, viewModel.availableServices.value)
-		}
+
+		// Add the service menu provider to the SearchBar
+		addMenuProvider(DiscoverServiceMenuProvider())
 	}
 
 	private fun applyListMode(mode: ListMode, recyclerView: RecyclerView) {
@@ -225,71 +224,77 @@ class DiscoverFragment :
 
 	override fun onQueryTextChange(newText: String?): Boolean = false
 
-	private fun onDiscoverItemClick(item: DiscoverItem) {
-		// Method preserved as a stub just in case
-	}
+	/**
+	 * MenuProvider that adds tracking service icons to the SearchBar.
+	 * Each service gets a toggle icon (e.g. MAL, Bangumi, Kitsu).
+	 */
+	private inner class DiscoverServiceMenuProvider : MenuProvider {
 
-	private fun rebuildServiceChips(
-		binding: FragmentListBinding,
-		services: List<ScrobblerService>,
-	) {
-		serviceChipIds.clear()
-		with(binding.chipGroupContentType) {
-			removeAllViews()
-			services.forEach { service ->
-				val chip = createServiceChip(service)
-				serviceChipIds[service] = chip.id
-				addView(chip)
-			}
-		}
-		binding.chipGroupContentType.visibility = if (services.size > 1) View.VISIBLE else View.GONE
-		binding.filterScrollView.visibility = if (services.size > 1) View.VISIBLE else View.GONE
-		updateServiceChipSelection(binding, viewModel.activeService.value)
-	}
-
-
-
-	private fun updateServiceChipSelection(
-		binding: FragmentListBinding,
-		selected: ScrobblerService,
-	) {
-		serviceChipIds.forEach { (service, chipId) ->
-			binding.chipGroupContentType.findViewById<Chip>(chipId)?.isChecked = service == selected
-		}
-	}
-
-	private fun createServiceChip(service: ScrobblerService): Chip {
-		return Chip(requireContext()).apply {
-			id = View.generateViewId()
-			text = context.getString(service.titleResId)
-			isCheckable = true
-			isClickable = true
-			isChipIconVisible = true
-			setChipIconResource(service.iconResId)
-			setEnsureMinTouchTargetSize(false)
-			isEnabled = viewModel.isServiceSelectable(service)
-			alpha = if (isEnabled) 1f else 0.56f
-			if (!isEnabled) {
-				text = context.getString(R.string.discover_service_search_only, text)
-			}
-			setOnClickListener {
-				viewModel.selectService(service)
-			}
-		}
-	}
-
-	private inner class DiscoverSearchMenuProvider : MenuProvider {
+		private var serviceMenuItem: MenuItem? = null
 
 		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-			menuInflater.inflate(R.menu.opt_search, menu)
-			val menuItem = menu.findItem(R.id.action_search)
-			menuItem.setOnActionExpandListener(this@DiscoverFragment)
-			val searchView = menuItem.actionView as SearchView
-			searchView.setOnQueryTextListener(this@DiscoverFragment)
-			searchView.queryHint = menuItem.title
-			searchView.setQuery(viewModel.query.value, false)
+			val services = viewModel.availableServices.value
+			if (services.size <= 1) return
+
+			val activeService = viewModel.activeService.value
+			val item = menu.add(Menu.NONE, View.generateViewId(), 0, activeService.titleResId)
+			item.setIcon(activeService.iconResId)
+			item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+			updateServiceMenuItemTint(item, true)
+			serviceMenuItem = item
 		}
 
-		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = false
+		override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+			if (menuItem != serviceMenuItem) return false
+			showServicePopup(menuItem)
+			return true
+		}
+
+		private fun showServicePopup(anchorItem: MenuItem) {
+			val anchor = activity?.findViewById<View>(R.id.search_bar) ?: return
+			val popup = android.widget.PopupMenu(anchor.context, anchor, android.view.Gravity.END)
+			val services = viewModel.availableServices.value
+			val activeService = viewModel.activeService.value
+
+			services.forEachIndexed { index, service ->
+				popup.menu.add(0, index, index, service.titleResId).apply {
+					setIcon(service.iconResId)
+					isCheckable = true
+					isChecked = service == activeService
+					isEnabled = viewModel.isServiceSelectable(service)
+				}
+			}
+
+			// Show icons in popup
+			try {
+				val field = popup.javaClass.getDeclaredField("mPopup")
+				field.isAccessible = true
+				val menuPopupHelper = field.get(popup)
+				menuPopupHelper.javaClass.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
+					.invoke(menuPopupHelper, true)
+			} catch (_: Exception) { }
+
+			popup.setOnMenuItemClickListener { item ->
+				services.getOrNull(item.itemId)?.let { service ->
+					viewModel.selectService(service)
+					// Update the toolbar icon to match the selected service
+					serviceMenuItem?.setIcon(service.iconResId)
+					serviceMenuItem?.title = getString(service.titleResId)
+					updateServiceMenuItemTint(serviceMenuItem ?: return@let, true)
+				}
+				true
+			}
+			popup.show()
+		}
+
+		private fun updateServiceMenuItemTint(item: MenuItem, isActive: Boolean) {
+			val context = context ?: return
+			val tint = if (isActive) {
+				MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0)
+			} else {
+				MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
+			}
+			item.icon?.setTint(tint)
+		}
 	}
 }

@@ -12,23 +12,17 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.view.ActionMode
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
-import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
-import android.content.res.ColorStateList
 import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.chip.Chip
-import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
-import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.ui.BaseFragment
@@ -50,6 +44,7 @@ import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentParserSource
@@ -60,15 +55,13 @@ class ExploreSourcesFragment :
 	RecyclerViewOwner,
 	ExploreListEventListener,
 	OnListItemClickListener<ContentSourceItem>, ListSelectionController.Callback,
-	AppBarLayout.OnOffsetChangedListener {
+	AppBarLayout.OnOffsetChangedListener,
+	SearchBarFilterMenuProvider.Callback {
 
 	private val viewModel by viewModels<ExploreViewModel>()
 	private var exploreAdapter: ExploreAdapter? = null
 	private var sourceSelectionController: ListSelectionController? = null
-	
-	// Track chip IDs for each filter group
-	private val contentTypeChipIds = mutableMapOf<BrowseGroupTab, Int>()
-	private val sourceTagChipIds = mutableMapOf<SourceTag, Int>()
+	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -96,14 +89,19 @@ class ExploreSourcesFragment :
 			checkNotNull(sourceSelectionController).attachToRecyclerView(this)
 		}
 		
-		// Setup filter chips
-		rebuildContentTypeChips(binding, viewModel.availableTabs.value ?: BrowseGroupTab.getAllTabs())
-		rebuildSourceTagChips(binding)
-		
+		// Set up SearchBar filter icons
+		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
+			appBar.findViewById<View>(R.id.search_bar)
+		} ?: activity?.findViewById(R.id.search_bar)
+
+		if (searchBar != null) {
+			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
+			addMenuProvider(filterMenuProvider!!)
+		}
+
 		// Setup menu with quick access actions
 		val menuProvider = ExploreMenuProvider(router)
 		addMenuProvider(menuProvider)
-		
 		
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))
@@ -115,30 +113,27 @@ class ExploreSourcesFragment :
 		}
 		
 		// Observe filter changes
-		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
-			updateContentTypeChipsSelection(binding, tab)
-			updateSourceTagChipsEnabled(binding, tab)
-		}
-		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
-			updateSourceTagChipsSelection(binding, tags ?: emptySet())
-			updateContentTypeChipsEnabled(binding, tags ?: emptySet())
+		viewModel.currentGroupTab.observe(viewLifecycleOwner) { _ ->
+			filterMenuProvider?.updateIcons()
 			updateTvBoxRepositoryLabel(binding)
 		}
-		viewModel.availableTabs.observe(viewLifecycleOwner) { tabs ->
-			rebuildContentTypeChips(binding, tabs)
-		}
-		viewModel.currentGroupTab.observe(viewLifecycleOwner) {
+		viewModel.currentSourceTags.observe(viewLifecycleOwner) { _ ->
+			filterMenuProvider?.updateIcons()
 			updateTvBoxRepositoryLabel(binding)
+		}
+		viewModel.availableTabs.observe(viewLifecycleOwner) { _ ->
+			filterMenuProvider?.updateVisibility()
+			filterMenuProvider?.updateIcons()
 		}
 		viewModel.activeTvBoxRepositoryTitle.observe(viewLifecycleOwner) {
 			updateTvBoxRepositoryLabel(binding)
 		}
 
-		// Register for appbar offset changes to handle sticky inset padding
+		// Register for appbar offset changes
 		val appBar = (activity as? AppBarOwner)?.appBar
 		appBar?.addOnOffsetChangedListener(this)
 
-		// Remove snap flag from ALL children for this screen to make scroll feel multi-stage and linear
+		// Remove snap flag from ALL children for this screen
 		appBar?.children?.forEach { child ->
 			val lp = child.layoutParams as? AppBarLayout.LayoutParams
 			if (lp != null && (lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP != 0)) {
@@ -164,186 +159,40 @@ class ExploreSourcesFragment :
 		super.onDestroyView()
 		sourceSelectionController = null
 		exploreAdapter = null
-		contentTypeChipIds.clear()
-		sourceTagChipIds.clear()
+		filterMenuProvider = null
 	}
 
 	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
-		val binding = viewBinding ?: return
-		val appBar = appBarLayout ?: return
-
-		val insets = ViewCompat.getRootWindowInsets(binding.root)?.getInsets(WindowInsetsCompat.Type.statusBars())
-		val statusBarHeight = insets?.top ?: 0
-
-		val basePadding = (16 * binding.root.resources.displayMetrics.density).toInt()
-		val topPadding = Math.max(0, statusBarHeight - appBar.bottom) + basePadding
-		if (binding.filterScrollView.paddingTop != topPadding) {
-			binding.filterScrollView.updatePadding(top = topPadding)
-		}
+		// No longer need to adjust filterScrollView padding
 	}
 
-	private fun rebuildContentTypeChips(binding: FragmentExploreSourcesBinding, tabs: List<BrowseGroupTab>) {
-		val chipGroup = binding.chipGroupContentType
-		chipGroup.removeAllViews()
-		contentTypeChipIds.clear()
-		
-		val colors = createChipColors()
-		val density = resources.displayMetrics.density
-		
-		tabs.forEach { tab ->
-			if (tab == BrowseGroupTab.All) return@forEach
-			val chip = createCompactChip(
-				text = getString(tab.titleRes),
-				iconRes = tab.iconRes,
-				colors = colors,
-				density = density,
-			)
-			chip.tag = tab
-			chip.isChecked = tab == viewModel.getSelectedGroupTab()
-			chip.setOnClickListener { 
-				val isChecked = (it as Chip).isChecked
-				if (isChecked) {
-					viewModel.setSelectedGroupTab(tab)
-				} else {
-					viewModel.setSelectedGroupTab(BrowseGroupTab.All)
-				}
-			}
-			contentTypeChipIds[tab] = chip.id
-			chipGroup.addView(chip)
-		}
+	// === SearchBarFilterMenuProvider.Callback implementation ===
 
-		updateContentTypeChipsSelection(binding, viewModel.getSelectedGroupTab())
-		updateContentTypeChipsEnabled(binding, viewModel.currentSourceTags.value ?: emptySet())
-	}
-	
-	private fun rebuildSourceTagChips(binding: FragmentExploreSourcesBinding) {
-		val chipGroup = binding.chipGroupSourceTag
-		chipGroup.removeAllViews()
-		sourceTagChipIds.clear()
-		
-		val colors = createChipColors()
-		val density = resources.displayMetrics.density
-		val currentTags = viewModel.currentSourceTags.value ?: emptySet()
-		
-		SourceTag.quickFilterEntries.forEach { tag ->
-			val chip = createCompactChip(
-				text = getString(tag.titleRes),
-				iconRes = null,
-				colors = colors,
-				density = density,
-			)
-			chip.tag = tag
-			chip.isChecked = tag in currentTags
-			chip.setOnClickListener { 
-				val isChecked = (it as Chip).isChecked
-				val selectedTags = if (isChecked) setOf(tag) else emptySet()
-				viewModel.setSelectedSourceTags(selectedTags)
-			}
-			sourceTagChipIds[tag] = chip.id
-			chipGroup.addView(chip)
-		}
-
-		updateSourceTagChipsSelection(binding, currentTags)
-		updateSourceTagChipsEnabled(binding, viewModel.getSelectedGroupTab())
-	}
-	
-	private data class ChipColors(
-		val bg: ColorStateList,
-		val text: ColorStateList,
-		val stroke: ColorStateList,
-	)
-	
-	private fun createChipColors(): ChipColors {
-		val bgUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurfaceVariant, 0)
-		val bgChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorPrimaryContainer, 0)
-		val bgDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorSurface, 0)
-		
-		val textUnchecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
-		val textChecked = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
-		val textDisabled = MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurface, 0).let {
-			ColorStateList.valueOf(it).withAlpha(97).defaultColor // ~38% alpha
-		}
-		
-		val stateDisabled = intArrayOf(-android.R.attr.state_enabled)
-		val stateChecked = intArrayOf(android.R.attr.state_checked)
-		val stateDefault = intArrayOf()
-		
-		return ChipColors(
-			bg = ColorStateList(
-				arrayOf(stateDisabled, stateChecked, stateDefault),
-				intArrayOf(bgDisabled, bgChecked, bgUnchecked)
-			),
-			text = ColorStateList(
-				arrayOf(stateDisabled, stateChecked, stateDefault),
-				intArrayOf(textDisabled, textChecked, textUnchecked)
-			),
-			stroke = ColorStateList.valueOf(android.graphics.Color.TRANSPARENT),
-		)
-	}
-	
-	private fun createCompactChip(
-		text: String,
-		@androidx.annotation.DrawableRes iconRes: Int?,
-		colors: ChipColors,
-		density: Float,
-	): Chip {
-		return Chip(requireContext()).apply {
-			id = View.generateViewId()
-			this.text = text
-			contentDescription = text
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-				tooltipText = text
-			}
-
-			isCheckable = true
-			isChipIconVisible = iconRes != null
-			if (iconRes != null) {
-				setChipIconResource(iconRes)
-				chipIconSize = 20f * density
-				chipIconTint = colors.text
-			}
-
-			chipMinHeight = 32 * density
-			minHeight = 0
-			chipStartPadding = 12 * density
-			chipEndPadding = 12 * density
-			textStartPadding = if (iconRes != null) 6 * density else 0f
-			textEndPadding = 0f
-			setEnsureMinTouchTargetSize(false)
-
-			chipStrokeWidth = 0f
-			chipBackgroundColor = colors.bg
-			setTextColor(colors.text)
-		}
-	}
-	
-	private fun updateContentTypeChipsSelection(binding: FragmentExploreSourcesBinding, selectedTab: BrowseGroupTab) {
-		contentTypeChipIds.forEach { (tab, id) ->
-			binding.chipGroupContentType.findViewById<Chip>(id)?.isChecked = (tab == selectedTab)
-		}
-	}
-	
-	private fun updateSourceTagChipsSelection(binding: FragmentExploreSourcesBinding, tags: Set<SourceTag>) {
-		sourceTagChipIds.forEach { (tag, id) ->
-			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
-		}
+	override fun onContentTypeSelected(tab: BrowseGroupTab) {
+		viewModel.setSelectedGroupTab(tab)
 	}
 
-	private fun updateContentTypeChipsEnabled(binding: FragmentExploreSourcesBinding, selectedTags: Set<SourceTag>) {
-		contentTypeChipIds.forEach { (tab, id) ->
-			val chip = binding.chipGroupContentType.findViewById<Chip>(id) ?: return@forEach
-			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
-			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
-		}
+	override fun onSourceTagSelected(tag: SourceTag?) {
+		val selectedTags = if (tag != null) setOf(tag) else emptySet()
+		viewModel.setSelectedSourceTags(selectedTags)
 	}
 
-	private fun updateSourceTagChipsEnabled(binding: FragmentExploreSourcesBinding, selectedTab: BrowseGroupTab) {
-		sourceTagChipIds.forEach { (tag, id) ->
-			val chip = binding.chipGroupSourceTag.findViewById<Chip>(id) ?: return@forEach
-			chip.isEnabled = selectedTab.supportsSourceTag(tag)
-			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
-		}
+	override fun getSelectedContentType(): BrowseGroupTab = viewModel.getSelectedGroupTab()
+
+	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value ?: emptySet()
+
+	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
+
+	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
+		val selectedTags = viewModel.currentSourceTags.value ?: emptySet()
+		return selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
 	}
+
+	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
+		return viewModel.getSelectedGroupTab().supportsSourceTag(tag)
+	}
+
+	// === Other methods ===
 
 	private fun updateTvBoxRepositoryLabel(binding: FragmentExploreSourcesBinding) {
 		val title = viewModel.activeTvBoxRepositoryTitle.value
@@ -361,19 +210,12 @@ class ExploreSourcesFragment :
 		val barsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 		val sidePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
 
-		// Apply side padding to tags container so they aren't cut off by notches/rounded corners
-		viewBinding?.filterChipsContainer?.updatePadding(
-			left = barsInsets.left + sidePadding,
-			right = barsInsets.right + sidePadding,
-		)
-
-		// RecyclerView handles side and bottom insets
 		viewBinding?.recyclerView?.updatePadding(
 			left = barsInsets.left + sidePadding,
 			right = barsInsets.right + sidePadding,
 			bottom = barsInsets.bottom + sidePadding,
 		)
-		
+
 		return insets
 	}
 
@@ -388,7 +230,6 @@ class ExploreSourcesFragment :
 	}
 
 	override fun onClick(v: View) {
-		// Note: Quick access buttons moved to menu bar
 		when (v.id) {
 			R.id.button_more -> router.openSuggestions()
 		}

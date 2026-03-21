@@ -217,7 +217,24 @@ class MALRepository @Inject constructor(
 			.build()
 		val request = Request.Builder().url(url)
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerContentInfo(response)
+		return ScrobblerContentInfo(response, "manga")
+	}
+
+	/**
+	 * Get anime details from MAL by anime ID.
+	 * Uses the /anime/{id} endpoint instead of /manga/{id}.
+	 */
+	suspend fun getAnimeInfo(id: Long): ScrobblerContentInfo {
+		val url = BASE_API_URL.toHttpUrl().newBuilder()
+			.addPathSegment("anime")
+			.addPathSegment(id.toString())
+			.addQueryParameter("fields", "synopsis,genres,mean,num_episodes,rank,start_season,status,media_type")
+			.build()
+		val request = Request.Builder().url(url)
+			.header("X-MAL-CLIENT-ID", clientId)
+			.get().build()
+		val response = okHttp.newCall(request).await().parseJson()
+		return ScrobblerContentInfo(response, "anime")
 	}
 
 	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
@@ -365,12 +382,12 @@ class MALRepository @Inject constructor(
 		)
 	}
 
-	private fun ScrobblerContentInfo(json: JSONObject) = ScrobblerContentInfo(
+	private fun ScrobblerContentInfo(json: JSONObject, mediaType: String) = ScrobblerContentInfo(
 		id = json.getLong("id"),
 		name = json.getString("title"),
-		cover = json.getJSONObject("main_picture").getString("large"),
-		url = "$BASE_WEB_URL/manga/${json.getLong("id")}",
-		descriptionHtml = json.getString("synopsis"),
+		cover = json.optJSONObject("main_picture")?.getStringOrNull("large") ?: "",
+		url = "$BASE_WEB_URL/$mediaType/${json.getLong("id")}",
+		descriptionHtml = json.optString("synopsis", ""),
 	)
 
 	@Suppress("FunctionName")

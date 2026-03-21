@@ -58,6 +58,8 @@ import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
@@ -67,7 +69,6 @@ import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.search.ui.ContentListActivity
@@ -82,7 +83,8 @@ abstract class ContentListFragment :
 	SwipeRefreshLayout.OnRefreshListener,
 	ListSelectionController.Callback,
 	FastScroller.FastScrollListener,
-	AppBarLayout.OnOffsetChangedListener {
+	AppBarLayout.OnOffsetChangedListener,
+	SearchBarFilterMenuProvider.Callback {
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -98,11 +100,12 @@ abstract class ContentListFragment :
 	open val isSwipeRefreshEnabled = true
 
 	private var isFoldUnfolded = false
-	
-	// Track chip IDs for each filter group
+	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+
+	// Track chip IDs for filter groups
+	private val categoryChipIds = mutableMapOf<Long, Int>()
 	private val contentTypeChipIds = mutableMapOf<BrowseGroupTab, Int>()
 	private val sourceTagChipIds = mutableMapOf<SourceTag, Int>()
-	private val categoryChipIds = mutableMapOf<Long, Int>()
 
 	protected abstract val viewModel: ContentListViewModel
 
@@ -120,7 +123,7 @@ abstract class ContentListFragment :
 		container: ViewGroup?,
 	) = FragmentListBinding.inflate(inflater, container, false)
 
-	protected open fun sourceTagChipEntries(): List<SourceTag> = SourceTag.entries
+	protected open fun sourceTagChipEntries(): List<SourceTag> = SourceTag.entries.toList()
 
 		override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 			super.onViewBindingCreated(binding, savedInstanceState)
@@ -165,20 +168,45 @@ abstract class ContentListFragment :
 		)
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.recyclerView))
 
-		// Set filter chips
-		rebuildContentTypeChips(binding, BrowseGroupTab.getAllTabs())
-		rebuildSourceTagChips(binding)
-
-		viewModel.isFilterBarVisible.observe(viewLifecycleOwner) { isVisible ->
-			binding.filterScrollView.visibility = if (isVisible) View.VISIBLE else View.GONE
+		// Determine if we have a SearchBar available (main activity) and we're not a child
+		// of a container fragment that already adds its own SearchBarFilterMenuProvider
+		val isInsideContainer = parentFragment != null
+		val searchBar = if (!isInsideContainer) {
+			(activity as? AppBarOwner)?.appBar?.let { appBar ->
+				appBar.findViewById<View>(R.id.search_bar)
+			} ?: activity?.findViewById(R.id.search_bar)
+		} else {
+			null
 		}
+
+		if (searchBar != null) {
+			// Mode A: Use SearchBar filter icons
+			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
+			addMenuProvider(filterMenuProvider!!)
+			binding.filterScrollView.visibility = View.GONE
+		} else if (!isInsideContainer) {
+			// Mode B: Inline chip groups (standalone activity without SearchBar)
+			rebuildContentTypeChips(binding)
+			rebuildSourceTagChips(binding)
+			binding.filterScrollView.visibility = View.VISIBLE
+		} else {
+			// Mode C: Inside a container (e.g. FavouritesContainerFragment) — no filters here
+			binding.filterScrollView.visibility = View.GONE
+		}
+
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
-			updateContentTypeChipsSelection(binding, tab)
-			updateSourceTagChipsEnabled(binding, tab)
+			filterMenuProvider?.updateIcons()
+			if (searchBar == null && !isInsideContainer) {
+				updateContentTypeChipsSelection(binding, tab)
+				updateSourceTagChipsEnabled(binding, tab)
+			}
 		}
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
-			updateSourceTagChipsSelection(binding, tags)
-			updateContentTypeChipsEnabled(binding, tags)
+			filterMenuProvider?.updateIcons()
+			if (searchBar == null && !isInsideContainer) {
+				updateSourceTagChipsSelection(binding, tags)
+				updateContentTypeChipsEnabled(binding, tags)
+			}
 		}
 		viewModel.availableCategories.observe(viewLifecycleOwner) { categories ->
 			rebuildCategoryChips(binding, categories)
@@ -232,14 +260,15 @@ abstract class ContentListFragment :
 		val appBar = (activity as? AppBarOwner)?.appBar
 		appBar?.removeOnOffsetChangedListener(this)
 
+		filterMenuProvider = null
 		listAdapter = null
 		paginationListener = null
 		selectionController = null
 		spanResolver = null
 		spanSizeLookup.invalidateCache()
+		categoryChipIds.clear()
 		contentTypeChipIds.clear()
 		sourceTagChipIds.clear()
-		categoryChipIds.clear()
 		super.onDestroyView()
 	}
 
@@ -509,96 +538,30 @@ abstract class ContentListFragment :
 		viewBinding?.root?.requestLayout()
 	}
 
-	private fun rebuildContentTypeChips(binding: FragmentListBinding, tabs: List<BrowseGroupTab>) {
-		val chipGroup = binding.chipGroupContentType
-		chipGroup.removeAllViews()
-		contentTypeChipIds.clear()
+	// === SearchBarFilterMenuProvider.Callback implementation ===
 
-		val colors = createChipColors()
-		val density = resources.displayMetrics.density
-
-		tabs.forEach { tab ->
-			if (tab == BrowseGroupTab.All) return@forEach
-			val chip = createCompactChip(
-				text = getString(tab.titleRes),
-				iconRes = tab.iconRes,
-				colors = colors,
-				density = density,
-			)
-			chip.tag = tab
-			chip.setOnClickListener { 
-				val isChecked = (it as Chip).isChecked
-				if (isChecked) {
-					viewModel.setSelectedGroupTab(tab)
-				} else {
-					viewModel.setSelectedGroupTab(BrowseGroupTab.All)
-				}
-			}
-			contentTypeChipIds[tab] = chip.id
-			chipGroup.addView(chip)
-		}
-		
-		updateContentTypeChipsSelection(binding, viewModel.currentGroupTab.value)
-		updateContentTypeChipsEnabled(binding, viewModel.currentSourceTags.value)
+	override fun onContentTypeSelected(tab: BrowseGroupTab) {
+		viewModel.setSelectedGroupTab(tab)
 	}
 
-	private fun rebuildSourceTagChips(binding: FragmentListBinding) {
-		val chipGroup = binding.chipGroupSourceTag
-		chipGroup.removeAllViews()
-		sourceTagChipIds.clear()
-
-		val colors = createChipColors()
-		val density = resources.displayMetrics.density
-		val currentTags = viewModel.currentSourceTags.value
-
-		sourceTagChipEntries().forEach { tag ->
-			val chip = createCompactChip(
-				text = getString(tag.titleRes),
-				iconRes = null,
-				colors = colors,
-				density = density,
-			)
-			chip.tag = tag
-			chip.isChecked = tag in currentTags
-			chip.setOnClickListener { 
-				val isChecked = (it as Chip).isChecked
-				val selectedTags = if (isChecked) setOf(tag) else emptySet()
-				viewModel.setSelectedSourceTags(selectedTags)
-			}
-			sourceTagChipIds[tag] = chip.id
-			chipGroup.addView(chip)
-		}
-
-		updateSourceTagChipsSelection(binding, currentTags)
-		updateSourceTagChipsEnabled(binding, viewModel.currentGroupTab.value)
+	override fun onSourceTagSelected(tag: SourceTag?) {
+		val selectedTags = if (tag != null) setOf(tag) else emptySet()
+		viewModel.setSelectedSourceTags(selectedTags)
 	}
 
-	private fun updateContentTypeChipsSelection(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
-		contentTypeChipIds.forEach { (tab, id) ->
-			binding.chipGroupContentType.findViewById<Chip>(id)?.isChecked = (tab == selectedTab)
-		}
+	override fun getSelectedContentType(): BrowseGroupTab = viewModel.currentGroupTab.value
+
+	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value
+
+	override fun getSourceTagEntries(): List<SourceTag> = sourceTagChipEntries()
+
+	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
+		val selectedTags = viewModel.currentSourceTags.value
+		return selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
 	}
 
-	private fun updateSourceTagChipsSelection(binding: FragmentListBinding, tags: Set<SourceTag>) {
-		sourceTagChipIds.forEach { (tag, id) ->
-			binding.chipGroupSourceTag.findViewById<Chip>(id)?.isChecked = (tag in tags)
-		}
-	}
-
-	private fun updateContentTypeChipsEnabled(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
-		contentTypeChipIds.forEach { (tab, id) ->
-			val chip = binding.chipGroupContentType.findViewById<Chip>(id) ?: return@forEach
-			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
-			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
-		}
-	}
-
-	private fun updateSourceTagChipsEnabled(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
-		sourceTagChipIds.forEach { (tag, id) ->
-			val chip = binding.chipGroupSourceTag.findViewById<Chip>(id) ?: return@forEach
-			chip.isEnabled = selectedTab.supportsSourceTag(tag)
-			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
-		}
+	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
+		return viewModel.currentGroupTab.value.supportsSourceTag(tag)
 	}
 
 	private fun rebuildCategoryChips(binding: FragmentListBinding, categories: List<FavouriteCategory>) {
@@ -647,6 +610,77 @@ abstract class ContentListFragment :
 	private fun updateCategoryChipsSelection(binding: FragmentListBinding, ids: Set<Long>) {
 		categoryChipIds.forEach { (categoryId, id) ->
 			binding.chipGroupCategory.findViewById<Chip>(id)?.isChecked = (categoryId in ids)
+		}
+	}
+
+	// === Inline chip groups for fallback mode (standalone activities) ===
+
+	private fun rebuildContentTypeChips(binding: FragmentListBinding) {
+		val group = binding.chipGroupContentType
+		group.removeAllViews()
+		contentTypeChipIds.clear()
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+		val tabs = listOf(BrowseGroupTab.Content, BrowseGroupTab.Novel, BrowseGroupTab.Video)
+		for (tab in tabs) {
+			val chip = createCompactChip(getString(tab.titleRes), tab.iconRes, colors, density)
+			chip.isChecked = (viewModel.currentGroupTab.value == tab)
+			chip.setOnClickListener {
+				val current = viewModel.currentGroupTab.value
+				viewModel.setSelectedGroupTab(if (current == tab) BrowseGroupTab.All else tab)
+			}
+			contentTypeChipIds[tab] = chip.id
+			group.addView(chip)
+		}
+		group.visibility = View.VISIBLE
+	}
+
+	private fun rebuildSourceTagChips(binding: FragmentListBinding) {
+		val group = binding.chipGroupSourceTag
+		group.removeAllViews()
+		sourceTagChipIds.clear()
+		val colors = createChipColors()
+		val density = resources.displayMetrics.density
+		val tags = sourceTagChipEntries()
+		for (tag in tags) {
+			val chip = createCompactChip(getString(tag.titleRes), null, colors, density)
+			chip.isChecked = viewModel.currentSourceTags.value.contains(tag)
+			chip.setOnClickListener {
+				val selected = viewModel.currentSourceTags.value
+				val newTags = if (tag in selected) selected - tag else selected + tag
+				viewModel.setSelectedSourceTags(newTags)
+			}
+			sourceTagChipIds[tag] = chip.id
+			group.addView(chip)
+		}
+		group.visibility = if (tags.isNotEmpty()) View.VISIBLE else View.GONE
+	}
+
+	private fun updateContentTypeChipsSelection(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+		contentTypeChipIds.forEach { (tab, viewId) ->
+			binding.chipGroupContentType.findViewById<Chip>(viewId)?.isChecked = (tab == selectedTab)
+		}
+	}
+
+	private fun updateSourceTagChipsSelection(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
+		sourceTagChipIds.forEach { (tag, viewId) ->
+			binding.chipGroupSourceTag.findViewById<Chip>(viewId)?.isChecked = (tag in selectedTags)
+		}
+	}
+
+	private fun updateContentTypeChipsEnabled(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
+		contentTypeChipIds.forEach { (tab, viewId) ->
+			val chip = binding.chipGroupContentType.findViewById<Chip>(viewId) ?: return@forEach
+			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
+		}
+	}
+
+	private fun updateSourceTagChipsEnabled(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+		sourceTagChipIds.forEach { (tag, viewId) ->
+			val chip = binding.chipGroupSourceTag.findViewById<Chip>(viewId) ?: return@forEach
+			chip.isEnabled = selectedTab.supportsSourceTag(tag)
+			chip.alpha = if (chip.isEnabled) 1.0f else 0.5f
 		}
 	}
 

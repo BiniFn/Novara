@@ -187,11 +187,12 @@ class AppRouter private constructor(
         )
     }
 
-    fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long) {
+    fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
         startActivity(
             Intent(contextOrNull() ?: return, TrackingSiteDetailsActivity::class.java)
                 .putExtra(KEY_ID, service.id)
-                .putExtra(KEY_REMOTE_ID, remoteId),
+                .putExtra(KEY_REMOTE_ID, remoteId)
+                .putExtra(KEY_URL, url),
         )
     }
 
