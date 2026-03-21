@@ -4,7 +4,7 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="@dimen/small_grid_width"
 	android:layout_height="wrap_content"
-	android:layout_marginEnd="8dp"
+	android:layout_marginEnd="2dp"
 	android:clickable="true"
 	android:focusable="true"
 	android:foreground="?attr/selectableItemBackgroundBorderless"

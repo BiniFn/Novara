@@ -20,6 +20,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
+import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
 import javax.inject.Inject
 import org.skepsun.kototoro.R
 
@@ -28,6 +29,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 	private val discoveryService: TrackingSiteDiscoveryService,
 	private val contentListMapper: ContentListMapper,
 	private val appSettings: AppSettings,
+	private val cacheRepository: TrackingSiteCacheRepository,
 	val filterCoordinator: org.skepsun.kototoro.filter.ui.FilterCoordinator,
 ) : BaseViewModel() {
 
@@ -46,7 +48,20 @@ class DiscoverCategoryViewModel @Inject constructor(
 		if (currentService == service && currentCategory == categoryId) return
 		currentService = service
 		currentCategory = categoryId
-		refresh()
+		// Show cached items instantly, then refresh in background
+		val cached = cacheRepository.readCategoryCache(service, categoryId)
+		if (cached != null && cached.isNotEmpty()) {
+			_items.value = cached
+			viewModelScope.launch {
+				_contentState.value = cached.toDiscoverModels()
+			}
+			// Background refresh (silent)
+			viewModelScope.launch {
+				runCatching { loadDataSilent(service, categoryId, 0) }
+			}
+		} else {
+			refresh()
+		}
 	}
 
 	init {
@@ -69,6 +84,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 	fun refresh() {
 		val service = currentService ?: return
 		val category = currentCategory ?: return
+		cacheRepository.clearCategoryCache(service, category)
 		_items.value = emptyList()
 		_page.value = 0
 		viewModelScope.launch {
@@ -93,6 +109,25 @@ class DiscoverCategoryViewModel @Inject constructor(
 			} finally {
 				isPageLoading = false
 			}
+		}
+	}
+
+	private suspend fun loadDataSilent(service: ScrobblerService, category: String, pageRequested: Int) {
+		val filterSnapshot = filterCoordinator.snapshot()
+		val newItems = discoveryService.getTrending(
+			TrackingSiteCatalog(
+				service = service,
+				category = category,
+				page = pageRequested,
+				sortOrder = filterSnapshot.sortOrder,
+				listFilter = filterSnapshot.listFilter,
+			)
+		)
+		if (newItems.isNotEmpty()) {
+			_items.value = newItems.distinctBy { it.remoteId }
+			_contentState.value = _items.value.toDiscoverModels()
+			_page.value = pageRequested
+			cacheRepository.saveCategoryCache(service, category, _items.value)
 		}
 	}
 
@@ -127,6 +162,8 @@ class DiscoverCategoryViewModel @Inject constructor(
 			val models = _items.value.toDiscoverModels()
 			_contentState.value = if (hasMore) models + listOf(LoadingState) else models
 			_page.value = pageRequested
+			// Save to cache
+			cacheRepository.saveCategoryCache(service, category, _items.value)
 
 		}.onFailure { error ->
 			val models = _items.value.toDiscoverModels()

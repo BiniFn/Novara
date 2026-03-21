@@ -17,6 +17,33 @@ class TrackingSiteCacheRepository @Inject constructor(
 	private val db: MangaDatabase,
 ) {
 
+	private data class CachedCategory(
+		val items: List<TrackingSiteItem>,
+		val timestamp: Long,
+	)
+
+	private val categoryCache = java.util.concurrent.ConcurrentHashMap<String, CachedCategory>()
+
+	fun readCategoryCache(service: ScrobblerService, category: String): List<TrackingSiteItem>? {
+		val key = "${service.id}_$category"
+		val cached = categoryCache[key] ?: return null
+		if (System.currentTimeMillis() - cached.timestamp > CATEGORY_CACHE_TTL) {
+			categoryCache.remove(key)
+			return null
+		}
+		return cached.items
+	}
+
+	fun saveCategoryCache(service: ScrobblerService, category: String, items: List<TrackingSiteItem>) {
+		if (items.isEmpty()) return
+		val key = "${service.id}_$category"
+		categoryCache[key] = CachedCategory(items, System.currentTimeMillis())
+	}
+
+	fun clearCategoryCache(service: ScrobblerService, category: String) {
+		categoryCache.remove("${service.id}_$category")
+	}
+
 	suspend fun readTrending(service: ScrobblerService): List<TrackingSiteItem> = withContext(Dispatchers.Default) {
 		db.getTrackingSiteDao()
 			.findItems(service.id)
@@ -159,5 +186,9 @@ class TrackingSiteCacheRepository @Inject constructor(
 				}
 			}
 		}.getOrElse { emptyList() }
+	}
+
+	companion object {
+		private const val CATEGORY_CACHE_TTL = 10 * 60 * 1000L // 10 minutes
 	}
 }

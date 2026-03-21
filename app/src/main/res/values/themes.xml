@@ -65,8 +65,8 @@
 		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator</item>
 		<item name="bottomSheetDragHandleStyle">@style/Widget.Kototoro.BottomSheet.DragHandle</item>
 		<item name="preferenceTheme">@style/PreferenceThemeOverlay.Kototoro</item>
-		<!-- Fix crash in A15 -->
-		<item name="actionButtonStyle">@style/Widget.AppCompat.ActionButton</item>
+		<!-- Fix crash in A15 + compact spacing for SearchBar filter icons -->
+		<item name="actionButtonStyle">@style/Widget.Kototoro.ActionButton.Compact</item>
 
 		<!-- Custom views -->
 		<item name="fastScrollerStyle">@style/Widget.Kototoro.FastScroller</item>

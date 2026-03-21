@@ -242,7 +242,10 @@ class BangumiRepository @Inject constructor(
 					name
 				}
 				val coverUrl = el.selectFirst("img")?.attr("src").orEmpty()
-				val cleanCover = coverUrl.replace("/g/", "/l/").replace("/s/", "/l/").replace("/m/", "/l/").replace("/c/", "/l/")
+				// Strip Bangumi's resize proxy prefix (e.g. /r/100x100/) to get full-size image
+				val cleanCover = coverUrl
+					.replace(Regex("/r/\\d+x\\d+/"), "/")
+					.replace("/g/", "/l/").replace("/s/", "/l/").replace("/m/", "/l/").replace("/c/", "/l/")
 
 				ScrobblerContent(
 					id = id,

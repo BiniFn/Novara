@@ -238,7 +238,7 @@ class DiscoverFragment :
 
 			val activeService = viewModel.activeService.value
 			val item = menu.add(Menu.NONE, View.generateViewId(), 0, activeService.titleResId)
-			item.setIcon(activeService.iconResId)
+			item.setIcon(createDropdownIcon(activeService.iconResId))
 			item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 			updateServiceMenuItemTint(item, true)
 			serviceMenuItem = item
@@ -278,7 +278,7 @@ class DiscoverFragment :
 				services.getOrNull(item.itemId)?.let { service ->
 					viewModel.selectService(service)
 					// Update the toolbar icon to match the selected service
-					serviceMenuItem?.setIcon(service.iconResId)
+					serviceMenuItem?.icon = createDropdownIcon(service.iconResId)
 					serviceMenuItem?.title = getString(service.titleResId)
 					updateServiceMenuItemTint(serviceMenuItem ?: return@let, true)
 				}
@@ -294,7 +294,36 @@ class DiscoverFragment :
 			} else {
 				MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 			}
-			item.icon?.setTint(tint)
+			val icon = item.icon
+			if (icon is android.graphics.drawable.LayerDrawable) {
+				// Only tint layer 0 (service icon); layer 1 (arrow) stays black
+				icon.getDrawable(0)?.setTint(tint)
+			} else {
+				icon?.setTint(tint)
+			}
+		}
+
+		private fun createDropdownIcon(@androidx.annotation.DrawableRes iconRes: Int): android.graphics.drawable.Drawable? {
+			val context = context ?: return null
+			val serviceIcon = androidx.core.content.ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return null
+			val arrowIcon = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_expand_more)?.mutate() ?: return serviceIcon
+			arrowIcon.setTint(android.graphics.Color.BLACK)
+			val dp = context.resources.displayMetrics.density
+			val iconSize = (24 * dp).toInt()   // standard 24dp icon
+			val arrowSize = (14 * dp).toInt()   // 14dp arrow for visibility
+			val totalW = iconSize + arrowSize / 2
+			val totalH = iconSize + arrowSize / 2
+			// Service icon fills the top-left area
+			val serviceInsetRight = totalW - iconSize
+			val serviceInsetBottom = totalH - iconSize
+			// Arrow in the absolute bottom-right corner
+			val arrowInsetLeft = totalW - arrowSize
+			val arrowInsetTop = totalH - arrowSize
+			val layers = android.graphics.drawable.LayerDrawable(arrayOf(serviceIcon, arrowIcon))
+			layers.setLayerInset(0, 0, 0, serviceInsetRight, serviceInsetBottom)
+			layers.setLayerInset(1, arrowInsetLeft, arrowInsetTop, 0, 0)
+			layers.setBounds(0, 0, totalW, totalH)
+			return layers
 		}
 	}
 }

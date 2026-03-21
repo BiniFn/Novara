@@ -1449,4 +1449,7 @@
     <string name="mal_category_manga_doujin">同人志排行</string>
     <string name="mal_category_manga_popular">最受欢迎漫画</string>
     <string name="mal_category_manga_favorite">最多收藏漫画</string>
+    <!-- Explore tabs -->
+    <string name="explore_tab_tracking_sites">追踪网站</string>
+    <string name="explore_tab_sources">内容源</string>
 </resources>
