@@ -175,10 +175,8 @@ class ExploreSourcesFragment :
 		val insets = ViewCompat.getRootWindowInsets(binding.root)?.getInsets(WindowInsetsCompat.Type.statusBars())
 		val statusBarHeight = insets?.top ?: 0
 
-		// Improved Logic: Pin tags exactly to the status bar once the appbar scrolls past it.
-		// Padding needed = max(0, statusBarHeight - appBar.bottom)
-		// This doesn't care about scroll range or snap states, it's a direct geometric constraint.
-		val topPadding = Math.max(0, statusBarHeight - appBar.bottom)
+		val basePadding = (16 * binding.root.resources.displayMetrics.density).toInt()
+		val topPadding = Math.max(0, statusBarHeight - appBar.bottom) + basePadding
 		if (binding.filterScrollView.paddingTop != topPadding) {
 			binding.filterScrollView.updatePadding(top = topPadding)
 		}

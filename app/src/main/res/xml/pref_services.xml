@@ -36,6 +36,12 @@
 
 	<PreferenceCategory android:title="@string/tracking">
 
+		<ListPreference
+			android:key="preferred_tracking_site"
+			android:title="@string/preferred_tracking_site"
+			android:summary="@string/preferred_tracking_site_summary"
+			app:useSimpleSummaryProvider="true" />
+
 		<Preference
 			android:key="anilist"
 			android:summary="@string/loading_"

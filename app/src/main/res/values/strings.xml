@@ -1718,4 +1718,42 @@
     <string name="day_friday">Friday</string>
     <string name="day_saturday">Saturday</string>
     <string name="day_sunday">Sunday</string>
+    <!-- Tracking site selection -->
+    <string name="preferred_tracking_site">Preferred tracking site</string>
+    <string name="preferred_tracking_site_summary">Select the default tracking site for discovery</string>
+    <!-- Kitsu discovery categories -->
+    <string name="kitsu_category_trending_anime">Trending Anime</string>
+    <string name="kitsu_category_trending_manga">Trending Manga</string>
+    <string name="kitsu_category_action">Action</string>
+    <string name="kitsu_category_romance">Romance</string>
+    <string name="kitsu_category_fantasy">Fantasy</string>
+    <string name="kitsu_category_comedy">Comedy</string>
+    <string name="kitsu_category_sci_fi">Science Fiction</string>
+    <string name="kitsu_category_adventure">Adventure</string>
+    <string name="kitsu_category_slice_of_life">Slice of Life</string>
+    <string name="kitsu_category_drama">Drama</string>
+    <string name="kitsu_category_ecchi">Ecchi</string>
+    <string name="kitsu_category_supernatural">Supernatural</string>
+    <string name="kitsu_category_horror">Horror</string>
+    <string name="kitsu_category_isekai">Isekai</string>
+    <!-- MAL discovery categories -->
+    <string name="mal_category_seasonal">Seasonal Anime</string>
+    <string name="mal_category_anime_top">Top Anime</string>
+    <string name="mal_category_anime_airing">Airing</string>
+    <string name="mal_category_anime_upcoming">Upcoming</string>
+    <string name="mal_category_anime_tv">Top TV Series</string>
+    <string name="mal_category_anime_movie">Top Movies</string>
+    <string name="mal_category_anime_ova">Top OVA</string>
+    <string name="mal_category_anime_special">Top Specials</string>
+    <string name="mal_category_anime_popular">Most Popular Anime</string>
+    <string name="mal_category_anime_favorite">Most Favorited Anime</string>
+    <string name="mal_category_manga_top">Top Manga</string>
+    <string name="mal_category_manga_manga">Top Manga Series</string>
+    <string name="mal_category_manga_novels">Top Novels</string>
+    <string name="mal_category_manga_manhwa">Top Manhwa</string>
+    <string name="mal_category_manga_manhua">Top Manhua</string>
+    <string name="mal_category_manga_oneshots">Top One-shots</string>
+    <string name="mal_category_manga_doujin">Top Doujinshi</string>
+    <string name="mal_category_manga_popular">Most Popular Manga</string>
+    <string name="mal_category_manga_favorite">Most Favorited Manga</string>
 </resources>

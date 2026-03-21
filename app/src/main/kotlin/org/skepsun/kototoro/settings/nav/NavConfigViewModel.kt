@@ -52,7 +52,7 @@ class NavConfigViewModel @Inject constructor(
 
 	val availableItems
 		get() = items.value.let { snapshot ->
-			NavItem.entries.filterNot { x -> x in snapshot }
+			NavItem.entries.filterNot { x -> x in snapshot || x == NavItem.DISCOVER }
 		}
 
 	fun reorder(fromPos: Int, toPos: Int) {

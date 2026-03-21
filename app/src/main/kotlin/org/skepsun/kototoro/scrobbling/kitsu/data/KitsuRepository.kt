@@ -114,6 +114,64 @@ class KitsuRepository(
 		}
 	}
 
+	// ── Discovery API (public, no auth) ─────────────────────────
+
+	/**
+	 * Fetch trending anime or manga.
+	 * @param mediaType "anime" or "manga"
+	 */
+	suspend fun getTrending(mediaType: String): List<ScrobblerContent> {
+		val request = Request.Builder()
+			.get()
+			.url("$BASE_WEB_URL/api/edge/trending/$mediaType")
+		return parseMediaList(okHttp.newCall(request.build()).await().parseJson(), mediaType)
+	}
+
+	/**
+	 * Browse anime/manga by category slug, sorted by popularity (descending userCount).
+	 * @param mediaType "anime" or "manga"
+	 * @param categorySlug e.g. "action", "romance", "ecchi", or null for all
+	 * @param page 1-based page number
+	 */
+	suspend fun getRankings(mediaType: String, categorySlug: String?, page: Int): List<ScrobblerContent> {
+		val limit = 20
+		val offset = (page - 1) * limit
+		val urlBuilder = StringBuilder("$BASE_WEB_URL/api/edge/$mediaType?page[limit]=$limit&page[offset]=$offset&sort=-userCount")
+		if (!categorySlug.isNullOrBlank()) {
+			urlBuilder.append("&filter[categories]=${categorySlug.urlEncoded()}")
+		}
+		val request = Request.Builder()
+			.get()
+			.url(urlBuilder.toString())
+		return parseMediaList(okHttp.newCall(request.build()).await().parseJson().ensureSuccess(), mediaType)
+	}
+
+	/**
+	 * Search anime by text query (similar to [findContent] but for anime).
+	 */
+	suspend fun findAnime(query: String, offset: Int): List<ScrobblerContent> {
+		val request = Request.Builder()
+			.get()
+			.url("$BASE_WEB_URL/api/edge/anime?page[limit]=20&page[offset]=$offset&filter[text]=${query.urlEncoded()}")
+		return parseMediaList(okHttp.newCall(request.build()).await().parseJson().ensureSuccess(), "anime")
+	}
+
+	private fun parseMediaList(json: JSONObject, mediaType: String): List<ScrobblerContent> {
+		return json.getJSONArray("data").mapJSON { jo ->
+			val attrs = jo.getJSONObject("attributes")
+			val titles = attrs.optJSONObject("titles")?.valuesToStringList() ?: listOf(attrs.optString("canonicalTitle", ""))
+			val slug = attrs.optString("slug", "")
+			val posterImage = attrs.optJSONObject("posterImage")
+			ScrobblerContent(
+				id = jo.getAsLong("id"),
+				name = attrs.optString("canonicalTitle", titles.firstOrNull() ?: ""),
+				altName = titles.drop(1).joinToString(),
+				cover = posterImage?.getStringOrNull("small") ?: posterImage?.getStringOrNull("medium").orEmpty(),
+				url = "$BASE_WEB_URL/$mediaType/$slug",
+			)
+		}
+	}
+
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
 			.get()

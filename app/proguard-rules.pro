@@ -180,3 +180,7 @@
 # TVBox jar runtime classes loaded via reflection / DexClassLoader
 -keep class com.github.catvod.** { *; }
 -keep class com.github.tvbox.osc.** { *; }
+
+# Bangumi tracking discovery – prevent R8 from stripping HTML-parsing code paths
+-keep class org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository { *; }
+-keep class org.skepsun.kototoro.tracking.discovery.** { *; }

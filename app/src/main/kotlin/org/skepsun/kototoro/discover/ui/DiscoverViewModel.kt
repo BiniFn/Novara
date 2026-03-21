@@ -269,8 +269,12 @@ class DiscoverViewModel @Inject constructor(
 
 	private fun resolveAvailableServices(preferred: ScrobblerService): List<ScrobblerService> {
 		return buildList {
-			add(ScrobblerService.BANGUMI)
-			if (preferred != ScrobblerService.BANGUMI && supportsSearch(preferred)) {
+			// Always include services that support trending discovery
+			for (service in ScrobblerService.entries) {
+				if (supportsTrending(service)) add(service)
+			}
+			// Ensure preferred is included if it supports search
+			if (preferred !in this && supportsSearch(preferred)) {
 				add(preferred)
 			}
 		}

@@ -2,6 +2,8 @@
 package org.skepsun.kototoro.tracking.discovery.data
 
 import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository
+import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
+import org.skepsun.kototoro.scrobbling.mal.data.MALRepository
 import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerRepositoryMap
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
@@ -19,6 +21,8 @@ import javax.inject.Singleton
 class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private val repositoryMap: ScrobblerRepositoryMap,
 	private val bangumiRepository: BangumiRepository,
+	private val kitsuRepository: KitsuRepository,
+	private val malRepository: MALRepository,
 ) : TrackingSiteDiscoveryService {
 
 	override fun getCapabilities(service: ScrobblerService): TrackingSiteCapabilities = when (service) {
@@ -39,6 +43,61 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			),
 		)
 
+		ScrobblerService.KITSU -> TrackingSiteCapabilities(
+			supportsDiscovery = true,
+			supportsTrending = true,
+			supportsSearch = true,
+			supportsDetails = true,
+			supportsStatusSync = true,
+			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("trending_anime", org.skepsun.kototoro.R.string.kitsu_category_trending_anime),
+				TrackingSiteCategory("trending_manga", org.skepsun.kototoro.R.string.kitsu_category_trending_manga),
+				TrackingSiteCategory("action", org.skepsun.kototoro.R.string.kitsu_category_action),
+				TrackingSiteCategory("romance", org.skepsun.kototoro.R.string.kitsu_category_romance),
+				TrackingSiteCategory("fantasy", org.skepsun.kototoro.R.string.kitsu_category_fantasy),
+				TrackingSiteCategory("comedy", org.skepsun.kototoro.R.string.kitsu_category_comedy),
+				TrackingSiteCategory("science-fiction", org.skepsun.kototoro.R.string.kitsu_category_sci_fi),
+				TrackingSiteCategory("adventure", org.skepsun.kototoro.R.string.kitsu_category_adventure),
+				TrackingSiteCategory("slice-of-life", org.skepsun.kototoro.R.string.kitsu_category_slice_of_life),
+				TrackingSiteCategory("drama", org.skepsun.kototoro.R.string.kitsu_category_drama),
+				TrackingSiteCategory("ecchi", org.skepsun.kototoro.R.string.kitsu_category_ecchi),
+				TrackingSiteCategory("supernatural", org.skepsun.kototoro.R.string.kitsu_category_supernatural),
+				TrackingSiteCategory("horror", org.skepsun.kototoro.R.string.kitsu_category_horror),
+				TrackingSiteCategory("isekai", org.skepsun.kototoro.R.string.kitsu_category_isekai),
+			),
+		)
+
+		ScrobblerService.MAL -> TrackingSiteCapabilities(
+			supportsDiscovery = true,
+			supportsTrending = true,
+			supportsSearch = true,
+			supportsDetails = true,
+			supportsStatusSync = true,
+			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("seasonal", org.skepsun.kototoro.R.string.mal_category_seasonal),
+				TrackingSiteCategory("anime_all", org.skepsun.kototoro.R.string.mal_category_anime_top),
+				TrackingSiteCategory("anime_airing", org.skepsun.kototoro.R.string.mal_category_anime_airing),
+				TrackingSiteCategory("anime_upcoming", org.skepsun.kototoro.R.string.mal_category_anime_upcoming),
+				TrackingSiteCategory("anime_tv", org.skepsun.kototoro.R.string.mal_category_anime_tv),
+				TrackingSiteCategory("anime_movie", org.skepsun.kototoro.R.string.mal_category_anime_movie),
+				TrackingSiteCategory("anime_ova", org.skepsun.kototoro.R.string.mal_category_anime_ova),
+				TrackingSiteCategory("anime_special", org.skepsun.kototoro.R.string.mal_category_anime_special),
+				TrackingSiteCategory("anime_bypopularity", org.skepsun.kototoro.R.string.mal_category_anime_popular),
+				TrackingSiteCategory("anime_favorite", org.skepsun.kototoro.R.string.mal_category_anime_favorite),
+				TrackingSiteCategory("manga_all", org.skepsun.kototoro.R.string.mal_category_manga_top),
+				TrackingSiteCategory("manga_manga", org.skepsun.kototoro.R.string.mal_category_manga_manga),
+				TrackingSiteCategory("manga_novels", org.skepsun.kototoro.R.string.mal_category_manga_novels),
+				TrackingSiteCategory("manga_manhwa", org.skepsun.kototoro.R.string.mal_category_manga_manhwa),
+				TrackingSiteCategory("manga_manhua", org.skepsun.kototoro.R.string.mal_category_manga_manhua),
+				TrackingSiteCategory("manga_oneshots", org.skepsun.kototoro.R.string.mal_category_manga_oneshots),
+				TrackingSiteCategory("manga_doujin", org.skepsun.kototoro.R.string.mal_category_manga_doujin),
+				TrackingSiteCategory("manga_bypopularity", org.skepsun.kototoro.R.string.mal_category_manga_popular),
+				TrackingSiteCategory("manga_favorite", org.skepsun.kototoro.R.string.mal_category_manga_favorite),
+			),
+		)
+
 		else -> TrackingSiteCapabilities(
 			supportsDiscovery = false,
 			supportsTrending = false,
@@ -50,6 +109,12 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	}
 
 	override suspend fun getTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		if (catalog.service == ScrobblerService.KITSU) {
+			return getKitsuTrending(catalog)
+		}
+		if (catalog.service == ScrobblerService.MAL) {
+			return getMalTrending(catalog)
+		}
 		if (catalog.service != ScrobblerService.BANGUMI) {
 			return emptyList()
 		}
@@ -86,9 +151,84 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		if (query.isEmpty()) {
 			return getTrending(catalog)
 		}
+		if (catalog.service == ScrobblerService.KITSU) {
+			// Search both anime and manga, merge results
+			val offset = catalog.page * 20
+			val anime = runCatching { kitsuRepository.findAnime(query, offset) }.getOrElse { emptyList() }
+			val manga = runCatching { kitsuRepository.findContent(query, offset) }.getOrElse { emptyList() }
+			return (anime + manga)
+				.distinctBy { it.id }
+				.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+		}
+		if (catalog.service == ScrobblerService.MAL) {
+			val offset = catalog.page * 20
+			val anime = runCatching { malRepository.searchAnime(query, offset) }.getOrElse { emptyList() }
+			val manga = runCatching { malRepository.findContent(query, offset) }.getOrElse { emptyList() }
+			return (anime + manga)
+				.distinctBy { it.id }
+				.map { it.toTrackingListItem(ScrobblerService.MAL) }
+		}
 		return repositoryMap[catalog.service]
 			.findContent(query, catalog.page * 10)
 			.map { item -> item.toTrackingListItem(catalog.service) }
+	}
+
+	// ── Kitsu helpers ─────────────────────────
+
+	private suspend fun getKitsuTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		val category = catalog.category ?: "trending_anime"
+		val page = catalog.page + 1 // convert 0-based to 1-based
+
+		return when {
+			category == "trending_anime" -> {
+				if (catalog.page > 0) return emptyList() // trending endpoint returns all at once
+				kitsuRepository.getTrending("anime")
+					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+			}
+			category == "trending_manga" -> {
+				if (catalog.page > 0) return emptyList()
+				kitsuRepository.getTrending("manga")
+					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+			}
+			else -> {
+				// Genre-based categories browse anime by default
+				kitsuRepository.getRankings("anime", category, page)
+					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+			}
+		}
+	}
+
+	// ── MAL helpers ─────────────────────────────
+
+	private suspend fun getMalTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		val category = catalog.category ?: "anime_all"
+		val limit = 20
+		val offset = catalog.page * limit
+
+		// Handle seasonal anime separately
+		if (category == "seasonal") {
+			val cal = java.util.Calendar.getInstance()
+			val year = cal.get(java.util.Calendar.YEAR)
+			val month = cal.get(java.util.Calendar.MONTH) // 0-based
+			val season = when (month) {
+				in 0..2 -> "winter"
+				in 3..5 -> "spring"
+				in 6..8 -> "summer"
+				else -> "fall"
+			}
+			return malRepository.getSeasonalAnime(year, season, limit = limit, offset = offset)
+				.map { it.toTrackingListItem(ScrobblerService.MAL) }
+		}
+
+		// Category format: "{mediaType}_{rankingType}", e.g. "anime_all", "manga_bypopularity"
+		val mediaType = category.substringBefore("_")
+		val rankingType = category.substringAfter("_")
+
+		val items = when (mediaType) {
+			"manga" -> malRepository.getMangaRanking(rankingType, limit, offset)
+			else -> malRepository.getAnimeRanking(rankingType, limit, offset)
+		}
+		return items.map { it.toTrackingListItem(ScrobblerService.MAL) }
 	}
 
 	override suspend fun getDetails(service: ScrobblerService, remoteId: Long): TrackingSiteItemDetails {

@@ -85,7 +85,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			return if (raw.isNullOrEmpty()) {
 				listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE)
 			} else {
-				raw.mapNotNull { x -> NavItem.entries.find(x) }.ifEmpty { listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE) }
+				raw.mapNotNull { x -> NavItem.entries.find(x) }
+				.filterNot { it == NavItem.DISCOVER }
+				.ifEmpty { listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE) }
 			}
 		}
 		set(value) {

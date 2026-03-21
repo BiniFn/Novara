@@ -1387,6 +1387,7 @@
     <string name="favorite_count">收藏数</string>
     <string name="unread_updates">未读更新</string>
     <string name="preferred_tracking_site">首选追踪站点</string>
+    <string name="preferred_tracking_site_summary">选择发现功能默认使用的追踪网站</string>
     <string name="manga">漫画</string>
     <string name="novel">小说</string>
     <string name="video">视频</string>
@@ -1413,4 +1414,39 @@
     <string name="home_source_breakdown_item">%1$s · %2$d</string>
     <string name="home_source_breakdown_empty">该分组暂无已启用内容源</string>
     <string name="home_quick_access_subtitle">无需离开首页即可打开全局设置。</string>
+    <!-- Kitsu discovery categories -->
+    <string name="kitsu_category_trending_anime">热门动画</string>
+    <string name="kitsu_category_trending_manga">热门漫画</string>
+    <string name="kitsu_category_action">动作</string>
+    <string name="kitsu_category_romance">恋爱</string>
+    <string name="kitsu_category_fantasy">奇幻</string>
+    <string name="kitsu_category_comedy">喜剧</string>
+    <string name="kitsu_category_sci_fi">科幻</string>
+    <string name="kitsu_category_adventure">冒险</string>
+    <string name="kitsu_category_slice_of_life">日常</string>
+    <string name="kitsu_category_drama">剧情</string>
+    <string name="kitsu_category_ecchi">色情</string>
+    <string name="kitsu_category_supernatural">超自然</string>
+    <string name="kitsu_category_horror">恐怖</string>
+    <string name="kitsu_category_isekai">异世界</string>
+    <!-- MAL discovery categories -->
+    <string name="mal_category_seasonal">当季动画</string>
+    <string name="mal_category_anime_top">动画排行榜</string>
+    <string name="mal_category_anime_airing">放送中</string>
+    <string name="mal_category_anime_upcoming">即将放送</string>
+    <string name="mal_category_anime_tv">TV动画排行</string>
+    <string name="mal_category_anime_movie">剧场版排行</string>
+    <string name="mal_category_anime_ova">OVA排行</string>
+    <string name="mal_category_anime_special">特别篇排行</string>
+    <string name="mal_category_anime_popular">最受欢迎动画</string>
+    <string name="mal_category_anime_favorite">最多收藏动画</string>
+    <string name="mal_category_manga_top">漫画排行榜</string>
+    <string name="mal_category_manga_manga">漫画排行</string>
+    <string name="mal_category_manga_novels">轻小说排行</string>
+    <string name="mal_category_manga_manhwa">韩漫排行</string>
+    <string name="mal_category_manga_manhua">国漫排行</string>
+    <string name="mal_category_manga_oneshots">短篇排行</string>
+    <string name="mal_category_manga_doujin">同人志排行</string>
+    <string name="mal_category_manga_popular">最受欢迎漫画</string>
+    <string name="mal_category_manga_favorite">最多收藏漫画</string>
 </resources>

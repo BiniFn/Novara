@@ -103,6 +103,112 @@ class MALRepository @Inject constructor(
 		return data.mapJSONNotNull { jsonToContent(it, query) }
 	}
 
+	// ── Discovery API (public, uses X-MAL-CLIENT-ID) ─────────────
+
+	/**
+	 * Get anime ranking from MAL.
+	 * @param rankingType "all", "airing", "upcoming", "tv", "ova", "movie", "special", "bypopularity", "favorite"
+	 * @param limit max items per page
+	 * @param offset pagination offset
+	 */
+	suspend fun getAnimeRanking(rankingType: String = "all", limit: Int = 20, offset: Int = 0): List<ScrobblerContent> {
+		val url = BASE_API_URL.toHttpUrl().newBuilder()
+			.addPathSegment("anime")
+			.addPathSegment("ranking")
+			.addQueryParameter("ranking_type", rankingType)
+			.addQueryParameter("limit", limit.toString())
+			.addQueryParameter("offset", offset.toString())
+			.addQueryParameter("nsfw", "true")
+			.build()
+		val request = Request.Builder().url(url)
+			.header("X-MAL-CLIENT-ID", clientId)
+			.get().build()
+		return parseRankingList(okHttp.newCall(request).await().parseJson(), "anime")
+	}
+
+	/**
+	 * Get seasonal anime from MAL.
+	 * @param year e.g. 2026
+	 * @param season "winter", "spring", "summer", "fall"
+	 * @param sort "anime_score" or "anime_num_list_users"
+	 */
+	suspend fun getSeasonalAnime(year: Int, season: String, sort: String = "anime_num_list_users", limit: Int = 20, offset: Int = 0): List<ScrobblerContent> {
+		val url = BASE_API_URL.toHttpUrl().newBuilder()
+			.addPathSegment("anime")
+			.addPathSegment("season")
+			.addPathSegment(year.toString())
+			.addPathSegment(season)
+			.addQueryParameter("sort", sort)
+			.addQueryParameter("limit", limit.toString())
+			.addQueryParameter("offset", offset.toString())
+			.addQueryParameter("nsfw", "true")
+			.build()
+		val request = Request.Builder().url(url)
+			.header("X-MAL-CLIENT-ID", clientId)
+			.get().build()
+		return parseRankingList(okHttp.newCall(request).await().parseJson(), "anime")
+	}
+
+	/**
+	 * Get manga ranking from MAL.
+	 */
+	suspend fun getMangaRanking(rankingType: String = "all", limit: Int = 20, offset: Int = 0): List<ScrobblerContent> {
+		val url = BASE_API_URL.toHttpUrl().newBuilder()
+			.addPathSegment("manga")
+			.addPathSegment("ranking")
+			.addQueryParameter("ranking_type", rankingType)
+			.addQueryParameter("limit", limit.toString())
+			.addQueryParameter("offset", offset.toString())
+			.addQueryParameter("nsfw", "true")
+			.build()
+		val request = Request.Builder().url(url)
+			.header("X-MAL-CLIENT-ID", clientId)
+			.get().build()
+		return parseRankingList(okHttp.newCall(request).await().parseJson(), "manga")
+	}
+
+	/**
+	 * Search anime by text query.
+	 */
+	suspend fun searchAnime(query: String, offset: Int): List<ScrobblerContent> {
+		val url = BASE_API_URL.toHttpUrl().newBuilder()
+			.addPathSegment("anime")
+			.addQueryParameter("offset", offset.toString())
+			.addQueryParameter("nsfw", "true")
+			.addQueryParameter("q", query.take(64))
+			.build()
+		val request = Request.Builder().url(url)
+			.header("X-MAL-CLIENT-ID", clientId)
+			.get().build()
+		val response = okHttp.newCall(request).await().parseJson()
+		check(response.has("data")) { "Invalid response: \"$response\"" }
+		return response.getJSONArray("data").mapJSONNotNull { jo ->
+			val node = jo.getJSONObject("node")
+			ScrobblerContent(
+				id = node.getLong("id"),
+				name = node.getString("title"),
+				altName = null,
+				cover = node.optJSONObject("main_picture")?.getStringOrNull("large"),
+				url = "$BASE_WEB_URL/anime/${node.getLong("id")}",
+			)
+		}
+	}
+
+	private fun parseRankingList(json: JSONObject, mediaType: String): List<ScrobblerContent> {
+		val data = json.optJSONArray("data") ?: return emptyList()
+		return data.mapJSONNotNull { jo ->
+			val node = jo.getJSONObject("node")
+			ScrobblerContent(
+				id = node.getLong("id"),
+				name = node.getString("title"),
+				altName = null,
+				cover = node.optJSONObject("main_picture")?.getStringOrNull("large"),
+				url = "$BASE_WEB_URL/$mediaType/${node.getLong("id")}",
+			)
+		}
+	}
+
+
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("manga")
