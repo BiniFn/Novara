@@ -179,7 +179,8 @@ class ShikimoriRepository @Inject constructor(
 			.get()
 			.url("${BASE_URL}api/mangas/$id")
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerContentInfo(response)
+		val related = fetchRelated("mangas", id)
+		return parseDetailJson(response, related)
 	}
 
 	/**
@@ -327,13 +328,129 @@ class ShikimoriRepository @Inject constructor(
 
 	/**
 	 * Get anime details from Shikimori by anime ID.
+	 * Fetches the detail endpoint AND related works endpoint.
 	 */
 	suspend fun getAnimeInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
 			.get()
 			.url("${BASE_URL}api/animes/$id")
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerContentInfo(response)
+		val related = fetchRelated("animes", id)
+		return parseDetailJson(response, related)
+	}
+
+	/**
+	 * Fetch related works for an anime or manga.
+	 * GET /api/{animes|mangas}/:id/related
+	 */
+	private suspend fun fetchRelated(mediaType: String, id: Long): List<ScrobblerContentInfo.RelatedWork> {
+		val url = "${BASE_URL}api/$mediaType/$id/related"
+		val request = Request.Builder().url(url).get().build()
+		return runCatching {
+			val array = okHttp.newCall(request).await().parseJsonArray()
+			array.mapJSON { entry ->
+				val relation = entry.getStringOrNull("relation") ?: ""
+				// Each entry has either "anime" or "manga" object (one is null)
+				val target = entry.optJSONObject("anime") ?: entry.optJSONObject("manga")
+				if (target != null) {
+					ScrobblerContentInfo.RelatedWork(
+						id = target.getLong("id"),
+						title = target.getString("name"),
+						coverUrl = target.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
+						relationship = relation.ifBlank { null },
+						url = target.getString("url").toAbsoluteUrl(DOMAIN),
+					)
+				} else null
+			}.filterNotNull()
+		}.getOrElse { emptyList() }
+	}
+
+	/**
+	 * Parse a detailed Shikimori JSON response into ScrobblerContentInfo.
+	 * Extracts: genres (as tags), infobox properties, description, related works.
+	 */
+	private fun parseDetailJson(
+		json: JSONObject,
+		relatedWorks: List<ScrobblerContentInfo.RelatedWork>,
+	): ScrobblerContentInfo {
+		// Genres as tags
+		val genres = json.optJSONArray("genres")
+		val tags = mutableListOf<String>()
+		if (genres != null) {
+			for (i in 0 until genres.length()) {
+				val genre = genres.optJSONObject(i)
+				val name = genre?.getStringOrNull("name") ?: continue
+				tags.add(name)
+			}
+		}
+
+		// Infobox properties
+		val infobox = mutableListOf<Pair<String, String>>()
+
+		json.getStringOrNull("kind")?.let { kind ->
+			val displayKind = kind.replace("_", " ").replaceFirstChar { it.uppercaseChar() }
+			infobox.add("Type" to displayKind)
+		}
+
+		val score = json.optString("score", "")
+		if (score.isNotBlank() && score != "0" && score != "0.0") {
+			infobox.add("Score" to score)
+		}
+
+		json.getStringOrNull("status")?.let { status ->
+			val displayStatus = status.replaceFirstChar { it.uppercaseChar() }
+			infobox.add("Status" to displayStatus)
+		}
+
+		json.getStringOrNull("aired_on")?.let { infobox.add("Aired" to it) }
+		json.getStringOrNull("released_on")?.let { infobox.add("Released" to it) }
+
+		json.getStringOrNull("rating")?.let { rating ->
+			val displayRating = rating.replace("_", " ").uppercase()
+			infobox.add("Rating" to displayRating)
+		}
+
+		// Anime-specific fields
+		val episodes = json.optInt("episodes", 0)
+		val episodesAired = json.optInt("episodes_aired", 0)
+		if (episodes > 0) {
+			infobox.add("Episodes" to "$episodes")
+		} else if (episodesAired > 0) {
+			infobox.add("Episodes Aired" to "$episodesAired")
+		}
+
+		// Manga-specific fields
+		val volumes = json.optInt("volumes", 0)
+		val chapters = json.optInt("chapters", 0)
+		if (volumes > 0) infobox.add("Volumes" to "$volumes")
+		if (chapters > 0) infobox.add("Chapters" to "$chapters")
+
+		// Studios (anime only)
+		val studios = json.optJSONArray("studios")
+		if (studios != null && studios.length() > 0) {
+			val studioNames = mutableListOf<String>()
+			for (i in 0 until studios.length()) {
+				studios.optJSONObject(i)?.getStringOrNull("name")?.let(studioNames::add)
+			}
+			if (studioNames.isNotEmpty()) {
+				infobox.add("Studio" to studioNames.joinToString(", "))
+			}
+		}
+
+		// Cover: prefer original over preview
+		val imageObj = json.getJSONObject("image")
+		val cover = (imageObj.getStringOrNull("original") ?: imageObj.getString("preview")).toAbsoluteUrl(DOMAIN)
+
+		return ScrobblerContentInfo(
+			id = json.getLong("id"),
+			name = json.getString("name"),
+			cover = cover,
+			url = json.getString("url").toAbsoluteUrl(DOMAIN),
+			descriptionHtml = json.optString("description_html", ""),
+			tags = tags,
+			infoboxProperties = infobox,
+			relatedWorks = relatedWorks,
+		)
 	}
 
 	private fun parseShikimoriList(array: org.json.JSONArray, mediaType: String): List<ScrobblerContent> {
@@ -370,14 +487,6 @@ class ShikimoriRepository @Inject constructor(
 		url = json.getString("url").toAbsoluteUrl(DOMAIN),
 		isBestMatch = sourceTitle.equals(json.getString("name"), ignoreCase = true)
 			|| json.getStringOrNull("russian")?.equals(sourceTitle, ignoreCase = true) == true
-	)
-
-	private fun ScrobblerContentInfo(json: JSONObject) = ScrobblerContentInfo(
-		id = json.getLong("id"),
-		name = json.getString("name"),
-		cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
-		url = json.getString("url").toAbsoluteUrl(DOMAIN),
-		descriptionHtml = json.getString("description_html"),
 	)
 
 	@Suppress("FunctionName")
