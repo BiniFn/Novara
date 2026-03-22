@@ -7,8 +7,10 @@ import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okhttp3.Response
 import java.util.concurrent.TimeUnit.MINUTES
 
 /**
@@ -82,4 +84,42 @@ fun DELETE(
         .headers(headers)
         .cacheControl(cache)
         .build()
+}
+
+// ---- OkHttpClient suspend extension functions (Aniyomi extensions-lib compat) ----
+// These build the request AND execute it, returning a Response.
+
+suspend fun OkHttpClient.get(
+    url: String,
+    headers: Headers = DEFAULT_HEADERS,
+    cache: CacheControl = DEFAULT_CACHE_CONTROL,
+): Response {
+    return newCall(GET(url, headers, cache)).await()
+}
+
+suspend fun OkHttpClient.post(
+    url: String,
+    headers: Headers = DEFAULT_HEADERS,
+    body: RequestBody = DEFAULT_BODY,
+    cache: CacheControl = DEFAULT_CACHE_CONTROL,
+): Response {
+    return newCall(POST(url, headers, body, cache)).await()
+}
+
+suspend fun OkHttpClient.put(
+    url: String,
+    headers: Headers = DEFAULT_HEADERS,
+    body: RequestBody = DEFAULT_BODY,
+    cache: CacheControl = DEFAULT_CACHE_CONTROL,
+): Response {
+    return newCall(PUT(url, headers, body, cache)).await()
+}
+
+suspend fun OkHttpClient.delete(
+    url: String,
+    headers: Headers = DEFAULT_HEADERS,
+    body: RequestBody = DEFAULT_BODY,
+    cache: CacheControl = DEFAULT_CACHE_CONTROL,
+): Response {
+    return newCall(DELETE(url, headers, body, cache)).await()
 }
