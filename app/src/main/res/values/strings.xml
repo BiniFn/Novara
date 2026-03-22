@@ -1458,6 +1458,13 @@
 	<string name="skip_unreachable_sources">Skip unreachable sources (skip if homepage is inaccessible)</string>
 	<string name="skip_no_explore_sources">Skip sources without browsing rules (search only)</string>
 	<string name="tvbox_source_zh_warning">These sources usually only support Chinese websites.</string>
+	<string name="shiki_category_anime_ranked">Top Anime</string>
+	<string name="shiki_category_anime_popular">Popular Anime</string>
+	<string name="shiki_category_anime_ongoing">Ongoing Anime</string>
+	<string name="shiki_category_anime_upcoming">Upcoming Anime</string>
+	<string name="shiki_category_seasonal">Seasonal Anime</string>
+	<string name="shiki_category_manga_ranked">Top Manga</string>
+	<string name="shiki_category_manga_popular">Popular Manga</string>
 	<string name="badge_search_only">Search Only</string>
 	<string name="badge_valid">Valid</string>
 	<string name="badge_invalid">Invalid</string>

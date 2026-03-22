@@ -6,6 +6,7 @@ import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
 import org.skepsun.kototoro.scrobbling.mal.data.MALRepository
 import org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository
+import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriRepository
 import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerRepositoryMap
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
@@ -27,6 +28,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private val kitsuRepository: KitsuRepository,
 	private val malRepository: MALRepository,
 	private val mangaUpdatesRepository: MangaUpdatesRepository,
+	private val shikimoriRepository: ShikimoriRepository,
 	private val cacheRepository: TrackingSiteCacheRepository,
 ) : TrackingSiteDiscoveryService {
 
@@ -138,6 +140,24 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		)
 
 
+		ScrobblerService.SHIKIMORI -> TrackingSiteCapabilities(
+			supportsDiscovery = true,
+			supportsTrending = true,
+			supportsSearch = true,
+			supportsDetails = true,
+			supportsStatusSync = true,
+			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("shiki_anime_ranked", org.skepsun.kototoro.R.string.shiki_category_anime_ranked),
+				TrackingSiteCategory("shiki_anime_popular", org.skepsun.kototoro.R.string.shiki_category_anime_popular),
+				TrackingSiteCategory("shiki_anime_ongoing", org.skepsun.kototoro.R.string.shiki_category_anime_ongoing),
+				TrackingSiteCategory("shiki_anime_anons", org.skepsun.kototoro.R.string.shiki_category_anime_upcoming),
+				TrackingSiteCategory("shiki_seasonal", org.skepsun.kototoro.R.string.shiki_category_seasonal),
+				TrackingSiteCategory("shiki_manga_ranked", org.skepsun.kototoro.R.string.shiki_category_manga_ranked),
+				TrackingSiteCategory("shiki_manga_popular", org.skepsun.kototoro.R.string.shiki_category_manga_popular),
+			),
+		)
+
 		else -> TrackingSiteCapabilities(
 			supportsDiscovery = false,
 			supportsTrending = false,
@@ -160,6 +180,9 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		}
 		if (catalog.service == ScrobblerService.ANILIST) {
 			return getAniListTrending(catalog)
+		}
+		if (catalog.service == ScrobblerService.SHIKIMORI) {
+			return getShikimoriTrending(catalog)
 		}
 		if (catalog.service != ScrobblerService.BANGUMI) {
 			return emptyList()
@@ -218,6 +241,14 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			val offset = catalog.page * 25
 			return mangaUpdatesRepository.findContent(query, offset)
 				.map { it.toTrackingListItem(ScrobblerService.MANGAUPDATES) }
+		}
+		if (catalog.service == ScrobblerService.SHIKIMORI) {
+			val offset = catalog.page * 10
+			val anime = runCatching { shikimoriRepository.findAnime(query, offset) }.getOrElse { emptyList() }
+			val manga = runCatching { shikimoriRepository.findContent(query, offset) }.getOrElse { emptyList() }
+			return (anime + manga)
+				.distinctBy { it.id }
+				.map { it.toTrackingListItem(ScrobblerService.SHIKIMORI) }
 		}
 		return repositoryMap[catalog.service]
 			.findContent(query, catalog.page * 10)
@@ -324,6 +355,9 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		if (service == ScrobblerService.MAL) {
 			return getMalDetails(remoteId, urlHint)
 		}
+		if (service == ScrobblerService.SHIKIMORI) {
+			return getShikimoriDetails(remoteId, urlHint)
+		}
 		return repositoryMap[service]
 			.getContentInfo(remoteId)
 			.toTrackingDetails(service)
@@ -343,6 +377,57 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			malRepository.getContentInfo(remoteId)
 		}
 		return info.toTrackingDetails(ScrobblerService.MAL)
+	}
+
+	// ── Shikimori helpers ────────────────────
+
+	private suspend fun getShikimoriTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		val category = catalog.category ?: "shiki_anime_ranked"
+		val page = catalog.page + 1
+		val limit = 20
+
+		if (category == "shiki_seasonal") {
+			val cal = java.util.Calendar.getInstance()
+			val year = cal.get(java.util.Calendar.YEAR)
+			val month = cal.get(java.util.Calendar.MONTH) // 0-based
+			val season = when (month) {
+				in 0..2 -> "winter"
+				in 3..5 -> "spring"
+				in 6..8 -> "summer"
+				else -> "fall"
+			}
+			return shikimoriRepository.getAnimeList(
+				order = "popularity",
+				season = "${season}_${year}",
+				page = page,
+				limit = limit,
+			).map { it.toTrackingListItem(ScrobblerService.SHIKIMORI) }
+		}
+
+		return when (category) {
+			"shiki_anime_ranked" -> shikimoriRepository.getAnimeList(order = "ranked", page = page, limit = limit)
+			"shiki_anime_popular" -> shikimoriRepository.getAnimeList(order = "popularity", page = page, limit = limit)
+			"shiki_anime_ongoing" -> shikimoriRepository.getAnimeList(order = "ranked", status = "ongoing", page = page, limit = limit)
+			"shiki_anime_anons" -> shikimoriRepository.getAnimeList(order = "popularity", status = "anons", page = page, limit = limit)
+			"shiki_manga_ranked" -> shikimoriRepository.getMangaList(order = "ranked", page = page, limit = limit)
+			"shiki_manga_popular" -> shikimoriRepository.getMangaList(order = "popularity", page = page, limit = limit)
+			else -> emptyList()
+		}.map { it.toTrackingListItem(ScrobblerService.SHIKIMORI) }
+	}
+
+	private suspend fun getShikimoriDetails(remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
+		val url = urlHint ?: runCatching {
+			cacheRepository.readDetails(ScrobblerService.SHIKIMORI, remoteId)?.url
+		}.getOrNull()
+
+		val isAnime = url?.contains("/animes/") == true
+
+		val info = if (isAnime) {
+			shikimoriRepository.getAnimeInfo(remoteId)
+		} else {
+			shikimoriRepository.getContentInfo(remoteId)
+		}
+		return info.toTrackingDetails(ScrobblerService.SHIKIMORI)
 	}
 
 	private fun ScrobblerContent.toTrackingListItem(service: ScrobblerService): TrackingSiteItem {

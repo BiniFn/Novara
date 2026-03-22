@@ -243,6 +243,111 @@ class ShikimoriRepository @Inject constructor(
 		return synced.size
 	}
 
+	// ── Discovery API (public, no auth required) ─────────────
+
+	/**
+	 * Get anime list from Shikimori with optional filters.
+	 * @param order "ranked", "popularity", "aired_on", etc.
+	 * @param status "ongoing", "anons", "released", or null for all
+	 * @param season e.g. "spring_2026" or null for all
+	 * @param kind "tv", "movie", "ova", "ona", etc. or null for all
+	 */
+	suspend fun getAnimeList(
+		order: String = "ranked",
+		status: String? = null,
+		season: String? = null,
+		kind: String? = null,
+		page: Int = 1,
+		limit: Int = 20,
+	): List<ScrobblerContent> {
+		val url = BASE_URL.toHttpUrl().newBuilder()
+			.addPathSegment("api")
+			.addPathSegment("animes")
+			.addEncodedQueryParameter("page", page.toString())
+			.addEncodedQueryParameter("limit", limit.toString())
+			.addEncodedQueryParameter("order", order)
+			.addEncodedQueryParameter("censored", "false")
+			.apply {
+				if (status != null) addEncodedQueryParameter("status", status)
+				if (season != null) addEncodedQueryParameter("season", season)
+				if (kind != null) addEncodedQueryParameter("kind", kind)
+			}
+			.build()
+		val request = Request.Builder().url(url).get().build()
+		val response = okHttp.newCall(request).await().parseJsonArray()
+		return parseShikimoriList(response, "animes")
+	}
+
+	/**
+	 * Get manga list from Shikimori with optional filters.
+	 */
+	suspend fun getMangaList(
+		order: String = "ranked",
+		status: String? = null,
+		kind: String? = null,
+		page: Int = 1,
+		limit: Int = 20,
+	): List<ScrobblerContent> {
+		val url = BASE_URL.toHttpUrl().newBuilder()
+			.addPathSegment("api")
+			.addPathSegment("mangas")
+			.addEncodedQueryParameter("page", page.toString())
+			.addEncodedQueryParameter("limit", limit.toString())
+			.addEncodedQueryParameter("order", order)
+			.addEncodedQueryParameter("censored", "false")
+			.apply {
+				if (status != null) addEncodedQueryParameter("status", status)
+				if (kind != null) addEncodedQueryParameter("kind", kind)
+			}
+			.build()
+		val request = Request.Builder().url(url).get().build()
+		val response = okHttp.newCall(request).await().parseJsonArray()
+		return parseShikimoriList(response, "mangas")
+	}
+
+	/**
+	 * Search anime by text query.
+	 */
+	suspend fun findAnime(query: String, offset: Int): List<ScrobblerContent> {
+		val page = offset / MANGA_PAGE_SIZE
+		val pageOffset = offset % MANGA_PAGE_SIZE
+		val url = BASE_URL.toHttpUrl().newBuilder()
+			.addPathSegment("api")
+			.addPathSegment("animes")
+			.addEncodedQueryParameter("page", (page + 1).toString())
+			.addEncodedQueryParameter("limit", MANGA_PAGE_SIZE.toString())
+			.addEncodedQueryParameter("censored", "false")
+			.addQueryParameter("search", query)
+			.build()
+		val request = Request.Builder().url(url).get().build()
+		val response = okHttp.newCall(request).await().parseJsonArray()
+		val list = parseShikimoriList(response, "animes")
+		return if (pageOffset != 0) list.drop(pageOffset) else list
+	}
+
+	/**
+	 * Get anime details from Shikimori by anime ID.
+	 */
+	suspend fun getAnimeInfo(id: Long): ScrobblerContentInfo {
+		val request = Request.Builder()
+			.get()
+			.url("${BASE_URL}api/animes/$id")
+		val response = okHttp.newCall(request.build()).await().parseJson()
+		return ScrobblerContentInfo(response)
+	}
+
+	private fun parseShikimoriList(array: org.json.JSONArray, mediaType: String): List<ScrobblerContent> {
+		return array.mapJSON { json ->
+			ScrobblerContent(
+				id = json.getLong("id"),
+				name = json.getString("name"),
+				altName = json.getStringOrNull("russian"),
+				cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
+				url = json.getString("url").toAbsoluteUrl(DOMAIN),
+			)
+		}
+	}
+
 	private suspend fun saveRate(json: JSONObject, mangaId: Long) {
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.SHIKIMORI.id,

@@ -704,4 +704,11 @@
     <string name="delete_selected">刪除選定的來源</string>
     <string name="validate_selected">驗證選定的來源</string>
     <string name="batch_no_selection">請先選擇一個來源</string>
+    <string name="shiki_category_anime_ranked">動畫排行</string>
+    <string name="shiki_category_anime_popular">熱門動畫</string>
+    <string name="shiki_category_anime_ongoing">連載中動畫</string>
+    <string name="shiki_category_anime_upcoming">即將播出</string>
+    <string name="shiki_category_seasonal">當季動畫</string>
+    <string name="shiki_category_manga_ranked">漫畫排行</string>
+    <string name="shiki_category_manga_popular">熱門漫畫</string>
 </resources>

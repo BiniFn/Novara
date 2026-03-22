@@ -1474,4 +1474,11 @@
     <string name="badge_invalid">无效</string>
     <string name="delete_selected">删除选中源</string>
     <string name="batch_no_selection">请先选择源</string>
+    <string name="shiki_category_anime_ranked">动画排行</string>
+    <string name="shiki_category_anime_popular">热门动画</string>
+    <string name="shiki_category_anime_ongoing">连载中动画</string>
+    <string name="shiki_category_anime_upcoming">即将播出</string>
+    <string name="shiki_category_seasonal">当季动画</string>
+    <string name="shiki_category_manga_ranked">漫画排行</string>
+    <string name="shiki_category_manga_popular">热门漫画</string>
 </resources>
