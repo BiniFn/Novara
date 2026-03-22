@@ -30,7 +30,7 @@
     <string name="create_shortcut">Стварыць ярлык</string>
     <string name="share_s">Падзялiцца %s</string>
     <string name="search">Пошук</string>
-    <string name="search_manga">Пошук мангі</string>
+    <string name="search_content">Пошук змесціва</string>
     <string name="manga_downloading_">Спампоўванне мангі…</string>
     <string name="processing_">Апрацоўка…</string>
     <string name="download_complete">Спампоўванне завершана</string>

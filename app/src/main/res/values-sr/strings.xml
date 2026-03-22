@@ -28,7 +28,7 @@
     <string name="share">Подели</string>
     <string name="create_shortcut">Направи пречицу</string>
     <string name="invalid_port_number">Неважећи број порта</string>
-    <string name="search_manga">Претражи мангу</string>
+    <string name="search_content">Претражи садржај</string>
     <string name="by_name">Имену</string>
     <string name="clear_pages_cache">Избриши кеш странице</string>
     <string name="manga_downloading_">Преузимање…</string>

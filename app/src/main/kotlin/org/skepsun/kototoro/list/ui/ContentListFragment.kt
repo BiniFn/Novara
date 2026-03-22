@@ -186,9 +186,17 @@ abstract class ContentListFragment :
 			binding.filterScrollView.visibility = View.GONE
 		} else if (!isInsideContainer) {
 			// Mode B: Inline chip groups (standalone activity without SearchBar)
-			rebuildContentTypeChips(binding)
-			rebuildSourceTagChips(binding)
-			binding.filterScrollView.visibility = View.VISIBLE
+			if (isContentTypeFilterVisible()) {
+				rebuildContentTypeChips(binding)
+			} else {
+				binding.chipGroupContentType.visibility = View.GONE
+			}
+			if (isSourceTagFilterVisible()) {
+				rebuildSourceTagChips(binding)
+			} else {
+				binding.chipGroupSourceTag.visibility = View.GONE
+			}
+			updateFilterScrollViewVisibility(binding)
 		} else {
 			// Mode C: Inside a container (e.g. FavouritesContainerFragment) — no filters here
 			binding.filterScrollView.visibility = View.GONE
@@ -571,10 +579,12 @@ abstract class ContentListFragment :
 
 		if (categories.isEmpty()) {
 			chipGroup.visibility = View.GONE
+			updateFilterScrollViewVisibility(binding)
 			return
 		}
 
 		chipGroup.visibility = View.VISIBLE
+		updateFilterScrollViewVisibility(binding)
 
 		val colors = createChipColors()
 		val density = resources.displayMetrics.density
@@ -610,6 +620,21 @@ abstract class ContentListFragment :
 	private fun updateCategoryChipsSelection(binding: FragmentListBinding, ids: Set<Long>) {
 		categoryChipIds.forEach { (categoryId, id) ->
 			binding.chipGroupCategory.findViewById<Chip>(id)?.isChecked = (categoryId in ids)
+		}
+	}
+
+	private fun updateFilterScrollViewVisibility(binding: FragmentListBinding) {
+		val hasContent = binding.chipGroupContentType.visibility == View.VISIBLE ||
+				binding.chipGroupSourceTag.visibility == View.VISIBLE ||
+				binding.chipGroupCategory.visibility == View.VISIBLE
+		
+		// In Mode A or Mode C, filterMenuProvider is NOT null, or we intentionally hide the scroll view.
+		// However, in Mode B, we show the scroll view if there is ANY content.
+		// Wait, if filterMenuProvider is not null (Mode A), we only show filterScrollView if category chips are visible!
+		if (filterMenuProvider != null) {
+			binding.filterScrollView.visibility = if (binding.chipGroupCategory.visibility == View.VISIBLE) View.VISIBLE else View.GONE
+		} else if (parentFragment == null) {
+			binding.filterScrollView.visibility = if (hasContent) View.VISIBLE else View.GONE
 		}
 	}
 

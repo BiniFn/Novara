@@ -56,6 +56,9 @@ class RemoteListFragment : ContentListFragment(), FilterCoordinator.Owner, View.
         viewModel.loadNextPage()
     }
 
+    override fun isContentTypeFilterVisible(): Boolean = false
+    override fun isSourceTagFilterVisible(): Boolean = false
+
     override fun onCreateActionMode(
         controller: ListSelectionController,
         menuInflater: MenuInflater,

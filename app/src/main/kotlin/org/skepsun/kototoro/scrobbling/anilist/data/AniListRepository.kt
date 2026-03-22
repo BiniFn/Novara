@@ -192,6 +192,14 @@ class AniListRepository @Inject constructor(
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
+		return getMediaDetails(id)
+	}
+
+	suspend fun getAnimeInfo(id: Long): ScrobblerContentInfo {
+		return getMediaDetails(id)
+	}
+
+	private suspend fun getMediaDetails(id: Long): ScrobblerContentInfo {
 		val response = doRequest(
 			REQUEST_QUERY,
 			"""
@@ -199,16 +207,117 @@ class AniListRepository @Inject constructor(
 				id
 				title {
 					userPreferred
+					native
+					english
 				}
 				coverImage {
+					extraLarge
 					large
 				}
-				description
+				description(asHtml: true)
 				siteUrl
+				type
+				format
+				status
+				episodes
+				chapters
+				volumes
+				season
+				seasonYear
+				meanScore
+				genres
+				tags {
+					name
+					rank
+				}
+				staff(perPage: 10) {
+					nodes {
+						name {
+							full
+						}
+					}
+					edges {
+						role
+					}
+				}
+				relations {
+					edges {
+						relationType
+						node {
+							id
+							title {
+								userPreferred
+							}
+							coverImage {
+								medium
+							}
+							siteUrl
+						}
+					}
+				}
+				recommendations(perPage: 10, sort: RATING_DESC) {
+					nodes {
+						mediaRecommendation {
+							id
+							title {
+								userPreferred
+							}
+							coverImage {
+								medium
+							}
+							siteUrl
+						}
+					}
+				}
 			}
 			""",
 		)
-		return ScrobblerContentInfo(response.getJSONObject("data").getJSONObject("Media"))
+		return parseMediaDetails(response.getJSONObject("data").getJSONObject("Media"))
+	}
+
+	suspend fun getTrending(mediaType: String, sort: String, page: Int, perPage: Int = 25): List<ScrobblerContent> {
+		val response = doRequest(
+			REQUEST_QUERY,
+			"""
+			Page(page: $page, perPage: $perPage) {
+				media(type: $mediaType, sort: $sort) {
+					id
+					title {
+						userPreferred
+						native
+					}
+					coverImage {
+						large
+					}
+					siteUrl
+					meanScore
+					format
+					seasonYear
+				}
+			}
+			""",
+		)
+		val data = response.getJSONObject("data").getJSONObject("Page").getJSONArray("media")
+		val results = mutableListOf<ScrobblerContent>()
+		for (i in 0 until data.length()) {
+			val json = data.optJSONObject(i) ?: continue
+			val title = json.getJSONObject("title")
+			val score = json.optInt("meanScore", 0)
+			val format = json.optString("format", "").ifBlank { null }
+			val year = json.optInt("seasonYear", 0).takeIf { it > 0 }?.toString()
+			val subtitleParts = listOfNotNull(format, year, if (score > 0) "★${score}%" else null)
+			results.add(
+				ScrobblerContent(
+					id = json.getLong("id"),
+					name = title.getString("userPreferred"),
+					altName = subtitleParts.joinToString(" · ").ifBlank { title.getStringOrNull("native") },
+					cover = json.getJSONObject("coverImage").getStringOrNull("large"),
+					url = json.getString("siteUrl"),
+					isBestMatch = false,
+				),
+			)
+		}
+		return results
 	}
 
 	/**
@@ -315,13 +424,105 @@ class AniListRepository @Inject constructor(
 		)
 	}
 
-	private fun ScrobblerContentInfo(json: JSONObject) = ScrobblerContentInfo(
-		id = json.getLong("id"),
-		name = json.getJSONObject("title").getString("userPreferred"),
-		cover = json.getJSONObject("coverImage").getString("large"),
-		url = json.getString("siteUrl"),
-		descriptionHtml = json.getString("description"),
-	)
+	private fun parseMediaDetails(json: JSONObject): ScrobblerContentInfo {
+		// Genres
+		val genres = mutableListOf<String>()
+		json.optJSONArray("genres")?.let { arr ->
+			for (i in 0 until arr.length()) {
+				arr.optString(i)?.takeIf { it.isNotBlank() }?.let(genres::add)
+			}
+		}
+		// Tags (top 10 by rank)
+		json.optJSONArray("tags")?.let { arr ->
+			for (i in 0 until minOf(arr.length(), 10)) {
+				arr.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() }?.let(genres::add)
+			}
+		}
+
+		// Staff
+		val authors = mutableListOf<String>()
+		json.optJSONObject("staff")?.let { staffObj ->
+			val nodes = staffObj.optJSONArray("nodes")
+			val edges = staffObj.optJSONArray("edges")
+			if (nodes != null && edges != null) {
+				for (i in 0 until minOf(nodes.length(), edges.length())) {
+					val name = nodes.optJSONObject(i)?.optJSONObject("name")?.optString("full")
+					val role = edges.optJSONObject(i)?.optString("role")
+					if (!name.isNullOrBlank()) {
+						authors.add(if (!role.isNullOrBlank()) "$name ($role)" else name)
+					}
+				}
+			}
+		}
+
+		// Relations
+		val relatedWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		json.optJSONObject("relations")?.optJSONArray("edges")?.let { edges ->
+			for (i in 0 until edges.length()) {
+				val edge = edges.optJSONObject(i) ?: continue
+				val node = edge.optJSONObject("node") ?: continue
+				val relId = node.optLong("id", 0L)
+				if (relId > 0L) {
+					relatedWorks.add(ScrobblerContentInfo.RelatedWork(
+						id = relId,
+						title = node.optJSONObject("title")?.optString("userPreferred") ?: "Unknown",
+						coverUrl = node.optJSONObject("coverImage")?.optString("medium").orEmpty(),
+						relationship = edge.optString("relationType")?.takeIf { it.isNotBlank() },
+						url = node.optString("siteUrl") ?: "https://anilist.co/anime/$relId",
+					))
+				}
+			}
+		}
+
+		// Recommendations
+		val recommendations = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		json.optJSONObject("recommendations")?.optJSONArray("nodes")?.let { nodes ->
+			for (i in 0 until nodes.length()) {
+				val rec = nodes.optJSONObject(i)?.optJSONObject("mediaRecommendation") ?: continue
+				val recId = rec.optLong("id", 0L)
+				if (recId > 0L) {
+					recommendations.add(ScrobblerContentInfo.RelatedWork(
+						id = recId,
+						title = rec.optJSONObject("title")?.optString("userPreferred") ?: "Unknown",
+						coverUrl = rec.optJSONObject("coverImage")?.optString("medium").orEmpty(),
+						url = rec.optString("siteUrl") ?: "https://anilist.co/anime/$recId",
+					))
+				}
+			}
+		}
+
+		// Infobox
+		val infobox = mutableListOf<Pair<String, String>>()
+		json.optString("format").takeIf { it.isNotBlank() }?.let { infobox.add("Format" to it) }
+		json.optString("status").takeIf { it.isNotBlank() }?.let { infobox.add("Status" to it) }
+		json.optInt("episodes", 0).takeIf { it > 0 }?.let { infobox.add("Episodes" to it.toString()) }
+		json.optInt("chapters", 0).takeIf { it > 0 }?.let { infobox.add("Chapters" to it.toString()) }
+		json.optInt("volumes", 0).takeIf { it > 0 }?.let { infobox.add("Volumes" to it.toString()) }
+		val score = json.optInt("meanScore", 0)
+		if (score > 0) infobox.add("Score" to "$score%")
+		val season = json.optString("season").takeIf { it.isNotBlank() }
+		val seasonYear = json.optInt("seasonYear", 0).takeIf { it > 0 }
+		if (season != null || seasonYear != null) {
+			infobox.add("Season" to listOfNotNull(season, seasonYear?.toString()).joinToString(" "))
+		}
+
+		val coverImage = json.optJSONObject("coverImage")
+		val cover = coverImage?.getStringOrNull("extraLarge")
+			?: coverImage?.getStringOrNull("large").orEmpty()
+
+		return ScrobblerContentInfo(
+			id = json.getLong("id"),
+			name = json.getJSONObject("title").getString("userPreferred"),
+			cover = cover,
+			url = json.getString("siteUrl"),
+			descriptionHtml = json.optString("description", ""),
+			tags = genres,
+			authors = authors,
+			infoboxProperties = infobox,
+			relatedWorks = relatedWorks,
+			recommendations = recommendations,
+		)
+	}
 
 	@Suppress("FunctionName")
 	private fun AniListUser(json: JSONObject) = ScrobblerUser(

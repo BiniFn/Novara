@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -41,7 +42,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
-	preferredTrackingSiteProvider: PreferredTrackingSiteProvider,
+	private val preferredTrackingSiteProvider: PreferredTrackingSiteProvider,
 	private val discoveryService: TrackingSiteDiscoveryService,
 	private val cacheRepository: TrackingSiteCacheRepository,
 	private val contentListMapper: ContentListMapper,
@@ -134,6 +135,40 @@ class DiscoverViewModel @Inject constructor(
 					}
 				}
 		}
+
+		viewModelScope.launch {
+			appSettings.observe(AppSettings.KEY_LIST_MODE).drop(1).collect {
+				remapContentState()
+			}
+		}
+	}
+
+	private suspend fun remapContentState() {
+		val service = activeService.value
+		val query = searchQuery.value.trim()
+		
+		if (query.isNotBlank()) {
+			val models = _items.value.toDiscoverModels()
+			val hasLoading = _contentState.value.lastOrNull() is LoadingState
+			_contentState.value = if (hasLoading) models + listOf(LoadingState) else models
+		} else {
+			val caps = discoveryService.getCapabilities(service)
+			if (caps.discoveryCategories.isEmpty()) {
+				val cached = cacheRepository.readCategoryCache(service, "root_trending") ?: return
+				val flat = cached.toDiscoverModels()
+				_contentState.value = flat.ifEmpty { listOf(org.skepsun.kototoro.list.ui.model.EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
+			} else {
+				val rows = caps.discoveryCategories.mapNotNull { cat ->
+					val cached = cacheRepository.readCategoryCache(service, cat.id)
+					if (cached != null && cached.isNotEmpty()) {
+						DiscoverCarouselRow(category = cat, items = cached.toDiscoverModels())
+					} else null
+				}
+				if (rows.isNotEmpty()) {
+					_contentState.value = rows
+				}
+			}
+		}
 	}
 
 	fun loadNextPage() {
@@ -164,8 +199,19 @@ class DiscoverViewModel @Inject constructor(
 			// Multi-carousel layout for base UI!
 			val caps = discoveryService.getCapabilities(service)
 			if (caps.discoveryCategories.isEmpty()) {
+				val cached = cacheRepository.readCategoryCache(service, "root_trending")
+				if (cached != null) {
+					val flat = cached.toDiscoverModels()
+					_contentState.value = flat.ifEmpty { listOf(EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
+					return
+				}
+
 				val result = runCatching { discoveryService.getTrending(TrackingSiteCatalog(service = service, page = 0)) }
-				val flat = result.getOrNull()?.toDiscoverModels() ?: emptyList()
+				val items = result.getOrNull() ?: emptyList()
+				if (items.isNotEmpty()) {
+					cacheRepository.saveCategoryCache(service, "root_trending", items)
+				}
+				val flat = items.toDiscoverModels()
 				_contentState.value = flat.ifEmpty { listOf(EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
 				return
 			}
@@ -173,6 +219,11 @@ class DiscoverViewModel @Inject constructor(
 			// Parallel fetch top 10 for every category (with retry)
 			val rows = caps.discoveryCategories.map { cat ->
 				viewModelScope.async(Dispatchers.IO) {
+					val cached = cacheRepository.readCategoryCache(service, cat.id)
+					if (cached != null && cached.isNotEmpty()) {
+						return@async DiscoverCarouselRow(category = cat, items = cached.toDiscoverModels())
+					}
+
 					var items = emptyList<TrackingSiteItem>()
 					for (attempt in 1..3) {
 						items = runCatching {
@@ -183,6 +234,7 @@ class DiscoverViewModel @Inject constructor(
 					}
 					
 					if (items.isNotEmpty()) {
+						cacheRepository.saveCategoryCache(service, cat.id, items)
 						DiscoverCarouselRow(category = cat, items = items.toDiscoverModels())
 					} else null
 				}
@@ -241,6 +293,7 @@ class DiscoverViewModel @Inject constructor(
 		}
 		selectedServiceOverride.value = service
 		selectedCategoryOverride.value = null // reset category
+		preferredTrackingSiteProvider.setPreferredSite(service)
 	}
 
 	fun selectCategory(categoryId: String) {
@@ -317,6 +370,7 @@ class DiscoverViewModel @Inject constructor(
 				source = ContentSource("TRACKING_${item.service.name}"),
 			)
 		}
-		return contentListMapper.toListModelList(proxyContents, appSettings.listMode)
+		val mode = appSettings.listMode
+		return contentListMapper.toListModelList(proxyContents, mode)
 	}
 }

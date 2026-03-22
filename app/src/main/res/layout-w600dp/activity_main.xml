@@ -76,7 +76,7 @@
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:layout_gravity="center_vertical|end"
-					android:hint="@string/search_manga"
+					android:hint="@string/search_content"
 					app:adaptiveMaxWidthEnabled="true"
 					app:forceDefaultNavigationOnClickListener="true" />
 

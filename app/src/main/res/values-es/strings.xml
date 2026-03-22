@@ -30,7 +30,7 @@
     <string name="create_shortcut">Crear acceso directo</string>
     <string name="share_s">Compartir %s</string>
     <string name="search">Buscar</string>
-    <string name="search_manga">Buscar manga</string>
+    <string name="search_content">Buscar contenido</string>
     <string name="manga_downloading_">Descargando…</string>
     <string name="processing_">Procesando…</string>
     <string name="download_complete">Descargado</string>

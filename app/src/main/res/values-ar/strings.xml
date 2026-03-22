@@ -33,7 +33,7 @@
     <string name="nothing_found">لا شيء موجود</string>
     <string name="you_have_not_favourites_yet">لا مفضلة بعد</string>
     <string name="search">بحث</string>
-    <string name="search_manga">البحث في المانجا</string>
+    <string name="search_content">البحث في المحتوى</string>
     <string name="manga_downloading_">جاري التنزيل…</string>
     <string name="create_shortcut">انشاء اختصار…</string>
     <string name="theme">مظهر</string>

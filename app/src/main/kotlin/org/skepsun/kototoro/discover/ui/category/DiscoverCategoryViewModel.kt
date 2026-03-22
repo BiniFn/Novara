@@ -48,16 +48,12 @@ class DiscoverCategoryViewModel @Inject constructor(
 		if (currentService == service && currentCategory == categoryId) return
 		currentService = service
 		currentCategory = categoryId
-		// Show cached items instantly, then refresh in background
+		// Show cached items instantly
 		val cached = cacheRepository.readCategoryCache(service, categoryId)
 		if (cached != null && cached.isNotEmpty()) {
 			_items.value = cached
 			viewModelScope.launch {
 				_contentState.value = cached.toDiscoverModels()
-			}
-			// Background refresh (silent)
-			viewModelScope.launch {
-				runCatching { loadDataSilent(service, categoryId, 0) }
 			}
 		} else {
 			refresh()
@@ -112,24 +108,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun loadDataSilent(service: ScrobblerService, category: String, pageRequested: Int) {
-		val filterSnapshot = filterCoordinator.snapshot()
-		val newItems = discoveryService.getTrending(
-			TrackingSiteCatalog(
-				service = service,
-				category = category,
-				page = pageRequested,
-				sortOrder = filterSnapshot.sortOrder,
-				listFilter = filterSnapshot.listFilter,
-			)
-		)
-		if (newItems.isNotEmpty()) {
-			_items.value = newItems.distinctBy { it.remoteId }
-			_contentState.value = _items.value.toDiscoverModels()
-			_page.value = pageRequested
-			cacheRepository.saveCategoryCache(service, category, _items.value)
-		}
-	}
+
 
 	private suspend fun loadData(service: ScrobblerService, category: String, pageRequested: Int) {
 		val isFirstPage = pageRequested == 0

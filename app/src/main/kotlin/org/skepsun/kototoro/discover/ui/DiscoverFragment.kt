@@ -54,7 +54,8 @@ class DiscoverFragment :
 	SwipeRefreshLayout.OnRefreshListener,
 	ListStateHolderListener,
 	MenuItem.OnActionExpandListener,
-	SearchView.OnQueryTextListener {
+	androidx.appcompat.widget.SearchView.OnQueryTextListener,
+	android.content.SharedPreferences.OnSharedPreferenceChangeListener {
 
 	private val viewModel by viewModels<DiscoverViewModel>()
 	private var paginationListener: PaginationScrollListener? = null
@@ -108,6 +109,8 @@ class DiscoverFragment :
 			sizeResolver = DynamicItemSizeResolver(resources, viewLifecycleOwner, settings, adjustWidth = false),
 		)
 
+		binding.recyclerView.addItemDecoration(org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration(requireContext(), false))
+
 		applyListMode(settings.listMode, binding.recyclerView)
 
 		paginationListener = PaginationScrollListener(4, object : PaginationScrollListener.Callback {
@@ -118,6 +121,8 @@ class DiscoverFragment :
 
 		val carouselAdapter = DiscoverCarouselAdapter(
 			contentListener = listListener,
+			viewLifecycleOwner = viewLifecycleOwner,
+			settings = settings,
 			onMoreClick = { category ->
 				val service = viewModel.activeService.value
 				router.openTrackingDiscoveryCategory(service, category.id, category.nameResId)
@@ -169,6 +174,29 @@ class DiscoverFragment :
 
 		// Add the service menu provider to the SearchBar
 		addMenuProvider(DiscoverServiceMenuProvider())
+		addMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
+
+		settings.subscribe(this)
+	}
+
+	override fun onDestroyView() {
+		settings.unsubscribe(this)
+		super.onDestroyView()
+	}
+
+	override fun onSharedPreferenceChanged(sharedPreferences: android.content.SharedPreferences?, key: String?) {
+		val recyclerView = requireViewBinding().recyclerView
+		val isCarousel = recyclerView.adapter is DiscoverCarouselAdapter
+
+		if (key == AppSettings.KEY_LIST_MODE) {
+			if (!isCarousel) {
+				applyListMode(settings.listMode, recyclerView)
+			}
+		} else if (key == AppSettings.KEY_GRID_SIZE) {
+			if (!isCarousel) {
+				spanResolver?.setGridSize(settings.gridSize / 100f, recyclerView)
+			}
+		}
 	}
 
 	private fun applyListMode(mode: ListMode, recyclerView: RecyclerView) {

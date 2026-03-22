@@ -125,7 +125,7 @@
     <string name="create_shortcut">Lumikha ng shortcut</string>
     <string name="share_s">Ibahagi sa %s</string>
     <string name="search">Maghanap</string>
-    <string name="search_manga">Maghanap ng manga</string>
+    <string name="search_content">Maghanap ng nilalaman</string>
     <string name="manga_downloading_">Nagda-download…</string>
     <string name="processing_">Nagpoproseso…</string>
     <string name="download_complete">Na-download</string>

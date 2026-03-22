@@ -38,9 +38,11 @@ Read more: [Source Integrations](./source-integrations.md)
 
 ### I want video sources
 
-1. Install and configure the video extensions you need through Aniyomi.
-2. Open Kototoro and check whether the installed sources were detected.
-3. Configure playback options only after you confirm basic playback works.
+1. Choose whether your video workflow is extension-based or JSON-based.
+2. For Aniyomi-style sources, install the video extensions you need and let Kototoro detect the installed APKs.
+3. For TVBox-style sources, import a JSON file or JSON URL from `Settings -> Content Sources -> Import JSON Sources`.
+4. Open Kototoro and check whether the new sources appear in `Browse -> Content Sources`.
+5. Configure playback options only after you confirm basic playback works.
 
 Common Aniyomi extension repositories:
 
@@ -52,8 +54,10 @@ Read more: [Reader Features](./reader-features.md) and [Source Integrations](./s
 ### I want novels
 
 1. Start with built-in reading sources.
-2. Add Legado-compatible sources if your workflow depends on them.
-3. Test chapter loading and formatting before importing a large reading list.
+2. If your workflow depends on Legado, prepare the JSON file or JSON URL first.
+3. Import it from `Settings -> Content Sources -> Import JSON Sources`.
+4. Check the imported entries in `Settings -> Content Sources -> JSON Sources Directory`.
+5. Test chapter loading and formatting before importing a large reading list.
 
 Common Legado source repository:
 

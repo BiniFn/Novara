@@ -1,21 +1,28 @@
 # Source Integrations
 
-Kototoro supports multiple source ecosystems in addition to its own built-in parsers. This page explains what each integration is for and how to approach setup without unnecessary complexity.
+Kototoro supports multiple external source ecosystems in addition to its own built-in parsers. This page focuses on the practical setup flow: where to install or import sources, where to manage them later, and where they appear in daily use.
 
 ## Overview
 
-The app can work with:
+Kototoro can work with:
 
 - Built-in sources
-- Mihon manga sources
-- Aniyomi video / anime sources
-- Legado reading sources
+- Mihon manga extensions
+- Aniyomi video / anime extensions
+- Legado JSON sources
+- TVBox JSON sources
 
-This broadens the available catalog without forcing users into a single source format or a single companion app.
+After setup, external sources appear in `Browse -> Content Sources` and are used in the same way as built-in sources for browsing, search, favorites, reading, or playback.
+
+## Important Naming Note
+
+In Simplified Chinese builds, the relevant settings page is labeled `Settings -> Content Sources`.
+
+In some English and older localized builds, the same page may still be labeled `Settings -> Manga sources`. That label is not fully accurate anymore because the page also manages video and JSON-based content sources.
 
 ## Key Repositories
 
-These repositories are important because they are the practical entry point for many external-source workflows.
+These repositories are the common entry point for real-world external-source setups.
 
 ### Mihon / Tachiyomi-style manga repositories
 
@@ -32,77 +39,80 @@ These repositories are important because they are the practical entry point for 
 
 - [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
 
-## Mihon Sources
+## Mihon And Aniyomi Extensions
 
-Mihon integration is aimed at manga sources and is usually the first external setup for users who already have a Mihon extension library.
-
-### How It Works
-
-- Install Mihon
-- Install the source extensions you need in Mihon
-- Kototoro detects compatible extensions installed on the device
-
-Common repositories:
-
-- [Keiyoushi Extensions](https://github.com/keiyoushi/extensions)
-- [Yuzono Tachiyomi Extensions](https://github.com/yuzono/tachiyomi-extensions)
-- [LittleSurvival CopyManga Copy20](https://github.com/LittleSurvival/copymanga-copy20)
-
-### Best Use Cases
-
-- Manga-heavy setups
-- Users already maintaining a Mihon extension library
-
-## Aniyomi Sources
-
-Aniyomi integration is aimed at video-oriented sources.
+Mihon and Aniyomi integrations are extension-based. Kototoro detects compatible extension APKs installed on the device and exposes their sources directly inside the app.
 
 ### How It Works
 
-- Install Aniyomi
-- Install the desired video-oriented extensions
-- Kototoro detects compatible installed extensions
+- Mihon and Aniyomi sources are imported by detecting installed extension APKs.
+- You can install extension APKs outside Kototoro and let Kototoro detect them.
+- You can also configure compatible extension repositories inside Kototoro, then install, update, or uninstall extensions without leaving the app.
 
-Common repositories:
+### Setup Flow
 
-- [Kohi-den Extensions Source](https://github.com/Kohi-den/extensions-source)
-- [Yuzono Anime Extensions](https://github.com/yuzono/anime-extensions)
-
-### Best Use Cases
-
-- Users who want video sources inside the same app as reading workflows
-
-## Legado Sources
-
-Legado integration is aimed at reading / novel source ecosystems.
-
-### How It Fits
-
-- Useful for novel-oriented workflows
-- Useful when your reading setup already depends on Legado source definitions
-
-Common repository:
-
-- [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
+1. Open `Settings -> Content Sources -> Extensions`.
+2. Choose the right tab:
+   - `Manga` for Mihon
+   - `Video` for Aniyomi
+3. Add a compatible extension repository if you want in-app browsing and installation.
+4. Install the extensions you need:
+   - either in Mihon / Aniyomi or by sideloading the APK
+   - or directly in Kototoro from the configured repository
+5. Reopen Kototoro or refresh the extensions screen if a newly installed extension does not appear immediately.
+6. Go to `Browse -> Content Sources` and use the detected sources like built-in ones.
 
 ### Best Use Cases
 
-- Novel-oriented workflows
-- Users who already maintain Legado source definitions
+- Mihon for manga-heavy workflows
+- Aniyomi for anime / video workflows
+- Users who want one app to manage installed extensions and content access together
 
-## Setup Flow
+## Legado And TVBox JSON Sources
 
-1. Install the relevant external app ecosystem if needed.
-2. Install or import the desired source definitions or extensions there.
-3. Open Kototoro.
-4. Go to `Browse` or the related source management area in settings.
-5. Refresh source detection if newly added sources do not appear immediately.
+Legado and TVBox integrations are JSON-based. Instead of detecting extension APKs, Kototoro imports source definitions from a JSON file or a JSON URL.
 
-## Expectations and Limits
+### What You Need
+
+- A local JSON file, or
+- A reachable JSON URL
+
+### Setup Flow
+
+1. Prepare the Legado or TVBox JSON source file, or copy the JSON URL.
+2. Open `Settings -> Content Sources -> Import JSON Sources`.
+3. Select the correct source type:
+   - `Legado`
+   - `TVBox`
+4. Import the source by one of these methods:
+   - select a local JSON file
+   - paste the JSON content directly
+   - use `From Online URL`
+5. After import, open `Settings -> Content Sources -> JSON Sources Directory`.
+6. Review, enable, disable, edit, or remove imported JSON sources there.
+7. Open `Browse -> Content Sources` to use the imported sources like built-in ones.
+
+### Best Use Cases
+
+- Legado for novel-oriented workflows and reading-source collections
+- TVBox for JSON-based video source collections
+- Users who maintain source definitions as files or URLs instead of APK extensions
+
+## What Happens After Import
+
+Regardless of source type, the practical result is the same:
+
+- Installed or imported sources become available from `Browse -> Content Sources`
+- They can be enabled, disabled, and managed from the relevant settings screen
+- Once enabled, they participate in normal browsing and content access just like built-in sources
+
+## Expectations And Limits
 
 - Source availability depends on what is installed or imported on the device.
-- Compatibility can vary by extension version, source implementation, and upstream site changes.
-- External ecosystems expand access, but they also inherit external breakage when websites or extension APIs change.
+- Mihon and Aniyomi compatibility still depends on the extension version and upstream website behavior.
+- Legado and TVBox compatibility depends on the JSON definition quality and upstream site stability.
+- TVBox support is still partial for some site types. Direct media, playlist-based sources, and some simpler configurations work better than spider / csp-dependent setups.
+- External ecosystems expand coverage, but they also inherit breakage when websites, repositories, or extension APIs change.
 
 ## Related Documents
 

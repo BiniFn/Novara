@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
@@ -46,12 +47,24 @@ class SuggestionsViewModel @Inject constructor(
 	private val sourceGroupManager: SourceGroupManager,
 	mangaDataRepository: ContentDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
 
 	override val isFilterBarVisible = MutableStateFlow(true)
 
 	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_SUGGESTIONS) { suggestionsListMode }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.suggestionsListMode)
+
+	override val currentGroupTab = globalFavoritesState.selectedGroupTab
+	override val currentSourceTags = globalFavoritesState.selectedSourceTags
+
+	override fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		globalFavoritesState.setSelectedGroupTab(tab)
+	}
+
+	override fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
+	}
 
 	override val content = combine(
 		quickFilter.appliedOptions.combineWithSettings().flatMapLatest { repository.observeAll(0, it) },

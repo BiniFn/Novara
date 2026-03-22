@@ -119,7 +119,6 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 		sourceTypeOptions = listOf(
 			SourceTypeEntry(JsonSourceType.LEGADO, getString(R.string.source_type_legado)),
 			SourceTypeEntry(JsonSourceType.TVBOX, getString(R.string.source_type_tvbox)),
-			SourceTypeEntry(JsonSourceType.JS, getString(R.string.source_type_js)),
 		)
 		val adapter = ArrayAdapter(
 			requireContext(),
@@ -148,6 +147,10 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 			JsonSourceType.LEGADO -> getString(R.string.paste_legado_content)
 			JsonSourceType.TVBOX -> getString(R.string.paste_tvbox_content)
 			JsonSourceType.JS -> getString(R.string.paste_js_content)
+		}
+		binding.textInputLayoutSourceType.helperText = when (sourceType) {
+			JsonSourceType.TVBOX -> getString(R.string.tvbox_source_zh_warning)
+			else -> null
 		}
 	}
 	

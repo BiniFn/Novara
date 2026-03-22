@@ -38,7 +38,7 @@
     <string name="share_s">Share %s</string>
     <string name="search">Search</string>
     <string name="discover">Discover</string>
-    <string name="search_manga">Search manga</string>
+    <string name="search_content">Search content</string>
     <string name="manga_downloading_">Downloading…</string>
     <string name="processing_">Processing…</string>
     <string name="download_complete">Downloaded</string>
@@ -1455,16 +1455,17 @@
 	<string name="tvbox_support_status_spider_bridge">This TVBox site depends on spider, jar, or csp. The client does not provide a local runtime yet; compatibility requires an extra runtime or an external bridge like DecoTV.</string>
 	<string name="not_specified">Not specified</string>
 	<string name="source_type_js">JavaScript (Venera)</string>
-	<string name="skip_unreachable_sources">跳过不可达源（主页无法访问则跳过）</string>
-	<string name="skip_no_explore_sources">跳过无浏览规则源（仅搜索）</string>
-	<string name="badge_search_only">仅搜索</string>
-	<string name="badge_valid">有效</string>
-	<string name="badge_invalid">无效</string>
-	<string name="enable_selected">启用选中源</string>
-	<string name="disable_selected">禁用选中源</string>
-	<string name="delete_selected">删除选中源</string>
-	<string name="validate_selected">校验选中源</string>
-	<string name="batch_no_selection">请先选择源</string>
+	<string name="skip_unreachable_sources">Skip unreachable sources (skip if homepage is inaccessible)</string>
+	<string name="skip_no_explore_sources">Skip sources without browsing rules (search only)</string>
+	<string name="tvbox_source_zh_warning">These sources usually only support Chinese websites.</string>
+	<string name="badge_search_only">Search Only</string>
+	<string name="badge_valid">Valid</string>
+	<string name="badge_invalid">Invalid</string>
+	<string name="enable_selected">Enable selected</string>
+	<string name="disable_selected">Disable selected</string>
+	<string name="delete_selected">Delete selected</string>
+	<string name="validate_selected">Validate selected</string>
+	<string name="batch_no_selection">Please select a source first</string>
     <string name="import_from_url">From Online URL</string>
     <string name="enter_source_url">Enter source URL</string>
     <string name="select_file_or_enter_url">Please select a file or enter a source URL</string>
@@ -1755,4 +1756,18 @@
     <string name="mal_category_manga_doujin">Top Doujinshi</string>
     <string name="mal_category_manga_popular">Most Popular Manga</string>
     <string name="mal_category_manga_favorite">Most Favorited Manga</string>
+    <!-- MangaUpdates discovery categories -->
+    <string name="mu_category_top_rated">Top Rated</string>
+    <string name="mu_category_recently_updated">Recently Updated</string>
+    <string name="mu_category_by_year">By Year</string>
+    <string name="mu_category_alphabetical">Alphabetical</string>
+    <!-- AniList discovery categories -->
+    <string name="al_category_anime_trending">Trending Anime</string>
+    <string name="al_category_anime_popular">Popular Anime</string>
+    <string name="al_category_anime_top">Top Rated Anime</string>
+    <string name="al_category_anime_upcoming">Upcoming Anime</string>
+    <string name="al_category_manga_trending">Trending Manga</string>
+    <string name="al_category_manga_popular">Popular Manga</string>
+    <string name="al_category_manga_top">Top Rated Manga</string>
+    <string name="al_category_manga_favourites">Most Favourited Manga</string>
 </resources>

@@ -52,7 +52,7 @@
     <string name="create_shortcut">Stvori prečac</string>
     <string name="share_s">Dijeli %s</string>
     <string name="search">Traži</string>
-    <string name="search_manga">Traži mangu</string>
+    <string name="search_content">Pretraži sadržaj</string>
     <string name="manga_downloading_">Preuzimanje…</string>
     <string name="network_error">Pogreška mreže</string>
     <string name="list_mode">Modus popisa</string>

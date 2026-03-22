@@ -32,7 +32,7 @@
     <string name="create_shortcut">शॉर्टकट बनाएं</string>
     <string name="share_s">%s साझा करें</string>
     <string name="search">खोजें</string>
-    <string name="search_manga">मंगा खोजें</string>
+    <string name="search_content">सामग्री खोजें</string>
     <string name="manga_downloading_">डाउनलोड हो रहा है…</string>
     <string name="downloads">डाउनलोड</string>
     <string name="by_rating">रेटिंग</string>

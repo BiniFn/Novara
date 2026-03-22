@@ -105,7 +105,7 @@
     <string name="nothing_found">Түк табылмады</string>
     <string name="you_have_not_favourites_yet">Әзірге таңдаулы жоқ</string>
     <string name="history_is_empty">Әзірге тарих жоқ</string>
-    <string name="search_manga">Манга іздеу</string>
+    <string name="search_content">Контентті іздеу</string>
     <string name="add_to_favourites">Таңдаулыға</string>
     <string name="downloads">Жүктелген</string>
     <string name="operation_not_supported">Қолжетімсіз амал</string>

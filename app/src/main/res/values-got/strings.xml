@@ -7,5 +7,5 @@
     <string name="read">𐌰𐌽𐌰𐌺𐌿𐌽𐌽𐌰𐌽</string>
     <string name="share_s">%s 𐌳𐌰𐌹𐌻𐌾𐌰𐌽</string>
     <string name="search">𐍃𐍉𐌺𐌾𐌰𐌽</string>
-    <string name="search_manga">𐌼𐌰𐌲𐌲𐌰 𐍃𐍉𐌺𐌾𐌰𐌽</string>
+    <string name="search_content">Search content</string>
 </resources>

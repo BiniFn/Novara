@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.core.widget.NestedScrollView
+
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -21,10 +22,12 @@ import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
+import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import kotlin.math.abs
 
 @AndroidEntryPoint
-class HomeFragment : BaseFragment<FragmentHomeBinding>() {
+class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuProvider.Callback {
 
 	private val viewModel by viewModels<HomeViewModel>()
 	private val recentCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
@@ -32,6 +35,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 	private val recommendationCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
 	private var homeScrollAnchorY = 0
 	private var isHomeChromeHidden = false
+	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentHomeBinding {
 		return FragmentHomeBinding.inflate(inflater, container, false)
@@ -54,13 +58,19 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 			buttonLocal.setOnClickListener { router.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) }
 			buttonDownloads.setOnClickListener { router.openDownloads() }
 			buttonRandom.setOnClickListener { viewModel.openRandom() }
-			buttonRecentFilterManga.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.MANGA) }
-			buttonRecentFilterNovel.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.NOVEL) }
-			buttonRecentFilterVideo.setOnClickListener { viewModel.setSelectedTab(HomeContentTab.VIDEO) }
 			buttonAutoTranslate.setOnClickListener { router.openTranslationSettings() }
 			setupCoverStrip(recyclerViewRecentHistory, recentCoverAdapter)
 			setupCoverStrip(recyclerViewRecentUpdates, updateCoverAdapter)
 			setupCoverStrip(recyclerViewRecommendations, recommendationCoverAdapter)
+		}
+		
+		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
+			appBar.findViewById<View>(R.id.search_bar)
+		} ?: activity?.findViewById(R.id.search_bar)
+
+		if (searchBar != null) {
+			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
+			requireActivity().addMenuProvider(filterMenuProvider!!, viewLifecycleOwner)
 		}
 		setupHomeScrollChrome(binding.root)
 		showHomeChrome()
@@ -144,13 +154,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 	}
 
 	private fun syncSelectedTab(tab: HomeContentTab) {
-		val binding = requireViewBinding()
-		val recentCheckedId = when (tab) {
-			HomeContentTab.MANGA -> binding.buttonRecentFilterManga.id
-			HomeContentTab.NOVEL -> binding.buttonRecentFilterNovel.id
-			HomeContentTab.VIDEO -> binding.buttonRecentFilterVideo.id
-		}
-		binding.toggleGroupRecentContentType.check(recentCheckedId)
+		filterMenuProvider?.updateIcons()
 	}
 
 	private fun currentBrowseGroupTab(): BrowseGroupTab {
@@ -223,4 +227,29 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 		(activity as? BottomNavOwner)?.bottomNav?.show()
 		isHomeChromeHidden = false
 	}
+	
+	// === SearchBarFilterMenuProvider.Callback implementation ===
+
+	override fun onContentTypeSelected(tab: BrowseGroupTab) {
+		if (tab == BrowseGroupTab.All) return // Home doesn't allow deselecting
+		val homeTab = when (tab) {
+			BrowseGroupTab.Content -> HomeContentTab.MANGA
+			BrowseGroupTab.Novel -> HomeContentTab.NOVEL
+			BrowseGroupTab.Video -> HomeContentTab.VIDEO
+			else -> HomeContentTab.MANGA
+		}
+		viewModel.setSelectedTab(homeTab)
+	}
+
+	override fun onSourceTagSelected(tag: SourceTag?) {}
+
+	override fun getSelectedContentType(): BrowseGroupTab {
+		return currentBrowseGroupTab()
+	}
+
+	override fun getSelectedSourceTags(): Set<SourceTag> = emptySet()
+
+	override fun isContentTypeFilterVisible(): Boolean = true
+
+	override fun isSourceTagFilterVisible(): Boolean = false
 }

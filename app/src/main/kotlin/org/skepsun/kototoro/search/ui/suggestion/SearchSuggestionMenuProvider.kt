@@ -44,7 +44,7 @@ class SearchSuggestionMenuProvider(
 			}
 
 			R.id.action_voice_search -> {
-				voiceInputLauncher.tryLaunch(context.getString(R.string.search_manga), null)
+				voiceInputLauncher.tryLaunch(context.getString(R.string.search_content), null)
 			}
 
 			else -> false

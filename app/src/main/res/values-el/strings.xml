@@ -22,7 +22,7 @@
     <string name="create_shortcut">Δημιουργία συντόμευσης…</string>
     <string name="share_s">Κοινοποίηση %s</string>
     <string name="search">Αναζήτηση</string>
-    <string name="search_manga">Αναζήτηση manga</string>
+    <string name="search_content">Αναζήτηση περιεχομένου</string>
     <string name="manga_downloading_">Λήψη…</string>
     <string name="download_complete">Κατεβασμένο</string>
     <string name="downloads">Λήψεις</string>

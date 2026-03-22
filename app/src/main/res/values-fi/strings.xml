@@ -146,7 +146,7 @@
     <string name="download_complete">Lataus valmis</string>
     <string name="processing_">Käsitellään…</string>
     <string name="manga_downloading_">Manga ladataan…</string>
-    <string name="search_manga">Etsi manga</string>
+    <string name="search_content">Etsi sisältöä</string>
     <string name="search">Etsi</string>
     <string name="share_s">Jaa %s</string>
     <string name="create_shortcut">Luo pikakuvake…</string>

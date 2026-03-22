@@ -14,7 +14,7 @@
     <string name="create_shortcut">Lag ein snarveg …</string>
     <string name="share_s">Del %s</string>
     <string name="search">Søk</string>
-    <string name="search_manga">Søk manga</string>
+    <string name="search_content">Søk innhald</string>
     <string name="manga_downloading_">Hentar …</string>
     <string name="processing_">Handsamar …</string>
     <string name="downloads">Henta</string>

@@ -21,7 +21,7 @@
     <string name="create_shortcut">Parancsikon létrehozása…</string>
     <string name="share_s">Megosztás %s</string>
     <string name="search">Keresés</string>
-    <string name="search_manga">Manga keresése</string>
+    <string name="search_content">Tartalom keresése</string>
     <string name="processing_">Feldolgozás…</string>
     <string name="download_complete">Letöltött</string>
     <string name="downloads">Letöltések</string>

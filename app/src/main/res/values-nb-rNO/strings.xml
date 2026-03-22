@@ -146,7 +146,7 @@
     <string name="download_complete">Nedlastet</string>
     <string name="processing_">Behandler …</string>
     <string name="manga_downloading_">Laster ned …</string>
-    <string name="search_manga">Søk manga</string>
+    <string name="search_content">Søk innhold</string>
     <string name="search">Søk</string>
     <string name="share_s">Del %s</string>
     <string name="create_shortcut">Opprett snarvei …</string>

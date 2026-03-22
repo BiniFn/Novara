@@ -11,6 +11,8 @@ import org.skepsun.kototoro.list.ui.adapter.ContentListListener
 
 class DiscoverCarouselAdapter(
 	private val contentListener: ContentListListener,
+	private val viewLifecycleOwner: androidx.lifecycle.LifecycleOwner,
+	private val settings: org.skepsun.kototoro.core.prefs.AppSettings,
 	private val onMoreClick: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory) -> Unit,
 ) : RecyclerView.Adapter<DiscoverCarouselAdapter.CarouselViewHolder>() {
 
@@ -36,8 +38,11 @@ class DiscoverCarouselAdapter(
 	inner class CarouselViewHolder(private val binding: ItemDiscoverCarouselBinding) : RecyclerView.ViewHolder(binding.root) {
 		private val horizontalAdapter = ContentListAdapter(
 			listener = contentListener,
-			sizeResolver = org.skepsun.kototoro.list.ui.size.StaticItemSizeResolver(
-				binding.root.resources.getDimensionPixelSize(org.skepsun.kototoro.R.dimen.preferred_grid_width)
+			sizeResolver = org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver(
+				resources = binding.root.resources,
+				lifecycleOwner = viewLifecycleOwner,
+				settings = settings,
+				adjustWidth = true
 			)
 		)
 

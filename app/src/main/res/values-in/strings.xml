@@ -27,7 +27,7 @@
     <string name="create_shortcut">Buat pintasan</string>
     <string name="share_s">Bagikan %s</string>
     <string name="search">Cari</string>
-    <string name="search_manga">Cari manga</string>
+    <string name="search_content">Cari konten</string>
     <string name="manga_downloading_">Mengunduh…</string>
     <string name="processing_">Memproses…</string>
     <string name="download_complete">Diunduh</string>

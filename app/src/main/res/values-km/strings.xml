@@ -31,7 +31,7 @@
     <string name="download_complete">បានទាញយក</string>
     <string name="share_s">ចែករំលែក%s</string>
     <string name="search">ស្វែងរក</string>
-    <string name="search_manga">ស្វែងរកមេនហ្គារ</string>
+    <string name="search_content">ស្វែងរកមាតិកា</string>
     <string name="manga_downloading_">កំពុងទាញយក…</string>
     <string name="by_name">ឈ្មោះ</string>
     <string name="popular">ពេញនិយម</string>

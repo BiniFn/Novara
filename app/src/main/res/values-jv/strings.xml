@@ -32,7 +32,7 @@
     <string name="create_shortcut">Damel pintasan</string>
     <string name="share_s">Edumaken %s</string>
     <string name="search">Luru</string>
-    <string name="search_manga">Golek komik</string>
+    <string name="search_content">Golek konten</string>
     <string name="manga_downloading_">Ngunduh…</string>
     <string name="processing_">Mroses…</string>
     <string name="download_complete">Diundhuh</string>

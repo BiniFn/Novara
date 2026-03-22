@@ -206,42 +206,7 @@
 					android:orientation="vertical"
 					android:padding="16dp">
 
-					<LinearLayout
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:gravity="center_vertical|start"
-						android:orientation="horizontal">
 
-						<com.google.android.material.button.MaterialButtonToggleGroup
-							android:id="@+id/toggleGroupRecentContentType"
-							android:layout_width="wrap_content"
-							android:layout_height="wrap_content"
-							app:selectionRequired="true"
-							app:singleSelection="true">
-
-							<com.google.android.material.button.MaterialButton
-								android:id="@+id/buttonRecentFilterManga"
-								style="?attr/materialButtonOutlinedStyle"
-								android:layout_width="wrap_content"
-								android:layout_height="wrap_content"
-								android:text="@string/manga" />
-
-							<com.google.android.material.button.MaterialButton
-								android:id="@+id/buttonRecentFilterNovel"
-								style="?attr/materialButtonOutlinedStyle"
-								android:layout_width="wrap_content"
-								android:layout_height="wrap_content"
-								android:text="@string/novel" />
-
-							<com.google.android.material.button.MaterialButton
-								android:id="@+id/buttonRecentFilterVideo"
-								style="?attr/materialButtonOutlinedStyle"
-								android:layout_width="wrap_content"
-								android:layout_height="wrap_content"
-								android:text="@string/video" />
-						</com.google.android.material.button.MaterialButtonToggleGroup>
-
-					</LinearLayout>
 
 					<!-- History -->
 					<LinearLayout

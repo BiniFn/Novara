@@ -24,7 +24,7 @@
     <string name="share">Paylaş</string>
     <string name="share_s">%s Paylaş</string>
     <string name="search">Ara</string>
-    <string name="search_manga">Manga ara</string>
+    <string name="search_content">İçerik ara</string>
     <string name="manga_downloading_">İndiriliyor…</string>
     <string name="processing_">İşleniyor…</string>
     <string name="download_complete">İndirildi</string>

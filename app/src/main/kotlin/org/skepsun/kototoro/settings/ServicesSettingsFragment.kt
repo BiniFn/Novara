@@ -37,15 +37,7 @@ class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
 				true
 			}
 		}
-		// Populate preferred tracking site ListPreference
-		findPreference<androidx.preference.ListPreference>(AppSettings.KEY_PREFERRED_TRACKING_SITE)?.let { pref ->
-			val services = ScrobblerService.entries
-			pref.entries = services.map { getString(it.titleResId) }.toTypedArray()
-			pref.entryValues = services.map { it.name }.toTypedArray()
-			if (pref.value == null) {
-				pref.value = settings.preferredTrackingSite.name
-			}
-		}
+
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

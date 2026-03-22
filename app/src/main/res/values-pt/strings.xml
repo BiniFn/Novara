@@ -24,7 +24,7 @@
     <string name="create_shortcut">Criar atalho</string>
     <string name="share_s">Compartilhar %s</string>
     <string name="search">Procurar</string>
-    <string name="search_manga">Pesquisar mangá</string>
+    <string name="search_content">Pesquisar conteúdo</string>
     <string name="manga_downloading_">Baixando…</string>
     <string name="download_complete">Baixado</string>
     <string name="downloads">Baixados</string>

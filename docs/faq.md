@@ -13,11 +13,11 @@ The most distinctive capabilities are:
 - Local OCR + translation inside the reader
 - Video super-resolution support
 - WebDAV-based multi-device sync
-- Broad external source compatibility across Mihon, Aniyomi, and Legado ecosystems
+- Broad external source compatibility across Mihon, Aniyomi, Legado, and TVBox ecosystems
 
-## Do I Need Mihon, Aniyomi, or Legado Installed?
+## Do I Need Mihon, Aniyomi, Legado, or TVBox Installed?
 
-Not always. Kototoro has built-in sources, so the app is still usable on its own. Those external ecosystems matter when you want broader catalog coverage or already maintain your sources there.
+Not always. Kototoro has built-in sources, so the app is still usable on its own. External ecosystems matter when you want broader catalog coverage or already maintain your sources there. Mihon and Aniyomi are extension-based, while Legado and TVBox are usually imported from JSON files or JSON URLs.
 
 ## Where Do I Find Common External Source Repositories?
 

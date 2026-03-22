@@ -30,6 +30,6 @@
     <string name="create_shortcut">Shortcut ဖန်တီး</string>
     <string name="share_s">%s ကို မျှဝေ</string>
     <string name="search">ရှာဖွေ</string>
-    <string name="search_manga">Manga ကိုရှာမည်</string>
+    <string name="search_content">အကြောင်းအရာကို ရှာမည်</string>
     <string name="manga_downloading_">Donwload လုပ်နေ…</string>
 </resources>

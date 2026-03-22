@@ -64,7 +64,7 @@
     <string name="create_shortcut">创建快捷方式</string>
     <string name="share_s">分享 %s</string>
     <string name="search">搜索</string>
-    <string name="search_manga">搜索作品</string>
+    <string name="search_content">搜索内容</string>
     <string name="manga_downloading_">正在下载…</string>
     <string name="download_complete">下载已完成</string>
     <string name="downloads">下载</string>
@@ -1449,7 +1449,32 @@
     <string name="mal_category_manga_doujin">同人志排行</string>
     <string name="mal_category_manga_popular">最受欢迎漫画</string>
     <string name="mal_category_manga_favorite">最多收藏漫画</string>
+    <!-- MangaUpdates discovery categories -->
+    <string name="mu_category_top_rated">评分最高</string>
+    <string name="mu_category_recently_updated">最近更新</string>
+    <string name="mu_category_by_year">按年份</string>
+    <string name="mu_category_alphabetical">按字母</string>
+    <!-- AniList discovery categories -->
+    <string name="al_category_anime_trending">热门动画</string>
+    <string name="al_category_anime_popular">人气动画</string>
+    <string name="al_category_anime_top">评分最高动画</string>
+    <string name="al_category_anime_upcoming">即将上线动画</string>
+    <string name="al_category_manga_trending">热门漫画</string>
+    <string name="al_category_manga_popular">人气漫画</string>
+    <string name="al_category_manga_top">评分最高漫画</string>
+    <string name="al_category_manga_favourites">最多收藏漫画</string>
     <!-- Explore tabs -->
     <string name="explore_tab_tracking_sites">追踪网站</string>
     <string name="explore_tab_sources">内容源</string>
+    <string name="skip_unreachable_sources">跳过不可达源（主页无法访问则跳过）</string>
+    <string name="skip_no_explore_sources">跳过无浏览规则源（仅搜索）</string>
+    <string name="tvbox_source_zh_warning">这类源通常只支持中文网站</string>
+    <string name="badge_search_only">仅搜索</string>
+    <string name="badge_valid">有效</string>
+    <string name="badge_invalid">无效</string>
+    <string name="enable_selected">启用选中源</string>
+    <string name="disable_selected">禁用选中源</string>
+    <string name="delete_selected">删除选中源</string>
+    <string name="validate_selected">校验选中源</string>
+    <string name="batch_no_selection">请先选择源</string>
 </resources>

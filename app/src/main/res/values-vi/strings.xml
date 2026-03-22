@@ -19,7 +19,7 @@
     <string name="add">Thêm</string>
     <string name="create_shortcut">Tạo lối tắt</string>
     <string name="share_s">Chia sẻ %s</string>
-    <string name="search_manga">Tìm kiếm manga</string>
+    <string name="search_content">Tìm kiếm nội dung</string>
     <string name="manga_downloading_">Đang tải xuống…</string>
     <string name="by_name">Tên</string>
     <string name="updated">Mới cập nhật</string>

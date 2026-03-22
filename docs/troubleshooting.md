@@ -6,16 +6,19 @@ This page collects the most common setup and integration problems.
 
 ### Mihon or Aniyomi sources are missing
 
-1. Confirm the companion app is installed.
-2. Confirm the extensions were installed there successfully.
-3. Reopen Kototoro and refresh source detection.
-4. If the source is still missing, check compatibility notes for that ecosystem.
+1. Confirm the extension APK is actually installed on the device.
+2. If you use in-app repositories, confirm the repository synced and the extension finished installing.
+3. Reopen Kototoro and refresh the `Settings -> Content Sources -> Extensions` screen.
+4. Check whether the source appears in `Browse -> Content Sources`.
+5. If the source is still missing, check compatibility notes for that ecosystem.
 
-### Legado sources are missing
+### Legado or TVBox sources are missing
 
-1. Confirm your Legado source definitions are available on the device.
-2. Reopen the source management area in Kototoro.
-3. Test with one source first before importing many.
+1. Confirm the JSON file or JSON URL is valid and reachable.
+2. Re-import it from `Settings -> Content Sources -> Import JSON Sources`.
+3. Open `Settings -> Content Sources -> JSON Sources Directory` and confirm the imported source is listed and enabled.
+4. Check whether it appears in `Browse -> Content Sources`.
+5. Test with one source first before importing many.
 
 ## Automatic Translation Is Not Ready
 

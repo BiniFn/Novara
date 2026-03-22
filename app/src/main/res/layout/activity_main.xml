@@ -39,7 +39,7 @@
 			android:id="@+id/search_bar"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:hint="@string/search_manga"
+			android:hint="@string/search_content"
 			app:forceDefaultNavigationOnClickListener="true"
 			app:layout_scrollFlags="scroll|enterAlways|snap" />
 

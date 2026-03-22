@@ -25,7 +25,7 @@ features:
   - title: Local OCR + Translation
     details: Configure on-device OCR, model downloads, translation modes, and practical fallback paths inside the reader.
   - title: External Source Ecosystems
-    details: Connect Mihon, Aniyomi, and Legado ecosystems, and track the planned TVBox integration work.
+    details: Connect Mihon, Aniyomi, Legado, and TVBox sources from the same in-app source management flow.
   - title: Reliable WebDAV Sync
     details: Set up free or self-hosted WebDAV storage for multi-device backup and synchronization.
 ---
@@ -33,7 +33,7 @@ features:
 ## Start With The Right Page
 
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
-- Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, or Legado ecosystems.
+- Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, Legado, or TVBox ecosystems.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
 - Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
 - Read [UI Improvement](./architecture/ui_improvement.md) to track UI enhancements.

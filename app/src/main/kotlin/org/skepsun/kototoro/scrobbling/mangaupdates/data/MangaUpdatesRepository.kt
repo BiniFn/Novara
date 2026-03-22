@@ -141,12 +141,130 @@ class MangaUpdatesRepository(
 			.url("$BASE_API_URL/series/$id")
 		
 		val response = okHttp.newCall(request.build()).await().parseJson()
+		return parseSeriesDetails(response)
+	}
+
+	suspend fun getRankings(orderby: String, page: Int, type: String? = null, genre: String? = null): List<ScrobblerContent> {
+		val payload = JSONObject().apply {
+			put("page", page)
+			put("perpage", 25)
+			put("orderby", orderby)
+			if (type != null) {
+				put("type", JSONArray().apply { put(type) })
+			}
+			if (genre != null) {
+				put("genre", JSONArray().apply { put(genre) })
+			}
+		}
+
+		val request = Request.Builder()
+			.post(payload.toString().toRequestBody(CONTENT_TYPE))
+			.url("$BASE_API_URL/series/search")
+
+		val response = okHttp.newCall(request.build()).await().parseJson()
+		val results = response.optJSONArray("results") ?: return emptyList()
+
+		val mapped = mutableListOf<ScrobblerContent>()
+		for (i in 0 until results.length()) {
+			val result = results.getJSONObject(i)
+			val record = result.getJSONObject("record")
+			val rating = record.optDouble("bayesian_rating", 0.0)
+			val year = record.optString("year", "").ifBlank { null }
+			val ratingStr = if (rating > 0) String.format("%.2f", rating) else null
+			val subtitle = listOfNotNull(year, ratingStr?.let { "★$it" }).joinToString(" · ").ifBlank { null }
+			mapped.add(
+				ScrobblerContent(
+					id = record.getLong("series_id"),
+					name = record.getString("title"),
+					altName = subtitle,
+					cover = record.optJSONObject("image")?.optJSONObject("url")?.getStringOrNull("original"),
+					url = record.getString("url"),
+					isBestMatch = false,
+				)
+			)
+		}
+		return mapped
+	}
+
+	private fun parseSeriesDetails(response: JSONObject): ScrobblerContentInfo {
+		val genres = mutableListOf<String>()
+		response.optJSONArray("genres")?.let { arr ->
+			for (i in 0 until arr.length()) {
+				arr.optJSONObject(i)?.optString("genre")?.takeIf { it.isNotBlank() }?.let(genres::add)
+			}
+		}
+
+		val categories = mutableListOf<String>()
+		response.optJSONArray("categories")?.let { arr ->
+			for (i in 0 until minOf(arr.length(), 10)) {
+				arr.optJSONObject(i)?.optString("category")?.takeIf { it.isNotBlank() }?.let(categories::add)
+			}
+		}
+
+		val authors = mutableListOf<String>()
+		response.optJSONArray("authors")?.let { arr ->
+			for (i in 0 until arr.length()) {
+				val authorObj = arr.optJSONObject(i) ?: continue
+				val name = authorObj.optString("name").takeIf { it.isNotBlank() } ?: continue
+				val type = authorObj.optString("type").takeIf { it.isNotBlank() }
+				authors.add(if (type != null) "$name ($type)" else name)
+			}
+		}
+
+		val relatedWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		response.optJSONArray("related_series")?.let { arr ->
+			for (i in 0 until arr.length()) {
+				val rel = arr.optJSONObject(i) ?: continue
+				val relId = rel.optLong("related_series_id", 0L)
+				val relTitle = rel.optString("related_series_name").takeIf { it.isNotBlank() } ?: continue
+				if (relId > 0L) {
+					relatedWorks.add(ScrobblerContentInfo.RelatedWork(
+						id = relId,
+						title = relTitle,
+						coverUrl = "",
+						relationship = rel.optString("relation_type").takeIf { it.isNotBlank() },
+						url = "https://www.mangaupdates.com/series/${relId}",
+					))
+				}
+			}
+		}
+
+		val recommendations = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		response.optJSONArray("recommendations")?.let { arr ->
+			for (i in 0 until minOf(arr.length(), 10)) {
+				val rec = arr.optJSONObject(i) ?: continue
+				val recId = rec.optLong("series_id", 0L)
+				val recTitle = rec.optString("series_name").takeIf { it.isNotBlank() } ?: continue
+				val recCover = rec.optJSONObject("series_image")?.optJSONObject("url")?.getStringOrNull("original")
+				if (recId > 0L) {
+					recommendations.add(ScrobblerContentInfo.RelatedWork(
+						id = recId,
+						title = recTitle,
+						coverUrl = recCover.orEmpty(),
+						url = "https://www.mangaupdates.com/series/${recId}",
+					))
+				}
+			}
+		}
+
+		val infoboxProperties = mutableListOf<Pair<String, String>>()
+		response.optString("type").takeIf { it.isNotBlank() }?.let { infoboxProperties.add("Type" to it) }
+		response.optString("year").takeIf { it.isNotBlank() }?.let { infoboxProperties.add("Year" to it) }
+		response.optString("status").takeIf { it.isNotBlank() }?.let { infoboxProperties.add("Status" to it) }
+		val rating = response.optDouble("bayesian_rating", 0.0)
+		if (rating > 0) infoboxProperties.add("Rating" to String.format("%.2f", rating))
+
 		return ScrobblerContentInfo(
 			id = response.getLong("series_id"),
 			name = response.getString("title"),
 			cover = response.optJSONObject("image")?.optJSONObject("url")?.getString("original").orEmpty(),
 			url = response.getString("url"),
-			descriptionHtml = response.getString("description").replace("\n", "<br>")
+			descriptionHtml = response.optString("description", "").replace("\n", "<br>"),
+			tags = genres + categories,
+			authors = authors,
+			infoboxProperties = infoboxProperties,
+			relatedWorks = relatedWorks,
+			recommendations = recommendations,
 		)
 	}
 

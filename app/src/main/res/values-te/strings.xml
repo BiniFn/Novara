@@ -32,7 +32,7 @@
     <string name="create_shortcut">షార్ట్‌కట్ సృష్టించు</string>
     <string name="share_s">%sని షేర్ చెయ్యి</string>
     <string name="search">సెర్చ్</string>
-    <string name="search_manga">మంగా సెర్చ్</string>
+    <string name="search_content">కంటెంట్‌ను వెతకండి</string>
     <string name="manga_downloading_">మంగా డౌన్‌లోడ్ అవుతోంది…</string>
     <string name="processing_">ప్రాసెస్ అవుతోంది…</string>
     <string name="download_complete">డౌన్‌లోడ్ పూర్తైంది</string>

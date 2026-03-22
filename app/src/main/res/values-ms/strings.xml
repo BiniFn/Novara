@@ -32,7 +32,7 @@
     <string name="share">Kongsi</string>
     <string name="create_shortcut">Buat pintasan</string>
     <string name="search">Cari</string>
-    <string name="search_manga">Cari manga</string>
+    <string name="search_content">Cari kandungan</string>
     <string name="manga_downloading_">Memuat turun…</string>
     <string name="download_complete">Dimuat turun</string>
     <string name="downloads">Muat turun</string>

@@ -26,7 +26,7 @@
     <string name="grid">Tinklelis</string>
     <string name="settings">Nustatymai</string>
     <string name="loading_">Kraunasi…</string>
-    <string name="search_manga">Ieškoti manga</string>
+    <string name="search_content">Ieškoti turinio</string>
     <string name="remote_sources">Manga šaltiniai</string>
     <string name="manga_downloading_">Atsisiunčiama…</string>
 </resources>

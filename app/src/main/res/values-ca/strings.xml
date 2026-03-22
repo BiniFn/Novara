@@ -27,7 +27,7 @@
     <string name="create_shortcut">Crea drecera…</string>
     <string name="share_s">Compartir %s</string>
     <string name="search">Cerca</string>
-    <string name="search_manga">Cerca manga</string>
+    <string name="search_content">Cerca contingut</string>
     <string name="manga_downloading_">Descarregant…</string>
     <string name="processing_">Processant…</string>
     <string name="download_complete">Descarregat</string>

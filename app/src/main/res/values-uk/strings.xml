@@ -33,7 +33,7 @@
     <string name="create_shortcut">Створити ярлик</string>
     <string name="share_s">Поділитися %s</string>
     <string name="search">Пошук</string>
-    <string name="search_manga">Пошук манґи</string>
+    <string name="search_content">Пошук вмісту</string>
     <string name="processing_">Обробка…</string>
     <string name="by_name">Ім\'я</string>
     <string name="popular">Популярна</string>

@@ -50,7 +50,7 @@
     <string name="create_shortcut">শর্টকাট তৈরি করুন…</string>
     <string name="share_s">%s শেয়ার করুন</string>
     <string name="search">খুঁজুন</string>
-    <string name="search_manga">মানগা খুঁজুন</string>
+    <string name="search_content">বিষয়বস্তু খুঁজুন</string>
     <string name="manga_downloading_">ডাউনলোড হচ্ছে…</string>
     <string name="processing_">প্রস্তুত হচ্ছে…</string>
     <string name="downloads">ডাউনলোড হ‌ওয়া গুলো</string>

@@ -222,7 +222,7 @@
     <string name="clear_source_cookies_summary">僅清除指定網域的 cookie，大多數情況下會使授權會失效</string>
     <string name="share">分享</string>
     <string name="create_shortcut">建立捷徑…</string>
-    <string name="search_manga">搜尋漫畫</string>
+    <string name="search_content">搜尋內容</string>
     <string name="processing_">處理中…</string>
     <string name="newest">最新</string>
     <string name="by_rating">評分</string>
@@ -693,4 +693,15 @@
     <string name="filter_invalid">失效</string>
     <string name="invert_selection">反選</string>
     <string name="select_count_format">共 %d 項</string>
+    <string name="skip_unreachable_sources">跳過無法連線的來源（若主頁無法訪問則跳過）</string>
+    <string name="skip_no_explore_sources">跳過無瀏覽規則的來源（僅搜尋）</string>
+    <string name="tvbox_source_zh_warning">這類來源通常只支援中文網站</string>
+    <string name="badge_search_only">僅搜尋</string>
+    <string name="badge_valid">有效</string>
+    <string name="badge_invalid">無效</string>
+    <string name="enable_selected">啟用選定的來源</string>
+    <string name="disable_selected">停用選定的來源</string>
+    <string name="delete_selected">刪除選定的來源</string>
+    <string name="validate_selected">驗證選定的來源</string>
+    <string name="batch_no_selection">請先選擇一個來源</string>
 </resources>

@@ -24,7 +24,7 @@
     <string name="download_complete">Download finito</string>
     <string name="processing_">Elaborazione…</string>
     <string name="manga_downloading_">Downloading…</string>
-    <string name="search_manga">Cerca manga</string>
+    <string name="search_content">Cerca contenuti</string>
     <string name="search">Cerca</string>
     <string name="share_s">Condividi %s</string>
     <string name="create_shortcut">Crea scorciatoia</string>

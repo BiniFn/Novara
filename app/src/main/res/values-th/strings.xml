@@ -92,7 +92,7 @@
     <string name="by_rating">อันดับ</string>
     <string name="share_s">แชร์ %s</string>
     <string name="search">ค้นหา</string>
-    <string name="search_manga">ค้นหามังงะ</string>
+    <string name="search_content">ค้นหาเนื้อหา</string>
     <string name="updated">อัพเดทแล้ว</string>
     <string name="remove_completed">ลบสำเร็จแล้ว</string>
     <string name="remove_completed_downloads_confirm">ประวัติการดาวน์โหลดของคุณจะถูกลบอย่างถาวร ไฟล์ที่ดาวน์โหลดจะไม่ได้รับผลกระทบ</string>

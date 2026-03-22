@@ -46,7 +46,7 @@
     <string name="read">خواندن</string>
     <string name="create_shortcut">ایجاد میانبر…</string>
     <string name="share_s">اشتراک گذاری %s</string>
-    <string name="search_manga">جستجو مانگا</string>
+    <string name="search_content">جستجوی محتوا</string>
     <string name="save_page">ذخیره ی صفحه</string>
     <string name="_import">وارد کردن</string>
     <string name="remove_category">حذف دسته بندی</string>

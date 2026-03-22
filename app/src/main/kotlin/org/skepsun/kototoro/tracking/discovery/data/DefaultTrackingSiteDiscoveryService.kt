@@ -1,9 +1,11 @@
 
 package org.skepsun.kototoro.tracking.discovery.data
 
+import org.skepsun.kototoro.scrobbling.anilist.data.AniListRepository
 import org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
 import org.skepsun.kototoro.scrobbling.mal.data.MALRepository
+import org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository
 import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerRepositoryMap
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
@@ -20,9 +22,11 @@ import javax.inject.Singleton
 @Singleton
 class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private val repositoryMap: ScrobblerRepositoryMap,
+	private val aniListRepository: AniListRepository,
 	private val bangumiRepository: BangumiRepository,
 	private val kitsuRepository: KitsuRepository,
 	private val malRepository: MALRepository,
+	private val mangaUpdatesRepository: MangaUpdatesRepository,
 	private val cacheRepository: TrackingSiteCacheRepository,
 ) : TrackingSiteDiscoveryService {
 
@@ -99,6 +103,41 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			),
 		)
 
+		ScrobblerService.MANGAUPDATES -> TrackingSiteCapabilities(
+			supportsDiscovery = true,
+			supportsTrending = true,
+			supportsSearch = true,
+			supportsDetails = true,
+			supportsStatusSync = true,
+			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("mu_score", org.skepsun.kototoro.R.string.mu_category_top_rated),
+				TrackingSiteCategory("mu_updated", org.skepsun.kototoro.R.string.mu_category_recently_updated),
+				TrackingSiteCategory("mu_year", org.skepsun.kototoro.R.string.mu_category_by_year),
+				TrackingSiteCategory("mu_title", org.skepsun.kototoro.R.string.mu_category_alphabetical),
+			),
+		)
+
+		ScrobblerService.ANILIST -> TrackingSiteCapabilities(
+			supportsDiscovery = true,
+			supportsTrending = true,
+			supportsSearch = true,
+			supportsDetails = true,
+			supportsStatusSync = true,
+			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("al_anime_trending", org.skepsun.kototoro.R.string.al_category_anime_trending),
+				TrackingSiteCategory("al_anime_popular", org.skepsun.kototoro.R.string.al_category_anime_popular),
+				TrackingSiteCategory("al_anime_score", org.skepsun.kototoro.R.string.al_category_anime_top),
+				TrackingSiteCategory("al_anime_upcoming", org.skepsun.kototoro.R.string.al_category_anime_upcoming),
+				TrackingSiteCategory("al_manga_trending", org.skepsun.kototoro.R.string.al_category_manga_trending),
+				TrackingSiteCategory("al_manga_popular", org.skepsun.kototoro.R.string.al_category_manga_popular),
+				TrackingSiteCategory("al_manga_score", org.skepsun.kototoro.R.string.al_category_manga_top),
+				TrackingSiteCategory("al_manga_favourites", org.skepsun.kototoro.R.string.al_category_manga_favourites),
+			),
+		)
+
+
 		else -> TrackingSiteCapabilities(
 			supportsDiscovery = false,
 			supportsTrending = false,
@@ -115,6 +154,12 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		}
 		if (catalog.service == ScrobblerService.MAL) {
 			return getMalTrending(catalog)
+		}
+		if (catalog.service == ScrobblerService.MANGAUPDATES) {
+			return getMangaUpdatesTrending(catalog)
+		}
+		if (catalog.service == ScrobblerService.ANILIST) {
+			return getAniListTrending(catalog)
 		}
 		if (catalog.service != ScrobblerService.BANGUMI) {
 			return emptyList()
@@ -168,6 +213,11 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			return (anime + manga)
 				.distinctBy { it.id }
 				.map { it.toTrackingListItem(ScrobblerService.MAL) }
+		}
+		if (catalog.service == ScrobblerService.MANGAUPDATES) {
+			val offset = catalog.page * 25
+			return mangaUpdatesRepository.findContent(query, offset)
+				.map { it.toTrackingListItem(ScrobblerService.MANGAUPDATES) }
 		}
 		return repositoryMap[catalog.service]
 			.findContent(query, catalog.page * 10)
@@ -230,6 +280,44 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			else -> malRepository.getAnimeRanking(rankingType, limit, offset)
 		}
 		return items.map { it.toTrackingListItem(ScrobblerService.MAL) }
+	}
+
+	// ── MangaUpdates helpers ────────────────────
+
+	private suspend fun getMangaUpdatesTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		val category = catalog.category ?: "mu_score"
+		val page = catalog.page + 1 // convert 0-based to 1-based
+
+		val orderby = when {
+			category.contains("score") -> "score"
+			category.contains("updated") -> "updated"
+			category.contains("year") -> "year"
+			category.contains("title") -> "title"
+			else -> "score"
+		}
+
+		return mangaUpdatesRepository.getRankings(orderby, page)
+			.map { it.toTrackingListItem(ScrobblerService.MANGAUPDATES) }
+	}
+
+	// ── AniList helpers ────────────────────
+
+	private suspend fun getAniListTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		val category = catalog.category ?: "al_anime_trending"
+		val page = catalog.page + 1
+
+		val mediaType = if (category.contains("manga")) "MANGA" else "ANIME"
+		val sort = when {
+			category.contains("trending") -> "TRENDING_DESC"
+			category.contains("popular") -> "POPULARITY_DESC"
+			category.contains("score") -> "SCORE_DESC"
+			category.contains("upcoming") -> "START_DATE_DESC"
+			category.contains("favourites") -> "FAVOURITES_DESC"
+			else -> "TRENDING_DESC"
+		}
+
+		return aniListRepository.getTrending(mediaType, sort, page)
+			.map { it.toTrackingListItem(ScrobblerService.ANILIST) }
 	}
 
 	override suspend fun getDetails(service: ScrobblerService, remoteId: Long, urlHint: String?): TrackingSiteItemDetails {

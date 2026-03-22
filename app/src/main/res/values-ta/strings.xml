@@ -56,7 +56,7 @@
     <string name="share">பங்கு</string>
     <string name="create_shortcut">குறுக்குவழியை உருவாக்கவும்</string>
     <string name="search">தேடல்</string>
-    <string name="search_manga">மங்காவைத் தேடுங்கள்</string>
+    <string name="search_content">உள்ளடக்கத்தைத் தேடுங்கள்</string>
     <string name="manga_downloading_">பதிவிறக்கம்…</string>
     <string name="processing_">செயலாக்கம்…</string>
     <string name="download_complete">பதிவிறக்கம்</string>

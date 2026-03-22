@@ -52,6 +52,7 @@ Kototoro supports several source ecosystems:
 - Mihon manga sources
 - Aniyomi video sources
 - Legado reading sources
+- TVBox JSON video sources
 
 This lets users keep broader catalogs in one app without being locked to one source format.
 

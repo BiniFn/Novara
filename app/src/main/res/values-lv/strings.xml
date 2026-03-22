@@ -49,7 +49,7 @@
     <string name="create_shortcut">Izveidot saīsni…</string>
     <string name="share_s">Kopīgot %s</string>
     <string name="search">Meklēt</string>
-    <string name="search_manga">Meklēt manga</string>
+    <string name="search_content">Meklēt saturu</string>
     <string name="manga_downloading_">Lejupielādē…</string>
     <string name="processing_">Pārstrādā…</string>
     <string name="by_name">Nosaukums</string>
