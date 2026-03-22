@@ -339,6 +339,11 @@
     <string name="video_seek_backward_time">Rewind Time</string>
     <string name="video_volume_boost">Volume Boost</string>
     <string name="video_auto_next">Auto Play Next</string>
+    <string name="video_subtitle_track">Subtitle Track</string>
+    <string name="video_audio_track">Audio Track</string>
+    <string name="video_subtitle_off">Off</string>
+    <string name="video_no_subtitle_tracks">No subtitle tracks available</string>
+    <string name="video_no_audio_tracks">No audio tracks available</string>
     <string name="video_send_danmaku_hint">Send Danmaku…</string>
     <string name="video_play">Play</string>
     <string name="video_pause">Pause</string>

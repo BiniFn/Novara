@@ -1,4 +1,4 @@
-﻿package org.skepsun.kototoro.video.ui
+package org.skepsun.kototoro.video.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -165,6 +165,14 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
         observeScreenOrientation()
         updateOrientationLockSwitch()
         updateSpeedLabels()
+
+        binding.buttonSubtitleTrack.setOnClickListener {
+            showSubtitleTrackDialog()
+        }
+        binding.buttonAudioTrack.setOnClickListener {
+            showAudioTrackDialog()
+        }
+        updateTrackLabels()
     }
 
     private fun observeScreenOrientation() {
@@ -251,6 +259,70 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun showSubtitleTrackDialog() {
+        val player = (activity as? VideoPlayerActivity)?.getMpvPlayer()
+        if (player == null) return
+        val tracks = player.getSubtitleTracks()
+        if (tracks.isEmpty()) {
+            android.widget.Toast.makeText(requireContext(), R.string.video_no_subtitle_tracks, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        // "Off" + all subtitle tracks
+        val labels = arrayOf(getString(R.string.video_subtitle_off)) + tracks.map { it.displayName() }.toTypedArray()
+        val selectedTrack = tracks.indexOfFirst { it.isSelected }
+        val checked = if (selectedTrack >= 0) selectedTrack + 1 else 0 // +1 because index 0 is "Off"
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.video_subtitle_track)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                if (which == 0) {
+                    player.setSubtitleTrack(null) // Off
+                } else {
+                    player.setSubtitleTrack(tracks[which - 1].id)
+                }
+                updateTrackLabels()
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showAudioTrackDialog() {
+        val player = (activity as? VideoPlayerActivity)?.getMpvPlayer()
+        if (player == null) return
+        val tracks = player.getAudioTracks()
+        if (tracks.isEmpty()) {
+            android.widget.Toast.makeText(requireContext(), R.string.video_no_audio_tracks, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = tracks.map { it.displayName() }.toTypedArray()
+        val checked = tracks.indexOfFirst { it.isSelected }.coerceAtLeast(0)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.video_audio_track)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                player.setAudioTrack(tracks[which].id)
+                updateTrackLabels()
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun updateTrackLabels() {
+        val binding = viewBinding ?: return
+        val player = (activity as? VideoPlayerActivity)?.getMpvPlayer() ?: return
+        val subTracks = player.getSubtitleTracks()
+        val audioTracks = player.getAudioTracks()
+        val selectedSub = subTracks.find { it.isSelected }
+        val selectedAudio = audioTracks.find { it.isSelected }
+
+        binding.buttonSubtitleTrack.text = getString(R.string.video_subtitle_track) +
+            " - " + (selectedSub?.displayName() ?: getString(R.string.video_subtitle_off))
+        binding.buttonAudioTrack.text = getString(R.string.video_audio_track) +
+            " - " + (selectedAudio?.displayName() ?: "—")
     }
 
     override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {

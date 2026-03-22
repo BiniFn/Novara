@@ -178,7 +178,20 @@
                 android:textColor="?colorOnSurfaceVariant"
                 app:drawableStartCompat="@drawable/ic_action_resume" />
 
-            <!-- 预留：后续在此扩展字幕等更多设置项 -->
+            <!-- 字幕与音轨选择 -->
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_subtitle_track"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/video_subtitle_track"
+                app:drawableStartCompat="@drawable/ic_subtitles" />
+
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_audio_track"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/video_audio_track"
+                app:drawableStartCompat="@drawable/ic_audiotrack" />
 
         </LinearLayout>
 

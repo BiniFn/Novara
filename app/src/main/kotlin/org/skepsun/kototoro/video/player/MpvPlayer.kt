@@ -199,6 +199,61 @@ class MpvPlayer : MPVLib.EventObserver {
         MPVLib.command("change-list", "glsl-shaders", "set", shaderPaths)
     }
 
+	data class TrackInfo(
+		val id: Int,
+		val type: String, // "video", "audio", "sub"
+		val title: String?,
+		val language: String?,
+		val codec: String?,
+		val isDefault: Boolean,
+		val isSelected: Boolean,
+	) {
+		fun displayName(): String {
+			val parts = mutableListOf<String>()
+			if (!title.isNullOrBlank()) parts.add(title)
+			if (!language.isNullOrBlank() && language != title) parts.add("[$language]")
+			if (!codec.isNullOrBlank()) parts.add("($codec)")
+			return if (parts.isEmpty()) "Track $id" else parts.joinToString(" ")
+		}
+	}
+
+	fun getTrackList(): List<TrackInfo> {
+		val countStr = runCatching { MPVLib.getPropertyString("track-list/count") }.getOrNull() ?: return emptyList()
+		val count = countStr.toIntOrNull() ?: return emptyList()
+		if (count <= 0) return emptyList()
+		return (0 until count).mapNotNull { i ->
+			runCatching {
+				val idStr = MPVLib.getPropertyString("track-list/$i/id") ?: return@mapNotNull null
+				val id = idStr.toIntOrNull() ?: return@mapNotNull null
+				val type = MPVLib.getPropertyString("track-list/$i/type") ?: return@mapNotNull null
+				val title = runCatching { MPVLib.getPropertyString("track-list/$i/title") }.getOrNull()
+				val lang = runCatching { MPVLib.getPropertyString("track-list/$i/lang") }.getOrNull()
+				val codec = runCatching { MPVLib.getPropertyString("track-list/$i/codec") }.getOrNull()
+				val isDefault = runCatching { MPVLib.getPropertyString("track-list/$i/default") }.getOrNull() == "yes"
+				val isSelected = runCatching { MPVLib.getPropertyString("track-list/$i/selected") }.getOrNull() == "yes"
+				TrackInfo(id, type, title, lang, codec, isDefault, isSelected)
+			}.getOrNull()
+		}
+	}
+
+	fun getSubtitleTracks(): List<TrackInfo> = getTrackList().filter { it.type == "sub" }
+
+	fun getAudioTracks(): List<TrackInfo> = getTrackList().filter { it.type == "audio" }
+
+	fun setSubtitleTrack(id: Int?) {
+		if (id == null || id <= 0) {
+			MPVLib.setPropertyString("sid", "no")
+		} else {
+			MPVLib.setPropertyString("sid", id.toString())
+		}
+		Log.d("MpvPlayer", "setSubtitleTrack: $id")
+	}
+
+	fun setAudioTrack(id: Int) {
+		MPVLib.setPropertyString("aid", id.toString())
+		Log.d("MpvPlayer", "setAudioTrack: $id")
+	}
+
 	fun getPropertyString(name: String): String? {
 		return runCatching { MPVLib.getPropertyString(name) }.getOrNull()
 	}

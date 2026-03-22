@@ -101,6 +101,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     lateinit var appSettings: AppSettings
 
     private var mpvPlayer: MpvPlayer? = null
+    internal fun getMpvPlayer(): MpvPlayer? = mpvPlayer
     private var isUiVisible: Boolean = false
     private var autoNextTriggered: Boolean = false
     private var isFoldUnfolded: Boolean = false
@@ -169,6 +170,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             autoNextTriggered = false
             applySuperResolutionFromSettings()
             danmakuController.start()
+            autoSelectTracksByLanguage()
         }
 
         override fun onSeek(positionMs: Long) {
@@ -1465,6 +1467,36 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         supportActionBar?.subtitle = subtitle
         viewBinding.toolbar.title = title
         viewBinding.toolbar.subtitle = subtitle
+    }
+
+    /**
+     * Auto-select subtitle and audio tracks matching the system language.
+     * Called after file is loaded and tracks are available.
+     */
+    private fun autoSelectTracksByLanguage() {
+        val player = mpvPlayer ?: return
+        val systemLang = java.util.Locale.getDefault().language // e.g. "zh", "en", "ja"
+        Log.d("VideoPlayerActivity", "autoSelectTracksByLanguage: systemLang=$systemLang")
+
+        // Auto-select subtitle track matching system language
+        val subTracks = player.getSubtitleTracks()
+        if (subTracks.isNotEmpty()) {
+            val match = subTracks.find { it.language?.startsWith(systemLang, ignoreCase = true) == true }
+            if (match != null && !match.isSelected) {
+                player.setSubtitleTrack(match.id)
+                Log.d("VideoPlayerActivity", "Auto-selected subtitle: ${match.displayName()}")
+            }
+        }
+
+        // Auto-select audio track matching system language (if multiple audio tracks exist)
+        val audioTracks = player.getAudioTracks()
+        if (audioTracks.size > 1) {
+            val match = audioTracks.find { it.language?.startsWith(systemLang, ignoreCase = true) == true }
+            if (match != null && !match.isSelected) {
+                player.setAudioTrack(match.id)
+                Log.d("VideoPlayerActivity", "Auto-selected audio: ${match.displayName()}")
+            }
+        }
     }
 
     fun applySuperResolutionFromSettings() {
