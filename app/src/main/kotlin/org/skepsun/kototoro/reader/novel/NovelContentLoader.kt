@@ -684,6 +684,18 @@ class NovelContentLoader @Inject constructor(
             .replace("&gt;", ">")
             .replace("&amp;", "&")
             .replace("&quot;", "\"")
+            .replace("&apos;", "'")
+            // Decode numeric HTML entities (&#NNNN; and &#xHHHH;)
+            .replace(Regex("&#x([0-9a-fA-F]+);")) { m ->
+                runCatching {
+                    String(Character.toChars(m.groupValues[1].toInt(16)))
+                }.getOrDefault(m.value)
+            }
+            .replace(Regex("&#(\\d+);")) { m ->
+                runCatching {
+                    String(Character.toChars(m.groupValues[1].toInt()))
+                }.getOrDefault(m.value)
+            }
             .lines()
             .map { it.trimEnd() }
             // 修正：不再过滤空行，因为图片占位需要依靠空行
