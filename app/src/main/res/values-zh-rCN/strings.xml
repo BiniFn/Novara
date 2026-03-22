@@ -1472,9 +1472,6 @@
     <string name="badge_search_only">仅搜索</string>
     <string name="badge_valid">有效</string>
     <string name="badge_invalid">无效</string>
-    <string name="enable_selected">启用选中源</string>
-    <string name="disable_selected">禁用选中源</string>
     <string name="delete_selected">删除选中源</string>
-    <string name="validate_selected">校验选中源</string>
     <string name="batch_no_selection">请先选择源</string>
 </resources>
