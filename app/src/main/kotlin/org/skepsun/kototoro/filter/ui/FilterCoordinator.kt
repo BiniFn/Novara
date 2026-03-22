@@ -69,6 +69,7 @@ class FilterCoordinator @Inject constructor(
 
     private val currentListFilter = MutableStateFlow(ContentListFilter.EMPTY)
     private val currentSortOrder = MutableStateFlow(repository.defaultSortOrder)
+    private val selectedSavedFilterIds = MutableStateFlow<Set<Int>>(emptySet())
 
     private val availableSortOrders = repository.sortOrders.let { orders ->
         if (repository.source.name.startsWith("TRACKING_BANGUMI_")) {
@@ -291,16 +292,17 @@ class FilterCoordinator @Inject constructor(
 
     val savedFilters: StateFlow<FilterProperty<PersistableFilter>> = combine(
         savedFiltersRepository.observeAll(repository.source),
-        currentListFilter,
-    ) { available, applied ->
+        selectedSavedFilterIds,
+    ) { available, selectedIds ->
         FilterProperty(
             availableItems = available,
-            selectedItems = setOfNotNull(available.find { it.filter == applied }),
+            selectedItems = available.filterTo(mutableSetOf()) { it.id in selectedIds },
         )
     }.stateIn(coroutineScope, SharingStarted.Lazily, FilterProperty.EMPTY)
 
     fun reset() {
         currentListFilter.value = ContentListFilter.EMPTY
+        selectedSavedFilterIds.value = emptySet()
         refreshFilters()
     }
 
@@ -348,6 +350,42 @@ class FilterCoordinator @Inject constructor(
 
     fun deleteSavedFilter(id: Int) = coroutineScope.launch {
         savedFiltersRepository.delete(repository.source, id)
+        selectedSavedFilterIds.update { it - id }
+    }
+
+    /**
+     * Toggle a saved filter:
+     * - First selection: replace the entire filter (like the old behavior).
+     * - Subsequent selections: merge tags from the new saved filter into the current filter.
+     * - Deselection: remove that saved filter's tags from the current filter.
+     */
+    fun toggleSavedFilter(preset: PersistableFilter) {
+        val id = preset.id
+        val currentlySelected = selectedSavedFilterIds.value
+        val isCurrentlySelected = id in currentlySelected
+        if (isCurrentlySelected) {
+            // Deselect: remove this saved filter's tags from current filter
+            val remaining = currentlySelected - id
+            selectedSavedFilterIds.value = remaining
+            if (remaining.isEmpty()) {
+                // Last one deselected → clear the filter entirely
+                currentListFilter.value = ContentListFilter.EMPTY
+            } else {
+                currentListFilter.update { current ->
+                    current.copy(tags = current.tags - preset.filter.tags)
+                }
+            }
+        } else if (currentlySelected.isEmpty()) {
+            // First saved filter selected: replace the entire filter
+            selectedSavedFilterIds.value = setOf(id)
+            setAdjusted(preset.filter)
+        } else {
+            // Additional saved filter: merge its tags into current filter
+            selectedSavedFilterIds.update { it + id }
+            currentListFilter.update { current ->
+                current.copy(tags = current.tags + preset.filter.tags)
+            }
+        }
     }
 
     fun setQuery(value: String?) {

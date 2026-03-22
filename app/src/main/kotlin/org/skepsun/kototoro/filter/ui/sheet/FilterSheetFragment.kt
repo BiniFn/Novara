@@ -236,7 +236,7 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
             is ContentType -> filter.toggleContentType(data, !chip.isChecked)
             is ContentRating -> filter.toggleContentRating(data, !chip.isChecked)
             is Demographic -> filter.toggleDemographic(data, !chip.isChecked)
-            is PersistableFilter -> filter.setAdjusted(data.filter)
+            is PersistableFilter -> filter.toggleSavedFilter(data)
             is String -> if (chip.isChecked) {
                 filter.setAuthor(null)
             } else {
