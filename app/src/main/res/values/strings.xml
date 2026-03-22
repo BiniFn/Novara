@@ -321,6 +321,15 @@
     <string name="video_danmaku_source_qq">QQ Video</string>
     <string name="video_reload">Reload</string>
     <string name="video_screenshot">Screenshot</string>
+    <string name="open_external_player">Open in external player</string>
+    <string name="no_external_player">No external player found</string>
+    <string name="no_video_loaded">No video loaded</string>
+    <string name="cast_to_device">Cast to device</string>
+    <string name="casting_to">Casting to %s</string>
+    <string name="cast_failed">Failed to cast</string>
+    <string name="cast_no_wifi">Not connected to WiFi</string>
+    <string name="no_dlna_devices_found">No DLNA devices found</string>
+    <string name="cast_stopped">Cast stopped</string>
     <string name="video_picture_in_picture">Picture in Picture</string>
     <string name="video_detail">Video Details</string>
     <string name="video_more_settings">Settings</string>

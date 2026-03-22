@@ -6,6 +6,7 @@ import fi.iki.elonen.NanoHTTPD
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.skepsun.kototoro.core.network.ContentHttpClient
+import org.skepsun.kototoro.video.dlna.NetworkUtils
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -80,6 +81,7 @@ class VideoLocalCacheProxy @Inject constructor(
     companion object {
         private const val TAG = "VideoLocalCacheProxy"
     }
+    private val appContext: Context = context
     private val cacheRoot: File = context.getExternalFilesDir("video_proxy_cache")
         ?: File(context.filesDir, "video_proxy_cache")
     private val sourceMap = ConcurrentHashMap<String, SourceEntry>()
@@ -105,6 +107,24 @@ class VideoLocalCacheProxy @Inject constructor(
         val runningServer = ensureServer()
         Log.d(TAG, "register source key=$key url=$url")
         return "http://127.0.0.1:${runningServer.listeningPort}/video/$key"
+    }
+
+    /**
+     * Returns a proxy URL accessible from the local network (for DLNA casting).
+     * Returns null if the device's WiFi IP cannot be determined.
+     */
+    fun getLanProxyUrl(url: String, headers: Map<String, String>): String? {
+        val lanIp = NetworkUtils.getWifiIpAddress(appContext) ?: return null
+        val normalizedHeaders = normalizeHeaders(headers)
+        val key = buildKey(url, normalizedHeaders)
+        sourceMap[key] = SourceEntry(url = url, headers = normalizedHeaders)
+        if (url.lowercase(java.util.Locale.ROOT).contains(".m3u8")) {
+            java.io.File(cacheRoot, "$key.bin").delete()
+            java.io.File(cacheRoot, "$key.meta").delete()
+        }
+        val runningServer = ensureServer()
+        Log.d(TAG, "register LAN source key=$key url=$url lanIp=$lanIp")
+        return "http://$lanIp:${runningServer.listeningPort}/video/$key"
     }
 
     fun getDynamicProxyUrl(id: String, handler: DynamicSourceHandler): String {
@@ -208,15 +228,16 @@ class VideoLocalCacheProxy @Inject constructor(
         return runCatching { URI(baseUrl).resolve(rawUri).toString() }.getOrDefault(rawUri)
     }
 
-    private fun mapChildUrl(parent: SourceEntry, rawUri: String): String {
+    private fun mapChildUrl(parent: SourceEntry, rawUri: String, hostOverride: String? = null): String {
         val abs = resolveAbsoluteUrl(parent.url, rawUri)
         val childKey = buildKey(abs, parent.headers)
         sourceMap[childKey] = SourceEntry(url = abs, headers = parent.headers)
         val runningServer = ensureServer()
-        return "http://127.0.0.1:${runningServer.listeningPort}/video/$childKey"
+        val host = hostOverride ?: "127.0.0.1"
+        return "http://$host:${runningServer.listeningPort}/video/$childKey"
     }
 
-    private fun rewritePlaylistContent(parent: SourceEntry, rawContent: String): String {
+    private fun rewritePlaylistContent(parent: SourceEntry, rawContent: String, hostOverride: String? = null): String {
         return rawContent
             .lineSequence()
             .map { line ->
@@ -226,12 +247,12 @@ class VideoLocalCacheProxy @Inject constructor(
                     trimmed.startsWith("#EXT-X-KEY", ignoreCase = true) ||
                         trimmed.startsWith("#EXT-X-MAP", ignoreCase = true) -> {
                         Regex("""URI="([^"]+)"""").replace(line) { m ->
-                            val proxied = mapChildUrl(parent, m.groupValues[1])
+                            val proxied = mapChildUrl(parent, m.groupValues[1], hostOverride)
                             "URI=\"$proxied\""
                         }
                     }
                     trimmed.startsWith("#") -> line
-                    else -> mapChildUrl(parent, trimmed)
+                    else -> mapChildUrl(parent, trimmed, hostOverride)
                 }
             }
             .joinToString("\n")
@@ -244,7 +265,20 @@ class VideoLocalCacheProxy @Inject constructor(
         return lowerCt.contains("mpegurl")
     }
 
-    private inner class ProxyServer : NanoHTTPD("127.0.0.1", 0) {
+    /**
+     * Determines the host to use for proxy URLs based on the client's remote IP.
+     * If the client is a LAN device (non-localhost), use the device's LAN IP so
+     * that m3u8 child URLs are reachable from the LAN device.
+     */
+    private fun resolveHostForClient(remoteIp: String?): String? {
+        if (remoteIp.isNullOrBlank()) return null
+        // localhost clients use default 127.0.0.1
+        if (remoteIp == "127.0.0.1" || remoteIp == "0:0:0:0:0:0:0:1" || remoteIp == "::1") return null
+        // Remote / LAN client — return this device's LAN IP
+        return NetworkUtils.getWifiIpAddress(appContext)
+    }
+
+    private inner class ProxyServer : NanoHTTPD("0.0.0.0", 0) {
         override fun serve(session: IHTTPSession): Response {
             if (session.method != Method.GET && session.method != Method.HEAD) {
                 return newFixedLengthResponse(
@@ -323,8 +357,13 @@ class VideoLocalCacheProxy @Inject constructor(
                 if (playlistRaw == null) {
                     return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Failed to read playlist")
                 }
-                val rewritten = rewritePlaylistContent(source, playlistRaw)
-                Log.d(TAG, "rewrite playlist key=$key size=${playlistRaw.length} -> ${rewritten.length}")
+                // If the request is from a LAN device (e.g. Kodi DLNA), use the LAN IP
+                // so that child URLs in the playlist are reachable from that device.
+                val clientIp = session.headers["remote-addr"]
+                    ?: session.headers["http-client-ip"]
+                val hostOverride = resolveHostForClient(clientIp)
+                val rewritten = rewritePlaylistContent(source, playlistRaw, hostOverride)
+                Log.d(TAG, "rewrite playlist key=$key size=${playlistRaw.length} -> ${rewritten.length} hostOverride=$hostOverride clientIp=$clientIp")
                 val response = newFixedLengthResponse(
                     Response.Status.OK,
                     "application/vnd.apple.mpegurl; charset=utf-8",

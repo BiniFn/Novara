@@ -618,6 +618,15 @@
     <string name="video_danmaku_source_qq">QQ 弹幕</string>
     <string name="video_reload">重载</string>
     <string name="video_screenshot">截图</string>
+    <string name="open_external_player">用外部播放器打开</string>
+    <string name="no_external_player">未找到外部播放器</string>
+    <string name="no_video_loaded">没有正在播放的视频</string>
+    <string name="cast_to_device">投屏</string>
+    <string name="casting_to">正在投屏到 %s</string>
+    <string name="cast_failed">投屏失败</string>
+    <string name="cast_no_wifi">未连接 WiFi</string>
+    <string name="no_dlna_devices_found">未发现 DLNA 设备</string>
+    <string name="cast_stopped">投屏已停止</string>
     <string name="video_picture_in_picture">画中画</string>
     <string name="video_detail">视频详情</string>
     <string name="video_more_settings">更多设置</string>

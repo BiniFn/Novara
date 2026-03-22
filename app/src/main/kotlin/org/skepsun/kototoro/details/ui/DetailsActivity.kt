@@ -468,7 +468,7 @@ class DetailsActivity :
 	}
 
 	private fun renderTrackingMatchSuggestion(match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?) {
-		val suggestionView = checkNotNull(viewBinding).textViewScrobblingSuggestion!!
+		val suggestionView = viewBinding.textViewScrobblingSuggestion ?: return
 		suggestionView.isVisible = match != null
 		suggestionView.text = match?.let {
 			if (it.isLinked) {

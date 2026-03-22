@@ -79,6 +79,7 @@ import org.skepsun.kototoro.video.player.CustomMpvView
 import org.skepsun.kototoro.video.player.MpvPlayer
 import org.skepsun.kototoro.video.player.MpvShaderManager
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
+import org.skepsun.kototoro.video.data.ExternalPlayerHelper
 import org.skepsun.kototoro.video.danmaku.VideoDanmakuController
 import org.skepsun.kototoro.video.danmaku.DanmakuSettings
 import org.skepsun.kototoro.video.danmaku.DanmakuSourceManager
@@ -404,6 +405,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 仅设置菜单点击监听；实际菜单由 rebuildToolbarMenuForOrientation() 按方向重建
         viewBinding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                org.skepsun.kototoro.R.id.action_external_player -> {
+                    openInExternalPlayer()
+                    true
+                }
+                org.skepsun.kototoro.R.id.action_cast -> {
+                    showDlnaDeviceSheet()
+                    true
+                }
                 org.skepsun.kototoro.R.id.action_quality -> {
                     showQualityDialog()
                     true
@@ -2356,5 +2365,37 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun hideSeekFeedback() {
         viewBinding.seekFeedbackLayout?.isVisible = false
+    }
+
+    private fun openInExternalPlayer() {
+        val url = currentMediaUrl
+        if (url.isNullOrBlank()) {
+            Snackbar.make(viewBinding.root, R.string.no_video_loaded, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val headers = currentMediaHeaders.orEmpty()
+        val proxyUrl = videoLocalCacheProxy.getProxyUrl(url, headers)
+        val title = viewBinding.toolbar.title?.toString()
+        ExternalPlayerHelper.openInExternalPlayer(this, proxyUrl, title)
+    }
+
+    private fun showDlnaDeviceSheet() {
+        val url = currentMediaUrl
+        if (url.isNullOrBlank()) {
+            Snackbar.make(viewBinding.root, R.string.no_video_loaded, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val headers = currentMediaHeaders.orEmpty()
+        val positionMs = mpvPlayer?.positionMs ?: 0L
+        val tag = "DlnaDeviceSheet"
+        val fm = supportFragmentManager
+        if (fm.findFragmentByTag(tag) == null) {
+            val sheet = DlnaDeviceSheet.newInstance(url, headers, positionMs)
+            sheet.onCastStarted = {
+                // Pause local playback when casting starts
+                runOnUiThread { mpvPlayer?.pause() }
+            }
+            sheet.show(fm, tag)
+        }
     }
 }
