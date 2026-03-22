@@ -82,6 +82,10 @@ class HistoryRepository @Inject constructor(
 		}
 	}
 
+	fun observeCount(): Flow<Int> {
+		return db.getHistoryDao().observeCount()
+	}
+
 	fun observeAll(limit: Int): Flow<List<Content>> {
 		return db.getHistoryDao().observeAll(limit).mapItems {
 			it.toContent()

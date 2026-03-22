@@ -153,7 +153,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 		return insets
 	}
 
-	private fun syncSelectedTab(tab: HomeContentTab) {
+	private fun syncSelectedTab(tab: HomeContentTab?) {
 		filterMenuProvider?.updateIcons()
 	}
 
@@ -162,6 +162,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 			HomeContentTab.MANGA -> BrowseGroupTab.Content
 			HomeContentTab.NOVEL -> BrowseGroupTab.Novel
 			HomeContentTab.VIDEO -> BrowseGroupTab.Video
+			null -> BrowseGroupTab.All
 		}
 	}
 
@@ -231,12 +232,11 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 	// === SearchBarFilterMenuProvider.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
-		if (tab == BrowseGroupTab.All) return // Home doesn't allow deselecting
 		val homeTab = when (tab) {
 			BrowseGroupTab.Content -> HomeContentTab.MANGA
 			BrowseGroupTab.Novel -> HomeContentTab.NOVEL
 			BrowseGroupTab.Video -> HomeContentTab.VIDEO
-			else -> HomeContentTab.MANGA
+			else -> null
 		}
 		viewModel.setSelectedTab(homeTab)
 	}

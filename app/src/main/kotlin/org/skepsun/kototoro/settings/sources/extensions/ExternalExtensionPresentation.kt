@@ -95,7 +95,7 @@ internal fun observeMihonInstalledExtensionEntries(
 ): Flow<List<InstalledExtensionEntry>> {
 	return mihonExtensionManager.installedExtensions.mapInstalledExtensionEntries(
 		packageNameOf = { it.pkgName },
-		appNameOf = { it.appName },
+		appNameOf = { it.appName.removePrefix("Tachiyomi: ") },
 		versionNameOf = { it.versionName },
 		versionCodeOf = { it.versionCode },
 		libVersionOf = { it.libVersion },
@@ -110,7 +110,7 @@ internal fun observeAniyomiInstalledExtensionEntries(
 ): Flow<List<InstalledExtensionEntry>> {
 	return aniyomiExtensionManager.installedExtensions.mapInstalledExtensionEntries(
 		packageNameOf = { it.pkgName },
-		appNameOf = { it.appName },
+		appNameOf = { it.appName.removePrefix("Aniyomi: ") },
 		versionNameOf = { it.versionName },
 		versionCodeOf = { it.versionCode },
 		libVersionOf = { it.libVersion },

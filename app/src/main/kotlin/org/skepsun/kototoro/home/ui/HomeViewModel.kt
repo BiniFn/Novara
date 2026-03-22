@@ -101,7 +101,7 @@ data class HomeSyncState(
 )
 
 data class HomeSummaryState(
-	val selectedTab: HomeContentTab = HomeContentTab.MANGA,
+	val selectedTab: HomeContentTab? = HomeContentTab.MANGA,
 	val recentHistoryCount: Int = 0,
 	val recentHistoryItems: List<HomeRecentItem> = emptyList(),
 	val resumeState: HomeResumeState = HomeResumeState(),
@@ -135,7 +135,7 @@ class HomeViewModel @Inject constructor(
 	@ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
-	private val selectedTabFlow = MutableStateFlow(HomeContentTab.MANGA)
+	private val selectedTabFlow = MutableStateFlow<HomeContentTab?>(HomeContentTab.MANGA)
 	private val lastHistoryContentFlow = historyRepository.observeLast()
 	private val resumeStateFlow = lastHistoryContentFlow
 		.flatMapLatest { content ->
@@ -150,11 +150,11 @@ class HomeViewModel @Inject constructor(
 				}
 			}
 		}
-	private val recentHistoryFlow = historyRepository.observeAll(limit = HOME_COVER_PREVIEW_LIMIT)
+	private val recentHistoryFlow = historyRepository.observeAll()
 	private val favoritesCountFlow = favouritesRepository.observeContentCount()
 	private val favoriteCategoriesCountFlow = favouritesRepository.observeCategories().map { it.size }
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
-	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT, filterOptions = emptySet())
+	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT * 12, filterOptions = emptySet())
 	private val recommendationsFlow = suggestionRepository.observeAll()
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
@@ -225,12 +225,16 @@ class HomeViewModel @Inject constructor(
 		},
 	) { selectedTab, left, right ->
 		val resumeState = left.first.filtered(selectedTab)
-		val recentHistory = left.second.filterContentsByTab(selectedTab)
+		val allHistory = left.second
+		val recentHistory = allHistory.groupByTabThenSelect(selectedTab)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
-		val recentUpdates = left.sixth.filterTrackingsByTab(selectedTab)
-		val recommendations = left.seventh.filterContentsByTab(selectedTab)
+		val allUpdates = left.sixth
+		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab)
+		val allRecommendations = left.seventh
+		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab)
+		val actualHistoryCount = if (selectedTab == null) allHistory.size else allHistory.count { it.contentTab() == selectedTab }
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
 		val preferredTrackingSite = right.third
@@ -238,7 +242,7 @@ class HomeViewModel @Inject constructor(
 
 		HomeSummaryState(
 			selectedTab = selectedTab,
-			recentHistoryCount = recentHistory.size,
+			recentHistoryCount = actualHistoryCount,
 			recentHistoryItems = recentHistory.take(HOME_COVER_PREVIEW_LIMIT).map { HomeRecentItem(it) },
 			resumeState = resumeState,
 			favoritesCount = favoritesCount,
@@ -258,7 +262,7 @@ class HomeViewModel @Inject constructor(
 		initialValue = HomeSummaryState(),
 	)
 
-	fun setSelectedTab(tab: HomeContentTab) {
+	fun setSelectedTab(tab: HomeContentTab?) {
 		selectedTabFlow.value = tab
 	}
 
@@ -385,20 +389,59 @@ private fun Map<SourceGroup, Int>.countOf(key: OriginGroup): Int? {
 	return this[SourceGroup.Origin(key)]
 }
 
-private fun Content.filterMatches(tab: HomeContentTab): Boolean {
-	return source.getContentType().toHomeTab() == tab
+private fun Content.contentTab(): HomeContentTab? = source.getContentType().toHomeTab()
+
+/**
+ * Group items by content type tab, take [HOME_COVER_PREVIEW_LIMIT] from each group,
+ * then select based on the chosen tab:
+ * - specific tab → return that group's items
+ * - null (all) → merge all groups preserving original order (recency)
+ */
+private fun List<Content>.groupByTabThenSelect(tab: HomeContentTab?): List<Content> {
+	val limit = HOME_COVER_PREVIEW_LIMIT
+	if (tab != null) {
+		// Specific tab: filter and take limit
+		return filter { it.contentTab() == tab }.take(limit)
+	}
+	// All tabs: take limit from each type, then merge preserving original order
+	val taken = mutableSetOf<Content>()
+	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
+	for (item in this) {
+		val itemTab = item.contentTab()
+		val current = countPerTab.getOrDefault(itemTab, 0)
+		if (current < limit) {
+			taken.add(item)
+			countPerTab[itemTab] = current + 1
+		}
+	}
+	// Return in original order (already sorted by recency from DB)
+	return filter { it in taken }
 }
 
-private fun List<Content>.filterContentsByTab(tab: HomeContentTab): List<Content> {
-	return filter { it.filterMatches(tab) }
+/**
+ * Same grouping logic for [ContentTracking] items.
+ */
+@JvmName("groupTrackingsByTab")
+private fun List<ContentTracking>.groupTrackingsByTabThenSelect(tab: HomeContentTab?): List<ContentTracking> {
+	val limit = HOME_COVER_PREVIEW_LIMIT
+	if (tab != null) {
+		return filter { it.manga.contentTab() == tab }.take(limit)
+	}
+	val taken = mutableSetOf<ContentTracking>()
+	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
+	for (item in this) {
+		val itemTab = item.manga.contentTab()
+		val current = countPerTab.getOrDefault(itemTab, 0)
+		if (current < limit) {
+			taken.add(item)
+			countPerTab[itemTab] = current + 1
+		}
+	}
+	return filter { it in taken }
 }
 
-private fun List<ContentTracking>.filterTrackingsByTab(tab: HomeContentTab): List<ContentTracking> {
-	return filter { it.manga.filterMatches(tab) }
-}
-
-private fun HomeResumeState.filtered(tab: HomeContentTab): HomeResumeState {
-	return if (content?.filterMatches(tab) == true) this else HomeResumeState()
+private fun HomeResumeState.filtered(tab: HomeContentTab?): HomeResumeState {
+	return if (tab == null || content?.contentTab() == tab) this else HomeResumeState()
 }
 
 private fun ContentType.toHomeTab(): HomeContentTab? = when (this) {

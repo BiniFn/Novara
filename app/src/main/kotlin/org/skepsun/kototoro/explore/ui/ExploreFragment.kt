@@ -31,8 +31,8 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>() {
 
 			override fun createFragment(position: Int): Fragment {
 				return when (position) {
-					0 -> DiscoverFragment()
-					1 -> ExploreSourcesFragment()
+					0 -> ExploreSourcesFragment()
+					1 -> DiscoverFragment()
 					else -> throw IllegalArgumentException("Invalid position $position")
 				}
 			}
@@ -40,8 +40,8 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>() {
 
 		TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
 			tab.text = when (position) {
-				0 -> getString(R.string.explore_tab_tracking_sites)
-				1 -> getString(R.string.explore_tab_sources)
+				0 -> getString(R.string.explore_tab_sources)
+				1 -> getString(R.string.explore_tab_tracking_sites)
 				else -> null
 			}
 		}.attach()
