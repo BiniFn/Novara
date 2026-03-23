@@ -192,4 +192,32 @@
             
     </LinearLayout>
 
+    <!-- Subtitle text overlay rendered by Android (MPV OSD doesn't work on Android) -->
+    <!-- Must be LAST child in FrameLayout to render on top of SurfaceView and all other views -->
+    <TextView
+        android:id="@+id/subtitle_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="80dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:gravity="center"
+        android:textColor="#FFFFFFFF"
+        android:textSize="18sp"
+        android:lineSpacingExtra="4dp"
+        android:shadowColor="#FF000000"
+        android:shadowDx="0"
+        android:shadowDy="0"
+        android:shadowRadius="8"
+        android:background="#66000000"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
 </FrameLayout>

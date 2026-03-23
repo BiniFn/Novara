@@ -16,6 +16,7 @@ class MpvPlayer : MPVLib.EventObserver {
 		fun onPlaybackEnded() = Unit
 		fun onFileLoaded() = Unit
 		fun onSeek(positionMs: Long) = Unit
+		fun onSubtitleTextChanged(text: String?) = Unit
 	}
 
 	private val listeners = CopyOnWriteArrayList<Listener>()
@@ -36,6 +37,7 @@ class MpvPlayer : MPVLib.EventObserver {
 		MPVLib.observeProperty("duration", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
 		MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
 		MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+		MPVLib.observeProperty("sub-text", MPVLib.MpvFormat.MPV_FORMAT_STRING)
 		MPVLib.addObserver(this)
 		isInitialized = true
 	}
@@ -218,40 +220,157 @@ class MpvPlayer : MPVLib.EventObserver {
 	}
 
 	fun getTrackList(): List<TrackInfo> {
-		val countStr = runCatching { MPVLib.getPropertyString("track-list/count") }.getOrNull() ?: return emptyList()
-		val count = countStr.toIntOrNull() ?: return emptyList()
+		// Try multiple approaches to get track count
+		val count = getTrackCount()
+		Log.d("MpvPlayer", "getTrackList: track count=$count")
 		if (count <= 0) return emptyList()
+
 		return (0 until count).mapNotNull { i ->
-			runCatching {
-				val idStr = MPVLib.getPropertyString("track-list/$i/id") ?: return@mapNotNull null
-				val id = idStr.toIntOrNull() ?: return@mapNotNull null
-				val type = MPVLib.getPropertyString("track-list/$i/type") ?: return@mapNotNull null
-				val title = runCatching { MPVLib.getPropertyString("track-list/$i/title") }.getOrNull()
-				val lang = runCatching { MPVLib.getPropertyString("track-list/$i/lang") }.getOrNull()
-				val codec = runCatching { MPVLib.getPropertyString("track-list/$i/codec") }.getOrNull()
-				val isDefault = runCatching { MPVLib.getPropertyString("track-list/$i/default") }.getOrNull() == "yes"
-				val isSelected = runCatching { MPVLib.getPropertyString("track-list/$i/selected") }.getOrNull() == "yes"
-				TrackInfo(id, type, title, lang, codec, isDefault, isSelected)
-			}.getOrNull()
+			try {
+				val id = getTrackPropertyInt("track-list/$i/id") ?: return@mapNotNull null
+				val type = getTrackPropertyString("track-list/$i/type") ?: return@mapNotNull null
+				val title = getTrackPropertyString("track-list/$i/title")
+				val lang = getTrackPropertyString("track-list/$i/lang")
+				val codec = getTrackPropertyString("track-list/$i/codec")
+				val isDefault = getTrackPropertyFlag("track-list/$i/default")
+				val isSelected = getTrackPropertyFlag("track-list/$i/selected")
+				TrackInfo(id, type, title, lang, codec, isDefault, isSelected).also {
+					Log.d("MpvPlayer", "  track[$i]: id=$id type=$type lang=$lang title=$title codec=$codec selected=$isSelected")
+				}
+			} catch (e: Exception) {
+				Log.e("MpvPlayer", "getTrackList: failed to read track $i", e)
+				null
+			}
 		}
 	}
 
-	fun getSubtitleTracks(): List<TrackInfo> = getTrackList().filter { it.type == "sub" }
+	private fun getTrackCount(): Int {
+		// Method 1: Try as int property
+		try {
+			@Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
+			val count: Int = MPVLib.getPropertyInt("track-list/count")!!
+			Log.d("MpvPlayer", "getTrackCount via getPropertyInt: $count")
+			return count
+		} catch (e: Exception) {
+			Log.d("MpvPlayer", "getTrackCount getPropertyInt failed: ${e.message}")
+		}
+		// Method 2: Try as string property
+		try {
+			val countStr = MPVLib.getPropertyString("track-list/count")
+			val count = countStr?.toIntOrNull()
+			if (count != null) {
+				Log.d("MpvPlayer", "getTrackCount via getPropertyString: $count")
+				return count
+			}
+			Log.d("MpvPlayer", "getTrackCount getPropertyString returned: '$countStr'")
+		} catch (e: Exception) {
+			Log.d("MpvPlayer", "getTrackCount getPropertyString failed: ${e.message}")
+		}
+		// Method 3: Probe by iterating until property lookup fails
+		Log.d("MpvPlayer", "getTrackCount: probing by iteration")
+		var probed = 0
+		while (probed < 50) { // safety limit
+			try {
+				val type = MPVLib.getPropertyString("track-list/$probed/type")
+				if (type.isNullOrEmpty()) break
+				probed++
+			} catch (e: Exception) {
+				break
+			}
+		}
+		Log.d("MpvPlayer", "getTrackCount via probing: $probed")
+		return probed
+	}
+
+	private fun getTrackPropertyString(prop: String): String? {
+		return try {
+			MPVLib.getPropertyString(prop)
+		} catch (e: Exception) {
+			null
+		}
+	}
+
+	private fun getTrackPropertyInt(prop: String): Int? {
+		// Try int first, then string
+		runCatching { MPVLib.getPropertyInt(prop) }.getOrNull()?.let { return it }
+		return runCatching { MPVLib.getPropertyString(prop)?.toIntOrNull() }.getOrNull()
+	}
+
+	private fun getTrackPropertyFlag(prop: String): Boolean {
+		// Try boolean first, then string "yes"/"true"
+		runCatching { MPVLib.getPropertyBoolean(prop) }.getOrNull()?.let { return it }
+		val str = runCatching { MPVLib.getPropertyString(prop) }.getOrNull()
+		return str == "yes" || str == "true"
+	}
+
+	fun getSubtitleTracks(): List<TrackInfo> {
+		val tracks = getTrackList().filter { it.type == "sub" }
+		Log.d("MpvPlayer", "getSubtitleTracks: found ${tracks.size} tracks: ${tracks.map { "[id=${it.id} lang=${it.language} title=${it.title} codec=${it.codec} selected=${it.isSelected}]" }}")
+		return tracks
+	}
 
 	fun getAudioTracks(): List<TrackInfo> = getTrackList().filter { it.type == "audio" }
 
 	fun setSubtitleTrack(id: Int?) {
 		if (id == null || id <= 0) {
 			MPVLib.setPropertyString("sid", "no")
+			// Explicitly hide subtitles - try boolean first, then string
+			runCatching { MPVLib.setPropertyBoolean("sub-visibility", false) }
+				.onFailure { runCatching { MPVLib.setPropertyString("sub-visibility", "no") } }
 		} else {
-			MPVLib.setPropertyString("sid", id.toString())
+			runCatching { MPVLib.setPropertyInt("sid", id) }.onFailure {
+				MPVLib.setPropertyString("sid", id.toString())
+			}
+			// Explicitly enable subtitle rendering - try boolean first, then string
+			runCatching { MPVLib.setPropertyBoolean("sub-visibility", true) }
+				.onFailure { runCatching { MPVLib.setPropertyString("sub-visibility", "yes") } }
+			// Also ensure OSD is enabled (needed for subtitle overlay)
+			runCatching { MPVLib.setPropertyString("osd-level", "1") }
 		}
-		Log.d("MpvPlayer", "setSubtitleTrack: $id")
+		val currentSid = runCatching { MPVLib.getPropertyString("sid") }.getOrNull()
+		val subVis = runCatching { MPVLib.getPropertyString("sub-visibility") }.getOrNull()
+		val subVisBool = runCatching { MPVLib.getPropertyBoolean("sub-visibility") }.getOrNull()
+		val subText = runCatching { MPVLib.getPropertyString("sub-text") }.getOrNull()
+		val subScale = runCatching { MPVLib.getPropertyString("sub-scale") }.getOrNull()
+		val blendSubs = runCatching { MPVLib.getPropertyString("blend-subtitles") }.getOrNull()
+		Log.d("MpvPlayer", "setSubtitleTrack: requested=$id, sid=$currentSid, sub-visibility=$subVis/$subVisBool, sub-text='$subText', sub-scale=$subScale, blend-subs=$blendSubs")
 	}
 
 	fun setAudioTrack(id: Int) {
 		MPVLib.setPropertyString("aid", id.toString())
 		Log.d("MpvPlayer", "setAudioTrack: $id")
+	}
+
+	/**
+	 * Add an external subtitle track by URL.
+	 * Must be called after loadfile (ideally after FILE_LOADED event).
+	 */
+	fun addSubtitleTrack(url: String, title: String? = null, lang: String? = null) {
+		try {
+			// sub-add <url> [<flags> [<title> [<lang>]]]
+			val args = mutableListOf("sub-add", url, "auto")
+			args.add(title ?: "")
+			args.add(lang ?: "")
+			MPVLib.command(*args.toTypedArray())
+			Log.d("MpvPlayer", "addSubtitleTrack: url=$url title=$title lang=$lang")
+		} catch (e: Exception) {
+			Log.e("MpvPlayer", "addSubtitleTrack failed: url=$url", e)
+		}
+	}
+
+	/**
+	 * Add an external audio track by URL.
+	 */
+	fun addAudioTrack(url: String, title: String? = null, lang: String? = null) {
+		try {
+			val args = mutableListOf("audio-add", url, "auto")
+			args.add(title ?: "")
+			args.add(lang ?: "")
+			MPVLib.command(*args.toTypedArray())
+			Log.d("MpvPlayer", "addAudioTrack: url=$url title=$title lang=$lang")
+		} catch (e: Exception) {
+			Log.e("MpvPlayer", "addAudioTrack failed: url=$url", e)
+		}
 	}
 
 	fun getPropertyString(name: String): String? {
@@ -312,7 +431,13 @@ class MpvPlayer : MPVLib.EventObserver {
 		}
 	}
 
-	override fun eventProperty(property: String, value: String) = Unit
+	override fun eventProperty(property: String, value: String) {
+		when (property) {
+			"sub-text" -> {
+				listeners.forEach { it.onSubtitleTextChanged(value.ifEmpty { null }) }
+			}
+		}
+	}
 
 	override fun eventProperty(property: String, value: MPVNode) = Unit
 }

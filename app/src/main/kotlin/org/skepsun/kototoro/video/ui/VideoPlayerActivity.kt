@@ -116,6 +116,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private var currentVideoSource: ParsersContentSource? = null
     private var currentMediaHeaders: Map<String, String>? = null
     private var skipHistorySeekForCurrentMedia: Boolean = false
+    private var pendingExternalSubtitles: List<eu.kanade.tachiyomi.animesource.model.Track> = emptyList()
+    private var pendingExternalAudio: List<eu.kanade.tachiyomi.animesource.model.Track> = emptyList()
     private lateinit var mpvView: CustomMpvView
     private val danmakuController = VideoDanmakuController()
     private var danmakuLoadJob: Job? = null
@@ -144,6 +146,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     // 防止重复绑定 TimeBar listener（wireControllerButtons 会被多次调用）
     private var isTimeBarListenerBound: Boolean = false
     private var currentMediaUrl: String? = null
+    private var lastSubtitleTextFromPoll: String? = null
+    private var subtitlePollCounter = 0
     private val mpvListener = object : MpvPlayer.Listener {
         override fun onDurationChanged(durationMs: Long) {
             if (!hasRestoredProgress && durationMs > 0) {
@@ -167,10 +171,32 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
 
         override fun onFileLoaded() {
-            autoNextTriggered = false
-            applySuperResolutionFromSettings()
-            danmakuController.start()
-            autoSelectTracksByLanguage()
+            runOnUiThread {
+                autoNextTriggered = false
+                applySuperResolutionFromSettings()
+                danmakuController.start()
+                loadPendingExternalTracks()
+                autoSelectTracksByLanguage()
+            }
+        }
+
+        override fun onSubtitleTextChanged(text: String?) {
+            // This callback may or may not fire depending on mpv-android-lib version
+            Log.d("VideoPlayerActivity", "onSubtitleTextChanged callback: '$text'")
+            updateSubtitleOverlay(text)
+        }
+
+        override fun onPositionChanged(positionMs: Long) {
+            // Poll sub-text every ~5th position update (~every 500ms if updates come at ~100ms intervals)
+            subtitlePollCounter++
+            if (subtitlePollCounter % 5 == 0) {
+                val text = mpvPlayer?.getPropertyString("sub-text")
+                if (text != lastSubtitleTextFromPoll) {
+                    lastSubtitleTextFromPoll = text
+                    Log.d("VideoPlayerActivity", "sub-text poll: '$text'")
+                    updateSubtitleOverlay(text)
+                }
+            }
         }
 
         override fun onSeek(positionMs: Long) {
@@ -189,9 +215,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
     // 底部控制条（PlayerControlView）进度与已播放时长的定时更新
     private val controllerProgressIntervalMs = 500
+    private var lastSubtitleText: String? = null
     private val controllerProgressRunnable = object : Runnable {
         override fun run() {
             updateControllerProgress()
+            pollSubtitleText()
             viewBinding.root.postDelayed(this, controllerProgressIntervalMs.toLong())
         }
     }
@@ -407,6 +435,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 仅设置菜单点击监听；实际菜单由 rebuildToolbarMenuForOrientation() 按方向重建
         viewBinding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                org.skepsun.kototoro.R.id.action_subtitle_track -> {
+                    showSubtitleTrackDialog()
+                    true
+                }
                 org.skepsun.kototoro.R.id.action_external_player -> {
                     openInExternalPlayer()
                     true
@@ -914,6 +946,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                         .takeIf { it >= 0 } ?: 0
                                     val selected = videos[currentVideoIndex]
                                     val mergedHeaders = mergeHeaders(repo.getRequestHeaders(), headersToMap(selected.headers))
+                                    pendingExternalSubtitles = selected.subtitleTracks
+                                    pendingExternalAudio = selected.audioTracks
                                     startMpvPlayback(
                                         selected.videoUrl,
                                         manga.source,
@@ -1268,6 +1302,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val menu = viewBinding.toolbar.menu
         menu.clear()
         viewBinding.toolbar.inflateMenu(org.skepsun.kototoro.R.menu.menu_video_player)
+        // Force subtitle button to always show as icon (not in overflow)
+        menu.findItem(org.skepsun.kototoro.R.id.action_subtitle_track)?.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
         viewBinding.toolbar.menuView?.isVisible = true
     }
 
@@ -1470,6 +1506,104 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     /**
+     * Load any external subtitle and audio tracks from the Aniyomi Video model.
+     * Called after file is loaded so MPV can accept sub-add/audio-add commands.
+     */
+    private fun loadPendingExternalTracks() {
+        val player = mpvPlayer ?: return
+        if (pendingExternalSubtitles.isNotEmpty()) {
+            Log.d("VideoPlayerActivity", "Loading ${pendingExternalSubtitles.size} external subtitle tracks")
+            for (track in pendingExternalSubtitles) {
+                player.addSubtitleTrack(track.url, track.lang, track.lang)
+            }
+            pendingExternalSubtitles = emptyList()
+        }
+        if (pendingExternalAudio.isNotEmpty()) {
+            Log.d("VideoPlayerActivity", "Loading ${pendingExternalAudio.size} external audio tracks")
+            for (track in pendingExternalAudio) {
+                player.addAudioTrack(track.url, track.lang, track.lang)
+            }
+            pendingExternalAudio = emptyList()
+        }
+    }
+
+    /**
+     * Poll MPV's sub-text property and update the subtitle overlay.
+     * Called every 500ms from the controller progress runnable.
+     * This is a reliable fallback since property observation may not work
+     * for string properties in some mpv-android-lib versions.
+     */
+    private fun pollSubtitleText() {
+        val player = mpvPlayer ?: return
+        val text = player.getPropertyString("sub-text")
+        if (text != lastSubtitleText) {
+            lastSubtitleText = text
+            val overlay = findViewById<android.widget.TextView>(org.skepsun.kototoro.R.id.subtitle_overlay)
+            if (text.isNullOrBlank()) {
+                overlay?.visibility = android.view.View.GONE
+                overlay?.text = ""
+            } else {
+                overlay?.text = text
+                overlay?.visibility = android.view.View.VISIBLE
+            }
+        }
+    }
+
+    /**
+     * Update the subtitle overlay TextView with the given text.
+     * Can be called from any thread — dispatches to UI thread.
+     */
+    private var subtitleOverlayView: android.widget.TextView? = null
+
+    private fun getOrCreateSubtitleOverlay(): android.widget.TextView {
+        subtitleOverlayView?.let { return it }
+        val ctx = this
+        val overlay = android.widget.TextView(ctx).apply {
+            id = android.view.View.generateViewId()
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 18f
+            setLineSpacing(4f * resources.displayMetrics.density, 1f)
+            setShadowLayer(8f, 0f, 0f, android.graphics.Color.BLACK)
+            setBackgroundColor(0x66000000)
+            gravity = android.view.Gravity.CENTER
+            val pad = (12 * resources.displayMetrics.density).toInt()
+            val padV = (6 * resources.displayMetrics.density).toInt()
+            setPadding(pad, padV, pad, padV)
+            visibility = android.view.View.GONE
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val lp = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+            val margin = (32 * resources.displayMetrics.density).toInt()
+            val bottomMargin = (80 * resources.displayMetrics.density).toInt()
+            setMargins(margin, 0, margin, bottomMargin)
+        }
+        viewBinding.root.addView(overlay, lp)
+        subtitleOverlayView = overlay
+        Log.d("VideoPlayerActivity", "subtitle overlay CREATED programmatically")
+        return overlay
+    }
+
+    private fun updateSubtitleOverlay(text: String?) {
+        runOnUiThread {
+            val overlay = getOrCreateSubtitleOverlay()
+            if (text.isNullOrBlank()) {
+                overlay.visibility = android.view.View.GONE
+                overlay.text = ""
+            } else {
+                overlay.text = text
+                overlay.visibility = android.view.View.VISIBLE
+                overlay.bringToFront()
+            }
+        }
+    }
+
+    /**
      * Auto-select subtitle and audio tracks matching the system language.
      * Called after file is loaded and tracks are available.
      */
@@ -1591,6 +1725,37 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
+    private fun showSubtitleTrackDialog() {
+        val player = mpvPlayer ?: return
+        val tracks = player.getSubtitleTracks()
+        if (tracks.isEmpty()) {
+            Snackbar.make(
+                viewBinding.root,
+                org.skepsun.kototoro.R.string.video_no_subtitle_tracks,
+                Snackbar.LENGTH_SHORT
+            ).show()
+            return
+        }
+        val labels = arrayOf(getString(org.skepsun.kototoro.R.string.video_subtitle_off)) +
+            tracks.map { it.displayName() }.toTypedArray()
+        val selectedTrack = tracks.indexOfFirst { it.isSelected }
+        val checked = if (selectedTrack >= 0) selectedTrack + 1 else 0
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(org.skepsun.kototoro.R.string.video_subtitle_track)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                if (which == 0) {
+                    player.setSubtitleTrack(null)
+                } else {
+                    player.setSubtitleTrack(tracks[which - 1].id)
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+
     fun showQualityDialog() {
         if (availableVideos.isEmpty()) {
             Snackbar.make(
@@ -1615,6 +1780,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 val video = availableVideos[which]
                 val resumeMs = mpvPlayer?.positionMs ?: 0L
                 currentVideoIndex = which
+                pendingExternalSubtitles = video.subtitleTracks
+                pendingExternalAudio = video.audioTracks
                 startMpvPlayback(
                     video.videoUrl,
                     currentVideoSource,

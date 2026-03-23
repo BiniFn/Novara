@@ -16,7 +16,7 @@
     <string name="grid">Grid</string>
     <string name="list_mode">List mode</string>
     <string name="settings">Settings</string>
-    <string name="remote_sources">Manga sources</string>
+    <string name="remote_sources">Content sources</string>
     <string name="loading_">Loading…</string>
     <string name="computing_">Computing…</string>
     <string name="chapter_d_of_d">Chapter %1$d of %2$d</string>
@@ -442,7 +442,7 @@
     <string name="sync_title">Sync your data</string>
     <string name="email_enter_hint">Enter your email to continue</string>
     <string name="hide">Hide</string>
-    <string name="new_sources_text">New manga sources are available</string>
+    <string name="new_sources_text">New content sources are available</string>
     <string name="check_new_chapters_title">Check for new chapters and notify about it</string>
     <string name="show_notification_new_chapters_on">You will receive notifications about updates of manga you are reading</string>
     <string name="show_notification_new_chapters_off">You will not receive notifications but new chapters will be highlighted in the lists</string>
@@ -503,8 +503,8 @@
     <string name="no_bookmarks_yet">No bookmarks yet</string>
     <string name="no_bookmarks_summary">You can create bookmark while reading manga</string>
     <string name="bookmarks_removed">Bookmarks removed</string>
-    <string name="no_manga_sources">No manga sources</string>
-    <string name="no_manga_sources_text">Enable manga sources to read manga online</string>
+    <string name="no_manga_sources">No content sources</string>
+    <string name="no_manga_sources_text">Enable content sources to browse content online</string>
     <string name="random">Random</string>
     <string name="categories_delete_confirm">Are you sure you want to delete the selected favorite categories?\nAll manga in it will be lost and this cannot be undone.</string>
     <string name="reorder">Reorder</string>
@@ -603,7 +603,7 @@
     <string name="sync_host_description">You can use a self-hosted synchronization server or a default one. Don\'t change this if you\'re not sure what you\'re doing.</string>
     <string name="ignore_ssl_errors">Ignore SSL errors</string>
     <string name="mirror_switching">Choose mirror automatically</string>
-    <string name="mirror_switching_summary">Automatically switch domains for manga sources on errors if mirrors are available</string>
+    <string name="mirror_switching_summary">Automatically switch domains for content sources on errors if mirrors are available</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
     <string name="paused">Paused</string>
@@ -783,7 +783,7 @@
     <string name="sources_catalog">Sources catalog</string>
     <string name="source_enabled">Source enabled</string>
     <string name="no_manga_sources_catalog_text">There are no sources available in this section, or all of it might have been already added.\nStay tuned</string>
-    <string name="no_manga_sources_found">No available manga sources found by your query</string>
+    <string name="no_manga_sources_found">No available content sources found by your query</string>
     <string name="catalog">Catalog</string>
     <string name="manage_sources">Manage sources</string>
     <string name="manual">Manual</string>
@@ -1236,8 +1236,8 @@
     <string name="open_telegram_bot_summary">Press to open chat with Kototoro Backup Bot</string>
     <string name="clear_database">Clear database</string>
     <string name="clear_database_summary">Delete information about manga that is not used</string>
-    <string name="enable_all_sources">Enable all manga sources</string>
-    <string name="enable_all_sources_summary">All available manga sources will be enabled permanently</string>
+    <string name="enable_all_sources">Enable all content sources</string>
+    <string name="enable_all_sources_summary">All available content sources will be enabled permanently</string>
     <string name="all_sources_enabled">All sources are enabled</string>
     <string name="reader_chapter_toast">Show chapter change popup</string>
     <string name="reader_chapter_toast_summary">Show a pop-up message with a chapter title when it is changed</string>
@@ -1287,11 +1287,11 @@
     <string name="link_to_manga_on_s">Link to manga on %s</string>
     <string name="link_to_manga_in_app">Link to manga in Kototoro</string>
     <string name="clear_browser_data">Clear browser data</string>
-    <string name="clear_browser_data_summary">Clear browser data such as cache and cookies. Warning: Authorization in manga sources may become invalid</string>
+    <string name="clear_browser_data_summary">Clear browser data such as cache and cookies. Warning: Authorization in content sources may become invalid</string>
     <string name="no_write_permission_to_file">Does not have permission to write a file</string>
     <string name="exclude_nsfw_from_suggestions_summary">Adult manga will not be shown in suggestions. This option may work inaccurate with some sources</string>
     <string name="include_disabled_sources">Include disabled sources</string>
-    <string name="suggestions_disabled_sources_summary">Show suggestions from all manga sources, including disabled ones</string>
+    <string name="suggestions_disabled_sources_summary">Show suggestions from all content sources, including disabled ones</string>
     <string name="tags_warnings">Highlight dangerous genres</string>
     <string name="tags_warnings_summary">Highlight genres that may be inappropriate for most users</string>
     <string name="error_non_file_uri">The selected path cannot be used because it does not denote a file or directory</string>
