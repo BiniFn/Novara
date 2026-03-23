@@ -29,7 +29,8 @@ class ExtensionsRootFragment : BaseFragment<FragmentExtensionsRootBinding>() {
 			tab.setText(
 				when (position) {
 					0 -> R.string.manga
-					else -> R.string.video
+					1 -> R.string.video
+					else -> R.string.ireader_sources
 				},
 			)
 		}.attach()
@@ -45,7 +46,7 @@ class ExtensionsRootFragment : BaseFragment<FragmentExtensionsRootBinding>() {
 
 private class ExtensionsPagerAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
 
-	private val types = listOf(ExternalExtensionType.MIHON, ExternalExtensionType.ANIYOMI)
+	private val types = listOf(ExternalExtensionType.MIHON, ExternalExtensionType.ANIYOMI, ExternalExtensionType.IREADER)
 
 	override fun getItemCount(): Int = types.size
 

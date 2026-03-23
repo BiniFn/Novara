@@ -42,6 +42,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 	private val signatureValidator: InstalledExtensionSignatureValidator,
 	private val mihonExtensionManager: MihonExtensionManager,
 	private val aniyomiExtensionManager: AniyomiExtensionManager,
+	private val ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
 ) : BaseViewModel() {
 
 	val type: ExternalExtensionType = enumValueOf(savedStateHandle.require<String>(ARG_EXTENSION_TYPE))
@@ -76,6 +77,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		type = type,
 		mihonExtensionManager = mihonExtensionManager,
 		aniyomiExtensionManager = aniyomiExtensionManager,
+		ireaderExtensionManager = ireaderExtensionManager,
 	).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 	private val browserInputsBase: StateFlow<BrowserInputs> = combine(
@@ -208,6 +210,15 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		if (item.state == ExtensionsBrowserEntryState.INSTALLING) {
 			return
 		}
+
+		val uninstallPkg = if (item.extension.type == ExternalExtensionType.IREADER && item.pkgName.startsWith("ireader-")) {
+			val parts = item.pkgName.split("-")
+			if (parts.size >= 3) {
+				val namePart = parts.drop(2).joinToString("-")
+				"ireader.${namePart}.${parts[1]}"
+			} else item.pkgName
+		} else item.pkgName
+
 		val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			Intent.ACTION_DELETE
 		} else {
@@ -215,7 +226,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			Intent.ACTION_UNINSTALL_PACKAGE
 		}
 		onUninstallIntent.call(
-			Intent(action, Uri.fromParts("package", item.pkgName, null)),
+			Intent(action, Uri.fromParts("package", uninstallPkg, null)),
 		)
 	}
 
@@ -261,7 +272,9 @@ class ExtensionsBrowserViewModel @Inject constructor(
 				if (fromBatch) {
 					batchUpdateState.markInstallerIntentDispatched()
 				}
-				onInstallIntent.call(intent)
+				if (intent != null) {
+					onInstallIntent.call(intent)
+				}
 			} catch (e: CancellationException) {
 				if (!fromBatch) {
 					onMessage.call(appContext.getString(R.string.canceled))

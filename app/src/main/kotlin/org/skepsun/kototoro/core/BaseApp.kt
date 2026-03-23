@@ -37,6 +37,7 @@ import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.index.LocalContentIndex
 import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.mihon.MihonExtensionManager
+import org.skepsun.kototoro.ireader.IReaderExtensionManager
 import org.skepsun.kototoro.parsers.util.suspendlazy.getOrNull
 import org.skepsun.kototoro.settings.work.WorkScheduleManager
 import java.security.Security
@@ -97,6 +98,11 @@ open class BaseApp : App(), Configuration.Provider {
 		}
 		try {
 			entryPoint.aniyomiExtensionManager().initialize()
+		} catch (e: Throwable) {
+			e.printStackTrace()
+		}
+		try {
+			entryPoint.ireaderExtensionManager().initialize()
 		} catch (e: Throwable) {
 			e.printStackTrace()
 		}
@@ -167,5 +173,6 @@ open class BaseApp : App(), Configuration.Provider {
 		fun localStorageChanges(): MutableSharedFlow<LocalContent?>
 		fun mihonExtensionManager(): MihonExtensionManager
 		fun aniyomiExtensionManager(): AniyomiExtensionManager
+		fun ireaderExtensionManager(): IReaderExtensionManager
 	}
 }

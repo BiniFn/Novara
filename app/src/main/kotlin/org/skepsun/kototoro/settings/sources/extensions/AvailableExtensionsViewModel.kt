@@ -21,6 +21,8 @@ import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
 import org.skepsun.kototoro.mihon.MihonExtensionManager
+import org.skepsun.kototoro.extensions.repo.InstalledExtensionSignatureValidator
+import org.skepsun.kototoro.ireader.IReaderExtensionManager
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,6 +32,8 @@ class AvailableExtensionsViewModel @Inject constructor(
 	private val installService: ExtensionInstallService,
 	private val mihonExtensionManager: MihonExtensionManager,
 	private val aniyomiExtensionManager: AniyomiExtensionManager,
+	private val signatureValidator: InstalledExtensionSignatureValidator,
+	private val ireaderExtensionManager: IReaderExtensionManager,
 ) : BaseViewModel() {
 
 	val type: ExternalExtensionType = enumValueOf(savedStateHandle.require<String>(ARG_EXTENSION_TYPE))
@@ -40,19 +44,32 @@ class AvailableExtensionsViewModel @Inject constructor(
 		.map { it.size }
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-	private val installedMap = observeInstalledExtensionInfoMap(
+	private val installedExtensions: StateFlow<Map<String, InstalledExtensionVersionInfo>> = observeInstalledExtensionInfoMap(
 		type = type,
 		mihonExtensionManager = mihonExtensionManager,
 		aniyomiExtensionManager = aniyomiExtensionManager,
+		ireaderExtensionManager = ireaderExtensionManager,
 	).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
 	val items: StateFlow<List<AvailableExtensionListItem>> = combine(
 		rawExtensions,
-		installedMap,
+		installedExtensions,
 		installService.downloadStates,
 	) { available, installed, downloads ->
 		available.map { extension ->
-			val installedInfo = installed[extension.pkgName]
+			val isIReader = extension.type == ExternalExtensionType.IREADER
+			val installedSearchKey = if (isIReader) {
+				val parts = extension.pkgName.split("-")
+				if (parts.size >= 3 && parts[0] == "ireader") {
+					val namePart = parts.drop(2).joinToString("-")
+					"ireader.${namePart}.${parts[1]}"
+				} else {
+					extension.pkgName
+				}
+			} else {
+				extension.pkgName
+			}
+			val installedInfo = installed[installedSearchKey]
 			val state = extension.resolveAvailableState(
 				installedInfo = installedInfo,
 				isInstalling = extension.pkgName in downloads,
@@ -93,7 +110,11 @@ class AvailableExtensionsViewModel @Inject constructor(
 		launchLoadingJob(Dispatchers.IO) {
 			try {
 				val intent = installService.createInstallIntent(extension)
-				onInstallIntent.call(intent)
+				if (intent != null) {
+					onInstallIntent.call(intent)
+				} else {
+					refresh()
+				}
 			} catch (e: Throwable) {
 				errorEvent.call(e)
 			}

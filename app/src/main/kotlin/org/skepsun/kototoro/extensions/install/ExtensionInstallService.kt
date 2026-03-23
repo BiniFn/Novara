@@ -34,7 +34,7 @@ class ExtensionInstallService @Inject constructor(
 
 	val downloadStates: StateFlow<Map<String, ExtensionInstallDownloadState>> = _downloadStates.asStateFlow()
 
-	suspend fun createInstallIntent(extension: RepoAvailableExtension): Intent {
+	suspend fun createInstallIntent(extension: RepoAvailableExtension): Intent? {
 		val apkUrl = "${extension.repoUrl}/apk/${extension.apkName}"
 		val outputDir = File(context.cacheDir, "extension-installs").apply { mkdirs() }
 		val outputFile = File(outputDir, "${extension.pkgName}-${extension.versionCode}.apk")

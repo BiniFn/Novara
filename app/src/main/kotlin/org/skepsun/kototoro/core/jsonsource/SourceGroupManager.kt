@@ -106,6 +106,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.EXTERNAL -> OriginGroup.EXTERNAL
 			SourceType.MIHON -> OriginGroup.MIHON
 			SourceType.ANIYOMI -> OriginGroup.ANIYOMI
+			SourceType.IREADER -> OriginGroup.IREADER
 		}
 	}
 	
@@ -233,7 +234,12 @@ enum class OriginGroup {
 	/**
 	 * Aniyomi extension sources
 	 */
-	ANIYOMI
+	ANIYOMI,
+
+	/**
+	 * IReader extension sources
+	 */
+	IREADER
 }
 
 /**

@@ -86,6 +86,7 @@ enum class HomeSourceOrigin {
 	TVBOX,
 	JAVASCRIPT,
 	EXTERNAL,
+	IREADER,
 }
 
 data class HomeSourceBreakdown(
@@ -178,6 +179,7 @@ class HomeViewModel @Inject constructor(
 				HomeSourceOrigin.TVBOX.toBreakdown(counts.countOf(OriginGroup.TVBOX_JSON)),
 				HomeSourceOrigin.JAVASCRIPT.toBreakdown(counts.countOf(OriginGroup.JS_JSON)),
 				HomeSourceOrigin.EXTERNAL.toBreakdown(counts.countOf(OriginGroup.EXTERNAL)),
+				HomeSourceOrigin.IREADER.toBreakdown(counts.countOf(OriginGroup.IREADER)),
 			).sortedByDescending { it.count }
 				.take(3)
 		}

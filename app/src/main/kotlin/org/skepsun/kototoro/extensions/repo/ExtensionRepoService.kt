@@ -22,6 +22,22 @@ class ExtensionRepoService @Inject constructor(
 ) {
 
 	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
+		if (type == ExternalExtensionType.IREADER) {
+			val now = System.currentTimeMillis()
+			return ExternalExtensionRepo(
+				type = type,
+				baseUrl = baseUrl,
+				name = "IReader Repository",
+				shortName = "IReader",
+				website = baseUrl,
+				signingKeyFingerprint = "", // IReader APKs are signed individually
+				createdAt = now,
+				updatedAt = now,
+				lastSuccessAt = now,
+				lastError = null,
+			)
+		}
+
 		val repoJsonUrl = "$baseUrl/repo.json"
 		val startedAt = System.currentTimeMillis()
 		Log.d(TAG, "fetchRepoDetails:start type=$type url=$repoJsonUrl")
@@ -60,10 +76,17 @@ class ExtensionRepoService @Inject constructor(
 				val body = httpClient.newCall(GET(indexUrl)).awaitSuccess().use { response ->
 					response.body.string()
 				}
-				val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
-				dto.asSequence()
-					.mapNotNull { item -> item.toAvailableExtension(repo) }
-					.toList()
+				if (repo.type == ExternalExtensionType.IREADER) {
+					val dto = json.decodeFromString<List<IReaderExtensionIndexDto>>(body)
+					dto.asSequence()
+						.mapNotNull { item -> item.toAvailableExtension(repo) }
+						.toList()
+				} else {
+					val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
+					dto.asSequence()
+						.mapNotNull { item -> item.toAvailableExtension(repo) }
+						.toList()
+				}
 			}
 		}.onSuccess { extensions ->
 			Log.d(
@@ -104,14 +127,16 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	private fun ExtensionIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension? {
-		val libVersion = runCatching { version.substringBeforeLast('.').toDouble() }.getOrNull() ?: return null
+		val libVersion = runCatching { version.substringBeforeLast('.').toDouble() }.getOrNull() ?: if (repo.type == ExternalExtensionType.IREADER) 0.0 else return null
 		val supported = when (repo.type) {
 			ExternalExtensionType.MIHON -> libVersion in MihonExtensionLoader.LIB_VERSION_MIN..MihonExtensionLoader.LIB_VERSION_MAX
 			ExternalExtensionType.ANIYOMI -> libVersion in AniyomiExtensionLoader.LIB_VERSION_MIN..AniyomiExtensionLoader.LIB_VERSION_MAX
+			ExternalExtensionType.IREADER -> true
 		}
 		val displayName = when (repo.type) {
 			ExternalExtensionType.MIHON -> name.removePrefix("Tachiyomi: ")
 			ExternalExtensionType.ANIYOMI -> name.removePrefix("Aniyomi: ")
+			ExternalExtensionType.IREADER -> name.removePrefix("IReader: ")
 		}
 		return RepoAvailableExtension(
 			type = repo.type,
@@ -124,11 +149,34 @@ class ExtensionRepoService @Inject constructor(
 			isNsfw = nsfw == 1,
 			sourceNames = sources.orEmpty().map { it.name },
 			apkName = apk,
-			iconUrl = "${repo.baseUrl}/icon/$pkg.png",
+			iconUrl = if (repo.type == ExternalExtensionType.IREADER) "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}" else "${repo.baseUrl}/icon/$pkg.png",
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
 			signatureHash = repo.signingKeyFingerprint,
 			isCompatible = supported,
+		)
+	}
+
+	private fun IReaderExtensionIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension {
+		val libVersion = runCatching { version.substringBeforeLast('.').toDouble() }.getOrNull() ?: 0.0
+		val displayName = name.removePrefix("IReader: ")
+		
+		return RepoAvailableExtension(
+			type = repo.type,
+			name = displayName,
+			pkgName = pkg,
+			versionName = version,
+			versionCode = code,
+			libVersion = libVersion,
+			lang = lang,
+			isNsfw = nsfw,
+			sourceNames = emptyList(), // IReader plugins don't declare subset sources natively
+			apkName = apk,
+			iconUrl = "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}",
+			repoUrl = repo.baseUrl,
+			repoName = repo.displayName,
+			signatureHash = repo.signingKeyFingerprint,
+			isCompatible = true,
 		)
 	}
 
@@ -162,6 +210,17 @@ class ExtensionRepoService @Inject constructor(
 	@Serializable
 	private data class ExtensionSourceDto(
 		val name: String,
+	)
+
+	@Serializable
+	private data class IReaderExtensionIndexDto(
+		val name: String,
+		val pkg: String,
+		val apk: String,
+		val lang: String,
+		val code: Long,
+		val version: String,
+		val nsfw: Boolean,
 	)
 
 	private companion object {

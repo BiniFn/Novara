@@ -60,6 +60,7 @@ internal fun observeInstalledExtensionInfoMap(
 	type: ExternalExtensionType,
 	mihonExtensionManager: MihonExtensionManager,
 	aniyomiExtensionManager: AniyomiExtensionManager,
+	ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
 ): Flow<Map<String, InstalledExtensionVersionInfo>> {
 	return when (type) {
 		ExternalExtensionType.MIHON -> mihonExtensionManager.installedExtensions.mapInstalledExtensionInfo(
@@ -75,6 +76,13 @@ internal fun observeInstalledExtensionInfoMap(
 			libVersionOf = { it.libVersion },
 			versionNameOf = { it.versionName },
 		)
+
+		ExternalExtensionType.IREADER -> ireaderExtensionManager.installedExtensions.mapInstalledExtensionInfo(
+			packageNameOf = { it.pkgName },
+			versionCodeOf = { it.versionCode },
+			libVersionOf = { 1.0 }, // No shared library concept for IReader, using 1.0
+			versionNameOf = { it.versionName },
+		)
 	}
 }
 
@@ -82,11 +90,14 @@ internal fun observeInstalledExtensionEntries(
 	type: ExternalExtensionType,
 	mihonExtensionManager: MihonExtensionManager,
 	aniyomiExtensionManager: AniyomiExtensionManager,
+	ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
 ): Flow<List<InstalledExtensionEntry>> {
 	return when (type) {
 		ExternalExtensionType.MIHON -> observeMihonInstalledExtensionEntries(mihonExtensionManager)
 
 		ExternalExtensionType.ANIYOMI -> observeAniyomiInstalledExtensionEntries(aniyomiExtensionManager)
+
+		ExternalExtensionType.IREADER -> observeIReaderInstalledExtensionEntries(ireaderExtensionManager)
 	}
 }
 
@@ -115,6 +126,21 @@ internal fun observeAniyomiInstalledExtensionEntries(
 		versionCodeOf = { it.versionCode },
 		libVersionOf = { it.libVersion },
 		languageOf = { it.lang },
+		isNsfwOf = { it.isNsfw },
+		sourceNamesOf = { ext -> ext.sources.map { it.name } },
+	)
+}
+
+internal fun observeIReaderInstalledExtensionEntries(
+	ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
+): Flow<List<InstalledExtensionEntry>> {
+	return ireaderExtensionManager.installedExtensions.mapInstalledExtensionEntries(
+		packageNameOf = { it.pkgName },
+		appNameOf = { it.appName },
+		versionNameOf = { it.versionName },
+		versionCodeOf = { it.versionCode },
+		libVersionOf = { 1.0 },
+		languageOf = { ext -> ext.sources.firstOrNull()?.lang ?: "all" },
 		isNsfwOf = { it.isNsfw },
 		sourceNamesOf = { ext -> ext.sources.map { it.name } },
 	)

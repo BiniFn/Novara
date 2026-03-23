@@ -24,7 +24,8 @@ enum class SourceTag(
     ANIYOMI(R.string.aniyomi_sources, R.drawable.ic_source_aniyomi, "aniyomi"),
     LEGADO(R.string.source_type_legado, R.drawable.ic_source_legado, "legado"),
     JAVASCRIPT(R.string.source_type_js, R.drawable.ic_source_js, "js"),
-    TVBOX(R.string.source_type_tvbox, R.drawable.ic_source_tvbox, "tvbox");
+    TVBOX(R.string.source_type_tvbox, R.drawable.ic_source_tvbox, "tvbox"),
+    IREADER(R.string.source_type_ireader, R.drawable.ic_source_builtin, "ireader");
 
     /**
      * Whether this tag matches the given content and origin group.
@@ -36,6 +37,7 @@ enum class SourceTag(
         LEGADO -> originGroup == OriginGroup.LEGADO_JSON
         JAVASCRIPT -> originGroup == OriginGroup.JS_JSON
         TVBOX -> originGroup == OriginGroup.TVBOX_JSON
+        IREADER -> originGroup == OriginGroup.IREADER
     }
 
     /**
@@ -48,6 +50,7 @@ enum class SourceTag(
         LEGADO -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
         JAVASCRIPT -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
         TVBOX -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
+        IREADER -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
     }
 
     companion object {
@@ -57,6 +60,7 @@ enum class SourceTag(
             ANIYOMI,
             LEGADO,
             TVBOX,
+            IREADER,
         )
 
         fun sanitizeQuickFilterSelection(tags: Set<SourceTag>): Set<SourceTag> =

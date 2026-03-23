@@ -67,6 +67,7 @@ data class SourceGroupInfo(
 				OriginGroup.EXTERNAL -> context.getString(R.string.source_group_external)
 				OriginGroup.MIHON -> context.getString(R.string.source_group_mihon)
 				OriginGroup.ANIYOMI -> context.getString(R.string.source_group_aniyomi)
+				OriginGroup.IREADER -> context.getString(R.string.source_type_ireader)
 			}
 			is SourceGroup.TvBoxRepository -> name.ifBlank {
 				if (group.locator.isNullOrBlank()) context.getString(R.string.source_group_other_json) else context.getString(R.string.source_group_tvbox_repository)

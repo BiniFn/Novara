@@ -322,6 +322,9 @@ dependencies {
 	implementation libs.rxjava2
 	implementation libs.rxjava3
 
+	// IReader extension compatibility
+	implementation libs.ireader.source.api
+
 	debugImplementation libs.leakcanary.android
 	nightlyImplementation libs.leakcanary.android
 	debugImplementation libs.workinspector

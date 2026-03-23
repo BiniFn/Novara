@@ -21,6 +21,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		private const val JS_PREFIX = "JSON_JS_"
 		private const val MIHON_PREFIX = "MIHON_"
 		private const val ANIYOMI_PREFIX = "ANIYOMI_"
+		private const val IREADER_PREFIX = "IREADER_"
 	}
 	
 	/**
@@ -41,6 +42,7 @@ class SourceTypeIdentifier @Inject constructor() {
 	 */
 	fun getSourceType(sourceId: String): SourceType {
 		return when {
+			sourceId.startsWith(IREADER_PREFIX) -> SourceType.IREADER
 			sourceId.startsWith(MIHON_PREFIX) -> SourceType.MIHON
 			sourceId.startsWith(ANIYOMI_PREFIX) -> SourceType.ANIYOMI
 			sourceId.startsWith(LEGADO_MANGA_PREFIX) -> SourceType.JSON_LEGADO
@@ -68,6 +70,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			SourceType.EXTERNAL -> "外部源"
 			SourceType.MIHON -> "Mihon 扩展"
 			SourceType.ANIYOMI -> "Aniyomi 扩展"
+			SourceType.IREADER -> "IReader 扩展"
 		}
 	}
 	
@@ -124,5 +127,10 @@ enum class SourceType {
 	/**
 	 * Aniyomi extension sources
 	 */
-	ANIYOMI
+	ANIYOMI,
+
+	/**
+	 * IReader extension sources
+	 */
+	IREADER
 }

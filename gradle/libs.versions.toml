@@ -80,6 +80,7 @@ ncnnandroidppocr = "v1.3.0"
 onnxruntime = "1.24.3"
 djlTokenizers = "0.33.0"
 djlSentencepiece = "0.33.0"
+ireaderSourceApi = "1.5.1"
 
 [libraries]
 acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acra" }
@@ -185,6 +186,7 @@ ncnnandroidppocr = { module = "com.github.equationl.paddleocr4android:ncnnandroi
 onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
 djl-tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "djlTokenizers" }
 djl-sentencepiece = { module = "ai.djl.sentencepiece:sentencepiece", version.ref = "djlSentencepiece" }
+ireader-source-api = { module = "io.github.ireaderorg:source-api", version.ref = "ireaderSourceApi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "gradle" }

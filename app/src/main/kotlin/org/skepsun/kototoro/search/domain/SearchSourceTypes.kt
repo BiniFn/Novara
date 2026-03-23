@@ -11,6 +11,7 @@ val ALL_SOURCE_TYPES: Set<SourceType> = setOf(
 	SourceType.JSON_TVBOX,
 	SourceType.MIHON,
 	SourceType.ANIYOMI,
+	SourceType.IREADER,
 )
 
 data class SourceTypeOption(
@@ -24,6 +25,7 @@ val SOURCE_TYPE_OPTIONS: List<SourceTypeOption> = listOf(
 	SourceTypeOption(SourceType.ANIYOMI, R.string.source_type_aniyomi),
 	SourceTypeOption(SourceType.JSON_LEGADO, R.string.source_type_legado),
 	SourceTypeOption(SourceType.JSON_TVBOX, R.string.source_type_tvbox),
+	SourceTypeOption(SourceType.IREADER, R.string.source_type_ireader),
 )
 
 fun sourceTypesFromTags(tags: Set<SourceTag>): Set<SourceType> {
@@ -39,6 +41,7 @@ fun sourceTypesFromTags(tags: Set<SourceTag>): Set<SourceType> {
 			SourceTag.LEGADO -> result.add(SourceType.JSON_LEGADO)
 			SourceTag.JAVASCRIPT -> result.add(SourceType.JSON_JS)
 			SourceTag.TVBOX -> result.add(SourceType.JSON_TVBOX)
+			SourceTag.IREADER -> result.add(SourceType.IREADER)
 		}
 	}
 	return if (result.isEmpty()) ALL_SOURCE_TYPES else result

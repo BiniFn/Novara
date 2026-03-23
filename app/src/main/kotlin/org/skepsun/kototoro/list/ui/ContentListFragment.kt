@@ -123,7 +123,7 @@ abstract class ContentListFragment :
 		container: ViewGroup?,
 	) = FragmentListBinding.inflate(inflater, container, false)
 
-	protected open fun sourceTagChipEntries(): List<SourceTag> = SourceTag.entries.toList()
+	protected open fun sourceTagChipEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
 		override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 			super.onViewBindingCreated(binding, savedInstanceState)

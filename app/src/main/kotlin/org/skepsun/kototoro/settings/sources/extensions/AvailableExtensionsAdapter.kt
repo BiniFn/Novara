@@ -58,6 +58,7 @@ class AvailableExtensionsAdapter(
 		private fun getFallbackIcon(type: org.skepsun.kototoro.extensions.repo.ExternalExtensionType): Int = when (type) {
 			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.MIHON -> R.drawable.ic_source_mihon
 			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.ANIYOMI -> R.drawable.ic_source_aniyomi
+			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.IREADER -> R.drawable.ic_source_mihon // Fallback for now
 		}
 	}
 
