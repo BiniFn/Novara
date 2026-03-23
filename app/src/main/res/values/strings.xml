@@ -1530,6 +1530,22 @@
     <string name="source_name">Source name</string>
     <string name="source_url">Source URL</string>
     <string name="source_group">Group</string>
+    <string name="source_group_manga">Manga Sources</string>
+    <string name="source_group_novel">Novel Sources</string>
+    <string name="source_group_video">Video Sources</string>
+    <string name="source_group_hentai_manga">Adult Manga Sources</string>
+    <string name="source_group_hentai_novel">Adult Novel Sources</string>
+    <string name="source_group_hentai_video">Adult Video Sources</string>
+    <string name="source_group_other">Other Sources</string>
+    <string name="source_group_native">Native Sources</string>
+    <string name="source_group_legado">Legado Sources</string>
+    <string name="source_group_tvbox">TVBox Sources</string>
+    <string name="source_group_javascript">JavaScript Sources</string>
+    <string name="source_group_external">External Sources</string>
+    <string name="source_group_mihon">Mihon Extensions</string>
+    <string name="source_group_aniyomi">Aniyomi Extensions</string>
+    <string name="source_group_other_json">Other JSON Sources</string>
+    <string name="source_group_tvbox_repository">TVBox Repository</string>
     <string name="rules">Rules</string>
     <string name="search_url">Search URL</string>
     <string name="explore_url">Explore URL</string>
@@ -1555,6 +1571,8 @@
     <string name="manga">Manga</string>
     <string name="novel">Novel</string>
     <string name="video">Video</string>
+    <string name="other">Other</string>
+    <string name="search_only_badge">S</string>
     
     <!-- Source Filters -->
     <string name="native_sources">Native Sources</string>

@@ -39,7 +39,7 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 
 private const val REDIRECT_URI = "kototoro://bangumi-auth"
-private const val BASE_URL = "https://bgm.tv/"
+private const val BASE_URL = "https://bangumi.tv/"
 private const val API_URL = "https://api.bgm.tv/"
 
 @Singleton
@@ -125,7 +125,7 @@ class BangumiRepository @Inject constructor(
 				name = json.getString("name_cn").ifBlank { json.getString("name") },
 				altName = json.getString("name"),
 				cover = json.getJSONObject("images").getString("medium"),
-				url = "https://bgm.tv/subject/${json.getLong("id")}",
+				url = "https://bangumi.tv/subject/${json.getLong("id")}",
 				isBestMatch = false
 			)
 		}
@@ -177,7 +177,7 @@ class BangumiRepository @Inject constructor(
 				name = name,
 				altName = altName,
 				cover = if (cleanCover.startsWith("//")) "https:$cleanCover" else cleanCover,
-				url = "https://bgm.tv/subject/$id",
+				url = "https://bangumi.tv/subject/$id",
 				isBestMatch = false
 			)
 		}
@@ -209,7 +209,7 @@ class BangumiRepository @Inject constructor(
 
 	suspend fun getDailyCalendar(): Map<Int, List<ScrobblerContent>> {
 		val request = Request.Builder()
-			.url("https://bgm.tv/")
+			.url("https://bangumi.tv/")
 			.get()
 			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
 			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -252,7 +252,7 @@ class BangumiRepository @Inject constructor(
 					name = name,
 					altName = altName,
 					cover = if (cleanCover.startsWith("//")) "https:$cleanCover" else cleanCover,
-					url = "https://bgm.tv/subject/$id",
+					url = "https://bangumi.tv/subject/$id",
 					isBestMatch = false
 				)
 			}.filter { it.id > 0L }.distinctBy { it.id }
@@ -444,7 +444,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
 		val request = Request.Builder()
-			.url("https://bgm.tv/subject/$id")
+			.url("https://bangumi.tv/subject/$id")
 			.get()
 			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
 			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -494,7 +494,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 				episodes.add(ScrobblerContentInfo.EpisodeInfo(
 					number = epNumber,
 					title = epTitle,
-					url = if (epUrl.startsWith("/")) "https://bgm.tv$epUrl" else epUrl,
+					url = if (epUrl.startsWith("/")) "https://bangumi.tv$epUrl" else epUrl,
 				))
 			}
 		}
@@ -519,7 +519,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 					title = title,
 					coverUrl = relCover,
 					relationship = relationship.ifBlank { null },
-					url = "https://bgm.tv/subject/$relId",
+					url = "https://bangumi.tv/subject/$relId",
 				))
 			}
 		}
@@ -544,7 +544,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 					id = recId,
 					title = displayTitle,
 					coverUrl = recCover,
-					url = "https://bgm.tv/subject/$recId",
+					url = "https://bangumi.tv/subject/$recId",
 				))
 			}
 		}
@@ -567,7 +567,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			id = id,
 			name = finalName.ifBlank { "Unknown" },
 			cover = cover,
-			url = "https://bgm.tv/subject/$id",
+			url = "https://bangumi.tv/subject/$id",
 			descriptionHtml = summary,
 			tags = tagList,
 			authors = authorsList,

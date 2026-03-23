@@ -130,22 +130,12 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 			if (hasLocal) {
 				router.openDetails(item.mangaId)
 			} else {
-				MaterialAlertDialogBuilder(this@ScrobblerConfigActivity)
-					.setTitle(item.title)
-					.setItems(
-						arrayOf(
-							getString(R.string.open_in_browser), // "在外部浏览器打开"
-							getString(R.string.search_and_bind_local) // "在本地搜索并关联"
-						)
-					) { _, which ->
-						if (which == 0) {
-							if (!router.openExternalBrowser(item.externalUrl, item.title)) {
-								Snackbar.make(viewBinding.recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
-							}
-						} else {
-							showSearchContentKindDialog(item)
-						}
-					}.show()
+				// Open the tracking site discovery detail page
+				router.openTrackingSiteDetails(
+					service = item.scrobbler,
+					remoteId = item.targetId,
+					url = item.externalUrl,
+				)
 			}
 		}
 	}

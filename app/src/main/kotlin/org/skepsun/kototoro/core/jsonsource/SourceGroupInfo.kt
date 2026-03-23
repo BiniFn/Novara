@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.core.jsonsource
 
+import android.content.Context
 import android.net.Uri
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
@@ -46,28 +48,28 @@ data class SourceGroupInfo(
 	/**
 	 * Gets a display label for the group type.
 	 */
-	fun getGroupTypeLabel(): String {
+	fun getGroupTypeLabel(context: Context): String {
 		return when (group) {
 			is SourceGroup.Content -> when (group.type) {
-				ContentGroup.MANGA -> "漫画源"
-				ContentGroup.NOVEL -> "小说源"
-				ContentGroup.VIDEO -> "视频源"
-				ContentGroup.HENTAI_MANGA -> "成人漫画源"
-				ContentGroup.HENTAI_NOVEL -> "成人小说源"
-				ContentGroup.HENTAI_VIDEO -> "成人视频源"
-				ContentGroup.OTHER -> "其他源"
+				ContentGroup.MANGA -> context.getString(R.string.source_group_manga)
+				ContentGroup.NOVEL -> context.getString(R.string.source_group_novel)
+				ContentGroup.VIDEO -> context.getString(R.string.source_group_video)
+				ContentGroup.HENTAI_MANGA -> context.getString(R.string.source_group_hentai_manga)
+				ContentGroup.HENTAI_NOVEL -> context.getString(R.string.source_group_hentai_novel)
+				ContentGroup.HENTAI_VIDEO -> context.getString(R.string.source_group_hentai_video)
+				ContentGroup.OTHER -> context.getString(R.string.source_group_other)
 			}
 			is SourceGroup.Origin -> when (group.type) {
-				OriginGroup.NATIVE -> "原生源"
-				OriginGroup.LEGADO_JSON -> "Legado 源"
-				OriginGroup.TVBOX_JSON -> "TVBox 源"
-				OriginGroup.JS_JSON -> "JavaScript 源"
-				OriginGroup.EXTERNAL -> "外部源"
-				OriginGroup.MIHON -> "Mihon 扩展"
-				OriginGroup.ANIYOMI -> "Aniyomi 扩展"
+				OriginGroup.NATIVE -> context.getString(R.string.source_group_native)
+				OriginGroup.LEGADO_JSON -> context.getString(R.string.source_group_legado)
+				OriginGroup.TVBOX_JSON -> context.getString(R.string.source_group_tvbox)
+				OriginGroup.JS_JSON -> context.getString(R.string.source_group_javascript)
+				OriginGroup.EXTERNAL -> context.getString(R.string.source_group_external)
+				OriginGroup.MIHON -> context.getString(R.string.source_group_mihon)
+				OriginGroup.ANIYOMI -> context.getString(R.string.source_group_aniyomi)
 			}
 			is SourceGroup.TvBoxRepository -> name.ifBlank {
-				if (group.locator.isNullOrBlank()) "其他 JSON 源" else "TVBox 仓库"
+				if (group.locator.isNullOrBlank()) context.getString(R.string.source_group_other_json) else context.getString(R.string.source_group_tvbox_repository)
 			}
 		}
 	}
@@ -234,8 +236,8 @@ data class GroupedSourceList(
 						if (otherSources.isNotEmpty()) {
 							add(
 								SourceGroupInfo(
-									group = SourceGroup.TvBoxRepository(null, "其他 JSON 源"),
-									name = "其他 JSON 源",
+									group = SourceGroup.TvBoxRepository(null, "Other JSON Sources"),
+									name = "Other JSON Sources",
 									sources = otherSources,
 								),
 							)
@@ -270,7 +272,7 @@ enum class GroupingStrategy {
 }
 
 private fun buildTvBoxRepositoryTitle(locator: String?): String {
-	if (locator.isNullOrBlank()) return "TVBox 仓库"
+	if (locator.isNullOrBlank()) return "TVBox Repository"
 	val uri = runCatching { Uri.parse(locator) }.getOrNull()
 	val host = uri?.host?.trim().orEmpty()
 	val tail = uri?.lastPathSegment?.trim().orEmpty()

@@ -92,7 +92,7 @@ class GroupedJsonSourcesAdapter(
 			val groupInfo = item.groupInfo
 			
 			// Set title
-			binding.textViewTitle.text = groupInfo.getGroupTypeLabel()
+			binding.textViewTitle.text = groupInfo.getGroupTypeLabel(binding.root.context)
 			
 			// Set count
 			binding.textViewCount.text = "(${groupInfo.count})"
@@ -177,7 +177,7 @@ class GroupedJsonSourcesAdapter(
 				var badgesVisible = false
 				if (meta.hasExplore == false) {
 					binding.chipSearchOnly.visibility = View.VISIBLE
-					binding.chipSearchOnly.text = "搜"
+					binding.chipSearchOnly.text = binding.root.context.getString(R.string.search_only_badge)
 					badgesVisible = true
 				} else {
 					binding.chipSearchOnly.visibility = View.GONE
@@ -255,7 +255,7 @@ class GroupedJsonSourcesAdapter(
 							reference = url,
 							hasExplore = hasExplore,
 							groups = groupStr,
-							contentTypeLabel = if (bookSourceType == 2) "漫画" else "小说",
+							contentTypeLabel = if (bookSourceType == 2) binding.root.context.getString(R.string.manga) else binding.root.context.getString(R.string.novel),
 							canEdit = true,
 							canTest = true,
 						)
@@ -264,7 +264,7 @@ class GroupedJsonSourcesAdapter(
 							reference = entity.id,
 							hasExplore = null,
 							groups = "",
-							contentTypeLabel = "小说",
+							contentTypeLabel = binding.root.context.getString(R.string.novel),
 							canEdit = true,
 							canTest = true,
 						)
@@ -284,7 +284,7 @@ class GroupedJsonSourcesAdapter(
 						reference = reference,
 						hasExplore = null,
 						groups = "",
-						contentTypeLabel = "视频",
+						contentTypeLabel = binding.root.context.getString(R.string.video),
 						canEdit = false,
 						canTest = false,
 						tvBoxRepositoryLocator = sourceLocator.ifBlank { null },
@@ -295,7 +295,7 @@ class GroupedJsonSourcesAdapter(
 					reference = entity.id,
 					hasExplore = null,
 					groups = "",
-					contentTypeLabel = "漫画",
+					contentTypeLabel = binding.root.context.getString(R.string.manga),
 					canEdit = false,
 					canTest = false,
 				)
@@ -329,16 +329,16 @@ class GroupedJsonSourcesAdapter(
 					org.skepsun.kototoro.parsers.model.ContentType.DOUJINSHI,
 					org.skepsun.kototoro.parsers.model.ContentType.IMAGE_SET,
 					org.skepsun.kototoro.parsers.model.ContentType.ARTIST_CG,
-					org.skepsun.kototoro.parsers.model.ContentType.GAME_CG -> "漫画"
+				org.skepsun.kototoro.parsers.model.ContentType.GAME_CG -> binding.root.context.getString(R.string.manga)
 					
 					org.skepsun.kototoro.parsers.model.ContentType.NOVEL,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> "小说"
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> binding.root.context.getString(R.string.novel)
 					org.skepsun.kototoro.parsers.model.ContentType.VIDEO,
-					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> "视频"
-					org.skepsun.kototoro.parsers.model.ContentType.OTHER -> "其他"
+					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> binding.root.context.getString(R.string.video)
+					org.skepsun.kototoro.parsers.model.ContentType.OTHER -> binding.root.context.getString(R.string.other)
 				}
 			}
-			return "其他"
+			return binding.root.context.getString(R.string.other)
 		}
 	}
 	
