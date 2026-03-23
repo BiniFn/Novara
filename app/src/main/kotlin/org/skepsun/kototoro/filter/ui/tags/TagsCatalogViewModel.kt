@@ -26,6 +26,7 @@ import org.skepsun.kototoro.list.ui.model.toErrorFooter
 import org.skepsun.kototoro.list.ui.model.toErrorState
 import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.list.ui.model.ListHeader
 
 @HiltViewModel(assistedFactory = TagsCatalogViewModel.Factory::class)
@@ -88,7 +89,7 @@ class TagsCatalogViewModel @AssistedInject constructor(
 		if (result.isEmpty()) {
 			val extra = cached.sortedWith(comparator)
 			if (extra.isNotEmpty()) {
-				result.add(ListHeader("其他"))
+				result.add(ListHeader(R.string.other_tags))
 				extra.forEach { tag ->
 					result.add(TagCatalogItem(tag, tag in selected))
 				}

@@ -42,7 +42,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             app:icon="@drawable/ic_sort_desc"
-            android:contentDescription="反转顺序" />
+            android:contentDescription="@string/reverse_order" />
 
     </LinearLayout>
 

@@ -74,43 +74,56 @@
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:layout_marginTop="12dp"
-						android:gravity="end|center_vertical"
-						android:orientation="horizontal">
+						android:orientation="vertical">
 
-						<com.google.android.material.button.MaterialButton
-							android:id="@+id/buttonSyncBackup"
-							style="?attr/borderlessButtonStyle"
-							android:layout_width="wrap_content"
+						<LinearLayout
+							android:layout_width="match_parent"
 							android:layout_height="wrap_content"
-							android:minWidth="0dp"
-							android:insetLeft="0dp"
-							android:insetRight="0dp"
-							android:paddingHorizontal="8dp"
-							android:visibility="gone"
-							android:text="@string/create_backup" />
+							android:gravity="end|center_vertical"
+							android:orientation="horizontal">
 
-						<com.google.android.material.button.MaterialButton
-							android:id="@+id/buttonSyncRestore"
-							style="?attr/borderlessButtonStyle"
-							android:layout_width="wrap_content"
-							android:layout_height="wrap_content"
-							android:minWidth="0dp"
-							android:insetLeft="0dp"
-							android:insetRight="0dp"
-							android:paddingHorizontal="8dp"
-							android:visibility="gone"
-							android:text="@string/restore" />
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonSyncBackup"
+								style="?attr/borderlessButtonStyle"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:minWidth="0dp"
+								android:insetLeft="0dp"
+								android:insetRight="0dp"
+								android:paddingHorizontal="8dp"
+								android:visibility="gone"
+								android:text="@string/create_backup" />
 
-						<com.google.android.material.button.MaterialButton
-							android:id="@+id/buttonSyncSettings"
-							style="?attr/borderlessButtonStyle"
-							android:layout_width="wrap_content"
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonSyncRestore"
+								style="?attr/borderlessButtonStyle"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:minWidth="0dp"
+								android:insetLeft="0dp"
+								android:insetRight="0dp"
+								android:paddingHorizontal="8dp"
+								android:visibility="gone"
+								android:text="@string/restore" />
+						</LinearLayout>
+
+						<LinearLayout
+							android:layout_width="match_parent"
 							android:layout_height="wrap_content"
-							android:minWidth="0dp"
-							android:insetLeft="0dp"
-							android:insetRight="0dp"
-							android:paddingHorizontal="8dp"
-							android:text="@string/settings" />
+							android:gravity="end|center_vertical"
+							android:orientation="horizontal">
+
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonSyncSettings"
+								style="?attr/borderlessButtonStyle"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:minWidth="0dp"
+								android:insetLeft="0dp"
+								android:insetRight="0dp"
+								android:paddingHorizontal="8dp"
+								android:text="@string/settings" />
+						</LinearLayout>
 					</LinearLayout>
 
 				</LinearLayout>

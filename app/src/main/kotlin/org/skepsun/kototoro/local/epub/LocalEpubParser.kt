@@ -120,7 +120,7 @@ class LocalEpubParser(private val cbzFile: File) {
                 state = ContentState.FINISHED,
                 authors = setOf(author),
                 largeCoverUrl = null,
-                description = "EPUB电子书：$title",
+                description = "EPUB Ebook: $title",
                 chapters = chapters,
                 source = LocalMangaSource,
             )

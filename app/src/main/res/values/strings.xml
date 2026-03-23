@@ -1699,20 +1699,20 @@
     <string name="group_by">Group by</string>
     <string name="group_by_origin">Group by origin</string>
     <string name="group_by_type">Group by type</string>
-    <string name="group_by_tvbox_repository">按 TVBox 仓库分组</string>
+    <string name="group_by_tvbox_repository">Group by TVBox repository</string>
     <string name="manage_groups">Group management</string>
     <string name="filter_need_login">Need login</string>
     <string name="filter_no_group">No group</string>
     <string name="filter_explore_enabled">Explore enabled</string>
     <string name="filter_explore_disabled">Explore disabled</string>
-    <string name="tvbox_repository_switch">切换 TVBox 仓库</string>
-    <string name="tvbox_repository_switch_with_current">切换 TVBox 仓库（当前：%1$s）</string>
-    <string name="tvbox_repository_filter">TVBox 仓库筛选</string>
-    <string name="tvbox_repository_switch_empty">当前没有可切换的 TVBox 仓库</string>
-    <string name="tvbox_repository_switched">已切换到仓库：%1$s</string>
-    <string name="tvbox_repository_active_short">当前仓库</string>
-    <string name="tvbox_repository_inactive_short">未激活</string>
-    <string name="tvbox_repository_current_label">当前 TVBox 仓库：%1$s</string>
+    <string name="tvbox_repository_switch">Switch TVBox repository</string>
+    <string name="tvbox_repository_switch_with_current">Switch TVBox repository (current: %1$s)</string>
+    <string name="tvbox_repository_filter">TVBox repository filter</string>
+    <string name="tvbox_repository_switch_empty">No TVBox repositories available to switch</string>
+    <string name="tvbox_repository_switched">Switched to repository: %1$s</string>
+    <string name="tvbox_repository_active_short">Active</string>
+    <string name="tvbox_repository_inactive_short">Inactive</string>
+    <string name="tvbox_repository_current_label">Current TVBox repository: %1$s</string>
     <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x2">Automatically downscale to 1080p if resolution is higher</string>
     <string name="video_super_resolution_shader_desc_anime4k_autodownscalepre_x4">Automatically downscale to 720p if resolution is higher</string>
     <string name="video_super_resolution_shader_desc_anime4k_clamp_highlights">Clamp highlights to prevent clipping when restoring or upscaling</string>
@@ -1809,4 +1809,25 @@
     <string name="al_category_manga_popular">Popular Manga</string>
     <string name="al_category_manga_top">Top Rated Manga</string>
     <string name="al_category_manga_favourites">Most Favourited Manga</string>
+
+    <!-- Extracted from hardcoded Chinese -->
+    <string name="work_info">Work Info</string>
+    <string name="show_more">Show More</string>
+    <string name="show_less">Show Less</string>
+    <string name="related_works">Related Works</string>
+    <string name="you_may_like">You May Also Like</string>
+    <string name="reverse_order">Reverse Order</string>
+    <string name="video_aspect_ratio">Video Aspect Ratio</string>
+    <string name="sort_by_ranking">Ranking</string>
+    <string name="sort_by_popularity_label">Popularity</string>
+    <string name="sort_by_collection">Collection</string>
+    <string name="sort_by_date_label">Date</string>
+    <string name="sort_by_name_label">Name</string>
+    <string name="bookmark_preview_unavailable">Unable to load bookmark preview</string>
+    <string name="bookmark_position">Bookmark position</string>
+    <string name="other_tags">Other</string>
+    <string name="unknown_title">Unknown title</string>
+    <string name="unknown_author">Unknown author</string>
+    <string name="epub_ebook_description">EPUB Ebook: %s</string>
+    <string name="rank">Rank</string>
 </resources>

@@ -1,11 +1,13 @@
 package org.skepsun.kototoro.bookmarks.ui.adapter
 
+import android.content.Context
 import android.util.Base64
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.jsoup.Jsoup
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.ui.list.AdapterDelegateClickListenerAdapter
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.databinding.ItemBookmarkNovelBinding
 import org.skepsun.kototoro.list.ui.model.ListModel
 
@@ -18,7 +20,7 @@ fun bookmarkNovelAD(
 
 	bind {
 		// 从imageUrl中提取文本预览
-		val previewText = extractTextPreview(item.imageUrl)
+		val previewText = extractTextPreview(itemView.context, item.imageUrl)
 		binding.textViewPreview.text = previewText
 		binding.progressView.setProgress(item.percent, false)
 	}
@@ -27,7 +29,7 @@ fun bookmarkNovelAD(
 /**
  * 从data URL或HTML中提取文本预览
  */
-private fun extractTextPreview(imageUrl: String): String {
+private fun extractTextPreview(context: Context, imageUrl: String): String {
 	return try {
 		when {
 			// 处理data URL格式 (data:text/html;charset=utf-8;base64,...)
@@ -38,7 +40,7 @@ private fun extractTextPreview(imageUrl: String): String {
 					val html = String(htmlBytes, Charsets.UTF_8)
 					extractTextFromHtml(html)
 				} else {
-					"无法加载书签预览"
+					context.getString(R.string.bookmark_preview_unavailable)
 				}
 			}
 			// 如果是普通HTML
@@ -46,12 +48,12 @@ private fun extractTextPreview(imageUrl: String): String {
 				extractTextFromHtml(imageUrl)
 			}
 			// 如果是空字符串
-			imageUrl.isEmpty() -> "书签位置"
+			imageUrl.isEmpty() -> context.getString(R.string.bookmark_position)
 			// 其他情况，直接作为纯文本显示
 			else -> imageUrl.take(200).trim()
 		}
 	} catch (e: Exception) {
-		"书签位置"
+		context.getString(R.string.bookmark_position)
 	}
 }
 
@@ -68,6 +70,6 @@ private fun extractTextFromHtml(html: String): String {
 		// 限制长度并清理空白
 		text.take(200).replace(Regex("\\s+"), " ")
 	} catch (e: Exception) {
-		"书签位置"
+		""
 	}
 }

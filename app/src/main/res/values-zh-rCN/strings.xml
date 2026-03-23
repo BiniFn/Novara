@@ -1490,4 +1490,34 @@
     <string name="shiki_category_seasonal">当季动画</string>
     <string name="shiki_category_manga_ranked">漫画排行</string>
     <string name="shiki_category_manga_popular">热门漫画</string>
+
+    <!-- Extracted from hardcoded Chinese -->
+    <string name="group_by_tvbox_repository">按 TVBox 仓库分组</string>
+    <string name="tvbox_repository_switch">切换 TVBox 仓库</string>
+    <string name="tvbox_repository_switch_with_current">切换 TVBox 仓库（当前：%1$s）</string>
+    <string name="tvbox_repository_filter">TVBox 仓库筛选</string>
+    <string name="tvbox_repository_switch_empty">当前没有可切换的 TVBox 仓库</string>
+    <string name="tvbox_repository_switched">已切换到仓库：%1$s</string>
+    <string name="tvbox_repository_active_short">当前仓库</string>
+    <string name="tvbox_repository_inactive_short">未激活</string>
+    <string name="tvbox_repository_current_label">当前 TVBox 仓库：%1$s</string>
+    <string name="work_info">作品信息</string>
+    <string name="show_more">展开更多</string>
+    <string name="show_less">收起</string>
+    <string name="related_works">关联条目</string>
+    <string name="you_may_like">猜你喜欢</string>
+    <string name="reverse_order">反转顺序</string>
+    <string name="video_aspect_ratio">视频画面比例</string>
+    <string name="sort_by_ranking">排名</string>
+    <string name="sort_by_popularity_label">热度</string>
+    <string name="sort_by_collection">收藏</string>
+    <string name="sort_by_date_label">日期</string>
+    <string name="sort_by_name_label">名称</string>
+    <string name="bookmark_preview_unavailable">无法加载书签预览</string>
+    <string name="bookmark_position">书签位置</string>
+    <string name="other_tags">其他</string>
+    <string name="unknown_title">未知标题</string>
+    <string name="unknown_author">未知作者</string>
+    <string name="epub_ebook_description">EPUB电子书：%s</string>
+    <string name="rank">排名</string>
 </resources>

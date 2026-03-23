@@ -281,7 +281,7 @@
 					android:layout_marginStart="12dp"
 					android:layout_marginTop="8dp"
 					android:singleLine="true"
-					android:text="Rank"
+					android:text="@string/rank"
 					android:textAppearance="?textAppearanceTitleSmall"
 					app:layout_constraintStart_toStartOf="@id/card_details"
 					app:layout_constraintTop_toBottomOf="@id/textView_episodes_label" />
@@ -437,7 +437,7 @@
 				<TextView
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="作品信息"
+					android:text="@string/work_info"
 					android:textAppearance="?textAppearanceTitleSmall"
 					android:padding="@dimen/grid_spacing" />
 
@@ -452,7 +452,7 @@
 					style="@style/Widget.Material3.Button.TextButton"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="展开更多"
+					android:text="@string/show_more"
 					android:visibility="gone" />
 			</LinearLayout>
 
@@ -473,7 +473,7 @@
 				<TextView
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="章节"
+					android:text="@string/chapters"
 					android:textAppearance="?textAppearanceTitleSmall"
 					android:padding="@dimen/grid_spacing" />
 
@@ -500,7 +500,7 @@
 				<TextView
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="关联条目"
+					android:text="@string/related_works"
 					android:textAppearance="?textAppearanceTitleSmall"
 					android:paddingHorizontal="@dimen/screen_padding"
 					android:padding="@dimen/grid_spacing" />
@@ -536,7 +536,7 @@
 				<TextView
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="猜你喜欢"
+					android:text="@string/you_may_like"
 					android:textAppearance="?textAppearanceTitleSmall"
 					android:paddingHorizontal="@dimen/screen_padding"
 					android:padding="@dimen/grid_spacing" />

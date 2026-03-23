@@ -276,8 +276,8 @@ class EpubReaderImpl(
      * 从EPUB Book中提取内容
      */
     private fun extractContent(book: Book): EpubContent {
-        val title = book.title ?: "未知标题"
-        val author = book.metadata.authors.firstOrNull()?.toString() ?: "未知作者"
+        val title = book.title ?: "Unknown title"
+        val author = book.metadata.authors.firstOrNull()?.toString() ?: "Unknown author"
         
         // 提取所有章节内容
         val chapters = mutableListOf<EpubChapter>()

@@ -323,11 +323,11 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
     private fun resolveSortOrderLabel(sourceName: String, order: SortOrder): String {
         if (sourceName.startsWith("TRACKING_BANGUMI_")) {
             return when (order) {
-                SortOrder.RATING -> "排名"
-                SortOrder.POPULARITY -> "热度"
-                SortOrder.ADDED -> "收藏"
-                SortOrder.NEWEST -> "日期"
-                SortOrder.ALPHABETICAL -> "名称"
+                SortOrder.RATING -> getString(R.string.sort_by_ranking)
+                SortOrder.POPULARITY -> getString(R.string.sort_by_popularity_label)
+                SortOrder.ADDED -> getString(R.string.sort_by_collection)
+                SortOrder.NEWEST -> getString(R.string.sort_by_date_label)
+                SortOrder.ALPHABETICAL -> getString(R.string.sort_by_name_label)
                 else -> getString(order.titleRes)
             }
         }
