@@ -140,5 +140,203 @@
 			tools:ignore="UnusedAttribute"
 			tools:text="@tools:sample/lorem/random[250]" />
 
+		<!-- Details loading indicator -->
+		<com.google.android.material.progressindicator.LinearProgressIndicator
+			android:id="@+id/progressDetails"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="16dp"
+			android:layout_marginTop="8dp"
+			android:layout_marginEnd="16dp"
+			android:indeterminate="true"
+			android:visibility="gone"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/textView_description" />
+
+		<!-- Score and Rank card -->
+		<com.google.android.material.card.MaterialCardView
+			android:id="@+id/cardScoreRank"
+			style="?materialCardViewFilledStyle"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="16dp"
+			android:layout_marginTop="12dp"
+			android:layout_marginEnd="16dp"
+			android:visibility="gone"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/progressDetails">
+
+			<LinearLayout
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:padding="12dp">
+
+				<!-- Score row -->
+				<LinearLayout
+					android:id="@+id/rowScore"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="horizontal"
+					android:visibility="gone">
+
+					<TextView
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:layout_weight="1"
+						android:text="@string/rating"
+						android:textAppearance="?textAppearanceTitleSmall" />
+
+					<TextView
+						android:id="@+id/textViewScoreValue"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:textAppearance="?textAppearanceBodyMedium"
+						tools:text="8.5" />
+				</LinearLayout>
+
+				<!-- Rank row -->
+				<LinearLayout
+					android:id="@+id/rowRank"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="4dp"
+					android:orientation="horizontal"
+					android:visibility="gone">
+
+					<TextView
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:layout_weight="1"
+						android:text="@string/rank"
+						android:textAppearance="?textAppearanceTitleSmall" />
+
+					<TextView
+						android:id="@+id/textViewRankValue"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:textAppearance="?textAppearanceBodyMedium"
+						tools:text="#123" />
+				</LinearLayout>
+
+				<!-- Year row -->
+				<LinearLayout
+					android:id="@+id/rowYear"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="4dp"
+					android:orientation="horizontal"
+					android:visibility="gone">
+
+					<TextView
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:layout_weight="1"
+						android:text="@string/year"
+						android:textAppearance="?textAppearanceTitleSmall" />
+
+					<TextView
+						android:id="@+id/textViewYearValue"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:textAppearance="?textAppearanceBodyMedium"
+						tools:text="2024" />
+				</LinearLayout>
+
+				<!-- Episodes row -->
+				<LinearLayout
+					android:id="@+id/rowEpisodes"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="4dp"
+					android:orientation="horizontal"
+					android:visibility="gone">
+
+					<TextView
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:layout_weight="1"
+						android:text="@string/discover_total_episodes"
+						android:textAppearance="?textAppearanceTitleSmall" />
+
+					<TextView
+						android:id="@+id/textViewEpisodesValue"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:textAppearance="?textAppearanceBodyMedium"
+						tools:text="12" />
+				</LinearLayout>
+
+				<!-- Authors row -->
+				<LinearLayout
+					android:id="@+id/rowAuthors"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="4dp"
+					android:orientation="horizontal"
+					android:visibility="gone">
+
+					<TextView
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:layout_weight="1"
+						android:text="@string/authors"
+						android:textAppearance="?textAppearanceTitleSmall" />
+
+					<TextView
+						android:id="@+id/textViewAuthorsValue"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:textAppearance="?textAppearanceBodyMedium"
+						tools:text="Author" />
+				</LinearLayout>
+			</LinearLayout>
+		</com.google.android.material.card.MaterialCardView>
+
+		<!-- Tags -->
+		<org.skepsun.kototoro.core.ui.widgets.ChipsView
+			android:id="@+id/chipsTags"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="16dp"
+			android:layout_marginTop="8dp"
+			android:layout_marginEnd="16dp"
+			android:visibility="gone"
+			app:chipSpacingHorizontal="4dp"
+			app:chipSpacingVertical="4dp"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/cardScoreRank" />
+
+		<!-- Infobox -->
+		<LinearLayout
+			android:id="@+id/layoutInfobox"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="16dp"
+			android:layout_marginTop="8dp"
+			android:layout_marginEnd="16dp"
+			android:orientation="vertical"
+			android:visibility="gone"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/chipsTags">
+
+			<TextView
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="@string/work_info"
+				android:textAppearance="?textAppearanceTitleSmall"
+				android:paddingBottom="4dp" />
+
+			<LinearLayout
+				android:id="@+id/infoboxContainer"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical" />
+		</LinearLayout>
+
 	</androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>

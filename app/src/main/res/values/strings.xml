@@ -1829,4 +1829,5 @@
     <string name="unknown_author">Unknown author</string>
     <string name="epub_ebook_description">EPUB Ebook: %s</string>
     <string name="rank">Rank</string>
+    <string name="episode_number_format">Episode %1$s\n\n%2$s</string>
 </resources>

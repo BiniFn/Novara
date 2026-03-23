@@ -13,8 +13,12 @@ import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.toContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.core.util.ext.findKeyByValue
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
+import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
@@ -26,6 +30,7 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 	private val db: MangaDatabase,
 	private val discoveryService: TrackingSiteDiscoveryService,
 	private val cacheRepository: TrackingSiteCacheRepository,
+	private val scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
 ) : BaseViewModel() {
 
 	private val service = savedStateHandle.get<Int>(AppRouter.KEY_ID)
@@ -51,6 +56,16 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 		mangaId?.let { db.getMangaDao().find(it)?.toContent() }
 	}
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
+
+	/**
+	 * Observe scrobbling entity for the current tracking item.
+	 * This provides the rating, status, chapter, and comment data.
+	 */
+	val scrobblingEntity = db.getScrobblingDao().observeByTargetId(service.id, remoteId)
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
+
+	private val scrobbler: Scrobbler?
+		get() = scrobblers.find { it.scrobblerService == service }
 
 	init {
 		launchJob {
@@ -79,6 +94,47 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 			}
 			runCatching { cacheRepository.saveDetails(details) }
 			_details.value = details
+		}
+	}
+
+	/**
+	 * Update the scrobbling rating and status for this tracking item.
+	 */
+	fun updateScrobbling(rating: Float, status: ScrobblingStatus?) {
+		val entity = scrobblingEntity.value ?: return
+		val s = scrobbler ?: return
+		launchJob(Dispatchers.Default) {
+			s.updateScrobblingInfo(
+				mangaId = entity.mangaId,
+				rating = rating,
+				status = status,
+				comment = entity.comment,
+			)
+		}
+	}
+
+	/**
+	 * Unregister scrobbling for this tracking item.
+	 */
+	fun unregisterScrobbling() {
+		val entity = scrobblingEntity.value ?: return
+		val s = scrobbler ?: return
+		launchJob(Dispatchers.Default) {
+			s.unregisterScrobbling(entity.mangaId)
+		}
+	}
+
+	/**
+	 * Resolve ScrobblingStatus from the entity's status string.
+	 */
+	fun resolveScrobblingStatus(entity: ScrobblingEntity): ScrobblingStatus? {
+		val s = scrobbler ?: return null
+		return s.let { scr ->
+			val field = scr::class.java.getDeclaredField("statuses")
+			field.isAccessible = true
+			@Suppress("UNCHECKED_CAST")
+			val statusMap = field.get(scr) as? Map<ScrobblingStatus, String>
+			statusMap?.findKeyByValue(entity.status)
 		}
 	}
 

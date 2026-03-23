@@ -4,10 +4,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RatingBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.text.parseAsHtml
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -24,6 +27,8 @@ import org.skepsun.kototoro.core.util.ext.getThemeDimensionPixelSize
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.sanitize
 import org.skepsun.kototoro.databinding.FragmentTrackingSiteDetailsBinding
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
 import org.skepsun.kototoro.core.prefs.AppSettings
 import androidx.constraintlayout.widget.Guideline
@@ -48,6 +53,8 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 
 	private val viewModel by viewModels<TrackingSiteDetailsViewModel>()
 	private var infoboxExpanded = false
+	private var isScrobblingUpdateFromUser = true
+	private var scrobblingMenu: PopupMenu? = null
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
@@ -98,6 +105,9 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 			)
 		}
 
+		// Scrobbling controls
+		setupScrobblingControls(binding)
+
 		viewModel.details.observe(viewLifecycleOwner, ::renderDetails)
 		viewModel.linkedContent.observe(viewLifecycleOwner) { content ->
 			binding.buttonOpenLocal.isVisible = content != null
@@ -116,6 +126,9 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 				},
 			)
 		}
+		viewModel.scrobblingEntity.observe(viewLifecycleOwner) { entity ->
+			renderScrobblingControls(binding, entity)
+		}
 		viewModel.error.observe(viewLifecycleOwner) { error ->
 			binding.errorGroup.isVisible = error != null
 			binding.contentGroup.isVisible = error == null && viewModel.details.value != null
@@ -124,6 +137,78 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 			binding.swipeRefreshLayout.isRefreshing = it
 			binding.progressBar.isVisible = it && viewModel.details.value == null
 		}
+	}
+
+	private fun setupScrobblingControls(binding: FragmentTrackingSiteDetailsBinding) {
+		binding.ratingBarScrobbling.setOnRatingBarChangeListener { ratingBar, rating, fromUser ->
+			if (fromUser && isScrobblingUpdateFromUser) {
+				val statusPosition = binding.spinnerScrobblingStatus.selectedItemPosition
+				viewModel.updateScrobbling(
+					rating = rating / ratingBar.numStars,
+					status = ScrobblingStatus.entries.getOrNull(statusPosition),
+				)
+			}
+		}
+
+		binding.spinnerScrobblingStatus.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+			override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+				if (isScrobblingUpdateFromUser) {
+					viewModel.updateScrobbling(
+						rating = binding.ratingBarScrobbling.rating / binding.ratingBarScrobbling.numStars,
+						status = ScrobblingStatus.entries.getOrNull(position),
+					)
+				}
+			}
+
+			override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+		}
+
+		scrobblingMenu = PopupMenu(requireContext(), binding.buttonScrobblingMenu).apply {
+			inflate(R.menu.opt_scrobbling)
+			setOnMenuItemClickListener { item ->
+				when (item.itemId) {
+					R.id.action_browser -> {
+						viewModel.details.value?.url?.let(router::openExternalBrowser)
+						true
+					}
+
+					R.id.action_unregister -> {
+						viewModel.unregisterScrobbling()
+						true
+					}
+
+					R.id.action_edit -> {
+						val details = viewModel.details.value ?: return@setOnMenuItemClickListener false
+						router.openScrobblerBinding(
+							scrobbler = details.service,
+							remoteId = details.remoteId,
+							title = details.title,
+							url = details.url,
+						)
+						true
+					}
+
+					else -> false
+				}
+			}
+		}
+		binding.buttonScrobblingMenu.setOnClickListener { scrobblingMenu?.show() }
+	}
+
+	private fun renderScrobblingControls(binding: FragmentTrackingSiteDetailsBinding, entity: ScrobblingEntity?) {
+		binding.cardScrobbling.isVisible = entity != null
+		if (entity == null) return
+
+		isScrobblingUpdateFromUser = false
+		binding.ratingBarScrobbling.rating = entity.rating * binding.ratingBarScrobbling.numStars
+		val status = viewModel.resolveScrobblingStatus(entity)
+		status?.ordinal?.let { binding.spinnerScrobblingStatus.setSelection(it) }
+		isScrobblingUpdateFromUser = true
+	}
+
+	override fun onDestroyView() {
+		super.onDestroyView()
+		scrobblingMenu = null
 	}
 
 	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -250,13 +335,21 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 
 		if (properties.size > maxInitial) {
 			toggleButton?.isVisible = true
-			toggleButton?.text = if (infoboxExpanded) "收起" else "展开更多 (${properties.size - maxInitial})"
+			toggleButton?.text = if (infoboxExpanded) {
+				getString(R.string.show_less)
+			} else {
+				getString(R.string.show_more) + " (${properties.size - maxInitial})"
+			}
 			toggleButton?.setOnClickListener {
 				infoboxExpanded = !infoboxExpanded
 				for (i in maxInitial until container.childCount) {
 					container.getChildAt(i).isVisible = infoboxExpanded
 				}
-				toggleButton.text = if (infoboxExpanded) "收起" else "展开更多 (${properties.size - maxInitial})"
+				toggleButton.text = if (infoboxExpanded) {
+					getString(R.string.show_less)
+				} else {
+					getString(R.string.show_more) + " (${properties.size - maxInitial})"
+				}
 			}
 		} else {
 			toggleButton?.isVisible = false
@@ -288,7 +381,7 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 				setOnClickListener {
 					AlertDialog.Builder(requireContext())
 						.setTitle(ep.title)
-						.setMessage("第 ${ep.number} 话\n\n${ep.title}")
+						.setMessage(getString(R.string.episode_number_format, ep.number, ep.title))
 						.setPositiveButton(android.R.string.ok, null)
 						.show()
 				}

@@ -556,6 +556,67 @@
 				</HorizontalScrollView>
 			</LinearLayout>
 
+			<!-- Scrobbling controls (shown when item is tracked) -->
+			<com.google.android.material.card.MaterialCardView
+				android:id="@+id/cardScrobbling"
+				style="?materialCardViewOutlinedStyle"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginHorizontal="@dimen/screen_padding"
+				android:layout_marginTop="12dp"
+				android:visibility="gone"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/layoutRecommendations">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:padding="12dp">
+
+					<LinearLayout
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:gravity="center_vertical">
+
+						<TextView
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_weight="1"
+							android:text="@string/tracking"
+							android:textAppearance="?textAppearanceTitleSmall" />
+
+						<ImageButton
+							android:id="@+id/buttonScrobblingMenu"
+							style="?android:attr/actionOverflowButtonStyle"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:background="?selectableItemBackgroundBorderless"
+							android:contentDescription="@string/more"
+							app:tint="?android:colorControlNormal" />
+					</LinearLayout>
+
+					<RatingBar
+						android:id="@+id/ratingBarScrobbling"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:numStars="5"
+						android:stepSize="0.5"
+						tools:rating="3.5" />
+
+					<Spinner
+						android:id="@+id/spinnerScrobblingStatus"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:entries="@array/scrobbling_statuses" />
+				</LinearLayout>
+			</com.google.android.material.card.MaterialCardView>
+
+
 			<!-- Action buttons moved after all content sections -->
 			<LinearLayout
 				android:id="@+id/layoutActionButtons"
