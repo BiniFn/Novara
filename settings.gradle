@@ -7,7 +7,8 @@ pluginManagement {
 				includeGroupByRegex("androidx.*")
 			}
 		}
-		mavenCentral()
+		maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/google' }
 		gradlePluginPortal()
 		maven {
 			url 'https://jitpack.io'
@@ -23,7 +24,6 @@ dependencyResolutionManagement {
         maven { url 'https://maven.aliyun.com/repository/public' }
         maven { url 'https://maven.aliyun.com/repository/google' }
 		google()
-		mavenCentral()
 		maven {
 			url 'https://artifact.bytedance.com/repository/releases/'
 			content {
