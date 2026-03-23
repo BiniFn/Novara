@@ -241,15 +241,29 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 		viewModel.setSelectedTab(homeTab)
 	}
 
-	override fun onSourceTagSelected(tag: SourceTag?) {}
+	override fun onSourceTagSelected(tag: SourceTag?) {
+		val selectedTags = if (tag != null) setOf(tag) else emptySet()
+		viewModel.setSelectedSourceTags(selectedTags)
+	}
 
 	override fun getSelectedContentType(): BrowseGroupTab {
 		return currentBrowseGroupTab()
 	}
 
-	override fun getSelectedSourceTags(): Set<SourceTag> = emptySet()
+	override fun getSelectedSourceTags(): Set<SourceTag> {
+		return viewModel.summaryState.value.selectedSourceTags
+	}
 
 	override fun isContentTypeFilterVisible(): Boolean = true
 
-	override fun isSourceTagFilterVisible(): Boolean = false
+	override fun isSourceTagFilterVisible(): Boolean = true
+
+	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
+		val selectedTags = getSelectedSourceTags()
+		return selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+	}
+
+	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
+		return getSelectedContentType().supportsSourceTag(tag)
+	}
 }

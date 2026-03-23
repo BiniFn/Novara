@@ -101,7 +101,7 @@ data class HomeSyncState(
 )
 
 data class HomeSummaryState(
-	val selectedTab: HomeContentTab? = HomeContentTab.MANGA,
+	val selectedTab: HomeContentTab? = null,
 	val recentHistoryCount: Int = 0,
 	val recentHistoryItems: List<HomeRecentItem> = emptyList(),
 	val resumeState: HomeResumeState = HomeResumeState(),
@@ -115,6 +115,7 @@ data class HomeSummaryState(
 	val sourceBreakdown: List<HomeSourceBreakdown> = emptyList(),
 	val preferredTrackingSite: ScrobblerService = ScrobblerService.BANGUMI,
 	val syncState: HomeSyncState = HomeSyncState(),
+	val selectedSourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = emptySet(),
 )
 
 @HiltViewModel
@@ -132,10 +133,20 @@ class HomeViewModel @Inject constructor(
 	private val backupWebDavRestoreCoordinator: BackupWebDavRestoreCoordinator,
 	private val backupStorage: ExternalBackupStorage,
 	private val repository: BackupRepository,
+	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 	@ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
-	private val selectedTabFlow = MutableStateFlow<HomeContentTab?>(HomeContentTab.MANGA)
+	private val selectedTabFlow = globalFavoritesState.selectedGroupTab.map { tabId ->
+		when (tabId) {
+			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content -> HomeContentTab.MANGA
+			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel -> HomeContentTab.NOVEL
+			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video -> HomeContentTab.VIDEO
+			else -> null
+		}
+	}
+	private val selectedSourceTagsFlow = globalFavoritesState.selectedSourceTags
 	private val lastHistoryContentFlow = historyRepository.observeLast()
 	private val resumeStateFlow = lastHistoryContentFlow
 		.flatMapLatest { content ->
@@ -188,6 +199,7 @@ class HomeViewModel @Inject constructor(
 
 	val summaryState = combine(
 		selectedTabFlow,
+		selectedSourceTagsFlow,
 		combine(
 			combine(
 				resumeStateFlow,
@@ -223,17 +235,17 @@ class HomeViewModel @Inject constructor(
 		) { enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState ->
 			Quadruple(enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState)
 		},
-	) { selectedTab, left, right ->
+	) { selectedTab, selectedSourceTags, left, right ->
 		val resumeState = left.first.filtered(selectedTab)
 		val allHistory = left.second
-		val recentHistory = allHistory.groupByTabThenSelect(selectedTab)
+		val recentHistory = allHistory.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
 		val allUpdates = left.sixth
-		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab)
+		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val allRecommendations = left.seventh
-		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab)
+		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val actualHistoryCount = if (selectedTab == null) allHistory.size else allHistory.count { it.contentTab() == selectedTab }
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
@@ -255,15 +267,34 @@ class HomeViewModel @Inject constructor(
 			sourceBreakdown = sourceBreakdown,
 			preferredTrackingSite = preferredTrackingSite,
 			syncState = syncState,
+			selectedSourceTags = selectedSourceTags,
 		)
 	}.stateIn(
 		scope = viewModelScope,
 		started = SharingStarted.WhileSubscribed(5_000),
-		initialValue = HomeSummaryState(),
+		initialValue = HomeSummaryState(
+			selectedTab = when (globalFavoritesState.selectedGroupTab.value) {
+				org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content -> HomeContentTab.MANGA
+				org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel -> HomeContentTab.NOVEL
+				org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video -> HomeContentTab.VIDEO
+				else -> null
+			},
+			selectedSourceTags = globalFavoritesState.selectedSourceTags.value,
+		),
 	)
 
 	fun setSelectedTab(tab: HomeContentTab?) {
-		selectedTabFlow.value = tab
+		val groupTab = when (tab) {
+			HomeContentTab.MANGA -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content
+			HomeContentTab.NOVEL -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel
+			HomeContentTab.VIDEO -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video
+			null -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+		}
+		globalFavoritesState.setSelectedGroupTab(groupTab)
+	}
+
+	fun setSelectedSourceTags(tags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
 	}
 
 	val isRandomLoading = MutableStateFlow(false)
@@ -393,20 +424,29 @@ private fun Content.contentTab(): HomeContentTab? = source.getContentType().toHo
 
 /**
  * Group items by content type tab, take [HOME_COVER_PREVIEW_LIMIT] from each group,
- * then select based on the chosen tab:
- * - specific tab → return that group's items
- * - null (all) → merge all groups preserving original order (recency)
+ * then select based on the chosen tab. Filtering by [sourceTags] occurs first.
  */
-private fun List<Content>.groupByTabThenSelect(tab: HomeContentTab?): List<Content> {
+private fun List<Content>.groupByTabThenSelect(
+	tab: HomeContentTab?,
+	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+): List<Content> {
+	val filtered = if (sourceTags.isEmpty()) this else filter { item ->
+		val source = item.source
+		val contentGroup = sourceGroupManager.getContentGroup(source)
+		val originGroup = sourceGroupManager.getOriginGroup(source)
+		sourceTags.any { it.matches(contentGroup, originGroup) }
+	}
+
 	val limit = HOME_COVER_PREVIEW_LIMIT
 	if (tab != null) {
 		// Specific tab: filter and take limit
-		return filter { it.contentTab() == tab }.take(limit)
+		return filtered.filter { it.contentTab() == tab }.take(limit)
 	}
 	// All tabs: take limit from each type, then merge preserving original order
 	val taken = mutableSetOf<Content>()
 	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
-	for (item in this) {
+	for (item in filtered) {
 		val itemTab = item.contentTab()
 		val current = countPerTab.getOrDefault(itemTab, 0)
 		if (current < limit) {
@@ -415,21 +455,32 @@ private fun List<Content>.groupByTabThenSelect(tab: HomeContentTab?): List<Conte
 		}
 	}
 	// Return in original order (already sorted by recency from DB)
-	return filter { it in taken }
+	return filtered.filter { it in taken }
 }
 
 /**
  * Same grouping logic for [ContentTracking] items.
  */
 @JvmName("groupTrackingsByTab")
-private fun List<ContentTracking>.groupTrackingsByTabThenSelect(tab: HomeContentTab?): List<ContentTracking> {
+private fun List<ContentTracking>.groupTrackingsByTabThenSelect(
+	tab: HomeContentTab?,
+	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+): List<ContentTracking> {
+	val filtered = if (sourceTags.isEmpty()) this else filter { item ->
+		val source = item.manga.source
+		val contentGroup = sourceGroupManager.getContentGroup(source)
+		val originGroup = sourceGroupManager.getOriginGroup(source)
+		sourceTags.any { it.matches(contentGroup, originGroup) }
+	}
+
 	val limit = HOME_COVER_PREVIEW_LIMIT
 	if (tab != null) {
-		return filter { it.manga.contentTab() == tab }.take(limit)
+		return filtered.filter { it.manga.contentTab() == tab }.take(limit)
 	}
 	val taken = mutableSetOf<ContentTracking>()
 	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
-	for (item in this) {
+	for (item in filtered) {
 		val itemTab = item.manga.contentTab()
 		val current = countPerTab.getOrDefault(itemTab, 0)
 		if (current < limit) {
@@ -437,7 +488,7 @@ private fun List<ContentTracking>.groupTrackingsByTabThenSelect(tab: HomeContent
 			countPerTab[itemTab] = current + 1
 		}
 	}
-	return filter { it in taken }
+	return filtered.filter { it in taken }
 }
 
 private fun HomeResumeState.filtered(tab: HomeContentTab?): HomeResumeState {

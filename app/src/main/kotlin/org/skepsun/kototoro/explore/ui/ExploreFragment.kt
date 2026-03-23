@@ -12,12 +12,24 @@ import com.google.android.material.tabs.TabLayoutMediator
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseFragment
+import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.databinding.FragmentExploreHostBinding
 import org.skepsun.kototoro.discover.ui.DiscoverFragment
 
+import androidx.fragment.app.viewModels
+import androidx.viewpager2.widget.ViewPager2
+import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
+
 @AndroidEntryPoint
-class ExploreFragment : BaseFragment<FragmentExploreHostBinding>() {
+class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFilterMenuProvider.Callback {
+
+	private val viewModel by viewModels<ExploreViewModel>()
+	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentExploreHostBinding {
 		return FragmentExploreHostBinding.inflate(inflater, container, false)
@@ -53,9 +65,71 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>() {
 				child.isNestedScrollingEnabled = false
 			}
 		}
+
+		// Set up SearchBar filter icons
+		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
+			appBar.findViewById<View>(R.id.search_bar)
+		} ?: activity?.findViewById(R.id.search_bar)
+
+		if (searchBar != null) {
+			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
+			requireActivity().addMenuProvider(filterMenuProvider!!, viewLifecycleOwner)
+		}
+
+		binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+			override fun onPageSelected(position: Int) {
+				filterMenuProvider?.updateVisibility()
+			}
+		})
+
+		viewModel.currentGroupTab.observe(viewLifecycleOwner) { _ ->
+			filterMenuProvider?.updateIcons()
+		}
+		viewModel.currentSourceTags.observe(viewLifecycleOwner) { _ ->
+			filterMenuProvider?.updateIcons()
+		}
+		viewModel.availableTabs.observe(viewLifecycleOwner) { _ ->
+			filterMenuProvider?.updateVisibility()
+			filterMenuProvider?.updateIcons()
+		}
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		return insets // Do not apply manual offset, Activity handles Appbar and child Fragments handle Recyclerview.
+	}
+
+	override fun onDestroyView() {
+		super.onDestroyView()
+		filterMenuProvider = null
+	}
+
+	// === SearchBarFilterMenuProvider.Callback implementation ===
+
+	override fun onContentTypeSelected(tab: BrowseGroupTab) {
+		viewModel.setSelectedGroupTab(tab)
+	}
+
+	override fun onSourceTagSelected(tag: SourceTag?) {
+		val selectedTags = if (tag != null) setOf(tag) else emptySet()
+		viewModel.setSelectedSourceTags(selectedTags)
+	}
+
+	override fun getSelectedContentType(): BrowseGroupTab = viewModel.getSelectedGroupTab()
+
+	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value ?: emptySet()
+
+	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
+
+	override fun isContentTypeFilterVisible(): Boolean = viewBinding?.viewPager?.currentItem == 0
+
+	override fun isSourceTagFilterVisible(): Boolean = viewBinding?.viewPager?.currentItem == 0
+
+	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
+		val selectedTags = viewModel.currentSourceTags.value ?: emptySet()
+		return selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
+	}
+
+	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
+		return viewModel.getSelectedGroupTab().supportsSourceTag(tag)
 	}
 }

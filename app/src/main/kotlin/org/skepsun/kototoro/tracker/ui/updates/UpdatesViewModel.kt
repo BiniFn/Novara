@@ -48,9 +48,22 @@ class UpdatesViewModel @Inject constructor(
 	private val sourceGroupManager: SourceGroupManager,
 	mangaDataRepository: ContentDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
 
 	override val isFilterBarVisible = MutableStateFlow(true)
+
+	override val currentSourceTags = globalFavoritesState.selectedSourceTags
+
+	override fun setSelectedSourceTags(tags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
+	}
+
+	override val currentGroupTab = globalFavoritesState.selectedGroupTab
+
+	override fun setSelectedGroupTab(tab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab) {
+		globalFavoritesState.setSelectedGroupTab(tab)
+	}
 
 	override val content = combine(
 		quickFilter.appliedOptions.flatMapLatest { filterOptions ->

@@ -171,21 +171,21 @@ abstract class ContentListFragment :
 		// Determine if we have a SearchBar available (main activity) and we're not a child
 		// of a container fragment that already adds its own SearchBarFilterMenuProvider
 		val isInsideContainer = parentFragment != null
-		val searchBar = if (!isInsideContainer) {
+		val filterAnchorView = if (!isInsideContainer) {
 			(activity as? AppBarOwner)?.appBar?.let { appBar ->
-				appBar.findViewById<View>(R.id.search_bar)
-			} ?: activity?.findViewById(R.id.search_bar)
+				appBar.findViewById<View>(R.id.search_bar) ?: appBar.findViewById<View>(R.id.toolbar)
+			} ?: activity?.findViewById<View>(R.id.search_bar) ?: activity?.findViewById<View>(R.id.toolbar)
 		} else {
 			null
 		}
 
-		if (searchBar != null) {
-			// Mode A: Use SearchBar filter icons
-			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
+		if (filterAnchorView != null) {
+			// Mode A: Use Toolbar/SearchBar filter icons
+			filterMenuProvider = SearchBarFilterMenuProvider(this, filterAnchorView)
 			addMenuProvider(filterMenuProvider!!)
 			binding.filterScrollView.visibility = View.GONE
 		} else if (!isInsideContainer) {
-			// Mode B: Inline chip groups (standalone activity without SearchBar)
+			// Mode B: Inline chip groups (standalone activity without SearchBar/Toolbar)
 			if (isContentTypeFilterVisible()) {
 				rebuildContentTypeChips(binding)
 			} else {
@@ -204,14 +204,14 @@ abstract class ContentListFragment :
 
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { tab ->
 			filterMenuProvider?.updateIcons()
-			if (searchBar == null && !isInsideContainer) {
+			if (filterAnchorView == null && !isInsideContainer) {
 				updateContentTypeChipsSelection(binding, tab)
 				updateSourceTagChipsEnabled(binding, tab)
 			}
 		}
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { tags ->
 			filterMenuProvider?.updateIcons()
-			if (searchBar == null && !isInsideContainer) {
+			if (filterAnchorView == null && !isInsideContainer) {
 				updateSourceTagChipsSelection(binding, tags)
 				updateContentTypeChipsEnabled(binding, tags)
 			}

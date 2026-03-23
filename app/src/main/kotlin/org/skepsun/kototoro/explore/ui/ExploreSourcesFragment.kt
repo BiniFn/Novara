@@ -55,13 +55,11 @@ class ExploreSourcesFragment :
 	RecyclerViewOwner,
 	ExploreListEventListener,
 	OnListItemClickListener<ContentSourceItem>, ListSelectionController.Callback,
-	AppBarLayout.OnOffsetChangedListener,
-	SearchBarFilterMenuProvider.Callback {
+	AppBarLayout.OnOffsetChangedListener {
 
 	private val viewModel by viewModels<ExploreViewModel>()
 	private var exploreAdapter: ExploreAdapter? = null
 	private var sourceSelectionController: ListSelectionController? = null
-	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -88,17 +86,6 @@ class ExploreSourcesFragment :
 			addItemDecoration(TypedListSpacingDecoration(context, false))
 			checkNotNull(sourceSelectionController).attachToRecyclerView(this)
 		}
-		
-		// Set up SearchBar filter icons
-		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
-			appBar.findViewById<View>(R.id.search_bar)
-		} ?: activity?.findViewById(R.id.search_bar)
-
-		if (searchBar != null) {
-			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
-			addMenuProvider(filterMenuProvider!!)
-		}
-
 		// Setup menu with quick access actions
 		val menuProvider = ExploreMenuProvider(router)
 		addMenuProvider(menuProvider)
@@ -114,16 +101,12 @@ class ExploreSourcesFragment :
 		
 		// Observe filter changes
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { _ ->
-			filterMenuProvider?.updateIcons()
 			updateTvBoxRepositoryLabel(binding)
 		}
 		viewModel.currentSourceTags.observe(viewLifecycleOwner) { _ ->
-			filterMenuProvider?.updateIcons()
 			updateTvBoxRepositoryLabel(binding)
 		}
 		viewModel.availableTabs.observe(viewLifecycleOwner) { _ ->
-			filterMenuProvider?.updateVisibility()
-			filterMenuProvider?.updateIcons()
 		}
 		viewModel.activeTvBoxRepositoryTitle.observe(viewLifecycleOwner) {
 			updateTvBoxRepositoryLabel(binding)
@@ -159,37 +142,10 @@ class ExploreSourcesFragment :
 		super.onDestroyView()
 		sourceSelectionController = null
 		exploreAdapter = null
-		filterMenuProvider = null
 	}
 
 	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
 		// No longer need to adjust filterScrollView padding
-	}
-
-	// === SearchBarFilterMenuProvider.Callback implementation ===
-
-	override fun onContentTypeSelected(tab: BrowseGroupTab) {
-		viewModel.setSelectedGroupTab(tab)
-	}
-
-	override fun onSourceTagSelected(tag: SourceTag?) {
-		val selectedTags = if (tag != null) setOf(tag) else emptySet()
-		viewModel.setSelectedSourceTags(selectedTags)
-	}
-
-	override fun getSelectedContentType(): BrowseGroupTab = viewModel.getSelectedGroupTab()
-
-	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value ?: emptySet()
-
-	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
-
-	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
-		val selectedTags = viewModel.currentSourceTags.value ?: emptySet()
-		return selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
-	}
-
-	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
-		return viewModel.getSelectedGroupTab().supportsSourceTag(tag)
 	}
 
 	// === Other methods ===
