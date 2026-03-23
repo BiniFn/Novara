@@ -13,8 +13,12 @@ import java.net.HttpURLConnection
 
 private const val JSON = "application/json"
 private const val HTML = "text/html"
+private const val HEADER_MAL_CLIENT_ID = "X-MAL-CLIENT-ID"
 
-class MALInterceptor(private val storage: ScrobblerStorage) : Interceptor {
+class MALInterceptor(
+	private val storage: ScrobblerStorage,
+	private val clientId: String,
+) : Interceptor {
 
 	override fun intercept(chain: Interceptor.Chain): Response {
 		val sourceRequest = chain.request()
@@ -26,9 +30,10 @@ class MALInterceptor(private val storage: ScrobblerStorage) : Interceptor {
 			storage.accessToken?.let {
 				request.header(CommonHeaders.AUTHORIZATION, "Bearer $it")
 			}
+			request.header(HEADER_MAL_CLIENT_ID, clientId)
 		}
 		val response = chain.proceed(request.build())
-		if (!isAuthRequest && response.code == HttpURLConnection.HTTP_UNAUTHORIZED) {
+		if (!isAuthRequest && (response.code == HttpURLConnection.HTTP_UNAUTHORIZED || response.code == HttpURLConnection.HTTP_FORBIDDEN)) {
 			throw ScrobblerAuthRequiredException(ScrobblerService.MAL)
 		}
 		if (response.mimeType == HTML) {
@@ -38,3 +43,4 @@ class MALInterceptor(private val storage: ScrobblerStorage) : Interceptor {
 	}
 
 }
+

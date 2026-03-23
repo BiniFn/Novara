@@ -9,6 +9,7 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.ElementsIntoSet
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.BuildConfig
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.network.BaseHttpClient
 import org.skepsun.kototoro.core.network.CurlLoggingInterceptor
@@ -54,12 +55,13 @@ object ScrobblingModule {
 	@Singleton
 	@ScrobblerType(ScrobblerService.MAL)
 	fun provideMALHttpClient(
+		@ApplicationContext context: Context,
 		@BaseHttpClient baseHttpClient: OkHttpClient,
 		authenticator: MALAuthenticator,
 		@ScrobblerType(ScrobblerService.MAL) storage: ScrobblerStorage,
 	): OkHttpClient = baseHttpClient.newBuilder().apply {
 		authenticator(authenticator)
-		addInterceptor(MALInterceptor(storage))
+		addInterceptor(MALInterceptor(storage, context.getString(R.string.mal_clientId)))
 	}.build()
 
 	@Provides
