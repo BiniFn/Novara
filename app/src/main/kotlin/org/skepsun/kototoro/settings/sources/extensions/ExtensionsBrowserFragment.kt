@@ -40,6 +40,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 
 	private val viewModel by viewModels<ExtensionsBrowserViewModel>()
 	private var adapter: ExtensionsBrowserAdapter? = null
+	private var isSearchExpanded = false
 	private val installLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		viewModel.onInstallActivityResult()
 	}
@@ -108,7 +109,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		}
 		viewModel.currentLanguageFilter.observe(viewLifecycleOwner) {
 			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
-			activity?.invalidateOptionsMenu()
+			safeInvalidateOptionsMenu()
 		}
 		viewModel.currentCollapsedLanguageGroups.observe(viewLifecycleOwner) {
 			binding.recyclerView.layoutManager?.requestLayout()
@@ -129,10 +130,10 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
 		}
 		viewModel.updateAllInProgress.observe(viewLifecycleOwner) {
-			activity?.invalidateOptionsMenu()
+			safeInvalidateOptionsMenu()
 		}
 		viewModel.updateCount.observe(viewLifecycleOwner) {
-			activity?.invalidateOptionsMenu()
+			safeInvalidateOptionsMenu()
 		}
 	}
 
@@ -340,11 +341,13 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 
 		override fun onMenuItemActionExpand(item: MenuItem): Boolean {
 			(item.actionView as? SearchView)?.setQuery(viewModel.currentSearchQuery.value, false)
+			isSearchExpanded = true
 			return true
 		}
 
 		override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
 			viewModel.setSearchQuery(null)
+			isSearchExpanded = false
 			return true
 		}
 
@@ -356,6 +359,16 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		override fun onQueryTextChange(newText: String?): Boolean {
 			viewModel.setSearchQuery(newText)
 			return true
+		}
+	}
+
+	/**
+	 * Only invalidate the options menu when the search is not active,
+	 * to prevent the SearchView from collapsing mid-typing.
+	 */
+	private fun safeInvalidateOptionsMenu() {
+		if (!isSearchExpanded) {
+			activity?.invalidateOptionsMenu()
 		}
 	}
 
