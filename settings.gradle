@@ -59,6 +59,6 @@ rootProject.name = "Kototoro"
 // 注释掉以使用在线版本
 // includeBuild("../kotatsu-parsers") {
 //     dependencySubstitution {
-//         substitute module("com.github.YakaTeam:kotatsu-parsers") using project(":")
+//         substitute module("com.github.Kotatsu-Redo:kotatsu-parsers-redo") using project(":")
 //     }
 // }

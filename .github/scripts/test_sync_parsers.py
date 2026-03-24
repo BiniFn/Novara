@@ -41,7 +41,7 @@ print(f"✅ 找到 {gradle_path}")
 
 targets = {
     "parsers": "https://github.com/skepsun/kototoro-parsers.git",
-    "kotatsuParsers": "https://github.com/YakaTeam/kotatsu-parsers.git",
+    "kotatsuParsers": "https://github.com/Kotatsu-Redo/kotatsu-parsers-redo.git",
 }
 
 text = file_path.read_text(encoding="utf-8")

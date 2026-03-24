@@ -10,15 +10,23 @@ internal class KotatsuConfigAdapter(
 ) : KTMangaSourceConfig {
 
 	override fun <T> get(key: KTConfigKey<T>): T {
-		return delegate[key.toKototoro()]
+		val mappedKey = key.toKototoro()
+		return if (mappedKey != null) {
+			delegate[mappedKey]
+		} else {
+			key.defaultValue
+		}
 	}
 }
 
 @Suppress("UNCHECKED_CAST")
-internal fun <T> KTConfigKey<T>.toKototoro(): ConfigKey<T> = when (this) {
+internal fun <T> KTConfigKey<T>.toKototoro(): ConfigKey<T>? = when (this) {
 	is KTConfigKey.Domain -> ConfigKey.Domain(*presetValues) as ConfigKey<T>
 	is KTConfigKey.ShowSuspiciousContent -> ConfigKey.ShowSuspiciousContent(defaultValue) as ConfigKey<T>
 	is KTConfigKey.UserAgent -> ConfigKey.UserAgent(defaultValue) as ConfigKey<T>
 	is KTConfigKey.SplitByTranslations -> ConfigKey.SplitByTranslations(defaultValue) as ConfigKey<T>
 	is KTConfigKey.PreferredImageServer -> ConfigKey.PreferredImageServer(presetValues, defaultValue) as ConfigKey<T>
+	is KTConfigKey.DisableUpdateChecking -> null
+	is KTConfigKey.InterceptCloudflare -> null
+    else -> null
 }

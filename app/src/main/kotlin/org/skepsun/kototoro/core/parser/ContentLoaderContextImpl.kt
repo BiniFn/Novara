@@ -42,6 +42,7 @@ class ContentLoaderContextImpl @Inject constructor(
 	override val cookieJar: MutableCookieJar,
 	@ApplicationContext private val androidContext: Context,
 	private val webViewExecutor: WebViewExecutor,
+	val webViewRequestInterceptorExecutor: org.skepsun.kototoro.core.network.webview.WebViewRequestInterceptorExecutor,
 ) : ContentLoaderContext() {
 
 	private val jsTimeout = TimeUnit.SECONDS.toMillis(4)

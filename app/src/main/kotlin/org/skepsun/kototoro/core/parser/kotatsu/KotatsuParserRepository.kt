@@ -72,11 +72,13 @@ class KotatsuParserRepository(
 	var domain: String
 		get() = parser.domain
 		set(value) {
-			getConfig()[parser.configKeyDomain.toKototoro()] = value
+			parser.configKeyDomain.toKototoro()?.let {
+				getConfig()[it] = value
+			}
 		}
 
 	override suspend fun getConfigKeys(): List<ConfigKey<*>> =
 		ArrayList<org.koitharu.kotatsu.parsers.config.ConfigKey<*>>().also {
 			parser.onCreateConfig(it)
-		}.map { it.toKototoro() }
+		}.mapNotNull { it.toKototoro() }
 }

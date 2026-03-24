@@ -25,7 +25,9 @@ internal class KotatsuLoaderContextAdapter(
 
 	override suspend fun evaluateJs(script: String): String? = delegate.evaluateJs(script)
 
-	override suspend fun evaluateJs(baseUrl: String, script: String): String? = delegate.evaluateJs(baseUrl, script)
+
+
+	override suspend fun evaluateJs(baseUrl: String, script: String, timeout: Long): String? = delegate.evaluateJs(baseUrl, script)
 
 	override fun requestBrowserAction(parser: org.koitharu.kotatsu.parsers.MangaParser, url: String): Nothing {
 		throw UnsupportedOperationException("Browser action is not supported in Kotatsu adapter")
@@ -53,5 +55,22 @@ internal class KotatsuLoaderContextAdapter(
 			override val height: Int = height
 			override fun drawBitmap(sourceBitmap: KTBitmap, src: org.koitharu.kotatsu.parsers.bitmap.Rect, dst: org.koitharu.kotatsu.parsers.bitmap.Rect) = Unit
 		}
+	}
+
+	override suspend fun interceptWebViewRequests(
+		url: String,
+		config: org.koitharu.kotatsu.parsers.webview.InterceptionConfig
+	): List<org.koitharu.kotatsu.parsers.webview.InterceptedRequest> {
+		val impl = delegate as? org.skepsun.kototoro.core.parser.ContentLoaderContextImpl
+		return impl?.webViewRequestInterceptorExecutor?.interceptRequests(url, config) ?: emptyList()
+	}
+
+	override suspend fun captureWebViewUrls(
+		pageUrl: String,
+		urlPattern: Regex,
+		timeout: Long
+	): List<String> {
+		val impl = delegate as? org.skepsun.kototoro.core.parser.ContentLoaderContextImpl
+		return impl?.webViewRequestInterceptorExecutor?.captureWebViewUrls(pageUrl, urlPattern, timeout) ?: emptyList()
 	}
 }
