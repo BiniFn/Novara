@@ -58,6 +58,7 @@ class ContentSourcesRepository @Inject constructor(
 	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 	private val mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager,
 	private val aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager,
+	private val ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
 ) {
 
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
@@ -92,8 +93,9 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 				val jsonSources = getEnabledJsonSources()
 				val mihonSources = getEnabledMihonSources()
 				val aniyomiSources = getEnabledAniyomiSources()
-				android.util.Log.d("ContentSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}, mihon=${mihonSources.size}, aniyomi=${aniyomiSources.size}")
-				val list = ArrayList<ContentSourceInfo>(enabled.size + external.size + jsonSources.size + mihonSources.size + aniyomiSources.size)
+				val ireaderSources = getEnabledIReaderSources()
+				android.util.Log.d("ContentSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}, mihon=${mihonSources.size}, aniyomi=${aniyomiSources.size}, ireader=${ireaderSources.size}")
+				val list = ArrayList<ContentSourceInfo>(enabled.size + external.size + jsonSources.size + mihonSources.size + aniyomiSources.size + ireaderSources.size)
 				external.mapTo(list) { ContentSourceInfo(it, isEnabled = true, isPinned = true) }
 				jsonSources.mapTo(list) { 
 					android.util.Log.d("ContentSourcesRepository", "  Wrapping JSON source: ${it.name} (${it.javaClass.simpleName})")
@@ -105,6 +107,10 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 				}
 				aniyomiSources.mapTo(list) {
 					android.util.Log.d("ContentSourcesRepository", "  Wrapping Aniyomi source: ${it.displayName}")
+					ContentSourceInfo(it, isEnabled = true, isPinned = false)
+				}
+				ireaderSources.mapTo(list) {
+					android.util.Log.d("ContentSourcesRepository", "  Wrapping IReader source: ${it.displayName}")
 					ContentSourceInfo(it, isEnabled = true, isPinned = false)
 				}
 				list.addAll(enabled)
@@ -197,6 +203,48 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 					userLang.isNotEmpty() && (lang == userLang || lang.startsWith("$userLang-"))
 				}
 			}
+		}
+	}
+	
+	/**
+	 * Gets all enabled IReader sources as IReaderMangaSource instances.
+	 */
+	private fun getEnabledIReaderSources(): List<org.skepsun.kototoro.ireader.model.IReaderMangaSource> {
+		val allSources = ireaderExtensionManager.getIReaderMangaSources()
+		val isNsfwDisabled = settings.isNsfwContentDisabled
+
+		return allSources.filter { source ->
+			if (isNsfwDisabled && source.isNsfw) return@filter false
+
+			if (!settings.isExtensionsFilterLangEnabled) return@filter true
+
+			val userLanguages = settings.contentLanguages
+			// Map IReader country code to ISO 639-1 language code
+			val mappedLang = org.skepsun.kototoro.core.model.mapIReaderLangToLocale(source.language) ?: source.language.lowercase()
+			val isMultiLangEnabled = userLanguages.contains("")
+			if (mappedLang == "" || mappedLang == "all") {
+				isMultiLangEnabled
+			} else {
+				userLanguages.any { userLang ->
+					userLang.isNotEmpty() && (mappedLang == userLang || mappedLang.startsWith("$userLang-") || userLang.startsWith("$mappedLang-"))
+				}
+			}
+		}.also { filtered ->
+			android.util.Log.d("ContentSourcesRepository", "IReader sources: ${allSources.size} total, ${filtered.size} after filters. langs=${allSources.map { it.language }}")
+		}
+	}
+	
+	/**
+	 * Observes all IReader sources.
+	 */
+	private fun observeIReaderSources(): Flow<List<org.skepsun.kototoro.ireader.model.IReaderMangaSource>> {
+		return combine(
+			ireaderExtensionManager.installedExtensions,
+			observeIsNsfwDisabled(),
+			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
+			settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
+		) { _, _, _, _ ->
+			getEnabledIReaderSources()
 		}
 	}
 	
@@ -579,6 +627,18 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 			}
 				list
 			}
+			.combine(observeIReaderSources()) { sources, ireaderSources ->
+				val list = ArrayList<ContentSourceInfo>(sources.size + ireaderSources.size)
+				list.addAll(sources)
+
+				val existingNames = sources.mapToSet { it.mangaSource.name }
+				ireaderSources.forEach { ireaderSource ->
+					if (ireaderSource.name !in existingNames) {
+						list.add(ContentSourceInfo(ireaderSource, isEnabled = true, isPinned = false))
+					}
+				}
+				list
+			}
 
 	/**
 	 * 对齐 legado-with-MD3：浏览(发现)仅展示具备 exploreUrl 的源；仅提供 searchUrl 的源不应出现在浏览页。
@@ -949,6 +1009,7 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 			val isKnownSource = source in allContentSources || 
 								source is org.skepsun.kototoro.mihon.model.MihonMangaSource ||
 								source is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource ||
+								source is org.skepsun.kototoro.ireader.model.IReaderMangaSource ||
 								source is org.skepsun.kototoro.core.jsonsource.JsonContentSource
 								
 			if (isKnownSource) {
@@ -1001,6 +1062,11 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 					)
 				}
 			}.find { it.name == this }?.let { return it }
+		}
+		
+		// Try IReader sources
+		if (startsWith("IREADER_")) {
+			ireaderExtensionManager.getIReaderMangaSources().find { it.name == this }?.let { return it }
 		}
 		
 		// Try JSON sources

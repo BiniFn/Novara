@@ -10,6 +10,7 @@ class ContentSourceResolutionPipeline @Inject constructor(
 	private val jsonContentSourceResolver: JsonContentSourceResolver,
 	private val mihonContentSourceResolver: MihonContentSourceResolver,
 	private val aniyomiContentSourceResolver: AniyomiContentSourceResolver,
+	private val ireaderContentSourceResolver: IReaderContentSourceResolver,
 ) {
 
 	private val resolvers: List<ContentSourceResolver> by lazy(LazyThreadSafetyMode.NONE) {
@@ -18,6 +19,7 @@ class ContentSourceResolutionPipeline @Inject constructor(
 			jsonContentSourceResolver,
 			mihonContentSourceResolver,
 			aniyomiContentSourceResolver,
+			ireaderContentSourceResolver,
 		)
 	}
 

@@ -8,6 +8,7 @@ sealed class IReaderLoadResult {
 		val appName: String,
 		val versionCode: Long,
 		val versionName: String,
+		val libVersion: Double,
 		val isNsfw: Boolean,
 		val sources: List<ireader.core.source.Source>,
 	) : IReaderLoadResult()

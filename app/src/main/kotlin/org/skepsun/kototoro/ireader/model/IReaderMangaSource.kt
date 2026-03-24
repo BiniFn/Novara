@@ -11,5 +11,5 @@ data class IReaderMangaSource(
     val displayName: String = catalogueSource.name,
 ) : ContentSource {
     override val name: String
-        get() = "IREADER_${pkgName}_${catalogueSource.id}"
+        get() = "IREADER_${catalogueSource.id}"
 }

@@ -17,10 +17,13 @@ import org.skepsun.kototoro.ireader.model.IReaderMangaSource
 import org.skepsun.kototoro.mihon.util.ChildFirstPathClassLoader
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.skepsun.kototoro.core.network.ContentHttpClient
+import okhttp3.OkHttpClient
 
 @Singleton
 class IReaderExtensionLoader @Inject constructor(
     @ApplicationContext private val applicationContext: Context,
+    @ContentHttpClient private val httpClient: OkHttpClient,
 ) {
     companion object {
         private const val TAG = "IReaderExtensionLoader"
@@ -137,25 +140,33 @@ class IReaderExtensionLoader @Inject constructor(
         }
 
         val source = try {
-            val dependenciesConstructor = Class.forName(classToLoad, false, classLoader)
-                .constructors.firstOrNull { it.parameterTypes.size == 1 }
+            android.util.Log.d(TAG, "Loading extension: pkg=$pkgName classToLoad=$classToLoad sourceDir=${appInfo.sourceDir} nativeLibDir=${appInfo.nativeLibraryDir}")
+            val clazz = Class.forName(classToLoad, false, classLoader)
+            val dependenciesConstructor = clazz.constructors.firstOrNull { constructor ->
+                constructor.parameterTypes.size == 1 &&
+                    constructor.parameterTypes[0].isAssignableFrom(ireader.core.source.Dependencies::class.java)
+            }
                 
             if (dependenciesConstructor != null) {
-                // Not supported yet: full IReader Dependencies graph injection
-                throw UnsupportedOperationException("IReader Dependencies injection is not implemented yet in Kototoro! Use parameterless Source for now.")
+                val deps = IReaderDependenciesProvider.get(context, httpClient)
+                dependenciesConstructor.newInstance(deps) as Source
             } else {
-                Class.forName(classToLoad, false, classLoader).newInstance() as Source
+                // Try parameterless constructor
+                clazz.getDeclaredConstructor().newInstance() as Source
             }
         } catch (e: Throwable) {
             android.util.Log.e(TAG, "Failed to load IReader source from $pkgName", e)
             return IReaderLoadResult.Error(pkgName, "Failed to load source: ${e.message}", e)
         }
 
+        val libVersion = versionName.substringBefore('.').toDoubleOrNull() ?: 2.0
+
         return IReaderLoadResult.Success(
             pkgName = pkgName,
             appName = appName,
             versionCode = versionCode,
             versionName = versionName,
+            libVersion = libVersion,
             isNsfw = isNsfw,
             sources = listOf(source),
         )

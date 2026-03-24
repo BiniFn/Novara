@@ -34,6 +34,8 @@ class ChildFirstPathClassLoader(
         "eu.kanade.tachiyomi.network.",
         "eu.kanade.tachiyomi.util.",
         "uy.kohesive.injekt.",
+        "ireader.core.",
+        "io.ktor.",
     )
 
     override fun loadClass(name: String, resolve: Boolean): Class<*> {

@@ -93,6 +93,13 @@ class AppBackupAgent : BackupAgent() {
 							}
 						)
 					),
+					ireaderExtensionManager = org.skepsun.kototoro.ireader.IReaderExtensionManager(
+						context = applicationContext,
+						loader = org.skepsun.kototoro.ireader.IReaderExtensionLoader(
+							applicationContext = applicationContext,
+							httpClient = okhttp3.OkHttpClient(),
+						),
+					),
 				),
 				savedFiltersRepository = SavedFiltersRepository(
 					context = applicationContext,
@@ -169,6 +176,13 @@ class AppBackupAgent : BackupAgent() {
 									)
 								}
 							)
+						),
+						ireaderExtensionManager = org.skepsun.kototoro.ireader.IReaderExtensionManager(
+							context = applicationContext,
+						loader = org.skepsun.kototoro.ireader.IReaderExtensionLoader(
+								applicationContext = applicationContext,
+								httpClient = okhttp3.OkHttpClient(),
+							),
 						),
 					),
 					savedFiltersRepository = SavedFiltersRepository(

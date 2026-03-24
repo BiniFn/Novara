@@ -97,4 +97,8 @@ class IReaderExtensionManager @Inject constructor(
     fun getSourceCount(): Int = facade.getSourceCount()
 
     fun hasExtensions(): Boolean = facade.hasExtensions()
+
+    fun getIReaderMangaSourceByName(name: String): IReaderMangaSource? {
+        return facade.getWrappedSourceByName(name)
+    }
 }

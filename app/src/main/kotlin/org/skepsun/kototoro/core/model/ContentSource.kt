@@ -73,6 +73,11 @@ fun ContentSource(name: String?): ContentSource {
 		android.util.Log.d("ContentSource", "Detected Aniyomi source name: $name, returning stable ContentSource")
 		return AnonymousContentSource(name)
 	}
+	// Check if it's an IReader source (starts with IREADER_ prefix)
+	if (name.startsWith("IREADER_")) {
+		android.util.Log.d("ContentSource", "Detected IReader source name: $name, returning stable ContentSource")
+		return AnonymousContentSource(name)
+	}
 	KotatsuParsersProvider.findByName(name)?.let { return it }
 	ContentParserSource.entries.forEach {
 		if (it.name == name) return it
@@ -96,6 +101,7 @@ fun ContentSource.isNsfw(): Boolean = when (this) {
 	)
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> isNsfw
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> isNsfw
+	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> isNsfw
 	else -> false
 }
 
@@ -163,12 +169,16 @@ tailrec fun ContentSource.unwrap(): ContentSource = if (this is ContentSourceInf
 
 fun ContentSource.getLocale(): Locale? = (unwrap() as? ContentParserSource)?.locale?.toLocaleOrNull()
 	?: (unwrap() as? KotatsuParserSource)?.locale?.toLocaleOrNull()
+	?: (unwrap() as? org.skepsun.kototoro.ireader.model.IReaderMangaSource)?.let {
+		mapIReaderLangToLocale(it.language)?.toLocaleOrNull()
+	}
 
 fun ContentSource.getContentType(): ContentType = when (val source = unwrap()) {
 	is ContentParserSource -> source.contentType
 	is KotatsuParserSource -> source.contentType
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> if (source.isNsfw) ContentType.HENTAI_VIDEO else ContentType.VIDEO
+	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> if (source.isNsfw) ContentType.HENTAI_NOVEL else ContentType.NOVEL
 	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> {
 		when (source.entity.type) {
 			JsonSourceType.TVBOX -> ContentType.VIDEO
@@ -205,7 +215,8 @@ fun ContentSource.getSummary(context: Context, contentType: ContentType? = null)
 	is ContentParserSource,
 	is KotatsuParserSource,
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource,
-	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> {
+	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource,
+	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> {
 		val resolvedContentType = contentType ?: getContentType()
 		val type = context.getString(resolvedContentType.titleResId)
 		val lang = when (source) {
@@ -213,6 +224,7 @@ fun ContentSource.getSummary(context: Context, contentType: ContentType? = null)
 			is KotatsuParserSource -> source.locale.toLocale()
 			is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.language.toLocale()
 			is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.language.toLocale()
+			is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.language.toLocale()
 			else -> Locale.getDefault()
 		}
 		val locale = lang.getDisplayName(context)
@@ -255,6 +267,7 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 	is ExternalContentSource -> context.getString(R.string.external_source)
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> "Mihon"
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> "Aniyomi"
+	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> "IReader"
 	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> {
 		val type = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier().getSourceType(name)
 		when (type) {
@@ -290,6 +303,7 @@ fun ContentSource.getTitle(context: Context): String = when (val source = unwrap
 	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> source.displayName.ifBlank { source.name }
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.displayName
+	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.displayName
 	else -> {
 		// Try to handle anonymous wrappers for JSON, Mihon, or Aniyomi sources
 		if (source.name.startsWith("MIHON_")) {
@@ -329,4 +343,18 @@ private class AnonymousContentSource(override val name: String) : ContentSource 
 	override fun hashCode(): Int = name.hashCode()
 	
 	override fun toString(): String = "AnonymousContentSource(name=$name)"
+}
+
+/**
+ * Maps IReader language/country codes to ISO 639-1 language codes.
+ * IReader extensions use country codes (e.g., "cn") while Kototoro uses language codes (e.g., "zh").
+ */
+fun mapIReaderLangToLocale(lang: String): String? = when (lang.lowercase()) {
+	"cn" -> "zh"
+	"en" -> "en"
+	"jp" -> "ja"
+	"kr" -> "ko"
+	"tw" -> "zh"
+	"all" -> ""
+	else -> lang  // Fallback: try using the code directly
 }

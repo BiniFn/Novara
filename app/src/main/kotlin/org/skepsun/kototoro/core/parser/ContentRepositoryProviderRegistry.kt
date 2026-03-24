@@ -13,6 +13,7 @@ class ContentRepositoryProviderRegistry @Inject constructor(
 	private val externalContentRepositoryProvider: ExternalContentRepositoryProvider,
 	private val mihonContentRepositoryProvider: MihonContentRepositoryProvider,
 	private val aniyomiContentRepositoryProvider: AniyomiContentRepositoryProvider,
+	private val ireaderContentRepositoryProvider: IReaderContentRepositoryProvider,
 	private val jsonContentRepositoryProvider: JsonContentRepositoryProvider,
 	private val trackingContentRepositoryProvider: org.skepsun.kototoro.tracking.discovery.data.TrackingContentRepositoryProvider,
 ) {
@@ -26,6 +27,7 @@ class ContentRepositoryProviderRegistry @Inject constructor(
 			externalContentRepositoryProvider,
 			mihonContentRepositoryProvider,
 			aniyomiContentRepositoryProvider,
+			ireaderContentRepositoryProvider,
 			jsonContentRepositoryProvider,
 			trackingContentRepositoryProvider,
 		)

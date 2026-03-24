@@ -52,6 +52,10 @@ class SourceGroupManager @Inject constructor(
 			return if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 		}
 		
+		if (source is org.skepsun.kototoro.ireader.model.IReaderMangaSource) {
+			return if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+		}
+		
 		if (source is org.skepsun.kototoro.core.jsonsource.JsonContentSource) {
 			return try {
 				when (source.entity.type) {

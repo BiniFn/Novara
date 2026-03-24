@@ -50,12 +50,16 @@ import coil3.Uri as CoilUri
 import org.skepsun.kototoro.parsers.model.ContentSource as ParserContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+
 class FaviconFetcher(
 	private val uri: Uri,
 	private val options: Options,
 	private val imageLoader: ImageLoader,
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val localStorageCache: LocalStorageCache,
+	private val repoRepository: ExternalExtensionRepoRepository,
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
@@ -95,6 +99,8 @@ class FaviconFetcher(
 			is MihonMangaRepository -> fetchMihonIcon(repo)
 
 			is org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository -> fetchAniyomiIcon(repo)
+
+			is org.skepsun.kototoro.ireader.IReaderMangaRepository -> fetchIReaderIcon(repo)
 
 			// JS sources: try to derive favicon from config; fallback to neutral
 			is JsContentRepository -> {
@@ -139,6 +145,46 @@ class FaviconFetcher(
         val icon = runInterruptible {
             try {
                 pm.getApplicationIcon(pkgName)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return if (icon != null) {
+            ImageFetchResult(
+                image = icon.nonAdaptive().asImage(),
+                isSampled = false,
+                dataSource = DataSource.DISK,
+            )
+        } else {
+            imageLoader.fetch(R.drawable.ic_storage, options)!!
+        }
+    }
+
+    private suspend fun fetchIReaderIcon(repository: org.skepsun.kototoro.ireader.IReaderMangaRepository): FetchResult {
+        val pm = options.context.packageManager
+        val pkgName = repository.source.pkgName
+
+        // IReader extensions often don't package an icon in their APK.
+        // Try to fetch the icon URL from the fetched repo extensions first.
+        try {
+            val availableExtensions = repoRepository.getAvailableExtensions(ExternalExtensionType.IREADER)
+            val repoExt = availableExtensions.find { it.pkgName == pkgName }
+            if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
+                val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
+                if (remoteIcon != null) {
+                    return remoteIcon
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTraceDebug()
+        }
+
+        val icon = runInterruptible {
+            try {
+                val appInfo = pm.getApplicationInfo(pkgName, 0)
+                if (appInfo.icon != 0) {
+                    pm.getApplicationIcon(appInfo)
+                } else null
             } catch (e: Exception) {
                 null
             }
@@ -283,6 +329,7 @@ class FaviconFetcher(
 	class Factory @Inject constructor(
 		private val mangaRepositoryFactory: ContentRepository.Factory,
 		@FaviconCache private val faviconCache: LocalStorageCache,
+		private val repoRepository: ExternalExtensionRepoRepository,
 	) : Fetcher.Factory<CoilUri> {
 
 		override fun create(
@@ -290,7 +337,7 @@ class FaviconFetcher(
 			options: Options,
 			imageLoader: ImageLoader
 		): Fetcher? = if (data.scheme == URI_SCHEME_FAVICON) {
-			FaviconFetcher(data.toAndroidUri(), options, imageLoader, mangaRepositoryFactory, faviconCache)
+			FaviconFetcher(data.toAndroidUri(), options, imageLoader, mangaRepositoryFactory, faviconCache, repoRepository)
 		} else {
 			null
 		}

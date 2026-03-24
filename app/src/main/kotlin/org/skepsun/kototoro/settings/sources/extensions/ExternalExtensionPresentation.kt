@@ -80,7 +80,7 @@ internal fun observeInstalledExtensionInfoMap(
 		ExternalExtensionType.IREADER -> ireaderExtensionManager.installedExtensions.mapInstalledExtensionInfo(
 			packageNameOf = { it.pkgName },
 			versionCodeOf = { it.versionCode },
-			libVersionOf = { 1.0 }, // No shared library concept for IReader, using 1.0
+			libVersionOf = { it.libVersion },
 			versionNameOf = { it.versionName },
 		)
 	}
@@ -139,7 +139,7 @@ internal fun observeIReaderInstalledExtensionEntries(
 		appNameOf = { it.appName },
 		versionNameOf = { it.versionName },
 		versionCodeOf = { it.versionCode },
-		libVersionOf = { 1.0 },
+		libVersionOf = { it.libVersion },
 		languageOf = { ext -> ext.sources.firstOrNull()?.lang ?: "all" },
 		isNsfwOf = { it.isNsfw },
 		sourceNamesOf = { ext -> ext.sources.map { it.name } },
