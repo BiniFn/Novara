@@ -60,6 +60,22 @@
     public protected *;
 }
 
+# QuickJS compat classes for extensions
+-keep class app.cash.quickjs.** { *; }
+-keep interface app.cash.quickjs.** { *; }
+-keepclassmembers class app.cash.quickjs.** {
+    public <init>(...);
+    public protected *;
+}
+
+# Dokar QuickJS (underlying engine or native requests)
+-keep class com.dokar.quickjs.** { *; }
+-keep interface com.dokar.quickjs.** { *; }
+-keepclassmembers class com.dokar.quickjs.** {
+    public <init>(...);
+    public protected *;
+}
+
 # Injekt dependency injection (used by extensions via injectLazy)
 -keep class uy.kohesive.injekt.** { *; }
 -keep interface uy.kohesive.injekt.** { *; }
