@@ -1,35 +1,57 @@
-# Kotatsu-Redo Integration Handoff
+# Kotatsu-Redo Integration Reference
 
-**Current Status:** The first 4 critical stages of migrating Kototoro's supplementary parser layer to `com.github.Kotatsu-Redo:kotatsu-parsers-redo` are **COMPLETE** and fully compiling (`:app:assembleDebug`).
+> Developer reference for Kototoro's integration with the `kotatsu-parsers-redo` parser library.
 
-## 1. Accomplished Work
+## Overview
 
-### Dependencies & CI Sync
-*   Swapped `com.github.YakaTeam:kotatsu-parsers` -> `com.github.Kotatsu-Redo:kotatsu-parsers-redo`.
-*   Pinned in `libs.versions.toml:kotatsuParsers = "e5fa47d829"`.
-*   Re-wrote GitHub Action CI pipelines (`.github/scripts/sync_parsers.py` & `.github/scripts/test_sync_parsers.py`) to systematically poll and auto-update against the `Kotatsu-Redo` upstream.
+Kototoro uses `com.github.Kotatsu-Redo:kotatsu-parsers-redo` as a supplementary parser library. This provides additional built-in manga sources beyond Kototoro's own native parsers. Parsers appear as regular built-in sources — users do not need to install anything.
 
-### API Bridging (`KotatsuLoaderContextAdapter`)
-*   Dropped the deprecated `evaluateJs(url, script)` signature in favor of the new mandatory `timeout` variant (`evaluateJs(url, script, timeout)`).
-*   Introduced nullable mappings for the newly added `DisableUpdateChecking` and `InterceptCloudflare` configs inside `KotatsuConfigAdapter` (using `getOrNull()` mappings to avoid exhaustive enum compiler crashes).
+## Architecture
 
-### Native Headless WebView Interceptor Port
-*   Ported `WebViewRequestInterceptorExecutor` and `RequestInterceptorWebViewClient` entirely into `org.skepsun.kototoro.core.network.webview`.
-*   Rewrote their imports to natively inherit from Kototoro's `BrowserClient` and `BrowserCallback` while extracting their payloads into the parser's expected `InterceptedRequest`.
-*   Wired the new executor through Dagger Hilt into `ContentLoaderContextImpl` and routed down perfectly into `KotatsuLoaderContextAdapter` (`interceptWebViewRequests` / `captureWebViewUrls`).
-*   **Resolved all Kotlin Smart Cast failures** at the module boundaries directly.
+### Adapter Layer
 
-## 2. Next Steps To Complete (Cross-Device Handoff)
+The integration works through a bridging pattern:
 
-You opted to pause before tackling the final Cloudflare alignment. When you switch devices, **pick up the development here**:
+| Kototoro | Kotatsu-Redo |
+| :--- | :--- |
+| `ContentLoaderContext` | → `KotatsuLoaderContextAdapter` → `MangaLoaderContext` |
+| `ContentSourceConfig` | → `KotatsuConfigAdapter` → `MangaSourceConfig` |
+| `ContentSource` | → `KotatsuParserSource` → `MangaParserSource` |
+| `ContentRepository` | → `KotatsuParserRepository` → `MangaParser` |
 
-### Step 5: Port Cloudflare Interception (Optional but Recommended)
-Kotatsu-Redo parsers have introduced the ability for **parsers to actively ask for Cloudflare overrides** via `ConfigKey.InterceptCloudflare`.
+### Key Files
 
-**Action Items:**
-1. You will need to extract `CloudFlareInterceptClient.kt` from the `Kotatsu-Redo` repository (`app/src/main/kotlin/org/koitharu/kotatsu/core/network/`).
-2. Adapt it securely to replace or augment Kototoro's native `org.skepsun.kototoro.browser.cloudflare.CloudFlareClient` intercept logic.
-3. Wire the interceptor so that when `KotatsuParserRepository` sees a source configuration marked with `InterceptCloudflare`, it bypasses the standard HTTP pipeline in favor of the specialized CF wrapper.
+- `KotatsuLoaderContextAdapter.kt` — bridges Kototoro's loader context to Kotatsu's
+- `KotatsuConfigAdapter.kt` — maps config keys between the two systems
+- `KotatsuParserSource.kt` — wraps Kotatsu `MangaParserSource` as a Kototoro `ContentSource`
+- `KotatsuParserRepository.kt` — wraps Kotatsu `MangaParser` as a Kototoro `ContentRepository`
+- `KotatsuParsersProvider.kt` — lists all Kotatsu-Redo sources, creating parser instances
 
----
-*Happy coding on your other workstation! Once you finish Step 5, you'll have 100% feature and parser protection parity with Kotatsu-Redo!*
+### Cloudflare Handling
+
+Kotatsu-Redo parsers can trigger Cloudflare interception via `ConfigKey.InterceptCloudflare` and `requestBrowserAction`:
+
+1. **HTTP-level detection** — `CloudFlareInterceptor` detects CF-protected responses globally
+2. **Headless resolution** — `CaptchaHandler` attempts to resolve via `WebViewExecutor.tryResolveCaptcha`
+3. **Interactive fallback** — `requestBrowserAction` throws `InteractiveActionRequiredException`, which `ExceptionResolver` handles by opening `BrowserActivity`
+
+### WebView Integration
+
+- `interceptWebViewRequests` and `captureWebViewUrls` are routed through `WebViewRequestInterceptorExecutor`
+- Wired through Dagger Hilt into `ContentLoaderContextImpl`
+
+## CI Pipeline
+
+A GitHub Actions workflow (`.github/scripts/sync_parsers.py`) polls the Kotatsu-Redo upstream for new commits and auto-updates the pinned parser version.
+
+## Config Key Mapping
+
+| Kotatsu-Redo ConfigKey | Kototoro Mapping |
+| :--- | :--- |
+| `Domain` | `ConfigKey.Domain` |
+| `ShowSuspiciousContent` | `ConfigKey.ShowSuspiciousContent` |
+| `UserAgent` | `ConfigKey.UserAgent` |
+| `SplitByTranslations` | `ConfigKey.SplitByTranslations` |
+| `PreferredImageServer` | `ConfigKey.PreferredImageServer` |
+| `DisableUpdateChecking` | Falls back to default (not applicable) |
+| `InterceptCloudflare` | Falls back to default (handled via existing CF pipeline) |

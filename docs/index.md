@@ -25,7 +25,11 @@ features:
   - title: Local OCR + Translation
     details: Configure on-device OCR, model downloads, translation modes, and practical fallback paths inside the reader.
   - title: External Source Ecosystems
-    details: Connect Mihon, Aniyomi, Legado, and TVBox sources from the same in-app source management flow.
+    details: Connect Mihon, Aniyomi, IReader, Legado, and TVBox sources from the same in-app source management flow.
+  - title: Tracking & Discovery
+    details: Discover anime and manga from MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates directly inside the app.
+  - title: Video Player
+    details: Built-in player with DLNA casting, subtitle and audio track selection, Anime4K super-resolution, and seek gestures.
   - title: Reliable WebDAV Sync
     details: Set up free or self-hosted WebDAV storage for multi-device backup and synchronization.
 ---
@@ -33,7 +37,7 @@ features:
 ## Start With The Right Page
 
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
-- Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, Legado, or TVBox ecosystems.
+- Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
 - Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
 - Read [UI Improvement](./architecture/ui_improvement.md) to track UI enhancements.
@@ -44,9 +48,10 @@ features:
 
 - One Android app for manga, novels, and video
 - Local OCR + translation directly in the reader
-- Video super-resolution support on supported pipelines
+- Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
+- Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
 - WebDAV-based multi-device sync without vendor lock-in
-- Broad source support across built-in parsers and external ecosystems
+- Broad source support: built-in, Kotatsu-Redo, Mihon, Aniyomi, IReader, Legado, TVBox
 
 ## Key External Source Repositories
 

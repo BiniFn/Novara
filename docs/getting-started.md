@@ -4,13 +4,14 @@ This is the best entry point for new users. The goal is simple: get the app inst
 
 ## What Kototoro Is Good At
 
-Kototoro is built around five practical strengths:
+Kototoro is built around these practical strengths:
 
 1. One Android app for manga, novels, and video.
 2. Local OCR + translation directly inside the reader.
-3. Video super-resolution support.
-4. Reliable multi-device sync through WebDAV.
-5. Broad source compatibility through built-in and external ecosystems.
+3. Video super-resolution (Anime4K), DLNA casting, subtitle selection.
+4. Tracking discovery through MAL, Kitsu, AniList, Bangumi, Shikimori, MangaUpdates.
+5. Reliable multi-device sync through WebDAV.
+6. Broad source compatibility through built-in, Kotatsu-Redo, and external ecosystems.
 
 ## 10-Minute Setup
 
@@ -24,7 +25,7 @@ Kototoro is built around five practical strengths:
 
 ### I want manga sources
 
-1. Open Kototoro and review the built-in sources first.
+1. Open Kototoro and review the built-in sources first (includes Kotatsu-Redo parser library).
 2. If you also use Mihon, install the Mihon extensions you need there.
 3. Return to Kototoro and refresh source detection if the new sources do not appear immediately.
 
@@ -43,6 +44,7 @@ Read more: [Source Integrations](./source-integrations.md)
 3. For TVBox-style sources, import a JSON file or JSON URL from `Settings -> Content Sources -> Import JSON Sources`.
 4. Open Kototoro and check whether the new sources appear in `Browse -> Content Sources`.
 5. Configure playback options only after you confirm basic playback works.
+6. Try DLNA casting: open the player menu and select a device on your local network.
 
 Common Aniyomi extension repositories:
 
@@ -57,13 +59,21 @@ Read more: [Reader Features](./reader-features.md) and [Source Integrations](./s
 2. If your workflow depends on Legado, prepare the JSON file or JSON URL first.
 3. Import it from `Settings -> Content Sources -> Import JSON Sources`.
 4. Check the imported entries in `Settings -> Content Sources -> JSON Sources Directory`.
-5. Test chapter loading and formatting before importing a large reading list.
+5. If you use IReader extensions, install the APKs and Kototoro will auto-detect them.
+6. Test chapter loading and formatting before importing a large reading list.
 
 Common Legado source repository:
 
 - [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
 
 Read more: [Source Integrations](./source-integrations.md)
+
+### I want to discover new anime / manga
+
+1. Open the Discover tab in the app.
+2. Browse content from MAL, Kitsu, AniList, Bangumi, Shikimori, or MangaUpdates.
+3. View details including genres, scores, and synopses.
+4. Link discovered titles to your tracking progress.
 
 ## Optional Setup
 

@@ -6,9 +6,10 @@ Kototoro supports multiple external source ecosystems in addition to its own bui
 
 Kototoro can work with:
 
-- Built-in sources
+- Built-in sources (native Kototoro parsers + Kotatsu-Redo parsers)
 - Mihon manga extensions
 - Aniyomi video / anime extensions
+- IReader novel extensions
 - Legado JSON sources
 - TVBox JSON sources
 
@@ -39,6 +40,14 @@ These repositories are the common entry point for real-world external-source set
 
 - [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
 
+## Built-In And Kotatsu-Redo Parsers
+
+Kototoro includes its own native parsers and additionally integrates the full Kotatsu-Redo parser library. These sources are available out of the box without any additional installation.
+
+- Sources appear automatically in `Browse → Content Sources`
+- Parser updates are bundled with app updates
+- Cloudflare-protected sources are handled automatically through headless WebView resolution or the interactive browser challenge flow
+
 ## Mihon And Aniyomi Extensions
 
 Mihon and Aniyomi integrations are extension-based. Kototoro detects compatible extension APKs installed on the device and exposes their sources directly inside the app.
@@ -67,6 +76,21 @@ Mihon and Aniyomi integrations are extension-based. Kototoro detects compatible 
 - Mihon for manga-heavy workflows
 - Aniyomi for anime / video workflows
 - Users who want one app to manage installed extensions and content access together
+
+## IReader Extensions
+
+IReader integrations work similarly to Mihon — Kototoro detects IReader extension APKs installed on the device and loads their novel sources.
+
+### Setup Flow
+
+1. Install IReader extension APKs on your device.
+2. Open Kototoro — the extensions are auto-detected.
+3. Go to `Browse → Content Sources` and use the detected novel sources.
+
+### Best Use Cases
+
+- Novel-oriented workflows
+- Users who already maintain IReader extensions for novel sources
 
 ## Legado And TVBox JSON Sources
 
@@ -109,10 +133,11 @@ Regardless of source type, the practical result is the same:
 ## Expectations And Limits
 
 - Source availability depends on what is installed or imported on the device.
-- Mihon and Aniyomi compatibility still depends on the extension version and upstream website behavior.
+- Mihon, Aniyomi, and IReader compatibility depends on the extension version and upstream website behavior.
 - Legado and TVBox compatibility depends on the JSON definition quality and upstream site stability.
 - TVBox support is still partial for some site types. Direct media, playlist-based sources, and some simpler configurations work better than spider / csp-dependent setups.
 - External ecosystems expand coverage, but they also inherit breakage when websites, repositories, or extension APIs change.
+- Kotatsu-Redo parser updates are tied to app releases; a CI pipeline auto-syncs upstream changes.
 
 ## Related Documents
 

@@ -2,7 +2,8 @@
 
 ![App Icon](metadata/en-US/icon.png)
 
-![version](https://img.shields.io/badge/version-0.2.5-blue)
+![version](https://img.shields.io/badge/version-0.6.2-blue)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RHGHZbHue)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://skepsun.github.io/Kototoro/)
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://skepsun.github.io/Kototoro/getting-started)
 [![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://skepsun.github.io/Kototoro/automatic-translation)
@@ -13,9 +14,10 @@ Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels,
 
 - One app for manga, novels, and video
 - Local automatic OCR + translation directly inside the reader
-- Video super-resolution support on supported devices and pipelines
+- Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
+- Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
 - Reliable multi-device sync through free or self-hosted WebDAV setups
-- External source support for Mihon manga sources, Aniyomi video sources, and Legado reading sources
+- Broad source support: built-in Kotatsu-Redo parsers, Mihon, Aniyomi, IReader, Legado, TVBox
 - Site favorites import and synchronization for supported services
 
 ## Start Here
@@ -80,5 +82,6 @@ This project follows the upstream Kotatsu license. See [LICENSE](LICENSE).
 
 ## Contact
 
+- Discord: [Join Server](https://discord.gg/RHGHZbHue)
 - GitHub Issues: [Issue Tracker](https://github.com/skepsun/kototoro/issues)
 - Email: chuxiongsun@gmail.com

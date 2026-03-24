@@ -27,16 +27,32 @@ Typical workflow:
 
 Read more: [Automatic Translation](./automatic-translation.md)
 
-### Video Playback and Super-Resolution
+### Video Playback
 
-Kototoro includes built-in video playback and can also use video super-resolution pipelines on supported devices and configurations.
+Kototoro includes a built-in video player with:
 
-Typical capabilities include:
-
-- Online playback
-- Source-side episode browsing
+- Online playback with source-side episode browsing
 - Resolution / stream selection when available
-- Screen rotation and playback controls
+- **Subtitle and audio track selection** — choose embedded or external subtitle tracks, switch audio languages
+- **DLNA casting** — discover and cast to DLNA-compatible devices on the local network via SSDP
+- **Anime4K super-resolution** — real-time video upscaling with configurable Anime4K filter presets
+- Seek gesture feedback with proportional seeking and synchronized progress bar
+- Screen rotation and standard playback controls
+
+### Tracking & Discovery
+
+Kototoro integrates with multiple tracking sites for discovering new content and tracking reading/watching progress:
+
+| Site | Discovery | Tracking |
+| :--- | :---: | :---: |
+| MyAnimeList (MAL) | ✅ Seasonal anime, rankings | ✅ |
+| Kitsu | ✅ Trending, categories | ✅ |
+| AniList | ✅ Trending, popular | ✅ |
+| Bangumi | ✅ | ✅ |
+| Shikimori | ✅ | ✅ |
+| MangaUpdates | ✅ | ✅ |
+
+Discovery pages show rich data including genres, scores, synopses, and cover images in a multi-carousel UI.
 
 ### Sync and Portability
 
@@ -48,10 +64,11 @@ Read more: [WebDAV Sync](./webdav-sync.md)
 
 Kototoro supports several source ecosystems:
 
-- Built-in sources
-- Mihon manga sources
-- Aniyomi video sources
-- Legado reading sources
+- Built-in sources (native Kototoro parsers + Kotatsu-Redo parser library)
+- Mihon manga extensions
+- Aniyomi video / anime extensions
+- IReader novel extensions
+- Legado JSON reading sources
 - TVBox JSON video sources
 
 This lets users keep broader catalogs in one app without being locked to one source format.
@@ -64,7 +81,7 @@ Read more: [Source Integrations](./source-integrations.md)
 
 Kototoro includes a full manga workflow with:
 
-- Source browsing
+- Source browsing with multi-select saved filters
 - Library and favorites management
 - Chapter reading
 - Downloads for offline use
@@ -74,14 +91,19 @@ Kototoro includes a full manga workflow with:
 
 Kototoro supports novel-oriented workflows including:
 
-- Online novel sources
+- Online novel sources (built-in, Legado, IReader extensions)
 - Local novel reading
 - Illustrated chapter handling
 - EPUB-related flows where supported by the source and pipeline
 
 ### Video Consumption
 
-Kototoro supports video source browsing and playback inside the same app, which is useful for users who want a single library and a single sync workflow.
+Kototoro supports video source browsing and playback inside the same app, including:
+
+- Aniyomi extension-based and TVBox JSON-based video sources
+- DLNA casting to network devices
+- Subtitle and audio track selection
+- Anime4K super-resolution filters
 
 ## Related Documents
 

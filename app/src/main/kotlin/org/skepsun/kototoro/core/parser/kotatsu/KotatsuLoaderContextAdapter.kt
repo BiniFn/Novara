@@ -6,6 +6,7 @@ import okhttp3.Response
 import org.koitharu.kotatsu.parsers.MangaLoaderContext as KTMangaLoaderContext
 import org.koitharu.kotatsu.parsers.bitmap.Bitmap as KTBitmap
 import org.koitharu.kotatsu.parsers.model.MangaSource as KTContentSource
+import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.parsers.ContentLoaderContext
 import org.skepsun.kototoro.parsers.config.ContentSourceConfig
 import java.util.Locale
@@ -30,7 +31,11 @@ internal class KotatsuLoaderContextAdapter(
 	override suspend fun evaluateJs(baseUrl: String, script: String, timeout: Long): String? = delegate.evaluateJs(baseUrl, script)
 
 	override fun requestBrowserAction(parser: org.koitharu.kotatsu.parsers.MangaParser, url: String): Nothing {
-		throw UnsupportedOperationException("Browser action is not supported in Kotatsu adapter")
+		val source = (parser.source as? org.koitharu.kotatsu.parsers.model.MangaParserSource)
+			?.let { KotatsuParserSource(it) }
+			?: KotatsuParsersProvider.findByName(parser.source.name)
+			?: throw UnsupportedOperationException("Cannot resolve source for browser action: ${parser.source.name}")
+		throw InteractiveActionRequiredException(source, url)
 	}
 
 	override fun getConfig(source: KTContentSource): org.koitharu.kotatsu.parsers.config.MangaSourceConfig =

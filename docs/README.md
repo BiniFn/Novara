@@ -2,6 +2,8 @@
 
 This directory is organized by task, not by internal implementation. Start with the page that matches what you want to do next.
 
+> **Join the community:** [Discord](https://discord.gg/RHGHZbHue)
+
 ## Start Here
 
 | If you want to... | Read this |
@@ -20,9 +22,9 @@ This directory is organized by task, not by internal implementation. Start with 
 ### For users
 
 - [Getting Started](./getting-started.md)
-- [Reader Features](./reader-features.md)
+- [Reader Features](./reader-features.md) — manga, novels, video, tracking discovery, DLNA, subtitles
 - [Automatic Translation](./automatic-translation.md)
-- [Source Integrations](./source-integrations.md)
+- [Source Integrations](./source-integrations.md) — built-in, Kotatsu-Redo, Mihon, Aniyomi, IReader, Legado, TVBox
 - [WebDAV Sync](./webdav-sync.md)
 - [FAQ](./faq.md)
 - [Troubleshooting](./troubleshooting.md)
@@ -34,11 +36,16 @@ This directory is organized by task, not by internal implementation. Start with 
 - [UI Improvement](./architecture/ui_improvement.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [Kotatsu-Redo Integration Reference](./KotatsuRedoIntegration.md)
 
 ### For contributors
 
 - [Development](./development.md)
 - [Contributing](./contributing.md)
+
+### Design drafts
+
+- [Unified Source Management UI](./unified_source_management.md)
 
 ### Archived materials
 

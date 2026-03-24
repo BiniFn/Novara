@@ -12,6 +12,13 @@ This page collects the most common setup and integration problems.
 4. Check whether the source appears in `Browse -> Content Sources`.
 5. If the source is still missing, check compatibility notes for that ecosystem.
 
+### IReader sources are missing
+
+1. Confirm the IReader extension APK is installed on the device.
+2. Reopen Kototoro — IReader extensions are auto-detected on startup.
+3. Check whether the source appears in `Browse -> Content Sources`.
+4. If still missing, ensure the extension APK is compatible (some older versions may not be detected).
+
 ### Legado or TVBox sources are missing
 
 1. Confirm the JSON file or JSON URL is valid and reachable.
@@ -19,6 +26,13 @@ This page collects the most common setup and integration problems.
 3. Open `Settings -> Content Sources -> JSON Sources Directory` and confirm the imported source is listed and enabled.
 4. Check whether it appears in `Browse -> Content Sources`.
 5. Test with one source first before importing many.
+
+### Kotatsu-Redo sources do not load content
+
+1. The source may be Cloudflare-protected. Check if a browser challenge prompt appears.
+2. Complete the Cloudflare challenge when prompted.
+3. If the challenge does not appear, try refreshing the page.
+4. Some sources may require a working network proxy if their upstream site is region-restricted.
 
 ## Automatic Translation Is Not Ready
 
@@ -54,6 +68,27 @@ This page collects the most common setup and integration problems.
 1. Recheck the full WebDAV endpoint path.
 2. Verify credentials.
 3. Test with a dedicated backup directory.
+
+## Video Player Problems
+
+### DLNA casting does not find any devices
+
+1. Confirm the target device is on the same local network.
+2. Confirm the target device supports DLNA/UPnP playback.
+3. Wait a few seconds for SSDP discovery to complete.
+4. Check if your Wi-Fi network allows multicast traffic (some public networks block it).
+
+### Subtitles do not appear
+
+1. Confirm the source provides subtitle tracks.
+2. Open the player menu and check the subtitle track selection.
+3. Some sources do not embed subtitles in their streams.
+
+### Anime4K filters have no visible effect
+
+1. Confirm super-resolution is enabled in player settings.
+2. Anime4K is most effective on lower-resolution sources (480p/720p upscaled to display resolution).
+3. On high-resolution sources, the visual difference may be subtle.
 
 ## External Integrations Are Unstable
 
