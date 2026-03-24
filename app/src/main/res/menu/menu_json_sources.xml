@@ -10,11 +10,11 @@
 		app:actionViewClass="androidx.appcompat.widget.SearchView"
 		app:showAsAction="always|collapseActionView" />
 
-	<!-- Add Source -->
+	<!-- Import Source -->
 	<item
-		android:id="@+id/action_add_source"
-		android:icon="@drawable/ic_add"
-		android:title="@string/add_source_menu"
+		android:id="@+id/action_import"
+		android:icon="@drawable/ic_import"
+		android:title="@string/import_json"
 		app:showAsAction="always" />
 
 	<!-- Sort submenu -->
@@ -129,13 +129,6 @@
 			</item>
 		</menu>
 	</item>
-
-	<!-- Import -->
-	<item
-		android:id="@+id/action_import"
-		android:icon="@drawable/ic_import"
-		android:title="@string/import_json"
-		app:showAsAction="never" />
 
 	<item
 		android:id="@+id/action_switch_tvbox_repository"

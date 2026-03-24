@@ -95,7 +95,7 @@ class IReaderExtensionLoader @Inject constructor(
         val isNsfw = metaData.getInt(METADATA_NSFW, 0) == 1
 
         val appName = try {
-            ExternalExtensionLoaderSupport.getAppLabel(applicationContext, appInfo)
+            ExternalExtensionLoaderSupport.getAppLabel(applicationContext, appInfo).removePrefix("IReader: ").trim()
         } catch (e: Exception) {
             pkgInfo.packageName.substringAfterLast('.')
         }
@@ -131,7 +131,7 @@ class IReaderExtensionLoader @Inject constructor(
         }
 
         val isNsfw = metaData.getInt(METADATA_NSFW, 0) == 1
-        val appName = ExternalExtensionLoaderSupport.getAppLabel(context, appInfo)
+        val appName = ExternalExtensionLoaderSupport.getAppLabel(context, appInfo).removePrefix("IReader: ").trim()
 
         val classLoader = try {
             ChildFirstPathClassLoader(appInfo.sourceDir, appInfo.nativeLibraryDir, context.classLoader)

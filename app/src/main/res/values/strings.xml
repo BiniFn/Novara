@@ -34,6 +34,9 @@
     <string name="add_to_favourites">Favorite this</string>
     <string name="add_new_category">New category</string>
     <string name="add">Add</string>
+    <string name="pref_extension_jsdelivr_mirror">JSDelivr Github Mirror</string>
+    <string name="pref_extension_jsdelivr_mirror_summary">Automatically rewrites raw.githubusercontent.com requests to the fastly.jsdelivr.net CDN to bypass SNI network blocking.</string>
+    <string name="recommended_repositories">Recommended Repositories</string>
     <string name="save">Save</string>
     <string name="share">Share</string>
     <string name="create_shortcut">Create shortcut</string>
@@ -787,7 +790,7 @@
     <string name="no_manga_sources_catalog_text">There are no sources available in this section, or all of it might have been already added.\nStay tuned</string>
     <string name="no_manga_sources_found">No available content sources found by your query</string>
     <string name="catalog">Catalog</string>
-    <string name="manage_sources">Manage sources</string>
+    <string name="manage_sources">Built-in Sources</string>
     <string name="manual">Manual</string>
     <string name="available_d">Available: %1$d</string>
     <string name="disable_nsfw_summary">Disable NSFW sources and hide adult manga from list if possible</string>
@@ -1506,8 +1509,8 @@
     </plurals>
     
     <!-- JSON Sources Management -->
-    <string name="json_sources_directory">JSON Sources Directory</string>
-    <string name="built_in_sources_directory">Built-in Sources Directory</string>
+    <string name="json_sources_directory">JSON Sources</string>
+    <string name="built_in_sources_directory">Built-in Sources</string>
     <string name="mihon_sources_directory">Mihon Extensions Directory</string>
     <string name="aniyomi_sources_directory">Aniyomi Extensions Directory</string>
     <string name="source_tag_json">Legado</string>
@@ -1586,8 +1589,8 @@
     <string name="mihon_extensions_summary">Manage Mihon extension sources</string>
     <string name="aniyomi_extensions">Aniyomi Extensions</string>
     <string name="aniyomi_extensions_summary">Manage Aniyomi extension sources</string>
-    <string name="extensions">Extensions</string>
-    <string name="extensions_summary_pattern">Manga %1$d · Anime %2$d</string>
+    <string name="extensions">APK extension</string>
+    <string name="extensions_summary_pattern">Mihon %1$d · Aniyomi %2$d · IReader %3$d</string>
     <string name="filter_extensions_by_language">Filter extensions by language</string>
     <string name="filter_extensions_by_language_summary">Only show Mihon and Aniyomi extensions that match your selected content languages</string>
     <string name="filter_extensions_by_selected_content_languages">Filter extensions: selected content languages</string>

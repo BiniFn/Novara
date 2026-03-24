@@ -62,13 +62,7 @@ enum class ExtensionsBrowserSection(@StringRes val titleRes: Int) {
 	AVAILABLE(R.string.available_section),
 }
 
-sealed interface ExtensionsLanguageFilter {
-	data object All : ExtensionsLanguageFilter
-	data object SelectedContent : ExtensionsLanguageFilter
-	data class Single(val languageCode: String) : ExtensionsLanguageFilter
-}
-
-data class ExtensionsLanguageGroupKey(
+	data class ExtensionsLanguageGroupKey(
 	val section: ExtensionsBrowserSection,
 	val language: String,
 )
@@ -78,8 +72,7 @@ internal fun buildExtensionsBrowserItems(
 	installed: List<InstalledExtensionEntry>,
 	available: List<RepoAvailableExtension>,
 	downloadStates: Map<String, ExtensionInstallDownloadState>,
-	languageFilter: ExtensionsLanguageFilter,
-	selectedContentLanguages: Set<String>,
+	selectedExtensionLanguages: Set<String>,
 	collapsedLanguageGroups: Set<ExtensionsLanguageGroupKey>,
 	query: String,
 	isTrustedPackage: (packageName: String, expectedFingerprint: String) -> Boolean,
@@ -226,7 +219,11 @@ internal fun buildExtensionsBrowserItems(
 			)
 		}
 
-	val allowedLanguages = languageFilter.resolveAllowedLanguages(selectedContentLanguages)
+	val allowedLanguages = if (selectedExtensionLanguages.isEmpty()) {
+		null
+	} else {
+		selectedExtensionLanguages.mapTo(LinkedHashSet()) { it.normalizeExtensionLanguageCode() }
+	}
 	val filteredUpdates = updates.filterByQuery(query)
 		.filterByLanguage(allowedLanguages)
 	val filteredUntrusted = untrusted.filterByQuery(query)
@@ -239,19 +236,11 @@ internal fun buildExtensionsBrowserItems(
 		.filterByLanguage(allowedLanguages)
 
 	return buildList {
-		addSection(ExtensionsBrowserSection.UPDATES, filteredUpdates, collapsedLanguageGroups, selectedContentLanguages)
-		addSection(ExtensionsBrowserSection.UNTRUSTED, filteredUntrusted, collapsedLanguageGroups, selectedContentLanguages)
-		addSection(ExtensionsBrowserSection.INCOMPATIBLE, filteredIncompatible, collapsedLanguageGroups, selectedContentLanguages)
-		addSection(ExtensionsBrowserSection.INSTALLED, filteredInstalled, collapsedLanguageGroups, selectedContentLanguages)
-		addSection(ExtensionsBrowserSection.AVAILABLE, filteredAvailable, collapsedLanguageGroups, selectedContentLanguages)
-	}
-}
-
-internal fun ExtensionsLanguageFilter.resolveAllowedLanguages(selectedContentLanguages: Set<String>): Set<String>? {
-	return when (this) {
-		ExtensionsLanguageFilter.All -> null
-		ExtensionsLanguageFilter.SelectedContent -> selectedContentLanguages.mapTo(LinkedHashSet()) { it.normalizeExtensionLanguageCode() }
-		is ExtensionsLanguageFilter.Single -> setOf(languageCode.normalizeExtensionLanguageCode())
+		addSection(ExtensionsBrowserSection.UPDATES, filteredUpdates, collapsedLanguageGroups, selectedExtensionLanguages)
+		addSection(ExtensionsBrowserSection.UNTRUSTED, filteredUntrusted, collapsedLanguageGroups, selectedExtensionLanguages)
+		addSection(ExtensionsBrowserSection.INCOMPATIBLE, filteredIncompatible, collapsedLanguageGroups, selectedExtensionLanguages)
+		addSection(ExtensionsBrowserSection.INSTALLED, filteredInstalled, collapsedLanguageGroups, selectedExtensionLanguages)
+		addSection(ExtensionsBrowserSection.AVAILABLE, filteredAvailable, collapsedLanguageGroups, selectedExtensionLanguages)
 	}
 }
 

@@ -107,10 +107,8 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		viewModel.currentSearchQuery.observe(viewLifecycleOwner) {
 			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
 		}
-		viewModel.currentLanguageFilter.observe(viewLifecycleOwner) {
-			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
-			safeInvalidateOptionsMenu()
-		}
+		viewModel.availableLanguageCodes.observe(viewLifecycleOwner) {}
+
 		viewModel.currentCollapsedLanguageGroups.observe(viewLifecycleOwner) {
 			binding.recyclerView.layoutManager?.requestLayout()
 		}
@@ -120,7 +118,12 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			updateEmptyState(binding, adapter?.currentList.isNullOrEmpty())
 		}
 		viewModel.onInstallIntent.observeEvent(viewLifecycleOwner) { intent ->
-			installLauncher.launch(intent)
+			try {
+				startActivity(intent)
+				viewModel.onInstallActivityResult()
+			} catch (e: Exception) {
+				Toast.makeText(requireContext(), e.message, Toast.LENGTH_SHORT).show()
+			}
 		}
 		viewModel.onUninstallIntent.observeEvent(viewLifecycleOwner) { intent ->
 			startActivity(intent)
@@ -200,7 +203,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 				binding.textEmptyText.setText(R.string.no_available_extensions_no_repo_text)
 			}
 
-			viewModel.currentLanguageFilter.value != ExtensionsLanguageFilter.All -> {
+			settings.extensionLanguages.isNotEmpty() -> {
 				binding.textEmptyTitle.setText(R.string.no_available_extensions)
 				binding.textEmptyText.setText(R.string.no_available_extensions_language_filtered_text)
 			}
@@ -213,67 +216,38 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 	}
 
 	private fun openLanguageFilterDialog() {
-		val options = buildLanguageFilterOptions()
-		val labels = options.map { it.label }.toTypedArray()
-		val checkedIndex = options.indexOfFirst { it.filter == viewModel.currentLanguageFilter.value }
-			.takeIf { it >= 0 } ?: 0
+		val availableCodes = viewModel.availableLanguageCodes.value
+		val selectedCodes = settings.extensionLanguages.map { it.normalizeExtensionLanguageCode() }.toSet()
+
+		val labels = availableCodes.map { code ->
+			val locale = if (code.isBlank()) Locale.ROOT else code.toLocaleOrNull()
+			locale.getDisplayName(requireContext())
+		}.toTypedArray()
+
+		val checkedItems = availableCodes.map { it in selectedCodes }.toBooleanArray()
+
 		MaterialAlertDialogBuilder(requireContext())
 			.setTitle(R.string.filter_extensions_by_language)
-			.setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
-				options.getOrNull(which)?.let { option ->
-					viewModel.setLanguageFilter(option.filter)
-				}
-				dialog.dismiss()
+			.setMultiChoiceItems(labels, checkedItems) { _, which, isChecked ->
+				checkedItems[which] = isChecked
+			}
+			.setPositiveButton(android.R.string.ok) { _, _ ->
+				val newSelected = availableCodes.filterIndexed { index, _ -> checkedItems[index] }.toSet()
+				viewModel.setSelectedExtensionLanguages(newSelected)
+				safeInvalidateOptionsMenu()
 			}
 			.setNegativeButton(android.R.string.cancel, null)
 			.show()
 	}
 
-	private fun buildLanguageFilterOptions(): List<LanguageFilterOption> {
-		val languageOptions = viewModel.availableLanguageCodes.value
-			.distinct()
-			.map { code ->
-				val locale = if (code.isBlank()) Locale.ROOT else code.toLocaleOrNull()
-				LanguageFilterOption(
-					filter = ExtensionsLanguageFilter.Single(code),
-					label = locale.getDisplayName(requireContext()),
-				)
-			}
-			.sortedBy { it.label.lowercase() }
-
-		return buildList {
-			add(LanguageFilterOption(ExtensionsLanguageFilter.All, getString(R.string.all_languages)))
-			add(
-				LanguageFilterOption(
-					ExtensionsLanguageFilter.SelectedContent,
-					getString(R.string.selected_content_languages),
-				),
-			)
-			addAll(languageOptions)
-		}
-	}
-
-	private fun toggleLayoutMode() {
-		settings.isExtensionsGridMode = !settings.isExtensionsGridMode
-		requireViewBinding().recyclerView.layoutManager = createLayoutManager()
-		activity?.invalidateOptionsMenu()
-	}
-
 	private fun createLayoutManager(): androidx.recyclerview.widget.RecyclerView.LayoutManager {
-		val spanCount = if (settings.isExtensionsGridMode) 2 else 1
-		return GridLayoutManager(requireContext(), spanCount).apply {
-			spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
-				override fun getSpanSize(position: Int): Int {
-					return adapter?.getSpanSize(position, spanCount) ?: spanCount
-				}
-			}
-		}
+		return LinearLayoutManager(requireContext())
 	}
 
 	private inner class BrowserMenuProvider : MenuProvider, MenuItem.OnActionExpandListener, SearchView.OnQueryTextListener {
 		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
 			menuInflater.inflate(R.menu.menu_available_extensions, menu)
-			menu.findItem(R.id.action_search)?.run {
+			menu.findItem(R.id.action_local_search)?.run {
 				setOnActionExpandListener(this@BrowserMenuProvider)
 				(actionView as? SearchView)?.apply {
 					setOnQueryTextListener(this@BrowserMenuProvider)
@@ -293,21 +267,19 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 					},
 				)
 			}
-			menu.findItem(R.id.action_filter_languages)?.title = when (val filter = viewModel.currentLanguageFilter.value) {
-				ExtensionsLanguageFilter.All -> getString(R.string.filter_extensions_by_language)
-				ExtensionsLanguageFilter.SelectedContent -> getString(R.string.filter_extensions_by_selected_content_languages)
-				is ExtensionsLanguageFilter.Single -> {
-					val locale = if (filter.languageCode.isBlank()) Locale.ROOT else filter.languageCode.toLocaleOrNull()
-					getString(R.string.filter_extensions_by_language_with_value, locale.getDisplayName(requireContext()))
+			menu.findItem(R.id.action_filter_languages)?.title = if (settings.extensionLanguages.isEmpty()) {
+				getString(R.string.filter_extensions_by_language)
+			} else {
+				val size = settings.extensionLanguages.size
+				val selectedFirst = settings.extensionLanguages.first().let { code ->
+					if (code.isBlank()) Locale.ROOT else code.toLocaleOrNull()
+				}.getDisplayName(requireContext())
+				if (size == 1) {
+					getString(R.string.filter_extensions_by_language_with_value, selectedFirst)
+				} else {
+					getString(R.string.filter_extensions_by_language_with_value, "$selectedFirst +${size - 1}")
 				}
 			}
-			menu.findItem(R.id.action_toggle_extensions_layout)?.title = getString(
-				if (settings.isExtensionsGridMode) {
-					R.string.show_extensions_in_list
-				} else {
-					R.string.show_extensions_in_grid
-				},
-			)
 		}
 
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
@@ -323,11 +295,6 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 
 			R.id.action_filter_languages -> {
 				openLanguageFilterDialog()
-				true
-			}
-
-			R.id.action_toggle_extensions_layout -> {
-				toggleLayoutMode()
 				true
 			}
 
@@ -372,8 +339,4 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		}
 	}
 
-	private data class LanguageFilterOption(
-		val filter: ExtensionsLanguageFilter,
-		val label: String,
-	)
 }

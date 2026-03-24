@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_search"
+        android:id="@+id/action_local_search"
         android:icon="?actionModeWebSearchDrawable"
         android:orderInCategory="0"
         android:title="@string/search"
@@ -23,17 +23,14 @@
 
     <item
         android:id="@+id/action_filter_languages"
+        android:icon="@drawable/ic_filter_menu"
         android:title="@string/filter_extensions_by_language"
-        android:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_toggle_extensions_layout"
-        android:title="@string/show_extensions_in_grid"
-        android:showAsAction="never" />
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_manage_repositories"
+        android:icon="@drawable/ic_settings"
         android:title="@string/manage_extension_repositories"
-        android:showAsAction="never" />
+        app:showAsAction="ifRoom" />
 
 </menu>

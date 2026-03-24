@@ -49,25 +49,17 @@ class ExtensionsBrowserViewModel @Inject constructor(
 
 	private val availableExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
 	private val searchQuery = MutableStateFlow("")
-	private val languageFilter = MutableStateFlow(
-		if (settings.isExtensionsFilterLangEnabled) {
-			ExtensionsLanguageFilter.SelectedContent
-		} else {
-			ExtensionsLanguageFilter.All
-		},
-	)
 	private val collapsedLanguageGroups = MutableStateFlow<Set<ExtensionsLanguageGroupKey>>(emptySet())
 	private val batchUpdateState = ExtensionBatchUpdateStateMachine()
 
 	val currentSearchQuery: StateFlow<String> = searchQuery
 	val updateAllInProgress: StateFlow<Boolean> = batchUpdateState.inProgress
-	val currentLanguageFilter: StateFlow<ExtensionsLanguageFilter> = languageFilter
 	val currentCollapsedLanguageGroups: StateFlow<Set<ExtensionsLanguageGroupKey>> = collapsedLanguageGroups
 
-	private val selectedContentLanguages: StateFlow<Set<String>> = settings.observeAsFlow(
-		AppSettings.KEY_CONTENT_LANGUAGES,
-	) { contentLanguages }
-		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), settings.contentLanguages)
+	private val selectedExtensionLanguages: StateFlow<Set<String>> = settings.observeAsFlow(
+		AppSettings.KEY_EXTENSION_LANGUAGES,
+	) { extensionLanguages }
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), settings.extensionLanguages)
 
 	val repoCount: StateFlow<Int> = repoRepository.observeByType(type)
 		.map { it.size }
@@ -84,14 +76,12 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		installedExtensions,
 		availableExtensions,
 		installService.downloadStates,
-		languageFilter,
-		selectedContentLanguages,
-	) { installed, available, downloads, currentLanguageFilter, selectedLanguages ->
+		selectedExtensionLanguages,
+	) { installed, available, downloads, selectedLanguages ->
 		BrowserInputs(
 			installed = installed,
 			available = available,
 			downloads = downloads,
-			languageFilter = currentLanguageFilter,
 			selectedLanguages = selectedLanguages,
 			collapsedGroups = emptySet(),
 		)
@@ -102,8 +92,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			installed = emptyList(),
 			available = emptyList(),
 			downloads = emptyMap(),
-			languageFilter = languageFilter.value,
-			selectedLanguages = selectedContentLanguages.value,
+			selectedLanguages = selectedExtensionLanguages.value,
 			collapsedGroups = emptySet(),
 		),
 	)
@@ -128,8 +117,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			installed = inputs.installed,
 			available = inputs.available,
 			downloadStates = inputs.downloads,
-			languageFilter = inputs.languageFilter,
-			selectedContentLanguages = inputs.selectedLanguages,
+			selectedExtensionLanguages = inputs.selectedLanguages,
 			collapsedLanguageGroups = inputs.collapsedGroups,
 			query = query,
 			isTrustedPackage = signatureValidator::isTrusted,
@@ -234,8 +222,8 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		searchQuery.value = query?.trim().orEmpty()
 	}
 
-	fun setLanguageFilter(filter: ExtensionsLanguageFilter) {
-		languageFilter.value = filter
+	fun setSelectedExtensionLanguages(languages: Set<String>) {
+		settings.extensionLanguages = languages
 	}
 
 	fun toggleLanguageGroup(item: ExtensionsBrowserListItem.LanguageHeader) {
@@ -331,8 +319,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			installed = browserInputs.value.installed,
 			available = browserInputs.value.available,
 			downloadStates = browserInputs.value.downloads,
-			languageFilter = browserInputs.value.languageFilter,
-			selectedContentLanguages = browserInputs.value.selectedLanguages,
+			selectedExtensionLanguages = browserInputs.value.selectedLanguages,
 			collapsedLanguageGroups = browserInputs.value.collapsedGroups,
 			query = "",
 			isTrustedPackage = signatureValidator::isTrusted,
@@ -344,7 +331,6 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		val installed: List<InstalledExtensionEntry>,
 		val available: List<RepoAvailableExtension>,
 		val downloads: Map<String, org.skepsun.kototoro.extensions.install.ExtensionInstallDownloadState>,
-		val languageFilter: ExtensionsLanguageFilter,
 		val selectedLanguages: Set<String>,
 		val collapsedGroups: Set<ExtensionsLanguageGroupKey>,
 	)

@@ -39,7 +39,7 @@ fun sourceTypesFromTags(tags: Set<SourceTag>): Set<SourceType> {
 			SourceTag.MIHON -> result.add(SourceType.MIHON)
 			SourceTag.ANIYOMI -> result.add(SourceType.ANIYOMI)
 			SourceTag.LEGADO -> result.add(SourceType.JSON_LEGADO)
-			SourceTag.JAVASCRIPT -> result.add(SourceType.JSON_JS)
+
 			SourceTag.TVBOX -> result.add(SourceType.JSON_TVBOX)
 			SourceTag.IREADER -> result.add(SourceType.IREADER)
 		}

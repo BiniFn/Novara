@@ -10,7 +10,7 @@
 		app:showAsAction="ifRoom" />
 
 	<item
-		android:id="@+id/action_search"
+		android:id="@+id/action_local_search"
 		android:icon="?actionModeWebSearchDrawable"
 		android:title="@string/search"
 		app:actionViewClass="androidx.appcompat.widget.SearchView"

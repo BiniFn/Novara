@@ -206,6 +206,7 @@ fun ContentSource.getContentType(): ContentType = when (val source = unwrap()) {
 			}
 			sourceName.startsWith("JSON_JS_") -> ContentType.MANGA
 			sourceName.startsWith("TRACKING_") -> ContentType.OTHER
+			sourceName.startsWith("IREADER_") -> ContentType.NOVEL
 			else -> ContentType.MANGA
 		}
 	}

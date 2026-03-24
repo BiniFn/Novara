@@ -58,7 +58,6 @@ class FavoriteDialogViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			if (isChecked) {
 				favouritesRepository.addToCategory(categoryId, manga)
-				autoAssignSourceCategory(categoryId, manga)
 			} else {
 				favouritesRepository.removeFromCategory(categoryId, manga.ids())
 			}
@@ -66,27 +65,6 @@ class FavoriteDialogViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun autoAssignSourceCategory(primaryCategoryId: Long, mangas: List<org.skepsun.kototoro.parsers.model.Content>) {
-		for (m in mangas) {
-			val source = m.source
-			val origin = source.getOriginLabel(context)
-			val title = if (origin != null && origin != "内置") {
-				"${source.getTitle(context)} ($origin)"
-			} else {
-				source.getTitle(context)
-			}
-			val target = favouritesRepository.findCategoryByTitle(title)
-				?: favouritesRepository.createCategory(
-					title = title,
-					sortOrder = org.skepsun.kototoro.list.domain.ListSortOrder.NEWEST,
-					isTrackerEnabled = false,
-					isVisibleOnShelf = true,
-				)
-			if (target.id != primaryCategoryId) {
-				favouritesRepository.addToCategory(target.id, listOf(m))
-			}
-		}
-	}
 
 	private suspend fun mapList(categories: List<FavouriteCategory>, tracker: Boolean): List<ListModel> {
 		if (categories.isEmpty()) {

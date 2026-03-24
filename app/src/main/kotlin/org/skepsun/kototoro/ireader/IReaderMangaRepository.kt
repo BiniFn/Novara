@@ -82,8 +82,8 @@ class IReaderMangaRepository(
             val details = ireaderSource.getMangaDetails(mangaInfo, emptyList())
             val chapters = ireaderSource.getChapterList(mangaInfo, emptyList())
             android.util.Log.d("IReaderRepo", "getDetails: title=${details.title} chapters=${chapters.size}")
-            details.toContent().copy(
-                chapters = chapters.mapIndexed { index, ch -> ch.toContentChapter(index) },
+            details.toContent(originalManga = manga).copy(
+                chapters = chapters.mapIndexed { index, ch -> ch.toContentChapter(index, originalUrl = manga.url) },
             )
         } catch (e: Exception) {
             android.util.Log.e("IReaderRepo", "getDetails failed", e)
@@ -144,42 +144,49 @@ class IReaderMangaRepository(
 
     // --- Model Mapping ---
 
-    private fun MangaInfo.toContent(): Content {
+    private fun MangaInfo.toContent(originalUrl: String? = null, originalManga: Content? = null): Content {
         val id = key.hashCode().toLong()
+        val baseAbsoluteUrl = originalUrl ?: originalManga?.url
+        val finalUrl = if (!key.startsWith("http") && baseAbsoluteUrl?.startsWith("http") == true) {
+            runCatching { java.net.URI(baseAbsoluteUrl).resolve(key).toString() }.getOrDefault(key)
+        } else key
         return Content(
             id = id,
-            title = title,
-            altTitles = emptySet(),
-            url = key,
-            publicUrl = key,
-            rating = RATING_UNKNOWN,
-            contentRating = null,
-            coverUrl = cover.ifBlank { null },
-            tags = genres.map { ContentTag(it, it, source) }.toSet(),
+            title = title.takeIf { it.isNotBlank() } ?: originalManga?.title ?: "",
+            altTitles = originalManga?.altTitles ?: emptySet(),
+            url = finalUrl,
+            publicUrl = finalUrl,
+            rating = originalManga?.rating ?: RATING_UNKNOWN,
+            contentRating = originalManga?.contentRating,
+            coverUrl = cover.takeIf { it.isNotBlank() } ?: originalManga?.coverUrl,
+            tags = genres.map { it.trim() }.filter { it.isNotEmpty() }.map { ContentTag(it, it, source) }.toSet().takeIf { it.isNotEmpty() } ?: originalManga?.tags ?: emptySet(),
             state = when (status) {
                 MangaInfo.ONGOING -> ContentState.ONGOING
                 MangaInfo.COMPLETED, MangaInfo.PUBLISHING_FINISHED -> ContentState.FINISHED
                 MangaInfo.ON_HIATUS -> ContentState.PAUSED
                 MangaInfo.CANCELLED -> ContentState.ABANDONED
-                else -> null
+                else -> originalManga?.state
             },
             authors = buildSet {
                 if (author.isNotBlank()) add(author)
                 if (artist.isNotBlank() && artist != author) add(artist)
-            },
-            description = description.ifBlank { null },
+            }.takeIf { it.isNotEmpty() } ?: originalManga?.authors ?: emptySet(),
+            description = description.takeIf { it.isNotBlank() } ?: originalManga?.description,
             source = source,
         )
     }
 
-    private fun ChapterInfo.toContentChapter(index: Int): ContentChapter {
+    private fun ChapterInfo.toContentChapter(index: Int, originalUrl: String? = null): ContentChapter {
         val id = key.hashCode().toLong()
+        val finalUrl = if (!key.startsWith("http") && originalUrl?.startsWith("http") == true) {
+            runCatching { java.net.URI(originalUrl).resolve(key).toString() }.getOrDefault(key)
+        } else key
         return ContentChapter(
             id = id,
             title = name,
             number = if (number >= 0f) number else (index + 1).toFloat(),
             volume = 0,
-            url = key,
+            url = finalUrl,
             scanlator = scanlator.ifBlank { null },
             uploadDate = dateUpload,
             branch = null,

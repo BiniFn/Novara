@@ -536,6 +536,10 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 		return observeAniyomiSources().map { it.size }.distinctUntilChanged()
 	}
 
+	fun observeIReaderSourcesCount(): Flow<Int> {
+		return observeIReaderSources().map { it.size }.distinctUntilChanged()
+	}
+
 	fun observeEnabledSources(): Flow<List<ContentSourceInfo>> = combine(
 		observeIsNsfwDisabled(),
 		observeAllEnabled(),

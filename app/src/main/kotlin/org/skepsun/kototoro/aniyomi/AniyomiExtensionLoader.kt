@@ -129,7 +129,7 @@ class AniyomiExtensionLoader @Inject constructor(
             sourceFactoryKey = METADATA_SOURCE_FACTORY,
         )
         
-        return hasFeature || (hasPackageName && hasMetaData)
+        return hasFeature || hasMetaData
     }
     
     private fun extractExtensionInfo(pkgInfo: PackageInfo): AniyomiExtensionInfo? {

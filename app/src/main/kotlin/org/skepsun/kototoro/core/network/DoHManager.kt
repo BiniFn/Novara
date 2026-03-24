@@ -20,8 +20,16 @@ class DoHManager(
 	private var cachedDelegate: Dns? = null
 	private var cachedProvider: DoHProvider? = null
 
+	private val dohBypassDomains = listOf(
+		"github.com",
+		"githubusercontent.com"
+	)
+
 	override fun lookup(hostname: String): List<InetAddress> {
 		val effectiveHost = SniBypassHostMap.resolve(hostname) ?: hostname
+		if (dohBypassDomains.any { effectiveHost == it || effectiveHost.endsWith(".$it") }) {
+			return Dns.SYSTEM.lookup(effectiveHost)
+		}
 		return try {
 			getDelegate().lookup(effectiveHost)
 		} catch (e: UnknownHostException) {

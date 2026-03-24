@@ -185,7 +185,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 			HomeSourceOrigin.ANIYOMI -> getString(R.string.source_type_aniyomi)
 			HomeSourceOrigin.LEGADO -> getString(R.string.source_type_legado)
 			HomeSourceOrigin.TVBOX -> getString(R.string.source_type_tvbox)
-			HomeSourceOrigin.JAVASCRIPT -> getString(R.string.source_type_js)
 			HomeSourceOrigin.EXTERNAL -> getString(R.string.external_source)
 			HomeSourceOrigin.IREADER -> getString(R.string.source_type_ireader)
 		}

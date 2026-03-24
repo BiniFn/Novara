@@ -57,6 +57,7 @@ import org.skepsun.kototoro.core.model.getSummary
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.model.titleResId

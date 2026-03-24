@@ -59,6 +59,9 @@
     <string name="add_to_favourites">收藏</string>
     <string name="add_new_category">添加分类</string>
     <string name="add">添加</string>
+    <string name="pref_extension_jsdelivr_mirror">JSdelivr 镜像代理解析</string>
+    <string name="pref_extension_jsdelivr_mirror_summary">自动将由于 SNI 封锁导致连接重置的 raw.githubusercontent.com 仓库地址实时重写至国内可直连的 CDN 镜像。</string>
+    <string name="recommended_repositories">推荐仓库</string>
     <string name="save">保存</string>
     <string name="share">分享</string>
     <string name="create_shortcut">创建快捷方式</string>
@@ -514,7 +517,7 @@
     <string name="download_option_all_chapters">已翻译的章节 (%s)</string>
     <string name="state_upcoming">即将推出</string>
     <string name="by_name_reverse">名称（降序）</string>
-    <string name="manage_sources">内容源管理</string>
+    <string name="manage_sources">内置源管理</string>
     <string name="catalog">内容源目录</string>
     <string name="content_type_comics">美漫</string>
     <string name="content_type_other">其他</string>
@@ -1106,7 +1109,7 @@
     <!-- 内容源管理相关 -->
     <string name="source_tag_json">Legado</string>
     <string name="json_sources" translatable="false">JSON</string>
-    <string name="json_sources_directory">JSON源目录</string>
+    <string name="json_sources_directory">JSON源管理</string>
     <string name="built_in_sources_directory">内置源目录</string>
     <string name="mihon_sources_directory">Mihon源目录</string>
     <string name="aniyomi_sources_directory">Aniyomi源目录</string>
@@ -1135,8 +1138,8 @@
     <string name="mihon_extensions_summary">管理 Mihon 扩展源</string>
     <string name="aniyomi_extensions">Aniyomi 扩展</string>
     <string name="aniyomi_extensions_summary">管理 Aniyomi 扩展源</string>
-    <string name="extensions">扩展</string>
-    <string name="extensions_summary_pattern">漫画 %1$d · 动画 %2$d</string>
+    <string name="extensions">APK拓展管理</string>
+    <string name="extensions_summary_pattern">mihon %1$d aniyomi %2$d ireader %3$d</string>
     <string name="filter_extensions_by_language">按语言过滤扩展</string>
     <string name="filter_extensions_by_language_summary">仅显示与您选择的内容语言相匹配的 Mihon 和 Aniyomi 扩展</string>
     <string name="filter_extensions_by_selected_content_languages">按语言过滤扩展：已选内容语言</string>

@@ -70,6 +70,7 @@ private class KotoHttpClients(
         engine {
             preconfigured = kototoroClient
         }
+        BrowserUserAgent()
     }
 
     override val cloudflareClient: HttpClient = default

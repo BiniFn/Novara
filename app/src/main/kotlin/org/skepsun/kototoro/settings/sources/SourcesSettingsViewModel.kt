@@ -53,8 +53,12 @@ class SourcesSettingsViewModel @Inject constructor(
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
 
-	val extensionsSummary = combine(mihonSourcesCount, aniyomiSourcesCount) { mihonCount, aniyomiCount ->
-		context.getString(R.string.extensions_summary_pattern, mihonCount, aniyomiCount)
+	val ireaderSourcesCount = sourcesRepository.observeIReaderSourcesCount()
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0)
+
+	val extensionsSummary = combine(mihonSourcesCount, aniyomiSourcesCount, ireaderSourcesCount) { mihonCount, aniyomiCount, ireaderCount ->
+		context.getString(R.string.extensions_summary_pattern, mihonCount, aniyomiCount, ireaderCount)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, "")
 
 	val isLinksEnabled = MutableStateFlow(isLinksEnabled())

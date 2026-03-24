@@ -87,7 +87,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			} else {
 				raw.mapNotNull { x -> NavItem.entries.find(x) }
 				.filterNot { it == NavItem.DISCOVER }
-				.let { list -> if (NavItem.HOME !in list) listOf(NavItem.HOME) + list else list }
 				.ifEmpty { listOf(NavItem.HOME, NavItem.FAVORITES, NavItem.EXPLORE) }
 			}
 		}
@@ -161,6 +160,14 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var contentLanguages: Set<String>
 		get() = prefs.getStringSet(KEY_CONTENT_LANGUAGES, null) ?: setOf("zh", "en", "ja", "")
 		set(value) = prefs.edit { putStringSet(KEY_CONTENT_LANGUAGES, value) }
+
+	var isExtensionJsdelivrMirrorEnabled: Boolean
+		get() = prefs.getBoolean(KEY_EXTENSION_JSDELIVR_MIRROR, false)
+		set(value) = prefs.edit { putBoolean(KEY_EXTENSION_JSDELIVR_MIRROR, value) }
+
+	var extensionLanguages: Set<String>
+		get() = prefs.getStringSet(KEY_EXTENSION_LANGUAGES, null) ?: emptySet()
+		set(value) = prefs.edit { putStringSet(KEY_EXTENSION_LANGUAGES, value) }
 
 	var activeTvBoxRepositoryLocator: String?
 		get() = prefs.getString(KEY_TVBOX_ACTIVE_REPOSITORY, null)?.takeIf { it.isNotBlank() }
@@ -1381,6 +1388,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_PREFETCH_CONTENT = "prefetch_content"
 		const val KEY_APP_LOCALE = "app_locale"
 		const val KEY_CONTENT_LANGUAGES = "content_languages"
+		const val KEY_EXTENSION_LANGUAGES = "extension_languages"
+		const val KEY_EXTENSION_JSDELIVR_MIRROR = "extension_jsdelivr_mirror"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
 		const val KEY_SOURCES_GRID = "sources_grid"

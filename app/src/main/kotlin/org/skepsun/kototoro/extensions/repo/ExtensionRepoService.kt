@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.mihon.MihonExtensionLoader
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionLoader
@@ -19,6 +20,7 @@ import javax.inject.Singleton
 class ExtensionRepoService @Inject constructor(
 	@ContentHttpClient private val httpClient: OkHttpClient,
 	private val json: Json,
+	private val settings: AppSettings,
 ) {
 
 	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
@@ -103,7 +105,18 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	fun normalizeIndexUrl(input: String): String? {
-		val url = input.trim().toHttpUrlOrNull() ?: return null
+		var processUrl = input.trim()
+		if (settings.isExtensionJsdelivrMirrorEnabled) {
+			val githubRawRegex = Regex("""^https?://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)(?:/(.*))?$""")
+			val matchResult = githubRawRegex.matchEntire(processUrl)
+			if (matchResult != null) {
+				val (user, repo, branch, path) = matchResult.destructured
+				val trailingPath = if (path.isNotEmpty()) "/$path" else ""
+				processUrl = "https://fastly.jsdelivr.net/gh/$user/$repo@$branch$trailingPath"
+			}
+		}
+
+		val url = processUrl.toHttpUrlOrNull() ?: return null
 		if (url.scheme != "https") {
 			return null
 		}
@@ -138,6 +151,7 @@ class ExtensionRepoService @Inject constructor(
 			ExternalExtensionType.ANIYOMI -> name.removePrefix("Aniyomi: ")
 			ExternalExtensionType.IREADER -> name.removePrefix("IReader: ")
 		}
+
 		return RepoAvailableExtension(
 			type = repo.type,
 			name = displayName,
@@ -160,7 +174,7 @@ class ExtensionRepoService @Inject constructor(
 	private fun IReaderExtensionIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension {
 		val libVersion = runCatching { version.substringBeforeLast('.').toDouble() }.getOrNull() ?: 0.0
 		val displayName = name.removePrefix("IReader: ")
-		
+
 		return RepoAvailableExtension(
 			type = repo.type,
 			name = displayName,
@@ -179,6 +193,8 @@ class ExtensionRepoService @Inject constructor(
 			isCompatible = true,
 		)
 	}
+
+
 
 	@Serializable
 	private data class RepoMetaWrapperDto(
@@ -214,13 +230,13 @@ class ExtensionRepoService @Inject constructor(
 
 	@Serializable
 	private data class IReaderExtensionIndexDto(
-		val name: String,
-		val pkg: String,
-		val apk: String,
-		val lang: String,
-		val code: Long,
-		val version: String,
-		val nsfw: Boolean,
+		val name: String = "",
+		val pkg: String = "",
+		val apk: String = "",
+		val lang: String = "en",
+		val code: Long = 1,
+		val version: String = "1.0",
+		val nsfw: Boolean = false,
 	)
 
 	private companion object {

@@ -3,7 +3,15 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-  <path
-      android:fillColor="#FF000000"
-      android:pathData="M12,2L5,22H9L10,19H14L15,22H19L12,2M12,7L13.5,16H10.5L12,7Z"/>
+  <group
+      android:pivotX="12"
+      android:pivotY="12"
+      android:scaleX="1.25"
+      android:scaleY="1.25">
+    <path
+        android:fillColor="?attr/colorPrimary"
+        android:fillType="evenOdd"
+        android:pathData="M 12 4 A 8 8 0 1 1 12 20 A 8 8 0 1 1 12 4
+                          M 11 10.2 L 11 13.8 L 14 12 Z"/>
+  </group>
 </vector>

@@ -103,10 +103,20 @@ class ExtensionsBrowserAdapter(
 			}
 			textPackage.text = item.pkgName
 			textVersion.text = item.versionName
-			if (item.extension.iconUrl.isBlank()) {
-				imageIcon.setImageAsync(getFallbackIcon(item))
+			if (item.state == ExtensionsBrowserEntryState.INSTALLED) {
+				val icon = runCatching { root.context.packageManager.getApplicationIcon(item.pkgName) }.getOrNull()
+				if (icon != null) {
+					imageIcon.disposeImage()
+					imageIcon.setImageDrawable(icon)
+				} else {
+					imageIcon.setImageAsync(getFallbackIcon(item))
+				}
 			} else {
-				imageIcon.setImageAsync(item.extension.iconUrl)
+				if (item.extension.iconUrl.isBlank()) {
+					imageIcon.setImageAsync(getFallbackIcon(item))
+				} else {
+					imageIcon.setImageAsync(item.extension.iconUrl)
+				}
 			}
 			textRepo.text = if (item.state == ExtensionsBrowserEntryState.INSTALLED) {
 				root.context.getString(R.string.installed_repo_label)
@@ -157,11 +167,11 @@ class ExtensionsBrowserAdapter(
 				ExtensionsBrowserEntryState.AVAILABLE,
 				ExtensionsBrowserEntryState.INSTALLED -> false
 			}
-			buttonSecondary.text = if (item.state == ExtensionsBrowserEntryState.INSTALLING) {
-				root.context.getString(android.R.string.cancel)
+			buttonSecondary.setImageResource(if (item.state == ExtensionsBrowserEntryState.INSTALLING) {
+				R.drawable.ic_disable
 			} else {
-				root.context.getString(R.string.remove)
-			}
+				R.drawable.ic_disable
+			})
 			buttonSecondary.isEnabled = true
 			buttonSecondary.setOnClickListener {
 				if (item.state == ExtensionsBrowserEntryState.INSTALLING) {

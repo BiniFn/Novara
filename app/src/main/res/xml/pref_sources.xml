@@ -20,11 +20,31 @@
         android:summary="@string/setup_wizard_summary"
         android:title="@string/setup_wizard" />
 
-    <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.sources.manage.SourcesManageFragment"
-        android:key="remote_sources"
-        android:persistent="false"
-        android:title="@string/manage_sources" />
+    <PreferenceCategory android:title="@string/remote_sources">
+        <PreferenceScreen
+            android:fragment="org.skepsun.kototoro.settings.sources.manage.SourcesManageFragment"
+            android:key="remote_sources"
+            android:persistent="false"
+            android:title="@string/manage_sources" />
+
+        <PreferenceScreen
+            android:fragment="org.skepsun.kototoro.settings.sources.jsonsource.JsonSourcesRootFragment"
+            android:key="json_sources"
+            android:persistent="false"
+            android:title="@string/json_sources_directory" />
+
+        <PreferenceScreen
+            android:fragment="org.skepsun.kototoro.settings.sources.extensions.ExtensionsRootFragment"
+            android:key="extensions"
+            android:persistent="false"
+            android:title="@string/extensions" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="extension_jsdelivr_mirror"
+            android:title="@string/pref_extension_jsdelivr_mirror"
+            android:summary="@string/pref_extension_jsdelivr_mirror_summary" />
+    </PreferenceCategory>
 
     <SwitchPreferenceCompat
         android:defaultValue="false"
@@ -32,7 +52,6 @@
         android:summary="@string/enable_all_sources_summary"
         android:title="@string/enable_all_sources"
         app:allowDividerAbove="true" />
-
 
     <SwitchPreferenceCompat
         android:defaultValue="true"
@@ -44,24 +63,6 @@
         android:key="sources_catalog"
         android:persistent="false"
         android:title="@string/built_in_sources_directory" />
-
-    <Preference
-        android:key="import_json_sources"
-        android:persistent="false"
-        android:summary="@string/import_json_sources_summary"
-        android:title="@string/import_json_sources" />
-
-    <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.sources.jsonsource.JsonSourcesRootFragment"
-        android:key="json_sources"
-        android:persistent="false"
-        android:title="@string/json_sources_directory" />
-
-    <PreferenceScreen
-        android:fragment="org.skepsun.kototoro.settings.sources.extensions.ExtensionsRootFragment"
-        android:key="extensions"
-        android:persistent="false"
-        android:title="@string/extensions" />
 
     <SwitchPreferenceCompat
         android:defaultValue="false"

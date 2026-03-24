@@ -84,7 +84,7 @@ enum class HomeSourceOrigin {
 	ANIYOMI,
 	LEGADO,
 	TVBOX,
-	JAVASCRIPT,
+
 	EXTERNAL,
 	IREADER,
 }
@@ -177,7 +177,7 @@ class HomeViewModel @Inject constructor(
 				HomeSourceOrigin.ANIYOMI.toBreakdown(counts.countOf(OriginGroup.ANIYOMI)),
 				HomeSourceOrigin.LEGADO.toBreakdown(counts.countOf(OriginGroup.LEGADO_JSON)),
 				HomeSourceOrigin.TVBOX.toBreakdown(counts.countOf(OriginGroup.TVBOX_JSON)),
-				HomeSourceOrigin.JAVASCRIPT.toBreakdown(counts.countOf(OriginGroup.JS_JSON)),
+
 				HomeSourceOrigin.EXTERNAL.toBreakdown(counts.countOf(OriginGroup.EXTERNAL)),
 				HomeSourceOrigin.IREADER.toBreakdown(counts.countOf(OriginGroup.IREADER)),
 			).sortedByDescending { it.count }

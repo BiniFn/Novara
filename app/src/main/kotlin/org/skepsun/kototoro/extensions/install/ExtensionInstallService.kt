@@ -62,7 +62,7 @@ class ExtensionInstallService @Inject constructor(
 			_downloadStates.update { it - extension.pkgName }
 		}
 		val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.files", outputFile)
-		return Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+		return Intent(Intent.ACTION_VIEW).apply {
 			setDataAndType(uri, "application/vnd.android.package-archive")
 			addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

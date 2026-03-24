@@ -148,7 +148,7 @@ class SourcesManageFragment :
 
 		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
 			menuInflater.inflate(R.menu.opt_sources, menu)
-			val searchMenuItem = menu.findItem(R.id.action_search)
+			val searchMenuItem = menu.findItem(R.id.action_local_search)
 			searchMenuItem.setOnActionExpandListener(this)
 			val searchView = searchMenuItem.actionView as SearchView
 			searchView.setOnQueryTextListener(this)

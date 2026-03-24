@@ -141,7 +141,7 @@ class MihonExtensionLoader @Inject constructor(
         )
         
         // Mihon strictly checks for the feature, but we can be more inclusive
-        val isExtension = hasFeature || (hasPackageName && hasMetaData)
+        val isExtension = hasFeature || hasMetaData
         
         // Enhanced logging for debugging - LOG ALL POTENTIAL MATCHES
         val lowercasePkg = pkgName.lowercase()

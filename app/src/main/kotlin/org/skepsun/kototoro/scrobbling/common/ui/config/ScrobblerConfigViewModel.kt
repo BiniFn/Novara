@@ -167,7 +167,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 				}
 			}
 			
-			autoAssignSourceCategory(pickedContent)
+
 			
 			android.util.Log.d("ScrobblerConfigVM", "bindContent: completed successfully")
 			onBindResult.call(pickedContent.title)
@@ -181,23 +181,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 
 	fun getScrobblerService(): ScrobblerService = scrobblerService
 
-	private suspend fun autoAssignSourceCategory(manga: Content) {
-		val source = manga.source
-		val origin = source.getOriginLabel(context)
-		val title = if (origin != null && origin != "内置") {
-			"${source.getTitle(context)} ($origin)"
-		} else {
-			source.getTitle(context)
-		}
-		val target = favouritesRepository.findCategoryByTitle(title)
-			?: favouritesRepository.createCategory(
-				title = title,
-				sortOrder = org.skepsun.kototoro.list.domain.ListSortOrder.NEWEST,
-				isTrackerEnabled = false,
-				isVisibleOnShelf = true,
-			)
-		favouritesRepository.addToCategory(target.id, listOf(manga))
-	}
+
 
 	private fun buildContentList(list: List<ScrobblingInfo>): List<ListModel> {
 		if (list.isEmpty()) {

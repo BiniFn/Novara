@@ -28,8 +28,8 @@ class ExtensionsRootFragment : BaseFragment<FragmentExtensionsRootBinding>() {
 		TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
 			tab.setText(
 				when (position) {
-					0 -> R.string.manga
-					1 -> R.string.video
+					0 -> R.string.mihon_sources
+					1 -> R.string.aniyomi_sources
 					else -> R.string.ireader_sources
 				},
 			)

@@ -26,183 +26,6 @@
 			android:rowOrderPreserved="false"
 			android:useDefaultMargins="false">
 
-			<!-- 1. Sync Status (Half width) -->
-			<com.google.android.material.card.MaterialCardView
-				android:layout_width="0dp"
-				android:layout_height="match_parent"
-				android:layout_gravity="fill"
-				android:layout_margin="1dp"
-				android:layout_columnWeight="1"
-				app:cardUseCompatPadding="true">
-
-				<LinearLayout
-					android:layout_width="match_parent"
-					android:layout_height="match_parent"
-					android:orientation="vertical"
-					android:padding="16dp">
-
-					<TextView
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:text="@string/sync_status"
-						android:textAppearance="?attr/textAppearanceTitleMedium"
-						android:textStyle="bold" />
-
-					<TextView
-						android:id="@+id/textViewSyncStatus"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="8dp"
-						android:textAppearance="?attr/textAppearanceBodyMedium"
-						tools:text="WebDAV Auto Sync" />
-
-					<TextView
-						android:id="@+id/textViewSyncSubtitle"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="4dp"
-						android:textAppearance="?attr/textAppearanceBodySmall"
-						android:textColor="?android:attr/textColorSecondary"
-						tools:text="2 minutes ago" />
-
-					<Space
-						android:layout_width="match_parent"
-						android:layout_height="0dp"
-						android:layout_weight="1" />
-
-					<LinearLayout
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="12dp"
-						android:orientation="vertical">
-
-						<LinearLayout
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:gravity="end|center_vertical"
-							android:orientation="horizontal">
-
-							<com.google.android.material.button.MaterialButton
-								android:id="@+id/buttonSyncBackup"
-								style="?attr/borderlessButtonStyle"
-								android:layout_width="wrap_content"
-								android:layout_height="wrap_content"
-								android:minWidth="0dp"
-								android:insetLeft="0dp"
-								android:insetRight="0dp"
-								android:paddingHorizontal="8dp"
-								android:visibility="gone"
-								android:text="@string/create_backup" />
-
-							<com.google.android.material.button.MaterialButton
-								android:id="@+id/buttonSyncRestore"
-								style="?attr/borderlessButtonStyle"
-								android:layout_width="wrap_content"
-								android:layout_height="wrap_content"
-								android:minWidth="0dp"
-								android:insetLeft="0dp"
-								android:insetRight="0dp"
-								android:paddingHorizontal="8dp"
-								android:visibility="gone"
-								android:text="@string/restore" />
-						</LinearLayout>
-
-						<LinearLayout
-							android:layout_width="match_parent"
-							android:layout_height="wrap_content"
-							android:gravity="end|center_vertical"
-							android:orientation="horizontal">
-
-							<com.google.android.material.button.MaterialButton
-								android:id="@+id/buttonSyncSettings"
-								style="?attr/borderlessButtonStyle"
-								android:layout_width="wrap_content"
-								android:layout_height="wrap_content"
-								android:minWidth="0dp"
-								android:insetLeft="0dp"
-								android:insetRight="0dp"
-								android:paddingHorizontal="8dp"
-								android:text="@string/settings" />
-						</LinearLayout>
-					</LinearLayout>
-
-				</LinearLayout>
-
-			</com.google.android.material.card.MaterialCardView>
-
-			<!-- 2. Sources Overview (Half width) -->
-			<com.google.android.material.card.MaterialCardView
-				android:layout_width="0dp"
-				android:layout_height="match_parent"
-				android:layout_gravity="fill"
-				android:layout_margin="1dp"
-				android:layout_columnWeight="1"
-				app:cardUseCompatPadding="true">
-
-				<LinearLayout
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:orientation="vertical"
-					android:padding="16dp">
-
-					<TextView
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:text="@string/home_sources_overview"
-						android:textAppearance="?attr/textAppearanceTitleMedium"
-						android:textStyle="bold" />
-
-					<TextView
-						android:id="@+id/textViewSourceItem1"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="12dp"
-						android:textAppearance="?attr/textAppearanceBodySmall"
-						tools:text="Built-in · 8" />
-
-					<TextView
-						android:id="@+id/textViewSourceItem2"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="4dp"
-						android:textAppearance="?attr/textAppearanceBodySmall"
-						tools:text="Mihon · 4" />
-
-					<TextView
-						android:id="@+id/textViewSourceItem3"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="4dp"
-						android:textAppearance="?attr/textAppearanceBodySmall"
-						tools:text="TVBox · 3" />
-
-					<Space
-						android:layout_width="match_parent"
-						android:layout_height="0dp"
-						android:layout_weight="1" />
-
-					<LinearLayout
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="12dp"
-						android:gravity="end|center_vertical"
-						android:orientation="horizontal">
-
-						<com.google.android.material.button.MaterialButton
-							android:id="@+id/buttonSourceSettings"
-							style="?attr/borderlessButtonStyle"
-							android:layout_width="wrap_content"
-							android:layout_height="wrap_content"
-							android:minWidth="0dp"
-							android:insetLeft="0dp"
-							android:insetRight="0dp"
-							android:paddingHorizontal="8dp"
-							android:text="@string/manage" />
-					</LinearLayout>
-
-				</LinearLayout>
-			</com.google.android.material.card.MaterialCardView>
-
 			<!-- 3. Combined Recent Content (Full width) -->
 			<com.google.android.material.card.MaterialCardView
 				android:layout_width="0dp"
@@ -513,6 +336,182 @@
 
 			</com.google.android.material.card.MaterialCardView>
 
+			<!-- 1. Sync Status (Half width) -->
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_gravity="fill"
+				android:layout_margin="1dp"
+				android:layout_columnWeight="1"
+				app:cardUseCompatPadding="true">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="match_parent"
+					android:orientation="vertical"
+					android:padding="16dp">
+
+					<TextView
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/sync_status"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
+
+					<TextView
+						android:id="@+id/textViewSyncStatus"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:textAppearance="?attr/textAppearanceBodyMedium"
+						tools:text="WebDAV Auto Sync" />
+
+					<TextView
+						android:id="@+id/textViewSyncSubtitle"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="4dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						android:textColor="?android:attr/textColorSecondary"
+						tools:text="2 minutes ago" />
+
+					<Space
+						android:layout_width="match_parent"
+						android:layout_height="0dp"
+						android:layout_weight="1" />
+
+					<LinearLayout
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:orientation="vertical">
+
+						<LinearLayout
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content"
+							android:gravity="end|center_vertical"
+							android:orientation="horizontal">
+
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonSyncBackup"
+								style="?attr/borderlessButtonStyle"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:minWidth="0dp"
+								android:insetLeft="0dp"
+								android:insetRight="0dp"
+								android:paddingHorizontal="8dp"
+								android:visibility="gone"
+								android:text="@string/create_backup" />
+
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonSyncRestore"
+								style="?attr/borderlessButtonStyle"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:minWidth="0dp"
+								android:insetLeft="0dp"
+								android:insetRight="0dp"
+								android:paddingHorizontal="8dp"
+								android:visibility="gone"
+								android:text="@string/restore" />
+						</LinearLayout>
+
+						<LinearLayout
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content"
+							android:gravity="end|center_vertical"
+							android:orientation="horizontal">
+
+							<com.google.android.material.button.MaterialButton
+								android:id="@+id/buttonSyncSettings"
+								style="?attr/borderlessButtonStyle"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:minWidth="0dp"
+								android:insetLeft="0dp"
+								android:insetRight="0dp"
+								android:paddingHorizontal="8dp"
+								android:text="@string/settings" />
+						</LinearLayout>
+					</LinearLayout>
+
+				</LinearLayout>
+
+			</com.google.android.material.card.MaterialCardView>
+
+			<!-- 2. Sources Overview (Half width) -->
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_gravity="fill"
+				android:layout_margin="1dp"
+				android:layout_columnWeight="1"
+				app:cardUseCompatPadding="true">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:padding="16dp">
+
+					<TextView
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/home_sources_overview"
+						android:textAppearance="?attr/textAppearanceTitleMedium"
+						android:textStyle="bold" />
+
+					<TextView
+						android:id="@+id/textViewSourceItem1"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						tools:text="Built-in · 8" />
+
+					<TextView
+						android:id="@+id/textViewSourceItem2"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="4dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						tools:text="Mihon · 4" />
+
+					<TextView
+						android:id="@+id/textViewSourceItem3"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="4dp"
+						android:textAppearance="?attr/textAppearanceBodySmall"
+						tools:text="TVBox · 3" />
+
+					<Space
+						android:layout_width="match_parent"
+						android:layout_height="0dp"
+						android:layout_weight="1" />
+
+					<LinearLayout
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="12dp"
+						android:gravity="end|center_vertical"
+						android:orientation="horizontal">
+
+						<com.google.android.material.button.MaterialButton
+							android:id="@+id/buttonSourceSettings"
+							style="?attr/borderlessButtonStyle"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:minWidth="0dp"
+							android:insetLeft="0dp"
+							android:insetRight="0dp"
+							android:paddingHorizontal="8dp"
+							android:text="@string/manage" />
+					</LinearLayout>
+
+				</LinearLayout>
+			</com.google.android.material.card.MaterialCardView>
 		</GridLayout>
 
 	</LinearLayout>

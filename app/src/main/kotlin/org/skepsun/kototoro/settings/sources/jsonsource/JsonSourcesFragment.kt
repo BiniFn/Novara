@@ -424,7 +424,6 @@ class JsonSourcesFragment :
 		}
 		
 		override fun onPrepareMenu(menu: Menu) {
-			menu.findItem(R.id.action_import)?.isVisible = false
 			// Update sort checkmarks
 			val sortSubMenu = menu.findItem(R.id.action_sort)?.subMenu
 			sortSubMenu?.findItem(R.id.menu_sort_name)?.isChecked = currentSort == SortOption.NAME
@@ -509,11 +508,6 @@ class JsonSourcesFragment :
 			}
 			
 			return when (itemId) {
-				R.id.action_add_source -> {
-					val intent = android.content.Intent(requireContext(), org.skepsun.kototoro.settings.sources.jsonsource.edit.JsonSourceEditActivity::class.java)
-					startActivity(intent)
-					true
-				}
 				R.id.action_import -> {
 					showImportDialog()
 					true

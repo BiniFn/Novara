@@ -98,23 +98,42 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 
 	private fun openAddDialog() {
 		val builder = MaterialAlertDialogBuilder(requireContext())
-		val input = builder.setEditText(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, true)
-		input.hint = getString(R.string.extension_repository_url_hint)
-		
-		val defaultUrl = when (viewModel.type) {
-			ExternalExtensionType.MIHON -> "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json"
-			ExternalExtensionType.ANIYOMI -> "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json"
-			ExternalExtensionType.IREADER -> "https://raw.githubusercontent.com/ireaderorg/ireader-extensions/repo/index.min.json"
+		val presets = when (viewModel.type) {
+			ExternalExtensionType.MIHON -> listOf(
+				"https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
+				"https://raw.githubusercontent.com/yuzono/manga-repo/repo/index.min.json",
+			)
+			ExternalExtensionType.ANIYOMI -> listOf(
+				"https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
+				"https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
+				"https://raw.githubusercontent.com/KudoAni/aniyomi-extensions/repo/index.min.json",
+			)
+			ExternalExtensionType.IREADER -> listOf(
+				"https://raw.githubusercontent.com/IReaderorg/IReader-extensions/repov2/index.min.json",
+			)
 		}
-		input.setText(defaultUrl)
+		val input = builder.setEditText(presets, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
+		input.hint = getString(R.string.extension_repository_url_hint)
 
 		val dialog = builder
 			.setTitle(R.string.add_extension_repository)
 			.setMessage(R.string.add_extension_repository_message)
 			.setPositiveButton(android.R.string.ok, null)
 			.setNegativeButton(android.R.string.cancel, null)
+			.setNeutralButton(R.string.recommended_repositories, null)
 			.create()
 		dialog.setOnShowListener {
+			dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+				val popupMenu = androidx.appcompat.widget.PopupMenu(requireContext(), it)
+				presets.forEachIndexed { index, url ->
+					popupMenu.menu.add(0, index, 0, url)
+				}
+				popupMenu.setOnMenuItemClickListener { menuItem ->
+					input.setText(presets[menuItem.itemId])
+					true
+				}
+				popupMenu.show()
+			}
 			dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
 				val value = input.text?.toString().orEmpty()
 				if (value.isBlank()) {
