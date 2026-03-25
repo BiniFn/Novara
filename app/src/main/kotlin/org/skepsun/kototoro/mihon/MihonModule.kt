@@ -9,6 +9,7 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.core.network.ContentHttpClient
+import org.skepsun.kototoro.core.network.webview.WebViewExecutor
 import org.skepsun.kototoro.mihon.compat.KotoInjektBridge
 import javax.inject.Singleton
 
@@ -22,12 +23,14 @@ object MihonModule {
         @ApplicationContext context: Context,
         @ContentHttpClient okHttpClient: OkHttpClient,
         cookieJar: CookieJar,
+        webViewExecutor: WebViewExecutor,
     ): KotoInjektBridge {
         return try {
             KotoInjektBridge(
                 context = context,
                 httpClient = okHttpClient,
                 cookieJar = cookieJar,
+                webViewExecutor = webViewExecutor,
             )
         } catch (e: Throwable) {
             android.util.Log.e("MihonModule", "CRITICAL ERROR: Failed to create KotoInjektBridge!", e)

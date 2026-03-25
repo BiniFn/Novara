@@ -27,40 +27,47 @@ data class LNReaderPluginMetadata(
 			if (jsCode.isBlank()) return null
 
 			val id = listOf(
-				"""id\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""['"]id['"]\s*:\s*['"]([^'"]+)['"]""".toRegex()
+				"""(?s)id\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)['"]id['"]\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)get\s+id\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull { it.find(jsCode)?.groupValues?.get(1) } ?: fallbackId
 
 			val name = listOf(
-				"""name\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""['"]name['"]\s*:\s*['"]([^'"]+)['"]""".toRegex()
+				"""(?s)name\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)['"]name['"]\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)get\s+name\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull {
 				it.find(jsCode)?.groupValues?.get(1)?.takeIf { n -> n.length > 2 }
 			} ?: id.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: "Unknown"
 
 			val version = listOf(
-				"""version\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""['"]version['"]\s*:\s*['"]([^'"]+)['"]""".toRegex()
+				"""(?s)version\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)['"]version['"]\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)get\s+version\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull {
 				it.find(jsCode)?.groupValues?.get(1)?.takeIf { v -> v.matches(Regex("""[\d.]+""")) }
 			} ?: "1.0.0"
 
 			val site = listOf(
-				"""site\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""baseUrl\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""['"]site['"]\s*:\s*['"]([^'"]+)['"]""".toRegex()
+				"""(?s)site\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)baseUrl\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)['"]site['"]\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)get\s+site\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull {
 				it.find(jsCode)?.groupValues?.get(1)?.takeIf { s -> s.startsWith("http") }
 			} ?: ""
 
 			val lang = listOf(
-				"""lang\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""['"]lang['"]\s*:\s*['"]([^'"]+)['"]""".toRegex()
+				"""(?s)lang\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)['"]lang['"]\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)get\s+lang\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull { it.find(jsCode)?.groupValues?.get(1) } ?: "en"
 
 			val icon = listOf(
-				"""icon\s*:\s*['"]([^'"]+)['"]""".toRegex(),
-				"""['"]icon['"]\s*:\s*['"]([^'"]+)['"]""".toRegex()
+				"""(?s)icon\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)['"]icon['"]\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)get\s+icon\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)['"`]""".toRegex(),
+				"""(?s)iconUrl\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull { it.find(jsCode)?.groupValues?.get(1) } ?: ""
 
 			return LNReaderPluginMetadata(id, name, site, version, lang, icon)

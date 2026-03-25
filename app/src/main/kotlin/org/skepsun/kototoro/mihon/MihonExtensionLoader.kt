@@ -68,7 +68,9 @@ class MihonExtensionLoader @Inject constructor(
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.filter { pkg: PackageInfo ->
+            val extPkgs = installedPkgs.map { pkgInfo ->
+                ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, pkgInfo)
+            }.filter { pkg: PackageInfo ->
                 val isExt = isPackageAnExtension(pkg)
                 if (pkg.packageName.contains("coomer", ignoreCase = true)) {
                     android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
@@ -118,6 +120,7 @@ class MihonExtensionLoader @Inject constructor(
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
         
         return installedPkgs
+            .map { ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, it) }
             .filter { isPackageAnExtension(it) }
             .mapNotNull { extractExtensionInfo(it) }
     }
@@ -129,9 +132,7 @@ class MihonExtensionLoader @Inject constructor(
         val hasFeature = pkgInfo.reqFeatures?.any { it.name == EXTENSION_FEATURE } == true
         
         // Method 2: Check for package naming convention (optional but helps)
-        val hasPackageName = pkgName.contains(".extension") || 
-                            pkgName.startsWith("eu.kanade.tachiyomi.") ||
-                            pkgName.startsWith("org.keiyoushi.")
+        val hasPackageName = ExternalExtensionLoaderSupport.looksLikeMihonPackage(pkgName)
         
         // Method 3: Check for metadata in application info
         val hasMetaData = ExternalExtensionMetadataSupport.hasDeclaredSource(
@@ -141,7 +142,7 @@ class MihonExtensionLoader @Inject constructor(
         )
         
         // Mihon strictly checks for the feature, but we can be more inclusive
-        val isExtension = hasFeature || hasMetaData
+        val isExtension = hasFeature || hasMetaData || hasPackageName
         
         // Enhanced logging for debugging - LOG ALL POTENTIAL MATCHES
         val lowercasePkg = pkgName.lowercase()
@@ -171,10 +172,14 @@ class MihonExtensionLoader @Inject constructor(
     }
     
     private fun extractExtensionInfo(pkgInfo: PackageInfo): MihonExtensionInfo? {
-        val appInfo = pkgInfo.applicationInfo ?: return null
+        val completePkgInfo = ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(
+            applicationContext.packageManager,
+            pkgInfo,
+        )
+        val appInfo = completePkgInfo.applicationInfo ?: return null
         val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo) ?: return null
         
-        val versionName = pkgInfo.versionName ?: return null
+        val versionName = completePkgInfo.versionName ?: return null
         
         // Extract library version - handles different version formats
         val libVersion = try {
@@ -201,12 +206,12 @@ class MihonExtensionLoader @Inject constructor(
             null
         } ?: pkgInfo.packageName.substringAfterLast('.')
         
-        val lang = ExternalExtensionLoaderSupport.extractLanguage(pkgInfo.packageName, "extension")
+        val lang = ExternalExtensionLoaderSupport.extractLanguage(completePkgInfo.packageName, "extension")
         
         return MihonExtensionInfo(
-            pkgName = pkgInfo.packageName,
+            pkgName = completePkgInfo.packageName,
             appName = appName,
-            versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo),
+            versionCode = PackageInfoCompat.getLongVersionCode(completePkgInfo),
             versionName = versionName,
             libVersion = libVersion,
             lang = lang,
@@ -217,13 +222,17 @@ class MihonExtensionLoader @Inject constructor(
     }
     
     private fun loadExtension(context: Context, pkgInfo: PackageInfo): MihonLoadResult {
-        val pkgName = pkgInfo.packageName
-        val appInfo = pkgInfo.applicationInfo
+        val completePkgInfo = ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(
+            context.packageManager,
+            pkgInfo,
+        )
+        val pkgName = completePkgInfo.packageName
+        val appInfo = completePkgInfo.applicationInfo
             ?: return MihonLoadResult.Error(pkgName, "No ApplicationInfo")
         
-        val versionName = pkgInfo.versionName
+        val versionName = completePkgInfo.versionName
             ?: return MihonLoadResult.Error(pkgName, "No version name")
-        val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
+        val versionCode = PackageInfoCompat.getLongVersionCode(completePkgInfo)
         
         // Extract library version - match Mihon's logic (substringBeforeLast)
         val libVersion = versionName.substringBeforeLast('.').toDoubleOrNull()

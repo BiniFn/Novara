@@ -76,6 +76,9 @@ class SourceGroupManager @Inject constructor(
 					org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> {
 						if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 					}
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.LNREADER -> {
+						if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+					}
 				}
 			} catch (e: Exception) {
 				android.util.Log.e("SourceGroupManager", "Failed to parse JSON source config for ${source.name}", e)
@@ -111,6 +114,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.MIHON -> OriginGroup.MIHON
 			SourceType.ANIYOMI -> OriginGroup.ANIYOMI
 			SourceType.IREADER -> OriginGroup.IREADER
+			SourceType.JSON_LNREADER -> OriginGroup.LNREADER_JSON
 		}
 	}
 	
@@ -243,7 +247,12 @@ enum class OriginGroup {
 	/**
 	 * IReader extension sources
 	 */
-	IREADER
+	IREADER,
+
+	/**
+	 * JSON sources using LNReader format
+	 */
+	LNREADER_JSON
 }
 
 /**

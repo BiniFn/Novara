@@ -65,7 +65,9 @@ class AniyomiExtensionLoader @Inject constructor(
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.filter { pkgInfo: PackageInfo -> isPackageAnExtension(pkgInfo) }
+            val extPkgs = installedPkgs.map { pkgInfo ->
+                ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, pkgInfo)
+            }.filter { pkgInfo: PackageInfo -> isPackageAnExtension(pkgInfo) }
             
             if (extPkgs.isEmpty()) {
                 android.util.Log.d(TAG, "No Aniyomi extensions found")
@@ -109,6 +111,7 @@ class AniyomiExtensionLoader @Inject constructor(
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
         
         return installedPkgs
+            .map { ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, it) }
             .filter { isPackageAnExtension(it) }
             .mapNotNull { extractExtensionInfo(it) }
     }
@@ -120,7 +123,7 @@ class AniyomiExtensionLoader @Inject constructor(
         val hasFeature = pkgInfo.reqFeatures?.any { it.name == EXTENSION_FEATURE } == true
         
         // Method 2: Check for package naming convention
-        val hasPackageName = pkgName.startsWith("eu.kanade.tachiyomi.animeextension.")
+        val hasPackageName = ExternalExtensionLoaderSupport.looksLikeAniyomiPackage(pkgName)
         
         // Method 3: Check for metadata in application info
         val hasMetaData = ExternalExtensionMetadataSupport.hasDeclaredSource(
@@ -129,14 +132,18 @@ class AniyomiExtensionLoader @Inject constructor(
             sourceFactoryKey = METADATA_SOURCE_FACTORY,
         )
         
-        return hasFeature || hasMetaData
+        return hasFeature || hasMetaData || hasPackageName
     }
     
     private fun extractExtensionInfo(pkgInfo: PackageInfo): AniyomiExtensionInfo? {
-        val appInfo = pkgInfo.applicationInfo ?: return null
+        val completePkgInfo = ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(
+            applicationContext.packageManager,
+            pkgInfo,
+        )
+        val appInfo = completePkgInfo.applicationInfo ?: return null
         val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo) ?: return null
         
-        val versionName = pkgInfo.versionName ?: return null
+        val versionName = completePkgInfo.versionName ?: return null
         
         // Aniyomi lib version is usually the first part of the version name
         val libVersion = try {
@@ -154,12 +161,12 @@ class AniyomiExtensionLoader @Inject constructor(
             ?: return null
         
         val appName = ExternalExtensionLoaderSupport.getAppLabel(applicationContext, appInfo)
-        val lang = ExternalExtensionLoaderSupport.extractLanguage(pkgInfo.packageName, "animeextension")
+        val lang = ExternalExtensionLoaderSupport.extractLanguage(completePkgInfo.packageName, "animeextension")
         
         return AniyomiExtensionInfo(
-            pkgName = pkgInfo.packageName,
+            pkgName = completePkgInfo.packageName,
             appName = appName,
-            versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo),
+            versionCode = PackageInfoCompat.getLongVersionCode(completePkgInfo),
             versionName = versionName,
             libVersion = libVersion,
             lang = lang,
@@ -170,13 +177,17 @@ class AniyomiExtensionLoader @Inject constructor(
     }
     
     private fun loadExtension(context: Context, pkgInfo: PackageInfo): AniyomiLoadResult {
-        val pkgName = pkgInfo.packageName
-        val appInfo = pkgInfo.applicationInfo
+        val completePkgInfo = ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(
+            context.packageManager,
+            pkgInfo,
+        )
+        val pkgName = completePkgInfo.packageName
+        val appInfo = completePkgInfo.applicationInfo
             ?: return AniyomiLoadResult.Error(pkgName, "No ApplicationInfo")
         
-        val versionName = pkgInfo.versionName
+        val versionName = completePkgInfo.versionName
             ?: return AniyomiLoadResult.Error(pkgName, "No version name")
-        val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
+        val versionCode = PackageInfoCompat.getLongVersionCode(completePkgInfo)
         
         val libVersion = versionName.substringBefore('.').toDoubleOrNull()
             ?: return AniyomiLoadResult.Error(pkgName, "Invalid lib version format: $versionName")

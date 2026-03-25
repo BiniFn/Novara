@@ -664,7 +664,7 @@ class NovelContentLoader @Inject constructor(
      * 将HTML转换为纯文本
      */
     private fun htmlToPlainText(html: String): String {
-        val imgRe = Regex("(?i)<img[^>]+src=['\"]([^'\"]+)['\"][^>]*>")
+        val imgRe = Regex("(?i)<img[^>]+(?:data-src|src)=['\"]([^'\"]+)['\"][^>]*>")
         return html
             .replace(Regex("<script[^>]*>.*?</script>", RegexOption.DOT_MATCHES_ALL), "")
             .replace(Regex("<style[^>]*>.*?</style>", RegexOption.DOT_MATCHES_ALL), "")

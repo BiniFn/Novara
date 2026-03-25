@@ -48,6 +48,7 @@ class HomeCoverAdapter(
 				content?.largeCoverUrl.ifNullOrEmpty { content?.coverUrl },
 				content,
 			)
+			binding.textViewTitle.text = content?.title ?: ""
 			binding.root.setOnClickListener {
 				content?.let(onContentClick)
 			}

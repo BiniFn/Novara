@@ -17,6 +17,7 @@ import org.skepsun.kototoro.core.lnreader.LNReaderPluginInfo
 import org.skepsun.kototoro.core.lnreader.LNReaderRepository
 import org.skepsun.kototoro.core.network.jsonsource.JsonSourceHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import javax.inject.Inject
 
@@ -34,8 +35,13 @@ class LNReaderRepoViewModel @Inject constructor(
 	private val _searchQuery = MutableStateFlow("")
 	val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 	
-	private val _langFilter = MutableStateFlow<String?>(null)
-	val langFilter: StateFlow<String?> = _langFilter.asStateFlow()
+	private val selectedExtensionLanguages: StateFlow<Set<String>> = appSettings.observeAsFlow(
+		AppSettings.KEY_EXTENSION_LANGUAGES,
+	) { extensionLanguages }
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), appSettings.extensionLanguages)
+
+	private val _collapsedLanguageGroups = MutableStateFlow<Set<String>>(emptySet())
+	val collapsedLanguageGroups: StateFlow<Set<String>> = _collapsedLanguageGroups.asStateFlow()
 
 	private val _uiState = MutableStateFlow<RepoUiState>(RepoUiState.Idle)
 	val uiState: StateFlow<RepoUiState> = _uiState.asStateFlow()
@@ -60,33 +66,38 @@ class LNReaderRepoViewModel @Inject constructor(
 				.distinct()
 				.sorted()
 		}
-		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+		.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
 	/** Filtered + grouped plugin list for display */
 	val displayPlugins: StateFlow<List<PluginDisplayItem>> = combine(
 		_plugins,
 		_searchQuery,
-		_langFilter,
+		selectedExtensionLanguages,
+		_collapsedLanguageGroups,
 		installedSourceIds,
-	) { plugins, query, langFilter, installed ->
+	) { plugins, query, selectedLanguages, collapsedGroups, installed ->
 		val filtered = plugins
 			.filter { p ->
-				(query.isBlank() || p.name.contains(query, ignoreCase = true) || p.site.contains(query, ignoreCase = true))
-					&& (langFilter == null || p.lang == langFilter)
+				val matchesQuery = query.isBlank() || p.name.contains(query, ignoreCase = true) || p.site.contains(query, ignoreCase = true)
+				val matchesLang = selectedLanguages.isEmpty() || p.lang in selectedLanguages
+				matchesQuery && matchesLang
 			}
 
 		// Group by language
 		val grouped = filtered.groupBy { it.lang }
 		val items = mutableListOf<PluginDisplayItem>()
 		for ((lang, langPlugins) in grouped.entries.sortedBy { it.key }) {
-			items.add(PluginDisplayItem.LangHeader(lang, langPlugins.size))
-			for (plugin in langPlugins.sortedBy { it.name }) {
-				val isInstalled = installed.any { id ->
-					// Match by hash-based ID pattern
-					id.contains(plugin.site.hashCode().toUInt().toString(16).uppercase()) ||
-						id.contains(plugin.id.hashCode().toUInt().toString(16).uppercase())
+			val isCollapsed = collapsedGroups.contains(lang)
+			items.add(PluginDisplayItem.LangHeader(lang, langPlugins.size, isCollapsed))
+			if (!isCollapsed) {
+				for (plugin in langPlugins.sortedBy { it.name }) {
+					val isInstalled = installed.any { id ->
+						// Match by hash-based ID pattern
+						id.contains(plugin.site.hashCode().toUInt().toString(16).uppercase()) ||
+							id.contains(plugin.id.hashCode().toUInt().toString(16).uppercase())
+					}
+					items.add(PluginDisplayItem.Plugin(plugin, isInstalled))
 				}
-				items.add(PluginDisplayItem.Plugin(plugin, isInstalled))
 			}
 		}
 		items
@@ -129,12 +140,40 @@ class LNReaderRepoViewModel @Inject constructor(
 		}
 	}
 
+	fun uninstallPlugin(plugin: LNReaderPluginInfo) {
+		viewModelScope.launch(Dispatchers.IO) {
+			_installingPluginIds.value = _installingPluginIds.value + plugin.id
+			
+			val idsToRemove = installedSourceIds.value.filter { id ->
+				id.contains(plugin.site.hashCode().toUInt().toString(16).uppercase()) ||
+				id.contains(plugin.id.hashCode().toUInt().toString(16).uppercase())
+			}
+			
+			idsToRemove.forEach { id ->
+				try {
+					jsonSourceManager.deleteSource(id)
+					android.util.Log.d("LNReaderRepoVM", "Deleted source $id for ${plugin.name}")
+				} catch (e: Exception) {
+					android.util.Log.e("LNReaderRepoVM", "Failed to delete source $id", e)
+				}
+			}
+			
+			_installingPluginIds.value = _installingPluginIds.value - plugin.id
+		}
+	}
+
 	fun setSearchQuery(query: String) {
 		_searchQuery.value = query
 	}
 
-	fun setLangFilter(lang: String?) {
-		_langFilter.value = lang
+	fun setSelectedExtensionLanguages(languages: Set<String>) {
+		appSettings.extensionLanguages = languages
+	}
+
+	fun toggleLanguageGroup(lang: String) {
+		_collapsedLanguageGroups.value = _collapsedLanguageGroups.value.toMutableSet().apply {
+			if (!add(lang)) remove(lang)
+		}
 	}
 }
 
@@ -146,6 +185,6 @@ sealed class RepoUiState {
 }
 
 sealed class PluginDisplayItem {
-	data class LangHeader(val lang: String, val count: Int) : PluginDisplayItem()
+	data class LangHeader(val lang: String, val count: Int, val isCollapsed: Boolean) : PluginDisplayItem()
 	data class Plugin(val info: LNReaderPluginInfo, val isInstalled: Boolean) : PluginDisplayItem()
 }

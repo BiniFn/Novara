@@ -74,8 +74,9 @@ class LNReaderContentRepository(
 				}
 			}
 		} catch (e: Exception) {
+			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getList failed for ${source.name}", e)
-			emptyList()
+			throw Exception("LNReader JS Error in ${source.name}: ${e.message}", e)
 		}
 	}
 	
@@ -111,8 +112,9 @@ class LNReaderContentRepository(
 				)
 			}
 		} catch (e: Exception) {
+			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getDetails failed for ${source.name}", e)
-			manga
+			throw Exception("LNReader JS Error: ${e.message}", e)
 		}
 	}
 	
@@ -126,10 +128,14 @@ class LNReaderContentRepository(
 			executeInPluginContext { bridge ->
 				val htmlContent = bridge.parseChapter(chapterPath)
 				if (htmlContent.isNotBlank()) {
+					val encoded = android.util.Base64.encodeToString(
+						htmlContent.toByteArray(Charsets.UTF_8),
+						android.util.Base64.NO_WRAP
+					)
 					listOf(
 						ContentPage(
 							id = chapter.id,
-							url = "lnreader://chapter/${chapterPath}",
+							url = "data:text/html;base64,$encoded",
 							preview = null,
 							source = source
 						)
@@ -139,8 +145,9 @@ class LNReaderContentRepository(
 				}
 			}
 		} catch (e: Exception) {
+			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getPages failed for ${source.name}", e)
-			emptyList()
+			throw Exception("LNReader JS Error: ${e.message}", e)
 		}
 	}
 	
@@ -165,8 +172,9 @@ class LNReaderContentRepository(
 				}
 			}
 		} catch (e: Exception) {
+			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getChapterContent failed for ${source.name}", e)
-			null
+			throw Exception("LNReader JS Error: ${e.message}", e)
 		}
 	}
 	
@@ -183,15 +191,25 @@ class LNReaderContentRepository(
 	 * Creates QuickJS engine → loads plugin → runs block → disposes.
 	 */
 	private suspend fun <T> executeInPluginContext(block: suspend (LNReaderPluginBridge) -> T): T {
-		val fetchBridge = LNReaderFetchBridge(httpClient, pluginId)
-		val engine = LNReaderEngine(appContext, fetchBridge)
-		val qjs = engine.createPluginContext(jsContent, pluginId)
-		
-		return try {
-			val bridge = LNReaderPluginBridge(qjs, pluginId)
-			block(bridge)
-		} finally {
-			qjs.close()
+		return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+			val fetchBridge = LNReaderFetchBridge(httpClient, pluginId)
+			val engine = LNReaderEngine(appContext, fetchBridge)
+			val qjs = engine.createPluginContext(jsContent, pluginId)
+			
+			try {
+				val bridge = LNReaderPluginBridge(qjs, pluginId)
+				block(bridge).also {
+					// Re-throw any fatal interactive exceptions that were tunneled out of QuickJS fetch 
+					// even if Javascript swallowed the error and resolved the promise
+					fetchBridge.pendingFatalException?.let { throw it }
+				}
+			} catch (e: Exception) {
+				fetchBridge.pendingFatalException?.let { throw it }
+				Log.e(TAG, "executeInPluginContext failed for ${source.name}", e)
+				throw Exception("LNReader JS Error in ${source.name}: ${e.message}", e)
+			} finally {
+				qjs.close()
+			}
 		}
 	}
 	

@@ -110,6 +110,21 @@ class FaviconFetcher(
 				} ?: fetchDefaultIcon(mangaSource)
 			}
 
+			// LNReader sources: extract icon from JS code config
+			is org.skepsun.kototoro.core.lnreader.LNReaderContentRepository -> {
+				val configStr = (repo.source as? JsonContentSource)?.entity?.config
+				val iconUrl = try {
+					configStr?.let { 
+						org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata.extractFromCode(it, "")?.icon?.takeIf { s -> s.isNotBlank() } 
+					}
+				} catch (e: Exception) {
+					null
+				}
+				iconUrl?.let { url ->
+					runCatchingCancellable { imageLoader.fetch(url, options) }.getOrNull()
+				} ?: fetchDefaultIcon(mangaSource)
+			}
+
 			else -> fetchDefaultIcon(mangaSource)
 		}
 	}

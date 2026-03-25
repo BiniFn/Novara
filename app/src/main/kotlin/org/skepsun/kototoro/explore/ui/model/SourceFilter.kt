@@ -85,7 +85,7 @@ sealed class SourceFilter(
 	fun matchesOriginGroup(group: OriginGroup): Boolean = when (this) {
 		All -> true
 		Native -> group == OriginGroup.NATIVE
-		JsonOnly -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON
+		JsonOnly -> group == OriginGroup.LEGADO_JSON || group == OriginGroup.TVBOX_JSON || group == OriginGroup.JS_JSON || group == OriginGroup.LNREADER_JSON
 		ContentOnly, NovelOnly, VideoOnly -> true // Content filters don't filter by origin
 	}
 }

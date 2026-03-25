@@ -205,6 +205,7 @@ fun ContentSource.getContentType(): ContentType = when (val source = unwrap()) {
 				// as Legado is primarily a novel engine.
 				ContentType.NOVEL
 			}
+			sourceName.startsWith("JSON_LNREADER_") -> ContentType.NOVEL
 			sourceName.startsWith("JSON_JS_") -> ContentType.MANGA
 			sourceName.startsWith("TRACKING_") -> ContentType.OTHER
 			sourceName.startsWith("IREADER_") -> ContentType.NOVEL

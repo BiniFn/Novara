@@ -289,9 +289,14 @@ class NovelChaptersLoader(
     }
 
     private fun htmlToPlainText(html: String): String {
+        val imgRe = Regex("(?i)<img[^>]+(?:data-src|src)=['\"]([^'\"]+)['\"][^>]*>")
         return html
             .replace(Regex("<script[^>]*>.*?</script>", RegexOption.DOT_MATCHES_ALL), "")
             .replace(Regex("<style[^>]*>.*?</style>", RegexOption.DOT_MATCHES_ALL), "")
+            .replace(imgRe) { m ->
+                val src = m.groupValues.getOrNull(1).orEmpty()
+                if (src.isNotBlank()) "\n📷 [图片: $src]\n" else ""
+            }
             .replace(Regex("<[^>]+>"), "")
             .replace("&nbsp;", " ")
             .replace("&lt;", "<")

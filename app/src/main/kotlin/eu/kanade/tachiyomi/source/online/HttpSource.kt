@@ -12,6 +12,7 @@ import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.skepsun.kototoro.parsers.model.ContentSource
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
 import java.net.URI
@@ -85,7 +86,7 @@ abstract class HttpSource : CatalogueSource {
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getPopularManga"))
     override fun fetchPopularManga(page: Int): Observable<MangasPage> {
         return Observable.fromCallable {
-            val response = client.newCall(popularMangaRequest(page)).execute()
+            val response = client.newCall(tagRequest(popularMangaRequest(page))).execute()
             popularMangaParse(response)
         }
     }
@@ -105,7 +106,7 @@ abstract class HttpSource : CatalogueSource {
         return Observable.defer {
             try {
                 Observable.fromCallable {
-                    val response = client.newCall(searchMangaRequest(page, query, filters)).execute()
+                    val response = client.newCall(tagRequest(searchMangaRequest(page, query, filters))).execute()
                     searchMangaParse(response)
                 }
             } catch (e: NoClassDefFoundError) {
@@ -127,7 +128,7 @@ abstract class HttpSource : CatalogueSource {
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getLatestUpdates"))
     override fun fetchLatestUpdates(page: Int): Observable<MangasPage> {
         return Observable.fromCallable {
-            val response = client.newCall(latestUpdatesRequest(page)).execute()
+            val response = client.newCall(tagRequest(latestUpdatesRequest(page))).execute()
             latestUpdatesParse(response)
         }
     }
@@ -146,7 +147,7 @@ abstract class HttpSource : CatalogueSource {
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getMangaDetails"))
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
         return Observable.fromCallable {
-            val response = client.newCall(mangaDetailsRequest(manga)).execute()
+            val response = client.newCall(tagRequest(mangaDetailsRequest(manga))).execute()
             mangaDetailsParse(response).apply { initialized = true }
         }
     }
@@ -167,7 +168,7 @@ abstract class HttpSource : CatalogueSource {
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getChapterList"))
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> {
         return Observable.fromCallable {
-            val response = client.newCall(chapterListRequest(manga)).execute()
+            val response = client.newCall(tagRequest(chapterListRequest(manga))).execute()
             chapterListParse(response)
         }
     }
@@ -188,7 +189,7 @@ abstract class HttpSource : CatalogueSource {
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getPageList"))
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
         return Observable.fromCallable {
-            val response = client.newCall(pageListRequest(chapter)).execute()
+            val response = client.newCall(tagRequest(pageListRequest(chapter))).execute()
             pageListParse(response)
         }
     }
@@ -208,7 +209,7 @@ abstract class HttpSource : CatalogueSource {
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getImageUrl"))
     open fun fetchImageUrl(page: Page): Observable<String> {
         return Observable.fromCallable {
-            val response = client.newCall(imageUrlRequest(page)).execute()
+            val response = client.newCall(tagRequest(imageUrlRequest(page))).execute()
             imageUrlParse(response)
         }
     }
@@ -218,6 +219,18 @@ abstract class HttpSource : CatalogueSource {
     }
 
     protected abstract fun imageUrlParse(response: Response): String
+
+    private fun tagRequest(request: Request): Request {
+        if (request.tag(ContentSource::class.java) != null) {
+            return request
+        }
+        return request.newBuilder()
+            .tag(
+                ContentSource::class.java,
+                org.skepsun.kototoro.core.model.ContentSource("MIHON_$id"),
+            )
+            .build()
+    }
 
     // ======== Image request ========
 

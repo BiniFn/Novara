@@ -10,6 +10,7 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.Cache
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
+import okhttp3.brotli.BrotliInterceptor
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.network.cookies.AndroidCookieJar
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
@@ -82,6 +83,7 @@ interface NetworkModule {
 			addInterceptor(GZipInterceptor())
 			addInterceptor(CloudFlareInterceptor())
 			addInterceptor(RateLimitInterceptor())
+			addNetworkInterceptor(BrotliInterceptor)
 			if (BuildConfig.DEBUG) {
 				addInterceptor(CurlLoggingInterceptor())
 			}

@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
@@ -39,6 +40,7 @@ import kotlin.coroutines.suspendCoroutine
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Cookie
 import java.util.concurrent.TimeUnit
+import org.json.JSONObject
 
 @Singleton
 class WebViewExecutor @Inject constructor(
@@ -59,6 +61,228 @@ class WebViewExecutor @Inject constructor(
 			// Probably WebView is not available
 			null
 		}
+	}
+
+	/**
+	 * Execute a same-origin GET request in a real WebView context and return response data.
+	 * Useful for sources where Cloudflare still challenges OkHttp even with valid cookies.
+	 */
+	suspend fun fetchWithBrowserContext(
+		url: String,
+		userAgent: String? = null,
+		headers: Map<String, String> = emptyMap(),
+		settleDelayMs: Long = 1200,
+		timeoutMs: Long = 30000,
+	): BrowserFetchResult? = mutex.withLock {
+		withContext(Dispatchers.Main.immediate) {
+			val target = url.toHttpUrlOrNull() ?: return@withContext null
+			val webView = obtainWebView()
+			try {
+				android.util.Log.d("WebViewExecutor", "fetchWithBrowserContext start: $url")
+				webView.configureForParser(userAgent, blockImages = true)
+				withTimeout(timeoutMs) {
+					// Ensure browser context is established on the same origin first.
+					suspendCancellableCoroutine<Unit> { cont ->
+						webView.webViewClient = object : WebViewClient() {
+							override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+								if (cont.isActive) {
+									cont.resume(Unit)
+								}
+							}
+						}
+						val baseUrl = target.newBuilder()
+							.encodedPath("/")
+							.query(null)
+							.fragment(null)
+							.build()
+							.toString()
+						webView.loadUrl(baseUrl)
+					}
+					kotlinx.coroutines.delay(settleDelayMs)
+
+					val allowedHeaders = headers.filterKeys { key ->
+						!key.equals("Referer", ignoreCase = true) && !key.equals("Origin", ignoreCase = true)
+					}
+					val jsHeaders = JSONObject(allowedHeaders).toString()
+					val js = """
+						window.__kototoroFetchResult = null;
+						(async () => {
+						  try {
+						  	// Wait for document to be ready if it's not already
+						    if (document.readyState === 'loading') {
+						        await new Promise(resolve => {
+						            document.addEventListener('DOMContentLoaded', resolve);
+						            setTimeout(resolve, 3000);
+						        });
+						    }
+						    const response = await fetch(${JSONObject.quote(url)}, {
+						      method: 'GET',
+						      credentials: 'include',
+						      headers: $jsHeaders,
+						    });
+						    const text = await response.text();
+						    const responseHeaders = {};
+						    response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+						    window.__kototoroFetchResult = JSON.stringify({
+						      ok: true,
+						      status: response.status,
+						      statusText: response.statusText || '',
+						      url: response.url || ${JSONObject.quote(url)},
+						      headers: responseHeaders,
+						      body: text || '',
+						    });
+						  } catch (e) {
+						    window.__kototoroFetchResult = JSON.stringify({
+						      ok: false,
+						      error: String(e),
+						      errorName: e?.name ? String(e.name) : '',
+						      errorMessage: e?.message ? String(e.message) : '',
+						      errorStack: e?.stack ? String(e.stack) : '',
+						    });
+						  }
+						})();
+					""".trimIndent()
+
+					webView.evaluateJavascript(js, null)
+					var raw = ""
+					while (isActive) {
+						val pollResult = suspendCancellableCoroutine<String> { cont ->
+							webView.evaluateJavascript("window.__kototoroFetchResult") { result ->
+								if (cont.isActive) {
+									cont.resume(decodeJavascriptString(result))
+								}
+							}
+						}
+						if (pollResult.isNotBlank() && pollResult != "null") {
+							raw = pollResult
+							webView.evaluateJavascript("window.__kototoroFetchResult = null;", null)
+							break
+						}
+						kotlinx.coroutines.delay(100)
+					}
+					if (raw.isBlank()) {
+						android.util.Log.w("WebViewExecutor", "fetchWithBrowserContext empty JS result")
+						return@withTimeout tryNavigationFetchFallback(webView, url, headers)
+					}
+					val json = runCatching { JSONObject(raw) }.onFailure {
+						android.util.Log.w(
+							"WebViewExecutor",
+							"fetchWithBrowserContext JSON parse failed: ${it.message}; rawPreview=${raw.take(200)}",
+						)
+					}.getOrNull() ?: return@withTimeout tryNavigationFetchFallback(webView, url, headers)
+					if (!json.optBoolean("ok")) {
+						android.util.Log.w(
+							"WebViewExecutor",
+							"fetchWithBrowserContext failed: error=${json.optString("error")}, name=${json.optString("errorName")}, message=${json.optString("errorMessage")}, stack=${json.optString("errorStack").take(300)}",
+						)
+						return@withTimeout tryNavigationFetchFallback(webView, url, headers)
+					}
+					val responseHeadersObj = json.optJSONObject("headers")
+					val responseHeaders = linkedMapOf<String, String>()
+					if (responseHeadersObj != null) {
+						val keys = responseHeadersObj.keys()
+						while (keys.hasNext()) {
+							val key = keys.next()
+							responseHeaders[key] = responseHeadersObj.optString(key)
+						}
+					}
+					BrowserFetchResult(
+						status = json.optInt("status"),
+						statusText = json.optString("statusText"),
+						url = json.optString("url"),
+						headers = responseHeaders,
+						body = json.optString("body"),
+					)
+				}
+			} finally {
+				android.util.Log.d("WebViewExecutor", "fetchWithBrowserContext end: $url")
+				webView.reset()
+			}
+		}
+	}
+
+	private suspend fun tryNavigationFetchFallback(
+		webView: WebView,
+		url: String,
+		headers: Map<String, String>,
+	): BrowserFetchResult? {
+		android.util.Log.i("WebViewExecutor", "fetchWithBrowserContext fallback to navigation: $url")
+		var statusCode: Int? = null
+		var statusText: String? = null
+		suspendCancellableCoroutine<Unit> { cont ->
+			webView.webViewClient = object : WebViewClient() {
+				override fun onReceivedHttpError(
+					view: WebView?,
+					request: WebResourceRequest?,
+					errorResponse: android.webkit.WebResourceResponse?
+				) {
+					if (request?.isForMainFrame == true) {
+						statusCode = errorResponse?.statusCode
+						statusText = errorResponse?.reasonPhrase
+					}
+				}
+
+				override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+					if (cont.isActive) {
+						cont.resume(Unit)
+					}
+				}
+			}
+			if (headers.isNotEmpty()) {
+				webView.loadUrl(url, headers)
+			} else {
+				webView.loadUrl(url)
+			}
+		}
+		kotlinx.coroutines.delay(500)
+
+		val contentType = suspendCancellableCoroutine<String> { cont ->
+			webView.evaluateJavascript("document.contentType || ''") { result ->
+				cont.resume(decodeJavascriptString(result))
+			}
+		}
+		val body = suspendCancellableCoroutine<String> { cont ->
+			webView.evaluateJavascript(
+				"""(function() {
+					const html = document.documentElement ? document.documentElement.outerHTML : '';
+					if (html.includes('cf-browser-verification') || html.includes('__cf_chl_opt') || html.includes('turnstile') || html.includes('cf_chl') || html.includes('Cloudflare') || html.includes('Ray ID')) {
+						return html;
+					}
+					const pre = document.querySelector('pre');
+					if (pre) return pre.innerText || pre.textContent || '';
+					const body = document.body;
+					if (body) return body.innerText || body.textContent || '';
+					return html;
+				})()"""
+			) { result ->
+				cont.resume(decodeJavascriptString(result))
+			}
+		}
+		if (body.isBlank()) {
+			android.util.Log.w("WebViewExecutor", "navigation fallback produced empty body")
+			return null
+		}
+		val responseHeaders = linkedMapOf<String, String>()
+		if (contentType.isNotBlank()) {
+			responseHeaders["content-type"] = contentType
+		}
+		val isCloudflare = body.contains("cf-browser-verification") || body.contains("__cf_chl_opt") || body.contains("turnstile") || body.contains("cf_chl", ignoreCase = true) || body.contains("Cloudflare") || body.contains("Ray ID")
+		if (isCloudflare) {
+			responseHeaders["server"] = "cloudflare"
+		}
+		val code = if (isCloudflare) 403 else (statusCode ?: 200)
+		val message = statusText.orEmpty()
+		android.util.Log.i(
+			"WebViewExecutor",
+			"navigation fallback success: status=$code contentType=${contentType.ifBlank { "<empty>" }} bodyLength=${body.length} isCloudflare=$isCloudflare",
+		)
+		return BrowserFetchResult(
+			status = code,
+			statusText = message,
+			url = url,
+			headers = responseHeaders,
+			body = body,
+		)
 	}
 
 	suspend fun evaluateJs(baseUrl: String?, script: String): String? = mutex.withLock {
@@ -399,20 +623,22 @@ class WebViewExecutor @Inject constructor(
 		val headers: Map<String, String>,
 	)
 
+	data class BrowserFetchResult(
+		val status: Int,
+		val statusText: String,
+		val url: String,
+		val headers: Map<String, String>,
+		val body: String,
+	)
+
 	private fun decodeJavascriptString(value: String?): String {
 		if (value.isNullOrBlank() || value == "null") {
 			return ""
 		}
-		if (!value.startsWith("\"") || !value.endsWith("\"")) {
-			return value
+		return try {
+			org.json.JSONTokener(value).nextValue() as? String ?: value
+		} catch (e: Exception) {
+			value
 		}
-		return value.substring(1, value.length - 1)
-			.replace("\\u003C", "<")
-			.replace("\\u003E", ">")
-			.replace("\\u0026", "&")
-			.replace("\\n", "\n")
-			.replace("\\t", "\t")
-			.replace("\\\"", "\"")
-			.replace("\\\\", "\\")
 	}
 }

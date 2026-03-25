@@ -25,7 +25,8 @@ enum class SourceTag(
     LEGADO(R.string.source_type_legado, R.drawable.ic_source_legado, "legado"),
 
     TVBOX(R.string.source_type_tvbox, R.drawable.ic_source_tvbox, "tvbox"),
-    IREADER(R.string.source_type_ireader, R.drawable.ic_source_ireader, "ireader");
+    IREADER(R.string.source_type_ireader, R.drawable.ic_source_ireader, "ireader"),
+    LNREADER(R.string.source_type_lnreader, R.drawable.ic_source_lnreader, "lnreader");
 
     /**
      * Whether this tag matches the given content and origin group.
@@ -37,6 +38,7 @@ enum class SourceTag(
         LEGADO -> originGroup == OriginGroup.LEGADO_JSON
         TVBOX -> originGroup == OriginGroup.TVBOX_JSON
         IREADER -> originGroup == OriginGroup.IREADER
+        LNREADER -> originGroup == OriginGroup.LNREADER_JSON
     }
 
     /**
@@ -49,6 +51,7 @@ enum class SourceTag(
         LEGADO -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
         TVBOX -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
         IREADER -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
+        LNREADER -> tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
     }
 
     companion object {
@@ -59,6 +62,7 @@ enum class SourceTag(
             LEGADO,
             TVBOX,
             IREADER,
+            LNREADER,
         )
 
         fun sanitizeQuickFilterSelection(tags: Set<SourceTag>): Set<SourceTag> =

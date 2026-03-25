@@ -6,6 +6,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.kanade.tachiyomi.network.NetworkHelper
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.core.network.ContentHttpClient
+import org.skepsun.kototoro.core.network.webview.WebViewExecutor
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
@@ -21,6 +22,7 @@ class KotoInjektBridge(
     private val context: Context,
     private val httpClient: OkHttpClient,
     private val cookieJar: okhttp3.CookieJar,
+    private val webViewExecutor: WebViewExecutor? = null,
 ) {
     
     private val application: Application
@@ -40,7 +42,11 @@ class KotoInjektBridge(
         if (initialized) return
         
         try {
-            val networkHelper = KotoNetworkHelper(httpClient, cookieJar)
+            val networkHelper = KotoNetworkHelper(httpClient, cookieJar, webViewExecutor)
+            android.util.Log.d(
+                "KotoInjektBridge",
+                "Creating KotoNetworkHelper with webViewExecutorPresent=${webViewExecutor != null}",
+            )
             
             Injekt.importModule(object : InjektModule {
                 override fun InjektRegistrar.registerInjectables() {

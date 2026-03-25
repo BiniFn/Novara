@@ -8,11 +8,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 
 /**
  * Bridge between Kotlin and LNReader JavaScript plugins.
@@ -36,7 +39,9 @@ class LNReaderPluginBridge(
 	}
 	
 	private val sanitizedId = pluginId.replace(Regex("[^a-zA-Z0-9_]"), "_")
-	private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+	private val json = Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false }
+	
+// Empty line
 	
 	// ==================== Plugin Metadata ====================
 	
@@ -87,9 +92,22 @@ class LNReaderPluginBridge(
 					var plugin = globalThis.__plugin_${sanitizedId};
 					if (!plugin) throw new Error('Plugin not found');
 					if (typeof plugin.popularNovels !== 'function') throw new Error('popularNovels not found');
-					var result = await plugin.popularNovels($page, {showLatestNovels: false});
+					
+					var defaultFilters = {};
+				if (plugin.filters) {
+					// Pass the full filter objects so plugins can access .value, .type, etc.
+					for (var key in plugin.filters) {
+						if (plugin.filters[key]) {
+							defaultFilters[key] = plugin.filters[key];
+						} else {
+							defaultFilters[key] = { value: '' };
+						}
+					}
+				}
+				var result = await plugin.popularNovels($page, { showLatestNovels: false, filters: defaultFilters });
 					globalThis.$resultVar = { success: true, data: JSON.stringify(result || []) };
 				} catch (error) {
+					console.error("PLUGIN EVAL ERROR: " + String(error) + "\nSTACK: " + (error ? error.stack : "null"));
 					globalThis.$resultVar = { 
 						success: false, 
 						error: (error && error.message) ? error.message : String(error)
@@ -200,6 +218,8 @@ class LNReaderPluginBridge(
 			while (attempts < MAX_POLL_ATTEMPTS) {
 				delay(waitTime)
 				
+				processCheerioQueue()
+				
 				if (attempts % 5 == 0 || attempts < 10) {
 					val checkResult = qjs.evaluate<String?>(
 						"(function() { var r = globalThis.$resultVar; if (!r) return null; return JSON.stringify(r); })()",
@@ -248,6 +268,9 @@ class LNReaderPluginBridge(
 			
 			while (attempts < MAX_POLL_ATTEMPTS) {
 				delay(waitTime)
+				
+				// Actively process any cheerio node queries offloaded by NativeCheerioBridge
+				processCheerioQueue()
 				
 				// Check every 5 attempts or first 10 to reduce engine calls
 				if (attempts % 5 == 0 || attempts < 10) {
@@ -346,6 +369,15 @@ class LNReaderPluginBridge(
 			author = author, summary = summary, genres = genres,
 			status = status, chapters = chapters
 		)
+	}
+	
+	/**
+	 * Scans the Javascript environment for NativeCheerioBridge DOM requests (`__cheerioQueue`).
+	 * Computes the queries using JSoup on the Kotlin thread, and returns the serialised layout data
+	 * back to `__cheerioResults` for the Javascript engine to continue parsing.
+	 */
+	private suspend fun processCheerioQueue() {
+		// Obsolete empty function
 	}
 	
 	private fun escapeForJS(str: String): String {

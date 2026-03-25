@@ -1,8 +1,25 @@
 package org.skepsun.kototoro.mihon.compat
 
 import eu.kanade.tachiyomi.network.NetworkHelper
+import kotlinx.coroutines.runBlocking
+import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okio.IOException
+import org.skepsun.kototoro.core.exceptions.CloudFlareBlockedException
+import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
+import org.skepsun.kototoro.core.network.webview.WebViewExecutor
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import org.skepsun.kototoro.parsers.network.UserAgents
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Kototoro's implementation of Mihon's NetworkHelper interface.
@@ -19,6 +36,7 @@ import org.skepsun.kototoro.parsers.network.UserAgents
 class KotoNetworkHelper(
     baseClient: OkHttpClient,
     val cookieJar: okhttp3.CookieJar,
+    private val webViewExecutor: WebViewExecutor? = null,
 ) : NetworkHelper() {
     
     /**
@@ -54,10 +72,90 @@ class KotoNetworkHelper(
         baseClient.networkInterceptors.forEach { interceptor ->
             builder.addNetworkInterceptor(interceptor)
         }
+
+        // Add a Mihon-specific fallback detector.
+        // Some Mihon sources build their own clients from network.cloudflareClient, and in practice
+        // the copied base interceptor chain is not always enough to surface Kototoro's CF flow.
+        builder.addInterceptor { chain ->
+            val originalRequest = chain.request()
+            val request = enrichApiRequestHeadersIfNeeded(originalRequest)
+            val response = chain.proceed(request)
+            val challengeUrl = request.toChallengeUrl()
+            when (CloudFlareHelper.checkResponseForProtection(response)) {
+                CloudFlareHelper.PROTECTION_BLOCKED -> response.closeThrowing(
+                    CloudFlareBlockedException(
+                        url = challengeUrl,
+                        source = request.tag(ContentSource::class.java),
+                    ),
+                )
+
+                CloudFlareHelper.PROTECTION_CAPTCHA -> {
+                    val host = request.url.host.lowercase()
+                    val clearance = cookieJar.loadForRequest(request.url)
+                        .firstOrNull { it.name == "cf_clearance" }
+                        ?.value
+
+                    tryFetchWithWebView(request)?.let { browserResponse ->
+                        val browserProtection = CloudFlareHelper.checkResponseForProtection(browserResponse)
+                        if (browserProtection == CloudFlareHelper.PROTECTION_NOT_DETECTED) {
+                            android.util.Log.i(
+                                "MihonNetwork",
+                                "WebView fallback succeeded for host=$host, status=${browserResponse.code}",
+                            )
+                            response.close()
+                            return@addInterceptor browserResponse
+                        }
+                        android.util.Log.w(
+                            "MihonNetwork",
+                            "WebView fallback still protected for host=$host, status=${browserResponse.code}",
+                        )
+                        browserResponse.close()
+                    }
+
+                    if (shouldSkipInteractiveAction(host, clearance)) {
+                        android.util.Log.w(
+                            "MihonNetwork",
+                            "Skip interactive action for host=$host: repeated challenge with same cf_clearance",
+                        )
+                        response.closeThrowing(
+                            CloudFlareBlockedException(
+                                url = challengeUrl,
+                                source = request.tag(ContentSource::class.java),
+                            ),
+                        )
+                    } else {
+                        val source = request.tag(ContentSource::class.java)
+                        if (source == null) {
+                            android.util.Log.e("MihonNetwork", "Missing ContentSource tag for interactive action fallback")
+                            response.closeThrowing(CloudFlareBlockedException(url = challengeUrl, source = null))
+                        } else {
+                            response.closeThrowing(
+                                InteractiveActionRequiredException(
+                                    source = source,
+                                    url = challengeUrl,
+                                    userAgent = request.header("User-Agent"),
+                                    successCookieUrl = challengeUrl,
+                                    successCookieName = "cf_clearance",
+                                ),
+                            )
+                        }
+                    }
+                }
+
+                else -> response
+            }
+        }
         
         // Add debug logging interceptor for Mihon extensions
         builder.addInterceptor { chain ->
             val request = chain.request()
+            val requestCookies = cookieJar.loadForRequest(request.url)
+            val cfClearanceCookie = requestCookies.firstOrNull { it.name == "cf_clearance" }?.value
+            val cookieNames = requestCookies.joinToString(",") { it.name }
+            android.util.Log.d(
+                "MihonNetwork",
+                "RequestMeta: host=${request.url.host}, ua=${request.header("User-Agent")}, referer=${request.header("Referer")}, origin=${request.header("Origin")}, hasCfClearance=${cfClearanceCookie != null}, cfClearance=${maskCookieValue(cfClearanceCookie)}, cookies=[$cookieNames]",
+            )
             android.util.Log.d("MihonNetwork", "Request: ${request.method} ${request.url}")
             
             val response = chain.proceed(request)
@@ -65,7 +163,10 @@ class KotoNetworkHelper(
             // Log response info
             val responseCode = response.code
             val contentType = response.header("Content-Type")
-            android.util.Log.d("MihonNetwork", "Response: $responseCode, Content-Type: $contentType, URL: ${request.url}")
+            android.util.Log.d(
+                "MihonNetwork",
+                "Response: $responseCode, Content-Type: $contentType, cf-ray=${response.header("cf-ray")}, cf-mitigated=${response.header("cf-mitigated")}, server=${response.header("server")}, URL: ${request.url}",
+            )
             
             // If response is not successful, log the first 200 chars of body for debugging
             if (!response.isSuccessful) {
@@ -91,5 +192,200 @@ class KotoNetworkHelper(
     /**
      * Returns the default user agent string.
      */
-    override fun defaultUserAgentProvider(): String = UserAgents.FIREFOX_MOBILE
+    override fun defaultUserAgentProvider(): String = UserAgents.CHROME_MOBILE
+
+    private fun Response.closeThrowing(error: Throwable): Nothing {
+        try {
+            close()
+        } catch (e: Exception) {
+            error.addSuppressed(e)
+        }
+        throw error
+    }
+
+    private fun okhttp3.Request.toChallengeUrl(): String {
+        val referer = header("Referer")?.toHttpUrlOrNull()
+        if (referer != null && referer.host == url.host) {
+            return referer.newBuilder()
+                .query(null)
+                .fragment(null)
+                .build()
+                .toString()
+        }
+        return url.newBuilder()
+            .encodedPath("/")
+            .query(null)
+            .fragment(null)
+            .build()
+            .toString()
+    }
+
+    private fun enrichApiRequestHeadersIfNeeded(request: okhttp3.Request): okhttp3.Request {
+        if (!request.url.encodedPath.startsWith("/api/")) return request
+        val cookies = cookieJar.loadForRequest(request.url)
+        val hasCfClearance = cookies.any { it.name == "cf_clearance" }
+        if (!hasCfClearance) return request
+        val origin = "${request.url.scheme}://${request.url.host}"
+        var modified = false
+        val builder = request.newBuilder()
+        if (request.header("Referer").isNullOrBlank()) {
+            builder.header("Referer", "$origin/")
+            modified = true
+        }
+        if (request.header("Origin").isNullOrBlank()) {
+            builder.header("Origin", origin)
+            modified = true
+        }
+        if (request.header("Accept").isNullOrBlank()) {
+            builder.header("Accept", "application/json, text/plain, */*")
+            modified = true
+        }
+        if (request.header("Accept-Language").isNullOrBlank()) {
+            builder.header("Accept-Language", "en-US,en;q=0.9")
+            modified = true
+        }
+        if (request.header("Sec-Fetch-Site").isNullOrBlank()) {
+            builder.header("Sec-Fetch-Site", "same-origin")
+            modified = true
+        }
+        if (request.header("Sec-Fetch-Mode").isNullOrBlank()) {
+            builder.header("Sec-Fetch-Mode", "cors")
+            modified = true
+        }
+        if (request.header("Sec-Fetch-Dest").isNullOrBlank()) {
+            builder.header("Sec-Fetch-Dest", "empty")
+            modified = true
+        }
+        if (request.header("X-Requested-With").isNullOrBlank()) {
+            builder.header("X-Requested-With", "XMLHttpRequest")
+            modified = true
+        }
+        if (request.header("X-XSRF-TOKEN").isNullOrBlank()) {
+            val xsrf = cookies.firstOrNull { it.name == "XSRF-TOKEN" }?.value
+            val decodedXsrf = xsrf?.let {
+                runCatching { URLDecoder.decode(it, StandardCharsets.UTF_8.name()) }.getOrDefault(it)
+            }
+            if (!decodedXsrf.isNullOrBlank()) {
+                builder.header("X-XSRF-TOKEN", decodedXsrf)
+                modified = true
+            }
+        }
+        return if (modified) builder.build() else request
+    }
+
+    private fun maskCookieValue(value: String?): String {
+        if (value.isNullOrEmpty()) return "<empty>"
+        return if (value.length <= 8) "***" else "${value.take(4)}...${value.takeLast(4)}"
+    }
+
+    private fun tryFetchWithWebView(request: Request): Response? {
+        if (request.method != "GET") {
+            android.util.Log.d("MihonNetwork", "WebView fallback skipped: non-GET ${request.method}")
+            return null
+        }
+        if (!request.url.encodedPath.startsWith("/api/")) {
+            android.util.Log.d("MihonNetwork", "WebView fallback skipped: non-api path ${request.url.encodedPath}")
+            return null
+        }
+        val executor = webViewExecutor
+        if (executor == null) {
+            android.util.Log.w("MihonNetwork", "WebView fallback skipped: WebViewExecutor is null")
+            return null
+        }
+        val cookies = cookieJar.loadForRequest(request.url)
+        val hasCfClearance = cookies.any { it.name == "cf_clearance" }
+        if (!hasCfClearance) {
+            android.util.Log.d("MihonNetwork", "WebView fallback skipped: no cf_clearance for host=${request.url.host}")
+            return null
+        }
+        android.util.Log.i("MihonNetwork", "WebView fallback start: ${request.url}")
+
+        val fetchHeaders = buildMap<String, String> {
+            request.header("Accept")?.let { put("Accept", it) }
+            request.header("Accept-Language")?.let { put("Accept-Language", it) }
+            request.header("Referer")?.let { put("Referer", it) }
+            request.header("Origin")?.let { put("Origin", it) }
+            request.header("X-Requested-With")?.let { put("X-Requested-With", it) }
+            request.header("X-XSRF-TOKEN")?.let { put("X-XSRF-TOKEN", it) }
+        }
+
+        val startMs = System.currentTimeMillis()
+        val result = runCatching {
+            runBlocking {
+                executor.fetchWithBrowserContext(
+                    url = request.url.toString(),
+                    userAgent = request.header("User-Agent"),
+                    headers = fetchHeaders,
+                )
+            }
+        }.onFailure {
+            android.util.Log.w("MihonNetwork", "WebView fallback failed: ${it.message}")
+        }.getOrNull()
+        if (result == null) {
+            android.util.Log.w(
+                "MihonNetwork",
+                "WebView fallback returned null after ${System.currentTimeMillis() - startMs}ms for ${request.url}",
+            )
+            return null
+        }
+
+        if (result.status <= 0) {
+            android.util.Log.w("MihonNetwork", "WebView fallback invalid status=${result.status}")
+            return null
+        }
+
+		android.util.Log.i(
+            "MihonNetwork",
+            "WebView fallback response: status=${result.status}, url=${result.url}, contentType=${result.headers["content-type"] ?: result.headers["Content-Type"]}",
+        )
+        val contentType = result.headers.entries
+            .firstOrNull { it.key.equals("content-type", ignoreCase = true) }
+            ?.value
+        val headersBuilder = Headers.Builder()
+        result.headers.forEach { (k, v) ->
+            if (k.isNotBlank() && v.isNotBlank()) {
+                runCatching { headersBuilder.add(k, v) }
+            }
+        }
+
+        return Response.Builder()
+            .request(request)
+            .protocol(Protocol.HTTP_1_1)
+            .code(result.status)
+            .message(result.statusText.ifBlank { "WebView fetch" })
+            .headers(headersBuilder.build())
+            .body(result.body.toResponseBody(contentType?.toMediaTypeOrNull()))
+            .build()
+    }
+
+    private fun shouldSkipInteractiveAction(host: String, clearance: String?): Boolean {
+        if (clearance.isNullOrBlank()) return false
+        val now = System.currentTimeMillis()
+        val last = recentChallengeAttempts[host]
+        if (last == null || now - last.timestampMs > INTERACTIVE_RETRY_WINDOW_MS || last.clearance != clearance) {
+            recentChallengeAttempts[host] = ChallengeAttempt(
+                clearance = clearance,
+                timestampMs = now,
+                count = 1,
+            )
+            return false
+        }
+        val nextCount = last.count + 1
+        recentChallengeAttempts[host] = last.copy(
+            timestampMs = now,
+            count = nextCount,
+        )
+        return nextCount >= 2
+    }
+
+    private data class ChallengeAttempt(
+        val clearance: String,
+        val timestampMs: Long,
+        val count: Int,
+    )
+
+    companion object {
+        private const val INTERACTIVE_RETRY_WINDOW_MS = 10 * 60 * 1000L
+        private val recentChallengeAttempts = ConcurrentHashMap<String, ChallengeAttempt>()
+    }
 }

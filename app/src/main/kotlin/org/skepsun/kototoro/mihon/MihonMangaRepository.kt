@@ -5,6 +5,8 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.cache.MemoryContentCache
+import org.skepsun.kototoro.core.exceptions.CloudFlareException
+import org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException
 import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.mihon.model.MihonMangaSource
 import org.skepsun.kototoro.mihon.model.getPublicContentUrl
@@ -95,15 +97,17 @@ class MihonMangaRepository(
             it.query?.isNotBlank() == true || it.tags.isNotEmpty() || it.tagsExclude.isNotEmpty()
         } ?: false
         
-        val mangasPage = when {
-            hasFilters -> {
-                mihonSource.getSearchManga(page, query ?: "", filter?.toMihonFilterList() ?: FilterList())
-            }
-            order == SortOrder.UPDATED && mihonSource.supportsLatest -> {
-                mihonSource.getLatestUpdates(page)
-            }
-            else -> {
-                mihonSource.getPopularManga(page)
+        val mangasPage = rethrowMihonWrappedExceptions {
+            when {
+                hasFilters -> {
+                    mihonSource.getSearchManga(page, query ?: "", filter?.toMihonFilterList() ?: FilterList())
+                }
+                order == SortOrder.UPDATED && mihonSource.supportsLatest -> {
+                    mihonSource.getLatestUpdates(page)
+                }
+                else -> {
+                    mihonSource.getPopularManga(page)
+                }
             }
         }
         
@@ -119,7 +123,9 @@ class MihonMangaRepository(
         val sContent = manga.toMihonManga()
         
         val details = try {
-            mihonSource.getMangaDetails(sContent)
+            rethrowMihonWrappedExceptions {
+                mihonSource.getMangaDetails(sContent)
+            }
         } catch (e: Exception) {
             val ioException = when {
                 e is java.io.IOException -> e
@@ -129,14 +135,18 @@ class MihonMangaRepository(
             
             if (ioException != null) {
                 kotlinx.coroutines.delay(500)
-                mihonSource.getMangaDetails(sContent)
+                rethrowMihonWrappedExceptions {
+                    mihonSource.getMangaDetails(sContent)
+                }
             } else {
                 throw e
             }
         }
         
         val rawChapters = try {
-            mihonSource.getChapterList(sContent)
+            rethrowMihonWrappedExceptions {
+                mihonSource.getChapterList(sContent)
+            }
         } catch (e: Exception) {
             val ioException = when {
                 e is java.io.IOException -> e
@@ -146,7 +156,9 @@ class MihonMangaRepository(
             
             if (ioException != null) {
                 kotlinx.coroutines.delay(500)
-                mihonSource.getChapterList(sContent)
+                rethrowMihonWrappedExceptions {
+                    mihonSource.getChapterList(sContent)
+                }
             } else {
                 throw e
             }
@@ -205,7 +217,9 @@ class MihonMangaRepository(
     
     override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> = withContext(Dispatchers.IO) {
         val sChapter = chapter.toMihonChapter()
-        val pages = mihonSource.getPageList(sChapter)
+        val pages = rethrowMihonWrappedExceptions {
+            mihonSource.getPageList(sChapter)
+        }
         
         pages.mapIndexed { index, page ->
             if (mihonSource !is HttpSource) {
@@ -255,7 +269,9 @@ class MihonMangaRepository(
             
             val httpSource = mihonSource as? HttpSource
             if (httpSource != null) {
-                return@withContext httpSource.getImageUrl(mihonPage)
+                return@withContext rethrowMihonWrappedExceptions {
+                    httpSource.getImageUrl(mihonPage)
+                }
             }
             
             pageUrl
@@ -320,6 +336,19 @@ class MihonMangaRepository(
             url = url,
             imageUrl = imageUrl
         )
+    }
+
+    private inline fun <T> rethrowMihonWrappedExceptions(block: () -> T): T {
+        try {
+            return block()
+        } catch (e: RuntimeException) {
+            when (val cause = e.cause) {
+                is CloudFlareException -> throw cause
+                is InteractiveActionRequiredException -> throw cause
+                is java.io.IOException -> throw cause
+                else -> throw e
+            }
+        }
     }
     
     override suspend fun getRelatedContentImpl(seed: Content): List<Content> = emptyList()

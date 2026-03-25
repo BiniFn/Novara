@@ -1839,6 +1839,8 @@
 	<string name="source_type_lnreader">LNReader</string>
 	<string name="lnreader_plugins">LNReader Plugins</string>
 	<string name="installing_plugin">Installing %s…</string>
+    <string name="deleting_plugin">Deleting %s…</string>    
+    <string name="uninstall">Uninstall</string>
 	<string name="installed">Installed</string>
 	<string name="_install">Install</string>
 	<string name="source_group_lnreader">LNReader Sources</string>

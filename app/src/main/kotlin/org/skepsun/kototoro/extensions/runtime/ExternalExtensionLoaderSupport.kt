@@ -16,6 +16,17 @@ object ExternalExtensionLoaderSupport {
 
 	val scanFlags: Int = PackageManager.GET_META_DATA or PackageManager.GET_CONFIGURATIONS
 
+	fun looksLikeMihonPackage(packageName: String): Boolean {
+		return packageName.contains(".extension") ||
+			packageName.startsWith("eu.kanade.tachiyomi.") ||
+			packageName.startsWith("org.keiyoushi.")
+	}
+
+	fun looksLikeAniyomiPackage(packageName: String): Boolean {
+		return packageName.contains(".animeextension") ||
+			packageName.startsWith("eu.kanade.tachiyomi.animeextension.")
+	}
+
 	fun getInstalledPackages(pkgManager: PackageManager): List<PackageInfo> {
 		return try {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -45,6 +56,14 @@ object ExternalExtensionLoaderSupport {
 		} catch (_: PackageManager.NameNotFoundException) {
 			null
 		}
+	}
+
+	fun refreshPackageInfoIfNeeded(pkgManager: PackageManager, pkgInfo: PackageInfo): PackageInfo {
+		val needsRefresh = pkgInfo.applicationInfo?.metaData == null || pkgInfo.reqFeatures == null
+		if (!needsRefresh) {
+			return pkgInfo
+		}
+		return getPackageInfoOrNull(pkgManager, pkgInfo.packageName) ?: pkgInfo
 	}
 
 	fun getAppLabel(context: Context, appInfo: ApplicationInfo): String {

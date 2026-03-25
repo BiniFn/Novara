@@ -5,23 +5,6 @@
 	android:layout_height="match_parent"
 	android:orientation="vertical">
 
-	<com.google.android.material.textfield.TextInputLayout
-		android:layout_width="match_parent"
-		android:layout_height="wrap_content"
-		android:layout_margin="@dimen/margin_small"
-		app:boxBackgroundMode="outline"
-		app:startIconDrawable="@android:drawable/ic_menu_search"
-		style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
-
-		<com.google.android.material.textfield.TextInputEditText
-			android:id="@+id/edit_text_search"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:hint="@string/search_hint"
-			android:inputType="text"
-			android:maxLines="1" />
-
-	</com.google.android.material.textfield.TextInputLayout>
 
 	<FrameLayout
 		android:layout_width="match_parent"

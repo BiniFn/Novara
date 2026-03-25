@@ -134,6 +134,15 @@ class GroupedJsonSourcesAdapter(
 			if (mangaSource is org.skepsun.kototoro.core.jsonsource.JsonContentSource) {
 				val meta = parseSourceMeta(mangaSource.entity)
 				
+				binding.imageViewIcon.visibility = View.VISIBLE
+				val iconRes = when (mangaSource.entity.type) {
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.LEGADO -> R.drawable.ic_source_legado
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX -> R.drawable.ic_source_tvbox
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.JS -> R.drawable.ic_source_js
+					org.skepsun.kototoro.core.db.entity.JsonSourceType.LNREADER -> R.drawable.ic_source_lnreader
+				}
+				binding.imageViewIcon.setImageResource(iconRes)
+				
 				// Set URL with content type and groups
 				val groupsDisplay = if (meta.groups.isNotBlank()) " [${meta.groups}]" else ""
 				val tvBoxRepoDisplay = if (!meta.tvBoxRepositoryTitle.isNullOrBlank()) {
@@ -206,6 +215,7 @@ class GroupedJsonSourcesAdapter(
 			} else {
 				// Native sources
 				binding.textViewUrl.text = sourceInfo.name
+				binding.imageViewIcon.visibility = View.GONE
 				binding.checkboxSelect.visibility = View.GONE
 				binding.switchEnabled.visibility = View.GONE
 				binding.buttonMore.visibility = View.GONE

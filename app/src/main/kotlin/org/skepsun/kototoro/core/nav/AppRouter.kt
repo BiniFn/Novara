@@ -1172,6 +1172,8 @@ class AppRouter private constructor(
         const val KEY_TITLE = "title"
         const val KEY_URL = "url"
         const val KEY_USER_AGENT = "user_agent"
+        const val KEY_SUCCESS_COOKIE_NAME = "success_cookie_name"
+        const val KEY_SUCCESS_COOKIE_URL = "success_cookie_url"
 
         val ACTION_HISTORY = "${BuildConfig.APPLICATION_ID}.action.MANAGE_HISTORY"
         val ACTION_MANAGE_DOWNLOADS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DOWNLOADS"
