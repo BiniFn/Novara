@@ -73,8 +73,8 @@ abstract class Scrobbler(
 		repository.logout()
 	}
 
-	suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
-		return repository.findContent(query, offset)
+	suspend fun findContent(query: String, offset: Int, isAnime: Boolean = false): List<ScrobblerContent> {
+		return repository.findContent(query, offset, isAnime)
 	}
 
 	suspend fun linkContent(mangaId: Long, targetId: Long) {

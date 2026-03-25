@@ -88,6 +88,7 @@
     <string name="_continue">Continue</string>
     <string name="_continue_play">Continue playing</string>
     <string name="error">Error</string>
+    <string name="clear_video_cache">Clear video cache</string>
     <string name="clear_thumbs_cache">Clear thumbnails cache</string>
     <string name="clear_search_history">Clear search history</string>
     <string name="search_history_cleared">Cleared</string>
@@ -1000,6 +1001,8 @@
     <string name="fast_forward">Fast forward</string>
     <string name="prev_page">Previous page</string>
     <string name="next_page">Next page</string>
+    <string name="reader_translation_bubble_yolo_url">YOLO model custom URL</string>
+    <string name="reader_translation_bubble_yolo_url_summary">Custom download link for the bubble detector ONNX model</string>
     <string name="reader_actions">Reader actions</string>
     <string name="reader_actions_summary">Configure actions for tappable screen areas</string>
     <string name="switch_pages_volume_buttons">Enable volume buttons</string>

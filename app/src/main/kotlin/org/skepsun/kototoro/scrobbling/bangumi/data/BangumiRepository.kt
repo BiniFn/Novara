@@ -105,11 +105,11 @@ class BangumiRepository @Inject constructor(
 		storage.clear()
 	}
 
-	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
+	override suspend fun findContent(query: String, offset: Int, isAnime: Boolean): List<ScrobblerContent> {
 		val requestBody = JSONObject().apply {
 			put("keyword", query)
 			put("filter", JSONObject().apply {
-				put("type", JSONArray().apply { put(1) }) // 1 is Book
+				put("type", JSONArray().apply { put(if (isAnime) 2 else 1) }) // 2 is Anime, 1 is Book
 			})
 		}.toString().toRequestBody("application/json".toMediaType())
 
@@ -593,44 +593,48 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			}
 
 		val synced = ArrayList<ScrobblingEntity>()
-		var offset = 0
-		val limit = 50
-		while (true) {
-			val request = Request.Builder()
-				.url("${API_URL}v0/users/${user.id}/collections?subject_type=1&limit=$limit&offset=$offset")
-				.get()
-			val response = okHttp.newCall(request.build()).await().parseJson()
-			val data = response.optJSONArray("data") ?: break
-			if (data.length() == 0) break
+		
+		val subjectTypesToSync = listOf(1, 2) // 1 = Book, 2 = Anime
+		for (subjectType in subjectTypesToSync) {
+			var offset = 0
+			val limit = 50
+			while (true) {
+				val request = Request.Builder()
+					.url("${API_URL}v0/users/${user.id}/collections?subject_type=$subjectType&limit=$limit&offset=$offset")
+					.get()
+				val response = okHttp.newCall(request.build()).await().parseJson()
+				val data = response.optJSONArray("data") ?: break
+				if (data.length() == 0) break
 
-			for (i in 0 until data.length()) {
-				val item = data.optJSONObject(i) ?: continue
-				val subjectId = item.optJSONObject("subject")?.optLong("id") ?: continue
-				val mappedContentId = oldMappings[subjectId] ?: 0L
-				val typeInt = item.optInt("type", 0)
-				val statusStr = when (typeInt) {
-					1 -> "wish"
-					2 -> "do"
-					3 -> "collect"
-					4 -> "on_hold"
-					5 -> "dropped"
-					else -> null
+				for (i in 0 until data.length()) {
+					val item = data.optJSONObject(i) ?: continue
+					val subjectId = item.optJSONObject("subject")?.optLong("id") ?: continue
+					val mappedContentId = oldMappings[subjectId] ?: 0L
+					val typeInt = item.optInt("type", 0)
+					val statusStr = when (typeInt) {
+						1 -> "wish"
+						2 -> "do"
+						3 -> "collect"
+						4 -> "on_hold"
+						5 -> "dropped"
+						else -> null
+					}
+					synced.add(
+						ScrobblingEntity(
+							scrobbler = ScrobblerService.BANGUMI.id,
+							id = subjectId.toInt(),
+							mangaId = mappedContentId,
+							targetId = subjectId,
+							status = statusStr,
+							chapter = item.optInt("ep_status", 0),
+							comment = item.optString("comment", ""),
+							rating = (item.optInt("rate", 0).toFloat() / 10f).coerceIn(0f, 1f),
+						),
+					)
 				}
-				synced.add(
-					ScrobblingEntity(
-						scrobbler = ScrobblerService.BANGUMI.id,
-						id = subjectId.toInt(),
-						mangaId = mappedContentId,
-						targetId = subjectId,
-						status = statusStr,
-						chapter = item.optInt("ep_status", 0),
-						comment = item.optString("comment", ""),
-						rating = (item.optInt("rate", 0).toFloat() / 10f).coerceIn(0f, 1f),
-					),
-				)
+				offset += data.length()
+				if (data.length() < limit) break
 			}
-			offset += data.length()
-			if (data.length() < limit) break
 		}
 
 		db.withTransaction {

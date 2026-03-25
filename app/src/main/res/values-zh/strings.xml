@@ -198,6 +198,7 @@
     <string name="video_super_resolution_mode_ca_desc">正向：模式 C 增强版效果\n负向：同模式 C 比模式 C 慢</string>
     <string name="video_cache_size">缓存大小 (MB)</string>
     <string name="video_cache_size_summary">%1$d MB</string>
+    <string name="clear_video_cache">清除缓存</string>
     <string name="video_controls_alpha">控件不透明度 (%)</string>
     
     <!-- Mihon 扩展源 -->

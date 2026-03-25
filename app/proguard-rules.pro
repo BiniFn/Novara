@@ -117,6 +117,21 @@
 -keep class org.skepsun.kototoro.aniyomi.util.ChildFirstPathClassLoader { *; }
 -keep class org.skepsun.kototoro.aniyomi.compat.** { *; }
 
+# IReader API classes
+-keep class ireader.** { *; }
+-keep interface ireader.** { *; }
+-keepclassmembers class ireader.** {
+    public <init>(...);
+    public protected *;
+}
+
+# Kototoro IReader bridge classes
+-keep class org.skepsun.kototoro.ireader.** { *; }
+-keepclassmembers class org.skepsun.kototoro.ireader.** {
+    public <init>(...);
+    public protected *;
+}
+
 # Jsoup (used by ParsedHttpSource)
 -keep class org.jsoup.** { *; }
 -keepclassmembers class org.jsoup.** {

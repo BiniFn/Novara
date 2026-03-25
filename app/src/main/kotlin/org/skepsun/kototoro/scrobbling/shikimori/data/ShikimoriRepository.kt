@@ -10,6 +10,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.util.ext.toRequestBody
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
@@ -92,12 +93,13 @@ class ShikimoriRepository @Inject constructor(
 		storage.clear()
 	}
 
-	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
+	override suspend fun findContent(query: String, offset: Int, isAnime: Boolean): List<ScrobblerContent> {
 		val page = offset / MANGA_PAGE_SIZE
 		val pageOffset = offset % MANGA_PAGE_SIZE
+		val endpoint = if (isAnime) "animes" else "mangas"
 		val url = BASE_URL.toHttpUrl().newBuilder()
 			.addPathSegment("api")
-			.addPathSegment("mangas")
+			.addPathSegment(endpoint)
 			.addEncodedQueryParameter("page", (page + 1).toString())
 			.addEncodedQueryParameter("limit", MANGA_PAGE_SIZE.toString())
 			.addEncodedQueryParameter("censored", false.toString())
@@ -108,6 +110,13 @@ class ShikimoriRepository @Inject constructor(
 		val list = response.mapJSON { ScrobblerContent(it, query) }
 		return if (pageOffset != 0) list.drop(pageOffset) else list
 	}
+	
+	private suspend fun isAnimeContent(mangaId: Long): Boolean {
+		val mangaItem = db.getMangaDao().find(mangaId) ?: return false
+		val source = org.skepsun.kototoro.core.model.ContentSource(mangaItem.manga.source)
+		val contentType = source.getContentType()
+		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
+	}
 
 	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
 		val user = cachedUser ?: loadUser()
@@ -116,7 +125,7 @@ class ShikimoriRepository @Inject constructor(
 			"user_rate",
 			JSONObject().apply {
 				put("target_id", scrobblerContentId)
-				put("target_type", "Content")
+				put("target_type", if (isAnimeContent(mangaId)) "Anime" else "Manga")
 				put("user_id", user.id)
 			},
 		)

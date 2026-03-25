@@ -666,6 +666,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			?: context.getString(R.string.reader_translation_rec_model_url_default)
 		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_URL, value) }
 
+	var readerTranslationBubbleYoloUrl: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_YOLO_URL, "") ?: ""
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_BUBBLE_YOLO_URL, value) }
+
 	var readerTranslationRecModelPath: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_PATH, "") ?: ""
 		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_PATH, value) }
@@ -1206,6 +1210,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_THEME_AMOLED = "amoled_theme"
 		const val KEY_OFFLINE_DISABLED = "no_offline"
 		const val KEY_PAGES_CACHE_CLEAR = "pages_cache_clear"
+		const val KEY_VIDEO_CACHE_CLEAR = "video_cache_clear"
 		const val KEY_HTTP_CACHE_CLEAR = "http_cache_clear"
 		const val KEY_COOKIES_CLEAR = "cookies_clear"
 		const val KEY_CHAPTERS_CLEAR = "chapters_clear"
@@ -1304,6 +1309,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_REC_DOWNLOAD_NOW = "reader_translation_rec_download_now"
 		const val KEY_READER_TRANSLATION_DET_MODEL_ID = "reader_translation_det_model_id"
 		const val KEY_READER_TRANSLATION_ONNX_MODEL_ID = "reader_translation_onnx_model_id"
+		const val KEY_READER_TRANSLATION_BUBBLE_YOLO_URL = "reader_translation_bubble_yolo_url"
 		const val KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD = "reader_translation_hybrid_fallback_threshold"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"
 		const val KEY_READER_THREADS = "reader_threads"

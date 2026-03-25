@@ -11,6 +11,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
@@ -88,15 +89,16 @@ class MALRepository @Inject constructor(
 		return db.getScrobblingDao().delete(ScrobblerService.MAL.id, mangaId)
 	}
 
-	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
+	override suspend fun findContent(query: String, offset: Int, isAnime: Boolean): List<ScrobblerContent> {
+		val endpoint = if (isAnime) "anime" else "manga"
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
-			.addPathSegment("manga")
+			.addPathSegment(endpoint)
 			.addQueryParameter("offset", offset.toString())
 			.addQueryParameter("nsfw", "true")
 			// WARNING! MAL API throws a 400 when the query is over 64 characters
 			.addQueryParameter("q", query.take(64))
 			.build()
-		val request = Request.Builder().url(url).get().build()
+		val request = Request.Builder().url(url).header("X-MAL-CLIENT-ID", clientId).get().build()
 		val response = okHttp.newCall(request).await().parseJson()
 		check(response.has("data")) { "Invalid response: \"$response\"" }
 		val data = response.getJSONArray("data")
@@ -208,8 +210,17 @@ class MALRepository @Inject constructor(
 		}
 	}
 
+	private suspend fun isAnime(mangaId: Long): Boolean {
+		val mangaItem = db.getMangaDao().find(mangaId) ?: return false
+		val source = org.skepsun.kototoro.core.model.ContentSource(mangaItem.manga.source)
+		val contentType = source.getContentType()
+		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
+	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
+		// This method might need mangaId to know if it's anime or manga
+		// But id is the scrobbler ID here!
+		// For now we assume manga, maybe we need getContentInfo signature change later if it fails on anime
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("manga")
 			.addPathSegment(id.toString())
@@ -238,11 +249,12 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
+		val endpoint = if (isAnime(mangaId)) "anime" else "manga"
 		val body = FormBody.Builder()
 			.add("status", "reading")
 			.add("score", "0")
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
-			.addPathSegment("manga")
+			.addPathSegment(endpoint)
 			.addPathSegment(scrobblerContentId.toString())
 			.addPathSegment("my_list_status")
 			.addQueryParameter("fields", "synopsis")
@@ -256,10 +268,12 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int) {
+		val endpoint = if (isAnime(mangaId)) "anime" else "manga"
+		val numKey = if (endpoint == "anime") "num_watched_episodes" else "num_chapters_read"
 		val body = FormBody.Builder()
-			.add("num_chapters_read", chapter.toString())
+			.add(numKey, chapter.toString())
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
-			.addPathSegment("manga")
+			.addPathSegment(endpoint)
 			.addPathSegment(rateId.toString())
 			.addPathSegment("my_list_status")
 			.build()
@@ -272,12 +286,22 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, rating: Float, status: String?, comment: String?) {
+		val endpoint = if (isAnime(mangaId)) "anime" else "manga"
+		val mappedStatus = if (endpoint == "anime") {
+			when (status) {
+				"reading" -> "watching"
+				"plan_to_read" -> "plan_to_watch"
+				else -> status
+			}
+		} else {
+			status
+		}
 		val body = FormBody.Builder()
-			.add("status", status.toString())
+			.add("status", mappedStatus.toString())
 			.add("score", rating.toInt().toString())
 			.add("comments", comment.orEmpty())
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
-			.addPathSegment("manga")
+			.addPathSegment(endpoint)
 			.addPathSegment(rateId.toString())
 			.addPathSegment("my_list_status")
 			.build()

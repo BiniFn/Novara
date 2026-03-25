@@ -20,7 +20,7 @@ interface ScrobblerRepository {
 
 	suspend fun unregister(mangaId: Long)
 
-	suspend fun findContent(query: String, offset: Int): List<ScrobblerContent>
+	suspend fun findContent(query: String, offset: Int, isAnime: Boolean = false): List<ScrobblerContent>
 
 	suspend fun getContentInfo(id: Long): ScrobblerContentInfo
 

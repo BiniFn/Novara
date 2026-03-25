@@ -12,6 +12,7 @@ import okio.IOException
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.util.ext.parseJsonOrNull
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getFloatOrDefault
@@ -93,10 +94,11 @@ class KitsuRepository(
 		return db.getScrobblingDao().delete(ScrobblerService.KITSU.id, mangaId)
 	}
 
-	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
+	override suspend fun findContent(query: String, offset: Int, isAnime: Boolean): List<ScrobblerContent> {
+		val type = if (isAnime) "anime" else "manga"
 		val request = Request.Builder()
 			.get()
-			.url("$BASE_WEB_URL/api/edge/manga?page[limit]=20&page[offset]=$offset&filter[text]=${query.urlEncoded()}")
+			.url("$BASE_WEB_URL/api/edge/$type?page[limit]=20&page[offset]=$offset&filter[text]=${query.urlEncoded()}")
 		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
 		return response.getJSONArray("data").mapJSON { jo ->
 			val attrs = jo.getJSONObject("attributes")
@@ -106,7 +108,7 @@ class KitsuRepository(
 				name = titles.first(),
 				altName = titles.drop(1).joinToString(),
 				cover = attrs.getJSONObject("posterImage").getStringOrNull("small").orEmpty(),
-				url = "$BASE_WEB_URL/manga/${attrs.getString("slug")}",
+				url = "$BASE_WEB_URL/$type/${attrs.getString("slug")}",
 				isBestMatch = titles.any {
 					it.equals(query, ignoreCase = true)
 				}
@@ -170,6 +172,13 @@ class KitsuRepository(
 				url = "$BASE_WEB_URL/$mediaType/$slug",
 			)
 		}
+	}
+	
+	private suspend fun isAnimeContent(mangaId: Long): Boolean {
+		val mangaItem = db.getMangaDao().find(mangaId) ?: return false
+		val source = org.skepsun.kototoro.core.model.ContentSource(mangaItem.manga.source)
+		val contentType = source.getContentType()
+		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
@@ -377,8 +386,10 @@ class KitsuRepository(
 	}
 
 	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
-		findExistingRate(scrobblerContentId)?.let {
-			saveRate(it, mangaId)
+		val isAnime = isAnimeContent(mangaId)
+		val typeKey = if (isAnime) "anime" else "manga"
+		findExistingRate(scrobblerContentId, isAnime)?.let {
+			saveRate(it, mangaId, typeKey)
 			return
 		}
 		val user = cachedUser ?: loadUser()
@@ -390,9 +401,9 @@ class KitsuRepository(
 				put("progress", 0)
 			}
 			putJO("relationships") {
-				putJO("manga") {
+				putJO(typeKey) {
 					putJO("data") {
-						put("type", "manga")
+						put("type", typeKey)
 						put("id", scrobblerContentId)
 					}
 				}
@@ -405,13 +416,14 @@ class KitsuRepository(
 			}
 		}
 		val request = Request.Builder()
-			.url("$BASE_WEB_URL/api/edge/library-entries?include=manga")
+			.url("$BASE_WEB_URL/api/edge/library-entries?include=$typeKey")
 			.post(payload.toKitsuRequestBody())
 		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().getJSONObject("data")
-		saveRate(response, mangaId)
+		saveRate(response, mangaId, typeKey)
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int) {
+		val typeKey = if (isAnimeContent(mangaId)) "anime" else "manga"
 		val payload = JSONObject()
 		payload.putJO("data") {
 			put("type", "libraryEntries")
@@ -421,13 +433,14 @@ class KitsuRepository(
 			}
 		}
 		val request = Request.Builder()
-			.url("$BASE_WEB_URL/api/edge/library-entries/$rateId?include=manga")
+			.url("$BASE_WEB_URL/api/edge/library-entries/$rateId?include=$typeKey")
 			.patch(payload.toKitsuRequestBody())
 		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().getJSONObject("data")
-		saveRate(response, mangaId)
+		saveRate(response, mangaId, typeKey)
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, rating: Float, status: String?, comment: String?) {
+		val typeKey = if (isAnimeContent(mangaId)) "anime" else "manga"
 		val payload = JSONObject()
 		payload.putJO("data") {
 			put("type", "libraryEntries")
@@ -439,10 +452,10 @@ class KitsuRepository(
 			}
 		}
 		val request = Request.Builder()
-			.url("$BASE_WEB_URL/api/edge/library-entries/$rateId?include=manga")
+			.url("$BASE_WEB_URL/api/edge/library-entries/$rateId?include=$typeKey")
 			.patch(payload.toKitsuRequestBody())
 		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().getJSONObject("data")
-		saveRate(response, mangaId)
+		saveRate(response, mangaId, typeKey)
 	}
 
 	suspend fun syncLibraryFromRemote(): Int {
@@ -459,7 +472,7 @@ class KitsuRepository(
 		while (true) {
 			val request = Request.Builder()
 				.get()
-				.url("$BASE_WEB_URL/api/edge/library-entries?page[limit]=20&page[offset]=$offset&filter[userId]=$userId&include=manga")
+				.url("$BASE_WEB_URL/api/edge/library-entries?page[limit]=20&page[offset]=$offset&filter[userId]=$userId&include=manga,anime")
 			val data = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().optJSONArray("data") ?: break
 			if (data.length() == 0) {
 				break
@@ -467,10 +480,10 @@ class KitsuRepository(
 			for (i in 0 until data.length()) {
 				val json = data.optJSONObject(i) ?: continue
 				val attrs = json.optJSONObject("attributes") ?: continue
-				val manga = json.optJSONObject("relationships")
-					?.optJSONObject("manga")
-					?.optJSONObject("data")
-				val targetId = manga?.optString("id")?.toLongOrNull() ?: continue
+				val rels = json.optJSONObject("relationships")
+				val media = rels?.optJSONObject("manga")?.optJSONObject("data")
+					?: rels?.optJSONObject("anime")?.optJSONObject("data")
+				val targetId = media?.optString("id")?.toLongOrNull() ?: continue
 				val mappedContentId = oldMappings[targetId] ?: 0L
 				synced.add(
 					ScrobblingEntity(
@@ -511,23 +524,25 @@ class KitsuRepository(
 
 	private fun JSONObject.toKitsuRequestBody() = toString().toRequestBody(VND_JSON.toMediaType())
 
-	private suspend fun findExistingRate(scrobblerContentId: Long): JSONObject? {
+	private suspend fun findExistingRate(scrobblerContentId: Long, isAnime: Boolean): JSONObject? {
 		val userId = (cachedUser ?: loadUser()).id
+		val filterKey = if (isAnime) "anime_id" else "manga_id"
+		val includeKey = if (isAnime) "anime" else "manga"
 		val request = Request.Builder()
 			.get()
-			.url("$BASE_WEB_URL/api/edge/library-entries?filter[manga_id]=$scrobblerContentId&filter[userId]=$userId&include=manga")
+			.url("$BASE_WEB_URL/api/edge/library-entries?filter[$filterKey]=$scrobblerContentId&filter[userId]=$userId&include=$includeKey")
 		val data = okHttp.newCall(request.build()).await().parseJsonOrNull()?.optJSONArray("data") ?: return null
 		return data.optJSONObject(0)
 	}
 
-	private suspend fun saveRate(json: JSONObject, mangaId: Long) {
+	private suspend fun saveRate(json: JSONObject, mangaId: Long, typeKey: String) {
 		val attrs = json.getJSONObject("attributes")
-		val manga = json.getJSONObject("relationships").getJSONObject("manga").getJSONObject("data")
+		val media = json.getJSONObject("relationships").getJSONObject(typeKey).getJSONObject("data")
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.KITSU.id,
 			id = json.getInt("id"),
 			mangaId = mangaId,
-			targetId = manga.getAsLong("id"),
+			targetId = media.getAsLong("id"),
 			status = attrs.getString("status"),
 			chapter = attrs.getIntOrDefault("progress", 0),
 			comment = attrs.getStringOrNull("notes"),

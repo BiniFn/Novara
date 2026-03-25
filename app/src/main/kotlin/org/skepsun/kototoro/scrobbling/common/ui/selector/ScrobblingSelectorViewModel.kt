@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
@@ -27,6 +28,7 @@ import org.skepsun.kototoro.list.domain.ReadingProgress
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
@@ -126,7 +128,8 @@ class ScrobblingSelectorViewModel @Inject constructor(
 			listError.value = null
 			val offset = if (append) scrobblerContentList.value.size else 0
 			runCatchingCancellable {
-				currentScrobbler.findContent(checkNotNull(searchQuery.value), offset)
+				val isAnime = manga.source.getContentType().let { it == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || it == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO }
+				currentScrobbler.findContent(checkNotNull(searchQuery.value), offset, isAnime)
 			}.onSuccess { list ->
 				val newList = (if (append) {
 					scrobblerContentList.value + list

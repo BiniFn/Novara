@@ -103,7 +103,7 @@ class MangaUpdatesRepository(
 		db.getScrobblingDao().delete(ScrobblerService.MANGAUPDATES.id, mangaId)
 	}
 
-	override suspend fun findContent(query: String, offset: Int): List<ScrobblerContent> {
+	override suspend fun findContent(query: String, offset: Int, isAnime: Boolean): List<ScrobblerContent> {
 		val payload = JSONObject().apply {
 			put("search", query)
 			put("page", (offset / 100) + 1)
