@@ -19,6 +19,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		private const val LEGADO_MANGA_PREFIX = "JSON_LEGADO_M_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
 		private const val JS_PREFIX = "JSON_JS_"
+		private const val LNREADER_PREFIX = "JSON_LNREADER_"
 		private const val MIHON_PREFIX = "MIHON_"
 		private const val ANIYOMI_PREFIX = "ANIYOMI_"
 		private const val IREADER_PREFIX = "IREADER_"
@@ -49,6 +50,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			sourceId.startsWith(LEGADO_PREFIX) -> SourceType.JSON_LEGADO
 			sourceId.startsWith(TVBOX_PREFIX) -> SourceType.JSON_TVBOX
 			sourceId.startsWith(JS_PREFIX) -> SourceType.JSON_JS
+			sourceId.startsWith(LNREADER_PREFIX) -> SourceType.JSON_LNREADER
 			sourceId.startsWith(JSON_PREFIX) -> SourceType.JSON_LEGADO // Default JSON type
 			sourceId.startsWith("LOCAL_") -> SourceType.NATIVE // Local sources are native
 			else -> SourceType.NATIVE
@@ -67,6 +69,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			SourceType.JSON_LEGADO -> "JSON 源 (Legado)"
 			SourceType.JSON_TVBOX -> "JSON 源 (TVBox)"
 			SourceType.JSON_JS -> "JavaScript 源"
+			SourceType.JSON_LNREADER -> "LNReader 源"
 			SourceType.EXTERNAL -> "外部源"
 			SourceType.MIHON -> "Mihon 扩展"
 			SourceType.ANIYOMI -> "Aniyomi 扩展"
@@ -85,6 +88,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			SourceType.JSON_LEGADO -> JsonSourceType.LEGADO
 			SourceType.JSON_TVBOX -> JsonSourceType.TVBOX
 			SourceType.JSON_JS -> JsonSourceType.JS
+			SourceType.JSON_LNREADER -> JsonSourceType.LNREADER
 			else -> null
 		}
 	}
@@ -113,6 +117,11 @@ enum class SourceType {
 	 * Venera-style JavaScript source
 	 */
 	JSON_JS,
+	
+	/**
+	 * LNReader JavaScript plugin source
+	 */
+	JSON_LNREADER,
 	
 	/**
 	 * External sources (future use)

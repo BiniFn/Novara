@@ -147,6 +147,7 @@ class ImportJsonDialogFragment : AlertDialogFragment<DialogImportJsonBinding>(),
 			JsonSourceType.LEGADO -> getString(R.string.paste_legado_content)
 			JsonSourceType.TVBOX -> getString(R.string.paste_tvbox_content)
 			JsonSourceType.JS -> getString(R.string.paste_js_content)
+			JsonSourceType.LNREADER -> getString(R.string.paste_js_content)
 		}
 		binding.textInputLayoutSourceType.helperText = when (sourceType) {
 			JsonSourceType.TVBOX -> getString(R.string.tvbox_source_zh_warning)

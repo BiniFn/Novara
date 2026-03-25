@@ -183,6 +183,7 @@ fun ContentSource.getContentType(): ContentType = when (val source = unwrap()) {
 		when (source.entity.type) {
 			JsonSourceType.TVBOX -> ContentType.VIDEO
 			JsonSourceType.JS -> ContentType.MANGA
+			JsonSourceType.LNREADER -> ContentType.NOVEL
 			JsonSourceType.LEGADO -> try {
 				val jsonObj = JSONObject(source.entity.config)
 				if (jsonObj.optInt("bookSourceType", 0) == 2) ContentType.MANGA else ContentType.NOVEL

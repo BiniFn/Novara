@@ -49,6 +49,11 @@ class JsonContentRepositoryProvider @Inject constructor(
 				videoLocalCacheProxy = videoLocalCacheProxy,
 			)
 			JsonSourceType.JS -> JsContentRepository(source, loaderContext)
+			JsonSourceType.LNREADER -> org.skepsun.kototoro.core.lnreader.LNReaderContentRepository(
+				source = source,
+				appContext = context,
+				httpClient = loaderContext.httpClient,
+			)
 		}
 	}
 }

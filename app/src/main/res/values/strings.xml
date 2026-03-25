@@ -1836,5 +1836,11 @@
     <string name="rank">Rank</string>
     <string name="episode_number_format">Episode %1$s\n\n%2$s</string>
     <string name="source_type_ireader">IReader</string>
+	<string name="source_type_lnreader">LNReader</string>
+	<string name="lnreader_plugins">LNReader Plugins</string>
+	<string name="installing_plugin">Installing %s…</string>
+	<string name="installed">Installed</string>
+	<string name="_install">Install</string>
+	<string name="source_group_lnreader">LNReader Sources</string>
 
 </resources>

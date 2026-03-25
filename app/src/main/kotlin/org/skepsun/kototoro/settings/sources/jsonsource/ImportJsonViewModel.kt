@@ -127,6 +127,7 @@ class ImportJsonViewModel @Inject constructor(
 					)
 					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(jsonContent, sourceLocator)
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
+					JsonSourceType.LNREADER -> jsonSourceManager.importLNReaderPlugin(jsonContent)
 				}
 				
 				handleImportResult(result)
@@ -164,6 +165,7 @@ class ImportJsonViewModel @Inject constructor(
 					)
 					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(jsonContent, uri.toString())
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
+					JsonSourceType.LNREADER -> jsonSourceManager.importLNReaderPlugin(jsonContent)
 				}
 				
 				handleImportResult(result)

@@ -189,6 +189,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			}
 		}
 
+	var lnReaderRepoUrls: Set<String>
+		get() = prefs.getStringSet(KEY_LNREADER_REPOS, null)
+			?: setOf(org.skepsun.kototoro.core.lnreader.LNReaderRepository.OFFICIAL_REPO_URL)
+		set(value) = prefs.edit { putStringSet(KEY_LNREADER_REPOS, value) }
+
 	var isReaderDoubleOnLandscape: Boolean
 		get() = prefs.getBoolean(KEY_READER_DOUBLE_PAGES, false)
 		set(value) = prefs.edit { putBoolean(KEY_READER_DOUBLE_PAGES, value) }
@@ -1392,6 +1397,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_EXTENSION_JSDELIVR_MIRROR = "extension_jsdelivr_mirror"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
+		const val KEY_LNREADER_REPOS = "lnreader_repository_urls"
 		const val KEY_SOURCES_GRID = "sources_grid"
 		const val KEY_UPDATES_UNSTABLE = "updates_unstable"
 		const val KEY_TIPS_CLOSED = "tips_closed"

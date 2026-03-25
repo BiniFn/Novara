@@ -218,3 +218,12 @@
     public <init>(...);
     public protected *;
 }
+
+# LNReader Plugin Support
+# LNReader uses QuickJS-kt to execute JS plugins. The bridge and model classes
+# must be preserved for serialization and reflection.
+-keep class org.skepsun.kototoro.core.lnreader.** { *; }
+-keepclassmembers class org.skepsun.kototoro.core.lnreader.** {
+    public <init>(...);
+    public protected *;
+}

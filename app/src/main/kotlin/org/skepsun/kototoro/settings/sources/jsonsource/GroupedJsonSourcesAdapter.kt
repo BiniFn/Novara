@@ -299,6 +299,14 @@ class GroupedJsonSourcesAdapter(
 					canEdit = false,
 					canTest = false,
 				)
+				org.skepsun.kototoro.core.db.entity.JsonSourceType.LNREADER -> JsonSourceItemMeta(
+					reference = entity.id,
+					hasExplore = true,
+					groups = "",
+					contentTypeLabel = binding.root.context.getString(R.string.novel),
+					canEdit = false,
+					canTest = false,
+				)
 			}
 		}
 

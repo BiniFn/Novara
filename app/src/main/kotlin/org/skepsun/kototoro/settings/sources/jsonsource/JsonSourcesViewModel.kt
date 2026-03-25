@@ -577,6 +577,11 @@ class JsonSourcesViewModel @Inject constructor(
 			groups = emptyList(),
 			hasExplore = null,
 		)
+		JsonSourceType.LNREADER -> JsonSourceMeta(
+			loginUrl = null,
+			groups = emptyList(),
+			hasExplore = true,
+		)
 	}
 
 	private fun extractTvBoxSourceLocator(rawConfig: String): String? {

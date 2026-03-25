@@ -28,7 +28,8 @@ class JsonSourcesRootFragment : BaseFragment<FragmentJsonSourcesRootBinding>() {
 			tab.setText(
 				when (position) {
 					0 -> R.string.source_type_legado
-					else -> R.string.source_type_tvbox
+					1 -> R.string.source_type_tvbox
+					else -> R.string.source_type_lnreader
 				},
 			)
 		}.attach()
@@ -44,14 +45,17 @@ class JsonSourcesRootFragment : BaseFragment<FragmentJsonSourcesRootBinding>() {
 
 private class JsonSourcesPagerAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
 
-	private val types = listOf(JsonSourceType.LEGADO, JsonSourceType.TVBOX)
+	private val types = listOf(JsonSourceType.LEGADO, JsonSourceType.TVBOX, JsonSourceType.LNREADER)
 
 	override fun getItemCount(): Int = types.size
 
 	override fun createFragment(position: Int): Fragment {
-		return JsonSourcesFragment().apply {
-			arguments = Bundle(1).apply {
-				putString(JsonSourcesFragment.ARG_SOURCE_TYPE, types[position].name)
+		return when (types[position]) {
+			JsonSourceType.LNREADER -> LNReaderRepoFragment()
+			else -> JsonSourcesFragment().apply {
+				arguments = Bundle(1).apply {
+					putString(JsonSourcesFragment.ARG_SOURCE_TYPE, types[position].name)
+				}
 			}
 		}
 	}

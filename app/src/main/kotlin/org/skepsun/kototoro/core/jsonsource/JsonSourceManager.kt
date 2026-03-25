@@ -67,6 +67,7 @@ class JsonSourceManager @Inject constructor(
 		private const val LEGADO_MANGA_PREFIX = "JSON_LEGADO_M_"
 		private const val TVBOX_PREFIX = "JSON_TVBOX_"
 		private const val JS_PREFIX = "JSON_JS_"
+		private const val LNREADER_PREFIX = "JSON_LNREADER_"
 		private const val MAX_TVBOX_REPOSITORY_DEPTH = 3
 		
 		// Regex pattern to match valid identifier characters (alphanumeric and underscore)
@@ -437,6 +438,42 @@ class JsonSourceManager @Inject constructor(
 			runCatching { parser.saveSource(jsContent, "$sourceId.js") }
 			
 			1
+		}
+	}
+	
+	/**
+	 * Imports a LNReader JS plugin.
+	 * Extracts metadata using regex (no JS engine needed for import),
+	 * stores the full JS bundle in the config field.
+	 */
+	suspend fun importLNReaderPlugin(jsContent: String): Result<Int> {
+		return try {
+			val fallbackId = "lnreader_${System.currentTimeMillis()}"
+			val meta = org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata.extractFromCode(jsContent, fallbackId)
+				?: return Result.failure(IllegalArgumentException("Cannot extract plugin metadata from JS code"))
+			
+			val sourceId = generateSourceId(meta.site.ifBlank { meta.id }, JsonSourceType.LNREADER)
+			
+			val timestamp = System.currentTimeMillis()
+			val entity = JsonSourceEntity(
+				id = sourceId,
+				name = meta.name,
+				type = JsonSourceType.LNREADER,
+				config = jsContent,
+				enabled = true,
+				createdAt = timestamp,
+				updatedAt = timestamp,
+				lastUsedAt = 0,
+				isPinned = false,
+			)
+			
+			jsonSourceDao.insert(entity)
+			JsonSourceLogger.logInfo("Imported LNReader plugin: ${meta.name} (${meta.id})")
+			
+			Result.success(1)
+		} catch (e: Exception) {
+			JsonSourceLogger.logError("Failed to import LNReader plugin", e)
+			Result.failure(e)
 		}
 	}
 	
@@ -1206,6 +1243,7 @@ class JsonSourceManager @Inject constructor(
 			JsonSourceType.LEGADO -> if (bookSourceType == 2) LEGADO_MANGA_PREFIX else LEGADO_PREFIX
 			JsonSourceType.TVBOX -> TVBOX_PREFIX
 			JsonSourceType.JS -> JS_PREFIX
+			JsonSourceType.LNREADER -> LNREADER_PREFIX
 		}
 		
 		// Generate a hash of the URL to create a unique, stable identifier
@@ -1232,6 +1270,7 @@ class JsonSourceManager @Inject constructor(
 			JsonSourceType.LEGADO -> if (bookSourceType == 2) LEGADO_MANGA_PREFIX else LEGADO_PREFIX
 			JsonSourceType.TVBOX -> TVBOX_PREFIX
 			JsonSourceType.JS -> JS_PREFIX
+			JsonSourceType.LNREADER -> LNREADER_PREFIX
 		}
 		return "$typePrefix$uuid"
 	}
