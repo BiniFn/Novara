@@ -200,3 +200,21 @@
 # Bangumi tracking discovery – prevent R8 from stripping HTML-parsing code paths
 -keep class org.skepsun.kototoro.scrobbling.bangumi.data.BangumiRepository { *; }
 -keep class org.skepsun.kototoro.tracking.discovery.** { *; }
+
+# IReader Extension Support
+# IReader extensions are separate APKs. ChildFirstPathClassLoader delegates
+# ireader.core.* to the parent (host app) ClassLoader, so these classes must
+# be preserved. The bridge classes use reflection to instantiate sources.
+-keep class ireader.core.** { *; }
+-keep interface ireader.core.** { *; }
+-keepclassmembers class ireader.core.** {
+    public <init>(...);
+    public protected *;
+}
+
+# Keep the IReader bridge and model classes
+-keep class org.skepsun.kototoro.ireader.** { *; }
+-keepclassmembers class org.skepsun.kototoro.ireader.** {
+    public <init>(...);
+    public protected *;
+}
