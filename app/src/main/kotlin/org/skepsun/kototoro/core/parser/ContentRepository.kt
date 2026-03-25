@@ -32,8 +32,8 @@ interface ContentRepository {
 
 	/**
 	 * 列表分页模式：
-	 * - OFFSET：`getList(offset)` 的 offset 为“已加载条数”（Kototoro 原语义）。
-	 * - PAGE_INDEX：`getList(offset)` 的 offset 视为“页索引(0-based)”，最终请求页号通常为 offset+1（对齐 legado/MD3 的 {{page}}）。
+	 * - OFFSET：`getList(offset)` 的 offset 为"已加载条数"（Kototoro 原语义）。
+	 * - PAGE_INDEX：`getList(offset)` 的 offset 视为"页索引(0-based)"，最终请求页号通常为 offset+1（对齐 legado/MD3 的 {{page}}）。
 	 *
 	 * 默认 OFFSET，避免影响现有解析器/本地库实现。
 	 */
@@ -49,7 +49,7 @@ interface ContentRepository {
 	/**
 	 * 获取章节页面的流，支持增量加载（如 Legado 多页小说章节）。
 	 * 每次 emit 都是目前已获取到的所有页面列表。
-	 * @param nextChapterUrl 下一章的 URL。如果加载过程中遇到此 URL，应停止加载，防止“下一章”规则误触导致无限连读。
+	 * @param nextChapterUrl 下一章的 URL。如果加载过程中遇到此 URL，应停止加载，防止"下一章"规则误触导致无限连读。
 	 */
 	fun getPagesFlow(chapter: ContentChapter, nextChapterUrl: String? = null): Flow<List<ContentPage>> = flow {
 		emit(getPages(chapter, nextChapterUrl))
@@ -84,6 +84,15 @@ interface ContentRepository {
 	 * Returns the request headers for this source (generic headers like UA/Referer).
 	 */
 	fun getRequestHeaders(): Map<String, String> = emptyMap()
+
+	/**
+	 * Returns a source-specific OkHttpClient for image requests (covers & pages), or null to
+	 * use the default [ContentHttpClient].
+	 *
+	 * Mihon extensions override this to return their own client which carries the correct
+	 * cookies (cf_clearance), rate limiters, and custom interceptors for the source's CDN.
+	 */
+	fun getImageClient(): okhttp3.OkHttpClient? = null
 
 	fun isSlowdownEnabled(): Boolean {
 		return source != LocalMangaSource && source != TestContentSource && source != org.skepsun.kototoro.core.model.LocalNovelSource

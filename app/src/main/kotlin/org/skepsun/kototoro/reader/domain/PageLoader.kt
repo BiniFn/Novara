@@ -355,7 +355,8 @@ class PageLoader @Inject constructor(
 					}
 					val repo = getRepository(page.source)
 					val request = repo.createPageRequest(pageUrl, page)
-					val response = imageProxyInterceptor.interceptPageRequest(request, okHttp)
+					val imageClient = repo.getImageClient() ?: okHttp
+					val response = imageProxyInterceptor.interceptPageRequest(request, imageClient)
 					Log.d(
 						"JsPageResponse",
 						"resp code=${response.code} protocol=${response.protocol} redirected=${response.priorResponse != null} reqUrl=${response.request.url} prior=${response.priorResponse?.code}"

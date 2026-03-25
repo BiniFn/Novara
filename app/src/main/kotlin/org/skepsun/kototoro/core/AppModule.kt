@@ -132,6 +132,7 @@ interface AppModule {
 			faviconFetcherFactory: FaviconFetcher.Factory,
 			imageProxyInterceptor: ImageProxyInterceptor,
 			pageFetcherFactory: ContentPageFetcher.Factory,
+			coverFetcherFactory: org.skepsun.kototoro.core.image.ContentCoverFetcher.Factory,
 			coverRestoreInterceptor: CoverRestoreInterceptor,
 			networkStateProvider: Provider<NetworkState>,
 			captchaHandler: CaptchaHandler,
@@ -152,6 +153,8 @@ interface AppModule {
 				.allowRgb565(context.isLowRamDevice())
 				.eventListener(captchaHandler)
 				.components {
+					// Register our custom cover fetcher before OkHttpNetworkFetcherFactory so it can intercept string URLs for Mihon sources
+					add(coverFetcherFactory)
 					add(
 						OkHttpNetworkFetcherFactory(
 							callFactory = okHttpClientLazy::value,

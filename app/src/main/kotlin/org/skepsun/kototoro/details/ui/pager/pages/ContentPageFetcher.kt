@@ -100,7 +100,8 @@ class ContentPageFetcher(
 			prefix = "fetchPage_repository_unavailable",
 		) { "Page source ${page.source.name} is not available" }
 		val request = repo.createPageRequest(pageUrl, page)
-		return imageProxyInterceptor.interceptPageRequest(request, okHttpClient).use { response ->
+		val imageClient = repo.getImageClient() ?: okHttpClient
+		return imageProxyInterceptor.interceptPageRequest(request, imageClient).use { response ->
 			if (!response.isSuccessful) {
 				throw HttpException(response.toNetworkResponse())
 			}

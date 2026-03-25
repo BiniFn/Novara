@@ -310,6 +310,10 @@ class MihonMangaRepository(
         }
         return map
     }
+
+    override fun getImageClient(): okhttp3.OkHttpClient? {
+        return (mihonSource as? HttpSource)?.client
+    }
     
     override fun createPageRequest(pageUrl: String, page: ContentPage): okhttp3.Request {
         if (pageUrl.isBlank()) return super.createPageRequest(pageUrl, page)
