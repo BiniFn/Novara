@@ -227,3 +227,12 @@
     public <init>(...);
     public protected *;
 }
+
+# Ktor is used heavily by IReader extensions
+-keep class io.ktor.** { *; }
+-keep interface io.ktor.** { *; }
+-keepclassmembers class io.ktor.** {
+    public <init>(...);
+    public protected *;
+}
+-dontwarn io.ktor.**
