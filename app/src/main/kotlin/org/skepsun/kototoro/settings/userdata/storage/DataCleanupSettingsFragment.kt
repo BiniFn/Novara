@@ -33,6 +33,7 @@ class DataCleanupSettingsFragment : BasePreferenceFragment(R.string.data_removal
         super.onViewCreated(view, savedInstanceState)
         findPreference<Preference>(AppSettings.KEY_PAGES_CACHE_CLEAR)?.bindBytesSizeSummary(checkNotNull(viewModel.cacheSizes[CacheDir.PAGES]))
         findPreference<Preference>(AppSettings.KEY_THUMBS_CACHE_CLEAR)?.bindBytesSizeSummary(checkNotNull(viewModel.cacheSizes[CacheDir.THUMBS]))
+        findPreference<Preference>(AppSettings.KEY_VIDEO_CACHE_CLEAR)?.bindBytesSizeSummary(checkNotNull(viewModel.cacheSizes[CacheDir.VIDEO]))
         findPreference<Preference>(AppSettings.KEY_HTTP_CACHE_CLEAR)?.bindBytesSizeSummary(viewModel.httpCacheSize)
         findPreference<Preference>(AppSettings.KEY_SEARCH_HISTORY_CLEAR)?.let { pref ->
             viewModel.searchHistoryCount.observe(viewLifecycleOwner) {
@@ -83,6 +84,11 @@ class DataCleanupSettingsFragment : BasePreferenceFragment(R.string.data_removal
 
         AppSettings.KEY_THUMBS_CACHE_CLEAR -> {
             viewModel.clearCache(preference.key, CacheDir.THUMBS, CacheDir.FAVICONS)
+            true
+        }
+
+        AppSettings.KEY_VIDEO_CACHE_CLEAR -> {
+            viewModel.clearCache(preference.key, CacheDir.VIDEO)
             true
         }
 

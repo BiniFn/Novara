@@ -23,6 +23,7 @@ class OnnxModelManager @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@BaseHttpClient
 	private val okHttpClient: OkHttpClient,
+	private val appSettings: org.skepsun.kototoro.core.prefs.AppSettings,
 ) {
 
 	data class DownloadProgress(
@@ -62,7 +63,12 @@ class OnnxModelManager @Inject constructor(
 			check(model.files.isNotEmpty()) { "ONNX model has no downloadable content: ${model.id}" }
 			for ((index, file) in model.files.withIndex()) {
 				val target = File(modelDir, file.fileName)
-				downloadFile(file.downloadUrl, target) { progress ->
+				val downloadUrl = if (modelId == "manga_bubble_yolo_hf_main" && file.fileName == "yolo26s.onnx") {
+					appSettings.readerTranslationBubbleYoloUrl.takeIf { it.isNotBlank() } ?: file.downloadUrl
+				} else {
+					file.downloadUrl
+				}
+				downloadFile(downloadUrl, target) { progress ->
 					if (progress.totalBytes > 0) {
 						val weight = 1.0 / model.files.size
 						val done = index + progress.downloadedBytes.toDouble() / progress.totalBytes.toDouble()

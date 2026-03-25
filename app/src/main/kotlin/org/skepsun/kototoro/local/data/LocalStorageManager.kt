@@ -57,11 +57,11 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun computeCacheSize(cache: CacheDir) = withContext(Dispatchers.IO) {
-		getCacheDirs(cache.dir).sumOf { it.computeSize() }
+		getCacheDirsFor(cache).sumOf { it.computeSize() }
 	}
 
 	suspend fun computeCacheSize() = withContext(Dispatchers.IO) {
-		getCacheDirs().sumOf { it.computeSize() }
+		getCacheDirs().sumOf { it.computeSize() } + getCacheDirsFor(CacheDir.VIDEO).sumOf { it.computeSize() }
 	}
 
 	suspend fun computeStorageSize() = withContext(Dispatchers.IO) {
@@ -73,7 +73,7 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun clearCache(cache: CacheDir) = runInterruptible(Dispatchers.IO) {
-		getCacheDirs(cache.dir).forEach { it.deleteRecursively() }
+		getCacheDirsFor(cache).forEach { it.deleteRecursively() }
 	}
 
 	suspend fun getReadableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
@@ -223,8 +223,16 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	@WorkerThread
-	private fun getCacheDirs(subDir: String): MutableSet<File> {
+	private fun getCacheDirsFor(cache: CacheDir): MutableSet<File> {
 		val result = LinkedHashSet<File>()
+		if (cache == CacheDir.VIDEO) {
+			result += File(context.filesDir, "mpv_cache")
+			context.getExternalFilesDirs("mpv_cache").filterNotNullTo(result)
+			result += File(context.filesDir, "video_cache")
+			context.getExternalFilesDirs("video_cache").filterNotNullTo(result)
+			return result
+		}
+		val subDir = cache.dir
 		result += File(context.cacheDir, subDir)
 		context.externalCacheDirs.mapNotNullTo(result) {
 			File(it ?: return@mapNotNullTo null, subDir)
