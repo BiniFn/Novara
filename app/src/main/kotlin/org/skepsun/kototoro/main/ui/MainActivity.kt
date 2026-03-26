@@ -164,6 +164,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		viewBinding.searchView.addTransitionListener(exitCallback)
 		initSearch()
 		
+		androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(viewBinding.container) { v, insets ->
+			val bottomNav = bottomNav
+			val isPinned = bottomNav != null && bottomNav.isPinned && bottomNav.isShownOrShowing
+			val newInsets = insets.consume(v, WindowInsetsCompat.Type.systemBars(), bottom = isPinned)
+			androidx.core.view.ViewCompat.onApplyWindowInsets(v, newInsets)
+		}
+
 		// 观察折叠屏状态变化
 		observeFoldableState()
 	}
@@ -445,6 +452,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 			if (params.bottomMargin != newMargin) {
 				params.bottomMargin = newMargin
 				layoutParams = params
+				androidx.core.view.ViewCompat.requestApplyInsets(this)
 			}
 		}
 	}

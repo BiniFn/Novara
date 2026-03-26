@@ -226,6 +226,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 	}
 
 	private fun showHomeChrome() {
+		if (!isHomeChromeHidden) return
 		(activity as? AppBarOwner)?.appBar?.setExpanded(true, true)
 		(activity as? BottomNavOwner)?.bottomNav?.show()
 		isHomeChromeHidden = false
