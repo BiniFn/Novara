@@ -68,9 +68,7 @@ class MihonExtensionLoader @Inject constructor(
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.map { pkgInfo ->
-                ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, pkgInfo)
-            }.filter { pkg: PackageInfo ->
+            val extPkgs = installedPkgs.filter { pkg: PackageInfo ->
                 val isExt = isPackageAnExtension(pkg)
                 if (pkg.packageName.contains("coomer", ignoreCase = true)) {
                     android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
@@ -120,7 +118,6 @@ class MihonExtensionLoader @Inject constructor(
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
         
         return installedPkgs
-            .map { ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, it) }
             .filter { isPackageAnExtension(it) }
             .mapNotNull { extractExtensionInfo(it) }
     }

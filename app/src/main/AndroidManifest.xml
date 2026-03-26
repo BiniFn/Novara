@@ -52,11 +52,29 @@
 		</intent>
         <!-- For Mihon extensions -->
         <intent>
-            <action android:name="tachiyomi.extension.ACTION" />
+            <action android:name="tachiyomi.intent.action.PICK_EXTENSION" />
+        </intent>
+        <intent>
+            <action android:name="eu.kanade.tachiyomi.PICK_EXTENSION" />
+        </intent>
+        <intent>
+            <action android:name="eu.kanade.tachiyomi.UPDATE_EXTENSION" />
+        </intent>
+        <intent>
+            <action android:name="tachiyomi.extension" />
         </intent>
         <!-- For Aniyomi extensions -->
         <intent>
-            <action android:name="tachiyomi.animeextension.ACTION" />
+            <action android:name="tachiyomi.animeextension.intent.action.PICK_EXTENSION" />
+        </intent>
+        <intent>
+            <action android:name="eu.kanade.tachiyomi.animeextension.PICK_EXTENSION" />
+        </intent>
+        <intent>
+            <action android:name="eu.kanade.tachiyomi.animeextension.UPDATE_EXTENSION" />
+        </intent>
+        <intent>
+            <action android:name="tachiyomi.animeextension" />
         </intent>
 	</queries>
 

@@ -65,9 +65,7 @@ class AniyomiExtensionLoader @Inject constructor(
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.map { pkgInfo ->
-                ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, pkgInfo)
-            }.filter { pkgInfo: PackageInfo -> isPackageAnExtension(pkgInfo) }
+            val extPkgs = installedPkgs.filter { pkgInfo: PackageInfo -> isPackageAnExtension(pkgInfo) }
             
             if (extPkgs.isEmpty()) {
                 android.util.Log.d(TAG, "No Aniyomi extensions found")
@@ -111,7 +109,6 @@ class AniyomiExtensionLoader @Inject constructor(
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
         
         return installedPkgs
-            .map { ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(pkgManager, it) }
             .filter { isPackageAnExtension(it) }
             .mapNotNull { extractExtensionInfo(it) }
     }

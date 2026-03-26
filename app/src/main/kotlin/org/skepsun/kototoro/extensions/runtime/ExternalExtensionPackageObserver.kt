@@ -19,11 +19,6 @@ fun registerExternalExtensionPackageObserver(
 			}
 		}
 	}
-	val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-		ContextCompat.RECEIVER_EXPORTED
-	} else {
-		0
-	}
 	ContextCompat.registerReceiver(
 		context,
 		receiver,
@@ -34,7 +29,7 @@ fun registerExternalExtensionPackageObserver(
 			addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
 			addDataScheme("package")
 		},
-		flags,
+		ContextCompat.RECEIVER_EXPORTED,
 	)
 	return receiver
 }
