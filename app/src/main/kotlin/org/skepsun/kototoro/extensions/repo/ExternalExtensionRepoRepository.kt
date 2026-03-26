@@ -128,7 +128,8 @@ class ExternalExtensionRepoRepository @Inject constructor(
 			.map { repo -> async { service.fetchAvailableExtensions(repo) } }
 			.awaitAll()
 			.flatten()
-			.distinctBy { it.pkgName }
+			.groupBy { it.pkgName }
+			.map { (_, list) -> list.maxByOrNull { it.versionCode }!! }
 			.sortedWith(compareBy<RepoAvailableExtension> { it.lang }.thenBy { it.name.lowercase() })
 	}
 

@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.extensions.repo
 
 import android.util.Log
+import androidx.annotation.Keep
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import kotlinx.coroutines.withTimeout
@@ -35,11 +36,25 @@ class ExtensionRepoService @Inject constructor(
 		return url
 	}
 
+	private fun deriveRepoName(baseUrl: String, defaultName: String): String {
+		val url = baseUrl.toHttpUrlOrNull() ?: return defaultName
+		val segments = url.pathSegments.filter { it.isNotEmpty() }
+		if (segments.size >= 2 && url.host.contains("githubusercontent.com")) {
+			return "${segments[0]}/${segments[1]}"
+		} else if (segments.size >= 2 && url.host == "github.com") {
+			return "${segments[0]}/${segments[1]}"
+		} else if (segments.isNotEmpty()) {
+			return segments.last()
+		}
+		return url.host
+	}
+
 	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
 		if (type == ExternalExtensionType.IREADER || type == ExternalExtensionType.JAR) {
 			val now = System.currentTimeMillis()
-			val repoName = if (type == ExternalExtensionType.IREADER) "IReader Repository" else "Kototoro Repository"
-			val repoShort = if (type == ExternalExtensionType.IREADER) "IReader" else "Kototoro"
+			val derived = deriveRepoName(baseUrl, if (type == ExternalExtensionType.IREADER) "IReader" else "Kototoro")
+			val repoName = if (type == ExternalExtensionType.IREADER) "IReader: $derived" else "Kototoro: $derived"
+			val repoShort = derived
 			return ExternalExtensionRepo(
 				type = type,
 				baseUrl = baseUrl,
@@ -204,11 +219,13 @@ class ExtensionRepoService @Inject constructor(
 
 
 
+	@Keep
 	@Serializable
 	private data class RepoMetaWrapperDto(
 		val meta: RepoMetaDto,
 	)
 
+	@Keep
 	@Serializable
 	private data class RepoMetaDto(
 		val name: String,
@@ -219,6 +236,7 @@ class ExtensionRepoService @Inject constructor(
 		val signingKeyFingerprint: String,
 	)
 
+	@Keep
 	@Serializable
 	private data class ExtensionIndexDto(
 		val name: String,
@@ -231,11 +249,13 @@ class ExtensionRepoService @Inject constructor(
 		val sources: List<ExtensionSourceDto>? = null,
 	)
 
+	@Keep
 	@Serializable
 	private data class ExtensionSourceDto(
 		val name: String,
 	)
 
+	@Keep
 	@Serializable
 	private data class IReaderExtensionIndexDto(
 		val name: String = "",
