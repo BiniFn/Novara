@@ -11,7 +11,7 @@ data class KotatsuParserSource(
     val delegate: KTMangaSource,
 ) : ContentSource {
     override val name: String = delegate.name
-    val title: String = delegate.name
+    val title: String = delegate.title
     override val locale: String = delegate.locale
     override val contentType: ContentType = delegate.contentType.toKototoro()
     val isBroken: Boolean = false
