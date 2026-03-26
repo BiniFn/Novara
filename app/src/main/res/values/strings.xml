@@ -199,6 +199,9 @@
     <string name="password_length_hint">The password must be 4 characters or more</string>
     <string name="text_clear_search_history_prompt">Remove all recent search queries permanently?</string>
     <string name="welcome">Welcome</string>
+    <string name="welcome_jar_install_success">Kototoro: Successfully fetched and mounted %1$d latest parser engines from cloud network!</string>
+    <string name="welcome_jar_install_up_to_date">Kototoro: Cloud verification complete, local parsers are up to date! (Loaded %1$d sources in total)</string>
+    <string name="welcome_jar_install_failed">Kototoro: Parser network loading failed (%1$s), please try again or go to settings to switch proxy mirrors</string>
     <string name="home_placeholder_title">Reading dashboard</string>
     <string name="home_placeholder_subtitle">See your recent reading, updates, library, sync, and sources in one place.</string>
     <string name="check_updates">Check updates</string>

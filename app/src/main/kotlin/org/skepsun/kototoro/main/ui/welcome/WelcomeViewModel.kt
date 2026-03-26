@@ -183,16 +183,16 @@ class WelcomeViewModel @Inject constructor(
 				android.util.Log.d("KototoroInit", "All background initialization work scheduled successfully.")
 				kotlinx.coroutines.withContext(Dispatchers.Main) {
 					if (newlyInstalledCount > 0) {
-						android.widget.Toast.makeText(context, "Kototoro: 成功从云端网络抓取并挂载了 $newlyInstalledCount 个最新解析器引擎！", android.widget.Toast.LENGTH_LONG).show()
+						android.widget.Toast.makeText(context, context.getString(org.skepsun.kototoro.R.string.welcome_jar_install_success, newlyInstalledCount), android.widget.Toast.LENGTH_LONG).show()
 					} else {
-						android.widget.Toast.makeText(context, "Kototoro: 云端校验完成，本地解析器已是最新版本！(总计载入: ${GlobalExtensionManager.contentSources.value.size} 个源)", android.widget.Toast.LENGTH_SHORT).show()
+						android.widget.Toast.makeText(context, context.getString(org.skepsun.kototoro.R.string.welcome_jar_install_up_to_date, GlobalExtensionManager.contentSources.value.size), android.widget.Toast.LENGTH_SHORT).show()
 					}
 				}
 			} catch (e: Exception) {
 				android.util.Log.e("KototoroInit", "CRITICAL ERROR inside initializePlugins: ${e.message}", e)
 				e.printStackTrace()
 				kotlinx.coroutines.withContext(Dispatchers.Main) {
-					android.widget.Toast.makeText(context, "Kototoro: 解析器网络装载失败 (${e.message})，请重试或前往设置切换加速镜像", android.widget.Toast.LENGTH_LONG).show()
+					android.widget.Toast.makeText(context, context.getString(org.skepsun.kototoro.R.string.welcome_jar_install_failed, e.message.orEmpty()), android.widget.Toast.LENGTH_LONG).show()
 				}
 			} finally {
 				android.util.Log.d("KototoroInit", "Restoring UI interactive state")
