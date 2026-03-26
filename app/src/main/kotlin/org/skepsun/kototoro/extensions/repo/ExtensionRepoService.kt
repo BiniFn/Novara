@@ -46,7 +46,7 @@ class ExtensionRepoService @Inject constructor(
 				name = repoName,
 				shortName = repoShort,
 				website = baseUrl,
-				signingKeyFingerprint = "", // IReader/JAR plugins are handled individually
+				signingKeyFingerprint = baseUrl.hashCode().toString(16), // Use baseUrl hash as pseudo-fingerprint for JAR/IReader
 				createdAt = now,
 				updatedAt = now,
 				lastSuccessAt = now,
