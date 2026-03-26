@@ -39,7 +39,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
 import org.skepsun.kototoro.settings.utils.PasswordSummaryProvider
 import android.widget.Toast

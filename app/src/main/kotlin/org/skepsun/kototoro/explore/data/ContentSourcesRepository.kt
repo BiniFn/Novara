@@ -8,6 +8,8 @@ import androidx.core.content.ContextCompat
 import androidx.room.withTransaction
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
@@ -26,6 +28,7 @@ import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -34,12 +37,8 @@ import org.skepsun.kototoro.core.util.ext.flattenLatest
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
-import org.skepsun.kototoro.parsers.model.ContentSource
-import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
 import org.skepsun.kototoro.parsers.util.mapToSet
-import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
 import java.util.Collections
 import java.util.LinkedHashSet
 import java.util.concurrent.atomic.AtomicBoolean
@@ -47,6 +46,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 
 @Singleton
 class ContentSourcesRepository @Inject constructor(
@@ -61,6 +61,20 @@ class ContentSourcesRepository @Inject constructor(
 	private val ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
 ) {
 
+	init {
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.collect {
+				assimilateNewSources(force = true)
+			}
+		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.collect {
+				assimilateNewSources(force = true)
+			}
+		}
+	}
+
+	private val dao get() = db.getSourcesDao()
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
 	private val legadoJson = Json {
 		ignoreUnknownKeys = true
@@ -68,53 +82,43 @@ class ContentSourcesRepository @Inject constructor(
 		allowTrailingComma = true
 	}
 
-	private val kotatsuSourceNames: Set<String> by lazy {
-		KotatsuParsersProvider.sources.mapToSet { it.name }
-	}
-
-	private val dao: MangaSourcesDao
-		get() = db.getSourcesDao()
-
-val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
-	LinkedHashSet<ContentSource>().also {
-		ContentParserSource.entries.filterTo(it) { src -> !src.isBroken }
-		KotatsuParsersProvider.sources.filterTo(it) { src -> !src.isBroken }
-	}
-)
+	val allContentSources: Set<ContentSource>
+		get() {
+			val set = LinkedHashSet<ContentSource>()
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.forEach { set.add(it.originalSource) }
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.forEach { set.add(org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it)) }
+			return set
+		}
 
 	suspend fun getEnabledSources(): List<ContentSource> {
 		assimilateNewSources()
 		val order = settings.sourcesSortOrder
-		val isKotatsuEnabled = settings.isKotatsuSourcesEnabled
+		val disabledNames = if (!settings.isAllSourcesEnabled) dao.findAll().filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
+		
 		return dao.findAll(!settings.isAllSourcesEnabled, order).toSources(settings.isNsfwContentDisabled, order)
 			.let { enabledSources ->
-				val enabled = if (isKotatsuEnabled) enabledSources else enabledSources.filterTo(ArrayList()) { it.mangaSource.name !in kotatsuSourceNames }
 				val external = getExternalSources()
 				val jsonSources = getEnabledJsonSources()
 				val mihonSources = getEnabledMihonSources()
 				val aniyomiSources = getEnabledAniyomiSources()
 				val ireaderSources = getEnabledIReaderSources()
-				android.util.Log.d("ContentSourcesRepository", "getEnabledSources: native=${enabled.size}, external=${external.size}, json=${jsonSources.size}, mihon=${mihonSources.size}, aniyomi=${aniyomiSources.size}, ireader=${ireaderSources.size}")
-				val list = ArrayList<ContentSourceInfo>(enabled.size + external.size + jsonSources.size + mihonSources.size + aniyomiSources.size + ireaderSources.size)
-				external.mapTo(list) { ContentSourceInfo(it, isEnabled = true, isPinned = true) }
-				jsonSources.mapTo(list) { 
-					android.util.Log.d("ContentSourcesRepository", "  Wrapping JSON source: ${it.name} (${it.javaClass.simpleName})")
-					ContentSourceInfo(it, isEnabled = true, isPinned = it.isPinned) 
+				
+				val list = ArrayList<ContentSource>()
+				external.forEach { if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it) }
+				jsonSources.forEach { 
+					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it) 
 				}
-				mihonSources.mapTo(list) {
-					android.util.Log.d("ContentSourcesRepository", "  Wrapping Mihon source: ${it.displayName}")
-					ContentSourceInfo(it, isEnabled = true, isPinned = false)
+				mihonSources.forEach {
+					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it)
 				}
-				aniyomiSources.mapTo(list) {
-					android.util.Log.d("ContentSourcesRepository", "  Wrapping Aniyomi source: ${it.displayName}")
-					ContentSourceInfo(it, isEnabled = true, isPinned = false)
+				aniyomiSources.forEach {
+					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it)
 				}
-				ireaderSources.mapTo(list) {
-					android.util.Log.d("ContentSourcesRepository", "  Wrapping IReader source: ${it.displayName}")
-					ContentSourceInfo(it, isEnabled = true, isPinned = false)
+				ireaderSources.forEach {
+					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it)
 				}
-				list.addAll(enabled)
-				android.util.Log.d("ContentSourcesRepository", "getEnabledSources: total=${list.size} sources")
+				
+				enabledSources.mapTo(list) { it.mangaSource }
 				list
 			}
 	}
@@ -338,9 +342,8 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 			sources.retainAll { it.getLocale()?.language == locale }
 		}
 		if (excludeBroken) {
-			sources.removeAll {
-				(it as? ContentParserSource)?.isBroken == true || (it is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource && it.isBroken)
-			}
+			// Plugins loaded from the registry are considered valid/not broken
+			// If we need to filter broken plugins, we would do it here.
 		}
 		if (types.isNotEmpty()) {
 			sources.retainAll { it.getContentType() in types }
@@ -492,12 +495,11 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 			observeIsNsfwDisabled(),
 			observeAllEnabled().flatMapLatest { isAllSourcesEnabled ->
 				dao.observeAll(!isAllSourcesEnabled, SourcesSortOrder.MANUAL)
-			},
-			settings.observeAsFlow(AppSettings.KEY_ENABLE_KOTATSU_SOURCES) { isKotatsuSourcesEnabled }
-		) { skipNsfw, sources, isKotatsuEnabled ->
+			}
+		) { skipNsfw, sources ->
 			sources.count {
 				it.source.toContentSourceOrNull()?.let { s -> 
-					(!skipNsfw || !s.isNsfw()) && (isKotatsuEnabled || s.name !in kotatsuSourceNames)
+					(!skipNsfw || !s.isNsfw())
 				} == true
 			}
 		}.distinctUntilChanged().onStart { assimilateNewSources() }
@@ -518,7 +520,11 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 	}
 
 	fun observeBuiltInSourcesCount(): Flow<Int> {
-		return observeIsNsfwDisabled().map { skipNsfw ->
+		return combine(
+			observeIsNsfwDisabled(),
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources,
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources
+		) { skipNsfw, _, _ ->
 			allContentSources.count { !skipNsfw || !it.isNsfw() }
 		}.distinctUntilChanged()
 	}
@@ -545,8 +551,7 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 		observeAllEnabled(),
 		observeSortOrder(),
 		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled },
-		settings.observeAsFlow(AppSettings.KEY_ENABLE_KOTATSU_SOURCES) { isKotatsuSourcesEnabled }
+		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
 	) { args ->
 		val skipNsfw = args[0] as Boolean
 		val allEnabled = args[1] as Boolean
@@ -554,21 +559,19 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 		@Suppress("UNCHECKED_CAST")
 		val contentLanguages = args[3] as Set<String>
 		val isExtFilterEnabled = args[4] as Boolean
-		val isKotatsuEnabled = args[5] as Boolean
 
 		combine(
-			dao.observeAll(!allEnabled, order),
+			dao.observeAll(false, order),
 			mihonExtensionManager.installedExtensions,
 			aniyomiExtensionManager.installedExtensions,
 			jsonSourceManager.observeEnabledJsonSources()
 		) { entities, _, _, _ ->
-			// Map entities to sources and filter by NSFW and language
-			entities.toSources(skipNsfw, order).filter { info ->
+			val disabledNames = if (!allEnabled) entities.filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
+			val enabledEntities = if (!allEnabled) entities.filter { it.isEnabled } else entities
+			val sources = enabledEntities.toSources(skipNsfw, order).filter { info ->
 				val source = info.mangaSource
-				if (!isKotatsuEnabled && source.name in kotatsuSourceNames) return@filter false
 				
 				if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
-					// Apply language filter to Mihon sources in the list if enabled
 					if (!isExtFilterEnabled) return@filter true
 					
 					val isMultiLangEnabled = contentLanguages.contains("")
@@ -581,68 +584,67 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 						}
 					}
 				} else {
-					true // Native sources are already enabled/disabled based on language
+					true 
 				}
 			}
+			Pair(sources, disabledNames)
 		}
 	}.flattenLatest()
 		.onStart { assimilateNewSources() }
-		.combine(observeExternalSources()) { enabled, external ->
-			val list = ArrayList<ContentSourceInfo>(enabled.size + external.size)
-			external.mapTo(list) { ContentSourceInfo(it, isEnabled = true, isPinned = true) }
-			list.addAll(enabled)
-			list
+		.combine(observeExternalSources()) { (sources, disabledNames), external ->
+			val list = ArrayList<ContentSourceInfo>()
+			external.forEach { if (it.name !in disabledNames) list.add(ContentSourceInfo(it, isEnabled = true, isPinned = true)) }
+			list.addAll(sources)
+			Pair(list, disabledNames)
 		}
-		.combine(observeJsonSources()) { sources, jsonSources ->
-			val list = ArrayList<ContentSourceInfo>(sources.size + jsonSources.size)
+		.combine(observeJsonSources()) { (sources, disabledNames), jsonSources ->
+			val list = ArrayList<ContentSourceInfo>()
 			list.addAll(sources)
 			
-			// Only add JSON sources that aren't already in the list
 			val existingNames = sources.mapToSet { it.mangaSource.name }
 			jsonSources.forEach { jsonSource ->
-				if (jsonSource.name !in existingNames) {
+				if (jsonSource.name !in existingNames && jsonSource.name !in disabledNames) {
 					list.add(ContentSourceInfo(jsonSource, isEnabled = jsonSource.isEnabled, isPinned = jsonSource.isPinned))
 				}
 			}
-			list
+			Pair(list, disabledNames)
 		}
-		.combine(observeMihonSources()) { sources, mihonSources ->
-			val list = ArrayList<ContentSourceInfo>(sources.size + mihonSources.size)
+		.combine(observeMihonSources()) { (sources, disabledNames), mihonSources ->
+			val list = ArrayList<ContentSourceInfo>()
 			list.addAll(sources)
 			
-			// Only add Mihon sources that aren't already in the list (already pinned/recently used)
 			val existingNames = sources.mapToSet { it.mangaSource.name }
 			mihonSources.forEach { mihonSource ->
-				if (mihonSource.name !in existingNames) {
+				if (mihonSource.name !in existingNames && mihonSource.name !in disabledNames) {
 					list.add(ContentSourceInfo(mihonSource, isEnabled = true, isPinned = false))
 				}
 			}
-			list
+			Pair(list, disabledNames)
 		}
-			.combine(observeAniyomiSources()) { sources, aniyomiSources ->
-				val list = ArrayList<ContentSourceInfo>(sources.size + aniyomiSources.size)
-				list.addAll(sources)
+		.combine(observeAniyomiSources()) { (sources, disabledNames), aniyomiSources ->
+			val list = ArrayList<ContentSourceInfo>()
+			list.addAll(sources)
 			
 			val existingNames = sources.mapToSet { it.mangaSource.name }
 			aniyomiSources.forEach { aniyomiSource ->
-				if (aniyomiSource.name !in existingNames) {
+				if (aniyomiSource.name !in existingNames && aniyomiSource.name !in disabledNames) {
 					list.add(ContentSourceInfo(aniyomiSource, isEnabled = true, isPinned = false))
 				}
 			}
-				list
-			}
-			.combine(observeIReaderSources()) { sources, ireaderSources ->
-				val list = ArrayList<ContentSourceInfo>(sources.size + ireaderSources.size)
-				list.addAll(sources)
+			Pair(list, disabledNames)
+		}
+		.combine(observeIReaderSources()) { (sources, disabledNames), ireaderSources ->
+			val list = ArrayList<ContentSourceInfo>()
+			list.addAll(sources)
 
-				val existingNames = sources.mapToSet { it.mangaSource.name }
-				ireaderSources.forEach { ireaderSource ->
-					if (ireaderSource.name !in existingNames) {
-						list.add(ContentSourceInfo(ireaderSource, isEnabled = true, isPinned = false))
-					}
+			val existingNames = sources.mapToSet { it.mangaSource.name }
+			ireaderSources.forEach { ireaderSource ->
+				if (ireaderSource.name !in existingNames && ireaderSource.name !in disabledNames) {
+					list.add(ContentSourceInfo(ireaderSource, isEnabled = true, isPinned = false))
 				}
-				list
 			}
+			list
+		}
 
 	/**
 	 * 对齐 legado-with-MD3：浏览(发现)仅展示具备 exploreUrl 的源；仅提供 searchUrl 的源不应出现在浏览页。
@@ -810,10 +812,11 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 		settings.sourcesVersion = BuildConfig.VERSION_CODE
 	}
 
-	private suspend fun assimilateNewSources(): Boolean {
-		if (isNewSourcesAssimilated.getAndSet(true)) {
+	private suspend fun assimilateNewSources(force: Boolean = false): Boolean {
+		if (!force && isNewSourcesAssimilated.getAndSet(true)) {
 			return false
 		}
+		isNewSourcesAssimilated.set(true)
 		val new = getNewSources()
 		if (new.isEmpty()) {
 			return false
@@ -836,7 +839,7 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 	}
 
 	suspend fun isSetupRequired(): Boolean {
-		return settings.sourcesVersion == 0 && dao.findAllEnabledNames().isEmpty()
+		return !settings.hasSeenPluginWelcome || (settings.sourcesVersion == 0 && dao.findAllEnabledNames().isEmpty())
 	}
 
 	suspend fun setIsPinned(sources: Collection<ContentSource>, isPinned: Boolean): ReversibleHandle {
@@ -1017,12 +1020,10 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 								source is org.skepsun.kototoro.core.jsonsource.JsonContentSource
 								
 			if (isKnownSource) {
-				val isKotatsu = source.name in kotatsuSourceNames
-				val isKotatsuEnabled = settings.isKotatsuSourcesEnabled
 				result.add(
 					ContentSourceInfo(
 						mangaSource = source,
-						isEnabled = (entity.isEnabled || isAllEnabled) && (!isKotatsu || isKotatsuEnabled),
+						isEnabled = (entity.isEnabled || isAllEnabled),
 						isPinned = entity.isPinned,
 					),
 				)
@@ -1047,9 +1048,10 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 	}
 
 	private fun String.toContentSourceOrNull(): ContentSource? {
-		// Try native sources first
-		ContentParserSource.entries.find { it.name == this }?.let { return it }
-		
+		// Try Global Registry for PluginContentSources first
+		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == this }?.let { return it.originalSource }
+		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == this }?.let { return org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }
+
 		// Try Mihon sources
 		if (startsWith("MIHON_")) {
 			mihonExtensionManager.getMihonMangaSources().find { it.name == this }?.let { return it }
@@ -1084,10 +1086,8 @@ val allContentSources: Set<ContentSource> = Collections.unmodifiableSet(
 			jsonSources.find { it.name == this }?.let { return it }
 		}
 
-		// Kotatsu sources
-		KotatsuParsersProvider.findByName(this)?.let { return it }
-		
-		// Fallback to anonymous wrapper
-		return org.skepsun.kototoro.core.model.ContentSource(this)
+		// Fallback to anonymous/static wrapper
+		val fallback = org.skepsun.kototoro.core.model.ContentSource(this)
+		return if (fallback == org.skepsun.kototoro.core.model.UnknownContentSource) null else fallback
 	}
 }

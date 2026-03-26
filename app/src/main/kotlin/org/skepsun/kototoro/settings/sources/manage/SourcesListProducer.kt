@@ -23,8 +23,9 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.lifecycleScope
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
-import org.skepsun.kototoro.parsers.model.ContentParserSource
-import org.skepsun.kototoro.parsers.util.mapToSet
+import kotlinx.coroutines.flow.first
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
 import javax.inject.Inject
 
@@ -67,13 +68,10 @@ class SourcesListProducer @Inject constructor(
 
 	private suspend fun buildList(): List<SourceConfigItem> {
 		val enabledSources = repository.getEnabledSources().filter {
-			when (it.unwrap()) {
-				is ContentParserSource -> true
-				is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource -> true
-				else -> false
-			}
+			val unwrapped = it.unwrap()
+			!unwrapped.isLocal && unwrapped !is org.skepsun.kototoro.core.parser.external.ExternalContentSource
 		}
-		val pinned = repository.getPinnedSources().mapToSet { it.name }
+		val pinned = repository.getPinnedSources().map { it.name }.toSet()
 		val isNsfwDisabled = settings.isNsfwContentDisabled
 		val isReorderAvailable = settings.sourcesSortOrder == SourcesSortOrder.MANUAL
 		val isDisableAvailable = !settings.isAllSourcesEnabled

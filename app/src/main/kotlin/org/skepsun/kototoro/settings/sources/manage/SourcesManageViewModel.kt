@@ -14,7 +14,7 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.parsers.model.ContentSource
-import org.skepsun.kototoro.parsers.util.move
+// Removed import org.skepsun.kototoro.parsers.util.move
 import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
 import javax.inject.Inject
 
@@ -57,7 +57,7 @@ class SourcesManageViewModel @Inject constructor(
 	}
 
 	fun canReorder(oldPos: Int, newPos: Int): Boolean {
-		val snapshot = content.value
+		val snapshot: List<SourceConfigItem> = content.value
 		val oldPosItem = snapshot.getOrNull(oldPos) as? SourceConfigItem.SourceItem ?: return false
 		val newPosItem = snapshot.getOrNull(newPos) as? SourceConfigItem.SourceItem ?: return false
 		return oldPosItem.isEnabled && newPosItem.isEnabled && oldPosItem.isPinned == newPosItem.isPinned
@@ -81,7 +81,7 @@ class SourcesManageViewModel @Inject constructor(
 	}
 
 	fun bringToTop(source: ContentSource) {
-		val snapshot = content.value
+		val snapshot: List<SourceConfigItem> = content.value
 		launchJob(Dispatchers.Default) {
 			var oldPos = -1
 			var newPos = -1
@@ -126,14 +126,14 @@ class SourcesManageViewModel @Inject constructor(
 	}
 
 	private fun reorderSources(oldPos: Int, newPos: Int) {
-		val snapshot = content.value.toMutableList()
+		val snapshot: MutableList<SourceConfigItem> = ArrayList(content.value)
 		if ((snapshot[oldPos] as? SourceConfigItem.SourceItem)?.isDraggable != true) {
 			return
 		}
 		if ((snapshot[newPos] as? SourceConfigItem.SourceItem)?.isDraggable != true) {
 			return
 		}
-		snapshot.move(oldPos, newPos)
+		snapshot.add(newPos, snapshot.removeAt(oldPos))
 		saveSourcesOrder(snapshot)
 	}
 }

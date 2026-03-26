@@ -9,7 +9,6 @@ import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
-import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 
@@ -125,10 +124,7 @@ sealed interface ListFilterOption {
 			get() = R.drawable.ic_web
 
 		override val titleText: CharSequence?
-			get() = when (val source = mangaSource.unwrap()) {
-				is ContentParserSource -> source.title
-				else -> null
-			}
+			get() = mangaSource.name
 
 		override val groupKey: String
 			get() = "_source"

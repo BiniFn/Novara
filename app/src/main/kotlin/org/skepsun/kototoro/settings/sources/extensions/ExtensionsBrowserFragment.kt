@@ -14,7 +14,14 @@ import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
-import androidx.recyclerview.widget.GridLayoutManager
+import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.documentfile.provider.DocumentFile
+import java.io.File
+import android.net.Uri
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
@@ -43,6 +50,34 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 	private var isSearchExpanded = false
 	private val installLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		viewModel.onInstallActivityResult()
+	}
+
+	private val importLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+		if (uri == null) return@registerForActivityResult
+		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+			try {
+				val documentFile = DocumentFile.fromSingleUri(requireContext(), uri) ?: throw Exception("Invalid file URI")
+				val fileName = documentFile.name ?: "plugin_${System.currentTimeMillis()}.jar"
+				val pluginsDir = File(requireContext().filesDir, "plugins")
+				if (!pluginsDir.exists()) pluginsDir.mkdirs()
+
+				val destinationFile = File(pluginsDir, fileName)
+				requireContext().contentResolver.openInputStream(uri)?.use { input ->
+					destinationFile.outputStream().use { output ->
+						input.copyTo(output)
+					}
+				} ?: throw Exception("Cannot open input stream")
+
+				GlobalExtensionManager.initialize(requireContext())
+				withContext(Dispatchers.Main) {
+					Toast.makeText(requireContext(), "Imported plugin: $fileName", Toast.LENGTH_SHORT).show()
+				}
+			} catch (e: Exception) {
+				withContext(Dispatchers.Main) {
+					Toast.makeText(requireContext(), "Failed to import plugin: ${e.message}", Toast.LENGTH_SHORT).show()
+				}
+			}
+		}
 	}
 
 	override fun onCreateViewBinding(
@@ -267,6 +302,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 					},
 				)
 			}
+			menu.findItem(R.id.action_import_local_jar)?.isVisible = viewModel.type == ExternalExtensionType.JAR
 			menu.findItem(R.id.action_filter_languages)?.title = if (settings.extensionLanguages.isEmpty()) {
 				getString(R.string.filter_extensions_by_language)
 			} else {
@@ -300,6 +336,11 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 
 			R.id.action_manage_repositories -> {
 				openRepositories()
+				true
+			}
+
+			R.id.action_import_local_jar -> {
+				importLauncher.launch("*/*")
 				true
 			}
 

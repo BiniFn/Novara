@@ -31,6 +31,8 @@ class LocalEpubSource @Inject constructor(
 ) : ContentSource {
 
     override val name: String = "Local EPUB"
+    override val locale: String = ""
+    override val contentType: ContentType = ContentType.NOVEL
 
     /**
      * 获取漫画详情，包括章节列表

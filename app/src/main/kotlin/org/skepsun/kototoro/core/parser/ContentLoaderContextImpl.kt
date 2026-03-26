@@ -47,6 +47,15 @@ class ContentLoaderContextImpl @Inject constructor(
 
 	private val jsTimeout = TimeUnit.SECONDS.toMillis(4)
 
+	override fun newParserInstance(source: ContentSource): org.skepsun.kototoro.parsers.ContentParser {
+		val extensionManager = org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+		return extensionManager.getContentParser(source, this)
+	}
+
+	override fun newLinkResolver(link: okhttp3.HttpUrl): org.skepsun.kototoro.parsers.util.LinkResolver {
+		throw UnsupportedOperationException("Link resolution from Kototoro plugins is not supported")
+	}
+
 	@Deprecated("Provide a base url")
 	@SuppressLint("SetJavaScriptEnabled")
 	override suspend fun evaluateJs(script: String): String? = evaluateJs("", script)

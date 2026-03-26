@@ -250,7 +250,7 @@ class SuggestionsWorker @AssistedInject constructor(
 
 	private suspend fun getSources(): List<ContentSource> {
 		if (appSettings.isSuggestionsIncludeDisabledSources) {
-			val result = sourcesRepository.allContentSources.toMutableList<ContentSource>()
+			val result: MutableList<ContentSource> = ArrayList(sourcesRepository.allContentSources)
 			result.addAll(sourcesRepository.getExternalSources())
 			result.shuffle()
 			result.sortWith(compareBy(nullsLast(LocaleComparator())) { it.getLocale() })

@@ -59,6 +59,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 	private val mangaListBadgesDefault = ArraySet(context.resources.getStringArray(R.array.values_list_badges))
 
+	var hasSeenPluginWelcome: Boolean
+		get() = prefs.getBoolean("has_seen_plugin_welcome", false)
+		set(value) = prefs.edit { putBoolean("has_seen_plugin_welcome", value) }
+
 	var listMode: ListMode
 		get() = prefs.getEnumValue(KEY_LIST_MODE, ListMode.GRID)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE, value) }
@@ -161,9 +165,20 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getStringSet(KEY_CONTENT_LANGUAGES, null) ?: setOf("zh", "en", "ja", "")
 		set(value) = prefs.edit { putStringSet(KEY_CONTENT_LANGUAGES, value) }
 
-	var isExtensionJsdelivrMirrorEnabled: Boolean
-		get() = prefs.getBoolean(KEY_EXTENSION_JSDELIVR_MIRROR, false)
-		set(value) = prefs.edit { putBoolean(KEY_EXTENSION_JSDELIVR_MIRROR, value) }
+	enum class GitHubMirror(val value: String) {
+		NATIVE("native"),
+		KKGITHUB("kkgithub"),
+		GHPROXY("ghproxy"),
+		GHPROXY_NET("ghproxy_net");
+		companion object {
+			fun fromValue(value: String?): GitHubMirror =
+				entries.find { it.value == value } ?: NATIVE
+		}
+	}
+
+	var gitHubMirror: GitHubMirror
+		get() = GitHubMirror.fromValue(prefs.getString(KEY_GITHUB_MIRROR, GitHubMirror.NATIVE.value))
+		set(value) = prefs.edit { putString(KEY_GITHUB_MIRROR, value.value) }
 
 	var extensionLanguages: Set<String>
 		get() = prefs.getStringSet(KEY_EXTENSION_LANGUAGES, null) ?: emptySet()
@@ -1400,7 +1415,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_APP_LOCALE = "app_locale"
 		const val KEY_CONTENT_LANGUAGES = "content_languages"
 		const val KEY_EXTENSION_LANGUAGES = "extension_languages"
-		const val KEY_EXTENSION_JSDELIVR_MIRROR = "extension_jsdelivr_mirror"
+		const val KEY_GITHUB_MIRROR = "github_mirror"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
 		const val KEY_LNREADER_REPOS = "lnreader_repository_urls"

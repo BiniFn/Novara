@@ -24,7 +24,7 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorFooter
 import org.skepsun.kototoro.list.ui.model.toErrorState
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.list.ui.model.ListHeader
@@ -68,7 +68,7 @@ class TagsCatalogViewModel @AssistedInject constructor(
         cached: Collection<ContentTag>,
         selected: Set<ContentTag>,
     ): List<ListModel> {
-		val locale = (filter.mangaSource as? ContentParserSource)?.locale
+		val locale = filter.mangaSource.getLocale()?.language
 		val comparator = TagTitleComparator(locale)
 		val result = ArrayList<ListModel>()
 

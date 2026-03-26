@@ -11,11 +11,17 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.launch
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
+import java.io.File
+import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
@@ -75,5 +81,53 @@ class SourcesSettingsViewModel @Inject constructor(
 	private fun isLinksEnabled(): Boolean {
 		val state = context.packageManager.getComponentEnabledSetting(linksHandlerActivity)
 		return state == COMPONENT_ENABLED_STATE_ENABLED || state == COMPONENT_ENABLED_STATE_DEFAULT
+	}
+
+	val installedPlugins = MutableLiveData<List<File>>()
+
+	fun loadPlugins() {
+		viewModelScope.launch(Dispatchers.IO) {
+			val pluginsDir = File(context.filesDir, "plugins")
+			installedPlugins.postValue(
+				pluginsDir.listFiles { file -> file.extension == "jar" }?.toList() ?: emptyList()
+			)
+		}
+	}
+
+	fun deletePlugin(file: File) {
+		viewModelScope.launch(Dispatchers.IO) {
+			if (file.delete()) {
+				GlobalExtensionManager.initialize(context)
+				loadPlugins()
+			}
+		}
+	}
+
+	fun importPlugin(uri: Uri, onResult: (Result<String>) -> Unit) {
+		viewModelScope.launch(Dispatchers.IO) {
+			try {
+				val documentFile = DocumentFile.fromSingleUri(context, uri) ?: throw Exception("Invalid file URI")
+				val fileName = documentFile.name ?: "plugin_${System.currentTimeMillis()}.jar"
+				val pluginsDir = File(context.filesDir, "plugins")
+				if (!pluginsDir.exists()) pluginsDir.mkdirs()
+				
+				val destinationFile = File(pluginsDir, fileName)
+				context.contentResolver.openInputStream(uri)?.use { input ->
+					destinationFile.outputStream().use { output ->
+						input.copyTo(output)
+					}
+				} ?: throw Exception("Cannot open input stream")
+				
+				// Re-initialize manager
+				GlobalExtensionManager.initialize(context)
+				launch(Dispatchers.Main) {
+					onResult(Result.success(fileName))
+				}
+			} catch (e: Exception) {
+				launch(Dispatchers.Main) {
+					onResult(Result.failure(e))
+				}
+			}
+		}
 	}
 }

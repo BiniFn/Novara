@@ -8,6 +8,9 @@ data class ExternalContentSource(
 	val authority: String,
 ) : ContentSource {
 
+	override val locale: String = ""
+	override val contentType = org.skepsun.kototoro.parsers.model.ContentType.OTHER
+
 	override val name: String
 		get() = "content:$packageName/$authority"
 

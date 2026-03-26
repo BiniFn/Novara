@@ -15,7 +15,7 @@ import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.parsers.network.UserAgents
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.settings.utils.AutoCompleteTextViewPreference

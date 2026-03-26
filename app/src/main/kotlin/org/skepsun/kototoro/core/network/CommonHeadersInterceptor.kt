@@ -14,7 +14,7 @@ import org.skepsun.kototoro.core.parser.ContentLoaderContextImpl
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.mergeWith
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable

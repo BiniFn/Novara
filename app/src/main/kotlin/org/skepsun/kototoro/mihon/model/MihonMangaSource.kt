@@ -3,6 +3,7 @@ package org.skepsun.kototoro.mihon.model
 import eu.kanade.tachiyomi.source.CatalogueSource
 import org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentType
 
 /**
  * Wrapper that adapts a Mihon CatalogueSource to Kototoro's ContentSource interface.
@@ -20,6 +21,9 @@ data class MihonMangaSource(
 	 */
 	val hasLanguageSuffix: Boolean = false,
 ) : ContentSource {
+
+	override val locale: String get() = language
+	override val contentType: ContentType get() = if (isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
 
 	/**
 	 * The source name, which follows the Mihon convention: MIHON_{sourceId}

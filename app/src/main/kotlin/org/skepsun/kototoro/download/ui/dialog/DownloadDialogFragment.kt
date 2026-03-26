@@ -37,7 +37,6 @@ import org.skepsun.kototoro.core.util.ext.showOrHide
 import org.skepsun.kototoro.databinding.DialogDownloadBinding
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.settings.storage.DirectoryModel
 

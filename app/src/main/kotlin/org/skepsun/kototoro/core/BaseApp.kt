@@ -21,6 +21,7 @@ import org.acra.ReportField
 import org.acra.config.dialog
 import org.acra.config.httpSender
 import org.acra.data.StringFormat
+import kotlinx.coroutines.withContext
 import org.acra.ktx.initAcra
 import org.acra.sender.HttpSender
 import org.conscrypt.Conscrypt
@@ -106,6 +107,11 @@ open class BaseApp : App(), Configuration.Provider {
 		} catch (e: Throwable) {
 			e.printStackTrace()
 		}
+		try {
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(this)
+		} catch (e: Throwable) {
+			e.printStackTrace()
+		}
 	}
 
 	override fun attachBaseContext(base: Context) {
@@ -174,5 +180,8 @@ open class BaseApp : App(), Configuration.Provider {
 		fun mihonExtensionManager(): MihonExtensionManager
 		fun aniyomiExtensionManager(): AniyomiExtensionManager
 		fun ireaderExtensionManager(): IReaderExtensionManager
+		fun externalExtensionRepoRepository(): org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
+		fun extensionInstallService(): org.skepsun.kototoro.extensions.install.ExtensionInstallService
+		fun contentSourcesRepository(): org.skepsun.kototoro.explore.data.ContentSourcesRepository
 	}
 }

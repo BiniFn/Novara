@@ -22,7 +22,7 @@ import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
 import org.skepsun.kototoro.parsers.model.ContentPage
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
@@ -39,7 +39,7 @@ class ParserContentRepository(
 		}
 	}
 
-	override val source: ContentParserSource
+	override val source: ContentSource
 		get() = parser.source
 
 	override val sortOrders: Set<SortOrder>

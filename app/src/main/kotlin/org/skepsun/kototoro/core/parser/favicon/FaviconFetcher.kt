@@ -136,6 +136,20 @@ class FaviconFetcher(
     private suspend fun fetchMihonIcon(repository: MihonMangaRepository): FetchResult {
         val pm = options.context.packageManager
         val pkgName = repository.source.pkgName
+
+        try {
+            val availableExtensions = repoRepository.getAvailableExtensions(ExternalExtensionType.MIHON)
+            val repoExt = availableExtensions.find { it.pkgName == pkgName }
+            if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
+                val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
+                if (remoteIcon != null) {
+                    return remoteIcon
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTraceDebug()
+        }
+
         val icon = runInterruptible {
             try {
                 pm.getApplicationIcon(pkgName)
@@ -157,6 +171,20 @@ class FaviconFetcher(
     private suspend fun fetchAniyomiIcon(repository: org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository): FetchResult {
         val pm = options.context.packageManager
         val pkgName = repository.source.pkgName
+
+        try {
+            val availableExtensions = repoRepository.getAvailableExtensions(ExternalExtensionType.ANIYOMI)
+            val repoExt = availableExtensions.find { it.pkgName == pkgName }
+            if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
+                val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
+                if (remoteIcon != null) {
+                    return remoteIcon
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTraceDebug()
+        }
+
         val icon = runInterruptible {
             try {
                 pm.getApplicationIcon(pkgName)

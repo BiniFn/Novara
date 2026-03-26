@@ -14,11 +14,10 @@ import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.util.ext.getDisplayName
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
-import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParsersProvider
+
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.splitTwoParts
 import org.json.JSONObject
@@ -26,6 +25,8 @@ import java.util.Locale
 
 data object LocalMangaSource : ContentSource {
 	override val name = "LOCAL"
+	override val locale = ""
+	override val contentType = ContentType.MANGA
 }
 
 val ContentSource.isLocal: Boolean
@@ -33,14 +34,20 @@ val ContentSource.isLocal: Boolean
 
 data object LocalNovelSource : ContentSource {
 	override val name = "LOCAL_NOVEL"
+	override val locale = ""
+	override val contentType = ContentType.NOVEL
 }
 
 data object UnknownContentSource : ContentSource {
 	override val name = "UNKNOWN"
+	override val locale = ""
+	override val contentType = ContentType.OTHER
 }
 
 data object TestContentSource : ContentSource {
 	override val name = "TEST"
+	override val locale = ""
+	override val contentType = ContentType.OTHER
 }
 
 fun ContentSource(name: String?): ContentSource {
@@ -78,10 +85,8 @@ fun ContentSource(name: String?): ContentSource {
 		android.util.Log.d("ContentSource", "Detected IReader source name: $name, returning stable ContentSource")
 		return AnonymousContentSource(name)
 	}
-	KotatsuParsersProvider.findByName(name)?.let { return it }
-	ContentParserSource.entries.forEach {
-		if (it.name == name) return it
-	}
+	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == name }?.let { return org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }
+	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == name }?.let { return it.originalSource }
 	return UnknownContentSource
 }
 
@@ -89,20 +94,14 @@ fun Collection<String>.toContentSources() = map(::ContentSource)
 
 fun ContentSource.isNsfw(): Boolean = when (this) {
 	is ContentSourceInfo -> mangaSource.isNsfw()
-	is ContentParserSource -> contentType in setOf(
-		ContentType.HENTAI_MANGA,
-		ContentType.HENTAI_NOVEL,
-		ContentType.HENTAI_VIDEO,
-	)
-	is KotatsuParserSource -> contentType in setOf(
-		ContentType.HENTAI_MANGA,
-		ContentType.HENTAI_NOVEL,
-		ContentType.HENTAI_VIDEO,
-	)
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> isNsfw
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> isNsfw
 	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> isNsfw
-	else -> false
+	else -> contentType in setOf(
+		ContentType.HENTAI_MANGA,
+		ContentType.HENTAI_NOVEL,
+		ContentType.HENTAI_VIDEO,
+	)
 }
 
 @get:StringRes
@@ -167,90 +166,31 @@ tailrec fun ContentSource.unwrap(): ContentSource = if (this is ContentSourceInf
 	this
 }
 
-fun ContentSource.getLocale(): Locale? = (unwrap() as? ContentParserSource)?.locale?.toLocaleOrNull()
-	?: (unwrap() as? KotatsuParserSource)?.locale?.toLocaleOrNull()
-	?: (unwrap() as? org.skepsun.kototoro.ireader.model.IReaderMangaSource)?.let {
-		mapIReaderLangToLocale(it.language)?.toLocaleOrNull()
-	}
+fun ContentSource.getLocale(): Locale? = unwrap().locale.takeIf { it.isNotEmpty() }?.toLocaleOrNull()
 
-fun ContentSource.getContentType(): ContentType = when (val source = unwrap()) {
-	is ContentParserSource -> source.contentType
-	is KotatsuParserSource -> source.contentType
-	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> if (source.isNsfw) ContentType.HENTAI_MANGA else ContentType.MANGA
-	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> if (source.isNsfw) ContentType.HENTAI_VIDEO else ContentType.VIDEO
-	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> if (source.isNsfw) ContentType.HENTAI_NOVEL else ContentType.NOVEL
-	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> {
-		when (source.entity.type) {
-			JsonSourceType.TVBOX -> ContentType.VIDEO
-			JsonSourceType.JS -> ContentType.MANGA
-			JsonSourceType.LNREADER -> ContentType.NOVEL
-			JsonSourceType.LEGADO -> try {
-				val jsonObj = JSONObject(source.entity.config)
-				if (jsonObj.optInt("bookSourceType", 0) == 2) ContentType.MANGA else ContentType.NOVEL
-			} catch (e: Exception) {
-				ContentType.NOVEL
-			}
-		}
-	}
-	else -> {
-		// Fallback for serialized sources that lost their type info (e.g., through Parcelable)
-		// Detect by name prefix
-		val sourceName = source.name
-		when {
-			sourceName.startsWith("ANIYOMI_") -> ContentType.VIDEO  // Aniyomi sources are always video
-			sourceName.startsWith("JSON_TVBOX_") -> ContentType.VIDEO
-			sourceName.startsWith("JSON_LEGADO_M_") -> ContentType.MANGA
-			sourceName.startsWith("JSON_LEGADO_") -> {
-				// We can't know for sure here without the entity, but let's default to novel
-				// as Legado is primarily a novel engine.
-				ContentType.NOVEL
-			}
-			sourceName.startsWith("JSON_LNREADER_") -> ContentType.NOVEL
-			sourceName.startsWith("JSON_JS_") -> ContentType.MANGA
-			sourceName.startsWith("TRACKING_") -> ContentType.OTHER
-			sourceName.startsWith("IREADER_") -> ContentType.NOVEL
-			else -> ContentType.MANGA
-		}
-	}
-}
+fun ContentSource.getContentType(): ContentType = unwrap().contentType
 
 fun ContentSource.getSummary(context: Context, contentType: ContentType? = null): String? = when (val source = unwrap()) {
-	is ContentParserSource,
 	is KotatsuParserSource,
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource,
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource,
 	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> {
 		val resolvedContentType = contentType ?: getContentType()
 		val type = context.getString(resolvedContentType.titleResId)
-		val lang = when (source) {
-			is ContentParserSource -> source.locale.toLocale()
-			is KotatsuParserSource -> source.locale.toLocale()
-			is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.language.toLocale()
-			is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.language.toLocale()
-			is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.language.toLocale()
-			else -> Locale.getDefault()
-		}
+		val lang = source.locale.toLocale()
 		val locale = lang.getDisplayName(context)
 		val base = context.getString(R.string.source_summary_pattern, type, locale)
 		appendOriginSuffix(context, base, source.getOriginLabel(context))
 	}
 
-	is ExternalContentSource -> {
-		val resolvedContentType = contentType ?: getContentType()
-		val type = context.getString(resolvedContentType.titleResId)
-		appendOriginSuffix(context, type, source.getOriginLabel(context))
-	}
-	
-	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> {
-		val resolvedContentType = contentType ?: getContentType()
-		val type = context.getString(resolvedContentType.titleResId)
-		appendOriginSuffix(context, type, source.getOriginLabel(context))
-	}
-
 	else -> {
 		val resolvedContentType = contentType ?: getContentType()
 		val type = context.getString(resolvedContentType.titleResId)
-		appendOriginSuffix(context, type, source.getOriginLabel(context))
+		val base = if (source.locale.isNotEmpty()) {
+			val locale = source.locale.toLocale().getDisplayName(context)
+			context.getString(R.string.source_summary_pattern, type, locale)
+		} else type
+		appendOriginSuffix(context, base, source.getOriginLabel(context))
 	}
 }
 
@@ -265,7 +205,6 @@ private fun appendOriginSuffix(context: Context, base: String, originLabel: Stri
 
 fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 	is ContentSourceInfo -> mangaSource.getOriginLabel(context)
-	is ContentParserSource -> "内置"
 	is KotatsuParserSource -> "Kotatsu"
 	is ExternalContentSource -> context.getString(R.string.external_source)
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> "Mihon"
@@ -297,7 +236,6 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 }
 
 fun ContentSource.getTitle(context: Context): String = when (val source = unwrap()) {
-	is ContentParserSource -> source.title
 	is KotatsuParserSource -> source.title
 	LocalMangaSource -> context.getString(R.string.local_storage)
 	LocalNovelSource -> "本地小说"
@@ -318,7 +256,13 @@ fun ContentSource.getTitle(context: Context): String = when (val source = unwrap
 		} else if (source.name.startsWith("TRACKING_")) {
 			source.name.removePrefix("TRACKING_")
 		} else {
-			context.getString(R.string.unknown)
+			// If it's a dynamic plugin, it might have a title property reflectively, or we use name
+			val titleMethod = try { source.javaClass.getMethod("getTitle") } catch(e: Exception) { null }
+			if (titleMethod != null) {
+				titleMethod.invoke(source) as? String ?: source.name
+			} else {
+				source.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+			}
 		}
 	}
 }
@@ -337,6 +281,9 @@ fun SpannableStringBuilder.appendIcon(textView: TextView, @DrawableRes resId: In
 }
 
 private class AnonymousContentSource(override val name: String) : ContentSource {
+	override val locale: String = ""
+	override val contentType: ContentType get() = ContentType.OTHER
+
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (other !is ContentSource) return false

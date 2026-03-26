@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroupInfo
 import org.skepsun.kototoro.core.model.ContentSourceInfo
@@ -334,10 +335,9 @@ class GroupedJsonSourcesAdapter(
 		}
 		
 		private fun getContentTypeLabel(sourceInfo: ContentSourceInfo): String {
-			// Check if it's a ContentParserSource (which has contentType)
+			// Use generic getContentType instead of casting to removed ContentParserSource enum
 			val source = sourceInfo.mangaSource
-			if (source is org.skepsun.kototoro.parsers.model.ContentParserSource) {
-				return when (source.contentType) {
+			return when (source.getContentType()) {
 					org.skepsun.kototoro.parsers.model.ContentType.MANGA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHWA,
 					org.skepsun.kototoro.parsers.model.ContentType.MANHUA,
@@ -353,10 +353,8 @@ class GroupedJsonSourcesAdapter(
 					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> binding.root.context.getString(R.string.novel)
 					org.skepsun.kototoro.parsers.model.ContentType.VIDEO,
 					org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> binding.root.context.getString(R.string.video)
-					org.skepsun.kototoro.parsers.model.ContentType.OTHER -> binding.root.context.getString(R.string.other)
+					else -> binding.root.context.getString(R.string.other)
 				}
-			}
-			return binding.root.context.getString(R.string.other)
 		}
 	}
 	

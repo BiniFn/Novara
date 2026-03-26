@@ -45,7 +45,7 @@ import org.skepsun.kototoro.list.ui.model.toErrorState
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.parsers.util.sizeOrZero
 import javax.inject.Inject
 
@@ -70,7 +70,7 @@ open class RemoteListViewModel @Inject constructor(
     val onSourceBroken = MutableEventFlow<Unit>()
 
 	protected val repository = mangaRepositoryFactory.create(initialSource)
-	val source: ParserContentSource = repository.source
+	val source: org.skepsun.kototoro.parsers.model.ContentSource = repository.source
 	private val mangaList = MutableStateFlow<List<Content>?>(null)
 	private val hasNextPage = MutableStateFlow(false)
 	private val listError = MutableStateFlow<Throwable?>(null)
@@ -134,10 +134,6 @@ open class RemoteListViewModel @Inject constructor(
 			sourcesRepository.trackUsage(source)
 		}
 
-        if (source is ContentParserSource && source.isBroken) {
-            // Just notify one. Will show reason in future
-            onSourceBroken.call(Unit)
-        }
 	}
 
 	override fun onRefresh() {

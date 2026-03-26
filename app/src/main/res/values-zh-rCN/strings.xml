@@ -517,7 +517,8 @@
     <string name="download_option_all_chapters">已翻译的章节 (%s)</string>
     <string name="state_upcoming">即将推出</string>
     <string name="by_name_reverse">名称（降序）</string>
-    <string name="manage_sources">内置源管理</string>
+    <string name="manage_sources">内容源管理</string>
+    <string name="jar_manage_sources">Jar源管理</string>
     <string name="catalog">内容源目录</string>
     <string name="content_type_comics">美漫</string>
     <string name="content_type_other">其他</string>
@@ -1526,4 +1527,28 @@
     <string name="epub_ebook_description">EPUB电子书：%s</string>
     <string name="rank">排名</string>
     <string name="episode_number_format">第 %1$s 话\n\n%2$s</string>
+
+    <!-- Mirrors -->
+    <string name="pref_github_mirror">GitHub 网络加速镜像</string>
+    <string name="pref_github_mirror_summary">如果您身处国内导致 GitHub 直连报错，请选择一个加速镜像路线解决。</string>
+    <string-array name="pref_github_mirror_entries">
+        <item>原生直连 (默认)</item>
+        <item>KKGithub (推荐)</item>
+        <item>GHProxy 路线 1</item>
+        <item>GHProxy 路线 2</item>
+    </string-array>
+    <string-array name="pref_github_mirror_values">
+        <item>native</item>
+        <item>kkgithub</item>
+        <item>ghproxy</item>
+        <item>ghproxy_net</item>
+    </string-array>
+
+    <!-- Welcome Init UI -->
+    <string name="welcome_plugins_title">初始化插件源</string>
+    <string name="welcome_plugins_summary">由于核心代码全面分离，请先勾选要加载的插件仓库并选择网络解析镜像来进行出厂初始化配置。</string>
+    <string name="welcome_plugins_repo_kototoro">Kototoro 官方库</string>
+    <string name="welcome_plugins_repo_yakateam">Yakateam 官方补存库</string>
+    <string name="welcome_plugins_repo_redo">Kotatsu-Redo 海王库</string>
+    <string name="welcome_plugins_start_btn">一键拉取并初始化装载</string>
 </resources>

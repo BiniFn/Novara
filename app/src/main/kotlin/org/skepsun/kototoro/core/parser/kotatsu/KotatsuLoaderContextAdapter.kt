@@ -24,6 +24,15 @@ internal class KotatsuLoaderContextAdapter(
 	override val cookieJar: CookieJar
 		get() = delegate.cookieJar
 
+	override fun newParserInstance(source: KTContentSource): org.koitharu.kotatsu.parsers.MangaParser {
+		val extensionManager = org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+		return extensionManager.getMangaParser(source, this)
+	}
+
+	override fun newLinkResolver(link: okhttp3.HttpUrl): org.koitharu.kotatsu.parsers.util.LinkResolver {
+		throw UnsupportedOperationException("Link resolution from Kotatsu plugins is not supported")
+	}
+
 	override suspend fun evaluateJs(script: String): String? = delegate.evaluateJs(script)
 
 
@@ -31,15 +40,12 @@ internal class KotatsuLoaderContextAdapter(
 	override suspend fun evaluateJs(baseUrl: String, script: String, timeout: Long): String? = delegate.evaluateJs(baseUrl, script)
 
 	override fun requestBrowserAction(parser: org.koitharu.kotatsu.parsers.MangaParser, url: String): Nothing {
-		val source = (parser.source as? org.koitharu.kotatsu.parsers.model.MangaParserSource)
-			?.let { KotatsuParserSource(it) }
-			?: KotatsuParsersProvider.findByName(parser.source.name)
-			?: throw UnsupportedOperationException("Cannot resolve source for browser action: ${parser.source.name}")
+		val source = KotatsuParserSource(parser.source)
 		throw InteractiveActionRequiredException(source, url)
 	}
 
 	override fun getConfig(source: KTContentSource): org.koitharu.kotatsu.parsers.config.MangaSourceConfig =
-		KotatsuConfigAdapter(delegate.getConfig(KotatsuParserSource(source as org.koitharu.kotatsu.parsers.model.MangaParserSource)))
+		KotatsuConfigAdapter(delegate.getConfig(KotatsuParserSource(source)))
 
 	override fun getDefaultUserAgent(): String = delegate.getDefaultUserAgent()
 

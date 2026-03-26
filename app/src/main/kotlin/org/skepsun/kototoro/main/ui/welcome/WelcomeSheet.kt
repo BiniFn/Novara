@@ -3,6 +3,8 @@ package org.skepsun.kototoro.main.ui.welcome
 import android.accounts.AccountManager
 import android.net.Uri
 import android.os.Bundle
+import android.widget.ArrayAdapter
+import org.skepsun.kototoro.core.prefs.AppSettings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -52,6 +54,30 @@ class WelcomeSheet : BaseAdaptiveSheet<SheetWelcomeBinding>(), ChipsView.OnChipC
 		binding.chipBackup.setOnClickListener(this)
 		binding.chipSync.setOnClickListener(this)
 		binding.chipDirectories.setOnClickListener(this)
+
+		val mirrors = resources.getStringArray(R.array.pref_github_mirror_entries).toList()
+		val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, mirrors)
+		binding.autoCompleteMirror.setAdapter(adapter)
+		// Default to NATIVE
+		binding.autoCompleteMirror.setText(mirrors[0], false)
+		
+		binding.buttonPluginsInit.setOnClickListener {
+			android.util.Log.d("KototoroInit", "Button clicked! Mirror selected: ${binding.autoCompleteMirror.text}")
+			val selectedMirrorsPosition = mirrors.indexOf(binding.autoCompleteMirror.text.toString()).coerceAtLeast(0)
+			val repoUrls = mutableListOf<String>()
+			if (binding.chipRepoKototoro.isChecked) repoUrls.add("https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json")
+			if (binding.chipRepoYakateam.isChecked) repoUrls.add("https://raw.githubusercontent.com/skepsun/k-parsers-y/repo/index.min.json")
+			if (binding.chipRepoRedo.isChecked) repoUrls.add("https://raw.githubusercontent.com/skepsun/k-parsers-r/repo/index.min.json")
+			android.util.Log.d("KototoroInit", "Dispatching initializePlugins with urls: $repoUrls")
+			viewModel.initializePlugins(selectedMirrorsPosition, repoUrls)
+		}
+
+		viewModel.isInitializingPlugins.observe(viewLifecycleOwner) { isInitializing ->
+			binding.progressBarPluginsInit.isGone = !isInitializing
+			binding.buttonPluginsInit.isEnabled = !isInitializing
+			binding.autoCompleteMirror.isEnabled = !isInitializing
+			binding.chipGroupRepos.isEnabled = !isInitializing
+		}
 
 		viewModel.locales.observe(viewLifecycleOwner, ::onLocalesChanged)
 		viewModel.types.observe(viewLifecycleOwner, ::onTypesChanged)

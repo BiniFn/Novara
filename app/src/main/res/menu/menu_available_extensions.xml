@@ -22,6 +22,11 @@
         android:showAsAction="never" />
 
     <item
+        android:id="@+id/action_import_local_jar"
+        android:title="Import Local Jar"
+        android:showAsAction="never" />
+
+    <item
         android:id="@+id/action_filter_languages"
         android:icon="@drawable/ic_filter_menu"
         android:title="@string/filter_extensions_by_language"

@@ -1,0 +1,47 @@
+plugins {
+	id 'com.android.library'
+	id 'kotlin-android'
+	id 'kotlin-parcelize'
+}
+
+android {
+	namespace 'org.skepsun.kototoro.parsers.api'
+	compileSdk 36
+
+	defaultConfig {
+		minSdk 26
+	}
+
+	compileOptions {
+		coreLibraryDesugaringEnabled true
+		sourceCompatibility JavaVersion.VERSION_11
+		targetCompatibility JavaVersion.VERSION_11
+	}
+
+	kotlinOptions {
+		jvmTarget = JavaVersion.VERSION_11.toString()
+		freeCompilerArgs += [
+			'-opt-in=kotlin.ExperimentalStdlibApi',
+			'-opt-in=org.skepsun.kototoro.parsers.InternalParsersApi',
+			'-opt-in=org.koitharu.kotatsu.parsers.InternalParsersApi',
+			'-opt-in=kotlin.contracts.ExperimentalContracts',
+			'-Xjspecify-annotations=strict',
+			'-Xannotation-default-target=first-only',
+			'-Xtype-enhancement-improvements-strict-mode'
+		]
+	}
+}
+
+dependencies {
+	coreLibraryDesugaring libs.desugar.jdk.libs
+	implementation libs.kotlin.stdlib
+	implementation libs.kotlinx.coroutines.android
+	implementation "androidx.annotation:annotation:1.9.1"
+	api libs.androidx.collection
+	
+	api "org.jsoup:jsoup:1.17.2"
+	api libs.okhttp
+	api libs.okio
+	api libs.rhino
+	api "androidx.multidex:multidex:2.0.1"
+}

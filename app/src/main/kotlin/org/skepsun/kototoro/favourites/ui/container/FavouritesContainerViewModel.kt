@@ -26,8 +26,10 @@ import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.parsers.ContentFavoriteFolder
 import org.skepsun.kototoro.parsers.CategorizedFavoritesProvider
 import org.skepsun.kototoro.core.os.NetworkState
@@ -83,7 +85,7 @@ class FavouritesContainerViewModel @Inject constructor(
 	}
 
 	data class ImportSource(
-		val source: ContentParserSource,
+		val source: ContentSource,
 		val title: String,
 		val folders: List<ContentFavoriteFolder>? = null,
 	)
@@ -152,11 +154,11 @@ val importMessages = MutableEventFlow<String>()
 		logImport("loadImportCandidates: enabled=${enabledSources.size}, hideNsfw=${settings.isNsfwContentDisabled}")
 		for (item in enabledSources) {
 			val unwrapped = item.unwrap()
-			val parserSource = (unwrapped as? ContentParserSource)
-			if (parserSource == null) {
-				logImport("skip ${item.name}: not a parser source (${unwrapped?.javaClass?.simpleName})")
+			if (unwrapped.isLocal || unwrapped is ExternalContentSource) {
+				logImport("skip ${item.name}: not a parser source (${unwrapped::class.simpleName})")
 				continue
 			}
+			val parserSource = unwrapped
 			val repository = mangaRepositoryFactory.create(parserSource) as? ParserContentRepository
 			if (repository == null) {
 				logImport("skip ${parserSource.name}: repository not parser")
@@ -186,7 +188,7 @@ val importMessages = MutableEventFlow<String>()
 		return candidates.sortedBy { it.title.lowercase() }
 	}
 
-	suspend fun loadFavoriteFolders(source: ContentParserSource): List<ContentFavoriteFolder> {
+	suspend fun loadFavoriteFolders(source: ContentSource): List<ContentFavoriteFolder> {
 		val repository = mangaRepositoryFactory.create(source) as? ParserContentRepository ?: return emptyList()
 		val catProvider = repository.categorizedFavoritesProvider() ?: return emptyList()
 		return runCatching { catProvider.fetchFavoriteFolders() }.getOrDefault(emptyList())
@@ -242,11 +244,11 @@ val importMessages = MutableEventFlow<String>()
 		logSync("loadSyncCandidates: enabled=${enabledSources.size}, hideNsfw=${settings.isNsfwContentDisabled}")
 		for (item in enabledSources) {
 			val unwrapped = item.unwrap()
-			val parserSource = (unwrapped as? ContentParserSource)
-			if (parserSource == null) {
-				logSync("skip ${item.name}: not a parser source (${unwrapped?.javaClass?.simpleName})")
+			if (unwrapped.isLocal || unwrapped is ExternalContentSource) {
+				logSync("skip ${item.name}: not a parser source (${unwrapped::class.simpleName})")
 				continue
 			}
+			val parserSource = unwrapped
 			val repository = mangaRepositoryFactory.create(parserSource) as? ParserContentRepository
 			if (repository == null) {
 				logSync("skip ${parserSource.name}: repository not parser")

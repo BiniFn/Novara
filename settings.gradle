@@ -41,7 +41,7 @@ dependencyResolutionManagement {
 	}
 }
 
-include ':app'
+include ':app', ':parser-api'
 rootProject.name = "Kototoro"
 
 // 使用远程 DanmakuRenderEngine（本地工程 AGP 4.2.2 与当前 Gradle 不兼容）

@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings.sources.extensions
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -83,6 +84,8 @@ internal fun observeInstalledExtensionInfoMap(
 			libVersionOf = { it.libVersion },
 			versionNameOf = { it.versionName },
 		)
+		
+		ExternalExtensionType.JAR -> kotlinx.coroutines.flow.flowOf(emptyMap()) // Unused by JAR right now
 	}
 }
 
@@ -91,6 +94,7 @@ internal fun observeInstalledExtensionEntries(
 	mihonExtensionManager: MihonExtensionManager,
 	aniyomiExtensionManager: AniyomiExtensionManager,
 	ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
+	context: android.content.Context? = null,
 ): Flow<List<InstalledExtensionEntry>> {
 	return when (type) {
 		ExternalExtensionType.MIHON -> observeMihonInstalledExtensionEntries(mihonExtensionManager)
@@ -98,6 +102,30 @@ internal fun observeInstalledExtensionEntries(
 		ExternalExtensionType.ANIYOMI -> observeAniyomiInstalledExtensionEntries(aniyomiExtensionManager)
 
 		ExternalExtensionType.IREADER -> observeIReaderInstalledExtensionEntries(ireaderExtensionManager)
+
+		ExternalExtensionType.JAR -> {
+			val prefs = context?.getSharedPreferences("jar_plugin_versions", android.content.Context.MODE_PRIVATE)
+			combine(
+				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources,
+				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources
+			) { manga, content ->
+				val allJarNames = (manga.map { it.jarName } + content.map { it.jarName }).distinct()
+				allJarNames.map { jarName ->
+					val pkg = jarName.removeSuffix(".jar")
+					val version = prefs?.getLong(pkg, 1L) ?: 1L
+					InstalledExtensionEntry(
+						pkgName = pkg,
+						name = pkg,
+						versionName = "1.0",
+						versionCode = version,
+						libVersion = 1.0,
+						lang = "all",
+						isNsfw = false,
+						sourceNames = emptyList(),
+					)
+				}
+			}
+		}
 	}
 }
 

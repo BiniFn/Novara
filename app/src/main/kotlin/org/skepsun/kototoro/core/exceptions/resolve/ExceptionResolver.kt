@@ -38,7 +38,7 @@ import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.logUnavailable
 import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.core.model.isLocal
 import java.security.cert.CertPathValidatorException
 import javax.inject.Inject
 import javax.inject.Provider
@@ -146,7 +146,7 @@ class ExceptionResolver private constructor(
     }
 
     private fun isCredentialBased(source: ContentSource): Boolean {
-        if (source !is ContentParserSource) return false
+        if (source.isLocal) return false
         val creation = mangaRepositoryFactory.createWithDiagnostics(source)
         val repo = creation.repository
         if (repo !is ParserContentRepository) {

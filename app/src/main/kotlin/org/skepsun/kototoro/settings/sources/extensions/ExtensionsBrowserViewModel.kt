@@ -70,6 +70,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		mihonExtensionManager = mihonExtensionManager,
 		aniyomiExtensionManager = aniyomiExtensionManager,
 		ireaderExtensionManager = ireaderExtensionManager,
+		context = appContext,
 	).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 	private val browserInputsBase: StateFlow<BrowserInputs> = combine(
@@ -196,6 +197,20 @@ class ExtensionsBrowserViewModel @Inject constructor(
 
 	fun uninstall(item: ExtensionsBrowserListItem.Entry) {
 		if (item.state == ExtensionsBrowserEntryState.INSTALLING) {
+			return
+		}
+
+		if (item.extension.type == ExternalExtensionType.JAR) {
+			val pluginDir = java.io.File(appContext.filesDir, "plugins")
+			val jarFile = java.io.File(pluginDir, "${item.pkgName}.jar")
+			if (jarFile.exists()) {
+				jarFile.delete()
+			}
+			appContext.getSharedPreferences("jar_plugin_versions", android.content.Context.MODE_PRIVATE)
+				.edit()
+				.remove(item.pkgName)
+				.apply()
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(appContext)
 			return
 		}
 

@@ -157,6 +157,15 @@ class SourcesManageFragment :
 		}
 
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
+			R.id.action_jar_repos -> {
+				(activity as? SettingsActivity)?.openFragment(
+					fragmentClass = org.skepsun.kototoro.settings.sources.extensions.ExtensionRepositoriesFragment::class.java,
+					args = Bundle(1).apply { putString(org.skepsun.kototoro.settings.sources.extensions.ARG_EXTENSION_TYPE, org.skepsun.kototoro.extensions.repo.ExternalExtensionType.JAR.name) },
+					isFromRoot = false
+				)
+				true
+			}
+
 			R.id.action_catalog -> {
 				router.openSourcesCatalog()
 				true

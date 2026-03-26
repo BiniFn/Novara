@@ -46,8 +46,10 @@ import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.core.model.unwrap
 
 @AndroidEntryPoint
 class ExploreSourcesFragment :
@@ -231,7 +233,10 @@ class ExploreSourcesFragment :
 		menu.findItem(R.id.action_pin).isVisible = selectedSources.all { !it.isPinned }
 		menu.findItem(R.id.action_unpin).isVisible = selectedSources.all { it.isPinned }
 		menu.findItem(R.id.action_disable)?.isVisible = !viewModel.isAllSourcesEnabled.value &&
-			selectedSources.all { it.mangaSource is ContentParserSource }
+			selectedSources.all { 
+				val unwrapped = it.mangaSource.unwrap()
+				!unwrapped.isLocal && unwrapped !is ExternalContentSource 
+			}
 		menu.findItem(R.id.action_delete)?.isVisible = selectedSources.all { it.mangaSource is ExternalContentSource }
 		return super.onPrepareActionMode(controller, mode, menu)
 	}

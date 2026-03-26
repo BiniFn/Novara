@@ -4,4 +4,5 @@ enum class ExternalExtensionType {
 	MIHON,
 	ANIYOMI,
 	IREADER,
+	JAR,
 }

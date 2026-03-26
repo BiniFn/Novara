@@ -3,6 +3,7 @@ package org.skepsun.kototoro.aniyomi.model
 import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
 import org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentType
 
 /**
  * Wrapper that adapts an Aniyomi AnimeCatalogueSource to Kototoro's ContentSource interface.
@@ -16,6 +17,9 @@ data class AniyomiAnimeSource(
 	 */
 	val hasLanguageSuffix: Boolean = false,
 ) : ContentSource {
+
+	override val locale: String get() = language
+	override val contentType: ContentType get() = if (isNsfw) ContentType.HENTAI_VIDEO else ContentType.VIDEO
 
 	/**
 	 * The source name, following the Aniyomi convention: ANIYOMI_{sourceId}

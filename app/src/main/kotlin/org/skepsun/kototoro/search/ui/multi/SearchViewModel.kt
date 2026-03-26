@@ -33,6 +33,7 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
@@ -44,7 +45,6 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
@@ -278,11 +278,7 @@ class SearchViewModel @Inject constructor(
 		},
 		onFailure = { error ->
 			error.printStackTraceDebug()
-			if (source is ContentParserSource && source.isBroken) {
-				null
-			} else {
-				SearchResultsListModel(0, source, null, null, emptyList(), error)
-			}
+			SearchResultsListModel(0, source, null, null, emptyList(), error)
 		},
 	)
 
@@ -418,9 +414,7 @@ class SearchViewModel @Inject constructor(
 
 	private fun ContentSource.priority(): Int {
 		var res = 0
-		if (this is ContentParserSource) {
-			if (locale.toLocale() == Locale.getDefault()) res += 2
-		}
+		if (this.getLocale() == Locale.getDefault()) res += 2
 		return res
 	}
 

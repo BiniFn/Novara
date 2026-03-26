@@ -2,11 +2,12 @@ package org.skepsun.kototoro.core.jsonsource
 
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.parsers.model.ContentSource
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 
 /**
@@ -34,9 +35,10 @@ class SourceGroupManager @Inject constructor(
 	fun getContentGroup(source: ContentSource): ContentGroup {
 		val isNsfw = source.isNsfw()
 		
-		// Priority 1: Check native ContentParserSource content type
-		if (source is ContentParserSource) {
-			return when (source.contentType) {
+		// Priority 1: Check native and plugin ContentSource content type
+		val type = sourceTypeIdentifier.getSourceType(source.name)
+		if (type == SourceType.NATIVE || source is org.skepsun.kototoro.core.extensions.PluginContentSource || source is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource) {
+			return when (source.getContentType()) {
 				ContentType.NOVEL, ContentType.HENTAI_NOVEL -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
 				ContentType.VIDEO, ContentType.HENTAI_VIDEO -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 				else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA

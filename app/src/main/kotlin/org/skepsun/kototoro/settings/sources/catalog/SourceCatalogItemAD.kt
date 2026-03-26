@@ -46,7 +46,7 @@ fun sourceCatalogItemSourceAD(
 	bind {
 		val unwrapped = item.source.unwrap()
 		val isBroken = when (unwrapped) {
-			is org.skepsun.kototoro.parsers.model.ContentParserSource -> unwrapped.isBroken
+
 			is KotatsuParserSource -> unwrapped.isBroken
 			else -> false
 		}

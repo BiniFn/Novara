@@ -23,16 +23,30 @@ class ExtensionRepoService @Inject constructor(
 	private val settings: AppSettings,
 ) {
 
+	private fun applyMirror(url: String): String {
+		if (url.startsWith("https://raw.githubusercontent.com/")) {
+			return when (settings.gitHubMirror) {
+				AppSettings.GitHubMirror.NATIVE -> url
+				AppSettings.GitHubMirror.KKGITHUB -> url.replace("raw.githubusercontent.com", "raw.kkgithub.com")
+				AppSettings.GitHubMirror.GHPROXY -> "https://mirror.ghproxy.com/$url"
+				AppSettings.GitHubMirror.GHPROXY_NET -> "https://ghproxy.net/$url"
+			}
+		}
+		return url
+	}
+
 	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
-		if (type == ExternalExtensionType.IREADER) {
+		if (type == ExternalExtensionType.IREADER || type == ExternalExtensionType.JAR) {
 			val now = System.currentTimeMillis()
+			val repoName = if (type == ExternalExtensionType.IREADER) "IReader Repository" else "Kototoro Repository"
+			val repoShort = if (type == ExternalExtensionType.IREADER) "IReader" else "Kototoro"
 			return ExternalExtensionRepo(
 				type = type,
 				baseUrl = baseUrl,
-				name = "IReader Repository",
-				shortName = "IReader",
+				name = repoName,
+				shortName = repoShort,
 				website = baseUrl,
-				signingKeyFingerprint = "", // IReader APKs are signed individually
+				signingKeyFingerprint = "", // IReader/JAR plugins are handled individually
 				createdAt = now,
 				updatedAt = now,
 				lastSuccessAt = now,
@@ -40,11 +54,11 @@ class ExtensionRepoService @Inject constructor(
 			)
 		}
 
-		val repoJsonUrl = "$baseUrl/repo.json"
+		val repoJsonUrl = applyMirror("$baseUrl/repo.json")
 		val startedAt = System.currentTimeMillis()
 		Log.d(TAG, "fetchRepoDetails:start type=$type url=$repoJsonUrl")
 		return withTimeout(REPO_DETAILS_TIMEOUT_MS) {
-			val body = httpClient.newCall(GET("$baseUrl/repo.json")).awaitSuccess().use { response ->
+			val body = httpClient.newCall(GET(repoJsonUrl)).awaitSuccess().use { response ->
 				response.body.string()
 			}
 			val dto = json.decodeFromString<RepoMetaWrapperDto>(body)
@@ -71,11 +85,12 @@ class ExtensionRepoService @Inject constructor(
 
 	suspend fun fetchAvailableExtensions(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
 		val indexUrl = "${repo.baseUrl}/index.min.json"
+		val requestUrl = applyMirror(indexUrl)
 		val startedAt = System.currentTimeMillis()
-		Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} url=$indexUrl")
+		Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} url=$requestUrl")
 		return runCatching {
 			withTimeout(CATALOG_TIMEOUT_MS) {
-				val body = httpClient.newCall(GET(indexUrl)).awaitSuccess().use { response ->
+				val body = httpClient.newCall(GET(requestUrl)).awaitSuccess().use { response ->
 					response.body.string()
 				}
 				if (repo.type == ExternalExtensionType.IREADER) {
@@ -105,16 +120,7 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	fun normalizeIndexUrl(input: String): String? {
-		var processUrl = input.trim()
-		if (settings.isExtensionJsdelivrMirrorEnabled) {
-			val githubRawRegex = Regex("""^https?://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)(?:/(.*))?$""")
-			val matchResult = githubRawRegex.matchEntire(processUrl)
-			if (matchResult != null) {
-				val (user, repo, branch, path) = matchResult.destructured
-				val trailingPath = if (path.isNotEmpty()) "/$path" else ""
-				processUrl = "https://fastly.jsdelivr.net/gh/$user/$repo@$branch$trailingPath"
-			}
-		}
+		val processUrl = input.trim()
 
 		val url = processUrl.toHttpUrlOrNull() ?: return null
 		if (url.scheme != "https") {
@@ -145,11 +151,13 @@ class ExtensionRepoService @Inject constructor(
 			ExternalExtensionType.MIHON -> libVersion in MihonExtensionLoader.LIB_VERSION_MIN..MihonExtensionLoader.LIB_VERSION_MAX
 			ExternalExtensionType.ANIYOMI -> libVersion in AniyomiExtensionLoader.LIB_VERSION_MIN..AniyomiExtensionLoader.LIB_VERSION_MAX
 			ExternalExtensionType.IREADER -> true
+			ExternalExtensionType.JAR -> true
 		}
 		val displayName = when (repo.type) {
 			ExternalExtensionType.MIHON -> name.removePrefix("Tachiyomi: ")
 			ExternalExtensionType.ANIYOMI -> name.removePrefix("Aniyomi: ")
 			ExternalExtensionType.IREADER -> name.removePrefix("IReader: ")
+			ExternalExtensionType.JAR -> name
 		}
 
 		return RepoAvailableExtension(
@@ -216,10 +224,10 @@ class ExtensionRepoService @Inject constructor(
 		val name: String,
 		val pkg: String,
 		val apk: String,
-		val lang: String,
+		val lang: String = "all",
 		val code: Long,
 		val version: String,
-		val nsfw: Int,
+		val nsfw: Int = 0,
 		val sources: List<ExtensionSourceDto>? = null,
 	)
 

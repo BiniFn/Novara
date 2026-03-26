@@ -37,7 +37,7 @@ import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
 import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.parsers.model.ContentTagGroup
@@ -65,7 +65,7 @@ class FilterCoordinator @Inject constructor(
 
     private val coroutineScope = lifecycle.lifecycleScope + Dispatchers.Default
     private val repository = mangaRepositoryFactory.create(ContentSource(savedStateHandle[RemoteListFragment.ARG_SOURCE]))
-    private val sourceLocale = (repository.source as? ContentParserSource)?.locale
+    private val sourceLocale = repository.source.getLocale()?.language
 
     private val currentListFilter = MutableStateFlow(ContentListFilter.EMPTY)
     private val currentSortOrder = MutableStateFlow(repository.defaultSortOrder)

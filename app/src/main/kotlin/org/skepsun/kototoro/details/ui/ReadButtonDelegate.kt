@@ -29,7 +29,7 @@ import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.getContentType
 

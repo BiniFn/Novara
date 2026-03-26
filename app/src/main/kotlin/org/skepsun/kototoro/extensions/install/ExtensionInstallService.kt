@@ -23,11 +23,26 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import org.skepsun.kototoro.core.prefs.AppSettings
+
 @Singleton
 class ExtensionInstallService @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@ContentHttpClient private val httpClient: OkHttpClient,
+	private val settings: AppSettings,
 ) {
+
+	private fun applyMirror(url: String): String {
+		if (url.startsWith("https://raw.githubusercontent.com/")) {
+			return when (settings.gitHubMirror) {
+				AppSettings.GitHubMirror.NATIVE -> url
+				AppSettings.GitHubMirror.KKGITHUB -> url.replace("raw.githubusercontent.com", "raw.kkgithub.com")
+				AppSettings.GitHubMirror.GHPROXY -> "https://mirror.ghproxy.com/$url"
+				AppSettings.GitHubMirror.GHPROXY_NET -> "https://ghproxy.net/$url"
+			}
+		}
+		return url
+	}
 
 	private val activeCalls = ConcurrentHashMap<String, Call>()
 	private val _downloadStates = MutableStateFlow<Map<String, ExtensionInstallDownloadState>>(emptyMap())
@@ -35,7 +50,7 @@ class ExtensionInstallService @Inject constructor(
 	val downloadStates: StateFlow<Map<String, ExtensionInstallDownloadState>> = _downloadStates.asStateFlow()
 
 	suspend fun createInstallIntent(extension: RepoAvailableExtension): Intent? {
-		val apkUrl = "${extension.repoUrl}/apk/${extension.apkName}"
+		val apkUrl = applyMirror("${extension.repoUrl}/apk/${extension.apkName}")
 		val outputDir = File(context.cacheDir, "extension-installs").apply { mkdirs() }
 		val outputFile = File(outputDir, "${extension.pkgName}-${extension.versionCode}.apk")
 		val call = httpClient.newCachelessCallWithProgress(GET(apkUrl), ExtensionInstallProgressListener(extension.pkgName))
@@ -61,6 +76,20 @@ class ExtensionInstallService @Inject constructor(
 			activeCalls.remove(extension.pkgName)
 			_downloadStates.update { it - extension.pkgName }
 		}
+		
+		if (extension.type == org.skepsun.kototoro.extensions.repo.ExternalExtensionType.JAR) {
+			val pluginsDir = File(context.filesDir, "plugins").apply { mkdirs() }
+			val jarFile = File(pluginsDir, "${extension.pkgName}.jar")
+			outputFile.copyTo(jarFile, overwrite = true)
+			outputFile.delete()
+			context.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+				.edit()
+				.putLong(extension.pkgName, extension.versionCode)
+				.apply()
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(context)
+			return null
+		}
+		
 		val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.files", outputFile)
 		return Intent(Intent.ACTION_VIEW).apply {
 			setDataAndType(uri, "application/vnd.android.package-archive")

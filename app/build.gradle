@@ -33,8 +33,8 @@ android {
 		applicationId 'org.skepsun.kototoro'
 		minSdk = 26
 		targetSdk = 36
-        versionCode = 1095
-        versionName = '0.6.4'
+        versionCode = 1096
+        versionName = '0.7.0'
 		manifestPlaceholders = [
 			appClassName: 'org.skepsun.kototoro.KototoroApp'
 		]
@@ -192,28 +192,9 @@ configurations.all {
 	}
 }
 
-dependencies {
-	def parsersVersion = libs.versions.parsers.get()
-	if (System.properties.containsKey('parsersVersionOverride')) {
-		// usage:
-		// -DparsersVersionOverride=$(curl -s https://api.github.com/repos/skepsun/kototoro-parsers/commits/master -H "Accept: application/vnd.github.sha" | cut -c -10)
-		parsersVersion = System.getProperty('parsersVersionOverride')
-	}
-	//noinspection UseTomlInstead
-	implementation("com.github.skepsun:kototoro-parsers:$parsersVersion") {
-		exclude group: 'org.json', module: 'json'
-	}
+	dependencies {
+	implementation project(':parser-api')
 
-	def kotatsuParsersVersion = libs.versions.kotatsuParsers.get()
-	if (System.properties.containsKey('kotatsuParsersVersionOverride')) {
-		// usage:
-		// -DkotatsuParsersVersionOverride=$(curl -s https://api.github.com/repos/Kotatsu-Redo/kotatsu-parsers-redo/commits/master -H "Accept: application/vnd.github.sha" | cut -c -10)
-		kotatsuParsersVersion = System.getProperty('kotatsuParsersVersionOverride')
-	}
-	// kotatsu-parsers作为补充解析器集合，重复站点优先使用kototoro-parsers
-	implementation("com.github.Kotatsu-Redo:kotatsu-parsers-redo:$kotatsuParsersVersion") {
-		exclude group: 'org.json', module: 'json'
-	}
 
 	coreLibraryDesugaring libs.desugar.jdk.libs
 	implementation libs.kotlin.stdlib

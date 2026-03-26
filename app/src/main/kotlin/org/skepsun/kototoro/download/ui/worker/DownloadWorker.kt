@@ -103,7 +103,6 @@ import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.requireBody
@@ -261,8 +260,8 @@ class DownloadWorker @AssistedInject constructor(
 				Log.d("DownloadWorker", "downloadContentImpl repo=${repo.source.name}")
 				val mangaDetails = if (manga.chapters.isNullOrEmpty() || manga.description.isNullOrEmpty()) repo.getDetails(manga) else manga
 				Log.d("DownloadWorker", "downloadContentImpl detailsChapters=${mangaDetails.chapters?.size ?: 0}")
-				val parserSource = mangaDetails.source.unwrap() as? ContentParserSource
-				val isNovel = when (parserSource?.contentType) {
+				val contentType = mangaDetails.source.getContentType()
+				val isNovel = when (contentType) {
 					ContentType.NOVEL, ContentType.HENTAI_NOVEL -> true
 					else -> false
 				} || mangaDetails.source.name.uppercase() in setOf("BILINOVEL", "LKNOVEL_US", "LIGHTNOVEL_WIKI", "NOVELIA", "WENKU8", "BIQUGE") ||

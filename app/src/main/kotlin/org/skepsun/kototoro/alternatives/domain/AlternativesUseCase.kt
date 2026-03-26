@@ -10,7 +10,8 @@ import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.SearchKind
@@ -64,15 +65,13 @@ class AlternativesUseCase @Inject constructor(
 
 	private fun ContentSource.priority(ref: ContentSource): Int {
 		var res = 0
-		if (this is ContentParserSource && ref is ContentParserSource) {
-			if (locale == ref.locale) {
-				res += 4
-			} else if (locale.toLocale() == Locale.getDefault()) {
-				res += 2
-			}
-			if (contentType == ref.contentType) {
-				res++
-			}
+		if (this.getLocale() == ref.getLocale()) {
+			res += 4
+		} else if (this.getLocale() == Locale.getDefault()) {
+			res += 2
+		}
+		if (this.getContentType() == ref.getContentType()) {
+			res++
 		}
 		return res
 	}

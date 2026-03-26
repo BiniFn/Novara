@@ -8,10 +8,9 @@ import okhttp3.Request
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
-import java.util.EnumSet
 import javax.inject.Inject
 
 class MirrorSwitcher @Inject constructor(
@@ -19,7 +18,7 @@ class MirrorSwitcher @Inject constructor(
 	@ContentHttpClient private val okHttpClient: OkHttpClient,
 ) {
 
-	private val blacklist = EnumSet.noneOf(ContentParserSource::class.java)
+	private val blacklist = mutableSetOf<String>()
 	private val mutex: Mutex = Mutex()
 
 	val isEnabled: Boolean
@@ -27,7 +26,7 @@ class MirrorSwitcher @Inject constructor(
 
 	suspend fun <T : Any> trySwitchMirror(repository: ParserContentRepository, loader: suspend () -> T?): T? {
 		val source = repository.source
-		if (!isEnabled || source in blacklist) {
+		if (!isEnabled || source.name in blacklist) {
 			return null
 		}
 		val availableMirrors = repository.domains
@@ -36,7 +35,7 @@ class MirrorSwitcher @Inject constructor(
 			return null
 		}
 		mutex.withLock {
-			if (source in blacklist) {
+			if (source.name in blacklist) {
 				return null
 			}
 			logd { "Looking for mirrors for ${source}..." }
@@ -59,7 +58,7 @@ class MirrorSwitcher @Inject constructor(
 				}
 			}
 			repository.domain = currentHost // rollback
-			blacklist.add(source)
+			blacklist.add(source.name)
 			logd { "$source blacklisted" }
 			return null
 		}

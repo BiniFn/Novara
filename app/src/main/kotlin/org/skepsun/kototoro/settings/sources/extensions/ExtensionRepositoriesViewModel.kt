@@ -20,6 +20,7 @@ import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import javax.inject.Inject
 
 @HiltViewModel
@@ -27,6 +28,7 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	@ApplicationContext private val appContext: Context,
 	private val repoRepository: ExternalExtensionRepoRepository,
+	private val installService: ExtensionInstallService,
 ) : BaseViewModel() {
 
 	val type: ExternalExtensionType = enumValueOf(savedStateHandle.require<String>(ARG_EXTENSION_TYPE))
@@ -84,6 +86,9 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 				is ExternalExtensionRepoRepository.AddRepoResult.Success -> {
 					Log.d(TAG, "confirmAddRepo:success type=${repo.type} baseUrl=${repo.baseUrl}")
 					onMessage.call(appContext.getString(R.string.extension_repo_added_message, result.repo.displayName))
+					if (repo.type == ExternalExtensionType.JAR) {
+						refresh() // Auto-trigger JAR download exactly like cold start
+					}
 				}
 
 				is ExternalExtensionRepoRepository.AddRepoResult.DuplicateFingerprint -> {
@@ -124,6 +129,15 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 	fun refresh() {
 		launchLoadingJob(Dispatchers.IO) {
 			repoRepository.refresh(type)
+			if (type == ExternalExtensionType.JAR) {
+				val available = repoRepository.getCatalogExtensions(type)
+				val jarVersions = appContext.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+				for (extension in available) {
+					if (extension.versionCode > jarVersions.getLong(extension.pkgName, -1L)) {
+						installService.createInstallIntent(extension)
+					}
+				}
+			}
 		}
 	}
 

@@ -39,7 +39,7 @@ import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
 import org.skepsun.kototoro.databinding.ActivityNovelReaderV2Binding
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
-import org.skepsun.kototoro.parsers.model.ContentParserSource
+
 import org.skepsun.kototoro.reader.ui.ReaderControlDelegate
 import javax.inject.Inject
 
@@ -248,15 +248,15 @@ class NovelReaderActivity :
     }
 
     private fun setupImageHeaders() {
-        viewBinding.readerView.imageHeadersProvider = when (val source = manga.source) {
-            ContentParserSource.BILINOVEL -> { _ ->
+        viewBinding.readerView.imageHeadersProvider = { imageUrl ->
+            val source = manga.source
+            if (source.name == "BILINOVEL") {
                 mapOf(
                     "Referer" to "https://www.bilinovel.com/",
                     "Origin" to "https://www.bilinovel.com",
                     "Accept-Encoding" to "identity",
                 )
-            }
-            is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> { imageUrl ->
+            } else if (source is org.skepsun.kototoro.core.jsonsource.JsonContentSource) {
                 // Extract headers from Legado JSON source config
                 val headers = mutableMapOf<String, String>()
                 
@@ -297,8 +297,9 @@ class NovelReaderActivity :
                 }
                 
                 headers.takeIf { it.isNotEmpty() }
+            } else {
+                null
             }
-            else -> null
         }
     }
 

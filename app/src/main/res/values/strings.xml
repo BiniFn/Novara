@@ -510,6 +510,8 @@
     <string name="no_bookmarks_summary">You can create bookmark while reading manga</string>
     <string name="bookmarks_removed">Bookmarks removed</string>
     <string name="no_manga_sources">No content sources</string>
+    <string name="manage_sources">Manage content sources</string>
+    <string name="jar_manage_sources">Jar Source Management</string>
     <string name="no_manga_sources_text">Enable content sources to browse content online</string>
     <string name="random">Random</string>
     <string name="categories_delete_confirm">Are you sure you want to delete the selected favorite categories?\nAll manga in it will be lost and this cannot be undone.</string>
@@ -791,7 +793,6 @@
     <string name="no_manga_sources_catalog_text">There are no sources available in this section, or all of it might have been already added.\nStay tuned</string>
     <string name="no_manga_sources_found">No available content sources found by your query</string>
     <string name="catalog">Catalog</string>
-    <string name="manage_sources">Built-in Sources</string>
     <string name="manual">Manual</string>
     <string name="available_d">Available: %1$d</string>
     <string name="disable_nsfw_summary">Disable NSFW sources and hide adult manga from list if possible</string>
@@ -1616,6 +1617,8 @@
     <string name="manage_extension_repositories">Manage repositories</string>
     <string name="mihon_available_extensions">Mihon Available Extensions</string>
     <string name="aniyomi_available_extensions">Aniyomi Available Extensions</string>
+    <string name="add_repository">Add repository</string>
+    <string name="jar_extension_repositories">JAR Repositories</string>
     <string name="mihon_extension_repositories">Mihon Repositories</string>
     <string name="aniyomi_extension_repositories">Aniyomi Repositories</string>
     <string name="add_extension_repository">Add repository</string>
@@ -1680,6 +1683,31 @@
     <string name="built_in_sources">Built-in</string>
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
+
+    <!-- Mirrors -->
+    <string name="pref_github_mirror">GitHub Download Mirror</string>
+    <string name="pref_github_mirror_summary">Select a proxy mirror if GitHub Raw is blocked in your network.</string>
+    <string-array name="pref_github_mirror_entries">
+        <item>Direct Native (Default)</item>
+        <item>KKGithub Proxy</item>
+        <item>Ghproxy.com</item>
+        <item>Ghproxy.net</item>
+    </string-array>
+    <string-array name="pref_github_mirror_values">
+        <item>native</item>
+        <item>kkgithub</item>
+        <item>ghproxy</item>
+        <item>ghproxy_net</item>
+    </string-array>
+    
+    <!-- Welcome Init UI -->
+    <string name="welcome_plugins_title">Initialize Plugin Sources</string>
+    <string name="welcome_plugins_summary">Kototoro now uses dynamic decoupled plugins. Select preset repositories and a proxy mirror to initialize parsers first.</string>
+    <string name="welcome_plugins_repo_kototoro">Kototoro Parsers</string>
+    <string name="welcome_plugins_repo_yakateam">Yakateam Parsers</string>
+    <string name="welcome_plugins_repo_redo">Kotatsu-Redo Parsers</string>
+    <string name="welcome_plugins_start_btn">1-Click Initialize</string>
+
     <string name="download_threads">Download threads</string>
     <string name="download_threads_summary">Number of concurrent image downloads (1-10)</string>
     <string name="download_request_delay">Download request delay</string>

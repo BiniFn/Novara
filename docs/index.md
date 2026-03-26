@@ -40,6 +40,8 @@ features:
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
 - Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
+- Read [Dynamic Plugin System Architecture](./architecture/dynamic_plugin_system.md) to understand how Kototoro and Kotatsu extension JARs are loaded dynamically using zero-overhead ClassLoaders.
+- Read [Plugin Development Guide](./plugin_development_guide.md) to learn how to build and publish third-party plugins in an independent repository using GitHub Actions.
 - Read [UI Improvement](./architecture/ui_improvement.md) to track UI enhancements.
 - Read [Automatic Translation](./automatic-translation.md) if you want local OCR + translation inside the reader.
 - Read [Development](./development.md) and [Contributing](./contributing.md) if you want to build or modify the app.

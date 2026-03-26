@@ -17,24 +17,32 @@ import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.parsers.model.ContentParserSource
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.parsers.util.mapToSet
 import java.util.Locale
 import javax.inject.Inject
 
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.install.ExtensionInstallService
+import kotlinx.coroutines.flow.asStateFlow
+
+import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+
 @HiltViewModel
 class WelcomeViewModel @Inject constructor(
 	private val repository: ContentSourcesRepository,
 	private val settings: AppSettings,
-	@LocalizedAppContext context: Context,
+	private val repoRepository: ExternalExtensionRepoRepository,
+	private val installService: ExtensionInstallService,
+	@LocalizedAppContext private val context: Context,
 ) : BaseViewModel() {
 
-private val allSources = repository.allContentSources
-private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Locale.ROOT } }
+	private var updateJob: Job? = null
 
-	private var updateJob: Job
+	private val _isInitializingPlugins = MutableStateFlow(false)
+	val isInitializingPlugins = _isInitializingPlugins.asStateFlow()
 
 	val locales = MutableStateFlow(
 		FilterProperty<Locale>(
@@ -55,9 +63,30 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 	)
 
 	init {
+		settings.hasSeenPluginWelcome = true
+		refreshState()
+		launchJob(kotlinx.coroutines.Dispatchers.Default) {
+			GlobalExtensionManager.contentSources.collect {
+				android.util.Log.d("KototoroInit", "contentSources collected a new plugin map! Triggering reactive chips refresh!")
+				refreshState()
+			}
+		}
+		launchJob(kotlinx.coroutines.Dispatchers.Default) {
+			GlobalExtensionManager.mangaSources.collect {
+				android.util.Log.d("KototoroInit", "mangaSources collected a new plugin map! Triggering reactive chips refresh!")
+				refreshState()
+			}
+		}
+	}
+
+	fun refreshState() {
+		updateJob?.cancel()
 		updateJob = launchJob(Dispatchers.Default) {
+			val allSourcesSnapshot = repository.allContentSources
+			val localesGroupsSnapshot = allSourcesSnapshot.groupBy { it.getLocale() ?: Locale.ROOT }
+
 			// Map adult content types to their base types for display
-			val contentTypes = allSources
+			val contentTypes = allSourcesSnapshot
 				.map { source ->
 					when (source.getContentType()) {
 						ContentType.HENTAI_MANGA -> ContentType.MANGA
@@ -77,9 +106,9 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 			)
 			val previouslySelectedLanguages = settings.contentLanguages
 			val selectedLocales = if (previouslySelectedLanguages.isNotEmpty()) {
-				localesGroups.keys.filterTo(HashSet()) { it.language in previouslySelectedLanguages }
+				localesGroupsSnapshot.keys.filterTo(HashSet()) { it.language in previouslySelectedLanguages }
 			} else {
-				val languagesMap = localesGroups.keys.associateBy { x -> x.language }
+				val languagesMap = localesGroupsSnapshot.keys.associateBy { x -> x.language }
 				val set = HashSet<Locale>(2)
 				ConfigurationCompat.getLocales(context.resources.configuration).toList()
 					.firstNotNullOfOrNull { lc -> languagesMap[lc.language] }
@@ -88,13 +117,13 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 				set
 			}
 			locales.value = locales.value.copy(
-				availableItems = localesGroups.keys.sortedWithSafe(LocaleComparator()),
+				availableItems = localesGroupsSnapshot.keys.sortedWithSafe(LocaleComparator()),
 				selectedItems = selectedLocales,
 				isLoading = false,
 			)
 
 			val enabledSources = repository.getEnabledSources().map { it.name }.toSet()
-			val selectedTypes = allSources
+			val selectedTypes = allSourcesSnapshot
 				.filter { it.name in enabledSources }
 				.map { source ->
 					when (source.getContentType()) {
@@ -114,6 +143,64 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 		}
 	}
 
+	fun initializePlugins(mirrorOriginalPosition: Int, repoUrls: List<String>) {
+		android.util.Log.d("KototoroInit", "WelcomeViewModel initializePlugins triggered! Args: mirror=$mirrorOriginalPosition, urls=$repoUrls")
+		launchJob(Dispatchers.IO) {
+			_isInitializingPlugins.value = true
+			android.util.Log.d("KototoroInit", "Coroutine launched, isInitializing=true")
+			try {
+				val newMirror = AppSettings.GitHubMirror.entries.getOrElse(mirrorOriginalPosition) { AppSettings.GitHubMirror.NATIVE }
+				settings.gitHubMirror = newMirror
+				android.util.Log.d("KototoroInit", "Proxy mirror set to $newMirror")
+
+				for (url in repoUrls) {
+					android.util.Log.d("KototoroInit", "Preparing Repo: $url")
+					when (val prep = repoRepository.prepareAddRepo(ExternalExtensionType.JAR, url)) {
+						is ExternalExtensionRepoRepository.PrepareAddRepoResult.Ready -> {
+							android.util.Log.d("KototoroInit", "Repo Prepared successfully, confirming addition")
+							repoRepository.confirmAddRepo(prep.repo)
+						}
+						else -> {
+							android.util.Log.d("KototoroInit", "Repo already prepared or invalid url: $prep")
+						}
+					}
+				}
+
+				android.util.Log.d("KototoroInit", "All Repos iterated. Dispatching Global URL Sync...")
+				repoRepository.refresh(ExternalExtensionType.JAR)
+				android.util.Log.d("KototoroInit", "Global URL Sync execution finished smoothly.")
+
+				val available = repoRepository.getCatalogExtensions(ExternalExtensionType.JAR)
+				android.util.Log.d("KototoroInit", "Discovered available extensions: ${available.size}")
+				val jarVersions = context.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+				var newlyInstalledCount = 0
+				for (extension in available) {
+					if (extension.versionCode > jarVersions.getLong(extension.pkgName, -1L)) {
+						installService.createInstallIntent(extension)
+						newlyInstalledCount++
+					}
+				}
+				android.util.Log.d("KototoroInit", "All background initialization work scheduled successfully.")
+				kotlinx.coroutines.withContext(Dispatchers.Main) {
+					if (newlyInstalledCount > 0) {
+						android.widget.Toast.makeText(context, "Kototoro: 成功从云端网络抓取并挂载了 $newlyInstalledCount 个最新解析器引擎！", android.widget.Toast.LENGTH_LONG).show()
+					} else {
+						android.widget.Toast.makeText(context, "Kototoro: 云端校验完成，本地解析器已是最新版本！(总计载入: ${GlobalExtensionManager.contentSources.value.size} 个源)", android.widget.Toast.LENGTH_SHORT).show()
+					}
+				}
+			} catch (e: Exception) {
+				android.util.Log.e("KototoroInit", "CRITICAL ERROR inside initializePlugins: ${e.message}", e)
+				e.printStackTrace()
+				kotlinx.coroutines.withContext(Dispatchers.Main) {
+					android.widget.Toast.makeText(context, "Kototoro: 解析器网络装载失败 (${e.message})，请重试或前往设置切换加速镜像", android.widget.Toast.LENGTH_LONG).show()
+				}
+			} finally {
+				android.util.Log.d("KototoroInit", "Restoring UI interactive state")
+				_isInitializingPlugins.value = false
+			}
+		}
+	}
+
 	fun setLocaleChecked(locale: Locale, isChecked: Boolean) {
 		val snapshot = locales.value
 		locales.value = snapshot.copy(
@@ -125,7 +212,7 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 		)
 		val prevJob = updateJob
 		updateJob = launchJob(Dispatchers.Default) {
-			prevJob.join()
+			prevJob?.join()
 			commit()
 		}
 	}
@@ -141,7 +228,7 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 		)
 		val prevJob = updateJob
 		updateJob = launchJob(Dispatchers.Default) {
-			prevJob.join()
+			prevJob?.join()
 			commit()
 		}
 	}
@@ -158,7 +245,7 @@ private val localesGroups by lazy { allSources.groupBy { it.getLocale() ?: Local
 				else -> listOf(type)
 			}
 		}
-		val enabledSources = allSources
+		val enabledSources = repository.allContentSources
 			.filterTo(HashSet()) { x ->
 				x.getContentType() in expandedTypes && (x.getLocale()?.language ?: "") in languages
 			}

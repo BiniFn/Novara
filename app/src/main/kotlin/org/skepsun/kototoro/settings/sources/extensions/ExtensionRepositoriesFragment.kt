@@ -64,6 +64,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 				ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories
 				ExternalExtensionType.ANIYOMI -> R.string.aniyomi_extension_repositories
 				ExternalExtensionType.IREADER -> R.string.ireader_extension_repositories
+				ExternalExtensionType.JAR -> R.string.jar_extension_repositories
 			},
 		)
 	}
@@ -110,6 +111,9 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			)
 			ExternalExtensionType.IREADER -> listOf(
 				"https://raw.githubusercontent.com/IReaderorg/IReader-extensions/repov2/index.min.json",
+			)
+			ExternalExtensionType.JAR -> listOf(
+				"https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
 			)
 		}
 		val input = builder.setEditText(presets, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
