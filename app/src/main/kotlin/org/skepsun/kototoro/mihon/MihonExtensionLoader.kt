@@ -142,30 +142,15 @@ class MihonExtensionLoader @Inject constructor(
         )
         
         // Mihon strictly checks for the feature, but we can be more inclusive
-        val isExtension = hasFeature || hasMetaData || hasPackageName
+        val isExtension = hasFeature || (hasPackageName && hasMetaData)
         
         // Enhanced logging for debugging - LOG ALL POTENTIAL MATCHES
-        val lowercasePkg = pkgName.lowercase()
-        if (lowercasePkg.contains("coomer") || 
-            lowercasePkg.contains("keiyoushi") ||
-            lowercasePkg.contains("tachiyomi") ||
-            lowercasePkg.contains("mihon") ||
-            isExtension) {
-            android.util.Log.d(TAG, "[SCAN] Package: $pkgName")
-            android.util.Log.d(TAG, "  - isExtension: $isExtension (feature=$hasFeature, name=$hasPackageName, meta=$hasMetaData)")
-            
-            if (lowercasePkg.contains("coomer")) {
-                val metaData = pkgInfo.applicationInfo?.metaData
-                val keys = metaData?.keySet()?.joinToString(", ") ?: "null"
-                android.util.Log.d(TAG, "  - $pkgName Metadata Keys: $keys")
-                
-                val features = pkgInfo.reqFeatures?.map { it.name }?.joinToString(", ") ?: "null"
-                android.util.Log.d(TAG, "  - $pkgName Features: $features")
+        if (hasPackageName || isExtension) {
+            android.util.Log.d(TAG, "isPackageAnExtension($pkgName): isExt=$isExtension (feature=$hasFeature, name=$hasPackageName, meta=$hasMetaData)")
+            if (!hasFeature) {
+                val features = pkgInfo.reqFeatures?.joinToString { it.name } ?: "none"
+                android.util.Log.w(TAG, "$pkgName missing required feature $EXTENSION_FEATURE. Current features: $features")
             }
-        }
-        
-        if (isExtension) {
-            android.util.Log.d(TAG, "Package $pkgName recognized as extension (feature: $hasFeature, name: $hasPackageName, meta: $hasMetaData)")
         }
         
         return isExtension
@@ -176,10 +161,20 @@ class MihonExtensionLoader @Inject constructor(
             applicationContext.packageManager,
             pkgInfo,
         )
-        val appInfo = completePkgInfo.applicationInfo ?: return null
-        val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo) ?: return null
+        val pkgName = completePkgInfo.packageName
+        val appInfo = completePkgInfo.applicationInfo ?: run {
+            android.util.Log.w(TAG, "extractExtensionInfo($pkgName): skipped because applicationInfo is null")
+            return null
+        }
+        val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo) ?: run {
+            android.util.Log.w(TAG, "extractExtensionInfo($pkgName): skipped because metaData is null")
+            return null
+        }
         
-        val versionName = completePkgInfo.versionName ?: return null
+        val versionName = completePkgInfo.versionName ?: run {
+            android.util.Log.w(TAG, "extractExtensionInfo($pkgName): skipped because versionName is null")
+            return null
+        }
         
         // Extract library version - handles different version formats
         val libVersion = try {
@@ -188,6 +183,7 @@ class MihonExtensionLoader @Inject constructor(
                 else parts[0].toDouble()
             }
         } catch (e: Exception) {
+            android.util.Log.w(TAG, "extractExtensionInfo($pkgName): Failed to parse libVersion from $versionName, defaulting to 1.4")
             1.4 // Default to 1.4 if parsing fails
         }
         
@@ -196,8 +192,10 @@ class MihonExtensionLoader @Inject constructor(
             sourceClassKey = METADATA_SOURCE_CLASS,
             sourceFactoryKey = METADATA_SOURCE_FACTORY,
             nsfwKey = METADATA_NSFW,
-        )
-            ?: return null
+        ) ?: run {
+            android.util.Log.w(TAG, "extractExtensionInfo($pkgName): skipped because no declaredSource could be parsed. Keys present in manifest: ${metaData.keySet()?.joinToString()}")
+            return null
+        }
         
         // Get app name safely
         val appName = try {
@@ -228,10 +226,16 @@ class MihonExtensionLoader @Inject constructor(
         )
         val pkgName = completePkgInfo.packageName
         val appInfo = completePkgInfo.applicationInfo
-            ?: return MihonLoadResult.Error(pkgName, "No ApplicationInfo")
+            ?: run {
+                android.util.Log.e(TAG, "loadExtension($pkgName) FAILED: No ApplicationInfo")
+                return MihonLoadResult.Error(pkgName, "No ApplicationInfo")
+            }
         
         val versionName = completePkgInfo.versionName
-            ?: return MihonLoadResult.Error(pkgName, "No version name")
+            ?: run {
+                android.util.Log.e(TAG, "loadExtension($pkgName) FAILED: No version name")
+                return MihonLoadResult.Error(pkgName, "No version name")
+            }
         val versionCode = PackageInfoCompat.getLongVersionCode(completePkgInfo)
         
         // Extract library version - match Mihon's logic (substringBeforeLast)
@@ -242,19 +246,22 @@ class MihonExtensionLoader @Inject constructor(
                     else parts[0].toDouble()
                 }
             } catch (e: Exception) {
+                android.util.Log.e(TAG, "loadExtension($pkgName) FAILED: Invalid lib version format ($versionName)")
                 return MihonLoadResult.Error(pkgName, "Invalid lib version format: $versionName")
             }
         
         // Check library version compatibility
         if (libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {
-            return MihonLoadResult.Error(
-                pkgName, 
-                "Incompatible lib version: $libVersion (supported: $LIB_VERSION_MIN-$LIB_VERSION_MAX)"
-            )
+            val err = "Incompatible lib version: $libVersion (supported: $LIB_VERSION_MIN-$LIB_VERSION_MAX) for versionName=$versionName"
+            android.util.Log.e(TAG, "loadExtension($pkgName) FAILED: $err")
+            return MihonLoadResult.Error(pkgName, err)
         }
         
         val metaData = ExternalExtensionMetadataSupport.getMetaDataOrNull(appInfo)
-            ?: return MihonLoadResult.Error(pkgName, "No meta-data in manifest")
+            ?: run {
+                android.util.Log.e(TAG, "loadExtension($pkgName) FAILED: No meta-data in manifest")
+                return MihonLoadResult.Error(pkgName, "No meta-data in manifest")
+            }
         
         // Get source class name(s)
         val declaredSource = ExternalExtensionMetadataSupport.getDeclaredSourceMetadataOrNull(
@@ -262,8 +269,10 @@ class MihonExtensionLoader @Inject constructor(
             sourceClassKey = METADATA_SOURCE_CLASS,
             sourceFactoryKey = METADATA_SOURCE_FACTORY,
             nsfwKey = METADATA_NSFW,
-        )
-            ?: return MihonLoadResult.Error(pkgName, "No source class specified in manifest")
+        ) ?: run {
+            android.util.Log.e(TAG, "loadExtension($pkgName) FAILED: No valid source class specified in manifest keys ${metaData.keySet()?.joinToString()}")
+            return MihonLoadResult.Error(pkgName, "No source class specified in manifest")
+        }
         
         // Get app name and language
         val appName = ExternalExtensionLoaderSupport.getAppLabel(context, appInfo)
