@@ -218,8 +218,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 
 	private fun hideHomeChrome() {
 		if (isHomeChromeHidden) return
+		val bottomNav = (activity as? BottomNavOwner)?.bottomNav
+		if (bottomNav?.isPinned == true) return
 		(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
-		(activity as? BottomNavOwner)?.bottomNav?.hide()
+		bottomNav?.hide()
 		isHomeChromeHidden = true
 	}
 
