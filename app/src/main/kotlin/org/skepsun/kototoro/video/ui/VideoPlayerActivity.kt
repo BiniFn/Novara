@@ -151,23 +151,29 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private val mpvListener = object : MpvPlayer.Listener {
         override fun onDurationChanged(durationMs: Long) {
             if (!hasRestoredProgress && durationMs > 0) {
-                tryApplyInitialSeek()
-                hasRestoredProgress = true
-                viewBinding.root.removeCallbacks(progressSaveRunnable)
-                viewBinding.root.postDelayed(progressSaveRunnable, progressSaveIntervalMs)
+                runOnUiThread {
+                    tryApplyInitialSeek()
+                    hasRestoredProgress = true
+                    viewBinding.root.removeCallbacks(progressSaveRunnable)
+                    viewBinding.root.postDelayed(progressSaveRunnable, progressSaveIntervalMs)
+                }
             }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            updatePlaybackMenu()
-            updatePlayPauseButton()
-            danmakuController.onPlaybackStateChanged(isPlaying)
+            runOnUiThread {
+                updatePlaybackMenu()
+                updatePlayPauseButton()
+                danmakuController.onPlaybackStateChanged(isPlaying)
+            }
         }
 
         override fun onPlaybackEnded() {
             savePlaybackProgress()
             saveHistoryProgressAsync()
-            maybeAutoPlayNext()
+            runOnUiThread {
+                maybeAutoPlayNext()
+            }
         }
 
         override fun onFileLoaded() {
@@ -934,6 +940,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     if (currentChapter != null) {
                         android.util.Log.d("VideoPlayer", "Loading current chapter: ${currentChapter.title} (id=${currentChapter.id})")
                         val resolved = runCatching {
+                            if (currentChapter.url.startsWith("file://") || currentChapter.url.startsWith("/") || currentChapter.url.startsWith("content://")) {
+                                throw IllegalStateException("Local downloaded video format is unsupported or corrupted (possibly downloaded as .cbz). Please delete the download and re-download it.")
+                            }
                             if (repo is AniyomiAnimeRepository) {
                                 val videos = repo.getVideoListForChapter(currentChapter)
                                     .filter { it.videoUrl.isNotBlank() }
@@ -1113,8 +1122,28 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             url to mergedHeaders
         }
         Log.d("VideoPlayerActivity", "Resolved playback URL: $playUrl")
-        mpvPlayer?.load(playUrl, playHeaders, initialStartMs)
-        mpvPlayer?.play()
+        
+        val doLoad = {
+            mpvPlayer?.load(playUrl, playHeaders, initialStartMs)
+            mpvPlayer?.play()
+        }
+        
+        val holder = mpvView.holder
+        val surface = holder.surface
+        if (surface != null && surface.isValid) {
+            doLoad()
+        } else {
+            Log.d("VideoPlayerActivity", "Surface not ready, waiting for surfaceCreated to load MPV")
+            holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+                    holder.removeCallback(this)
+                    Log.d("VideoPlayerActivity", "Surface ready, loading MPV now")
+                    mpvView.post { doLoad() }
+                }
+                override fun surfaceChanged(holder: android.view.SurfaceHolder, format: Int, width: Int, height: Int) {}
+                override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {}
+            })
+        }
         updateTitleAndSubtitle()
         updatePlaybackMenu()
         if (!skipHistorySeekForCurrentMedia) {
