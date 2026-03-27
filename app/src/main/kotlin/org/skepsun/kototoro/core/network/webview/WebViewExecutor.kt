@@ -100,6 +100,13 @@ class WebViewExecutor @Inject constructor(
 					}
 					kotlinx.coroutines.delay(settleDelayMs)
 
+					val resolvedOriginHost = webView.url?.toHttpUrlOrNull()?.host ?: target.host
+					val targetUrlToFetch = if (resolvedOriginHost != target.host) {
+						target.newBuilder().host(resolvedOriginHost).build().toString()
+					} else {
+						url
+					}
+
 					val allowedHeaders = headers.filterKeys { key ->
 						!key.equals("Referer", ignoreCase = true) && !key.equals("Origin", ignoreCase = true)
 					}
@@ -115,7 +122,7 @@ class WebViewExecutor @Inject constructor(
 						            setTimeout(resolve, 3000);
 						        });
 						    }
-						    const response = await fetch(${JSONObject.quote(url)}, {
+						    const response = await fetch(${JSONObject.quote(targetUrlToFetch)}, {
 						      method: 'GET',
 						      credentials: 'include',
 						      headers: $jsHeaders,
@@ -161,21 +168,32 @@ class WebViewExecutor @Inject constructor(
 						kotlinx.coroutines.delay(100)
 					}
 					if (raw.isBlank()) {
-						android.util.Log.w("WebViewExecutor", "fetchWithBrowserContext empty JS result")
-						return@withTimeout tryNavigationFetchFallback(webView, url, headers)
+						android.util.Log.w(
+							"WebViewExecutor",
+							"fetchWithBrowserContext empty JS result"
+						)
+						return@withTimeout tryNavigationFetchFallback(webView, targetUrlToFetch, headers)
 					}
 					val json = runCatching { JSONObject(raw) }.onFailure {
 						android.util.Log.w(
 							"WebViewExecutor",
 							"fetchWithBrowserContext JSON parse failed: ${it.message}; rawPreview=${raw.take(200)}",
 						)
-					}.getOrNull() ?: return@withTimeout tryNavigationFetchFallback(webView, url, headers)
-					if (!json.optBoolean("ok")) {
+					}.getOrNull() ?: return@withTimeout tryNavigationFetchFallback(webView, targetUrlToFetch, headers)
+					val fetchStatus = json.optInt("status")
+					val fetchBody = json.optString("body")
+					val isCloudflareBlock = (fetchStatus == 403 || fetchStatus == 503) && 
+						(fetchBody.contains("cf-browser-verification") || 
+						 fetchBody.contains("Just a moment") || 
+						 fetchBody.contains("__cf_chl_opt") ||
+						 fetchBody.contains("Adscore"))
+
+					if (!json.optBoolean("ok") || isCloudflareBlock) {
 						android.util.Log.w(
 							"WebViewExecutor",
-							"fetchWithBrowserContext failed: error=${json.optString("error")}, name=${json.optString("errorName")}, message=${json.optString("errorMessage")}, stack=${json.optString("errorStack").take(300)}",
+							"fetchWithBrowserContext failed or hit WAF (ok=${json.optBoolean("ok")}, status=$fetchStatus, isCF=$isCloudflareBlock). Falling back to navigation.",
 						)
-						return@withTimeout tryNavigationFetchFallback(webView, url, headers)
+						return@withTimeout tryNavigationFetchFallback(webView, targetUrlToFetch, headers)
 					}
 					val responseHeadersObj = json.optJSONObject("headers")
 					val responseHeaders = linkedMapOf<String, String>()
@@ -248,11 +266,17 @@ class WebViewExecutor @Inject constructor(
 					if (html.includes('cf-browser-verification') || html.includes('__cf_chl_opt') || html.includes('turnstile') || html.includes('cf_chl') || html.includes('Cloudflare') || html.includes('Ray ID')) {
 						return html;
 					}
-					const pre = document.querySelector('pre');
-					if (pre) return pre.innerText || pre.textContent || '';
-					const body = document.body;
-					if (body) return body.innerText || body.textContent || '';
-					return html;
+					
+					// Detect if the response is actually JSON dumped into the browser
+					const text = document.body ? (document.body.innerText || document.body.textContent || '').trim() : '';
+					if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
+						try {
+							JSON.parse(text);
+							return text; // It's valid JSON, return stripped of WebView HTML wrappers
+						} catch(e) { }
+					}
+					
+					return html; // Return full HTML for JSoup parsers
 				})()"""
 			) { result ->
 				cont.resume(decodeJavascriptString(result))
