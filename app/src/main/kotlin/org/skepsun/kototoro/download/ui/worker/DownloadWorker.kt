@@ -1432,6 +1432,7 @@ class DownloadWorker @AssistedInject constructor(
 		var lastUri: String? = null
 		var seq = mediaSequence
 		var currentKey: HlsKey? = null
+		var previousRangeEnd = 0L
 		lines.forEach { line ->
 			when {
 				line.startsWith("#EXT-X-KEY") -> {
@@ -1439,9 +1440,14 @@ class DownloadWorker @AssistedInject constructor(
 				}
 				line.startsWith("#EXT-X-MAP") -> {
 					val uri = parseHlsAttribute(line, "URI") ?: return@forEach
-					val range = parseHlsAttribute(line, "BYTERANGE")
+					val rangeAttr = parseHlsAttribute(line, "BYTERANGE")
 					val resolved = resolveUrl(baseUrl, uri)
-					result.add(HlsSegment(resolved, range?.toRangeHeader(), seq, currentKey))
+					var rangeHeader: String? = null
+					if (rangeAttr != null) {
+						val (header, _) = rangeAttr.toRangeHeader(0L)
+						rangeHeader = header
+					}
+					result.add(HlsSegment(resolved, rangeHeader, seq, currentKey))
 					lastUri = resolved
 				}
 				line.startsWith("#EXT-X-BYTERANGE") -> {
@@ -1450,7 +1456,9 @@ class DownloadWorker @AssistedInject constructor(
 						result.add(HlsSegment(lastUri!!, pendingRange, seq, currentKey))
 						seq += 1
 					}
-					pendingRange = line.substringAfter(":").trim().toRangeHeader()
+					val (header, newEnd) = line.substringAfter(":").trim().toRangeHeader(previousRangeEnd)
+					pendingRange = header
+					previousRangeEnd = newEnd
 				}
 				line.isNotEmpty() && !line.startsWith("#") -> {
 					val resolved = resolveUrl(baseUrl, line)
@@ -1551,11 +1559,16 @@ class DownloadWorker @AssistedInject constructor(
 		return raw.trim().trim('"').substringBefore(',').trim('"')
 	}
 
-	private fun String.toRangeHeader(): String {
+	private fun String.toRangeHeader(previousEnd: Long = 0L): Pair<String, Long> {
 		val value = trim().trim('"')
-		val size = value.substringBefore("@").toLongOrNull() ?: return "bytes=0-"
-		val offset = value.substringAfter("@", "0").toLongOrNull() ?: 0L
-		return "bytes=$offset-${offset + size - 1}"
+		val size = value.substringBefore("@").toLongOrNull() ?: return "bytes=0-" to previousEnd
+		val offsetStr = value.substringAfter("@", "")
+		val offset = if (offsetStr.isNotEmpty()) {
+			offsetStr.toLongOrNull() ?: previousEnd
+		} else {
+			previousEnd
+		}
+		return "bytes=$offset-${offset + size - 1}" to (offset + size)
 	}
 
 	private fun resolveUrl(baseUrl: String, relative: String): String {
