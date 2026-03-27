@@ -126,7 +126,27 @@ class KotoNetworkHelper(
                     } else {
                         val source = request.tag(ContentSource::class.java)
                         if (source == null) {
-                            android.util.Log.e("MihonNetwork", "Missing ContentSource tag for interactive action fallback")
+                            android.util.Log.w("MihonNetwork", "Missing ContentSource tag, attempting silent Cloudflare solve for host=$host")
+                            val executor = webViewExecutor
+                            if (executor != null) {
+                                val solved = kotlinx.coroutines.runBlocking {
+                                    executor.loginAndCheck(
+                                        loginUrl = challengeUrl,
+                                        checkStatus = { _, title ->
+                                            !title.contains("Just a moment", ignoreCase = true) && 
+                                            !title.contains("Cloudflare", ignoreCase = true) &&
+                                            title.isNotBlank()
+                                        },
+                                        timeoutMs = 15000
+                                    )
+                                }
+                                if (solved) {
+                                    android.util.Log.i("MihonNetwork", "Silent solver succeeded, retrying host=$host")
+                                    response.close()
+                                    return@addInterceptor chain.proceed(request)
+                                }
+                            }
+                            android.util.Log.e("MihonNetwork", "Silent solver failed or executor null, throwing block exception for $host")
                             response.closeThrowing(CloudFlareBlockedException(url = challengeUrl, source = null))
                         } else {
                             response.closeThrowing(
@@ -281,10 +301,6 @@ class KotoNetworkHelper(
     private fun tryFetchWithWebView(request: Request): Response? {
         if (request.method != "GET") {
             android.util.Log.d("MihonNetwork", "WebView fallback skipped: non-GET ${request.method}")
-            return null
-        }
-        if (!request.url.encodedPath.startsWith("/api/")) {
-            android.util.Log.d("MihonNetwork", "WebView fallback skipped: non-api path ${request.url.encodedPath}")
             return null
         }
         val executor = webViewExecutor
