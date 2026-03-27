@@ -1,5 +1,6 @@
 package org.koitharu.kotatsu.core.parser
 
+import androidx.annotation.Keep
 import org.jsoup.nodes.Element
 import org.koitharu.kotatsu.parsers.util.attrOrNull
 import org.koitharu.kotatsu.parsers.util.nullIfEmpty
@@ -8,6 +9,7 @@ import org.koitharu.kotatsu.parsers.util.splitByWhitespace
 /**
  * Utility class for parsing the `background` property of css
  */
+@Keep
 public class CSSBackground private constructor(
 	public val url: String,
 	public val left: Int,
@@ -22,7 +24,8 @@ public class CSSBackground private constructor(
 	public val bottom: Int
 		get() = top + height
 
-	internal companion object {
+	@Keep
+	public companion object {
 
 		fun parse(element: Element): CSSBackground? {
 			val style = element.attrOrNull("style") ?: return null

@@ -261,9 +261,23 @@
     public protected *;
 }
 
+-keep class org.skepsun.kototoro.core.parser.** { *; }
+-keep interface org.skepsun.kototoro.core.parser.** { *; }
+-keepclassmembers class org.skepsun.kototoro.core.parser.** {
+    public <init>(...);
+    public protected *;
+}
+
 -keep class org.koitharu.kotatsu.parsers.** { *; }
 -keep interface org.koitharu.kotatsu.parsers.** { *; }
 -keepclassmembers class org.koitharu.kotatsu.parsers.** {
+    public <init>(...);
+    public protected *;
+}
+
+-keep class org.koitharu.kotatsu.core.parser.** { *; }
+-keep interface org.koitharu.kotatsu.core.parser.** { *; }
+-keepclassmembers class org.koitharu.kotatsu.core.parser.** {
     public <init>(...);
     public protected *;
 }
