@@ -158,18 +158,27 @@ class MpvPlayer : MPVLib.EventObserver {
 			1 -> { // Fill
 				MPVLib.setPropertyDouble("panscan", 1.0)
 				MPVLib.setOptionString("video-aspect-override", "-1")
+				MPVLib.setOptionString("keepaspect", "yes")
 			}
 			2 -> { // 16:9
 				MPVLib.setPropertyDouble("panscan", 0.0)
 				MPVLib.setOptionString("video-aspect-override", "16/9")
+				MPVLib.setOptionString("keepaspect", "yes")
 			}
 			3 -> { // 4:3
 				MPVLib.setPropertyDouble("panscan", 0.0)
 				MPVLib.setOptionString("video-aspect-override", "4/3")
+				MPVLib.setOptionString("keepaspect", "yes")
+			}
+			4 -> { // Stretch
+				MPVLib.setPropertyDouble("panscan", 0.0)
+				MPVLib.setOptionString("video-aspect-override", "-1")
+				MPVLib.setOptionString("keepaspect", "no")
 			}
 			else -> { // Default / Fit
 				MPVLib.setPropertyDouble("panscan", 0.0)
 				MPVLib.setOptionString("video-aspect-override", "-1")
+				MPVLib.setOptionString("keepaspect", "yes")
 			}
 		}
 	}

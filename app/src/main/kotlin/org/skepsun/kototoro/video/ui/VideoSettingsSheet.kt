@@ -133,10 +133,11 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
                 R.string.video_aspect_ratio_fit,
                 R.string.video_aspect_ratio_fill,
                 R.string.video_aspect_ratio_16_9,
-                R.string.video_aspect_ratio_4_3
+                R.string.video_aspect_ratio_4_3,
+                R.string.video_aspect_ratio_stretch
             )
             val labels = options.map { getString(it) }.toTypedArray()
-            val checked = appSettings.videoAspectRatio.coerceIn(0, 3)
+            val checked = appSettings.videoAspectRatio.coerceIn(0, 4)
             
             com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.video_aspect_ratio)
@@ -218,6 +219,7 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
             1 -> R.string.video_aspect_ratio_fill
             2 -> R.string.video_aspect_ratio_16_9
             3 -> R.string.video_aspect_ratio_4_3
+            4 -> R.string.video_aspect_ratio_stretch
             else -> R.string.video_aspect_ratio_fit
         }
         binding.buttonAspectRatio.text = getString(R.string.video_aspect_ratio) + " - " + getString(aspectRatioRes)
