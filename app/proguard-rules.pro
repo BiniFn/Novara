@@ -251,3 +251,19 @@
     public protected *;
 }
 -dontwarn io.ktor.**
+
+# JAR Extension Parser APIs (Kototoro / Kotatsu)
+# Required because JarExtensionLoader resolves classes via string reflection against the parent ClassLoader.
+-keep class org.skepsun.kototoro.parsers.** { *; }
+-keep interface org.skepsun.kototoro.parsers.** { *; }
+-keepclassmembers class org.skepsun.kototoro.parsers.** {
+    public <init>(...);
+    public protected *;
+}
+
+-keep class org.koitharu.kotatsu.parsers.** { *; }
+-keep interface org.koitharu.kotatsu.parsers.** { *; }
+-keepclassmembers class org.koitharu.kotatsu.parsers.** {
+    public <init>(...);
+    public protected *;
+}
