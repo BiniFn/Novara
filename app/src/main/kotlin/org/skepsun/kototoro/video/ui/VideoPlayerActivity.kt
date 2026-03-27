@@ -176,7 +176,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 applySuperResolutionFromSettings()
                 danmakuController.start()
                 loadPendingExternalTracks()
-                autoSelectTracksByLanguage()
             }
         }
 
@@ -1511,19 +1510,34 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
      */
     private fun loadPendingExternalTracks() {
         val player = mpvPlayer ?: return
-        if (pendingExternalSubtitles.isNotEmpty()) {
-            Log.d("VideoPlayerActivity", "Loading ${pendingExternalSubtitles.size} external subtitle tracks")
-            for (track in pendingExternalSubtitles) {
-                player.addSubtitleTrack(track.url, track.lang, track.lang)
-            }
-            pendingExternalSubtitles = emptyList()
+        val subs = pendingExternalSubtitles.toList()
+        val audios = pendingExternalAudio.toList()
+        pendingExternalSubtitles = emptyList()
+        pendingExternalAudio = emptyList()
+
+        if (subs.isEmpty() && audios.isEmpty()) {
+            autoSelectTracksByLanguage()
+            return
         }
-        if (pendingExternalAudio.isNotEmpty()) {
-            Log.d("VideoPlayerActivity", "Loading ${pendingExternalAudio.size} external audio tracks")
-            for (track in pendingExternalAudio) {
-                player.addAudioTrack(track.url, track.lang, track.lang)
+
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            if (subs.isNotEmpty()) {
+                android.util.Log.d("VideoPlayerActivity", "Loading ${subs.size} external subtitle tracks")
+                for (track in subs) {
+                    player.addSubtitleTrack(track.url, track.lang, track.lang)
+                }
             }
-            pendingExternalAudio = emptyList()
+            if (audios.isNotEmpty()) {
+                android.util.Log.d("VideoPlayerActivity", "Loading ${audios.size} external audio tracks")
+                for (track in audios) {
+                    player.addAudioTrack(track.url, track.lang, track.lang)
+                }
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (!isDestroyed && !isFinishing) {
+                    autoSelectTracksByLanguage()
+                }
+            }
         }
     }
 
