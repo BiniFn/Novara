@@ -98,6 +98,11 @@ class NovelReaderActivity :
     private var isUiVisible: Boolean = false
     private var currentPageIndex: Int = 0
     private var desiredProgressRatio: Float? = null
+    
+    // Continuous Scroll mode properties
+    private var continuousAdapter: NovelContinuousAdapter? = null
+    private var isLoadingPrevious = false
+    private var isLoadingNext = false
 
     override val readerMode: ReaderMode?
         get() = ReaderMode.STANDARD
@@ -235,6 +240,59 @@ class NovelReaderActivity :
         }
 
         viewBinding.readerView.updateSettings(readerSettings)
+        
+        // Initialize Continuous Scroll Adapter
+        continuousAdapter = NovelContinuousAdapter(readerSettings)
+        viewBinding.continuousScrollView.adapter = continuousAdapter
+        viewBinding.continuousScrollView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+                handleContinuousScroll()
+            }
+        })
+        
+        val scrollGestureDetector = android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: android.view.MotionEvent): Boolean {
+                if (readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL) {
+                    val width = viewBinding.continuousScrollView.width.toFloat()
+                    val height = viewBinding.continuousScrollView.height.toFloat()
+                    if (width == 0f || height == 0f) return false
+                    
+                    val x = e.x / width
+                    val y = e.y / height
+                    
+                    val area = when {
+                        y < 0.33f -> when {
+                            x < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_LEFT
+                            x > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_RIGHT
+                            else -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_CENTER
+                        }
+                        y > 0.66f -> when {
+                            x < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_LEFT
+                            x > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_RIGHT
+                            else -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_CENTER
+                        }
+                        else -> when {
+                            x < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER_LEFT
+                            x > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER_RIGHT
+                            else -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER
+                        }
+                    }
+                    
+                    handleTapGesture(area)
+                    return true
+                }
+                return false
+            }
+        })
+        
+        viewBinding.continuousScrollView.setOnTouchListener { _, event ->
+            scrollGestureDetector.onTouchEvent(event)
+            false
+        }
+        
+        applyReadingModeToggles()
+        
         updateDualPageMode()
         updateFullscreenMode()
         updateReadingStatusVisibility()
@@ -348,13 +406,18 @@ class NovelReaderActivity :
     }
 
     override fun switchPageBy(delta: Int) {
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
         if (delta > 0) {
             if (!viewBinding.readerView.nextPage()) {
-                switchChapterBy(1)
+                if (!isScrollMode) {
+                    switchChapterBy(1)
+                }
             }
         } else {
             if (!viewBinding.readerView.previousPage()) {
-                switchChapterBy(-1)
+                if (!isScrollMode) {
+                    switchChapterBy(-1)
+                }
             }
         }
     }
@@ -467,7 +530,22 @@ class NovelReaderActivity :
     override fun toggleScreenOrientation() {}
 
     override fun switchPageTo(index: Int) {
-        viewBinding.readerView.goToPage(index)
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+        if (isScrollMode) {
+            val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
+            val firstVisible = layoutManager.findFirstVisibleItemPosition()
+            if (firstVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                val view = layoutManager.findViewByPosition(firstVisible) ?: return
+                val scrollHeight = viewBinding.continuousScrollView.height.takeIf { it > 0 } ?: 1
+                val virtualTotal = kotlin.math.max(1, kotlin.math.ceil(view.height.toFloat() / scrollHeight).toInt())
+                
+                val ratio = if (virtualTotal > 1) index.toFloat() / (virtualTotal - 1) else 0f
+                val targetOffset = (view.height * ratio).toInt()
+                layoutManager.scrollToPositionWithOffset(firstVisible, -targetOffset)
+            }
+        } else {
+            viewBinding.readerView.goToPage(index)
+        }
     }
 
     override fun onUserInteraction() {
@@ -850,12 +928,20 @@ class NovelReaderActivity :
                             renderChapter(chapter, plainText)
                             isFirstEmit = false
                         } else {
-                            // Update existing content without resetting page
-                            viewBinding.readerView.setContent(
-                                content = plainText,
-                                resetPage = false,
-                                suppressNotification = true
-                            )
+                            val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+                            if (isScrollMode) {
+                                // Incremental text in stream mode -> We should probably replace the first loaded chapter
+                                continuousAdapter?.setInitialChapter(
+                                    NovelChapterData(index, plainText, null, null)
+                                )
+                            } else {
+                                // Update existing content without resetting page
+                                viewBinding.readerView.setContent(
+                                    content = plainText,
+                                    resetPage = false,
+                                    suppressNotification = true
+                                )
+                            }
                         }
                     }
                 } catch (e: Exception) {
@@ -1078,25 +1164,56 @@ class NovelReaderActivity :
                     viewBinding.readerView.setEpubInfo(epubFileToSet, chapterPathToSet)
                     android.util.Log.d("NovelReaderActivity", "Set EPUB info: file=${epubFileToSet?.name}, chapterPath=$chapterPathToSet")
                     
-                    // Then set content
-                    val savedPageIndex = currentPageIndex
-                    val needsPageRestore = savedPageIndex != 0
-                    val initialRatio = desiredProgressRatio
-
-                    viewBinding.readerView.setContent(
-                        content = contentToDisplay,
-                        resetPage = true,
-                        suppressNotification = needsPageRestore,
-                        initialPageIndex = savedPageIndex,
-                        initialProgressRatio = initialRatio
-                    )
+                    // Define behavior based on reading mode
+                    val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
                     
-                    android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
-                    
-                    if (needsPageRestore) {
-                        viewBinding.readerView.postDelayed({
-                            viewBinding.readerView.resumePageChangeNotification()
-                        }, 100)
+                    if (isScrollMode) {
+                        continuousAdapter?.setInitialChapter(
+                            NovelChapterData(
+                                chapterIndex = currentChapterIndex, // This is basically currentChapterIndex
+                                content = contentToDisplay,
+                                epubFile = epubFileToSet,
+                                chapterPath = chapterPathToSet
+                            )
+                        )
+                        
+                        val initialRatio = desiredProgressRatio ?: 0f
+                        if (initialRatio > 0f) {
+                            viewBinding.continuousScrollView.post {
+                                val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                                val firstView = layoutManager?.findViewByPosition(0)
+                                if (firstView != null) {
+                                    val targetOffset = (firstView.height * initialRatio).toInt()
+                                    layoutManager.scrollToPositionWithOffset(0, -targetOffset)
+                                }
+                            }
+                        } else {
+                            // Trigger a small scroll update if necessary
+                            viewBinding.continuousScrollView.scrollToPosition(0)
+                        }
+                        
+                        android.util.Log.d("NovelReaderActivity", "Content set to continuous adapter")
+                    } else {
+                        // Then set content
+                        val savedPageIndex = currentPageIndex
+                        val needsPageRestore = savedPageIndex != 0
+                        val initialRatio = desiredProgressRatio
+    
+                        viewBinding.readerView.setContent(
+                            content = contentToDisplay,
+                            resetPage = true,
+                            suppressNotification = needsPageRestore,
+                            initialPageIndex = savedPageIndex,
+                            initialProgressRatio = initialRatio
+                        )
+                        
+                        android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
+                        
+                        if (needsPageRestore) {
+                            viewBinding.readerView.postDelayed({
+                                viewBinding.readerView.resumePageChangeNotification()
+                            }, 100)
+                        }
                     }
                     
                     currentPageIndex = 0
@@ -1201,28 +1318,54 @@ class NovelReaderActivity :
                             viewBinding.readerView.setEpubInfo(epubFileToSet, chapterPathToSet)
                             android.util.Log.d("NovelReaderActivity", "Set EPUB info: file=${epubFileToSet?.name}, chapterPath=$chapterPathToSet")
                             
-                            // 然后设置内容
-                            android.util.Log.d("NovelReaderActivity", "Setting content to readerView")
+                            // 设置内容
+                            android.util.Log.d("NovelReaderActivity", "Setting content to active view")
                             
-                            val savedPageIndex = currentPageIndex
-                            val needsPageRestore = savedPageIndex != 0
-                            
-                            // 直接在 setContent 时设置目标页码，避免中间状态
-                            viewBinding.readerView.setContent(
-                                content = contentToDisplay,
-                                resetPage = true,
-                                suppressNotification = needsPageRestore,
-                                initialPageIndex = savedPageIndex  // 直接传入目标页码（包括 -1）
-                            )
-                            
-                            android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
-                            
-                            // 如果需要恢复页码，等待分页完成后恢复通知
-                            if (needsPageRestore) {
-                                viewBinding.readerView.postDelayed({
-                                    // 恢复通知并立即通知一次
-                                    viewBinding.readerView.resumePageChangeNotification()
-                                }, 100)
+                            val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+                            if (isScrollMode) {
+                                continuousAdapter?.setInitialChapter(
+                                    NovelChapterData(
+                                        chapterIndex = currentChapterIndex, 
+                                        content = contentToDisplay,
+                                        epubFile = epubFileToSet,
+                                        chapterPath = chapterPathToSet
+                                    )
+                                )
+                                
+                                val initialRatio = desiredProgressRatio ?: 0f
+                                if (initialRatio > 0f) {
+                                    viewBinding.continuousScrollView.post {
+                                        val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                                        val firstView = layoutManager?.findViewByPosition(0)
+                                        if (firstView != null) {
+                                            val targetOffset = (firstView.height * initialRatio).toInt()
+                                            layoutManager.scrollToPositionWithOffset(0, -targetOffset)
+                                        }
+                                    }
+                                } else {
+                                    viewBinding.continuousScrollView.scrollToPosition(0)
+                                }
+                            } else {
+                                val savedPageIndex = currentPageIndex
+                                val needsPageRestore = savedPageIndex != 0
+                                
+                                // 直接在 setContent 时设置目标页码，避免中间状态
+                                viewBinding.readerView.setContent(
+                                    content = contentToDisplay,
+                                    resetPage = true,
+                                    suppressNotification = needsPageRestore,
+                                    initialPageIndex = savedPageIndex  // 直接传入目标页码（包括 -1）
+                                )
+                                
+                                android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
+                                
+                                // 如果需要恢复页码，等待分页完成后恢复通知
+                                if (needsPageRestore) {
+                                    viewBinding.readerView.postDelayed({
+                                        // 恢复通知并立即通知一次
+                                        viewBinding.readerView.resumePageChangeNotification()
+                                    }, 100)
+                                }
                             }
                             
                             currentPageIndex = 0 // 重置
@@ -1254,12 +1397,32 @@ class NovelReaderActivity :
                     withContext(Dispatchers.Main) {
                         try {
                             viewBinding.readerView.setEpubInfo(null, null)
-                            viewBinding.readerView.setContent(
-                                content = contentToDisplay,
-                                resetPage = true,
-                                suppressNotification = false,
-                                initialPageIndex = 0
-                            )
+                            val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+                            if (isScrollMode) {
+                                continuousAdapter?.setInitialChapter(
+                                    NovelChapterData(currentChapterIndex, contentToDisplay, null, null)
+                                )
+                                val initialRatio = desiredProgressRatio ?: 0f
+                                if (initialRatio > 0f) {
+                                    viewBinding.continuousScrollView.post {
+                                        val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                                        val firstView = layoutManager?.findViewByPosition(0)
+                                        if (firstView != null) {
+                                            val targetOffset = (firstView.height * initialRatio).toInt()
+                                            layoutManager.scrollToPositionWithOffset(0, -targetOffset)
+                                        }
+                                    }
+                                } else {
+                                    viewBinding.continuousScrollView.scrollToPosition(0)
+                                }
+                            } else {
+                                viewBinding.readerView.setContent(
+                                    content = contentToDisplay,
+                                    resetPage = true,
+                                    suppressNotification = false,
+                                    initialPageIndex = 0
+                                )
+                            }
                         } catch (e2: Exception) {
                             android.util.Log.e("NovelReaderActivity", "Failed to set content in fallback", e2)
                             showError("显示内容失败: ${e2.message}")
@@ -1847,9 +2010,21 @@ class NovelReaderActivity :
     }
 
     /**
-     * 基于字符偏移的精确进度（0f-1f）
+     * 基于字符偏移（翻页模式）或滚动偏移（滚动模式）的进度（0f-1f）
      */
     private fun getCurrentProgressRatio(): Float {
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+        if (isScrollMode) {
+            val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return 0f
+            val firstVisible = layoutManager.findFirstVisibleItemPosition()
+            if (firstVisible == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return 0f
+            val firstView = layoutManager.findViewByPosition(firstVisible) ?: return 0f
+            val totalHeight = firstView.height
+            if (totalHeight <= 0) return 0f
+            val topOffset = -firstView.top
+            return (topOffset.toFloat() / totalHeight).coerceIn(0f, 1f)
+        }
+
         val totalChars = viewBinding.readerView.getChapterLength()
         if (totalChars <= 0) return 0f
         val offset = viewBinding.readerView.getCurrentCharOffset().coerceIn(0, totalChars)
@@ -1934,6 +2109,9 @@ class NovelReaderActivity :
             runOnUiThread {
                 try {
                     viewBinding.readerView.updateSettings(settings)
+                    continuousAdapter?.updateSettings(settings)
+                    applyReadingModeToggles()
+                    
                     updateDualPageMode()
                     updateFullscreenMode()
                     updateReadingStatusVisibility()
@@ -1944,6 +2122,135 @@ class NovelReaderActivity :
             }
         } catch (e: Exception) {
             android.util.Log.e("NovelReaderActivity", "Failed to apply settings", e)
+        }
+    }
+    
+    private fun applyReadingModeToggles() {
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+        viewBinding.readerView.isVisible = !isScrollMode
+        viewBinding.continuousScrollView.isVisible = isScrollMode
+        
+        if (isScrollMode && continuousAdapter?.itemCount == 0) {
+            // Need to reload content into the new view if it was empty
+            loadChapter(currentChapterIndex)
+        }
+    }
+    
+    private fun handleContinuousScroll() {
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+        if (!isScrollMode) return
+        
+        val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
+        val firstVisible = layoutManager.findFirstVisibleItemPosition()
+        val lastVisible = layoutManager.findLastVisibleItemPosition()
+        val totalItems = layoutManager.itemCount
+        
+        if (firstVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+            val item = continuousAdapter?.getItems()?.getOrNull(firstVisible)
+            if (item != null && item.chapterIndex != currentChapterIndex) {
+                currentChapterIndex = item.chapterIndex
+                updateNavigationButtons()
+                // Update history implicitly via scrolling
+                updateHistory(0, 1) 
+            }
+            
+            val view = layoutManager.findViewByPosition(firstVisible)
+            if (view != null) {
+                val scrollHeight = viewBinding.continuousScrollView.height.takeIf { it > 0 } ?: 1
+                val virtualTotal = kotlin.math.max(1, kotlin.math.ceil(view.height.toFloat() / scrollHeight).toInt())
+                val virtualPage = (getCurrentProgressRatio() * virtualTotal).toInt().coerceIn(0, virtualTotal - 1)
+                
+                updateProgress(virtualPage, virtualTotal)
+                updateReadingStatus(virtualPage, virtualTotal)
+            }
+        }
+        
+        // Preload Previous
+        if (firstVisible <= 0 && !isLoadingPrevious) {
+            val firstItem = continuousAdapter?.getItems()?.firstOrNull()
+            if (firstItem != null && firstItem.chapterIndex > 0) {
+                preloadContinuousBoundary(firstItem.chapterIndex - 1, isPrevious = true)
+            }
+        }
+        
+        // Preload Next
+        if (lastVisible >= totalItems - 1 && !isLoadingNext) {
+            val lastItem = continuousAdapter?.getItems()?.lastOrNull()
+            if (lastItem != null && lastItem.chapterIndex < chapters.lastIndex) {
+                preloadContinuousBoundary(lastItem.chapterIndex + 1, isPrevious = false)
+            }
+        }
+    }
+    
+    private fun preloadContinuousBoundary(index: Int, isPrevious: Boolean) {
+        val chapter = chapters.getOrNull(index) ?: return
+        
+        if (isPrevious) isLoadingPrevious = true else isLoadingNext = true
+        
+        lifecycleScope.launch(Dispatchers.IO + org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND)) {
+            try {
+                // If it's an EPUB chapter, load using EpubLoader
+                if (chapter.url.contains("#chapter/") || chapter.url.startsWith("epub://")) {
+                    val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
+                    result.onSuccess { loadResult ->
+                        withContext(Dispatchers.Main) {
+                            val data = NovelChapterData(
+                                chapterIndex = index,
+                                content = loadResult.content,
+                                epubFile = loadResult.epubFile,
+                                chapterPath = loadResult.chapterHref
+                            )
+                            if (isPrevious) {
+                                continuousAdapter?.prependChapter(data)
+                            } else {
+                                continuousAdapter?.appendChapter(data)
+                            }
+                            if (isPrevious) isLoadingPrevious = false else isLoadingNext = false
+                        }
+                    }.onFailure {
+                        if (isPrevious) isLoadingPrevious = false else isLoadingNext = false
+                    }
+                    return@launch
+                }
+                
+                val chapterRepo = mangaRepositoryFactory.create(chapter.source)
+                
+                if (novelContentLoader.isCached(chapter)) {
+                    val content = novelContentLoader.loadChapterContent(chapterRepo, chapter)
+                    withContext(Dispatchers.Main) {
+                        val data = NovelChapterData(index, content, null, null)
+                        if (isPrevious) continuousAdapter?.prependChapter(data) else continuousAdapter?.appendChapter(data)
+                        if (isPrevious) isLoadingPrevious = false else isLoadingNext = false
+                    }
+                    return@launch
+                }
+                
+                // Fetch directly
+                val contentUrl = chapters.getOrNull(index + 1)?.url
+                var fullText = ""
+                novelContentLoader.loadChapterContentFlow(
+                    chapterRepo, 
+                    chapter,
+                    priority = org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND,
+                    nextChapterUrl = contentUrl
+                ).collect { text ->
+                    fullText = text
+                }
+                
+                withContext(Dispatchers.Main) {
+                    val data = NovelChapterData(index, fullText, null, null)
+                    if (isPrevious) {
+                        continuousAdapter?.prependChapter(data)
+                    } else {
+                        continuousAdapter?.appendChapter(data)
+                    }
+                    if (isPrevious) isLoadingPrevious = false else isLoadingNext = false
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    if (isPrevious) isLoadingPrevious = false else isLoadingNext = false
+                }
+            }
         }
     }
 }

@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import okio.IOException
+import android.graphics.BitmapFactory
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
@@ -47,6 +48,7 @@ class PageViewModel(
 	private var job: Job? = null
 	private var cachedBounds: Rect? = null
 	private var boundPage: ContentPage? = null
+	private var boundPageSplit: org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.NONE
 	@Volatile
 	private var pendingLayerSwitchPageId: Long? = null
 	private val boundsCache = LinkedHashMap<String, Rect?>(64, 0.75f, true)
@@ -68,8 +70,9 @@ class PageViewModel(
 
 	fun isLoading() = job?.isActive == true
 
-	fun onBind(page: ContentPage) {
+	fun onBind(page: ContentPage, split: org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.NONE) {
 		boundPage = page
+		boundPageSplit = split
 		pendingLayerSwitchPageId = null
 		val prevJob = job
 		job = scope.launch(Dispatchers.Default) {
@@ -281,19 +284,42 @@ class PageViewModel(
 	}
 
 	private suspend fun resolveTrimmedBounds(uri: Uri): Rect? {
-		if (!settingsProducer.value.isPagesCropEnabled(isWebtoon)) {
-			return null
+		val path = uri.path
+		var options: BitmapFactory.Options? = null
+		if (uri.scheme == "file" && path != null) {
+			options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+			BitmapFactory.decodeFile(path, options)
+			// Threshold of 1.15 to consider as a double page
+			if (options.outWidth > options.outHeight * 1.15) {
+				boundPage?.let { loader.widePageDetectedEvent.tryEmit(it.id) }
+			}
 		}
-		val key = uri.toString()
-		if (boundsCache.containsKey(key)) {
-			return boundsCache[key]
+
+		val cropBounds = if (settingsProducer.value.isPagesCropEnabled(isWebtoon)) {
+			val splitPostfix = if (boundPageSplit != org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.NONE) "_" + boundPageSplit.name else ""
+			val key = uri.toString() + splitPostfix
+			if (boundsCache.containsKey(key)) {
+				boundsCache[key]
+			} else {
+				val b = loader.getTrimmedBounds(uri)
+				boundsCache[key] = b
+				if (boundsCache.size > 64) {
+					val eldest = boundsCache.entries.iterator().next().key
+					boundsCache.remove(eldest)
+				}
+				b
+			}
+		} else null
+
+		val baseBounds = cropBounds ?: options?.let { Rect(0, 0, it.outWidth, it.outHeight) }
+		if (baseBounds != null && boundPageSplit != org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.NONE) {
+			val halfWidth = baseBounds.width() / 2
+			return if (boundPageSplit == org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT) {
+				Rect(baseBounds.left, baseBounds.top, baseBounds.left + halfWidth, baseBounds.bottom)
+			} else {
+				Rect(baseBounds.left + halfWidth, baseBounds.top, baseBounds.right, baseBounds.bottom)
+			}
 		}
-		val bounds = loader.getTrimmedBounds(uri)
-		boundsCache[key] = bounds
-		if (boundsCache.size > 64) {
-			val eldest = boundsCache.entries.iterator().next().key
-			boundsCache.remove(eldest)
-		}
-		return bounds
+		return cropBounds
 	}
 }

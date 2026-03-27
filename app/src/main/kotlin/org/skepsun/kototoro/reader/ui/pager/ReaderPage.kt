@@ -8,6 +8,10 @@ import org.skepsun.kototoro.core.model.parcelable.ContentSourceParceler
 import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.ContentSource
 
+enum class ReaderPageSplit {
+	NONE, LEFT, RIGHT
+}
+
 @Parcelize
 @TypeParceler<ContentSource, ContentSourceParceler>
 data class ReaderPage(
@@ -18,6 +22,7 @@ data class ReaderPage(
 	val chapterId: Long,
 	val index: Int,
 	val source: ContentSource,
+	val split: ReaderPageSplit = ReaderPageSplit.NONE,
 ) : Parcelable {
 
 	constructor(page: ContentPage, index: Int, chapterId: Long) : this(

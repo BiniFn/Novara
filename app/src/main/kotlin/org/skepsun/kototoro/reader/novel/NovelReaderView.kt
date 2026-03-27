@@ -86,6 +86,11 @@ class NovelReaderView @JvmOverloads constructor(
 	private var pendingBiasToEnd: Boolean = false
     private var paginatedTotalLength: Int = 0  // 经过分页处理（含图片占位符）后的总长度
     
+    // Scroll state
+    private val scroller = android.widget.OverScroller(context)
+    private var maxScrollOffset: Int = 0
+    private var isFlinging: Boolean = false
+    
     // Image support
     private var epubFile: File? = null  // 当前EPUB文件，用于提取图片
     private var chapterPath: String? = null  // 当前章节路径，用于解析相对图片路径
@@ -116,6 +121,36 @@ class NovelReaderView @JvmOverloads constructor(
         isFocusable = true
         
         gestureDetector = GestureDetectorCompat(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                if (!scroller.isFinished) {
+                    scroller.forceFinished(true)
+                }
+                return true
+            }
+
+            override fun onScroll(
+                e1: MotionEvent?, e2: MotionEvent,
+                distanceX: Float, distanceY: Float
+            ): Boolean {
+                if (settings.readingMode == ReadingMode.SCROLL) {
+                    val oldY = scrollY
+                    val newY = (oldY + distanceY.toInt()).coerceIn(0, maxScrollOffset)
+                    if (oldY != newY) {
+                        scrollTo(0, newY)
+                        invalidate()
+                    } else {
+                        // 触发边界章节切换逻辑
+                        if (oldY <= 0 && distanceY < -touchSlop) {
+                            onChapterChangeRequestListener?.invoke(-1) // 上一章
+                        } else if (oldY >= maxScrollOffset && distanceY > touchSlop) {
+                            onChapterChangeRequestListener?.invoke(1) // 下一章
+                        }
+                    }
+                    return true
+                }
+                return false
+            }
+
             override fun onSingleTapUp(e: MotionEvent): Boolean {
                 // 计算点击区域
                 val area = getTapArea(e.x, e.y)
@@ -126,11 +161,24 @@ class NovelReaderView @JvmOverloads constructor(
             }
 
             override fun onFling(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                velocityX: Float,
-                velocityY: Float,
+                e1: MotionEvent?, e2: MotionEvent,
+                velocityX: Float, velocityY: Float,
             ): Boolean {
+                if (settings.readingMode == ReadingMode.SCROLL) {
+                    if (abs(velocityY) > abs(velocityX)) {
+                        isFlinging = true
+                        scroller.fling(
+                            0, scrollY,
+                            0, -velocityY.toInt(),
+                            0, 0,
+                            0, maxScrollOffset
+                        )
+                        invalidate()
+                        return true
+                    }
+                    return false
+                }
+                
                 if (e1 == null) return false
                 val deltaX = e2.x - e1.x
                 val deltaY = e2.y - e1.y
@@ -160,6 +208,26 @@ class NovelReaderView @JvmOverloads constructor(
         return handled || super.onTouchEvent(event)
     }
 
+    override fun computeScroll() {
+        if (scroller.computeScrollOffset()) {
+            val oldY = scrollY
+            val y = scroller.currY
+            if (oldY != y) {
+                scrollTo(0, y)
+            }
+            invalidate()
+        } else if (isFlinging) {
+            isFlinging = false
+            // Check bounding for chapter transition after fling
+            val currentScroll = scrollY
+            if (currentScroll <= 0 && scrollY < scroller.startY) {
+                onChapterChangeRequestListener?.invoke(-1)
+            } else if (currentScroll >= maxScrollOffset && scrollY > scroller.startY) {
+                onChapterChangeRequestListener?.invoke(1)
+            }
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         
@@ -173,6 +241,14 @@ class NovelReaderView @JvmOverloads constructor(
             val x = (width - textPaint.measureText(emptyText)) / 2
             val y = height / 2f
             canvas.drawText(emptyText, x, y, textPaint)
+            return
+        }
+
+        if (settings.readingMode == ReadingMode.SCROLL) {
+            if (pages.isNotEmpty()) {
+                val page = pages[0]
+                drawPage(canvas, page, 0f, width.toFloat())
+            }
             return
         }
 
@@ -366,6 +442,15 @@ class NovelReaderView @JvmOverloads constructor(
      * 跳转到指定页
      */
     fun goToPage(page: Int) {
+        if (settings.readingMode == ReadingMode.SCROLL) {
+            val h = height - paddingTop - paddingBottom - footerHeight - headerHeight - settings.marginVertical * 2
+            if (h > 0) {
+                val targetScroll = (page * h).coerceIn(0, maxScrollOffset)
+                scrollTo(0, targetScroll)
+                notifyPageChanged()
+            }
+            return
+        }
         if (page in pages.indices) {
             currentPageIndex = page
             invalidate()
@@ -377,6 +462,16 @@ class NovelReaderView @JvmOverloads constructor(
      * 下一页
      */
     fun nextPage(): Boolean {
+        if (settings.readingMode == ReadingMode.SCROLL) {
+            val h = height - paddingTop - paddingBottom - footerHeight - headerHeight - settings.marginVertical * 2
+            if (h > 0 && scrollY < maxScrollOffset) {
+                val targetScroll = (scrollY + h).coerceIn(0, maxScrollOffset)
+                scroller.startScroll(0, scrollY, 0, targetScroll - scrollY, 250)
+                invalidate()
+                return true
+            }
+            return false
+        }
         val step = if (isDualPage) 2 else 1
         if (currentPageIndex + step < pages.size) {
             currentPageIndex += step
@@ -391,6 +486,16 @@ class NovelReaderView @JvmOverloads constructor(
      * 上一页
      */
     fun previousPage(): Boolean {
+        if (settings.readingMode == ReadingMode.SCROLL) {
+            val h = height - paddingTop - paddingBottom - footerHeight - headerHeight - settings.marginVertical * 2
+            if (h > 0 && scrollY > 0) {
+                val targetScroll = (scrollY - h).coerceIn(0, maxScrollOffset)
+                scroller.startScroll(0, scrollY, 0, targetScroll - scrollY, 250)
+                invalidate()
+                return true
+            }
+            return false
+        }
         val step = if (isDualPage) 2 else 1
         if (currentPageIndex - step >= 0) {
             currentPageIndex -= step
@@ -404,17 +509,30 @@ class NovelReaderView @JvmOverloads constructor(
     /**
      * 获取当前页码
      */
-    fun getCurrentPage(): Int = currentPageIndex
+    fun getCurrentPage(): Int {
+        if (settings.readingMode == ReadingMode.SCROLL) return getDisplayPageIndex()
+        return currentPageIndex
+    }
 
     /**
      * 获取总页数
      */
-    fun getTotalPages(): Int = pages.size
+    fun getTotalPages(): Int {
+        if (settings.readingMode == ReadingMode.SCROLL) return getDisplayPageCount()
+        return pages.size
+    }
 
     /**
      * 获取当前页起始字符偏移
      */
-    fun getCurrentCharOffset(): Int = pages.getOrNull(currentPageIndex)?.startOffset ?: 0
+    fun getCurrentCharOffset(): Int {
+        if (settings.readingMode == ReadingMode.SCROLL && pages.isNotEmpty()) {
+            val layout = pages[0].layout ?: return 0
+            val line = layout.getLineForVertical(scrollY)
+            return layout.getLineStart(line)
+        }
+        return pages.getOrNull(currentPageIndex)?.startOffset ?: 0
+    }
 
     /**
      * 获取当前章节总字符数
@@ -435,15 +553,30 @@ class NovelReaderView @JvmOverloads constructor(
     /**
      * 用于展示/滑块的页索引（双页时按 spread 计）
      */
-    fun getDisplayPageIndex(): Int = if (isDualPage) currentPageIndex / 2 else currentPageIndex
+    fun getDisplayPageIndex(): Int {
+        if (settings.readingMode == ReadingMode.SCROLL) {
+            val h = height - paddingTop - paddingBottom - footerHeight - headerHeight - settings.marginVertical * 2
+            if (h <= 0) return 0
+            return (scrollY / h).coerceIn(0, kotlin.math.max(0, getDisplayPageCount() - 1))
+        }
+        return if (isDualPage) currentPageIndex / 2 else currentPageIndex
+    }
 
     /**
      * 用于展示/滑块的总页数（双页时按 spread 计）
      */
-    fun getDisplayPageCount(): Int = if (isDualPage) {
-        (pages.size + 1) / 2
-    } else {
-        pages.size
+    fun getDisplayPageCount(): Int {
+        if (settings.readingMode == ReadingMode.SCROLL) {
+            val h = height - paddingTop - paddingBottom - footerHeight - headerHeight - settings.marginVertical * 2
+            if (h <= 0) return 1
+            val contentHeight = pages.getOrNull(0)?.layout?.height ?: 0
+            return kotlin.math.max(1, kotlin.math.ceil(contentHeight.toFloat() / h).toInt())
+        }
+        return if (isDualPage) {
+            (pages.size + 1) / 2
+        } else {
+            pages.size
+        }
     }
 
     /**
@@ -531,7 +664,11 @@ class NovelReaderView @JvmOverloads constructor(
             availableWidth - settings.marginHorizontal * 2
         }
         // 减去上下边距
-        val pageHeight = availableHeight - settings.marginVertical * 2 - headerHeight
+        val pageHeight = if (settings.readingMode == ReadingMode.SCROLL) {
+            10000000 // 足够大的高度以生成单页
+        } else {
+            availableHeight - settings.marginVertical * 2 - headerHeight
+        }
 
         if (pageWidth <= 0 || pageHeight <= 0) {
             android.util.Log.w("NovelReaderView", "Invalid page dimensions: ${pageWidth}x${pageHeight}")
@@ -546,6 +683,14 @@ class NovelReaderView @JvmOverloads constructor(
         pages = paginateText(chapterContent, pageWidth, pageHeight)
         
         // 处理待设置的页码/偏移
+        val targetCharOffset = when {
+            pendingTargetOffset != null -> pendingTargetOffset!!
+            pendingProgressRatio != null -> (paginatedTotalLength * pendingProgressRatio!!).roundToInt()
+            pendingPageIndex == -1 -> paginatedTotalLength
+            (savedCharPosition > 0 || savedProgressRatio > 0f) -> (paginatedTotalLength * savedProgressRatio).roundToInt()
+            else -> 0
+        }.coerceIn(0, paginatedTotalLength)
+
         when {
             pendingPageIndex == -1 -> {
                 currentPageIndex = max(0, pages.size - 1)
@@ -553,14 +698,12 @@ class NovelReaderView @JvmOverloads constructor(
                 pendingPageIndex = -2
             }
             pendingTargetOffset != null || pendingProgressRatio != null -> {
-                val offset = pendingTargetOffset
-                    ?: ((paginatedTotalLength * (pendingProgressRatio!!.coerceIn(0f, 1f))).toInt())
-                val targetPage = findClosestPageForOffset(offset, pendingBiasToEnd)
+                val targetPage = findClosestPageForOffset(targetCharOffset, pendingBiasToEnd)
                 currentPageIndex = targetPage
                 pendingTargetOffset = null
                 pendingProgressRatio = null
                 pendingBiasToEnd = false
-                android.util.Log.d("NovelReaderView", "Set to offset page: $currentPageIndex (offset=$offset)")
+                android.util.Log.d("NovelReaderView", "Set to offset page: $currentPageIndex (offset=$targetCharOffset)")
             }
             pendingPageIndex >= 0 -> {
                 currentPageIndex = pendingPageIndex.coerceIn(0, max(0, pages.size - 1))
@@ -568,10 +711,9 @@ class NovelReaderView @JvmOverloads constructor(
                 pendingPageIndex = -2
             }
             (savedCharPosition > 0 || savedProgressRatio > 0f) && pages.isNotEmpty() -> {
-                val targetCharPosition = (paginatedTotalLength * savedProgressRatio).roundToInt().coerceAtMost(paginatedTotalLength)
-                val targetPage = findClosestPageForOffset(targetCharPosition, false)
+                val targetPage = findClosestPageForOffset(targetCharOffset, false)
                 currentPageIndex = targetPage
-                android.util.Log.d("NovelReaderView", "Restored to page: $currentPageIndex (target char: $targetCharPosition, ratio: $savedProgressRatio)")
+                android.util.Log.d("NovelReaderView", "Restored to page: $currentPageIndex (target char: $targetCharOffset, ratio: $savedProgressRatio)")
             }
             else -> {
                 if (currentPageIndex >= pages.size) {
@@ -579,6 +721,28 @@ class NovelReaderView @JvmOverloads constructor(
                 }
                 android.util.Log.d("NovelReaderView", "No saved progress, keeping page: $currentPageIndex")
             }
+        }
+        
+        if (settings.readingMode == ReadingMode.SCROLL && pages.isNotEmpty()) {
+            val contentHeight = pages[0].layout?.height ?: 0
+            val viewportTextHeight = availableHeight - settings.marginVertical * 2 - headerHeight
+            maxScrollOffset = kotlin.math.max(0, contentHeight - viewportTextHeight)
+            
+            // Calculate exact Y scroll position based on targetCharOffset
+            val layout = pages[0].layout
+            var targetScroll = 0
+            if (layout != null && targetCharOffset > 0) {
+                if (targetCharOffset >= paginatedTotalLength) {
+                    targetScroll = maxScrollOffset
+                } else {
+                    val line = layout.getLineForOffset(targetCharOffset)
+                    targetScroll = layout.getLineTop(line)
+                }
+            }
+            scrollTo(0, targetScroll.coerceIn(0, maxScrollOffset))
+        } else {
+            maxScrollOffset = 0
+            if (scrollY != 0) scrollTo(0, 0)
         }
         
         invalidate()
@@ -1049,6 +1213,20 @@ class NovelReaderView @JvmOverloads constructor(
         }
 
         return null
+    }
+
+    override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
+        super.onScrollChanged(l, t, oldl, oldt)
+        if (settings.readingMode == ReadingMode.SCROLL && height > 0) {
+            val h = height - paddingTop - paddingBottom - footerHeight - headerHeight - settings.marginVertical * 2
+            if (h > 0) {
+                val newPage = (t / h).coerceIn(0, kotlin.math.max(0, getDisplayPageCount() - 1))
+                val oldPage = (oldt / h).coerceIn(0, kotlin.math.max(0, getDisplayPageCount() - 1))
+                if (newPage != oldPage) {
+                    notifyPageChanged()
+                }
+            }
+        }
     }
 
     private suspend fun loadCoilImage(url: String): Bitmap? = withContext(Dispatchers.IO) {

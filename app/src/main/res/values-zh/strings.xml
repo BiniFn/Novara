@@ -244,4 +244,8 @@
     <string name="group_by">分组方式</string>
     <string name="group_by_origin">按来源分组</string>
     <string name="group_by_type">按类型分组</string>
+    <string name="split_double_pages">自动分割双页</string>
+    <string name="novel_reading_mode">阅读模式</string>
+    <string name="novel_mode_paged">翻页</string>
+    <string name="novel_mode_scroll">滚动</string>
 </resources>

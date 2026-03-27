@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="false">
 
-    <!-- 小说内容视图 -->
+    <!-- 小说内容视图 (左右翻页模式) -->
     <org.skepsun.kototoro.reader.novel.NovelReaderView
         android:id="@+id/readerView"
         android:layout_width="match_parent"
@@ -15,6 +15,17 @@
         android:clickable="true"
         android:focusable="true"
         android:background="?attr/colorSurface" />
+
+    <!-- 小说内容视图 (上下滚动模式) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/continuousScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
+        android:scrollbars="none"
+        android:visibility="gone"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
 
 
     <!-- 信息栏（复用漫画阅读器） -->

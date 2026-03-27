@@ -145,6 +145,20 @@
                 android:visibility="gone"
                 tools:visibility="visible" />
 
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_split_pages"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/margin_small"
+                android:drawablePadding="?android:listPreferredItemPaddingStart"
+                android:minHeight="?android:listPreferredItemHeightSmall"
+                android:paddingStart="?android:listPreferredItemPaddingStart"
+                android:paddingEnd="?android:listPreferredItemPaddingEnd"
+                android:text="@string/split_double_pages"
+                android:textAppearance="?textAppearanceListItem"
+                android:textColor="?colorOnSurfaceVariant"
+                app:drawableStartCompat="@drawable/ic_split_horizontal" />
+
             <TextView
                 android:id="@+id/text_double_sensitivity"
                 android:layout_width="match_parent"

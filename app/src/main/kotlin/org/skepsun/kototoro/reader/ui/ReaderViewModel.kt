@@ -228,6 +228,7 @@ class ReaderViewModel @Inject constructor(
         initIncognitoMode()
         observeTranslationLayerState()
         observeTranslationDebugLogs()
+        listenToDoublePageEvents()
         loadImpl()
         launchJob(Dispatchers.Default) {
             val mangaId = manga.filterNotNull().first().id
@@ -235,6 +236,51 @@ class ReaderViewModel @Inject constructor(
                 appShortcutManager.notifyContentOpened(mangaId)
             }
         }
+    }
+
+
+    private val widePageIds = mutableSetOf<Long>()
+
+    private fun listenToDoublePageEvents() {
+        launchJob(Dispatchers.Default) {
+            pageLoader.widePageDetectedEvent.collect { pageId ->
+                if (!settings.isReaderSplitPagesEnabled) return@collect
+                if (widePageIds.add(pageId)) {
+                    rebuildPages()
+                }
+            }
+        }
+    }
+
+    private fun rebuildPages() {
+        val currentContent = content.value
+        val newPages = getSplitPagesSnapshot()
+        if (newPages != currentContent.pages) {
+            content.value = currentContent.copy(pages = newPages)
+        }
+    }
+
+    private fun getSplitPagesSnapshot(): List<org.skepsun.kototoro.reader.ui.pager.ReaderPage> {
+        val originalPages = chaptersLoader.snapshot()
+        if (!settings.isReaderSplitPagesEnabled) return originalPages
+        val newPages = mutableListOf<org.skepsun.kototoro.reader.ui.pager.ReaderPage>()
+        val mode = readerMode.value
+        val isRtl = mode == org.skepsun.kototoro.core.prefs.ReaderMode.REVERSED
+
+        for (page in originalPages) {
+            if (widePageIds.contains(page.id)) {
+                if (isRtl) {
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.RIGHT))
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT))
+                } else {
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT))
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.RIGHT))
+                }
+            } else {
+                newPages.add(page)
+            }
+        }
+        return newPages
     }
 
     fun reload() {
@@ -435,7 +481,7 @@ class ReaderViewModel @Inject constructor(
             content.value = ReaderContent(emptyList(), null)
             chaptersLoader.loadSingleChapter(id)
             val newState = ReaderState(id, page, 0)
-            content.value = ReaderContent(chaptersLoader.snapshot(), newState)
+            content.value = ReaderContent(getSplitPagesSnapshot(), newState)
             saveCurrentState(newState)
         }
     }
@@ -464,7 +510,7 @@ class ReaderViewModel @Inject constructor(
                 scroll = if (delta == 0) prevState.scroll else 0,
             )
             skipBoundaryLoadOnce.set(true)
-            content.value = ReaderContent(chaptersLoader.snapshot(), newState)
+            content.value = ReaderContent(getSplitPagesSnapshot(), newState)
             saveCurrentState(newState)
         }
     }
@@ -639,7 +685,7 @@ class ReaderViewModel @Inject constructor(
                         }
                         notifyStateChanged()
                         skipBoundaryLoadOnce.set(true)
-                        content.value = ReaderContent(chaptersLoader.snapshot(), readingState.value)
+                        content.value = ReaderContent(getSplitPagesSnapshot(), readingState.value)
                     }
             } catch (e: CancellationException) {
                 throw e
@@ -683,7 +729,7 @@ class ReaderViewModel @Inject constructor(
             prevJob?.join()
             Log.d(LOG_TAG, "loadPrevNextChapter: currentId=$currentId, isNext=$isNext")
             chaptersLoader.loadPrevNextChapter(mangaDetails.requireValue(), currentId, isNext)
-            content.value = ReaderContent(chaptersLoader.snapshot(), null)
+            content.value = ReaderContent(getSplitPagesSnapshot(), null)
         }
     }
 

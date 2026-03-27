@@ -217,6 +217,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_READER_DOUBLE_FOLDABLE, false)
 		set(value) = prefs.edit { putBoolean(KEY_READER_DOUBLE_FOLDABLE, value) }
 
+	var isReaderSplitPagesEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_SPLIT_PAGES, false)
+		set(value) = prefs.edit { putBoolean(KEY_READER_SPLIT_PAGES, value) }
+
 	@get:FloatRange(0.0, 1.0)
 	var readerDoublePagesSensitivity: Float
 		get() = prefs.getFloat(KEY_READER_DOUBLE_PAGES_SENSITIVITY, 0.5f)
@@ -1240,6 +1244,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_DOUBLE_PAGES = "reader_double_pages"
 		const val KEY_READER_DOUBLE_PAGES_SENSITIVITY = "reader_double_pages_sensitivity_2"
 		const val KEY_READER_DOUBLE_FOLDABLE = "reader_double_foldable"
+		const val KEY_READER_SPLIT_PAGES = "reader_split_pages"
 		const val KEY_READER_ZOOM_BUTTONS = "reader_zoom_buttons"
 		const val KEY_READER_CONTROL_LTR = "reader_taps_ltr"
 		const val KEY_READER_NAVIGATION_INVERTED = "reader_navigation_inverted"

@@ -1552,6 +1552,7 @@
     <string name="source_group_native">Native Sources</string>
     <string name="source_group_legado">Legado Sources</string>
     <string name="source_group_tvbox">TVBox Sources</string>
+	<string name="split_double_pages">Auto-split double pages</string>
     <string name="source_group_javascript">JavaScript Sources</string>
     <string name="source_group_external">External Sources</string>
     <string name="source_group_mihon">Mihon Extensions</string>
@@ -1879,4 +1880,7 @@
 	<string name="_install">Install</string>
 	<string name="source_group_lnreader">LNReader Sources</string>
 
+    <string name="novel_reading_mode">Reading Mode</string>
+    <string name="novel_mode_paged">Paged</string>
+    <string name="novel_mode_scroll">Scroll</string>
 </resources>

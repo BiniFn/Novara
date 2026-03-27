@@ -26,6 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.runInterruptible
@@ -106,6 +108,8 @@ class PageLoader @Inject constructor(
 	private val semaphore = Semaphore(settings.readerThreads)
 	private val convertLock = Mutex()
 	private val prefetchLock = Mutex()
+
+	val widePageDetectedEvent = MutableSharedFlow<Long>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
 	@Volatile
 	private var repository: ContentRepository? = null

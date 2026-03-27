@@ -69,6 +69,7 @@ class ContentSourcesRepository @Inject constructor(
 		}
 		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.collect {
+				cachedKotatsuSources.clear()
 				assimilateNewSources(force = true)
 			}
 		}
@@ -76,6 +77,7 @@ class ContentSourcesRepository @Inject constructor(
 
 	private val dao get() = db.getSourcesDao()
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
+	private val cachedKotatsuSources = java.util.concurrent.ConcurrentHashMap<String, org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource>()
 	private val legadoJson = Json {
 		ignoreUnknownKeys = true
 		isLenient = true
@@ -86,7 +88,9 @@ class ContentSourcesRepository @Inject constructor(
 		get() {
 			val set = LinkedHashSet<ContentSource>()
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.forEach { set.add(it.originalSource) }
-			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.forEach { set.add(org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it)) }
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.forEach { 
+				set.add(cachedKotatsuSources.getOrPut(it.name) { org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }) 
+			}
 			return set
 		}
 
@@ -1050,7 +1054,9 @@ class ContentSourcesRepository @Inject constructor(
 	private fun String.toContentSourceOrNull(): ContentSource? {
 		// Try Global Registry for PluginContentSources first
 		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == this }?.let { return it.originalSource }
-		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == this }?.let { return org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }
+		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == this }?.let { 
+			return cachedKotatsuSources.getOrPut(it.name) { org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) } 
+		}
 
 		// Try Mihon sources
 		if (startsWith("MIHON_")) {

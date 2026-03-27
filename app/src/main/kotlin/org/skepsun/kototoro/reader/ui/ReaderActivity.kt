@@ -1,4 +1,4 @@
-package org.skepsun.kototoro.reader.ui
+﻿package org.skepsun.kototoro.reader.ui
 
 import android.app.assist.AssistContent
 import android.content.DialogInterface
@@ -412,6 +412,10 @@ class ReaderActivity :
         viewBinding.timerControl.onReaderModeChanged(mode)
     }
 
+    override fun onSplitModeChanged(isEnabled: Boolean) {
+        viewModel.reload()
+    }
+
     override fun onDoubleModeChanged(isEnabled: Boolean) {
         // Combine manual toggle with foldable auto setting
         applyDoubleModeAuto(isEnabled)
@@ -717,3 +721,4 @@ class ReaderActivity :
         private const val TOAST_DURATION = 2000L
     }
 }
+

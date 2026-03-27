@@ -123,7 +123,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	fun bind(data: ReaderPage) {
 		boundData = data
-		viewModel.onBind(data.toContentPage())
+		viewModel.onBind(data.toContentPage(), data.split)
 		onBind(data)
 	}
 

@@ -58,6 +58,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
         binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
+        binding.toggleGroupReadingMode.check(if (settings.readingMode == ReadingMode.SCROLL) org.skepsun.kototoro.R.id.btnModeScroll else org.skepsun.kototoro.R.id.btnModePaged)
 
         // 初始化值显示
         updateValueDisplays()
@@ -75,6 +76,15 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.buttonBookmark.setOnClickListener(this)
         binding.buttonReset.setOnClickListener(this)
         binding.buttonClose.setOnClickListener(this)
+        
+        binding.toggleGroupReadingMode.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                settings = settings.copy(
+                    readingMode = if (checkedId == org.skepsun.kototoro.R.id.btnModeScroll) ReadingMode.SCROLL else ReadingMode.PAGED
+                )
+                applySettings()
+            }
+        }
     }
 
     override fun onDestroyView() {

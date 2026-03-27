@@ -131,6 +131,7 @@ class ReaderConfigSheet :
         binding.switchDoubleReader.isEnabled = mode == ReaderMode.STANDARD || mode == ReaderMode.REVERSED
         binding.switchDoubleFoldable.isChecked = settings.isReaderDoubleOnFoldable
         binding.switchDoubleFoldable.isEnabled = binding.switchDoubleReader.isEnabled
+        binding.switchSplitPages.isChecked = settings.isReaderSplitPagesEnabled
         binding.switchTranslationEnabled.isChecked = settings.isReaderTranslationEnabled
         binding.switchTranslationShowTranslated.isChecked = settings.isReaderTranslationShowTranslated
         binding.switchTranslationShowTranslated.isEnabled = settings.isReaderTranslationEnabled
@@ -151,6 +152,7 @@ class ReaderConfigSheet :
         binding.buttonBookmark.setOnClickListener(this)
         binding.switchDoubleReader.setOnCheckedChangeListener(this)
         binding.switchDoubleFoldable.setOnCheckedChangeListener(this)
+        binding.switchSplitPages.setOnCheckedChangeListener(this)
         binding.switchTranslationEnabled.setOnCheckedChangeListener(this)
         binding.switchTranslationShowTranslated.setOnCheckedChangeListener(this)
         binding.buttonRetranslate.setOnClickListener(this)
@@ -279,6 +281,11 @@ class ReaderConfigSheet :
                 findParentCallback(Callback::class.java)?.onDoubleModeChanged(settings.isReaderDoubleOnLandscape)
             }
 
+            R.id.switch_split_pages -> {
+                settings.isReaderSplitPagesEnabled = isChecked
+                findParentCallback(Callback::class.java)?.onSplitModeChanged(isChecked)
+            }
+
             R.id.switch_translation_enabled -> {
                 settings.isReaderTranslationEnabled = isChecked
                 viewBinding?.switchTranslationShowTranslated?.isEnabled = isChecked
@@ -403,6 +410,8 @@ class ReaderConfigSheet :
         fun onReaderModeChanged(mode: ReaderMode)
 
         fun onDoubleModeChanged(isEnabled: Boolean)
+
+        fun onSplitModeChanged(isEnabled: Boolean)
 
         fun onSavePageClick()
 
