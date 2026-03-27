@@ -8,6 +8,7 @@ import okhttp3.Response
 import org.skepsun.kototoro.parsers.bitmap.Bitmap
 import org.skepsun.kototoro.parsers.config.ContentSourceConfig
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.network.UserAgents
 import org.skepsun.kototoro.parsers.util.LinkResolver
 import java.util.*
 
@@ -59,7 +60,7 @@ public abstract class ContentLoaderContext {
 
 	public abstract fun getConfig(source: ContentSource): ContentSourceConfig
 
-	public abstract fun getDefaultUserAgent(): String
+	public open fun getDefaultUserAgent(): String = UserAgents.CHROME_MOBILE
 
 	/**
 	 * Helper function to be used in an interceptor

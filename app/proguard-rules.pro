@@ -267,3 +267,8 @@
     public <init>(...);
     public protected *;
 }
+
+# AndroidX Collection - JAR plugins may reference SparseArrayCompat and other collection classes.
+# R8 may strip these if the host app no longer directly uses them, but runtime-loaded JARs still need them.
+-keep class androidx.collection.** { *; }
+-keep interface androidx.collection.** { *; }

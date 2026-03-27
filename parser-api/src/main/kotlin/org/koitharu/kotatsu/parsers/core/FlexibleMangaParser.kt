@@ -27,7 +27,11 @@ internal abstract class FlexibleMangaParser @InternalParsersApi constructor(
 	open val sourceLocale: Locale
 		get() = if (source.locale.isEmpty()) Locale.ROOT else Locale(source.locale)
 
-	protected open val userAgentKey: ConfigKey.UserAgent = ConfigKey.UserAgent(context.getDefaultUserAgent())
+	protected open val userAgentKey: ConfigKey.UserAgent = try {
+		ConfigKey.UserAgent(context.getDefaultUserAgent())
+	} catch (_: NoSuchMethodError) {
+		ConfigKey.UserAgent(org.koitharu.kotatsu.parsers.network.UserAgents.CHROME_MOBILE)
+	}
 
 	final override val filterCapabilities: MangaListFilterCapabilities
 		get() = searchQueryCapabilities.toMangaListFilterCapabilities()

@@ -42,7 +42,11 @@ public abstract class AbstractMangaParser @InternalParsersApi constructor(
 
 	protected val isNsfwSource: Boolean = source.contentType == ContentType.HENTAI
 
-	protected open val userAgentKey: ConfigKey.UserAgent = ConfigKey.UserAgent(context.getDefaultUserAgent())
+	protected open val userAgentKey: ConfigKey.UserAgent = try {
+		ConfigKey.UserAgent(context.getDefaultUserAgent())
+	} catch (_: NoSuchMethodError) {
+		ConfigKey.UserAgent(org.koitharu.kotatsu.parsers.network.UserAgents.CHROME_MOBILE)
+	}
 
 	override fun getRequestHeaders(): Headers = Headers.Builder()
 		.add("User-Agent", config[userAgentKey])

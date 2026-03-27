@@ -56,7 +56,7 @@ public abstract class MangaLoaderContext {
 
 	public abstract fun getConfig(source: MangaSource): MangaSourceConfig
 
-	public abstract fun getDefaultUserAgent(): String
+	public open fun getDefaultUserAgent(): String = org.koitharu.kotatsu.parsers.network.UserAgents.CHROME_MOBILE
 
 	/**
 	 * Helper function to be used in an interceptor

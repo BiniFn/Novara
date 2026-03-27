@@ -1,12 +1,9 @@
 package org.skepsun.kototoro.parsers.util
 
-import androidx.collection.SparseArrayCompat
-import androidx.collection.set
-
 public class Paginator internal constructor(private val initialPageSize: Int) {
 
 	public var firstPage: Int = 1
-	private var pages = SparseArrayCompat<Int>()
+	private var pages = HashMap<Int, Int>()
 
 	internal fun getPage(offset: Int): Int {
 		if (offset == 0) { // just an optimization
