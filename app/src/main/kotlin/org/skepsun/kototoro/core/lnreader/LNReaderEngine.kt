@@ -76,6 +76,11 @@ class LNReaderEngine(
 						plugin = new plugin();
 					}
 					globalThis.__plugin_${sanitizedId} = plugin;
+					var methods = [];
+					for (var p = plugin; p && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+						methods = methods.concat(Object.getOwnPropertyNames(p));
+					}
+					console.log('Plugin ' + '$pluginId' + ' exports: ' + methods.join(', '));
 				})();
 				""".trimIndent(),
 				"<plugin-init>"
@@ -163,17 +168,60 @@ class LNReaderEngine(
 			// Setup URL API polyfill with comprehensive error handling
 			globalThis.URL = function(url, base) {
 				if (url === null || url === undefined) throw new Error('Invalid URL');
+				if (typeof url === 'object' && url.href) url = url.href;
 				url = String(url);
 				let fullUrl = url;
-				if (base && !url.match(/^https?:\/\//)) {
+				if (base && !url.match(/^[a-zA-Z]+:\/\//)) {
 					base = String(base);
 					if (url.startsWith('/')) {
 						const baseMatch = base.match(/^(https?:\/\/[^\/]+)/);
 						fullUrl = baseMatch ? baseMatch[1] + url : url;
+					} else if (url.startsWith('?')) {
+						const baseMatch = base.match(/^([^?#]+)/);
+						fullUrl = baseMatch ? baseMatch[1] + url : url;
+					} else if (url.startsWith('#')) {
+						const baseMatch = base.match(/^([^#]+)/);
+						fullUrl = baseMatch ? baseMatch[1] + url : url;
 					} else {
-						const basePath = base.replace(/\/[\s\S]*${'$'}/, '/');
-						fullUrl = basePath + url;
+						const match = base.match(/^(https?:\/\/[^\/]+)(.*)${'$'}/);
+						if (match) {
+							const origin = match[1];
+							let path = match[2] || '/';
+							if (path.indexOf('?') >= 0) path = path.substring(0, path.indexOf('?'));
+							if (path.indexOf('#') >= 0) path = path.substring(0, path.indexOf('#'));
+							path = path.substring(0, path.lastIndexOf('/') + 1);
+							fullUrl = origin + path + url;
+						} else {
+							fullUrl = base.endsWith('/') ? base + url : base + '/' + url;
+						}
 					}
+				}
+				// Resolve dot segments (. and ..)
+				let urlMatch = fullUrl.match(/^(https?:\/\/[^\/]+)(.*)${'$'}/);
+				if (urlMatch) {
+					let origin = urlMatch[1];
+					let pathAndRest = urlMatch[2] || '/';
+					let queryHash = '';
+					let qIdx = pathAndRest.indexOf('?');
+					let hIdx = pathAndRest.indexOf('#');
+					let splitIdx = qIdx >= 0 ? qIdx : (hIdx >= 0 ? hIdx : -1);
+					if (splitIdx >= 0) {
+						queryHash = pathAndRest.substring(splitIdx);
+						pathAndRest = pathAndRest.substring(0, splitIdx);
+					}
+					let segments = pathAndRest.split('/');
+					let resolved = [];
+					for (let seg of segments) {
+						if (seg === '.') continue;
+						if (seg === '..') {
+							if (resolved.length > 0 && resolved[resolved.length - 1] !== '') {
+								resolved.pop();
+							}
+						} else {
+							resolved.push(seg);
+						}
+					}
+					fullUrl = origin + resolved.join('/') + queryHash;
 				}
 				const match = fullUrl.match(/^(https?):\/\/([^/?#]+)(\/[^?#]*)?(\\?[^#]*)?(#.*)?${'$'}/);
 				if (!match) throw new Error('Invalid URL: ' + fullUrl);
@@ -355,6 +403,76 @@ class LNReaderEngine(
 					return entries;
 				};
 			};
+
+			// Comprehensive Date polyfill for QuickJS.
+			// QuickJS throws "Date value is NaN" from both the constructor (new Date("invalid"))
+			// AND from prototype methods (date.toISOString()). We must patch both.
+			(function() {
+				var _RealDate = Date;
+				
+				// 1. Wrap constructor to catch throws on invalid date strings
+				function SafeDate() {
+					var d;
+					try {
+						if (arguments.length === 0) d = new _RealDate();
+						else if (arguments.length === 1) {
+							var arg = arguments[0];
+							if (typeof arg === 'string') {
+								// Try numeric timestamp first
+								var num = Number(arg);
+								if (!isNaN(num)) {
+									d = new _RealDate(num);
+								} else {
+									// Try ISO-like format: replace common separators
+									try { d = new _RealDate(arg); }
+									catch(e2) { d = new _RealDate(0); }
+								}
+							} else {
+								d = new _RealDate(arg);
+							}
+						}
+						else if (arguments.length === 2) d = new _RealDate(arguments[0], arguments[1]);
+						else if (arguments.length === 3) d = new _RealDate(arguments[0], arguments[1], arguments[2]);
+						else d = new _RealDate(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6]);
+					} catch(e) {
+						d = new _RealDate(0);
+					}
+					return d;
+				}
+				SafeDate.now = function() { return _RealDate.now(); };
+				SafeDate.parse = function(s) { try { return _RealDate.parse(s); } catch(e) { return NaN; } };
+				SafeDate.UTC = function() { try { return _RealDate.UTC.apply(_RealDate, arguments); } catch(e) { return NaN; } };
+				SafeDate.prototype = _RealDate.prototype;
+				globalThis.Date = SafeDate;
+				
+				// 2. Patch prototype methods to catch NaN-related throws
+				var strMethods = ['toString', 'toISOString', 'toUTCString', 'toDateString',
+					'toTimeString', 'toLocaleDateString', 'toLocaleTimeString', 'toLocaleString', 'toJSON',
+					'toGMTString'];
+				strMethods.forEach(function(method) {
+					var orig = _RealDate.prototype[method];
+					if (orig) {
+						_RealDate.prototype[method] = function() {
+							try { return orig.apply(this, arguments); }
+							catch(e) { return ''; }
+						};
+					}
+				});
+				var numMethods = ['getTime', 'valueOf', 'getFullYear', 'getMonth', 'getDate',
+					'getHours', 'getMinutes', 'getSeconds', 'getMilliseconds',
+					'getUTCFullYear', 'getUTCMonth', 'getUTCDate', 'getUTCHours',
+					'getUTCMinutes', 'getUTCSeconds', 'getUTCMilliseconds',
+					'getTimezoneOffset', 'getDay', 'getUTCDay'];
+				numMethods.forEach(function(method) {
+					var orig = _RealDate.prototype[method];
+					if (orig) {
+						_RealDate.prototype[method] = function() {
+							try { return orig.apply(this, arguments); }
+							catch(e) { return NaN; }
+						};
+					}
+				});
+			})();
 
 			globalThis.window = globalThis;
 			globalThis.location = {

@@ -86,6 +86,40 @@ class LNReaderContentRepository(
 		return try {
 			executeInPluginContext { bridge ->
 				val details = bridge.parseNovel(novelPath)
+				var finalizedChapters = details.chapters
+				if (finalizedChapters.isEmpty() && details.totalPages > 0) {
+					Log.d(TAG, "parseNovel returned 0 chapters but totalPages=${details.totalPages}, fetching via parsePage...")
+					val allChapters = mutableListOf<LNReaderChapter>()
+					for (page in 1..details.totalPages) {
+						var success = false
+						var retries = 0
+						while (!success && retries < 3) {
+							try {
+								val pageChapters = bridge.parsePage(novelPath, page)
+								allChapters.addAll(pageChapters)
+								Log.d(TAG, "parsePage($page/${details.totalPages}) returned ${pageChapters.size} chapters")
+								success = true
+							} catch (e: Exception) {
+								retries++
+								Log.w(TAG, "parsePage($page) attempt $retries failed: ${e.message}")
+								if (retries >= 3) {
+									Log.e(TAG, "parsePage($page) failed 3 times, giving up on remaining pages.")
+									break
+								}
+								kotlinx.coroutines.delay(1000L * retries) // Backoff
+							}
+						}
+						if (!success) break // If a page fetch hard failed, stop fetching to prevent missing chapters
+						
+						// Rate limiting delay between successful pages
+						if (page < details.totalPages) {
+							kotlinx.coroutines.delay(300L)
+						}
+					}
+					Log.d(TAG, "Finished fetching chapters. Total aggregated chapters: ${allChapters.size}")
+					finalizedChapters = allChapters
+				}
+				
 				manga.copy(
 					title = details.name.ifBlank { manga.title },
 					coverUrl = details.cover.ifBlank { manga.coverUrl },
@@ -96,10 +130,10 @@ class LNReaderContentRepository(
 					} else manga.tags,
 					authors = if (details.author.isNotBlank()) setOf(details.author) else manga.authors,
 					publicUrl = details.path.ifBlank { manga.publicUrl },
-					chapters = details.chapters.mapIndexed { index, ch ->
+					chapters = finalizedChapters.mapIndexed { index, ch ->
 						ContentChapter(
 							id = (ch.path.hashCode().toLong() and 0x7FFFFFFF) + index,
-							title = ch.name,
+							title = ch.name.ifBlank { ch.chapterNumber?.let { "Chapter $it" } ?: "Chapter ${index + 1}" },
 							number = (index + 1).toFloat(),
 							volume = 0,
 							url = "${novelPath}${CHAPTER_SEPARATOR}${ch.path}",
@@ -122,11 +156,12 @@ class LNReaderContentRepository(
 		// LNReader chapters return HTML text, not page images
 		// We create a single "page" containing the HTML content
 		val parts = chapter.url.split(CHAPTER_SEPARATOR, limit = 2)
+		val novelPath = parts.firstOrNull() ?: ""
 		val chapterPath = if (parts.size == 2) parts[1] else chapter.url
 		
 		return try {
 			executeInPluginContext { bridge ->
-				val htmlContent = bridge.parseChapter(chapterPath)
+				val htmlContent = bridge.parseChapter(novelPath, chapterPath)
 				if (htmlContent.isNotBlank()) {
 					val encoded = android.util.Base64.encodeToString(
 						htmlContent.toByteArray(Charsets.UTF_8),
@@ -157,11 +192,12 @@ class LNReaderContentRepository(
 	 */
 	override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): NovelChapterContent? {
 		val parts = chapter.url.split(CHAPTER_SEPARATOR, limit = 2)
+		val novelPath = parts.firstOrNull() ?: ""
 		val chapterPath = if (parts.size == 2) parts[1] else chapter.url
 		
 		return try {
 			executeInPluginContext { bridge ->
-				val htmlContent = bridge.parseChapter(chapterPath)
+				val htmlContent = bridge.parseChapter(novelPath, chapterPath)
 				if (htmlContent.isNotBlank()) {
 					NovelChapterContent(
 						html = htmlContent,

@@ -174,21 +174,74 @@ class LNReaderPluginBridge(
 		val resultJson = executeAsyncAndPoll(script, resultVar, "parseNovel")
 		return parseNovelDetails(resultJson)
 	}
+
+	/**
+	 * Call plugin.parsePage(novelPath, page) to fetch chapters for a single page.
+	 * Many LNReader plugins paginate their chapter lists and return them via this method.
+	 */
+	suspend fun parsePage(novelPath: String, page: Int): List<LNReaderChapter> {
+		val resultVar = "__parsePageResult_${sanitizedId}_$page"
+		val escapedPath = escapeForJS(novelPath)
+		val script = """
+			(async function() {
+				try {
+					var plugin = globalThis.__plugin_${sanitizedId};
+					if (!plugin) throw new Error('Plugin not found');
+					if (typeof plugin.parsePage !== 'function') {
+						globalThis.$resultVar = { success: true, data: '[]' };
+						return;
+					}
+					var res = await plugin.parsePage('$escapedPath', $page);
+					globalThis.$resultVar = { success: true, data: JSON.stringify(res || []) };
+				} catch (error) {
+					globalThis.$resultVar = { 
+						success: false, 
+						error: (error && error.message) ? error.message : String(error)
+					};
+				}
+			})();
+		""".trimIndent()
+		
+		val resultJson = executeAsyncAndPoll(script, resultVar, "parsePage[$page]")
+		return try {
+			val element = json.parseToJsonElement(resultJson)
+			val array = if (element is JsonObject) {
+				element["chapters"]?.jsonArray ?: JsonArray(emptyList())
+			} else {
+				element.jsonArray
+			}
+			
+			array.mapNotNull { chElement ->
+				val chObj = chElement.jsonObject
+				val chName = chObj["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+				val chPath = chObj["path"]?.jsonPrimitive?.contentOrNull
+					?: chObj["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+				val releaseTime = chObj["releaseTime"]?.jsonPrimitive?.contentOrNull
+				val chapterNumber = chObj["chapterNumber"]?.jsonPrimitive?.contentOrNull
+					?: chObj["chapterNumber"]?.jsonPrimitive?.intOrNull?.toString()
+				LNReaderChapter(name = chName, path = chPath, releaseTime = releaseTime, chapterNumber = chapterNumber)
+			}
+		} catch (e: Exception) {
+			Log.e(TAG, "Failed to parse parsePage[$page] json: ${e.message}\nRaw: ${resultJson.take(500)}")
+			emptyList()
+		}
+	}
 	
 	/**
-	 * Call plugin.parseChapter(url).
+	 * Call plugin.parseChapter(novelUrl, chapterUrl).
 	 * Returns chapter HTML text content.
 	 */
-	suspend fun parseChapter(chapterPath: String): String {
+	suspend fun parseChapter(novelPath: String, chapterPath: String): String {
 		val resultVar = "__parseChapterResult_${sanitizedId}"
-		val escapedPath = escapeForJS(chapterPath)
+		val escapedNovelPath = escapeForJS(novelPath)
+		val escapedChapterPath = escapeForJS(chapterPath)
 		val script = """
 			(async function() {
 				try {
 					var plugin = globalThis.__plugin_${sanitizedId};
 					if (!plugin) throw new Error('Plugin not found');
 					if (typeof plugin.parseChapter !== 'function') throw new Error('parseChapter not found');
-					var result = await plugin.parseChapter('$escapedPath');
+					var result = await plugin.parseChapter('$escapedNovelPath', '$escapedChapterPath');
 					var text = '';
 					if (typeof result === 'string') {
 						text = result;
@@ -286,7 +339,8 @@ class LNReaderPluginBridge(
 							val data = obj["data"]?.jsonPrimitive?.contentOrNull ?: "[]"
 							// Clean up global variable
 							runCatching { qjs.evaluate<Any?>("delete globalThis.$resultVar;", "<cleanup>") }
-							Log.d(TAG, "$methodName completed for $pluginId")
+							val logData = if (data.length > 1500) data.substring(0, 1500) + "...(truncated)" else data
+							Log.d(TAG, "$methodName completed for $pluginId, result data: $logData")
 							return@withTimeout data
 						} else {
 							val error = obj["error"]?.jsonPrimitive?.contentOrNull ?: "Unknown error"
@@ -331,7 +385,17 @@ class LNReaderPluginBridge(
 	 * LNReader format: {name, path, cover, author, summary, genres, status, chapters: [{name, path, releaseTime}]}
 	 */
 	private fun parseNovelDetails(jsonStr: String): LNReaderNovelDetails {
-		val obj = json.parseToJsonElement(jsonStr).jsonObject
+		val obj = try {
+			json.parseToJsonElement(jsonStr).jsonObject
+		} catch (e: Exception) {
+			Log.e(TAG, "Failed to parse novel details JSON: ${e.message}\nRaw JSON: ${jsonStr.take(1000)}")
+			return LNReaderNovelDetails(name = "Error", path = "")
+		}
+		
+		val chaptersArray = obj["chapters"] as? JsonArray
+		Log.d(TAG, "parseNovelDetails extracted keys: ${obj.keys}, chapters is array = ${chaptersArray != null}, size = ${chaptersArray?.size}")
+		
+		val totalPages = obj["totalPages"]?.jsonPrimitive?.intOrNull ?: 0
 		val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "Unknown"
 		val path = obj["path"]?.jsonPrimitive?.contentOrNull
 			?: obj["url"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -367,7 +431,7 @@ class LNReaderPluginBridge(
 		return LNReaderNovelDetails(
 			name = name, path = path, cover = cover,
 			author = author, summary = summary, genres = genres,
-			status = status, chapters = chapters
+			status = status, chapters = chapters, totalPages = totalPages
 		)
 	}
 	
@@ -407,7 +471,8 @@ data class LNReaderNovelDetails(
 	val summary: String = "",
 	val genres: List<String> = emptyList(),
 	val status: String = "",
-	val chapters: List<LNReaderChapter> = emptyList()
+	val chapters: List<LNReaderChapter> = emptyList(),
+	val totalPages: Int = 0
 )
 
 data class LNReaderChapter(

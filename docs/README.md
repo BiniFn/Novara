@@ -2,7 +2,7 @@
 
 This directory is organized by task, not by internal implementation. Start with the page that matches what you want to do next.
 
-> **Join the community:** [Discord](https://discord.gg/RHGHZbHue)
+> **Join the community:** [Discord](https://discord.gg/E2GsMeq2Vh)
 
 ## Start Here
 

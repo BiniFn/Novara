@@ -3,7 +3,7 @@
 ![App Icon](metadata/en-US/icon.png)
 
 ![version](https://img.shields.io/badge/version-0.6.2-blue)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RHGHZbHue)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/E2GsMeq2Vh)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://skepsun.github.io/Kototoro/)
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://skepsun.github.io/Kototoro/getting-started)
 [![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://skepsun.github.io/Kototoro/automatic-translation)
@@ -82,6 +82,6 @@ This project follows the upstream Kotatsu license. See [LICENSE](LICENSE).
 
 ## Contact
 
-- Discord: [Join Server](https://discord.gg/RHGHZbHue)
+- Discord: [Join Server](https://discord.gg/E2GsMeq2Vh)
 - GitHub Issues: [Issue Tracker](https://github.com/skepsun/kototoro/issues)
 - Email: chuxiongsun@gmail.com
