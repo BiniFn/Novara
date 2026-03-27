@@ -1104,7 +1104,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val (playUrl, playHeaders) = if (useProxy) {
             runCatching {
                 val proxyUrl = videoLocalCacheProxy.getProxyUrl(url, mergedHeaders)
-                proxyUrl to emptyMap<String, String>()
+                proxyUrl to mergedHeaders
             }.getOrElse {
                 Log.w("VideoPlayerActivity", "Proxy cache unavailable, fallback to origin URL", it)
                 url to mergedHeaders
