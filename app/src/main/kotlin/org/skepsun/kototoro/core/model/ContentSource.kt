@@ -291,6 +291,16 @@ private class AnonymousContentSource(override val name: String) : ContentSource 
 		name.startsWith("IREADER_") -> ContentType.MANGA
 		else -> ContentType.OTHER
 	}
+
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is ContentSource) return false
+		return name == other.name
+	}
+
+	override fun hashCode(): Int = name.hashCode()
+	
+	override fun toString(): String = "AnonymousContentSource(name=$name)"
 }
 
 /**
