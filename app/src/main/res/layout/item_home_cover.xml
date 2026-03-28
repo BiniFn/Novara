@@ -15,8 +15,8 @@
 	<com.google.android.material.card.MaterialCardView
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
-		app:cardElevation="2dp"
-		app:cardUseCompatPadding="true"
+		android:layout_margin="2dp"
+		app:cardElevation="3dp"
 		app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Kototoro.Cover">
 
 		<org.skepsun.kototoro.image.ui.CoverImageView
@@ -25,10 +25,12 @@
 			android:layout_height="wrap_content"
 			android:contentDescription="@null"
 			android:importantForAccessibility="no"
+			android:background="?colorSurfaceContainer"
+			app:allowRgb565="true"
 			app:aspectRationHeight="18"
 			app:aspectRationWidth="13"
+			app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Kototoro.Cover"
 			tools:src="@tools:sample/backgrounds/scenic" />
-
 	</com.google.android.material.card.MaterialCardView>
 
 	<TextView

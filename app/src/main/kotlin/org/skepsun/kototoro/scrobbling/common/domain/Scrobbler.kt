@@ -117,6 +117,11 @@ abstract class Scrobbler(
 			.map { it?.toScrobblingInfo() }
 	}
 
+	fun resolveStatus(statusValue: String?): ScrobblingStatus? {
+		if (statusValue == null) return null
+		return statuses.findKeyByValue(statusValue)
+	}
+
 	fun observeAllScrobblingInfo(): Flow<List<ScrobblingInfo>> {
 		return db.getScrobblingDao().observe(scrobblerService.id)
 			.map { entities ->

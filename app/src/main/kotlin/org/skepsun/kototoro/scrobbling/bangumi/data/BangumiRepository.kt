@@ -399,7 +399,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			comment = "",
 			rating = 0f,
 		)
-		updateCollection(scrobblerContentId, 2, null, null, null)
+		updateCollection(scrobblerContentId, 2, null, null, null, isCreate = true)
 		db.getScrobblingDao().upsert(entity)
 	}
 
@@ -428,16 +428,17 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		))
 	}
 
-	private suspend fun updateCollection(subjectId: Long, status: Int?, rate: Int?, comment: String?, ep: Int?) {
+	private suspend fun updateCollection(subjectId: Long, status: Int?, rate: Int?, comment: String?, ep: Int?, isCreate: Boolean = false) {
 		val body = JSONObject()
 		status?.let { body.put("type", it) }
 		rate?.let { body.put("rate", it) }
 		comment?.let { body.put("comment", it) }
 		ep?.let { body.put("ep_status", it) }
 
+		val reqBody = body.toString().toRequestBody("application/json".toMediaType())
 		val request = Request.Builder()
 			.url("${API_URL}v0/users/-/collections/$subjectId")
-			.patch(body.toString().toRequestBody("application/json".toMediaType()))
+			.apply { if (isCreate) post(reqBody) else patch(reqBody) }
 
 		okHttp.newCall(request.build()).await()
 	}

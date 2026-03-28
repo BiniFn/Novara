@@ -45,7 +45,7 @@ class HomeCoverAdapter(
 			binding.root.alpha = if (isEnabled) 1f else 0.35f
 			binding.root.contentDescription = content?.title ?: binding.root.context.getString(R.string.history_is_empty)
 			binding.imageViewCover.setImageAsync(
-				content?.largeCoverUrl.ifNullOrEmpty { content?.coverUrl },
+				content?.coverUrl,
 				content,
 			)
 			binding.textViewTitle.text = content?.title ?: ""

@@ -129,13 +129,7 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 	 */
 	fun resolveScrobblingStatus(entity: ScrobblingEntity): ScrobblingStatus? {
 		val s = scrobbler ?: return null
-		return s.let { scr ->
-			val field = scr::class.java.getDeclaredField("statuses")
-			field.isAccessible = true
-			@Suppress("UNCHECKED_CAST")
-			val statusMap = field.get(scr) as? Map<ScrobblingStatus, String>
-			statusMap?.findKeyByValue(entity.status)
-		}
+		return s.resolveStatus(entity.status)
 	}
 
 	fun getService(): ScrobblerService = service

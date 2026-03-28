@@ -13,18 +13,20 @@ class CloudFlareInterceptor : Interceptor {
 	override fun intercept(chain: Interceptor.Chain): Response {
 		val request = chain.request()
 		val response = chain.proceed(request)
+		val source = request.tag(ContentSource::class.java) 
+			?: request.headers[org.skepsun.kototoro.core.network.CommonHeaders.MANGA_SOURCE]?.let { org.skepsun.kototoro.core.model.ContentSource(it) }
 		return when (CloudFlareHelper.checkResponseForProtection(response)) {
 			CloudFlareHelper.PROTECTION_BLOCKED -> response.closeThrowing(
 				CloudFlareBlockedException(
 					url = request.url.toString(),
-					source = request.tag(ContentSource::class.java),
+					source = source,
 				),
 			)
 
 			CloudFlareHelper.PROTECTION_CAPTCHA -> response.closeThrowing(
 				CloudFlareProtectedException(
 					url = request.url.toString(),
-					source = request.tag(ContentSource::class.java),
+					source = source,
 					headers = request.headers,
 				),
 			)

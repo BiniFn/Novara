@@ -36,6 +36,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 	private var homeScrollAnchorY = 0
 	private var isHomeChromeHidden = false
 	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+	private val sharedViewPool = RecyclerView.RecycledViewPool()
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentHomeBinding {
 		return FragmentHomeBinding.inflate(inflater, container, false)
@@ -175,6 +176,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 	private fun setupCoverStrip(recyclerView: RecyclerView, adapter: HomeCoverAdapter) {
 		recyclerView.layoutManager = LinearLayoutManager(recyclerView.context, RecyclerView.HORIZONTAL, false)
 		recyclerView.adapter = adapter
+		recyclerView.setRecycledViewPool(sharedViewPool)
 		recyclerView.isNestedScrollingEnabled = false
 	}
 
