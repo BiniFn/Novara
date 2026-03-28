@@ -1185,7 +1185,15 @@ class DownloadWorker @AssistedInject constructor(
 			tag = "DownloadWorker",
 			prefix = "downloadVideoImpl_repository_unavailable",
 		) { "Download source ${manga.source.name} is not available" }
-		for ((index, chapter) in chapters.withIndex()) {
+		
+		val indexFile = File(mangaDir, "index.json")
+		val index = org.skepsun.kototoro.local.data.ContentIndex.read(indexFile) ?: org.skepsun.kototoro.local.data.ContentIndex(null).apply {
+			if (!manga.isLocal) {
+				setContentInfo(manga)
+			}
+		}
+
+		for ((iterationIndex, chapter) in chapters.withIndex()) {
 			if (chapter.value.id in excludedIds) {
 				downloaded += 1
 				continue
@@ -1194,7 +1202,7 @@ class DownloadWorker @AssistedInject constructor(
 				currentState.copy(
 					isIndeterminate = false,
 					totalChapters = totalChapters,
-					currentChapter = index,
+					currentChapter = iterationIndex,
 					totalPages = 1,
 					currentPage = 0,
 					downloadedChapters = downloaded,
@@ -1215,7 +1223,7 @@ class DownloadWorker @AssistedInject constructor(
 						currentState.copy(
 							isIndeterminate = false,
 							totalChapters = totalChapters,
-							currentChapter = index,
+							currentChapter = iterationIndex,
 							totalPages = total,
 							currentPage = cur.coerceAtLeast(0),
 							downloadedChapters = downloaded,
@@ -1228,6 +1236,8 @@ class DownloadWorker @AssistedInject constructor(
 					downloadDirectVideo(repo.source, target.url, target.headers, outputFile, progress)
 				}
 				videoDownloadIndex.put(manga.id, chapter.value.id, outputFile.absolutePath)
+				index.addChapter(chapter, fileName)
+				indexFile.writeText(index.toString())
 				scanDownloadedFile(outputFile)
 				downloaded += 1
 				publishState(currentState.copy(downloadedChapters = downloaded))

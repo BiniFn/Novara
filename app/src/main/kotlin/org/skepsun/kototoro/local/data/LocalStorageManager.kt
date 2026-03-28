@@ -92,12 +92,12 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun getAllReadableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs())
+		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs() + getAvailableVideoStorageDirs())
 			.filter { it.isReadable() }
 	}
 
 	suspend fun getAllWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs())
+		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs() + getAvailableVideoStorageDirs())
 			.filter { it.isWriteable() }
 	}
 
@@ -186,6 +186,15 @@ class LocalStorageManager @Inject constructor(
 		val result = LinkedHashSet<File>()
 		result += File(context.filesDir, DIR_NAME_NOVEL)
 		context.getExternalFilesDirs(DIR_NAME_NOVEL).filterNotNullTo(result)
+		result.retainAll { it.exists() || it.mkdirs() }
+		return result
+	}
+
+	@WorkerThread
+	private fun getAvailableVideoStorageDirs(): MutableSet<File> {
+		val result = LinkedHashSet<File>()
+		result += File(context.filesDir, DIR_NAME_VIDEO)
+		context.getExternalFilesDirs(DIR_NAME_VIDEO).filterNotNullTo(result)
 		result.retainAll { it.exists() || it.mkdirs() }
 		return result
 	}

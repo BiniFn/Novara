@@ -171,7 +171,8 @@ class ContentDataRepository @Inject constructor(
 
 	suspend fun cleanupLocalContent() {
 		val dao = db.getMangaDao()
-		val broken = dao.findAllBySource(LocalMangaSource.name)
+		val broken = listOf(LocalMangaSource.name, org.skepsun.kototoro.core.model.LocalNovelSource.name, org.skepsun.kototoro.core.model.LocalVideoSource.name)
+			.flatMap { dao.findAllBySource(it) }
 			.filter { x -> x.manga.url.toUri().toFileOrNull()?.exists() == false }
 		if (broken.isNotEmpty()) {
 			dao.delete(broken.map { it.manga })

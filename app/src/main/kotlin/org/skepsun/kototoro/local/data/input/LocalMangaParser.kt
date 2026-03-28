@@ -16,6 +16,9 @@ import okio.Path.Companion.toPath
 import okio.openZip
 import org.jetbrains.annotations.Blocking
 import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.model.LocalNovelSource
+import org.skepsun.kototoro.core.model.LocalVideoSource
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.core.util.AlphanumComparator
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.URI_SCHEME_ZIP
@@ -67,13 +70,13 @@ class LocalContentParser(private val uri: Uri) {
 					// 获取隐藏的章节ID列表
 					val hiddenChapterIds = index.getHiddenChapterIds()
 					
+					val resolvedLocalSource = when (mangaInfo.source?.contentType) {
+						ContentType.NOVEL, ContentType.HENTAI_NOVEL -> LocalNovelSource
+						ContentType.VIDEO, ContentType.HENTAI_VIDEO -> LocalVideoSource
+						else -> LocalMangaSource
+					}
+
 					mangaInfo.copy(
-						source = LocalMangaSource,
-						url = rootFile.toUri().toString(),
-						coverUrl = coverEntry?.let {
-							uri.child(it, resolve = true).toString()
-						} ?: fileSystem.findFirstImageUri(rootPath)?.toString(),
-						largeCoverUrl = null,
 					chapters = if (withDetails) {
 						mangaInfo.chapters?.mapNotNull { c ->
 							// 过滤掉隐藏的章节
@@ -86,8 +89,7 @@ class LocalContentParser(private val uri: Uri) {
 							if (path != null && fileSystem.exists(rootPath / path)) {
 								// 已加载的本地章节
 								c.copy(
-									url = uri.child(path, resolve = false).toString(),
-									source = LocalMangaSource,
+									url = uri.child(path, resolve = false).toString()
 								)
 							} else {
 								// 未下载的在线章节（保留原始 URL 和 Source）
@@ -101,8 +103,7 @@ class LocalContentParser(private val uri: Uri) {
 							val path = fileName?.toPath()
 							if (path != null && fileSystem.exists(rootPath / path)) {
 								c.copy(
-									url = uri.child(path, resolve = false).toString(),
-									source = LocalMangaSource
+									url = uri.child(path, resolve = false).toString()
 								)
 							} else {
 								// 如果不需要详情，通常是列表页，保留原始章节以显示进度条等
@@ -113,20 +114,34 @@ class LocalContentParser(private val uri: Uri) {
 				)
 			} else {
 				val title = rootFile.name.fileNameToTitle()
+				var inferedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
+				val flatFiles = fileSystem.listRecursively(rootPath).toList()
+				if (flatFiles.any { it.name.endsWith(".mp4", true) || it.name.endsWith(".mkv", true) || it.name.endsWith(".ts", true) || it.name.endsWith(".webm", true) }) inferedSource = LocalVideoSource
+				else if (flatFiles.any { it.name.endsWith(".epub", true) || it.name.endsWith(".txt", true) }) inferedSource = LocalNovelSource
+
 				Content(
 					id = rootFile.absolutePath.longHashCode(),
 					title = title,
 					url = rootFile.toUri().toString(),
 					publicUrl = rootFile.toUri().toString(),
-					source = LocalMangaSource,
+					source = inferedSource,
 					coverUrl = fileSystem.findFirstImageUri(rootPath)?.toString(),
 					chapters = if (withDetails) {
+						var detectedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
 						val chapters = fileSystem.listRecursively(rootPath)
 							.mapNotNullTo(HashSet()) { path ->
 								when {
 									!fileSystem.isRegularFile(path) -> null
 									path.isImage() -> path.parent
 									hasZipExtension(path.name) -> path
+									path.name.endsWith(".mp4", true) || path.name.endsWith(".mkv", true) || path.name.endsWith(".ts", true) || path.name.endsWith(".webm", true) -> {
+										detectedSource = LocalVideoSource
+										path.parent ?: Path.DIRECTORY_SEPARATOR.toPath()
+									}
+									path.name.endsWith(".epub", true) || path.name.endsWith(".txt", true) -> {
+										detectedSource = LocalNovelSource
+										path.parent ?: Path.DIRECTORY_SEPARATOR.toPath()
+									}
 									else -> null
 								}
 							}.sortedWith(compareBy(AlphanumComparator()) { x -> x.toString() })
@@ -138,10 +153,10 @@ class LocalContentParser(private val uri: Uri) {
 							}.toString().removePrefix(Path.DIRECTORY_SEPARATOR)
 							ContentChapter(
 								id = "$i$s".longHashCode(),
-								title = p.userFriendlyName(),
+								title = p.userFriendlyName().takeIf { it.isNotBlank() } ?: "1",
 								number = 0f,
 								volume = 0,
-								source = LocalMangaSource,
+								source = detectedSource,
 								uploadDate = 0L,
 								url = uri.child(p.relativeTo(rootPath), resolve = false).toString(),
 								scanlator = null,
@@ -288,6 +303,8 @@ class LocalContentParser(private val uri: Uri) {
 						?: getOrNull(File(root, "$idFileName.cbz"))
 					val info = runCatchingCancellable { parser?.getContentInfo() }.getOrNull()
 					if (info?.id == manga.id) {
+						send(parser)
+					} else if (parser != null && root.name == manga.title.toFileNameSafe()) {
 						send(parser)
 					}
 				}

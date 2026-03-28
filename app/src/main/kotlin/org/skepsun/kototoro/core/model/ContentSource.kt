@@ -30,12 +30,18 @@ data object LocalMangaSource : ContentSource {
 }
 
 val ContentSource.isLocal: Boolean
-	get() = this == LocalMangaSource || this == LocalNovelSource
+	get() = this == LocalMangaSource || this == LocalNovelSource || this == LocalVideoSource
 
 data object LocalNovelSource : ContentSource {
 	override val name = "LOCAL_NOVEL"
 	override val locale = ""
 	override val contentType = ContentType.NOVEL
+}
+
+data object LocalVideoSource : ContentSource {
+	override val name = "LOCAL_VIDEO"
+	override val locale = ""
+	override val contentType = ContentType.VIDEO
 }
 
 data object UnknownContentSource : ContentSource {
@@ -55,6 +61,7 @@ fun ContentSource(name: String?): ContentSource {
 	UnknownContentSource.name -> return UnknownContentSource
 	LocalMangaSource.name -> return LocalMangaSource
 	LocalNovelSource.name -> return LocalNovelSource
+	LocalVideoSource.name -> return LocalVideoSource
 	TestContentSource.name -> return TestContentSource
 	}
 	if (name.startsWith("content:")) {
@@ -238,7 +245,8 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 fun ContentSource.getTitle(context: Context): String = when (val source = unwrap()) {
 	is KotatsuParserSource -> source.title
 	LocalMangaSource -> context.getString(R.string.local_storage)
-	LocalNovelSource -> "本地小说"
+	LocalNovelSource -> context.getString(R.string.domain_novel) + " " + context.getString(R.string.local_storage)
+	LocalVideoSource -> context.getString(R.string.domain_video) + " " + context.getString(R.string.local_storage)
 	TestContentSource -> context.getString(R.string.test_parser)
 	is ExternalContentSource -> source.resolveName(context)
 	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> source.displayName.ifBlank { source.name }

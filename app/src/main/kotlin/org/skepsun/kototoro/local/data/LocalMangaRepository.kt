@@ -34,6 +34,7 @@ import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
 import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
@@ -90,6 +91,7 @@ class LocalMangaRepository @Inject constructor(
 		} else {
 			emptySet()
 		},
+		availableContentTypes = EnumSet.of(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
 	)
 
 	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
@@ -107,6 +109,9 @@ class LocalMangaRepository @Inject constructor(
 			}
 			if (filter.tags.isNotEmpty()) {
 				list.retainAll { x -> x.containsTags(filter.tags.mapToSet { it.title }) }
+			}
+			if (filter.types.isNotEmpty()) {
+				list.retainAll { x -> (x.manga.source?.contentType ?: ContentType.MANGA) in filter.types }
 			}
 			if (filter.tagsExclude.isNotEmpty()) {
 				list.removeAll { x -> x.containsAnyTag(filter.tagsExclude.mapToSet { it.title }) }
@@ -202,12 +207,16 @@ class LocalMangaRepository @Inject constructor(
 	}
 
 	suspend fun deleteChapters(manga: Content, ids: Set<Long>) = lock.withLock(manga) {
-		val subject = if (manga.isLocal) manga else checkNotNull(findSavedContent(manga, withDetails = false)) {
-			"Content is not stored on local storage"
-		}.manga
-		LocalContentUtil(subject).deleteChapters(ids)
-		val updated = getDetails(subject)
-		localStorageChanges.emit(LocalContent(updated))
+		val subject = if (manga.isLocal) {
+			org.skepsun.kototoro.local.domain.model.LocalContent(manga)
+		} else {
+			checkNotNull(findSavedContent(manga, withDetails = false)) {
+				"Content is not stored on local storage"
+			}
+		}
+		LocalContentUtil(subject.manga, subject.file).deleteChapters(ids)
+		val updated = getDetails(subject.manga)
+		localStorageChanges.emit(org.skepsun.kototoro.local.domain.model.LocalContent(updated))
 	}
 
 	suspend fun getRemoteContent(localContent: Content): Content? {

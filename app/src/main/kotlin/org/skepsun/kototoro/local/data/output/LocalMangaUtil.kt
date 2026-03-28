@@ -4,17 +4,14 @@ import androidx.core.net.toFile
 import androidx.core.net.toUri
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.parsers.model.Content
+import java.io.File
 
 class LocalContentUtil(
 	private val manga: Content,
+	private val file: File,
 ) {
 
-	init {
-		require(manga.isLocal) { "Expected LOCAL source but ${manga.source} found" }
-	}
-
 	suspend fun deleteChapters(ids: Set<Long>) {
-		val file = manga.url.toUri().toFile()
 		if (file.isDirectory) {
 			LocalContentDirOutput(file, manga).use { output ->
 				output.deleteChapters(ids)

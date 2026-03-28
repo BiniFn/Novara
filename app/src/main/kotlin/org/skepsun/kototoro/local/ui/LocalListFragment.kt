@@ -139,4 +139,7 @@ class LocalListFragment : ContentListFragment(), FilterCoordinator.Owner {
 			Snackbar.LENGTH_SHORT,
 		).show()
 	}
+
+	override fun isContentTypeFilterVisible(): Boolean = false
+	override fun isSourceTagFilterVisible(): Boolean = false
 }
