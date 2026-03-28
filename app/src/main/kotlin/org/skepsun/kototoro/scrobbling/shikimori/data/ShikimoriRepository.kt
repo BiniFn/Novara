@@ -202,7 +202,7 @@ class ShikimoriRepository @Inject constructor(
 			.findAllByScrobbler(ScrobblerService.SHIKIMORI.id)
 			.groupBy { it.targetId }
 			.mapValues { (_, values) ->
-				values.firstOrNull { it.mangaId > 0L }?.mangaId ?: 0L
+				values.firstOrNull { it.mangaId != 0L }?.mangaId ?: 0L
 			}
 
 		val synced = ArrayList<ScrobblingEntity>()

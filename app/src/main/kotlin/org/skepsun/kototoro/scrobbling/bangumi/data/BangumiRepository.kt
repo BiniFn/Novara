@@ -3,6 +3,7 @@ package org.skepsun.kototoro.scrobbling.bangumi.data
 import android.content.Context
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.CacheControl
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -590,7 +591,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			.findAllByScrobbler(ScrobblerService.BANGUMI.id)
 			.groupBy { it.targetId }
 			.mapValues { (_, values) ->
-				values.firstOrNull { it.mangaId > 0L }?.mangaId ?: 0L
+				values.firstOrNull { it.mangaId != 0L }?.mangaId ?: 0L
 			}
 
 		val synced = ArrayList<ScrobblingEntity>()
@@ -602,6 +603,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			while (true) {
 				val request = Request.Builder()
 					.url("${API_URL}v0/users/${user.id}/collections?subject_type=$subjectType&limit=$limit&offset=$offset")
+					.cacheControl(CacheControl.FORCE_NETWORK)
 					.get()
 				val response = okHttp.newCall(request.build()).await().parseJson()
 				val data = response.optJSONArray("data") ?: break
@@ -609,7 +611,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 
 				for (i in 0 until data.length()) {
 					val item = data.optJSONObject(i) ?: continue
-					val subjectId = item.optJSONObject("subject")?.optLong("id") ?: continue
+					val subjectId = item.optLong("subject_id").takeIf { it > 0 } ?: item.optJSONObject("subject")?.optLong("id") ?: continue
 					val mappedContentId = oldMappings[subjectId] ?: 0L
 					val typeInt = item.optInt("type", 0)
 					val statusStr = when (typeInt) {
