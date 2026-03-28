@@ -309,7 +309,7 @@ class LocalContentDirOutput(
 							id = internalChapterId, // Use generated stable ID
 							url = "file://${targetFile.absolutePath}#chapter/$epubChapterIndex",
 							branch = chapter.value.branch,
-							source = org.skepsun.kototoro.core.model.LocalMangaSource,
+							source = org.skepsun.kototoro.core.model.LocalNovelSource,
 						)
 					)
 					index.addChapter(subChapter, chapterFileName)

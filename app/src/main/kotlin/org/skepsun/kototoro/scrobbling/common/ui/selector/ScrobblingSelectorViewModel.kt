@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
@@ -43,6 +44,8 @@ class ScrobblingSelectorViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
 	private val historyRepository: HistoryRepository,
+	private val favouritesRepository: org.skepsun.kototoro.favourites.domain.FavouritesRepository,
+	@dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : BaseViewModel() {
 
 	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
@@ -128,7 +131,7 @@ class ScrobblingSelectorViewModel @Inject constructor(
 			listError.value = null
 			val offset = if (append) scrobblerContentList.value.size else 0
 			runCatchingCancellable {
-				val isAnime = manga.source.getContentType().let { it == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || it == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO }
+				val isAnime = manga.source.getContentType().let { it == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || it == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO } || (manga.url.startsWith("file://") && (manga.url.contains("/video/") || arrayOf(".mp4", ".mkv", ".webm", ".ts", ".avi", ".m3u8").any { manga.url.endsWith(it, ignoreCase = true) }))
 				currentScrobbler.findContent(checkNotNull(searchQuery.value), offset, isAnime)
 			}.onSuccess { list ->
 				val newList = (if (append) {
@@ -179,6 +182,16 @@ class ScrobblingSelectorViewModel @Inject constructor(
 					manga = manga,
 					chapterId = history.chapterId,
 				)
+			}
+			if (favouritesRepository.getCategoriesIds(manga.id).isEmpty()) {
+				val categories = favouritesRepository.observeCategories().firstOrNull()
+				val categoryId = if (!categories.isNullOrEmpty()) {
+					categories.first().id
+				} else {
+					val name = context.getString(org.skepsun.kototoro.R.string.favourites)
+					favouritesRepository.createCategory(name, org.skepsun.kototoro.list.domain.ListSortOrder.NEWEST, false, true).id
+				}
+				favouritesRepository.addToCategory(categoryId, listOf(manga))
 			}
 			onClose.call(Unit)
 		}

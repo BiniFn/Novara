@@ -176,26 +176,48 @@ class KitsuRepository(
 	
 	private suspend fun isAnimeContent(mangaId: Long): Boolean {
 		val mangaItem = db.getMangaDao().find(mangaId) ?: return false
+		if (mangaItem.manga.url.startsWith("file://") && (mangaItem.manga.url.contains("/video/") || arrayOf(".mp4", ".mkv", ".webm", ".ts", ".avi", ".m3u8").any { mangaItem.manga.url.endsWith(it, ignoreCase = true) })) {
+			return true
+		}
 		val source = org.skepsun.kototoro.core.model.ContentSource(mangaItem.manga.source)
 		val contentType = source.getContentType()
 		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
-		// Try manga first, fall back to anime
+		val isAnime = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.KITSU.id)
+			.firstOrNull { it.targetId == id }?.let { isAnimeContent(it.mangaId) } ?: false
+
+		val firstType = if (isAnime) "anime" else "manga"
+		val secondType = if (isAnime) "manga" else "anime"
+
 		val (data, mediaType) = try {
 			val req = Request.Builder().get()
-				.url("$BASE_WEB_URL/api/edge/manga/$id?include=categories,mediaRelationships.destination")
+				.url("$BASE_WEB_URL/api/edge/$firstType/$id?include=categories,mediaRelationships.destination")
 			val json = okHttp.newCall(req.build()).await().parseJson().ensureSuccess()
-			json to "manga"
+			json to firstType
 		} catch (_: Exception) {
 			val req = Request.Builder().get()
-				.url("$BASE_WEB_URL/api/edge/anime/$id?include=categories,mediaRelationships.destination")
+				.url("$BASE_WEB_URL/api/edge/$secondType/$id?include=categories,mediaRelationships.destination")
 			val json = okHttp.newCall(req.build()).await().parseJson().ensureSuccess()
-			json to "anime"
+			json to secondType
 		}
 
+		return parseContentInfoResponse(data, mediaType)
+	}
+
+	suspend fun getAnimeInfo(id: Long): ScrobblerContentInfo {
+		val req = Request.Builder().get()
+			.url("$BASE_WEB_URL/api/edge/anime/$id?include=categories,mediaRelationships.destination")
+		val json = okHttp.newCall(req.build()).await().parseJson().ensureSuccess()
+		return parseContentInfoResponse(json, "anime")
+	}
+
+	private suspend fun parseContentInfoResponse(data: JSONObject, mediaType: String): ScrobblerContentInfo {
+
 		val mainData = data.getJSONObject("data")
+		val id = mainData.getAsLong("id")
 		val attrs = mainData.getJSONObject("attributes")
 		val included = data.optJSONArray("included")
 

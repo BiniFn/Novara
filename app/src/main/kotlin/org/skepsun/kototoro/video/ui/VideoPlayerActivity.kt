@@ -366,6 +366,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     lateinit var historyUpdateUseCase: HistoryUpdateUseCase
 
     @Inject
+    lateinit var contentDataRepository: org.skepsun.kototoro.core.parser.ContentDataRepository
+
+    @Inject
     lateinit var mangaRepositoryFactory: ContentRepository.Factory
 
     private fun isLandscapeOrientation(): Boolean =
@@ -2359,8 +2362,20 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 其余部分需要加载详情以确保 chapters 非空
         lifecycleScope.launch {
             // 先确保漫画详情含章节
-            val repo = mangaRepositoryFactory.create(mangaSeed.source)
-            val manga = if (mangaSeed.chapters.isNullOrEmpty()) runCatching { repo.getDetails(mangaSeed) }.getOrDefault(mangaSeed) else mangaSeed
+            // 防御性拦截：如果 mangaSeed 的 URL 是本地文件协议，绝对不能交给在线解析器，否则必定抛错
+            val manga = if (mangaSeed.chapters.isNullOrEmpty()) {
+                if (mangaSeed.url.startsWith("file://")) {
+                    android.util.Log.w("VideoPlayer", "Cannot load details from source for local file URL: ${mangaSeed.url}")
+                    val dbContent = contentDataRepository.findContentById(mangaSeed.id, withChapters = true)
+                    dbContent ?: mangaSeed
+                } else {
+                    val repo = mangaRepositoryFactory.create(mangaSeed.source)
+                    runCatching { repo.getDetails(mangaSeed) }.getOrDefault(mangaSeed)
+                }
+            } else {
+                mangaSeed
+            }
+            
             // 若仍无章节信息（网络/源不可用），避免保存触发断言失败
             if (manga.chapters.isNullOrEmpty()) {
                 android.util.Log.w("VideoPlayer", "Cannot save history: manga has no chapters")

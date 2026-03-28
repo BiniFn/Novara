@@ -87,7 +87,7 @@ class DetailsLoadUseCase @Inject constructor(
 			return
 		}
 		val remoteContent = localContentRepository.getRemoteContent(manga)
-		if (remoteContent == null) {
+		if (remoteContent == null || remoteContent.url.startsWith("file://")) {
 			emit(
 				ContentDetails(
 					manga = localDetails,

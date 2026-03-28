@@ -95,7 +95,7 @@ class LocalEpubParser(private val cbzFile: File) {
                     scanlator = author,
                     uploadDate = cbzFile.lastModified(),
                     branch = null,
-                    source = LocalMangaSource,
+                    source = org.skepsun.kototoro.core.model.LocalNovelSource,
                 )
             }
             
@@ -114,7 +114,7 @@ class LocalEpubParser(private val cbzFile: File) {
                     ContentTag(
                         key = "epub",
                         title = "EPUB",
-                        source = LocalMangaSource,
+                        source = org.skepsun.kototoro.core.model.LocalNovelSource,
                     ),
                 ),
                 state = ContentState.FINISHED,
@@ -122,7 +122,7 @@ class LocalEpubParser(private val cbzFile: File) {
                 largeCoverUrl = null,
                 description = "EPUB Ebook: $title",
                 chapters = chapters,
-                source = LocalMangaSource,
+                source = org.skepsun.kototoro.core.model.LocalNovelSource,
             )
         } catch (e: Exception) {
             android.util.Log.e("LocalEpubParser", "Failed to parse EPUB", e)

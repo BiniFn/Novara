@@ -224,7 +224,7 @@ class ContentIndex(source: String?) {
 		val jo = chapters.optJSONObject(idStr) ?: return false
 		
 		val mangaSource = json.optString(KEY_SOURCE)
-		val isPurelyLocal = mangaSource == LocalMangaSource.name || mangaSource == LocalNovelSource.name
+		val isPurelyLocal = mangaSource == LocalMangaSource.name || mangaSource == LocalNovelSource.name || mangaSource == org.skepsun.kototoro.core.model.LocalVideoSource.name
 		
 		return if (isPurelyLocal) {
 			chapters.remove(idStr) != null

@@ -189,6 +189,16 @@ class LocalContentParser(private val uri: Uri) {
 	suspend fun getPages(chapter: ContentChapter): List<ContentPage> = runInterruptible(Dispatchers.IO) {
 		val chapterUri = chapter.url.toUri().resolve()
 		chapterUri.resolveFsAndPath().use { (fileSystem, rootPath) ->
+			if (fileSystem.metadataOrNull(rootPath)?.isDirectory != true) {
+				return@runInterruptible listOf(
+					ContentPage(
+						id = chapterUri.toString().longHashCode(),
+						url = chapterUri.toString(),
+						preview = null,
+						source = chapter.source ?: LocalMangaSource,
+					)
+				)
+			}
 			val index = ContentIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
 			val entries = fileSystem.listRecursively(rootPath)
 				.filter { fileSystem.isRegularFile(it) }

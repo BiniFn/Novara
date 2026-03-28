@@ -212,15 +212,20 @@ class MALRepository @Inject constructor(
 
 	private suspend fun isAnime(mangaId: Long): Boolean {
 		val mangaItem = db.getMangaDao().find(mangaId) ?: return false
+		if (mangaItem.manga.url.startsWith("file://") && (mangaItem.manga.url.contains("/video/") || arrayOf(".mp4", ".mkv", ".webm", ".ts", ".avi", ".m3u8").any { mangaItem.manga.url.endsWith(it, ignoreCase = true) })) {
+			return true
+		}
 		val source = org.skepsun.kototoro.core.model.ContentSource(mangaItem.manga.source)
 		val contentType = source.getContentType()
 		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
-		// This method might need mangaId to know if it's anime or manga
-		// But id is the scrobbler ID here!
-		// For now we assume manga, maybe we need getContentInfo signature change later if it fails on anime
+		val isAnime = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.MAL.id)
+			.firstOrNull { it.targetId == id }?.let { isAnime(it.mangaId) } ?: false
+		if (isAnime) return getAnimeInfo(id)
+
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("manga")
 			.addPathSegment(id.toString())

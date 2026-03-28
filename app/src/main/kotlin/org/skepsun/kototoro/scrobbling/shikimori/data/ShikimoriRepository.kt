@@ -113,6 +113,9 @@ class ShikimoriRepository @Inject constructor(
 	
 	private suspend fun isAnimeContent(mangaId: Long): Boolean {
 		val mangaItem = db.getMangaDao().find(mangaId) ?: return false
+		if (mangaItem.manga.url.startsWith("file://") && (mangaItem.manga.url.contains("/video/") || arrayOf(".mp4", ".mkv", ".webm", ".ts", ".avi", ".m3u8").any { mangaItem.manga.url.endsWith(it, ignoreCase = true) })) {
+			return true
+		}
 		val source = org.skepsun.kototoro.core.model.ContentSource(mangaItem.manga.source)
 		val contentType = source.getContentType()
 		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
@@ -184,6 +187,11 @@ class ShikimoriRepository @Inject constructor(
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
+		val isAnime = db.getScrobblingDao()
+			.findAllByScrobbler(ScrobblerService.SHIKIMORI.id)
+			.firstOrNull { it.targetId == id }?.let { isAnimeContent(it.mangaId) } ?: false
+		if (isAnime) return getAnimeInfo(id)
+
 		val request = Request.Builder()
 			.get()
 			.url("${BASE_URL}api/mangas/$id")

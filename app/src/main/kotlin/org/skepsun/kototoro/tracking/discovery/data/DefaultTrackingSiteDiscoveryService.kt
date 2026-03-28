@@ -355,6 +355,9 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		if (service == ScrobblerService.MAL) {
 			return getMalDetails(remoteId, urlHint)
 		}
+		if (service == ScrobblerService.KITSU) {
+			return getKitsuDetails(remoteId, urlHint)
+		}
 		if (service == ScrobblerService.SHIKIMORI) {
 			return getShikimoriDetails(remoteId, urlHint)
 		}
@@ -377,6 +380,21 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			malRepository.getContentInfo(remoteId)
 		}
 		return info.toTrackingDetails(ScrobblerService.MAL)
+	}
+
+	private suspend fun getKitsuDetails(remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
+		val url = urlHint ?: runCatching {
+			cacheRepository.readDetails(ScrobblerService.KITSU, remoteId)?.url
+		}.getOrNull()
+
+		val isAnime = url?.contains("/anime/") == true
+
+		val info = if (isAnime) {
+			kitsuRepository.getAnimeInfo(remoteId)
+		} else {
+			kitsuRepository.getContentInfo(remoteId)
+		}
+		return info.toTrackingDetails(ScrobblerService.KITSU)
 	}
 
 	// ── Shikimori helpers ────────────────────
