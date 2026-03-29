@@ -49,6 +49,11 @@ class AlternativesViewModel @Inject constructor(
 	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
 
 	private var includeDisabledSources = MutableStateFlow(false)
+	private var isPinnedOnly = MutableStateFlow(false)
+	
+	val isPinnedOnlySelected: Boolean
+		get() = isPinnedOnly.value
+
 	private val results = MutableStateFlow<List<ContentAlternativeModel>>(emptyList())
 
 	private var migrationJob: Job? = null
@@ -116,6 +121,13 @@ class AlternativesViewModel @Inject constructor(
 			onMigrated.call(target)
 		}
 	}
+	fun setPinnedOnly(pinnedOnly: Boolean) {
+		if (isPinnedOnly.value == pinnedOnly) return
+		isPinnedOnly.value = pinnedOnly
+		searchJob?.cancel()
+		results.value = emptyList()
+		doSearch(throughDisabledSources = includeDisabledSources.value)
+	}
 
 	private fun doSearch(throughDisabledSources: Boolean) {
 		val prevJob = searchJob
@@ -123,7 +135,7 @@ class AlternativesViewModel @Inject constructor(
 			prevJob?.cancelAndJoin()
 			val ref = mangaDetails.getOrDefault(manga)
 			val refCount = ref.chaptersCount()
-			alternativesUseCase.invoke(ref, throughDisabledSources)
+			alternativesUseCase.invoke(ref, throughDisabledSources, pinnedOnly = isPinnedOnly.value)
 				.collect {
 					val model = ContentAlternativeModel(
 						mangaModel = mangaListMapper.toListModel(it, ListMode.GRID) as ContentGridModel,

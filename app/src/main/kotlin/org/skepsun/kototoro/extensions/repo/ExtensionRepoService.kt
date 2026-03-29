@@ -55,6 +55,20 @@ class ExtensionRepoService @Inject constructor(
 			val derived = deriveRepoName(baseUrl, if (type == ExternalExtensionType.IREADER) "IReader" else "Kototoro")
 			val repoName = if (type == ExternalExtensionType.IREADER) "IReader: $derived" else "Kototoro: $derived"
 			val repoShort = derived
+			var version: String? = null
+			if (type == ExternalExtensionType.JAR) {
+				val indexUrl = applyMirror("$baseUrl/index.min.json")
+				runCatching {
+					withTimeout(REPO_DETAILS_TIMEOUT_MS) {
+						val body = httpClient.newCall(GET(indexUrl)).awaitSuccess().use { response ->
+							response.body.string()
+						}
+						val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
+						version = dto.firstOrNull()?.version
+					}
+				}
+			}
+
 			return ExternalExtensionRepo(
 				type = type,
 				baseUrl = baseUrl,
@@ -66,6 +80,7 @@ class ExtensionRepoService @Inject constructor(
 				updatedAt = now,
 				lastSuccessAt = now,
 				lastError = null,
+				version = version,
 			)
 		}
 

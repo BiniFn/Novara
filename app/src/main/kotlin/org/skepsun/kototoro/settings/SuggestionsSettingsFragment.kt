@@ -40,6 +40,11 @@ class SuggestionsSettingsFragment : BasePreferenceFragment(R.string.suggestions)
 			autoCompleteProvider = tagsCompletionProvider
 			summaryProvider = MultiAutoCompleteTextViewPreference.SimpleSummaryProvider(summary)
 		}
+
+		findPreference<MultiAutoCompleteTextViewPreference>(AppSettings.KEY_SUGGESTIONS_PREFERRED_TAGS)?.run {
+			autoCompleteProvider = tagsCompletionProvider
+			summaryProvider = MultiAutoCompleteTextViewPreference.SimpleSummaryProvider(summary)
+		}
 	}
 
 	override fun onDestroy() {
@@ -50,6 +55,7 @@ class SuggestionsSettingsFragment : BasePreferenceFragment(R.string.suggestions)
 	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
 		if (settings.isSuggestionsEnabled && (key == AppSettings.KEY_SUGGESTIONS
 				|| key == AppSettings.KEY_SUGGESTIONS_EXCLUDE_TAGS
+				|| key == AppSettings.KEY_SUGGESTIONS_PREFERRED_TAGS
 				|| key == AppSettings.KEY_SUGGESTIONS_EXCLUDE_NSFW)
 		) {
 			updateSuggestions()

@@ -38,6 +38,12 @@
 		android:title="@string/suggestions_excluded_genres"
 		app:allowDividerAbove="true" />
 
+	<org.skepsun.kototoro.settings.utils.MultiAutoCompleteTextViewPreference
+		android:dependency="suggestions"
+		android:key="suggestions_preferred_tags"
+		android:summary="@string/suggestions_preferred_genres_summary"
+		android:title="@string/suggestions_preferred_genres" />
+
 	<SwitchPreferenceCompat
 		android:defaultValue="false"
 		android:dependency="suggestions"

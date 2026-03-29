@@ -434,6 +434,8 @@
     <string name="suggestions_updating">Suggestions updating</string>
     <string name="suggestions_excluded_genres">Exclude genres</string>
     <string name="suggestions_excluded_genres_summary">Specify genres that you do not want to see in the suggestions</string>
+    <string name="suggestions_preferred_genres">Preferred genres</string>
+    <string name="suggestions_preferred_genres_summary">Specify genres that you want to see prioritized in the suggestions</string>
     <string name="text_delete_local_manga_batch">Delete selected items from device permanently?</string>
     <string name="removal_completed">Removal completed</string>
     <string name="shikimori" translatable="false">Shikimori</string>
@@ -596,6 +598,9 @@
     <string name="got_it">Got it</string>
     <string name="sources_reorder_tip">Tap and hold on an item to reorder them</string>
     <string name="user_agent">UserAgent header</string>
+    <string name="custom">Custom</string>
+    <string name="pref_doh_custom_url">Custom DoH URL</string>
+    <string name="pref_doh_custom_ips">Custom DoH IPs (comma separated)</string>
     <string name="settings_apply_restart_required">Please restart the application to apply these changes</string>
     <string name="comics_archive_import_description">You can select one or more .cbz or .zip files, each file will be recognized as a separate manga.</string>
     <string name="folder_with_images_import_description">Select a directory with archives or images. Each archive (or subdirectory) is a chapter; if the folder has multiple subfolders, each will be imported as a separate comic.</string>

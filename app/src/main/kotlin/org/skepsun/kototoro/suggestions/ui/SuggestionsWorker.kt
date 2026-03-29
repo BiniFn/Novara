@@ -189,7 +189,8 @@ class SuggestionsWorker @AssistedInject constructor(
 			return 0
 		}
 		val tagsBlacklist = TagsBlacklist(appSettings.suggestionsTagsBlacklist, TAG_EQ_THRESHOLD)
-		val tags = seed.flatMap { it.tags.map { x -> x.title } }.takeMostFrequent(10)
+		val whitelistTags = appSettings.suggestionsTagsWhitelist.toList()
+		val tags = (whitelistTags + seed.flatMap { it.tags.map { x -> x.title } }.takeMostFrequent(10)).distinct()
 
 		val semaphore = Semaphore(MAX_PARALLELISM)
 		val producer = channelFlow {

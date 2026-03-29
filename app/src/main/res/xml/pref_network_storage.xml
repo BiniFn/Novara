@@ -46,6 +46,16 @@
         android:title="@string/dns_over_https"
         app:useSimpleSummaryProvider="true" />
 
+    <EditTextPreference
+        android:key="doh_custom_url"
+        android:title="@string/pref_doh_custom_url"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="doh_custom_ips"
+        android:title="@string/pref_doh_custom_ips"
+        app:useSimpleSummaryProvider="true" />
+
     <ListPreference
         android:defaultValue="-1"
         android:entries="@array/image_proxies"

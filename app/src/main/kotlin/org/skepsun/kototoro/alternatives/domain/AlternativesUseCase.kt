@@ -27,8 +27,13 @@ class AlternativesUseCase @Inject constructor(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	suspend operator fun invoke(manga: Content, throughDisabledSources: Boolean): Flow<Content> {
-		val sources = getSources(manga.source, throughDisabledSources)
+	suspend operator fun invoke(manga: Content, throughDisabledSources: Boolean, pinnedOnly: Boolean = false): Flow<Content> {
+		val sources = getSources(manga.source, throughDisabledSources).let { list ->
+			if (pinnedOnly) {
+				val pinned = sourcesRepository.getPinnedSources()
+				list.filter { it in pinned }
+			} else list
+		}
 		if (sources.isEmpty()) {
 			return emptyFlow()
 		}

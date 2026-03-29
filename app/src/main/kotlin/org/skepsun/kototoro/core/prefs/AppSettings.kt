@@ -831,6 +831,15 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			return string.split(',').mapToSet { it.trim() }
 		}
 
+	val suggestionsTagsWhitelist: Set<String>
+		get() {
+			val string = prefs.getString(KEY_SUGGESTIONS_PREFERRED_TAGS, null)?.trimEnd(' ', ',')
+			if (string.isNullOrEmpty()) {
+				return emptySet()
+			}
+			return string.split(',').mapToSet { it.trim() }
+		}
+
 	val isReaderBarEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_BAR, true)
 
@@ -879,6 +888,12 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val dnsOverHttps: DoHProvider
 		get() = prefs.getEnumValue(KEY_DOH, DoHProvider.NONE)
+
+	val dohCustomUrl: String?
+		get() = prefs.getString(KEY_DOH_CUSTOM_URL, null)?.nullIfEmpty()
+
+	val dohCustomIps: String?
+		get() = prefs.getString(KEY_DOH_CUSTOM_IPS, null)?.nullIfEmpty()
 
 	var isSSLBypassEnabled: Boolean
 		get() = prefs.getBoolean(KEY_SSL_BYPASS, false)
@@ -1356,6 +1371,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SUGGESTIONS_WIFI_ONLY = "suggestions_wifi"
 		const val KEY_SUGGESTIONS_EXCLUDE_NSFW = "suggestions_exclude_nsfw"
 		const val KEY_SUGGESTIONS_EXCLUDE_TAGS = "suggestions_exclude_tags"
+		const val KEY_SUGGESTIONS_PREFERRED_TAGS = "suggestions_preferred_tags"
 		const val KEY_SUGGESTIONS_DISABLED_SOURCES = "suggestions_disabled_sources"
 		const val KEY_SUGGESTIONS_NOTIFICATIONS = "suggestions_notifications"
 		const val KEY_SHIKIMORI = "shikimori"
@@ -1375,6 +1391,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_DOWNLOADS_CHAPTER_DELAY = "downloads_chapter_delay"
 		const val KEY_ALL_FAVOURITES_VISIBLE = "all_favourites_visible"
 		const val KEY_DOH = "doh"
+		const val KEY_DOH_CUSTOM_URL = "doh_custom_url"
+		const val KEY_DOH_CUSTOM_IPS = "doh_custom_ips"
 		const val KEY_EXIT_CONFIRM = "exit_confirm"
 		const val KEY_INCOGNITO_MODE = "incognito"
 		const val KEY_READER_MULTITASK = "reader_multitask"

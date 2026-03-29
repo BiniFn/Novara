@@ -38,7 +38,7 @@
     <string name="nsfw">18+</string>
     <string name="various_languages">多语言</string>
     <string name="search_chapters">查找章节</string>
-    <string name="suggestions_excluded_genres">屏蔽类别</string>
+    <string name="suggestions_excluded_genres">屏蔽类别</string> <string name="suggestions_preferred_genres">偏好类别</string>
     <string name="suggestions_updating">作品推荐更新中</string>
     <string name="check_new_chapters_title">检查作品新章节并接收通知</string>
     <string name="details">详情</string>
@@ -228,7 +228,7 @@
     <string name="logged_in_as">以 %s 登录</string>
     <string name="chapters_empty">此作品没有章节</string>
     <string name="appearance">外观</string>
-    <string name="suggestions_excluded_genres_summary">不希望在推荐中看到的类别</string>
+    <string name="suggestions_excluded_genres_summary">不希望在推荐中看到的类别</string> <string name="suggestions_preferred_genres_summary">希望在推荐中高优先级展示的类别</string>
     <string name="text_delete_local_manga_batch">确定从设备中永久删除所选内容？</string>
     <string name="removal_completed">删除成功</string>
     <string name="download_slowdown">限速下载</string>
@@ -384,6 +384,9 @@
     <string name="allow_unstable_updates_summary">接收测试版本的更新通知</string>
     <string name="download_started">下载已开始</string>
     <string name="user_agent">UserAgent 标识</string>
+    <string name="custom">自定义</string>
+    <string name="pref_doh_custom_url">自定义 DoH URL</string>
+    <string name="pref_doh_custom_ips">自定义 DoH Bootstrap IPs (逗号分隔)</string>
     <string name="settings_apply_restart_required">重启程序后生效</string>
     <string name="sources_reorder_tip">点击并按住项目排序</string>
     <string name="got_it">知道了</string>

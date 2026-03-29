@@ -35,4 +35,6 @@ data class ExternalExtensionRepoEntity(
 	val lastSuccessAt: Long,
 	@ColumnInfo(name = "last_error")
 	val lastError: String?,
+	@ColumnInfo(name = "version")
+	val version: String?,
 )

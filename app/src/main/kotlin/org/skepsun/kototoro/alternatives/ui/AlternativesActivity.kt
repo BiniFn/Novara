@@ -61,6 +61,8 @@ class AlternativesActivity : BaseActivity<ActivityAlternativesBinding>(),
 			adapter = listAdapter
 		}
 
+		addMenuProvider(AlternativesMenuProvider(viewModel))
+
 		viewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.recyclerView, null))
 		viewModel.list.observe(this, listAdapter)
 		viewModel.onMigrated.observeEvent(this) {

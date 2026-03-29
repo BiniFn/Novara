@@ -289,3 +289,9 @@
 
 # NCNN Android PPOCR JNI classes
 -keep class com.equationl.ncnnandroidppocr.** { *; }
+
+# ONNX Runtime JNI classes
+-keep class ai.onnxruntime.** { *; }
+
+# Google LiteRT (TFLite) JNI classes
+-keep class com.google.ai.edge.litert.** { *; }

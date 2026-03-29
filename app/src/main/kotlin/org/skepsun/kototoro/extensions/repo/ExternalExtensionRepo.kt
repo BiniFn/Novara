@@ -11,6 +11,7 @@ data class ExternalExtensionRepo(
 	val updatedAt: Long,
 	val lastSuccessAt: Long,
 	val lastError: String?,
+	val version: String? = null,
 ) {
 	val displayName: String
 		get() = shortName ?: name

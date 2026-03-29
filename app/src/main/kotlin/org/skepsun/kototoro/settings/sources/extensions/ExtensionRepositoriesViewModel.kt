@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -20,6 +21,7 @@ import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import javax.inject.Inject
 
@@ -41,6 +43,24 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 
 	val onMessage = MutableEventFlow<String>()
 	val onTrustPrompt = MutableEventFlow<ExternalExtensionRepo>()
+
+	// Mapping of repository baseUrl to its available RepoAvailableExtension if an update is available
+	private val _updatesAvailable = MutableStateFlow<Map<String, RepoAvailableExtension>>(emptyMap())
+	val updatesAvailable: StateFlow<Map<String, RepoAvailableExtension>> = _updatesAvailable
+
+	fun performUpdate(repo: ExternalExtensionRepo) {
+		val updateExtension = _updatesAvailable.value[repo.baseUrl] ?: return
+		launchLoadingJob(Dispatchers.IO) {
+			try {
+				installService.createInstallIntent(updateExtension)
+				onMessage.call("Updating plugin...")
+				// Refresh to remove the update badge after install
+				refresh()
+			} catch (e: Exception) {
+				onMessage.call("Update failed: ${e.message}")
+			}
+		}
+	}
 
 	fun addRepo(indexUrl: String) {
 		Log.d(TAG, "addRepo:start type=$type input=$indexUrl")
@@ -132,11 +152,14 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 			if (type == ExternalExtensionType.JAR) {
 				val available = repoRepository.getCatalogExtensions(type)
 				val jarVersions = appContext.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+				val newUpdates = mutableMapOf<String, RepoAvailableExtension>()
 				for (extension in available) {
+					// Detect if the remote version is strictly newer than installed version
 					if (extension.versionCode > jarVersions.getLong(extension.pkgName, -1L)) {
-						installService.createInstallIntent(extension)
+						newUpdates[extension.repoUrl] = extension
 					}
 				}
+				_updatesAvailable.value = newUpdates
 			}
 		}
 	}

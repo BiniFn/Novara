@@ -166,6 +166,7 @@ private fun ExternalExtensionRepoEntity.toDomain(): ExternalExtensionRepo {
 		updatedAt = updatedAt,
 		lastSuccessAt = lastSuccessAt,
 		lastError = lastError,
+		version = version,
 	)
 }
 
@@ -181,5 +182,6 @@ private fun ExternalExtensionRepo.toEntity(): ExternalExtensionRepoEntity {
 		updatedAt = updatedAt,
 		lastSuccessAt = lastSuccessAt,
 		lastError = lastError,
+		version = version,
 	)
 }

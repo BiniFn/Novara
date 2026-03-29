@@ -19,6 +19,8 @@ class DoHManager(
 
 	private var cachedDelegate: Dns? = null
 	private var cachedProvider: DoHProvider? = null
+	private var cachedCustomUrl: String? = null
+	private var cachedCustomIps: String? = null
 
 	private val dohBypassDomains = listOf(
 		"github.com",
@@ -42,15 +44,22 @@ class DoHManager(
 	private fun getDelegate(): Dns {
 		var delegate = cachedDelegate
 		val provider = settings.dnsOverHttps
-		if (delegate == null || provider != cachedProvider) {
-			delegate = createDelegate(provider)
+		val customUrl = settings.dohCustomUrl
+		val customIps = settings.dohCustomIps
+		
+		val customChanged = provider == DoHProvider.CUSTOM && (customUrl != cachedCustomUrl || customIps != cachedCustomIps)
+		
+		if (delegate == null || provider != cachedProvider || customChanged) {
+			delegate = createDelegate(provider, customUrl, customIps)
 			cachedDelegate = delegate
 			cachedProvider = provider
+			cachedCustomUrl = customUrl
+			cachedCustomIps = customIps
 		}
 		return delegate
 	}
 
-	private fun createDelegate(provider: DoHProvider): Dns = when (provider) {
+	private fun createDelegate(provider: DoHProvider, customUrl: String?, customIps: String?): Dns = when (provider) {
 		DoHProvider.NONE -> Dns.SYSTEM
 		DoHProvider.GOOGLE -> DnsOverHttps.Builder().client(bootstrapClient)
 			.url("https://dns.google/dns-query".toHttpUrl())
@@ -97,6 +106,30 @@ class DoHManager(
 			.url("https://v.recipes/dns-query".toHttpUrl())
 			.resolvePublicAddresses(true)
 			.build()
+
+		DoHProvider.CUSTOM -> {
+			if (customUrl.isNullOrBlank()) Dns.SYSTEM
+			else {
+				try {
+					val url = customUrl.toHttpUrl()
+					val ips = customIps?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+					val hosts = ips.mapNotNull { tryGetByIp(it) }
+					
+					DnsOverHttps.Builder().client(bootstrapClient)
+						.url(url)
+						.resolvePrivateAddresses(true)
+						.apply {
+							if (hosts.isNotEmpty()) {
+								bootstrapDnsHosts(hosts)
+							}
+						}
+						.build()
+				} catch (e: Exception) {
+					e.printStackTraceDebug()
+					Dns.SYSTEM
+				}
+			}
+		}
 	}
 
 	private fun tryGetByIp(ip: String): InetAddress? = try {

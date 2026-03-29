@@ -24,9 +24,10 @@ class ExploreRepository @Inject constructor(
 
 	suspend fun findRandomContent(tagsLimit: Int): Content {
 		val tagsBlacklist = TagsBlacklist(settings.suggestionsTagsBlacklist, 0.4f)
-		val tags = historyRepository.getPopularTags(tagsLimit).mapNotNull {
+		val tagsWhitelist = settings.suggestionsTagsWhitelist.toList()
+		val tags = (tagsWhitelist + historyRepository.getPopularTags(tagsLimit).mapNotNull {
 			if (it in tagsBlacklist) null else it.title
-		}
+		}).distinct()
 		val sources = sourcesRepository.getEnabledSources()
 		check(sources.isNotEmpty()) { "No sources available" }
 		for (i in 0..4) {
@@ -46,9 +47,10 @@ class ExploreRepository @Inject constructor(
 	suspend fun findRandomContent(source: ContentSource, tagsLimit: Int): Content {
 		val tagsBlacklist = TagsBlacklist(settings.suggestionsTagsBlacklist, 0.4f)
 		val skipNsfw = settings.isSuggestionsExcludeNsfw && !source.isNsfw()
-		val tags = historyRepository.getPopularTags(tagsLimit).mapNotNull {
+		val tagsWhitelist = settings.suggestionsTagsWhitelist.toList()
+		val tags = (tagsWhitelist + historyRepository.getPopularTags(tagsLimit).mapNotNull {
 			if (it in tagsBlacklist) null else it.title
-		}
+		}).distinct()
 		for (i in 0..4) {
 			val list = getList(source, tags, tagsBlacklist)
 			val manga = list.randomOrNull() ?: continue

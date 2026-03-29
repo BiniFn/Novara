@@ -43,7 +43,11 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 
 	override fun onViewBindingCreated(binding: FragmentInstalledExtensionsBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		adapter = ExtensionRepositoriesAdapter(::openWebsite, ::deleteRepo)
+		adapter = ExtensionRepositoriesAdapter(
+			onOpenWebsite = ::openWebsite,
+			onDelete = ::deleteRepo,
+			onUpdate = { repo -> viewModel.performUpdate(repo) }
+		)
 		with(binding) {
 			recyclerView.layoutManager = LinearLayoutManager(context)
 			recyclerView.adapter = adapter
@@ -79,6 +83,9 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			adapter?.submitList(repos)
 			binding.recyclerView.isVisible = repos.isNotEmpty()
 			binding.emptyGroup.isVisible = repos.isEmpty() && !viewModel.isLoading.value
+		}
+		viewModel.updatesAvailable.observe(viewLifecycleOwner) { updates ->
+			adapter?.setUpdates(updates)
 		}
 		viewModel.repoCount.observe(viewLifecycleOwner) { count ->
 			binding.textExtensionCount.text = getString(R.string.extension_repo_count, count)

@@ -23,11 +23,31 @@
 
             <TextView
                 android:id="@+id/textName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                tools:text="Keiyoushi" />
+
+            <TextView
+                android:id="@+id/textVersion"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                tools:text="Keiyoushi" />
+                android:paddingStart="8dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="v1.0.8" />
+
+            <ImageButton
+                android:id="@+id/buttonUpdate"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/update"
+                android:padding="6dp"
+                android:src="@drawable/ic_sync"
+                android:visibility="gone"
+                tools:visibility="visible" />
 
             <ImageButton
                 android:id="@+id/buttonOpen"

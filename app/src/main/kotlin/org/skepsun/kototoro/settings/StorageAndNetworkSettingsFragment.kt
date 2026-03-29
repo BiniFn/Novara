@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.viewModels
+import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.google.android.material.snackbar.Snackbar
@@ -32,6 +33,7 @@ class StorageAndNetworkSettingsFragment :
             setDefaultValueCompat(DoHProvider.NONE.name)
         }
         bindProxySummary()
+        bindDoHVisibility()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -59,6 +61,10 @@ class StorageAndNetworkSettingsFragment :
             AppSettings.KEY_PROXY_PORT -> {
                 bindProxySummary()
             }
+
+            AppSettings.KEY_DOH -> {
+                bindDoHVisibility()
+            }
         }
     }
 
@@ -73,5 +79,11 @@ class StorageAndNetworkSettingsFragment :
                 else -> "$address:$port"
             }
         }
+    }
+
+    private fun bindDoHVisibility() {
+        val isCustom = settings.dnsOverHttps == DoHProvider.CUSTOM
+        findPreference<EditTextPreference>(AppSettings.KEY_DOH_CUSTOM_URL)?.isVisible = isCustom
+        findPreference<EditTextPreference>(AppSettings.KEY_DOH_CUSTOM_IPS)?.isVisible = isCustom
     }
 }
