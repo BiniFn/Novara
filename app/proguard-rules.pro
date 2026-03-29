@@ -286,3 +286,6 @@
 # R8 may strip these if the host app no longer directly uses them, but runtime-loaded JARs still need them.
 -keep class androidx.collection.** { *; }
 -keep interface androidx.collection.** { *; }
+
+# NCNN Android PPOCR JNI classes
+-keep class com.equationl.ncnnandroidppocr.** { *; }

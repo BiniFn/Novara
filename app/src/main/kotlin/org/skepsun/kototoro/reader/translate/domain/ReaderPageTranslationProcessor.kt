@@ -488,10 +488,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		val order = linkedSetOf<ReaderOcrEngine>().apply {
 			add(primary)
-			add(ReaderOcrEngine.NCNN)
-			add(ReaderOcrEngine.HYBRID)
-			add(ReaderOcrEngine.TFLITE)
-			add(ReaderOcrEngine.MLKIT)
+			// Avoid aggressively falling back to heavy local models to prevent unexpected memory exhaustion.
+			// Users specifically selecting MLKit or TFLite should not silently load NCNN in the background.
 		}
 		var bestResult: List<OcrTextBlock> = emptyList()
 		var bestEngine: ReaderOcrEngine? = null
