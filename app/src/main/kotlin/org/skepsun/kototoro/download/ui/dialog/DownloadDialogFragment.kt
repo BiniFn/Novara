@@ -84,6 +84,9 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		viewModel.availableDestinations.observe(viewLifecycleOwner, this::onDestinationsChanged)
 		viewModel.chaptersSelectOptions.observe(viewLifecycleOwner, this::onChapterSelectOptionsChanged)
 		viewModel.isOptionsLoading.observe(viewLifecycleOwner, binding.progressBar::showOrHide)
+		viewModel.isVideoContent.observe(viewLifecycleOwner) { updateVideoQualitySpinner() }
+		viewModel.isVideoQualitiesLoading.observe(viewLifecycleOwner) { updateVideoQualitySpinner() }
+		viewModel.videoQualities.observe(viewLifecycleOwner) { updateVideoQualitySpinner() }
 
 		binding.switchAlignReader.isChecked = viewModel.isDownloadAlignedWithReader()
 		updateAlignmentUi(binding, binding.switchAlignReader.isChecked)
@@ -222,6 +225,11 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 	private fun schedule(allowMeteredNetwork: Boolean) {
 		viewBinding?.run {
 			val options = viewModel.chaptersSelectOptions.value
+			val preferredQuality = if (cardVideoQuality.isVisible && spinnerVideoQuality.selectedItemPosition > 0) {
+				viewModel.videoQualities.value?.getOrNull(spinnerVideoQuality.selectedItemPosition - 1)
+			} else {
+				null
+			}
 			viewModel.confirm(
 				startNow = switchStart.isChecked,
 				chaptersMacro = when {
@@ -234,6 +242,7 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 				format = DownloadFormat.entries.getOrNull(spinnerFormat.selectedItemPosition),
 				destination = viewModel.availableDestinations.value.getOrNull(spinnerDestination.selectedItemPosition),
 				allowMetered = allowMeteredNetwork,
+				preferredQuality = preferredQuality,
 			)
 		}
 	}
@@ -262,6 +271,33 @@ class DownloadDialogFragment : AlertDialogFragment<DialogDownloadBinding>(), Vie
 		viewBinding?.spinnerDestination?.run {
 			adapter = DestinationsAdapter(context, directories)
 			setSelection(directories.indexOfFirst { it.isChecked })
+		}
+	}
+
+	private fun updateVideoQualitySpinner() {
+		viewBinding?.apply {
+			val isVideo = viewModel.isVideoContent.value
+			textViewVideoQuality.isVisible = isVideo
+			cardVideoQuality.isVisible = isVideo
+			if (!isVideo) return
+			
+			val isLoading = viewModel.isVideoQualitiesLoading.value
+			val qualities = viewModel.videoQualities.value
+
+			if (isLoading) {
+				spinnerVideoQuality.isEnabled = false
+				val adapter = android.widget.ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, listOf(getString(R.string.fetching_video_quality)))
+				spinnerVideoQuality.adapter = adapter
+			} else {
+				spinnerVideoQuality.isEnabled = true
+				val entries = mutableListOf(getString(R.string.system_default))
+				if (!qualities.isNullOrEmpty()) {
+					entries.addAll(qualities)
+				}
+				val adapter = android.widget.ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, entries)
+				adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+				spinnerVideoQuality.adapter = adapter
+			}
 		}
 	}
 

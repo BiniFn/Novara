@@ -68,32 +68,14 @@ fun ContentSource(name: String?): ContentSource {
 		val parts = name.substringAfter(':').splitTwoParts('/') ?: return UnknownContentSource
 		return ExternalContentSource(packageName = parts.first, authority = parts.second)
 	}
-	// Check if it's a JSON source (starts with JSON_ prefix)
-	if (name.startsWith("JSON_")) {
-		android.util.Log.d("ContentSource", "Detected JSON source name: $name, returning stable ContentSource")
-		return AnonymousContentSource(name)
-	}
-	// Check if it's a Tracking source (starts with TRACKING_ prefix)
-	if (name.startsWith("TRACKING_")) {
-		return AnonymousContentSource(name)
-	}
-	// Check if it's a Mihon source (starts with MIHON_ prefix)
-	if (name.startsWith("MIHON_")) {
-		android.util.Log.d("ContentSource", "Detected Mihon source name: $name, returning stable ContentSource")
-		return AnonymousContentSource(name)
-	}
-	// Check if it's an Aniyomi source (starts with ANIYOMI_ prefix)
-	if (name.startsWith("ANIYOMI_")) {
-		android.util.Log.d("ContentSource", "Detected Aniyomi source name: $name, returning stable ContentSource")
-		return AnonymousContentSource(name)
-	}
-	// Check if it's an IReader source (starts with IREADER_ prefix)
-	if (name.startsWith("IREADER_")) {
-		android.util.Log.d("ContentSource", "Detected IReader source name: $name, returning stable ContentSource")
-		return AnonymousContentSource(name)
-	}
 	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == name }?.let { return org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }
 	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == name }?.let { return it.originalSource }
+
+	// Fallbacks: If not loaded yet, return stable AnonymousContentSource
+	if (name.startsWith("JSON_") || name.startsWith("TRACKING_") || name.startsWith("MIHON_") || name.startsWith("ANIYOMI_") || name.startsWith("IREADER_")) {
+		return AnonymousContentSource(name)
+	}
+
 	return UnknownContentSource
 }
 

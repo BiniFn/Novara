@@ -22,6 +22,8 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.download.ui.worker.DownloadTask
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
@@ -68,6 +70,9 @@ class DownloadDialogViewModel @Inject constructor(
 		),
 	)
 	val isOptionsLoading = MutableStateFlow(true)
+	val videoQualities = MutableStateFlow<List<String>?>(null)
+	val isVideoContent = MutableStateFlow(false)
+	val isVideoQualitiesLoading = MutableStateFlow(false)
 
 	init {
 		launchJob(Dispatchers.Default) {
@@ -80,6 +85,20 @@ class DownloadDialogViewModel @Inject constructor(
 				isOptionsLoading.value = false
 			}
 		}
+		launchJob(Dispatchers.Default) {
+			try {
+				val firstManga = mangaDetails.get().firstOrNull()
+				if (firstManga?.source?.getContentType() == ContentType.VIDEO) {
+					isVideoContent.value = true
+					isVideoQualitiesLoading.value = true
+					loadAvailableVideoQualities()
+				}
+			} catch (e: Exception) {
+				e.printStackTraceDebug()
+			} finally {
+				isVideoQualitiesLoading.value = false
+			}
+		}
 		loadAvailableDestinations()
 	}
 
@@ -89,6 +108,7 @@ class DownloadDialogViewModel @Inject constructor(
 		format: DownloadFormat?,
 		destination: DirectoryModel?,
 		allowMetered: Boolean,
+		preferredQuality: String? = null,
 	) {
 		launchLoadingJob(Dispatchers.Default) {
 			val tasks = mangaDetails.get().map { m ->
@@ -101,6 +121,7 @@ class DownloadDialogViewModel @Inject constructor(
 					destination = destination?.file,
 					format = format,
 					allowMeteredNetwork = allowMetered,
+					preferredQuality = preferredQuality,
 				)
 			}
 			scheduler.schedule(tasks)
@@ -267,6 +288,22 @@ class DownloadDialogViewModel @Inject constructor(
 					isRemovable = false,
 				)
 			}
+		}
+	}
+
+	private suspend fun loadAvailableVideoQualities() {
+		val firstManga = mangaDetails.get().firstOrNull() ?: return
+		val firstChapter = firstManga.chapters?.firstOrNull() ?: return
+		val repo = mangaRepositoryFactory.create(firstManga.source) as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return
+		
+		runCatchingCancellable {
+			val videos = repo.getVideoListForChapter(firstChapter)
+			val qualities = videos.map { it.videoTitle }.distinct()
+			if (qualities.isNotEmpty()) {
+				videoQualities.value = qualities
+			}
+		}.onFailure {
+			it.printStackTraceDebug()
 		}
 	}
 

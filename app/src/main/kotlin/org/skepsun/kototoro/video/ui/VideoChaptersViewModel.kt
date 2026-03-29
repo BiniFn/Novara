@@ -43,6 +43,7 @@ class VideoChaptersViewModel @Inject constructor(
     deleteLocalContentUseCase: DeleteLocalContentUseCase,
     private val detailsLoadUseCase: DetailsLoadUseCase,
     private val videoDownloadIndex: VideoDownloadIndex,
+    mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory,
 ) : ChaptersPagesViewModel(
     settings = settings,
     interactor = interactor,
@@ -50,6 +51,7 @@ class VideoChaptersViewModel @Inject constructor(
     historyRepository = historyRepository,
     downloadScheduler = downloadScheduler,
     deleteLocalContentUseCase = deleteLocalContentUseCase,
+    mangaRepositoryFactory = mangaRepositoryFactory,
     localStorageChanges = localStorageChanges,
 ) {
 

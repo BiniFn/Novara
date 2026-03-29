@@ -16,6 +16,7 @@ class DownloadTask(
 	val destination: File?,
 	val format: DownloadFormat?,
 	val allowMeteredNetwork: Boolean,
+	val preferredQuality: String? = null,
 ) : Parcelable {
 
 	constructor(data: Data) : this(
@@ -26,6 +27,7 @@ class DownloadTask(
 		destination = data.getString(DESTINATION)?.let { File(it) },
 		format = data.getString(FORMAT)?.let { DownloadFormat.entries.find(it) },
 		allowMeteredNetwork = data.getBoolean(ALLOW_METERED, true),
+		preferredQuality = data.getString(PREFERRED_QUALITY),
 	)
 
 	fun toData(): Data = Data.Builder()
@@ -35,6 +37,7 @@ class DownloadTask(
 		.putLongArray(CHAPTERS, chaptersIds ?: LongArray(0))
 		.putString(DESTINATION, destination?.path)
 		.putString(FORMAT, format?.name)
+		.putString(PREFERRED_QUALITY, preferredQuality)
 		.build()
 
 	override fun equals(other: Any?): Boolean {
@@ -50,6 +53,7 @@ class DownloadTask(
 		if (destination != other.destination) return false
 		if (format != other.format) return false
 		if (allowMeteredNetwork != other.allowMeteredNetwork) return false
+		if (preferredQuality != other.preferredQuality) return false
 
 		return true
 	}
@@ -62,6 +66,7 @@ class DownloadTask(
 		result = 31 * result + (destination?.hashCode() ?: 0)
 		result = 31 * result + (format?.hashCode() ?: 0)
 		result = 31 * result + allowMeteredNetwork.hashCode()
+		result = 31 * result + (preferredQuality?.hashCode() ?: 0)
 		return result
 	}
 
@@ -74,5 +79,6 @@ class DownloadTask(
 		const val DESTINATION = "dest"
 		const val FORMAT = "format"
 		const val ALLOW_METERED = "metered"
+		const val PREFERRED_QUALITY = "preferred_quality"
 	}
 }

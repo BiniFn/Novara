@@ -30,8 +30,10 @@ import org.skepsun.kototoro.core.util.RecyclerViewScrollCallback
 import org.skepsun.kototoro.core.util.ext.findAppCompatDelegate
 import org.skepsun.kototoro.core.util.ext.findParentCallback
 import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.setTextAndVisible
 import org.skepsun.kototoro.databinding.FragmentChaptersBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.skepsun.kototoro.details.ui.adapter.ChaptersAdapter
 import org.skepsun.kototoro.details.ui.adapter.ChaptersSelectionDecoration
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
@@ -102,6 +104,19 @@ class ChaptersFragment :
 		viewModel.quickFilter.observe(viewLifecycleOwner, this::onFilterChanged)
 		viewModel.emptyReason.observe(viewLifecycleOwner) {
 			binding.textViewHolder.setTextAndVisible(it?.msgResId ?: 0)
+		}
+
+		viewModel.onShowVideoQualityDialog.observeEvent(viewLifecycleOwner) { result ->
+			val options = listOf(getString(R.string.system_default)) + result.qualities
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.video_quality)
+				.setItems(options.toTypedArray()) { _, which ->
+					val quality = if (which == 0) null else options[which]
+					router.askForDownloadOverMeteredNetwork { allow ->
+						viewModel.download(result.snapshot, allow, quality)
+					}
+				}
+				.show()
 		}
 	}
 

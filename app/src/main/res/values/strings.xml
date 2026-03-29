@@ -1884,4 +1884,5 @@
     <string name="novel_reading_mode">Reading Mode</string>
     <string name="novel_mode_paged">Paged</string>
     <string name="novel_mode_scroll">Scroll</string>
+    <string name="fetching_video_quality">Fetching video qualities…</string>
 </resources>

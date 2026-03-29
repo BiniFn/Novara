@@ -89,6 +89,7 @@ class DetailsViewModel @Inject constructor(
 	private val localEpubSource: org.skepsun.kototoro.local.epub.LocalEpubSource,
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 	private val videoDownloadIndex: VideoDownloadIndex,
+	mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory,
 	private val trackingSiteMatcher: TrackingSiteMatcher,
 ) : ChaptersPagesViewModel(
 	settings = settings,
@@ -97,6 +98,7 @@ class DetailsViewModel @Inject constructor(
 	historyRepository = historyRepository,
 	downloadScheduler = downloadScheduler,
 	deleteLocalContentUseCase = deleteLocalContentUseCase,
+	mangaRepositoryFactory = mangaRepositoryFactory,
 	localStorageChanges = localStorageChanges,
 ) {
 

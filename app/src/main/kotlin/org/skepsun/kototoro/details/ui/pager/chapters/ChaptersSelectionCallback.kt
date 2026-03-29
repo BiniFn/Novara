@@ -15,6 +15,8 @@ import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toCollection
 import org.skepsun.kototoro.core.util.ext.toSet
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.local.ui.LocalChaptersRemoveService
 
@@ -65,8 +67,13 @@ class ChaptersSelectionCallback(
 				val snapshot = controller.snapshot()
 				mode?.finish()
 				if (snapshot.isNotEmpty()) {
-					router.askForDownloadOverMeteredNetwork {
-						viewModel.download(snapshot, it)
+					val manga = viewModel.mangaDetails.value?.toContent()
+					if (manga?.source?.getContentType() == ContentType.VIDEO) {
+						viewModel.probeAndDownload(snapshot)
+					} else {
+						router.askForDownloadOverMeteredNetwork {
+							viewModel.download(snapshot, it)
+						}
 					}
 				}
 				true

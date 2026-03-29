@@ -102,6 +102,7 @@ class ReaderViewModel @Inject constructor(
     interactor: DetailsInteractor,
     deleteLocalContentUseCase: DeleteLocalContentUseCase,
     downloadScheduler: DownloadWorker.Scheduler,
+    mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory,
     readerSettingsProducerFactory: ReaderSettings.Producer.Factory,
 ) : ChaptersPagesViewModel(
     settings = settings,
@@ -110,6 +111,7 @@ class ReaderViewModel @Inject constructor(
     historyRepository = historyRepository,
     downloadScheduler = downloadScheduler,
     deleteLocalContentUseCase = deleteLocalContentUseCase,
+    mangaRepositoryFactory = mangaRepositoryFactory,
     localStorageChanges = localStorageChanges,
 ) {
     data class TranslationPageTaskSnapshot(

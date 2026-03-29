@@ -43,7 +43,12 @@ import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
 import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+
 import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.reader.ui.ReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
@@ -58,11 +63,15 @@ abstract class ChaptersPagesViewModel(
 	private val historyRepository: HistoryRepository,
 	private val downloadScheduler: DownloadWorker.Scheduler,
 	private val deleteLocalContentUseCase: DeleteLocalContentUseCase,
+	protected val mangaRepositoryFactory: ContentRepository.Factory,
 	private val localStorageChanges: SharedFlow<LocalContent?>,
 ) : BaseViewModel() {
 
 	val mangaDetails = MutableStateFlow<ContentDetails?>(null)
 	val readingState = MutableStateFlow<ReaderState?>(null)
+	
+	data class QualityProbeResult(val snapshot: Set<Long>, val qualities: List<String>)
+	val onShowVideoQualityDialog = MutableEventFlow<QualityProbeResult>()
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val onDownloadStarted = MutableEventFlow<Unit>()
@@ -229,18 +238,48 @@ abstract class ChaptersPagesViewModel(
 		}
 	}
 
-	fun download(chaptersIds: Set<Long>?, allowMeteredNetwork: Boolean) {
+	fun download(chapterId: Long, isMeteredNetworkAllowed: Boolean, preferredQuality: String? = null) {
+		download(setOf(chapterId), isMeteredNetworkAllowed, preferredQuality)
+	}
+
+	fun probeAndDownload(snapshot: Set<Long>) {
+		launchLoadingJob(Dispatchers.Default) {
+			val manga = mangaDetails.value?.toContent() ?: return@launchLoadingJob
+			if (manga.source.getContentType() != ContentType.VIDEO) return@launchLoadingJob
+			
+			val chapterId = snapshot.firstOrNull() ?: return@launchLoadingJob
+			val chapter = chapters.value.find { it.chapter.id == chapterId }?.chapter ?: return@launchLoadingJob
+			val repo = mangaRepositoryFactory.create(manga.source) as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return@launchLoadingJob
+			
+			val qualities = runCatchingCancellable {
+				repo.getVideoListForChapter(chapter).map { it.videoTitle }.distinct()
+			}.getOrNull()
+			
+			if (!qualities.isNullOrEmpty()) {
+				onShowVideoQualityDialog.call(QualityProbeResult(snapshot, qualities))
+			} else {
+				// Fallback to default flow without specific quality
+				onShowVideoQualityDialog.call(QualityProbeResult(snapshot, emptyList()))
+			}
+		}
+	}
+
+	fun download(snapshot: Set<Long>, isMeteredNetworkAllowed: Boolean, preferredQuality: String? = null) {
+		val manga = mangaDetails.value?.toContent() ?: return
+		val items = chapters.value.filter { it.chapter.id in snapshot }
+
+		val isSilent = snapshot.size == 1
+		val task = DownloadTask(
+			mangaId = manga.id,
+			isPaused = false,
+			isSilent = isSilent,
+			chaptersIds = items.map { it.chapter.id }.toLongArray(),
+			destination = null,
+			format = null,
+			allowMeteredNetwork = isMeteredNetworkAllowed,
+			preferredQuality = preferredQuality,
+		)
 		launchJob(Dispatchers.Default) {
-			val manga = requireContent()
-			val task = DownloadTask(
-				mangaId = manga.id,
-				isPaused = false,
-				isSilent = false,
-				chaptersIds = chaptersIds?.toLongArray(),
-				destination = null,
-				format = null,
-				allowMeteredNetwork = allowMeteredNetwork,
-			)
 			downloadScheduler.schedule(setOf(manga to task))
 			onDownloadStarted.call(Unit)
 		}

@@ -436,6 +436,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
 		set(@FloatRange(0.3, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_CONTROLS_ALPHA, (value * 100).toInt()) }
 
+	var preferredVideoQuality: String
+		get() = prefs.getString(KEY_VIDEO_PREFERRED_QUALITY, "1080p, 720p, 480p") ?: "1080p, 720p, 480p"
+		set(value) = prefs.edit { putString(KEY_VIDEO_PREFERRED_QUALITY, value) }
+
 	@get:FloatRange(0.0, 1.0)
 	var videoGradientAlpha: Float
 		get() = prefs.getInt(KEY_VIDEO_GRADIENT_ALPHA, 70) / 100f
@@ -1370,6 +1374,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_VIDEO_DECODER_MODE = "video_decoder_mode"
 		const val KEY_VIDEO_RENDERER_MODE = "video_renderer_mode"
 		const val KEY_VIDEO_BACKGROUND = "video_background"
+		const val KEY_VIDEO_PREFERRED_QUALITY = "video_preferred_quality"
 		const val KEY_VIDEO_SUPER_RES_MODE = "video_super_resolution_mode"
 		const val KEY_VIDEO_SUPER_RES_SHADER = "video_super_resolution_shader"
 		const val KEY_VIDEO_SUPER_RES_QUALITY_SHADER = "video_super_resolution_quality_shader"

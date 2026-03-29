@@ -1208,7 +1208,7 @@ class DownloadWorker @AssistedInject constructor(
 					downloadedChapters = downloaded,
 				),
 			)
-			val target = resolveVideoTarget(repo, chapter.value) ?: continue
+			val target = resolveVideoTarget(repo, chapter.value, task) ?: continue
 			val fileName = buildVideoFileName(chapter, target.extension)
 			val outputFile = File(mangaDir, fileName)
 			if (outputFile.exists() && outputFile.length() > 0L) {
@@ -1252,12 +1252,32 @@ class DownloadWorker @AssistedInject constructor(
 	private suspend fun resolveVideoTarget(
 		repo: ContentRepository,
 		chapter: ContentChapter,
+		task: DownloadTask,
 	): VideoDownloadTarget? {
 		val aniyomiRepo = repo as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
 		if (aniyomiRepo != null) {
 			val videos = aniyomiRepo.getVideoListForChapter(chapter)
 				.filter { it.videoUrl.isNotBlank() }
-			val selected = videos.firstOrNull { it.preferred } ?: videos.firstOrNull() ?: return null
+			
+			var selected: eu.kanade.tachiyomi.animesource.model.Video? = null
+			
+			// 1. Try task's specific preferred quality (if interactive user choice)
+			if (task.preferredQuality != null) {
+				selected = videos.firstOrNull { it.quality.contains(task.preferredQuality, ignoreCase = true) }
+			}
+			
+			// 2. Try global settings fallback
+			if (selected == null) {
+				val globalPrefs = settings.preferredVideoQuality.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+				for (pref in globalPrefs) {
+					selected = videos.firstOrNull { it.quality.contains(pref, ignoreCase = true) }
+					if (selected != null) break
+				}
+			}
+			
+			// 3. Fallback to extension default or first
+			selected = selected ?: videos.firstOrNull { it.preferred } ?: videos.firstOrNull() ?: return null
+			
 			val headerMap = selected.headers
 				?.toMultimap()
 				?.mapValues { it.value.firstOrNull().orEmpty() }
