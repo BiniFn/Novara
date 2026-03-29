@@ -295,3 +295,8 @@
 
 # Google LiteRT (TFLite) JNI classes
 -keep class com.google.ai.edge.litert.** { *; }
+
+# RealCUGAN Engine JNI classes
+-keep class com.akari.realcugan_ncnn_android.** { *; }
+-keep class RealCUGANOption { *; }
+-keep class ModelName { *; }
