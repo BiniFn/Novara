@@ -159,9 +159,31 @@ class ReaderSettingsFragment :
 				fetchAndPickApiModel()
 				true
 			}
-
+			"reader_super_resolution_clear_cache" -> {
+				clearSrCache()
+				true
+			}
 
 			else -> super.onPreferenceTreeClick(preference)
+		}
+	}
+
+	private fun clearSrCache() {
+		viewLifecycleScope.launch(Dispatchers.IO) {
+			val srCacheDir = java.io.File(requireContext().cacheDir, "sr_cache")
+			var deletedCount = 0
+			if (srCacheDir.exists() && srCacheDir.isDirectory) {
+				srCacheDir.listFiles()?.forEach { file ->
+					if (file.delete()) deletedCount++
+				}
+			}
+			withContext(Dispatchers.Main) {
+				Toast.makeText(
+					requireContext(),
+					getString(R.string.reader_super_resolution_cache_cleared) + " ($deletedCount files)",
+					Toast.LENGTH_SHORT
+				).show()
+			}
 		}
 	}
 

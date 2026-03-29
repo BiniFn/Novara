@@ -706,6 +706,30 @@
     <string name="reader_mode_vertical">从上到下（分页）</string>
     <string name="reader_mode_vertical_continuous">从上到下（连续）</string>
     <string name="reader_dual_page">横屏/大屏双栏显示</string>
+
+    <string name="reader_super_resolution">AI Super Resolution</string>
+    <string name="reader_super_resolution_summary">Upscales images using RealCUGAN (may consume significantly more battery and performance)</string>
+    <string name="reader_super_resolution_model">Neural Model</string>
+    <string name="reader_super_resolution_model_se">SE Mode (General enhancement)</string>
+    <string name="reader_super_resolution_model_pro">Pro Mode (Aggressive noise reduction)</string>
+    <string name="reader_super_resolution_model_nose">Nose Mode (Denoise only)</string>
+    <string name="reader_super_resolution_noise">Noise Level</string>
+    <string name="reader_super_resolution_noise_n1">None (-1)</string>
+    <string name="reader_super_resolution_noise_0">Low (0)</string>
+    <string name="reader_super_resolution_noise_1">Medium (1)</string>
+    <string name="reader_super_resolution_noise_2">High (2)</string>
+    <string name="reader_super_resolution_noise_3">Ultra (3)</string>
+    <string name="reader_super_resolution_cache_limit">Cache Buffer Limit</string>
+    <string name="reader_super_resolution_cache_limit_summary">Limits space for upscaled images (Current setting: %1$s)</string>
+    <string name="reader_super_resolution_cache_limit_256">256 MB</string>
+    <string name="reader_super_resolution_cache_limit_512">512 MB</string>
+    <string name="reader_super_resolution_cache_limit_1024">1 GB</string>
+    <string name="reader_super_resolution_cache_limit_2048">2 GB</string>
+    <string name="reader_super_resolution_cache_limit_unlimited">Unlimited</string>
+    <string name="reader_super_resolution_clear_cache">Clear SR Cache</string>
+    <string name="reader_super_resolution_clear_cache_summary">Manually clear all upscaled images from local storage</string>
+    <string name="reader_super_resolution_cache_cleared">Cleared SR image cache</string>
+
     <string name="action_apply">应用</string>
     <string name="order_added">Added</string>
     <string name="show">Show</string>

@@ -78,7 +78,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val tfliteOcrEngine: TfLiteReaderOcrEngine,
 	private val hybridOcrEngine: HybridReaderOcrEngine,
 	private val ncnnOcrEngine: NcnnReaderOcrEngine,
-	private val cvBubbleDetector: CvBubbleDetector,
 	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
 	private val onnxTranslationEngine: OnnxReaderTranslationEngine,
 	private val debugLogStore: ReaderTranslationDebugLogStore,
@@ -114,7 +113,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val bubbleGroupingCoordinator by lazy(LazyThreadSafetyMode.NONE) {
 		ReaderBubbleGroupingCoordinator(
 			settings = settings,
-			cvBubbleDetector = cvBubbleDetector,
 			onnxBubbleDetectorEngine = onnxBubbleDetectorEngine,
 			heuristicGroupFragments = ::groupFragmentsByBubble,
 			shouldMergeFragments = ::shouldMergeFragments,
@@ -673,7 +671,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			if (ra != rb) parent[rb] = ra
 		}
 
-		val mergePad = dp(2f)
+		val mergePad = dp(24f)
 		for (i in fragments.indices) {
 			for (j in i + 1 until fragments.size) {
 				val ra = expandRect(fragments[i].rect, mergePad)
@@ -939,20 +937,9 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				textSize -= 1f
 				layout = buildTextLayout(text, width, textSize)
 			}
-			if (layout.height > height) {
-				val lineHeight = max(1, layout.getLineBottom(0))
-				val maxLines = max(1, height / lineHeight)
-				layout = buildTextLayout(
-					text = text,
-					width = width,
-					textSize = textSize,
-					maxLines = maxLines,
-					ellipsize = TextUtils.TruncateAt.END,
-				)
-			}
 			val overflow = (layout.height - height).coerceAtLeast(0)
 			val contentW = computeLayoutUsedWidth(layout)
-			val contentH = layout.height
+			val contentH = min(layout.height, height)
 			val drawRect = if (bubbleLikeRegion) {
 				Rect(safeRect)
 			} else {
@@ -965,7 +952,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			}
 			val drawContentWidth = max(1, drawRect.width() - padding * 2)
 			val drawContentHeight = max(1, drawRect.height() - padding * 2)
-			val adjustedLayout = if (!bubbleLikeRegion && drawContentWidth != width) {
+			var adjustedLayout = if (!bubbleLikeRegion && drawContentWidth != width) {
 				buildTextLayout(
 					text = text,
 					width = drawContentWidth,
@@ -974,6 +961,17 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				)
 			} else {
 				layout
+			}
+			if (adjustedLayout.height > drawContentHeight) {
+				val lineHeight = max(1, adjustedLayout.getLineBottom(0))
+				val maxLines = max(1, drawContentHeight / lineHeight)
+				adjustedLayout = buildTextLayout(
+					text = text,
+					width = drawContentWidth,
+					textSize = textSize,
+					maxLines = maxLines,
+					ellipsize = TextUtils.TruncateAt.END,
+				)
 			}
 			val candidate = PreparedBubble(
 				rect = drawRect,

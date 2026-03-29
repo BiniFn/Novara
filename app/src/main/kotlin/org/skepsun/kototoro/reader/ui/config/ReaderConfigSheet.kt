@@ -135,6 +135,7 @@ class ReaderConfigSheet :
         binding.switchTranslationEnabled.isChecked = settings.isReaderTranslationEnabled
         binding.switchTranslationShowTranslated.isChecked = settings.isReaderTranslationShowTranslated
         binding.switchTranslationShowTranslated.isEnabled = settings.isReaderTranslationEnabled
+        binding.switchSuperResolution.isChecked = settings.isReaderSuperResolutionEnabled
         binding.buttonRetranslate.isEnabled = settings.isReaderTranslationEnabled
         binding.buttonTranslationLog.isEnabled = settings.isReaderTranslationEnabled
         updateTranslationBypassHint(binding)
@@ -155,6 +156,7 @@ class ReaderConfigSheet :
         binding.switchSplitPages.setOnCheckedChangeListener(this)
         binding.switchTranslationEnabled.setOnCheckedChangeListener(this)
         binding.switchTranslationShowTranslated.setOnCheckedChangeListener(this)
+        binding.switchSuperResolution.setOnCheckedChangeListener(this)
         binding.buttonRetranslate.setOnClickListener(this)
         binding.buttonTranslationLog.setOnClickListener(this)
         binding.sliderDoubleSensitivity.addOnChangeListener(this)
@@ -296,6 +298,14 @@ class ReaderConfigSheet :
 
             R.id.switch_translation_show_translated -> {
                 settings.isReaderTranslationShowTranslated = isChecked
+            }
+
+            R.id.switch_super_resolution -> {
+                settings.isReaderSuperResolutionEnabled = isChecked
+                viewLifecycleScope.launch {
+                    pageLoader.invalidate(clearCache = true)
+                    viewModel.switchChapterBy(0)
+                }
             }
         }
     }

@@ -849,6 +849,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isReaderChapterToastEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_CHAPTER_TOAST, true)
 
+	var isReaderSuperResolutionEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_SUPER_RESOLUTION_ENABLED, false)
+		set(value) = prefs.edit().putBoolean(KEY_READER_SUPER_RESOLUTION_ENABLED, value).apply()
+
+	val readerSuperResolutionModel: String
+		get() = prefs.getString(KEY_READER_SUPER_RESOLUTION_MODEL, "SE") ?: "SE"
+
+	val readerSuperResolutionNoiseLevel: Int
+		get() = prefs.getString(KEY_READER_SUPER_RESOLUTION_NOISE_LEVEL, "-1")?.toIntOrNull() ?: -1
+
+	val readerSuperResolutionCacheLimitMb: Int
+		get() = prefs.getString(KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT, "512")?.toIntOrNull() ?: 512
+
 	val isReaderKeepScreenOn: Boolean
 		get() = prefs.getBoolean(KEY_READER_SCREEN_ON, true)
 
@@ -1401,6 +1414,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_BAR = "reader_bar"
 		const val KEY_READER_BAR_TRANSPARENT = "reader_bar_transparent"
 		const val KEY_READER_CHAPTER_TOAST = "reader_chapter_toast"
+		const val KEY_READER_SUPER_RESOLUTION_ENABLED = "reader_super_resolution_enabled"
+		const val KEY_READER_SUPER_RESOLUTION_MODEL = "reader_super_resolution_model"
+		const val KEY_READER_SUPER_RESOLUTION_NOISE_LEVEL = "reader_super_resolution_noise_level"
+		const val KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT = "reader_super_resolution_cache_limit"
 		const val KEY_READER_BACKGROUND = "reader_background"
 		const val KEY_VIDEO_DECODER_MODE = "video_decoder_mode"
 		const val KEY_VIDEO_RENDERER_MODE = "video_renderer_mode"

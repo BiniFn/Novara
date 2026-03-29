@@ -10,7 +10,6 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 
 internal class ReaderBubbleGroupingCoordinator(
 	private val settings: AppSettings,
-	private val cvBubbleDetector: CvBubbleDetector,
 	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
 	private val heuristicGroupFragments: (List<TextFragment>, Bitmap) -> List<List<TextFragment>>,
 	private val shouldMergeFragments: (TextFragment, TextFragment, Bitmap) -> Boolean,
@@ -163,34 +162,17 @@ internal class ReaderBubbleGroupingCoordinator(
 		}
 		val attemptedModelId = onnxAttempt?.modelId.orEmpty()
 
-		val cvStartMs = SystemClock.elapsedRealtime()
-		val detectorResult = cvBubbleDetector.detect(bitmap, fragments.map { it.rect })
-		val cvDurationMs = SystemClock.elapsedRealtime() - cvStartMs
-		val detectorMatched = linkedSetOf<Int>()
-		val detectorGroups = detectorResult.groups.mapNotNull { group ->
-			val bubbleFragments = group.fragmentIndices.mapNotNull { index ->
-				fragments.getOrNull(index)
-			}
-			if (bubbleFragments.isEmpty()) {
-				return@mapNotNull null
-			}
-			detectorMatched += group.fragmentIndices
-			GroupedBubbleSource(
-				fragments = bubbleFragments,
-				bubbleRect = group.rect,
-			)
-		}
 		return BubbleDetectorOutcome(
-			groups = detectorGroups,
-			matchedFragmentIndices = detectorMatched,
-			candidateCount = detectorResult.candidateCount,
-			matchedFragmentCount = detectorResult.matchedFragmentCount,
+			groups = emptyList(),
+			matchedFragmentIndices = emptySet(),
+			candidateCount = 0,
+			matchedFragmentCount = 0,
 			subdividedGroupCount = 0,
 			subdividedFragmentCount = 0,
-			engine = "cv",
+			engine = "onnx",
 			modelId = attemptedModelId,
-			rawBoxCount = detectorResult.candidateCount,
-			totalMs = cvDurationMs,
+			rawBoxCount = 0,
+			totalMs = 0L,
 			fallbackReason = fallbackReason,
 		)
 	}

@@ -68,6 +68,10 @@ data class ReaderSettings(
 	val translationPaddleClsModelSha256: String,
 	val translationDetModelId: String,
 	val translationOnnxModelId: String,
+	val isSuperResolutionEnabled: Boolean,
+	val superResolutionModel: String,
+	val superResolutionNoiseLevel: Int,
+	val superResolutionCacheLimitMb: Int,
 ) {
 
 	private constructor(settings: AppSettings, colorFilterOverride: ReaderColorFilter?) : this(
@@ -111,6 +115,10 @@ data class ReaderSettings(
 		translationPaddleClsModelSha256 = settings.readerTranslationPaddleClsModelSha256,
 		translationDetModelId = settings.readerTranslationDetModelId,
 		translationOnnxModelId = settings.readerTranslationOnnxModelId,
+		isSuperResolutionEnabled = settings.isReaderSuperResolutionEnabled,
+		superResolutionModel = settings.readerSuperResolutionModel,
+		superResolutionNoiseLevel = settings.readerSuperResolutionNoiseLevel,
+		superResolutionCacheLimitMb = settings.readerSuperResolutionCacheLimitMb,
 	)
 
 	fun applyBackground(view: View) {
@@ -306,6 +314,10 @@ data class ReaderSettings(
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256,
 			AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID,
+			AppSettings.KEY_READER_SUPER_RESOLUTION_ENABLED,
+			AppSettings.KEY_READER_SUPER_RESOLUTION_MODEL,
+			AppSettings.KEY_READER_SUPER_RESOLUTION_NOISE_LEVEL,
+			AppSettings.KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT,
 		)
 		private var job: Job? = null
 

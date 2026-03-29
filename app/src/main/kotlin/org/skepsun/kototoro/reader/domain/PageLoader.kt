@@ -100,6 +100,7 @@ class PageLoader @Inject constructor(
 	private val imageProxyInterceptor: ImageProxyInterceptor,
 	private val downloadSlowdownDispatcher: DownloadSlowdownDispatcher,
 	private val enhancementController: ReaderPageEnhancementController,
+	private val srManager: ReaderSuperResolutionManager,
 ) {
 
 	val loaderScope = lifecycle.lifecycleScope + InternalErrorHandler() + Dispatchers.Default
@@ -249,6 +250,7 @@ class PageLoader @Inject constructor(
 	suspend fun invalidate(clearCache: Boolean) {
 		tasks.clear()
 		enhancementController.cancelAllTranslationTasks()
+		srManager.release()
 		loaderScope.cancelChildrenAndJoin()
 		if (clearCache) {
 			cache.clear()
@@ -378,11 +380,25 @@ class PageLoader @Inject constructor(
 			sourceUri = sourceUri,
 			convertZipBitmap = ::convertBimap,
 		)
+
+		var displayUri = preparedPage.displayUri
+		if (settings.isReaderSuperResolutionEnabled && !isLowRam() && !context.isPowerSaveMode()) {
+			val srUri = srManager.processImage(
+				originalUri = displayUri,
+				model = settings.readerSuperResolutionModel,
+				noiseLevel = settings.readerSuperResolutionNoiseLevel,
+				cacheLimitMb = settings.readerSuperResolutionCacheLimitMb
+			)
+			if (srUri != null) {
+				displayUri = srUri
+			}
+		}
+
 		if (preparedPage.shouldScheduleTranslation) {
 			Log.d("ReaderTranslate", "PageLoader debug: scheduling translation for page=${page.id} (show=${settings.isReaderTranslationShowTranslated})")
 			enhancementController.scheduleTranslation(
 				page = page,
-				sourceUri = preparedPage.displayUri,
+				sourceUri = displayUri,
 				scope = loaderScope,
 			) {
 				synchronized(tasks) {
@@ -390,7 +406,7 @@ class PageLoader @Inject constructor(
 				}
 			}
 		}
-		return preparedPage.displayUri
+		return displayUri
 	}
 
 	private fun isLowRam(): Boolean {
