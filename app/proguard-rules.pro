@@ -300,3 +300,6 @@
 -keep class com.akari.realcugan_ncnn_android.** { *; }
 -keep class RealCUGANOption { *; }
 -keep class ModelName { *; }
+
+# Deep Java Library (DJL) tokenizers and sentencepiece
+-keep class ai.djl.** { *; }
