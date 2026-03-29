@@ -217,7 +217,8 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val ready = snapshots.count { it.state == TranslationLayerState.READY }
         val generating = snapshots.count { it.state == TranslationLayerState.GENERATING }
         val failed = snapshots.count { it.state == TranslationLayerState.FAILED }
-        val sampled = benchmarkSummary.lineSequence().firstOrNull { it.startsWith("已采样:") }.orEmpty()
+        val prefix = getString(R.string.reader_translation_task_bench_sampled, 0, 0).substringBefore("0")
+        val sampled = benchmarkSummary.lineSequence().firstOrNull { it.startsWith(prefix) }.orEmpty()
         val mangaTitle = viewModel.getContentOrNull()?.title.orEmpty().ifBlank { "?" }
         val chapterTitle = viewModel.uiState.value?.chapter?.title.orEmpty().ifBlank { "?" }
         val onnxModel = settings.readerTranslationOnnxModelId.ifBlank { "MLKIT" }
@@ -226,13 +227,13 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val threshold = (settings.readerTranslationHybridFallbackThreshold * 100).toInt()
         val generatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.US).format(Date())
         return buildString {
-            appendLine("【翻译章节基线导出】")
-            appendLine("时间: $generatedAt")
-            appendLine("设备: ${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
-            appendLine("漫画: $mangaTitle")
-            appendLine("章节: $chapterTitle")
+            appendLine(getString(R.string.reader_translation_task_diag_baseline))
+            appendLine(getString(R.string.reader_translation_task_diag_time, generatedAt))
+            appendLine(getString(R.string.reader_translation_task_diag_device, "${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})"))
+            appendLine(getString(R.string.reader_translation_task_diag_manga, mangaTitle))
+            appendLine(getString(R.string.reader_translation_task_diag_chapter, chapterTitle))
             appendLine(
-                "配置: " +
+                getString(R.string.reader_translation_task_diag_config, "") +
                     "lang=${settings.readerTranslationSourceLanguage}->${settings.readerTranslationTargetLanguage}, " +
                     "mode=${settings.readerTranslationMode}, " +
                     "ocr=${settings.readerTranslationOcrEngine}, " +
@@ -311,11 +312,11 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
                 Regex("""sourceLang=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { sourceLang = it }
                 Regex("""targetLang=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { targetLang = it }
                 Regex("""ocr=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { configuredOcr = it }
-                timeline.add("开始处理")
+                timeline.add(getString(R.string.reader_translation_task_diag_start))
             }
             if (line.contains("process failed:")) {
                 failedReason = line.substringAfter("process failed:", "").trim()
-                timeline.add("处理失败")
+                timeline.add(getString(R.string.reader_translation_task_diag_failed))
             }
             Regex("""fail_code=([A-Z_]+)""").find(line)?.groupValues?.getOrNull(1)?.let { failCode = it }
             Regex("""ocr engine=([A-Z_]+) blocks=(\d+)""").find(line)?.let { m ->
@@ -324,16 +325,16 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
             }
             Regex("""translate local requested size=(\d+)""").find(line)?.let { m ->
                 localRequested = m.groupValues[1].toIntOrNull() ?: -1
-                timeline.add("本地翻译请求=$localRequested")
+                timeline.add(getString(R.string.reader_translation_task_diag_local_req, localRequested))
             }
             Regex("""translate local batch done translated=(\d+)/(\d+)""").find(line)?.let { m ->
                 localDoneTranslated = m.groupValues[1].toIntOrNull() ?: -1
                 localDoneTotal = m.groupValues[2].toIntOrNull() ?: -1
-                timeline.add("本地翻译完成=$localDoneTranslated/$localDoneTotal")
+                timeline.add(getString(R.string.reader_translation_task_diag_local_done, localDoneTranslated, localDoneTotal))
             }
             Regex("""render done translatedBubbles=(\d+)""").find(line)?.let { m ->
                 renderedBubbles = m.groupValues[1].toIntOrNull() ?: -1
-                timeline.add("渲染完成=$renderedBubbles")
+                timeline.add(getString(R.string.reader_translation_task_diag_render_done, renderedBubbles))
             }
             Regex("""bubble translate src=(.*?) out=(.*?) box=""").find(line)?.let { m ->
                 if (pairs.size < 8) {
@@ -343,25 +344,25 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         }
 
         return buildString {
-            appendLine("【翻译诊断】")
-            appendLine("语言: $sourceLang -> $targetLang")
-            appendLine("配置 OCR: $configuredOcr")
-            if (ocrAttempts.isNotEmpty()) appendLine("OCR 尝试: ${ocrAttempts.entries.joinToString { "${it.key}:${it.value}" }}")
-            if (localRequested >= 0) appendLine("本地翻译: 请求 $localRequested, 完成 $localDoneTranslated/$localDoneTotal")
-            if (renderedBubbles >= 0) appendLine("渲染气泡: $renderedBubbles")
+            appendLine(getString(R.string.reader_translation_task_diag_panel))
+            appendLine(getString(R.string.reader_translation_task_diag_lang, sourceLang, targetLang))
+            appendLine(getString(R.string.reader_translation_task_diag_ocr_param, configuredOcr))
+            if (ocrAttempts.isNotEmpty()) appendLine(getString(R.string.reader_translation_task_diag_ocr_attempt, ocrAttempts.entries.joinToString { "${it.key}:${it.value}" }))
+            if (localRequested >= 0) appendLine(getString(R.string.reader_translation_task_diag_local_stat, localRequested, localDoneTranslated, localDoneTotal))
+            if (renderedBubbles >= 0) appendLine(getString(R.string.reader_translation_task_diag_render_bubble, renderedBubbles))
             buildMetricSummary(metrics).takeIf { it.isNotEmpty() }?.let { metricLines ->
-                appendLine("性能指标:")
+                appendLine(getString(R.string.reader_translation_task_diag_perf))
                 metricLines.forEach { appendLine(it) }
             }
-            failCode?.let { appendLine("失败代码: $it") }
-            failedReason?.let { appendLine("失败原因: $it") }
-            if (timeline.isNotEmpty()) appendLine("阶段时间线: ${timeline.joinToString(" -> ")}")
+            failCode?.let { appendLine(getString(R.string.reader_translation_task_diag_fail_code, it)) }
+            failedReason?.let { appendLine(getString(R.string.reader_translation_task_diag_fail_reason, it)) }
+            if (timeline.isNotEmpty()) appendLine(getString(R.string.reader_translation_task_diag_timeline, timeline.joinToString(" -> ")))
             if (pairs.isNotEmpty()) {
                 appendLine()
-                appendLine("示例识别/翻译:")
+                appendLine(getString(R.string.reader_translation_task_diag_sample))
                 pairs.forEachIndexed { idx, (src, out) ->
-                    appendLine("${idx + 1}. 原: ${src.ifBlank { "<空>" }}")
-                    appendLine("   译: ${out.ifBlank { "<空>" }}")
+                    appendLine(getString(R.string.reader_translation_task_diag_sample_src, idx + 1, src.ifBlank { getString(R.string.reader_translation_task_diag_empty) }))
+                    appendLine(getString(R.string.reader_translation_task_diag_sample_out, out.ifBlank { getString(R.string.reader_translation_task_diag_empty) }))
                 }
             }
         }.trim()
@@ -370,35 +371,35 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
     private fun buildMetricSummary(metrics: Map<String, String>): List<String> {
         if (metrics.isEmpty()) return emptyList()
         val lines = mutableListOf<String>()
-        metrics["process.total_ms"]?.let { lines += "总耗时: ${it}ms" }
-        metrics["ocr.total_ms"]?.let { lines += "OCR: ${it}ms" }
-        metrics["translation.total_ms"]?.let { lines += "翻译: ${it}ms" }
-        metrics["render.total_ms"]?.let { lines += "渲染: ${it}ms" }
-        metrics["ocr.pipeline.strategy"]?.let { lines += "OCR Pipeline: $it" }
+        metrics["process.total_ms"]?.let { lines += getString(R.string.reader_translation_task_stat_total, it) }
+        metrics["ocr.total_ms"]?.let { lines += getString(R.string.reader_translation_task_stat_ocr, it) }
+        metrics["translation.total_ms"]?.let { lines += getString(R.string.reader_translation_task_stat_trans, it) }
+        metrics["render.total_ms"]?.let { lines += getString(R.string.reader_translation_task_stat_render, it) }
+        metrics["ocr.pipeline.strategy"]?.let { lines += getString(R.string.reader_translation_task_stat_pipe_strat, it) }
         metrics["ocr.pipeline.fallback_reason"]?.takeIf { it.isNotBlank() && it != "none" }?.let {
-            lines += "Pipeline 回退: $it"
+            lines += getString(R.string.reader_translation_task_stat_pipe_fb, it)
         }
-        metrics["ocr.pipeline.roi_first_detected_boxes"]?.let { lines += "ROI-first 检框数: $it" }
-        metrics["ocr.selected_engine"]?.let { lines += "选中 OCR 引擎: $it" }
-        metrics["ocr.blocks"]?.let { lines += "OCR 文本块: $it" }
-        metrics["translation.bubbles"]?.let { lines += "气泡数: $it" }
-        metrics["render.translated_bubbles"]?.let { lines += "已渲染气泡: $it" }
-        metrics["ocr.cache_hit"]?.let { lines += "OCR 缓存: ${if (it == "1") "命中" else "未命中"}" }
-        metrics["render_cache.hit"]?.let { lines += "渲染缓存: ${if (it == "1") "命中" else "未命中"}" }
+        metrics["ocr.pipeline.roi_first_detected_boxes"]?.let { lines += getString(R.string.reader_translation_task_stat_roi_box, it) }
+        metrics["ocr.selected_engine"]?.let { lines += getString(R.string.reader_translation_task_stat_ocr_eng, it) }
+        metrics["ocr.blocks"]?.let { lines += getString(R.string.reader_translation_task_stat_ocr_block, it) }
+        metrics["translation.bubbles"]?.let { lines += getString(R.string.reader_translation_task_stat_bubble, it) }
+        metrics["render.translated_bubbles"]?.let { lines += getString(R.string.reader_translation_task_stat_render_bubble, it) }
+        metrics["ocr.cache_hit"]?.let { lines += getString(R.string.reader_translation_task_stat_ocr_cache, if (it == "1") getString(R.string.reader_translation_task_stat_hit) else getString(R.string.reader_translation_task_stat_miss)) }
+        metrics["render_cache.hit"]?.let { lines += getString(R.string.reader_translation_task_stat_render_cache, if (it == "1") getString(R.string.reader_translation_task_stat_hit) else getString(R.string.reader_translation_task_stat_miss)) }
         val parts = listOfNotNull(
-            metrics["hybrid.ncnn_blocks"]?.let { "NCNN块=$it" },
-            metrics["hybrid.fallback_candidates"]?.let { "候选=$it" },
-            metrics["hybrid.feature_cache_hits"]?.let { "特征缓存命中=$it" },
-            metrics["hybrid.tflite_fallbacks"]?.let { "TFLite回退=$it" },
-            metrics["hybrid.fallback_rate"]?.let { "回退率=$it" },
+            metrics["hybrid.ncnn_blocks"]?.let { getString(R.string.reader_translation_task_stat_hybrid_ncnn, it) },
+            metrics["hybrid.fallback_candidates"]?.let { getString(R.string.reader_translation_task_stat_hybrid_cand, it) },
+            metrics["hybrid.feature_cache_hits"]?.let { getString(R.string.reader_translation_task_stat_hybrid_feat_hit, it) },
+            metrics["hybrid.tflite_fallbacks"]?.let { getString(R.string.reader_translation_task_stat_hybrid_tfl_fb, it) },
+            metrics["hybrid.fallback_rate"]?.let { getString(R.string.reader_translation_task_stat_hybrid_fb_rate, it) },
         )
-        if (parts.isNotEmpty()) lines += "Hybrid: ${parts.joinToString(" / ")}"
+        if (parts.isNotEmpty()) lines += getString(R.string.reader_translation_task_stat_hybrid_prefix, parts.joinToString(" / "))
         val hybridTiming = listOfNotNull(
-            metrics["hybrid.total_ms"]?.let { "总=$it ms" },
-            metrics["hybrid.ncnn_ms"]?.let { "NCNN=$it ms" },
-            metrics["hybrid.tflite_ms"]?.let { "TFLite=$it ms" },
+            metrics["hybrid.total_ms"]?.let { getString(R.string.reader_translation_task_stat_hybrid_total, it) },
+            metrics["hybrid.ncnn_ms"]?.let { getString(R.string.reader_translation_task_stat_hybrid_ncnn_ms, it) },
+            metrics["hybrid.tflite_ms"]?.let { getString(R.string.reader_translation_task_stat_hybrid_tfl_ms, it) },
         )
-        if (hybridTiming.isNotEmpty()) lines += "Hybrid耗时: ${hybridTiming.joinToString(" / ")}"
+        if (hybridTiming.isNotEmpty()) lines += getString(R.string.reader_translation_task_stat_hybrid_timing, hybridTiming.joinToString(" / "))
         return lines
     }
 
@@ -408,23 +409,23 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val samples = snapshots.mapNotNull(::parseTranslationBenchmarkSample)
         if (samples.isEmpty()) return ""
         val lines = mutableListOf<String>()
-        lines += "【章节基线】"
-        lines += "已采样: ${samples.size}/${snapshots.size} 页"
-        formatPercentileLine("总耗时", samples.mapNotNull { it.processTotalMs })?.let { lines += it }
-        formatPercentileLine("OCR", samples.mapNotNull { it.ocrTotalMs })?.let { lines += it }
-        formatPercentileLine("翻译", samples.mapNotNull { it.translationTotalMs })?.let { lines += it }
-        formatPercentileLine("渲染", samples.mapNotNull { it.renderTotalMs })?.let { lines += it }
-        formatBooleanRateLine("OCR 缓存命中", samples.mapNotNull { it.ocrCacheHit })?.let { lines += it }
-        formatBooleanRateLine("渲染缓存命中", samples.mapNotNull { it.renderCacheHit })?.let { lines += it }
-        formatDistributionLine("OCR Pipeline", samples.mapNotNull { it.ocrPipelineStrategy })?.let { lines += it }
-        formatDistributionLine("Pipeline 回退", samples.mapNotNull { it.ocrPipelineFallbackReason })?.let { lines += it }
-        formatPercentileLine("ROI-first 检框", samples.mapNotNull { it.roiFirstDetectedBoxes?.toLong() })?.let { lines += it }
-        formatDistributionLine("选中 OCR", samples.mapNotNull { it.selectedEngine })?.let { lines += it }
+        lines += getString(R.string.reader_translation_task_bench_title)
+        lines += getString(R.string.reader_translation_task_bench_sampled, samples.size, snapshots.size)
+        formatPercentileLine(getString(R.string.reader_translation_task_bench_dist_total), samples.mapNotNull { it.processTotalMs })?.let { lines += it }
+        formatPercentileLine(getString(R.string.reader_translation_task_bench_dist_ocr), samples.mapNotNull { it.ocrTotalMs })?.let { lines += it }
+        formatPercentileLine(getString(R.string.reader_translation_task_bench_dist_trans), samples.mapNotNull { it.translationTotalMs })?.let { lines += it }
+        formatPercentileLine(getString(R.string.reader_translation_task_bench_dist_render), samples.mapNotNull { it.renderTotalMs })?.let { lines += it }
+        formatBooleanRateLine(getString(R.string.reader_translation_task_bench_dist_ocr_cache), samples.mapNotNull { it.ocrCacheHit })?.let { lines += it }
+        formatBooleanRateLine(getString(R.string.reader_translation_task_bench_dist_render_cache), samples.mapNotNull { it.renderCacheHit })?.let { lines += it }
+        formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_pipe), samples.mapNotNull { it.ocrPipelineStrategy })?.let { lines += it }
+        formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_pipe_fb), samples.mapNotNull { it.ocrPipelineFallbackReason })?.let { lines += it }
+        formatPercentileLine(getString(R.string.reader_translation_task_bench_dist_roi_box), samples.mapNotNull { it.roiFirstDetectedBoxes?.toLong() })?.let { lines += it }
+        formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_ocr_sel), samples.mapNotNull { it.selectedEngine })?.let { lines += it }
         formatHybridSummaryLine(samples)?.let { lines += it }
-        formatDistributionLine("失败代码", samples.mapNotNull { it.failCode })?.let { lines += it }
+        formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_fail_code), samples.mapNotNull { it.failCode })?.let { lines += it }
         buildOcrPipelineConclusion(samples)?.let {
             lines += ""
-            lines += "【对比结论】"
+            lines += getString(R.string.reader_translation_task_bench_conc_title)
             lines += it
         }
         return lines.joinToString("\n")
@@ -488,13 +489,13 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         if (fallbackRates.isEmpty() && fallbackBlocks.isEmpty()) return null
         val parts = mutableListOf<String>()
         if (fallbackRates.isNotEmpty()) {
-            parts += "回退页=${fallbackRates.count { it > 0.0 }}/${fallbackRates.size}"
-            parts += "回退率 avg/p95=${formatPercent(fallbackRates.average() * 100)} / ${formatPercent((percentile(fallbackRates, 0.95) ?: 0.0) * 100)}"
+            parts += getString(R.string.reader_translation_task_bench_hyb_fb_pages, "${fallbackRates.count { it > 0.0 }}/${fallbackRates.size}")
+            parts += getString(R.string.reader_translation_task_bench_hyb_fb_avg, formatPercent(fallbackRates.average() * 100), formatPercent((percentile(fallbackRates, 0.95) ?: 0.0) * 100))
         }
         if (fallbackBlocks.isNotEmpty()) {
-            parts += "TFLite回退块 avg/p95=${formatDecimal(fallbackBlocks.average())} / ${percentile(fallbackBlocks, 0.95) ?: 0}"
+            parts += getString(R.string.reader_translation_task_bench_hyb_tfl_avg, formatDecimal(fallbackBlocks.average()), (percentile(fallbackBlocks, 0.95) ?: 0).toString())
         }
-        return "Hybrid: ${parts.joinToString(" | ")}"
+        return getString(R.string.reader_translation_task_stat_hybrid_prefix, parts.joinToString(" | "))
     }
 
     private fun buildOcrPipelineConclusion(samples: List<TranslationBenchmarkSample>): String? {
@@ -514,32 +515,32 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
             ?.key
         val renderedCoverage = "$productivePages/$total"
         return buildString {
-            append("ROI-first 页面=")
+            append(getString(R.string.reader_translation_task_bench_roi_pages, total.toString()).removeSuffix(total.toString()))
             append(total)
-            append("，直接命中=")
+            append(getString(R.string.reader_translation_task_bench_roi_hits, noFallbackPages.toString()).removeSuffix(noFallbackPages.toString()))
             append(noFallbackPages)
-            append("，回退=")
+            append(getString(R.string.reader_translation_task_bench_roi_fb, fallbackPages.toString()).removeSuffix(fallbackPages.toString()))
             append(fallbackPages)
-            append("。")
+            append(".")
             avgDetectedBoxes?.let {
-                append("平均检框=")
+                append(getString(R.string.reader_translation_task_bench_roi_avg, "").removeSuffix("。"))
                 append(formatDecimal(it))
-                append("。")
+                append(".")
             }
-            append("产生渲染结果=")
+            append(" " + getString(R.string.reader_translation_task_bench_roi_out, "").removeSuffix("。"))
             append(renderedCoverage)
-            append("。")
+            append(".")
             if (!topFallbackReason.isNullOrBlank()) {
-                append("主要回退原因=")
+                append(" " + getString(R.string.reader_translation_task_bench_roi_reason, "").removeSuffix("。"))
                 append(topFallbackReason)
-                append("。")
+                append(".")
             }
             val hasDirectWins = noFallbackPages > 0 && productivePages >= noFallbackPages
             append(
                 when {
-                    hasDirectWins -> "当前样本显示 ROI-first 已经能在部分页面直接产生产出。"
-                    fallbackPages == total -> "当前样本基本仍依赖 page-first fallback，ROI-first 还处在保守兜底阶段。"
-                    else -> "当前样本显示 ROI-first 已开始参与，但稳定性还不足以替代 page-first。"
+                    hasDirectWins -> getString(R.string.reader_translation_task_bench_roi_res_1)
+                    fallbackPages == total -> getString(R.string.reader_translation_task_bench_roi_res_2)
+                    else -> getString(R.string.reader_translation_task_bench_roi_res_3)
                 }
             )
         }

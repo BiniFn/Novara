@@ -1555,4 +1555,90 @@
     <string name="welcome_plugins_repo_yakateam">Yakateam 官方补存库</string>
     <string name="welcome_plugins_repo_redo">Kotatsu-Redo redo库</string>
     <string name="welcome_plugins_start_btn">一键拉取并初始化装载</string>
+    <string name="reader_translation_task_diag_baseline">【翻译章节基线导出】</string>
+    <string name="reader_translation_task_diag_time">时间: %1$s</string>
+    <string name="reader_translation_task_diag_device">设备: %1$s</string>
+    <string name="reader_translation_task_diag_manga">漫画: %1$s</string>
+    <string name="reader_translation_task_diag_chapter">章节: %1$s</string>
+    <string name="reader_translation_task_diag_config">配置: %1$s</string>
+    <string name="reader_translation_task_diag_start">开始处理</string>
+    <string name="reader_translation_task_diag_failed">处理失败</string>
+    <string name="reader_translation_task_diag_local_req">本地翻译请求=%1$d</string>
+    <string name="reader_translation_task_diag_local_done">本地翻译完成=%1$d/%2$d</string>
+    <string name="reader_translation_task_diag_render_done">渲染完成=%1$d</string>
+    <string name="reader_translation_task_diag_panel">【翻译诊断】</string>
+    <string name="reader_translation_task_diag_lang">语言: %1$s -> %2$s</string>
+    <string name="reader_translation_task_diag_ocr_param">配置 OCR: %1$s</string>
+    <string name="reader_translation_task_diag_ocr_attempt">OCR 尝试: %1$s</string>
+    <string name="reader_translation_task_diag_local_stat">本地翻译: 请求 %1$d, 完成 %2$d/%3$d</string>
+    <string name="reader_translation_task_diag_render_bubble">渲染气泡: %1$d</string>
+    <string name="reader_translation_task_diag_perf">性能指标:</string>
+    <string name="reader_translation_task_diag_fail_code">失败代码: %1$s</string>
+    <string name="reader_translation_task_diag_fail_reason">失败原因: %1$s</string>
+    <string name="reader_translation_task_diag_timeline">阶段时间线: %1$s</string>
+    <string name="reader_translation_task_diag_sample">示例识别/翻译:</string>
+    <string name="reader_translation_task_diag_sample_src">%1$d. 原: %2$s</string>
+    <string name="reader_translation_task_diag_sample_out">   译: %1$s</string>
+    <string name="reader_translation_task_diag_empty">&lt;空&gt;</string>
+    <string name="reader_translation_task_stat_total">总耗时: %1$sms</string>
+    <string name="reader_translation_task_stat_ocr">OCR: %1$sms</string>
+    <string name="reader_translation_task_stat_trans">翻译: %1$sms</string>
+    <string name="reader_translation_task_stat_render">渲染: %1$sms</string>
+    <string name="reader_translation_task_stat_pipe_strat">OCR Pipeline: %1$s</string>
+    <string name="reader_translation_task_stat_pipe_fb">Pipeline 回退: %1$s</string>
+    <string name="reader_translation_task_stat_roi_box">ROI-first 检框数: %1$s</string>
+    <string name="reader_translation_task_stat_ocr_eng">选中 OCR 引擎: %1$s</string>
+    <string name="reader_translation_task_stat_ocr_block">OCR 文本块: %1$s</string>
+    <string name="reader_translation_task_stat_bubble">气泡数: %1$s</string>
+    <string name="reader_translation_task_stat_render_bubble">已渲染气泡: %1$s</string>
+    <string name="reader_translation_task_stat_ocr_cache">OCR 缓存: %1$s</string>
+    <string name="reader_translation_task_stat_render_cache">渲染缓存: %1$s</string>
+    <string name="reader_translation_task_stat_hit">命中</string>
+    <string name="reader_translation_task_stat_miss">未命中</string>
+    <string name="reader_translation_task_stat_hybrid_ncnn">NCNN块=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_cand">候选=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_feat_hit">特征缓存命中=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_tfl_fb">TFLite回退=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_fb_rate">回退率=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_prefix">Hybrid: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_timing">Hybrid耗时: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_total">总=%1$s ms</string>
+    <string name="reader_translation_task_stat_hybrid_ncnn_ms">NCNN=%1$s ms</string>
+    <string name="reader_translation_task_stat_hybrid_tfl_ms">TFLite=%1$s ms</string>
+    <string name="reader_translation_task_bench_title">【章节基线】</string>
+    <string name="reader_translation_task_bench_sampled">已采样: %1$d/%2$d 页</string>
+    <string name="reader_translation_task_bench_dist_total">总耗时</string>
+    <string name="reader_translation_task_bench_dist_ocr">OCR</string>
+    <string name="reader_translation_task_bench_dist_trans">翻译</string>
+    <string name="reader_translation_task_bench_dist_render">渲染</string>
+    <string name="reader_translation_task_bench_dist_ocr_cache">OCR 缓存命中</string>
+    <string name="reader_translation_task_bench_dist_render_cache">渲染缓存命中</string>
+    <string name="reader_translation_task_bench_dist_pipe">OCR Pipeline</string>
+    <string name="reader_translation_task_bench_dist_pipe_fb">Pipeline 回退</string>
+    <string name="reader_translation_task_bench_dist_roi_box">ROI-first 检框</string>
+    <string name="reader_translation_task_bench_dist_ocr_sel">选中 OCR</string>
+    <string name="reader_translation_task_bench_dist_fail_code">失败代码</string>
+    <string name="reader_translation_task_bench_conc_title">【对比结论】</string>
+    <string name="reader_translation_task_bench_hyb_fb_pages">回退页=%1$s</string>
+    <string name="reader_translation_task_bench_hyb_fb_avg">回退率 avg/p95=%1$s / %2$s</string>
+    <string name="reader_translation_task_bench_hyb_tfl_avg">TFLite回退块 avg/p95=%1$s / %2$s</string>
+    <string name="reader_translation_task_bench_roi_pages">ROI-first 页面=%1$s</string>
+    <string name="reader_translation_task_bench_roi_hits">，直接命中=%1$s</string>
+    <string name="reader_translation_task_bench_roi_fb">，回退=%1$s</string>
+    <string name="reader_translation_task_bench_roi_avg">平均检框=%1$s</string>
+    <string name="reader_translation_task_bench_roi_out">产生渲染结果=%1$s</string>
+    <string name="reader_translation_task_bench_roi_reason">主要回退原因=%1$s</string>
+    <string name="reader_translation_task_bench_roi_res_1">当前样本显示 ROI-first 已经能在部分页面直接产生产出。</string>
+    <string name="reader_translation_task_bench_roi_res_2">当前样本基本仍依赖 page-first fallback，ROI-first 还处在保守兜底阶段。</string>
+    <string name="reader_translation_task_bench_roi_res_3">当前样本显示 ROI-first 已开始参与，但稳定性还不足以替代 page-first。</string>
+    <string name="pref_huggingface_mirror">HuggingFace 网络加速镜像</string>
+    <string name="pref_huggingface_mirror_summary">如果您身处国内导致 HuggingFace 下载模型失败，请选择加速镜像路线。</string>
+    <string-array name="pref_huggingface_mirror_entries">
+        <item>原生直连 (默认)</item>
+        <item>hf-mirror.com</item>
+    </string-array>
+    <string-array name="pref_huggingface_mirror_values">
+        <item>native</item>
+        <item>hf_mirror</item>
+    </string-array>
 </resources>

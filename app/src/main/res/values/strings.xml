@@ -1883,4 +1883,90 @@
     <string name="novel_mode_paged">Paged</string>
     <string name="novel_mode_scroll">Scroll</string>
     <string name="fetching_video_quality">Fetching video qualities…</string>
+    <string name="reader_translation_task_diag_baseline">[Chapter Translation Baseline Export]</string>
+    <string name="reader_translation_task_diag_time">Time: %1$s</string>
+    <string name="reader_translation_task_diag_device">Device: %1$s</string>
+    <string name="reader_translation_task_diag_manga">Manga: %1$s</string>
+    <string name="reader_translation_task_diag_chapter">Chapter: %1$s</string>
+    <string name="reader_translation_task_diag_config">Config: %1$s</string>
+    <string name="reader_translation_task_diag_start">Start Processing</string>
+    <string name="reader_translation_task_diag_failed">Processing Failed</string>
+    <string name="reader_translation_task_diag_local_req">Local Translation Requests=%1$d</string>
+    <string name="reader_translation_task_diag_local_done">Local Translation Done=%1$d/%2$d</string>
+    <string name="reader_translation_task_diag_render_done">Rendering Done=%1$d</string>
+    <string name="reader_translation_task_diag_panel">[Translation Diagnostics]</string>
+    <string name="reader_translation_task_diag_lang">Lang: %1$s -> %2$s</string>
+    <string name="reader_translation_task_diag_ocr_param">OCR Config: %1$s</string>
+    <string name="reader_translation_task_diag_ocr_attempt">OCR Attempt: %1$s</string>
+    <string name="reader_translation_task_diag_local_stat">Local Trans: Req %1$d, Done %2$d/%3$d</string>
+    <string name="reader_translation_task_diag_render_bubble">Render Bubbles: %1$d</string>
+    <string name="reader_translation_task_diag_perf">Performance Metrics:</string>
+    <string name="reader_translation_task_diag_fail_code">Fail Code: %1$s</string>
+    <string name="reader_translation_task_diag_fail_reason">Fail Reason: %1$s</string>
+    <string name="reader_translation_task_diag_timeline">Timeline: %1$s</string>
+    <string name="reader_translation_task_diag_sample">Sample OCR/Trans:</string>
+    <string name="reader_translation_task_diag_sample_src">%1$d. [src] %2$s</string>
+    <string name="reader_translation_task_diag_sample_out">   [out] %1$s</string>
+    <string name="reader_translation_task_diag_empty">&lt;empty&gt;</string>
+    <string name="reader_translation_task_stat_total">Total Time: %1$sms</string>
+    <string name="reader_translation_task_stat_ocr">OCR: %1$sms</string>
+    <string name="reader_translation_task_stat_trans">Trans: %1$sms</string>
+    <string name="reader_translation_task_stat_render">Render: %1$sms</string>
+    <string name="reader_translation_task_stat_pipe_strat">OCR Pipeline: %1$s</string>
+    <string name="reader_translation_task_stat_pipe_fb">Pipeline Fallback: %1$s</string>
+    <string name="reader_translation_task_stat_roi_box">ROI-first boxes: %1$s</string>
+    <string name="reader_translation_task_stat_ocr_eng">OCR Engine: %1$s</string>
+    <string name="reader_translation_task_stat_ocr_block">OCR Text Blocks: %1$s</string>
+    <string name="reader_translation_task_stat_bubble">Bubbles: %1$s</string>
+    <string name="reader_translation_task_stat_render_bubble">Rendered Bubbles: %1$s</string>
+    <string name="reader_translation_task_stat_ocr_cache">OCR Cache: %1$s</string>
+    <string name="reader_translation_task_stat_render_cache">Render Cache: %1$s</string>
+    <string name="reader_translation_task_stat_hit">Hit</string>
+    <string name="reader_translation_task_stat_miss">Miss</string>
+    <string name="reader_translation_task_stat_hybrid_ncnn">NCNN: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_cand">Cand: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_feat_hit">Feat Hit=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_tfl_fb">TFLite FB=%1$s</string>
+    <string name="reader_translation_task_stat_hybrid_fb_rate">FB Rate: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_prefix">Hybrid: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_timing">Hybrid Time: %1$s</string>
+    <string name="reader_translation_task_stat_hybrid_total">Total: %1$s ms</string>
+    <string name="reader_translation_task_stat_hybrid_ncnn_ms">NCNN=%1$s ms</string>
+    <string name="reader_translation_task_stat_hybrid_tfl_ms">TFLite=%1$s ms</string>
+    <string name="reader_translation_task_bench_title">[Chapter Baseline]</string>
+    <string name="reader_translation_task_bench_sampled">Sampled: %1$d/%2$d pg</string>
+    <string name="reader_translation_task_bench_dist_total">Total Time</string>
+    <string name="reader_translation_task_bench_dist_ocr">OCR</string>
+    <string name="reader_translation_task_bench_dist_trans">Translation</string>
+    <string name="reader_translation_task_bench_dist_render">Rendering</string>
+    <string name="reader_translation_task_bench_dist_ocr_cache">OCR Cache Hit</string>
+    <string name="reader_translation_task_bench_dist_render_cache">Render Cache Hit</string>
+    <string name="reader_translation_task_bench_dist_pipe">OCR Pipeline</string>
+    <string name="reader_translation_task_bench_dist_pipe_fb">Pipeline Fallback</string>
+    <string name="reader_translation_task_bench_dist_roi_box">ROI-first Boxes</string>
+    <string name="reader_translation_task_bench_dist_ocr_sel">Selected OCR</string>
+    <string name="reader_translation_task_bench_dist_fail_code">Fail Code</string>
+    <string name="reader_translation_task_bench_conc_title">[Comparison Conclusion]</string>
+    <string name="reader_translation_task_bench_hyb_fb_pages">Fallback Pg=%1$s</string>
+    <string name="reader_translation_task_bench_hyb_fb_avg">Fallback avg/p95=%1$s / %2$s</string>
+    <string name="reader_translation_task_bench_hyb_tfl_avg">TFLite FB avg/p95=%1$s / %2$s</string>
+    <string name="reader_translation_task_bench_roi_pages">ROI-first Pg=%1$s</string>
+    <string name="reader_translation_task_bench_roi_hits">, Direct Hit=%1$s</string>
+    <string name="reader_translation_task_bench_roi_fb">, Fallback=%1$s</string>
+    <string name="reader_translation_task_bench_roi_avg">Avg Boxes=%1$s</string>
+    <string name="reader_translation_task_bench_roi_out">Gen Output=%1$s</string>
+    <string name="reader_translation_task_bench_roi_reason">Main FB Reason=%1$s</string>
+    <string name="reader_translation_task_bench_roi_res_1">Current sample shows ROI-first can directly generate outputs on some pages.</string>
+    <string name="reader_translation_task_bench_roi_res_2">Current sample mostly relies on page-first fallback. ROI-first is conservative fallback.</string>
+    <string name="reader_translation_task_bench_roi_res_3">Current sample shows ROI-first is active, but stability is insufficient to replace page-first.</string>
+    <string name="pref_huggingface_mirror">HuggingFace Mirror</string>
+    <string name="pref_huggingface_mirror_summary">Select a proxy mirror to accelerate HuggingFace downloads.</string>
+    <string-array name="pref_huggingface_mirror_entries">
+        <item>Direct Native (Default)</item>
+        <item>hf-mirror.com</item>
+    </string-array>
+    <string-array name="pref_huggingface_mirror_values">
+        <item>native</item>
+        <item>hf_mirror</item>
+    </string-array>
 </resources>

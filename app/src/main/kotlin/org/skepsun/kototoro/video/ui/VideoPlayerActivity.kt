@@ -943,7 +943,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     if (currentChapter != null) {
                         android.util.Log.d("VideoPlayer", "Loading current chapter: ${currentChapter.title} (id=${currentChapter.id})")
                         val resolved = runCatching {
-                            if (currentChapter.url.startsWith("file://") || currentChapter.url.startsWith("/") || currentChapter.url.startsWith("content://")) {
+                            if (currentChapter.url.startsWith("file://") || currentChapter.url.startsWith("content://") || currentChapter.url.endsWith(".cbz", ignoreCase = true) || currentChapter.url.endsWith(".zip", ignoreCase = true)) {
                                 throw IllegalStateException("Local downloaded video format is unsupported or corrupted (possibly downloaded as .cbz). Please delete the download and re-download it.")
                             }
                             if (repo is AniyomiAnimeRepository) {

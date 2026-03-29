@@ -180,6 +180,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = GitHubMirror.fromValue(prefs.getString(KEY_GITHUB_MIRROR, GitHubMirror.NATIVE.value))
 		set(value) = prefs.edit { putString(KEY_GITHUB_MIRROR, value.value) }
 
+	enum class HuggingFaceMirror(val value: String) {
+		NATIVE("native"),
+		HF_MIRROR("hf_mirror");
+		companion object {
+			fun fromValue(value: String?): HuggingFaceMirror =
+				entries.find { it.value == value } ?: NATIVE
+		}
+	}
+
+	var huggingFaceMirror: HuggingFaceMirror
+		get() = HuggingFaceMirror.fromValue(prefs.getString(KEY_HUGGINGFACE_MIRROR, HuggingFaceMirror.NATIVE.value))
+		set(value) = prefs.edit { putString(KEY_HUGGINGFACE_MIRROR, value.value) }
+
 	var extensionLanguages: Set<String>
 		get() = prefs.getStringSet(KEY_EXTENSION_LANGUAGES, null) ?: emptySet()
 		set(value) = prefs.edit { putStringSet(KEY_EXTENSION_LANGUAGES, value) }
@@ -1426,6 +1439,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_CONTENT_LANGUAGES = "content_languages"
 		const val KEY_EXTENSION_LANGUAGES = "extension_languages"
 		const val KEY_GITHUB_MIRROR = "github_mirror"
+		const val KEY_HUGGINGFACE_MIRROR = "huggingface_mirror"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
 		const val KEY_LNREADER_REPOS = "lnreader_repository_urls"

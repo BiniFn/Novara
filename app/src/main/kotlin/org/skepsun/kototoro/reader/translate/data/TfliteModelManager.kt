@@ -23,6 +23,7 @@ class TfliteModelManager @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@BaseHttpClient
 	private val okHttpClient: OkHttpClient,
+	private val appSettings: org.skepsun.kototoro.core.prefs.AppSettings,
 ) {
 
 	data class DownloadProgress(
@@ -90,10 +91,14 @@ class TfliteModelManager @Inject constructor(
 		targetFile: File,
 		onProgress: ((DownloadProgress) -> Unit)?,
 	) {
-		val request = Request.Builder().url(downloadUrl).build()
+		val finalUrl = when (appSettings.huggingFaceMirror) {
+			org.skepsun.kototoro.core.prefs.AppSettings.HuggingFaceMirror.HF_MIRROR -> downloadUrl.replaceFirst("https://huggingface.co", "https://hf-mirror.com")
+			else -> downloadUrl
+		}
+		val request = Request.Builder().url(finalUrl).build()
 		okHttpClient.newCall(request).await().use { response ->
 			if (!response.isSuccessful) {
-				error("Download TFLite model failed: HTTP ${response.code} ${response.message}. URL: $downloadUrl")
+				error("Download TFLite model failed: HTTP ${response.code} ${response.message}. URL: $finalUrl")
 			}
 			val body = response.body ?: error("TFLite model response body is empty")
 			runInterruptible(Dispatchers.IO) {

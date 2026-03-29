@@ -128,7 +128,7 @@ object OnnxOfficialModelCatalog {
 			files = listOf(
 				OnnxModelFile(
 					fileName = "yolo26s.onnx",
-					downloadUrl = "https://huggingface.co/Kiuyha/Content-Bubble-YOLO/resolve/main/onnx/yolo26s.onnx",
+					downloadUrl = "https://huggingface.co/Kiuyha/Manga-Bubble-YOLO/resolve/main/onnx/yolo26s.onnx",
 				),
 			),
 			description = "YOLO-based manga bubble/text region detector for ROI OCR pipeline.",

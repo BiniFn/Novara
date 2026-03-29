@@ -91,10 +91,14 @@ class OnnxModelManager @Inject constructor(
 		targetFile: File,
 		onProgress: ((DownloadProgress) -> Unit)?,
 	) {
-		val request = Request.Builder().url(downloadUrl).build()
+		val finalUrl = when (appSettings.huggingFaceMirror) {
+			org.skepsun.kototoro.core.prefs.AppSettings.HuggingFaceMirror.HF_MIRROR -> downloadUrl.replaceFirst("https://huggingface.co", "https://hf-mirror.com")
+			else -> downloadUrl
+		}
+		val request = Request.Builder().url(finalUrl).build()
 		okHttpClient.newCall(request).await().use { response ->
 			if (!response.isSuccessful) {
-				error("Download ONNX model failed: HTTP ${response.code} ${response.message}. URL: $downloadUrl")
+				error("Download ONNX model failed: HTTP ${response.code} ${response.message}. URL: $finalUrl")
 			}
 			val body = response.body ?: error("ONNX model response body is empty")
 			runInterruptible(Dispatchers.IO) {
