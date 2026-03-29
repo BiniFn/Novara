@@ -12,6 +12,10 @@ plugins {
 	// id 'dev.reformator.stacktracedecoroutinator'
 }
 
+room {
+	schemaDirectory("$projectDir/schemas")
+}
+
 android {
 	compileSdk = 36
 	buildToolsVersion = '35.0.0'
@@ -115,10 +119,6 @@ android {
 				'native/lib/osx-aarch64/**',
 				'native/lib/win-x86_64/**',
 				'native/lib/linux-x86_64/**'
-			]
-			keep += [
-				// djl/sentencepiece ships naive generic JNI logic instead of Android JNI, keep it so it extracts correctly.
-				'native/lib/linux-aarch64/libsentencepiece_native.so'
 			]
 		}
 	}
