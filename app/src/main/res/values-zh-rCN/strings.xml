@@ -59,8 +59,7 @@
     <string name="add_to_favourites">收藏</string>
     <string name="add_new_category">添加分类</string>
     <string name="add">添加</string>
-    <string name="pref_extension_jsdelivr_mirror">JSdelivr 镜像代理解析</string>
-    <string name="pref_extension_jsdelivr_mirror_summary">自动将由于 SNI 封锁导致连接重置的 raw.githubusercontent.com 仓库地址实时重写至国内可直连的 CDN 镜像。</string>
+
     <string name="recommended_repositories">推荐仓库</string>
     <string name="save">保存</string>
     <string name="share">分享</string>
