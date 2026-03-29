@@ -54,6 +54,15 @@
         android:title="@string/images_proxy_title"
         app:useSimpleSummaryProvider="true" />
 
+    <ListPreference
+        android:defaultValue="native"
+        android:entries="@array/pref_github_mirror_entries"
+        android:entryValues="@array/pref_github_mirror_values"
+        android:key="github_mirror"
+        android:summary="@string/pref_github_mirror_summary"
+        android:title="@string/pref_github_mirror"
+        app:useSimpleSummaryProvider="true" />
+
     <SwitchPreferenceCompat
         android:key="ssl_bypass"
         android:summary="@string/ignore_ssl_errors_summary"

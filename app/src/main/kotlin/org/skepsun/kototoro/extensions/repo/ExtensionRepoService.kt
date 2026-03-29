@@ -186,7 +186,7 @@ class ExtensionRepoService @Inject constructor(
 			isNsfw = nsfw == 1,
 			sourceNames = sources.orEmpty().map { it.name },
 			apkName = apk,
-			iconUrl = if (repo.type == ExternalExtensionType.IREADER) "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}" else "${repo.baseUrl}/icon/$pkg.png",
+			iconUrl = applyMirror(if (repo.type == ExternalExtensionType.IREADER) "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}" else "${repo.baseUrl}/icon/$pkg.png"),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
 			signatureHash = repo.signingKeyFingerprint,
@@ -209,7 +209,7 @@ class ExtensionRepoService @Inject constructor(
 			isNsfw = nsfw,
 			sourceNames = emptyList(), // IReader plugins don't declare subset sources natively
 			apkName = apk,
-			iconUrl = "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}",
+			iconUrl = applyMirror("${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}"),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
 			signatureHash = repo.signingKeyFingerprint,
