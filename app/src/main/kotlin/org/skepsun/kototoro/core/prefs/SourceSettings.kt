@@ -51,6 +51,8 @@ class SourceSettings(context: Context, source: ContentSource) : ContentSourceCon
 			is ConfigKey.SplitByTranslations -> prefs.getBoolean(key.key, key.defaultValue)
 			is ConfigKey.Toggle -> prefs.getBoolean(key.key, key.defaultValue)
 			is ConfigKey.PreferredImageServer -> prefs.getString(key.key, key.defaultValue)?.nullIfEmpty()
+			is ConfigKey.PreferredLanguage -> prefs.getString(key.key, key.defaultValue)
+				?: key.defaultValue
 		} as T
 	}
 
@@ -63,6 +65,7 @@ class SourceSettings(context: Context, source: ContentSource) : ContentSourceCon
 			is ConfigKey.PreferredImageServer -> putString(key.key, value as String? ?: "")
 			is ConfigKey.Text -> putString(key.key, value as String?)
 			is ConfigKey.Toggle -> putBoolean(key.key, value as Boolean)
+			is ConfigKey.PreferredLanguage -> putString(key.key, value as String?)
 		}
 	}
 

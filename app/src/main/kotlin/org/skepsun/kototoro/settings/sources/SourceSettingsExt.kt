@@ -145,6 +145,17 @@ private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(
 					summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 				}
 			}
+
+			is ConfigKey.PreferredLanguage -> {
+				ListPreference(screen.context).apply {
+					entries = key.presetValues.values.toTypedArray()
+					entryValues = key.presetValues.keys.toTypedArray()
+					setDefaultValue(key.defaultValue)
+					title = key.title
+					dialogTitle = key.title
+					summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
+				}
+			}
 		}
 		preference.isIconSpaceReserved = false
 		preference.key = key.key
