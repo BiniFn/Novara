@@ -42,11 +42,19 @@ class KotatsuParserRepository(
 	override suspend fun getDetailsImpl(manga: Content): Content =
 		parser.getDetails(manga.toKotatsu(kotatsuSource)).toKototoro(kotatsuSource)
 
-	override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> =
-		parser.getPages(chapter.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
+	override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
+		if (chapter.url.startsWith("file://") || chapter.url.startsWith("zip://") || chapter.url.startsWith("content://")) {
+			return org.skepsun.kototoro.local.data.input.LocalContentParser(android.net.Uri.parse(chapter.url)).getPages(chapter)
+		}
+		return parser.getPages(chapter.toKotatsu(kotatsuSource)).map { it.toKototoro(kotatsuSource) }
+	}
 
-	override suspend fun getPageUrl(page: ContentPage): String =
-		parser.getPageUrl(page.toKotatsu(kotatsuSource))
+	override suspend fun getPageUrl(page: ContentPage): String {
+		if (page.url.startsWith("file://") || page.url.startsWith("zip://") || page.url.startsWith("data:") || page.url.startsWith("content://")) {
+			return page.url
+		}
+		return parser.getPageUrl(page.toKotatsu(kotatsuSource))
+	}
 
 	override suspend fun getFilterOptions(): ContentListFilterOptions =
 		parser.getFilterOptions().toKototoro(kotatsuSource)

@@ -92,8 +92,15 @@ class ChaptersLoader @Inject constructor(
 
 	private suspend fun loadChapter(chapterId: Long): List<ReaderPage> {
 		val chapter = checkNotNull(chapters[chapterId]) { "Requested chapter not found" }
-		val repo = mangaRepositoryFactory.create(chapter.source)
-		return repo.getPages(chapter).mapIndexed { index, page ->
+		val urlStr = chapter.url
+		val isDownloaded = urlStr.startsWith("file://") || urlStr.startsWith("zip://") || urlStr.startsWith("file+zip://") || urlStr.startsWith("content://")
+		val basePages = if (isDownloaded) {
+			org.skepsun.kototoro.local.data.input.LocalContentParser(android.net.Uri.parse(urlStr)).getPages(chapter)
+		} else {
+			val repo = mangaRepositoryFactory.create(chapter.source)
+			repo.getPages(chapter)
+		}
+		return basePages.mapIndexed { index, page ->
 			ReaderPage(page, index, chapterId)
 		}
 	}

@@ -244,6 +244,10 @@ class PageLoader @Inject constructor(
 	}.getOrNull()
 
 	suspend fun getPageUrl(page: ContentPage): String {
+		val uri = page.url.toUri()
+		if (uri.isZipUri() || uri.isFileUri() || uri.scheme == "data" || uri.scheme == "content") {
+			return page.url
+		}
 		return getRepository(page.source).getPageUrl(page)
 	}
 

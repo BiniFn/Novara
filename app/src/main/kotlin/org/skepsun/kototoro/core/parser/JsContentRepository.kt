@@ -122,6 +122,9 @@ class JsContentRepository(
 	}
 
 	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
+		if (chapter.url.startsWith("file://") || chapter.url.startsWith("zip://") || chapter.url.startsWith("content://")) {
+			return org.skepsun.kototoro.local.data.input.LocalContentParser(android.net.Uri.parse(chapter.url)).getPages(chapter)
+		}
 		val parsed = parseChapterUrl(chapter.url)
 		val mangaId = parsed?.mangaId ?: chapter.url.ifBlank { chapter.source.name }
 		val epId = parsed?.chapterId ?: chapter.url

@@ -98,13 +98,35 @@ data class ContentDetails(
         } else {
             null
         }
+        val remainingLocalChapters = localMap?.values?.toMutableList() ?: mutableListOf()
         val result = ArrayList<ContentChapter>(chapters.size)
+        
         for (chapter in chapters) {
-            val local = localMap?.remove(chapter.id)
+            var local = localMap?.remove(chapter.id)
+            if (local != null) {
+                remainingLocalChapters.remove(local)
+            } else {
+                // Fallback: match by number and title
+                val match = remainingLocalChapters.find { 
+                    it.number == chapter.number && it.title == chapter.title
+                } ?: remainingLocalChapters.find {
+                    it.number == chapter.number && chapter.number > 0f
+                } ?: remainingLocalChapters.find {
+                    it.title == chapter.title && !it.title.isNullOrBlank()
+                }
+                
+                if (match != null) {
+                    local = match
+                    remainingLocalChapters.remove(match)
+                    localMap?.remove(match.id)
+                }
+            }
+            // Use the local chapter to ensure download properties (URL, file+zip) are retained
             result += local ?: chapter
         }
-        if (!localMap.isNullOrEmpty()) {
-            result.addAll(localMap.values)
+        
+        if (remainingLocalChapters.isNotEmpty()) {
+            result.addAll(remainingLocalChapters)
         }
         return result
     }

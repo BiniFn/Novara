@@ -36,6 +36,9 @@ class ReaderSuperResolutionManager @Inject constructor(
 		noiseLevel: Int,
 		cacheLimitMb: Int
 	): Uri? = withContext(Dispatchers.IO) {
+		if (originalUri.scheme != "file") {
+			return@withContext null
+		}
 		val originalFile = originalUri.toFile()
 		if (!originalFile.exists()) return@withContext null
 
