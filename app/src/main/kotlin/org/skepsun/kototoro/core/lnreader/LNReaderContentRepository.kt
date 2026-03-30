@@ -49,8 +49,10 @@ class LNReaderContentRepository(
 	override var defaultSortOrder: SortOrder = SortOrder.POPULARITY
 	
 	override val filterCapabilities: ContentListFilterCapabilities = ContentListFilterCapabilities(
-		isMultipleTagsSupported = false,
+		isMultipleTagsSupported = true,
 	)
+	
+	private var cachedFilterOptions: ContentListFilterOptions? = null
 	
 	override val listPagingMode: ContentRepository.ListPagingMode
 		get() = ContentRepository.ListPagingMode.PAGE_INDEX
@@ -59,6 +61,11 @@ class LNReaderContentRepository(
 	
 	override suspend fun getList(offset: Int, order: SortOrder?, filter: ContentListFilter?): List<Content> {
 		val page = offset + 1 // LNReader uses 1-based pages
+		
+		val selectedFilters = filter?.tags?.associate { tag ->
+			val parts = tag.key.split("::", limit = 2)
+			if (parts.size == 2) parts[0] to parts[1] else tag.key to tag.key
+		}?.takeIf { it.isNotEmpty() }
 		
 		return try {
 			val query = filter?.query
@@ -70,7 +77,7 @@ class LNReaderContentRepository(
 			} else {
 				// Browse mode
 				executeInPluginContext { bridge ->
-					bridge.popularNovels(page).map { it.toContent() }
+					bridge.popularNovels(page, selectedFilters).map { it.toContent() }
 				}
 			}
 		} catch (e: Exception) {
@@ -216,7 +223,31 @@ class LNReaderContentRepository(
 	
 	override suspend fun getPageUrl(page: ContentPage): String = page.url
 	
-	override suspend fun getFilterOptions(): ContentListFilterOptions = ContentListFilterOptions()
+	override suspend fun getFilterOptions(): ContentListFilterOptions {
+		cachedFilterOptions?.let { return it }
+		
+		return try {
+			executeInPluginContext { bridge ->
+				val lnFilters = bridge.getFilters()
+				val tagGroups = lnFilters.map { lnFilter ->
+					org.skepsun.kototoro.parsers.model.ContentTagGroup(
+						name = lnFilter.label,
+						tags = lnFilter.options.map { opt ->
+							org.skepsun.kototoro.parsers.model.ContentTag(
+								title = opt.label,
+								key = "${lnFilter.key}::${opt.value}",
+								source = source
+							)
+						}.toSet()
+					)
+				}
+				ContentListFilterOptions(tagGroups = tagGroups).also { cachedFilterOptions = it }
+			}
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to get filters: ${e.message}")
+			ContentListFilterOptions()
+		}
+	}
 	
 	override suspend fun getRelated(seed: Content): List<Content> = emptyList()
 	

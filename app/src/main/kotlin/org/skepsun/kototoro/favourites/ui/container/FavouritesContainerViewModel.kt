@@ -41,6 +41,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 
 @HiltViewModel
 class FavouritesContainerViewModel @Inject constructor(
@@ -52,6 +53,7 @@ class FavouritesContainerViewModel @Inject constructor(
 	mangaDataRepository: ContentDataRepository,
 	networkState: NetworkState,
 	private val globalFavoritesState: GlobalFavoritesState,
+	private val sourceGroupManager: SourceGroupManager,
 ) : BaseViewModel() {
 
 	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
@@ -100,28 +102,68 @@ val importMessages = MutableEventFlow<String>()
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
+	private val activeCategoryCounts = combine(
+		favouritesRepository.observeAllRawFavorites(),
+		currentGroupTab,
+		selectedSourceTags
+	) { favorites, groupTab, sourceTags ->
+		if (groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
+			return@combine null
+		}
+
+		val categoryCounts = mutableMapOf<Long, Int>()
+		for (fav in favorites) {
+			val source = org.skepsun.kototoro.parsers.model.ContentSource(fav.manga.source)
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+
+			val groupMatches = groupTab == BrowseGroupTab.All || groupTab.supportsContentGroup(contentGroup)
+			val originMatches = sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) }
+
+			if (groupMatches && originMatches) {
+				// Count for each category the favorite belongs to
+				for (cat in fav.categories) {
+					categoryCounts[cat.categoryId] = (categoryCounts[cat.categoryId] ?: 0) + 1
+				}
+				// Also count for NO_ID (the 'All' tab)
+				categoryCounts[NO_ID] = (categoryCounts[NO_ID] ?: 0) + 1
+			}
+		}
+		categoryCounts
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
+
 	val categories = combine(
 		categoriesStateFlow.filterNotNull(),
+		activeCategoryCounts,
 		observeAllFavouritesVisibility(),
-	) { list, showAll ->
-		list.toUi(showAll)
+	) { list, activeCounts, showAll ->
+		val filteredList = if (activeCounts != null) {
+			list.filter { activeCounts.getOrDefault(it.id, 0) > 0 }
+		} else {
+			list
+		}
+		
+		val result = ArrayList<FavouriteTabModel>(if (showAll) filteredList.size + 1 else filteredList.size)
+		if (showAll) {
+			if (activeCounts == null || activeCounts.getOrDefault(NO_ID, 0) > 0) {
+				result.add(FavouriteTabModel(NO_ID, null))
+			}
+		}
+		filteredList.mapTo(result) { FavouriteTabModel(it.id, it.title) }
+		result
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
-	val isEmpty = categoriesStateFlow.map {
-		it?.isEmpty() == true
+	val isEmpty = combine(
+		categoriesStateFlow,
+		activeCategoryCounts
+	) { list, activeCounts ->
+		if (list == null) return@combine false
+		if (activeCounts != null) {
+			list.all { activeCounts.getOrDefault(it.id, 0) == 0 } && activeCounts.getOrDefault(NO_ID, 0) == 0
+		} else {
+			list.isEmpty() && !settings.isAllFavouritesVisible
+		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
-
-	private fun List<FavouriteCategory>.toUi(showAll: Boolean): List<FavouriteTabModel> {
-		if (isEmpty()) {
-			return emptyList()
-		}
-		val result = ArrayList<FavouriteTabModel>(if (showAll) size + 1 else size)
-		if (showAll) {
-			result.add(FavouriteTabModel(NO_ID, null))
-		}
-		mapTo(result) { FavouriteTabModel(it.id, it.title) }
-		return result
-	}
 
 	fun hide(categoryId: Long) {
 		launchJob(Dispatchers.Default) {

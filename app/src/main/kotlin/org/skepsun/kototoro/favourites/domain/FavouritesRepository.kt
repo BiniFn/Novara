@@ -68,6 +68,10 @@ class FavouritesRepository @Inject constructor(
 			.map { it.toContentList() }
 	}
 
+	fun observeAllRawFavorites(): Flow<List<org.skepsun.kototoro.favourites.data.FavouriteContent>> {
+		return db.getFavouritesDao().observeAll(ListSortOrder.RECENT, emptySet(), Int.MAX_VALUE)
+	}
+
 	suspend fun getContent(categoryId: Long): List<Content> {
 		val entities = db.getFavouritesDao().findAll(categoryId)
 		return entities.toContentList()

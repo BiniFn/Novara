@@ -78,14 +78,81 @@ class LNReaderPluginBridge(
 		)
 	}
 	
+	/**
+	 * Extracts the plugin's exported `filters` object statically.
+	 * Executes synchronously since `plugin.filters` is a static JS object properties.
+	 */
+	fun getFilters(): List<LNReaderFilter> {
+		val script = """
+			(function() {
+				try {
+					var plugin = globalThis.__plugin_${sanitizedId};
+					if (!plugin || !plugin.filters) return JSON.stringify({ success: true, data: [] });
+					
+					var result = [];
+					for (var key in plugin.filters) {
+						var filterObj = plugin.filters[key];
+						if (!filterObj || typeof filterObj !== 'object') continue;
+						
+						var opts = [];
+						if (Array.isArray(filterObj.options)) {
+							opts = filterObj.options.map(function(o) { 
+								return { label: String(o.label||''), value: String(o.value||'') };
+							});
+						}
+						
+						result.push({
+							key: String(key),
+							label: String(filterObj.label || key),
+							type: String(filterObj.type || 'picker'),
+							options: opts
+						});
+					}
+					return JSON.stringify({ success: true, data: result });
+				} catch (e) {
+					return JSON.stringify({ success: false, error: String(e) });
+				}
+			})();
+		""".trimIndent()
+		
+		val resultJson = runCatching { qjs.evaluate<String>(script, "<getFilters>") }.getOrNull() ?: return emptyList()
+		return try {
+			val obj = json.parseToJsonElement(resultJson).jsonObject
+			if (obj["success"]?.jsonPrimitive?.booleanOrNull == true) {
+				val dataArr = obj["data"]?.jsonArray ?: JsonArray(emptyList())
+				dataArr.mapNotNull {
+					val f = it.jsonObject
+					val key = f["key"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+					val label = f["label"]?.jsonPrimitive?.contentOrNull ?: key
+					val type = f["type"]?.jsonPrimitive?.contentOrNull ?: "picker"
+					val opts = f["options"]?.jsonArray?.mapNotNull { optElement ->
+						val optObj = optElement.jsonObject
+						val oLabel = optObj["label"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+						val oValue = optObj["value"]?.jsonPrimitive?.contentOrNull ?: ""
+						LNReaderFilterOption(oLabel, oValue)
+					} ?: emptyList()
+					LNReaderFilter(key, label, type, opts)
+				}
+			} else emptyList()
+		} catch (e: Exception) {
+			Log.e(TAG, "Failed to parse filters from JS: ${e.message}")
+			emptyList()
+		}
+	}
+	
 	// ==================== Content Methods ====================
 	
 	/**
 	 * Call plugin.popularNovels(page, {filters}).
 	 * Returns list of novel items.
 	 */
-	suspend fun popularNovels(page: Int): List<LNReaderNovelItem> {
+	suspend fun popularNovels(page: Int, selectedFilters: Map<String, String>? = null): List<LNReaderNovelItem> {
 		val resultVar = "__popularResult_${sanitizedId}"
+		val filterOverrides = if (selectedFilters.isNullOrEmpty()) "" else {
+			selectedFilters.entries.joinToString("\n") { (k, v) ->
+				"if(defaultFilters['${escapeForJS(k)}']) defaultFilters['${escapeForJS(k)}'].value = '${escapeForJS(v)}';"
+			}
+		}
 		val script = """
 			(async function() {
 				try {
@@ -98,12 +165,13 @@ class LNReaderPluginBridge(
 					// Pass the full filter objects so plugins can access .value, .type, etc.
 					for (var key in plugin.filters) {
 						if (plugin.filters[key]) {
-							defaultFilters[key] = plugin.filters[key];
+							defaultFilters[key] = JSON.parse(JSON.stringify(plugin.filters[key])); // deep copy
 						} else {
 							defaultFilters[key] = { value: '' };
 						}
 					}
 				}
+				$filterOverrides
 				var result = await plugin.popularNovels($page, { showLatestNovels: false, filters: defaultFilters });
 					globalThis.$resultVar = { success: true, data: JSON.stringify(result || []) };
 				} catch (error) {
@@ -480,4 +548,16 @@ data class LNReaderChapter(
 	val path: String,
 	val releaseTime: String? = null,
 	val chapterNumber: String? = null
+)
+
+data class LNReaderFilter(
+	val key: String,
+	val label: String,
+	val type: String,
+	val options: List<LNReaderFilterOption>
+)
+
+data class LNReaderFilterOption(
+	val label: String,
+	val value: String
 )
