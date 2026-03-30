@@ -303,3 +303,8 @@
 
 # Deep Java Library (DJL) tokenizers and sentencepiece
 -keep class ai.djl.** { *; }
+-dontwarn java.awt.**
+-dontwarn java.lang.management.**
+-dontwarn javax.imageio.**
+-dontwarn javax.sound.**
+-dontwarn javax.tools.**
