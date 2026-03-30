@@ -1536,10 +1536,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun rebuildToolbarMenuForOrientation() {
         val menu = viewBinding.toolbar.menu
         menu.clear()
-        viewBinding.toolbar.inflateMenu(org.skepsun.kototoro.R.menu.menu_video_player)
-        // Force subtitle button to always show as icon (not in overflow)
-        menu.findItem(org.skepsun.kototoro.R.id.action_subtitle_track)?.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
-        viewBinding.toolbar.menuView?.isVisible = true
+        if (isLandscapeOrientation()) {
+            viewBinding.toolbar.inflateMenu(org.skepsun.kototoro.R.menu.menu_video_player)
+            // Force subtitle button to always show as icon (not in overflow)
+            menu.findItem(org.skepsun.kototoro.R.id.action_subtitle_track)?.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+            viewBinding.toolbar.menuView?.isVisible = true
+        } else {
+            viewBinding.toolbar.menuView?.isVisible = false
+        }
     }
 
     // 按方向调整工具栏高度：横屏恢复初始高度以容纳标题与菜单；竖屏压缩为 wrap_content 仅显示进度条
