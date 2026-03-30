@@ -100,6 +100,42 @@ class SourceGroupManager @Inject constructor(
 	}
 	
 	/**
+	 * Gets the content group for a source by name string only (no ContentSource instance).
+	 * Uses prefix-based classification. Suitable for DB entities where only the source name is available.
+	 */
+	fun getContentGroupByName(sourceName: String, isNsfw: Boolean = false): ContentGroup {
+		val type = sourceTypeIdentifier.getSourceType(sourceName)
+		return when {
+			sourceName.startsWith("IREADER_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+			sourceName.startsWith("ANIYOMI_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+			sourceName.startsWith("JSON_TVBOX_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+			sourceName.startsWith("JSON_LEGADO_M_") -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+			sourceName.startsWith("JSON_LEGADO_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+			sourceName.startsWith("JSON_LNREADER_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+			type == SourceType.NATIVE || type == SourceType.EXTERNAL -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+			else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+		}
+	}
+
+	/**
+	 * Gets the origin group for a source by name string only.
+	 */
+	fun getOriginGroupByName(sourceName: String): OriginGroup {
+		val sourceType = sourceTypeIdentifier.getSourceType(sourceName)
+		return when (sourceType) {
+			SourceType.NATIVE -> OriginGroup.NATIVE
+			SourceType.JSON_LEGADO -> OriginGroup.LEGADO_JSON
+			SourceType.JSON_TVBOX -> OriginGroup.TVBOX_JSON
+			SourceType.JSON_JS -> OriginGroup.JS_JSON
+			SourceType.EXTERNAL -> OriginGroup.EXTERNAL
+			SourceType.MIHON -> OriginGroup.MIHON
+			SourceType.ANIYOMI -> OriginGroup.ANIYOMI
+			SourceType.IREADER -> OriginGroup.IREADER
+			SourceType.JSON_LNREADER -> OriginGroup.LNREADER_JSON
+		}
+	}
+
+	/**
 	 * Gets the origin group for a source based on its identifier.
 	 * 
 	 * @param source The manga source

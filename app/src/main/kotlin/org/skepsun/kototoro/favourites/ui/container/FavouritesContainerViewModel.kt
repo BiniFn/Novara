@@ -113,17 +113,19 @@ val importMessages = MutableEventFlow<String>()
 
 		val categoryCounts = mutableMapOf<Long, Int>()
 		for (fav in favorites) {
-			val source = org.skepsun.kototoro.parsers.model.ContentSource(fav.manga.source)
-			val contentGroup = sourceGroupManager.getContentGroup(source)
-			val originGroup = sourceGroupManager.getOriginGroup(source)
+			val sourceName = fav.manga.source
+			val isNsfw = fav.manga.isNsfw
+			val contentGroup = sourceGroupManager.getContentGroupByName(sourceName, isNsfw)
+			val originGroup = sourceGroupManager.getOriginGroupByName(sourceName)
 
-			val groupMatches = groupTab == BrowseGroupTab.All || groupTab.supportsContentGroup(contentGroup)
+			val groupMatches = groupTab.matchesContentGroup(contentGroup)
 			val originMatches = sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) }
 
 			if (groupMatches && originMatches) {
 				// Count for each category the favorite belongs to
 				for (cat in fav.categories) {
-					categoryCounts[cat.categoryId] = (categoryCounts[cat.categoryId] ?: 0) + 1
+					val catId = cat.categoryId.toLong()
+					categoryCounts[catId] = (categoryCounts[catId] ?: 0) + 1
 				}
 				// Also count for NO_ID (the 'All' tab)
 				categoryCounts[NO_ID] = (categoryCounts[NO_ID] ?: 0) + 1

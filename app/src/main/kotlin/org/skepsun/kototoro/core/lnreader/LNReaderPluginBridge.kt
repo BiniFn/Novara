@@ -82,7 +82,7 @@ class LNReaderPluginBridge(
 	 * Extracts the plugin's exported `filters` object statically.
 	 * Executes synchronously since `plugin.filters` is a static JS object properties.
 	 */
-	fun getFilters(): List<LNReaderFilter> {
+	suspend fun getFilters(): List<LNReaderFilter> {
 		val script = """
 			(function() {
 				try {

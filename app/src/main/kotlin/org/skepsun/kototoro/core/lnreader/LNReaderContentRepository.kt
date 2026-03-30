@@ -231,7 +231,7 @@ class LNReaderContentRepository(
 				val lnFilters = bridge.getFilters()
 				val tagGroups = lnFilters.map { lnFilter ->
 					org.skepsun.kototoro.parsers.model.ContentTagGroup(
-						name = lnFilter.label,
+						title = lnFilter.label,
 						tags = lnFilter.options.map { opt ->
 							org.skepsun.kototoro.parsers.model.ContentTag(
 								title = opt.label,

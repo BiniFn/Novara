@@ -69,7 +69,7 @@ class FavouritesRepository @Inject constructor(
 	}
 
 	fun observeAllRawFavorites(): Flow<List<org.skepsun.kototoro.favourites.data.FavouriteContent>> {
-		return db.getFavouritesDao().observeAll(ListSortOrder.RECENT, emptySet(), Int.MAX_VALUE)
+		return db.getFavouritesDao().observeAll(ListSortOrder.NEWEST, emptySet(), Int.MAX_VALUE)
 	}
 
 	suspend fun getContent(categoryId: Long): List<Content> {
