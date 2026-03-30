@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.dockedtoolbar.DockedToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.dockedtoolbar.DockedToolbarLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/toolbar_docked"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:minHeight="?actionBarSize"
     android:background="@android:color/transparent"
     android:clipToPadding="false"
     android:theme="@style/ThemeOverlay.Kototoro.VideoControls">
@@ -13,10 +13,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="10dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
 
         <!-- 第一行：进度条 + 时间 -->
         <LinearLayout
@@ -29,9 +29,9 @@
                 android:id="@id/exo_position"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="60dp"
-                android:minEms="5"
-                android:gravity="end|center_vertical"
+                android:minWidth="50dp"
+                android:minEms="4"
+                android:gravity="end"
                 android:textAppearance="?textAppearanceBodySmall"
                 android:textColor="@android:color/white"
                 android:fontFeatureSettings="tnum" />
@@ -39,17 +39,18 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text=" / "
+                android:text="/"
                 android:textAppearance="?textAppearanceBodySmall"
-                android:textColor="@android:color/white" />
+                android:textColor="@android:color/white"
+                android:paddingHorizontal="2dp" />
 
             <TextView
                 android:id="@id/exo_duration"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="60dp"
-                android:minEms="5"
-                android:gravity="start|center_vertical"
+                android:minWidth="50dp"
+                android:minEms="4"
+                android:gravity="start"
                 android:textAppearance="?textAppearanceBodySmall"
                 android:textColor="@android:color/white"
                 android:fontFeatureSettings="tnum" />
@@ -57,27 +58,29 @@
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@id/exo_progress"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="8dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 app:unplayed_color="#55FFFFFF"
                 app:played_color="@android:color/white"
                 app:buffered_color="#99FFFFFF"
                 app:scrubber_color="@android:color/white" />
+
         </LinearLayout>
 
-        <!-- 第二行：控制 + 弹幕输入 + 清晰度 -->
+        <!-- 第二行：控制 + 清晰度 -->
         <LinearLayout
+            android:id="@+id/controls_row_2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginTop="6dp">
+            android:layout_marginTop="4dp">
 
             <ImageButton
                 android:id="@id/exo_play_pause"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/play"
                 android:src="@drawable/ic_play"
@@ -85,8 +88,8 @@
 
             <ImageButton
                 android:id="@+id/button_prev_chapter"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/prev_chapter"
                 android:src="@drawable/ic_prev"
@@ -94,8 +97,8 @@
 
             <ImageButton
                 android:id="@+id/button_next_chapter"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/next_chapter"
                 android:src="@drawable/ic_next"
@@ -104,8 +107,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_pages_thumbs"
                 style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_marginStart="4dp"
                 android:padding="0dp"
                 android:insetLeft="0dp"
@@ -116,29 +119,81 @@
                 app:iconTint="@android:color/white"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:icon="@drawable/ic_grid" />
+                app:icon="@drawable/ic_grid"
+                app:iconSize="18dp" />
+
+            <!-- Spacer to push right-side generic buttons -->
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_rotate_screen"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/rotate_screen"
+                app:iconTint="@android:color/white"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:icon="@drawable/ic_screen_rotation"
+                app:iconSize="18dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_quality"
+                style="@style/Widget.Kototoro.IconButton.Transparent"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/video_quality"
+                app:iconTint="@android:color/white"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:icon="@drawable/ic_content_video"
+                app:iconSize="18dp" />
+        </LinearLayout>
+
+        <!-- 第三行：弹幕 + 片头片尾 + 锁屏 -->
+        <LinearLayout
+            android:id="@+id/controls_row_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
 
             <androidx.appcompat.widget.AppCompatTextView
                 android:id="@+id/button_danmaku_toggle"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="4dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
                 android:contentDescription="@string/video_danmaku_enabled"
                 android:background="@drawable/bg_danmaku_tv"
                 android:foreground="?attr/selectableItemBackgroundBorderless"
                 android:gravity="center"
-                android:paddingTop="3dp"
+                android:paddingTop="2dp"
                 android:text="@string/video_danmaku_badge"
                 android:textColor="@android:color/white"
-                android:textSize="10sp"
+                android:textSize="9sp"
                 android:textStyle="bold"
                 android:clickable="true"
                 android:focusable="true" />
 
             <ImageButton
                 android:id="@+id/button_danmaku_settings"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="2dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/video_danmaku_settings"
                 android:src="@drawable/ic_danmaku_settings"
@@ -147,19 +202,19 @@
 
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="8dp"
+                android:layout_height="30dp"
+                android:layout_marginStart="4dp"
                 android:layout_weight="1"
-                android:minWidth="80dp"
+                android:minWidth="60dp"
                 android:background="@drawable/bg_danmaku_input"
                 android:gravity="center_vertical"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp">
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
 
                 <ImageButton
                     android:id="@+id/button_danmaku_send"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
                     android:background="@android:color/transparent"
                     android:contentDescription="@string/video_send_danmaku_hint"
                     android:src="@drawable/ic_send_tilted"
@@ -169,7 +224,7 @@
                     android:id="@+id/edit_danmaku_input"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="6dp"
                     android:layout_weight="1"
                     android:background="@android:color/transparent"
                     android:hint="@string/video_send_danmaku_hint"
@@ -183,14 +238,14 @@
             <androidx.appcompat.widget.AppCompatTextView
                 android:id="@+id/button_mark_intro"
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="4dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
+                android:layout_height="30dp"
+                android:layout_marginStart="6dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
                 android:gravity="center"
                 android:text="@string/video_mark_intro"
                 android:textColor="@android:color/white"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
                 android:background="@drawable/bg_danmaku_tv"
                 android:foreground="?attr/selectableItemBackgroundBorderless"
@@ -200,14 +255,14 @@
             <androidx.appcompat.widget.AppCompatTextView
                 android:id="@+id/button_mark_outro"
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="2dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
+                android:layout_height="30dp"
+                android:layout_marginStart="4dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
                 android:gravity="center"
                 android:text="@string/video_mark_outro"
                 android:textColor="@android:color/white"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
                 android:background="@drawable/bg_danmaku_tv"
                 android:foreground="?attr/selectableItemBackgroundBorderless"
@@ -216,50 +271,16 @@
 
             <ImageButton
                 android:id="@+id/button_screen_lock"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginStart="2dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/video_screen_lock"
                 android:src="@drawable/ic_lock"
                 android:scaleType="centerInside"
                 android:tint="@android:color/white" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/button_rotate_screen"
-                style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:contentDescription="@string/rotate_screen"
-                app:iconTint="@android:color/white"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:icon="@drawable/ic_screen_rotation" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/button_quality"
-                style="@style/Widget.Kototoro.IconButton.Transparent"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:contentDescription="@string/video_quality"
-                app:iconTint="@android:color/white"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:icon="@drawable/ic_content_video" />
-
         </LinearLayout>
+
     </LinearLayout>
 
 </com.google.android.material.dockedtoolbar.DockedToolbarLayout>

@@ -68,8 +68,9 @@
 
         </LinearLayout>
 
-        <!-- 第二行：控制 + 弹幕输入 + 清晰度 -->
+        <!-- 第二行：控制 + 清晰度 -->
         <LinearLayout
+            android:id="@+id/controls_row_2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -165,6 +166,7 @@
 
         <!-- 第三行：弹幕 + 片头片尾 + 锁屏 -->
         <LinearLayout
+            android:id="@+id/controls_row_3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"

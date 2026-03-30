@@ -460,8 +460,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // Apply default orientation: portrait when foldable unfolded in portrait; else landscape
         observeFoldableStateForOrientation()
 
-        // 仅设置菜单点击监听；实际菜单由 rebuildToolbarMenuForOrientation() 按方向重建
-        viewBinding.toolbar.setOnMenuItemClickListener { item ->
+        // 设置菜单点击监听并复用给两个 Toolbar
+        val onMenuItemClick = androidx.appcompat.widget.Toolbar.OnMenuItemClickListener { item ->
             when (item.itemId) {
                 org.skepsun.kototoro.R.id.action_subtitle_track -> {
                     showSubtitleTrackDialog()
@@ -502,9 +502,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 else -> false
             }
         }
+        viewBinding.toolbar.setOnMenuItemClickListener(onMenuItemClick)
+        val secondaryToolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(org.skepsun.kototoro.R.id.toolbar_secondary)
+        secondaryToolbar?.setOnMenuItemClickListener(onMenuItemClick)
 
         rebuildToolbarMenuForOrientation()
         adjustToolbarForOrientation()
+        rearrangeBottomToolbarForOrientation()
 
         lifecycleScope.launch {
             val url = intent.getStringExtra(AppRouter.KEY_URL)
@@ -1283,6 +1287,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         rebuildToolbarMenuForOrientation()
         adjustToolbarForOrientation()
         updateStatusBarByToolbar()
+        rearrangeBottomToolbarForOrientation()
+
 		applyControlsAlpha()
         
         // Update title/subtitle after configuration change to ensure they persist
@@ -1369,6 +1375,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         if (visible) {
             rebuildToolbarMenuForOrientation()
             adjustToolbarForOrientation()
+            rearrangeBottomToolbarForOrientation()
             updatePlayPauseButton()
         }
         // 同步外部 PlayerControlView 与顶部工具栏显隐
@@ -1534,31 +1541,71 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun rebuildToolbarMenuForOrientation() {
-        val menu = viewBinding.toolbar.menu
-        menu.clear()
-        if (isLandscapeOrientation()) {
-            viewBinding.toolbar.inflateMenu(org.skepsun.kototoro.R.menu.menu_video_player)
+        viewBinding.toolbar.menu.clear()
+        val secondaryToolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(org.skepsun.kototoro.R.id.toolbar_secondary)
+        secondaryToolbar?.menu?.clear()
+
+        // 横屏时：inflate 到 toolbar；竖屏时：inflate 到 secondaryToolbar
+        val targetToolbar = if (isLandscapeOrientation()) viewBinding.toolbar else secondaryToolbar
+
+        if (targetToolbar != null) {
+            targetToolbar.inflateMenu(org.skepsun.kototoro.R.menu.menu_video_player)
             // Force subtitle button to always show as icon (not in overflow)
-            menu.findItem(org.skepsun.kototoro.R.id.action_subtitle_track)?.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
-            viewBinding.toolbar.menuView?.isVisible = true
-        } else {
-            viewBinding.toolbar.menuView?.isVisible = false
+            targetToolbar.menu.findItem(org.skepsun.kototoro.R.id.action_subtitle_track)?.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
         }
     }
 
-    // 按方向调整工具栏高度：横屏恢复初始高度以容纳标题与菜单；竖屏压缩为 wrap_content 仅显示进度条
+    // 按方向调整工具栏高度：横屏恢复初始高度；竖屏需要显示辅助工具栏
     private fun adjustToolbarForOrientation() {
-        val lp = viewBinding.toolbar.layoutParams
+        val secondaryToolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(org.skepsun.kototoro.R.id.toolbar_secondary)
+
         if (isLandscapeOrientation()) {
             if (originalToolbarHeightPx > 0) {
-                lp.height = originalToolbarHeightPx
+                viewBinding.toolbar.layoutParams.height = originalToolbarHeightPx
             }
+            secondaryToolbar?.isVisible = false
         } else {
-            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+            viewBinding.toolbar.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
+            secondaryToolbar?.isVisible = true
         }
         viewBinding.toolbar.minimumHeight = 0
         viewBinding.toolbar.requestLayout()
-        viewBinding.toolbar.menuView?.isVisible = true
+        secondaryToolbar?.requestLayout()
+    }
+
+    private fun rearrangeBottomToolbarForOrientation() {
+        // 动态调整底部控制栏布局逻辑：根据方向将第三行的视图合并到第二行，或从第二行拆分到第三行
+        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
+        val row2 = ctl.findViewById<ViewGroup>(org.skepsun.kototoro.R.id.controls_row_2) ?: return
+        val row3 = ctl.findViewById<ViewGroup>(org.skepsun.kototoro.R.id.controls_row_3) ?: return
+
+        if (isLandscapeOrientation()) {
+            // 横屏：将 row3 中的所有子 View 移动到 row2 末尾
+            while (row3.childCount > 0) {
+                val child = row3.getChildAt(0)
+                row3.removeView(child)
+                row2.addView(child)
+            }
+            row3.isVisible = false
+            
+            // 调整弹幕设置按钮的左边距 (原来在第三行是从头开始排需要 marginStart，现在放到第二行紧跟着需要清除或保持)
+            // 简化处理：保留原样
+        } else {
+            // 竖屏：找到 button_danmaku_toggle，将它及其后面的所有 View 放回 row3
+            val toggleDanmakuBtn = row2.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle)
+            if (toggleDanmakuBtn != null) {
+                val index = row2.indexOfChild(toggleDanmakuBtn)
+                if (index != -1) {
+                    val count = row2.childCount - index
+                    for (i in 0 until count) {
+                        val child = row2.getChildAt(index)
+                        row2.removeView(child)
+                        row3.addView(child)
+                    }
+                }
+            }
+            row3.isVisible = true
+        }
     }
 
     private fun updatePlaybackMenu() {
