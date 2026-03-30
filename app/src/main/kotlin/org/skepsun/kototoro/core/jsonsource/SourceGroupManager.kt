@@ -105,6 +105,16 @@ class SourceGroupManager @Inject constructor(
 	 */
 	fun getContentGroupByName(sourceName: String, isNsfw: Boolean = false): ContentGroup {
 		val type = sourceTypeIdentifier.getSourceType(sourceName)
+		val source = org.skepsun.kototoro.core.model.ContentSource(sourceName)
+		
+		if (type == SourceType.NATIVE || source is org.skepsun.kototoro.core.extensions.PluginContentSource || source is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource || type == SourceType.EXTERNAL) {
+			return when (source.getContentType()) {
+				ContentType.NOVEL, ContentType.HENTAI_NOVEL -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
+				ContentType.VIDEO, ContentType.HENTAI_VIDEO -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
+				else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
+			}
+		}
+
 		return when {
 			sourceName.startsWith("IREADER_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
 			sourceName.startsWith("ANIYOMI_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
@@ -112,7 +122,6 @@ class SourceGroupManager @Inject constructor(
 			sourceName.startsWith("JSON_LEGADO_M_") -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 			sourceName.startsWith("JSON_LEGADO_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
 			sourceName.startsWith("JSON_LNREADER_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
-			type == SourceType.NATIVE || type == SourceType.EXTERNAL -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 			else -> if (isNsfw) ContentGroup.HENTAI_MANGA else ContentGroup.MANGA
 		}
 	}
