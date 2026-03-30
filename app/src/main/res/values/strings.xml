@@ -362,6 +362,15 @@
     <string name="video_rewind_time">Rewind %1$s s</string>
     <string name="video_brightness">Brightness %1$s%%</string>
     <string name="video_volume">Volume %1$s%%</string>
+    <string name="video_mark_intro">Intro</string>
+    <string name="video_mark_outro">Outro</string>
+    <string name="video_skip_intro_set">Intro skip set at %s</string>
+    <string name="video_skip_outro_set">Outro skip set at %s</string>
+    <string name="video_skip_intro_cleared">Intro skip cleared</string>
+    <string name="video_skip_outro_cleared">Outro skip cleared</string>
+    <string name="video_skipping_intro">Skipping intro…</string>
+    <string name="video_screen_lock">Lock</string>
+    <string name="video_screen_unlock">Unlock</string>
     <string name="video_info_hw_decoding">Hardware Decoding</string>
     <string name="video_info_sw_decoding">Software Decoding</string>
     <string name="video_info_auto">Auto</string>

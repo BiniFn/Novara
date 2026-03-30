@@ -1591,4 +1591,30 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		private const val READER_CROP_PAGED = 1
 		private const val READER_CROP_WEBTOON = 2
 	}
+
+	// ==================== Video Intro/Outro Skip ====================
+
+	private val skipPrefs by lazy {
+		context.getSharedPreferences("video_skip_times", Context.MODE_PRIVATE)
+	}
+
+	fun getIntroEndMs(mangaId: Long): Long = skipPrefs.getLong("intro_end_$mangaId", 0L)
+
+	fun setIntroEndMs(mangaId: Long, ms: Long) {
+		skipPrefs.edit { putLong("intro_end_$mangaId", ms) }
+	}
+
+	fun clearIntroEndMs(mangaId: Long) {
+		skipPrefs.edit { remove("intro_end_$mangaId") }
+	}
+
+	fun getOutroStartMs(mangaId: Long): Long = skipPrefs.getLong("outro_start_$mangaId", 0L)
+
+	fun setOutroStartMs(mangaId: Long, ms: Long) {
+		skipPrefs.edit { putLong("outro_start_$mangaId", ms) }
+	}
+
+	fun clearOutroStartMs(mangaId: Long) {
+		skipPrefs.edit { remove("outro_start_$mangaId") }
+	}
 }

@@ -104,6 +104,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     internal fun getMpvPlayer(): MpvPlayer? = mpvPlayer
     private var isUiVisible: Boolean = false
     private var autoNextTriggered: Boolean = false
+    // Screen lock state
+    private var isScreenLocked: Boolean = false
+    // Intro/outro skip state (loaded per manga)
+    private var currentMangaId: Long = 0L
+    private var introEndMs: Long = 0L
+    private var outroStartMs: Long = 0L
+    private var hasSkippedIntro: Boolean = false
+    private var hasTriggeredOutro: Boolean = false
     private var isFoldUnfolded: Boolean = false
     private var isHorizontalScrubbing: Boolean = false
     private var verticalAdjustMode: Int = 0 // 0: none, 1: brightness, 2: volume
@@ -156,6 +164,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     hasRestoredProgress = true
                     viewBinding.root.removeCallbacks(progressSaveRunnable)
                     viewBinding.root.postDelayed(progressSaveRunnable, progressSaveIntervalMs)
+                    // Try to skip intro after initial seek is applied
+                    viewBinding.root.postDelayed({ trySkipIntro() }, 500)
                 }
             }
         }
@@ -200,6 +210,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     lastSubtitleTextFromPoll = text
                     Log.d("VideoPlayerActivity", "sub-text poll: '$text'")
                     updateSubtitleOverlay(text)
+                }
+            }
+            // Auto-skip outro: when position reaches outro start, seek to end
+            if (outroStartMs > 0 && !hasTriggeredOutro && positionMs >= outroStartMs) {
+                hasTriggeredOutro = true
+                runOnUiThread {
+                    val dur = mpvPlayer?.durationMs ?: return@runOnUiThread
+                    if (dur > 0) {
+                        mpvPlayer?.seekTo(dur)
+                    }
                 }
             }
         }
@@ -532,6 +552,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     return true
                 }
                 override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (isScreenLocked) return true // no-op when locked
                     val w = pv.width.takeIf { it > 0 } ?: -1
                     val x = e.x
                     val p = mpvPlayer
@@ -572,11 +593,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 }
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    if (isScreenLocked) return true // no-op when locked
                     toggleUiVisibility()
                     return true
                 }
 
                 override fun onLongPress(e: MotionEvent) {
+                    if (isScreenLocked) return // no-op when locked
                     val p = mpvPlayer ?: return
                     isLongPressSpeeding = true
                     p.setRate(2.0)
@@ -592,6 +615,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     val w = pv.width.takeIf { it > 0 } ?: return false
                     val h = pv.height.takeIf { it > 0 } ?: return false
                     
+                    if (isScreenLocked) return false // no-op when locked
                     if (isLongPressSpeeding) return false
 
                     // 首次判定：竖向位移显著大于横向位移时进入垂直调整模式，反之进入水平进度调整模式
@@ -707,6 +731,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // Wire controller buttons: pages and settings
         wireControllerButtons()
+
+        // Initialize screen lock overlay and unlock button
+        initLockOverlay()
+
+        // Load intro/outro skip settings for the current manga
+        loadIntroOutroSettings()
 
         // 外部控制器初始由 Activity 管理显隐；不直接改动 DockedToolbar 的可见性
     }
@@ -844,6 +874,51 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
 
         updateChapterNavButtons()
+
+        // Intro/outro skip buttons
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_intro)?.setOnClickListener {
+            val pos = mpvPlayer?.positionMs ?: return@setOnClickListener
+            if (currentMangaId != 0L) {
+                introEndMs = pos
+                appSettings.setIntroEndMs(currentMangaId, pos)
+                val timeStr = formatTimeMs(pos)
+                Snackbar.make(viewBinding.root, getString(R.string.video_skip_intro_set, timeStr), Snackbar.LENGTH_SHORT).show()
+                updateIntroOutroButtonState()
+            }
+        }
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_intro)?.setOnLongClickListener {
+            if (currentMangaId != 0L && introEndMs > 0) {
+                introEndMs = 0L
+                appSettings.clearIntroEndMs(currentMangaId)
+                Snackbar.make(viewBinding.root, R.string.video_skip_intro_cleared, Snackbar.LENGTH_SHORT).show()
+                updateIntroOutroButtonState()
+            }
+            true
+        }
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_outro)?.setOnClickListener {
+            val pos = mpvPlayer?.positionMs ?: return@setOnClickListener
+            if (currentMangaId != 0L) {
+                outroStartMs = pos
+                appSettings.setOutroStartMs(currentMangaId, pos)
+                val timeStr = formatTimeMs(pos)
+                Snackbar.make(viewBinding.root, getString(R.string.video_skip_outro_set, timeStr), Snackbar.LENGTH_SHORT).show()
+                updateIntroOutroButtonState()
+            }
+        }
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_outro)?.setOnLongClickListener {
+            if (currentMangaId != 0L && outroStartMs > 0) {
+                outroStartMs = 0L
+                appSettings.clearOutroStartMs(currentMangaId)
+                Snackbar.make(viewBinding.root, R.string.video_skip_outro_cleared, Snackbar.LENGTH_SHORT).show()
+                updateIntroOutroButtonState()
+            }
+            true
+        }
+
+        // Screen lock button
+        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_screen_lock)?.setOnClickListener {
+            enterScreenLock()
+        }
     }
 
     private fun updateQualityButtonVisibility() {
@@ -1220,6 +1295,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun toggleUiVisibility() {
+        if (isScreenLocked) return // no-op when locked
         setUiIsVisible(!isUiVisible)
     }
 
@@ -1327,6 +1403,123 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             viewBinding.toolbarProgress.isVisible = false
             viewBinding.toolbar.menu.clear()
         }
+    }
+
+    // ==================== Screen Lock ====================
+
+    private val lockAutoHideDelayMs = 3000L
+    private val hideLockUiRunnable = Runnable {
+        findViewById<View>(org.skepsun.kototoro.R.id.button_screen_unlock)?.let {
+            it.animate().alpha(0f).setDuration(200).withEndAction { it.isVisible = false }.start()
+        }
+        // Also hide the progress bar when locked
+        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
+            ctl.animate().alpha(0f).setDuration(200).withEndAction { ctl.visibility = View.GONE }.start()
+        }
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.isVisible = false
+    }
+
+    private fun enterScreenLock() {
+        isScreenLocked = true
+        // Hide all UI first
+        setUiIsVisible(false)
+        // Show the lock overlay to intercept touches
+        val lockOverlay = findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)
+        lockOverlay?.isVisible = true
+        lockOverlay?.bringToFront()
+        // Make sure unlock button and subtitle overlay stay on top
+        findViewById<View>(org.skepsun.kototoro.R.id.subtitle_overlay)?.bringToFront()
+    }
+
+    private fun exitScreenLock() {
+        isScreenLocked = false
+        viewBinding.root.removeCallbacks(hideLockUiRunnable)
+        // Hide lock overlay and unlock button
+        findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)?.isVisible = false
+        val unlockBtn = findViewById<View>(org.skepsun.kototoro.R.id.button_screen_unlock)
+        unlockBtn?.isVisible = false
+        unlockBtn?.alpha = 1f
+        // Restore normal UI
+        setUiIsVisible(true)
+    }
+
+    private fun showLockedUi() {
+        viewBinding.root.removeCallbacks(hideLockUiRunnable)
+        // Show unlock button with fade-in
+        val unlockBtn = findViewById<View>(org.skepsun.kototoro.R.id.button_screen_unlock)
+        unlockBtn?.alpha = 0f
+        unlockBtn?.isVisible = true
+        unlockBtn?.animate()?.alpha(1f)?.setDuration(200)?.start()
+        unlockBtn?.bringToFront()
+        // Show the bottom progress bar (controller) in read-only mode
+        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
+            ctl.alpha = 0f
+            ctl.visibility = View.VISIBLE
+            ctl.animate().alpha(1f).setDuration(200).start()
+            ctl.bringToFront()
+        }
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.let {
+            it.isVisible = true
+            it.bringToFront()
+            findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.bringToFront()
+        }
+        // Make sure lock overlay stays on top of controller so touches are intercepted
+        val lockOverlay = findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)
+        lockOverlay?.bringToFront()
+        unlockBtn?.bringToFront()
+        // Update progress display
+        updateControllerProgress()
+        // Auto-hide after timeout
+        viewBinding.root.postDelayed(hideLockUiRunnable, lockAutoHideDelayMs)
+    }
+
+    private fun initLockOverlay() {
+        val lockOverlay = findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)
+        val unlockBtn = findViewById<android.widget.ImageButton>(org.skepsun.kototoro.R.id.button_screen_unlock)
+        lockOverlay?.setOnClickListener {
+            if (isScreenLocked) {
+                showLockedUi()
+            }
+        }
+        unlockBtn?.setOnClickListener {
+            exitScreenLock()
+        }
+    }
+
+    // ==================== Intro/Outro Skip ====================
+
+    private fun loadIntroOutroSettings() {
+        val manga = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
+        currentMangaId = manga?.id ?: 0L
+        if (currentMangaId != 0L) {
+            introEndMs = appSettings.getIntroEndMs(currentMangaId)
+            outroStartMs = appSettings.getOutroStartMs(currentMangaId)
+        }
+        hasSkippedIntro = false
+        hasTriggeredOutro = false
+        updateIntroOutroButtonState()
+    }
+
+    private fun trySkipIntro() {
+        if (introEndMs > 0 && !hasSkippedIntro) {
+            val pos = mpvPlayer?.positionMs ?: return
+            if (pos < introEndMs) {
+                hasSkippedIntro = true
+                mpvPlayer?.seekTo(introEndMs)
+                Snackbar.make(viewBinding.root, R.string.video_skipping_intro, Snackbar.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun updateIntroOutroButtonState() {
+        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)
+        val introBtn = ctl?.findViewById<TextView>(org.skepsun.kototoro.R.id.button_mark_intro)
+        val outroBtn = ctl?.findViewById<TextView>(org.skepsun.kototoro.R.id.button_mark_outro)
+        // Highlight with a tinted color when a value is set
+        val activeColor = android.graphics.Color.parseColor("#FF4CAF50") // green
+        val defaultColor = android.graphics.Color.WHITE
+        introBtn?.setTextColor(if (introEndMs > 0) activeColor else defaultColor)
+        outroBtn?.setTextColor(if (outroStartMs > 0) activeColor else defaultColor)
     }
 
     private fun rebuildToolbarMenuForOrientation() {
@@ -2481,6 +2674,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     
                     // Update ReaderState with new chapter
                     readerState = ReaderState(chapter.id, 0, 0)
+                    // Reset intro/outro per-chapter flags so new chapter gets auto-skip
+                    hasSkippedIntro = false
+                    hasTriggeredOutro = false
+                    hasRestoredProgress = false
                     updateChapterNavButtons()
                     
                     // Update player with new URL

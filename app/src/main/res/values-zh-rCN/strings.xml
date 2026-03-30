@@ -1644,4 +1644,13 @@
         <item>native</item>
         <item>hf_mirror</item>
     </string-array>
+    <string name="video_mark_intro">片头</string>
+    <string name="video_mark_outro">片尾</string>
+    <string name="video_skip_intro_set">片头跳过已设置于 %s</string>
+    <string name="video_skip_outro_set">片尾跳过已设置于 %s</string>
+    <string name="video_skip_intro_cleared">片头跳过已清除</string>
+    <string name="video_skip_outro_cleared">片尾跳过已清除</string>
+    <string name="video_skipping_intro">正在跳过片头…</string>
+    <string name="video_screen_lock">锁定</string>
+    <string name="video_screen_unlock">解锁</string>
 </resources>

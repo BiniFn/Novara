@@ -220,4 +220,30 @@
         android:focusable="false"
         android:importantForAccessibility="no" />
 
+    <!-- Screen lock touch-intercepting overlay -->
+    <View
+        android:id="@+id/lock_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        android:elevation="10dp" />
+
+    <!-- Unlock button shown centered when screen is locked and user taps -->
+    <ImageButton
+        android:id="@+id/button_screen_unlock"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_video_overlay"
+        android:src="@drawable/ic_lock_open"
+        android:scaleType="centerInside"
+        android:padding="16dp"
+        android:tint="@android:color/white"
+        android:contentDescription="@string/video_screen_unlock"
+        android:visibility="gone"
+        android:elevation="12dp" />
+
 </FrameLayout>
