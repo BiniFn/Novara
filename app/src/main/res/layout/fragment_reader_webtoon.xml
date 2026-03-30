@@ -49,4 +49,32 @@
 		android:theme="@style/ThemeOverlay.Material3.Dark"
 		tools:alpha="1" />
 
+	<com.google.android.material.button.MaterialButton
+		android:id="@+id/buttonNavPrev"
+		style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+		android:layout_width="56dp"
+		android:layout_height="56dp"
+		android:layout_gravity="bottom|start"
+		android:layout_marginHorizontal="@dimen/margin_normal"
+		android:layout_marginBottom="72dp"
+		android:alpha="0"
+		app:icon="@drawable/ic_prev"
+		app:iconSize="32dp"
+		app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
+		tools:alpha="1" />
+
+	<com.google.android.material.button.MaterialButton
+		android:id="@+id/buttonNavNext"
+		style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+		android:layout_width="56dp"
+		android:layout_height="56dp"
+		android:layout_gravity="bottom|end"
+		android:layout_marginHorizontal="@dimen/margin_normal"
+		android:layout_marginBottom="72dp"
+		android:alpha="0"
+		app:icon="@drawable/ic_next"
+		app:iconSize="32dp"
+		app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
+		tools:alpha="1" />
+
 </org.skepsun.kototoro.reader.ui.pager.webtoon.WebtoonScalingFrame>

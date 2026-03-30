@@ -8,6 +8,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.net.toUri
 import androidx.core.view.MenuProvider
@@ -20,11 +21,11 @@ import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ToastErrorObserver
 import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
+import org.skepsun.kototoro.databinding.ViewDialogAutocompleteBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 
@@ -106,25 +107,28 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 
 	private fun openAddDialog() {
 		val builder = MaterialAlertDialogBuilder(requireContext())
-		val presets = when (viewModel.type) {
-			ExternalExtensionType.MIHON -> listOf(
-				"https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
-				"https://raw.githubusercontent.com/yuzono/manga-repo/repo/index.min.json",
+		val recommendedRepos = getRecommendedRepos()
+		val inputBinding = ViewDialogAutocompleteBinding.inflate(layoutInflater).apply {
+			autoCompleteTextView.setAdapter(
+				ArrayAdapter(
+					requireContext(),
+					android.R.layout.simple_spinner_dropdown_item,
+					viewModel.inputHistory.value,
+				),
 			)
-			ExternalExtensionType.ANIYOMI -> listOf(
-				"https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
-				"https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
-				"https://raw.githubusercontent.com/KudoAni/aniyomi-extensions/repo/index.min.json",
-			)
-			ExternalExtensionType.IREADER -> listOf(
-				"https://raw.githubusercontent.com/IReaderorg/IReader-extensions/repov2/index.min.json",
-			)
-			ExternalExtensionType.JAR -> listOf(
-				"https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
-			)
+			autoCompleteTextView.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+			dropdown.setOnClickListener {
+				autoCompleteTextView.showDropDown()
+			}
 		}
-		val input = builder.setEditText(presets, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
+		builder.setView(inputBinding.root)
+		val input = inputBinding.autoCompleteTextView
 		input.hint = getString(R.string.extension_repository_url_hint)
+		input.post(
+			{
+				input.setSelection(input.text?.length ?: 0)
+			},
+		)
 
 		val dialog = builder
 			.setTitle(R.string.add_extension_repository)
@@ -136,11 +140,12 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		dialog.setOnShowListener {
 			dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
 				val popupMenu = androidx.appcompat.widget.PopupMenu(requireContext(), it)
-				presets.forEachIndexed { index, url ->
-					popupMenu.menu.add(0, index, 0, url)
+				recommendedRepos.forEachIndexed { index, repo ->
+					popupMenu.menu.add(0, index, 0, repo.name)
 				}
 				popupMenu.setOnMenuItemClickListener { menuItem ->
-					input.setText(presets[menuItem.itemId])
+					input.setText(recommendedRepos[menuItem.itemId].url)
+					input.setSelection(input.text?.length ?: 0)
 					true
 				}
 				popupMenu.show()
@@ -156,6 +161,54 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			}
 		}
 		dialog.show()
+	}
+
+	private fun getRecommendedRepos(): List<RecommendedRepo> {
+		return when (viewModel.type) {
+			ExternalExtensionType.MIHON -> listOf(
+				RecommendedRepo(
+					name = "Keiyoushi",
+					url = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
+				),
+				RecommendedRepo(
+					name = "Yuzono Manga Repo",
+					url = "https://raw.githubusercontent.com/yuzono/manga-repo/repo/index.min.json",
+				),
+				RecommendedRepo(
+					name = "拷贝漫画仓库（For chinese user）",
+					url = "https://raw.githubusercontent.com/LittleSurvival/copymanga-copy20/repo/index.min.json",
+				),
+			)
+
+			ExternalExtensionType.ANIYOMI -> listOf(
+				RecommendedRepo(
+					name = "Aniyomi Official",
+					url = "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
+				),
+				RecommendedRepo(
+					name = "Yuzono Anime Repo",
+					url = "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
+				),
+				RecommendedRepo(
+					name = "KudoAni",
+					url = "https://raw.githubusercontent.com/KudoAni/aniyomi-extensions/repo/index.min.json",
+				),
+			)
+
+			ExternalExtensionType.IREADER -> listOf(
+				RecommendedRepo(
+					name = "IReader Official",
+					url = "https://raw.githubusercontent.com/IReaderorg/IReader-extensions/repov2/index.min.json",
+				),
+			)
+
+			ExternalExtensionType.JAR -> listOf(
+				RecommendedRepo(
+					name = "Kototoro Parsers",
+					url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
+				),
+			)
+		}
 	}
 
 	private fun openWebsite(repo: ExternalExtensionRepo) {
@@ -206,4 +259,9 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			else -> false
 		}
 	}
+
+	private data class RecommendedRepo(
+		val name: String,
+		val url: String,
+	)
 }

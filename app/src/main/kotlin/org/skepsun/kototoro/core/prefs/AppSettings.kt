@@ -960,6 +960,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_WEBTOON_PULL_GESTURE, false)
 		set(value) = prefs.edit { putBoolean(KEY_WEBTOON_PULL_GESTURE, value) }
 
+	var isWebtoonNavButtonsEnabled: Boolean
+		get() = prefs.getBoolean(KEY_WEBTOON_NAV_BUTTONS, false)
+		set(value) = prefs.edit { putBoolean(KEY_WEBTOON_NAV_BUTTONS, value) }
+
 	@get:FloatRange(from = 0.0, to = 0.5)
 	val defaultWebtoonZoomOut: Float
 		get() = prefs.getInt(KEY_WEBTOON_ZOOM_OUT, 0).coerceIn(0, 50) / 100f
@@ -1470,6 +1474,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_WEBTOON_GAPS = "webtoon_gaps"
 		const val KEY_WEBTOON_ZOOM = "webtoon_zoom"
 		const val KEY_WEBTOON_ZOOM_OUT = "webtoon_zoom_out"
+		const val KEY_WEBTOON_NAV_BUTTONS = "webtoon_nav_buttons"
 		private const val DOWNLOADS_REQUEST_DELAY_DEFAULT = 1600
 		private const val DOWNLOADS_RETRY_COUNT_DEFAULT = 5
 		private const val DOWNLOADS_RETRY_DELAY_DEFAULT = 2000

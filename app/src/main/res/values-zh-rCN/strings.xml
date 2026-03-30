@@ -1033,7 +1033,9 @@
     <string name="pull_top_no_prev">到头了</string>
     <string name="pull_bottom_no_next">到底了</string>
 	<string name="enable_pull_gesture_title">启用推拉手势</string>
-	<string name="enable_pull_gesture_summary">条漫模式下使用推拉手势切换章节</string>
+	<string name="enable_pull_gesture_summary">在顶部或底部使用推拉手势切换章节</string>
+	<string name="enable_webtoon_nav_buttons_title">显示悬浮导航按钮</string>
+	<string name="enable_webtoon_nav_buttons_summary">在条漫模式下显示用于切换章节的悬浮辅助按钮</string>
 	<string name="auto_double_foldable">折叠设备自动双页</string>
 	<string name="source_type">来源类型</string>
 	<string name="source_type_native">内置源</string>

@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings.sources.extensions
 
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -12,15 +13,17 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
-import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.repo.ExtensionRepoService
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import javax.inject.Inject
@@ -30,10 +33,13 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	@ApplicationContext private val appContext: Context,
 	private val repoRepository: ExternalExtensionRepoRepository,
+	private val repoService: ExtensionRepoService,
 	private val installService: ExtensionInstallService,
 ) : BaseViewModel() {
 
 	val type: ExternalExtensionType = enumValueOf(savedStateHandle.require<String>(ARG_EXTENSION_TYPE))
+	private val historyPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+	private val historyKey = "${KEY_INPUT_HISTORY_PREFIX}_${type.name.lowercase()}"
 
 	val repos: StateFlow<List<ExternalExtensionRepo>> = repoRepository.observeByType(type)
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -47,6 +53,8 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 	// Mapping of repository baseUrl to its available RepoAvailableExtension if an update is available
 	private val _updatesAvailable = MutableStateFlow<Map<String, RepoAvailableExtension>>(emptyMap())
 	val updatesAvailable: StateFlow<Map<String, RepoAvailableExtension>> = _updatesAvailable
+	private val _inputHistory = MutableStateFlow(loadInputHistory())
+	val inputHistory: StateFlow<List<String>> = _inputHistory
 
 	fun performUpdate(repo: ExternalExtensionRepo) {
 		val updateExtension = _updatesAvailable.value[repo.baseUrl] ?: return
@@ -64,6 +72,7 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 
 	fun addRepo(indexUrl: String) {
 		Log.d(TAG, "addRepo:start type=$type input=$indexUrl")
+		recordInputHistory(indexUrl)
 		launchLoadingJob(Dispatchers.IO) {
 			when (val result = repoRepository.prepareAddRepo(type, indexUrl)) {
 				is ExternalExtensionRepoRepository.PrepareAddRepoResult.Ready -> {
@@ -166,5 +175,47 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 
 	private companion object {
 		const val TAG = "ExtensionRepo"
+		const val PREFS_NAME = "extension_repo_input_history"
+		const val KEY_INPUT_HISTORY_PREFIX = "extension_repo_input_history"
+		const val MAX_HISTORY_SIZE = 8
+		const val HISTORY_SEPARATOR = "\n"
+	}
+
+	private fun recordInputHistory(rawInput: String) {
+		val normalized = normalizeHistoryInput(rawInput) ?: return
+		val updated = buildList {
+			add(normalized)
+			addAll(_inputHistory.value.filterNot { it == normalized })
+		}.take(MAX_HISTORY_SIZE)
+		if (updated == _inputHistory.value) {
+			return
+		}
+		historyPrefs.edit {
+			putString(historyKey, updated.joinToString(HISTORY_SEPARATOR))
+		}
+		_inputHistory.value = updated
+	}
+
+	private fun loadInputHistory(): List<String> {
+		return historyPrefs.getString(historyKey, null)
+			?.split(HISTORY_SEPARATOR)
+			?.map { it.trim() }
+			?.filter { it.isNotEmpty() }
+			.orEmpty()
+	}
+
+	private fun normalizeHistoryInput(rawInput: String): String? {
+		val trimmed = rawInput.trim()
+		if (trimmed.isEmpty()) {
+			return null
+		}
+		return repoService.normalizeIndexUrl(trimmed)
+			?: trimmed.toHttpUrlOrNull()
+				?.takeIf { it.scheme == "https" }
+				?.newBuilder()
+				?.fragment(null)
+				?.query(null)
+				?.build()
+				?.toString()
 	}
 }

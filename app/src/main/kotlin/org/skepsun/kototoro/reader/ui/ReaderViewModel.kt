@@ -148,6 +148,8 @@ class ReaderViewModel @Inject constructor(
 
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
+    val isMenuVisible = MutableStateFlow(false)
+
     val content = MutableStateFlow(ReaderContent(emptyList(), null))
 
     // 避免切换章节/模式后首次 onCurrentPageChanged 触发边界加载，将其忽略一次
@@ -190,6 +192,12 @@ class ReaderViewModel @Inject constructor(
         scope = viewModelScope + Dispatchers.Default,
         key = AppSettings.KEY_WEBTOON_PULL_GESTURE,
         valueProducer = { isWebtoonPullGestureEnabled },
+    )
+
+    val isWebtoonNavButtonsEnabled = settings.observeAsStateFlow(
+        scope = viewModelScope + Dispatchers.Default,
+        key = AppSettings.KEY_WEBTOON_NAV_BUTTONS,
+        valueProducer = { isWebtoonNavButtonsEnabled },
     )
 
     val defaultWebtoonZoomOut = observeIsWebtoonZoomEnabled().flatMapLatest {

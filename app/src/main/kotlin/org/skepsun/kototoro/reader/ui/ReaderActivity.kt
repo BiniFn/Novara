@@ -1,4 +1,4 @@
-﻿package org.skepsun.kototoro.reader.ui
+package org.skepsun.kototoro.reader.ui
 
 import android.app.assist.AssistContent
 import android.content.DialogInterface
@@ -454,6 +454,7 @@ class ReaderActivity :
     }
 
     private fun setUiIsVisible(isUiVisible: Boolean) {
+        viewModel.isMenuVisible.value = isUiVisible
         if (viewBinding.appbarTop.isVisible != isUiVisible) {
             if (isAnimationsEnabled) {
                 val transition = TransitionSet()

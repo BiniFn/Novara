@@ -301,6 +301,17 @@
 -keep class RealCUGANOption { *; }
 -keep class ModelName { *; }
 
+# Workaround for NoSuchFieldError on buggy API 26-28 OEM ROMs missing Java 8 UnicodeBlock extensions.
+# This prevents R8 from aggressively outlining the field or removing guarding try-catch blocks.
+-dontwarn java.lang.Character$UnicodeBlock
+-keepclassmembers class * {
+    java.lang.Character$UnicodeBlock CJK_UNIFIED_IDEOGRAPHS*;
+}
+-keep,allowshrinking,allowobfuscation class com.equationl.** { *; }
+-keep,allowshrinking,allowobfuscation class ai.djl.** { *; }
+-keep,allowshrinking,allowobfuscation class ai.onnxruntime.** { *; }
+
+
 # Deep Java Library (DJL) tokenizers and sentencepiece
 -keep class ai.djl.** { *; }
 -dontwarn java.awt.**
