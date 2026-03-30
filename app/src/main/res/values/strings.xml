@@ -159,7 +159,7 @@
     <string name="black_dark_theme">Black</string>
     <string name="black_dark_theme_summary">Uses less power on AMOLED screens</string>
     <string name="backup_restore">Backup and restore</string>
-    <string name="create_backup">Create data backup</string>
+    <string name="create_backup">Backup</string>
     <string name="restore_backup">Restore from backup</string>
     <string name="data_restored">Restored</string>
     <string name="preparing_">Preparing…</string>

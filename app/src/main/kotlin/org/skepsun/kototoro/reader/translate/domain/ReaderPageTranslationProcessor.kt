@@ -1366,14 +1366,9 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 		private fun Char.isCjkUnifiedIdeograph(): Boolean {
-		val block = Character.UnicodeBlock.of(this)
-			return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
-			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
-			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B ||
-			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C ||
-			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D ||
-			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E ||
-			block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F ||
+			val block = Character.UnicodeBlock.of(this) ?: return false
+			val blockName = block.toString()
+			return blockName.startsWith("CJK_UNIFIED_IDEOGRAPHS") ||
 				block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
 		}
 
