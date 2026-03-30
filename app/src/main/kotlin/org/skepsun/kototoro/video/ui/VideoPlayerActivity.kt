@@ -1515,11 +1515,22 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)
         val introBtn = ctl?.findViewById<TextView>(org.skepsun.kototoro.R.id.button_mark_intro)
         val outroBtn = ctl?.findViewById<TextView>(org.skepsun.kototoro.R.id.button_mark_outro)
-        // Highlight with a tinted color when a value is set
         val activeColor = android.graphics.Color.parseColor("#FF4CAF50") // green
         val defaultColor = android.graphics.Color.WHITE
-        introBtn?.setTextColor(if (introEndMs > 0) activeColor else defaultColor)
-        outroBtn?.setTextColor(if (outroStartMs > 0) activeColor else defaultColor)
+        if (introEndMs > 0) {
+            introBtn?.text = formatTimeMs(introEndMs)
+            introBtn?.setTextColor(activeColor)
+        } else {
+            introBtn?.text = getString(R.string.video_mark_intro)
+            introBtn?.setTextColor(defaultColor)
+        }
+        if (outroStartMs > 0) {
+            outroBtn?.text = formatTimeMs(outroStartMs)
+            outroBtn?.setTextColor(activeColor)
+        } else {
+            outroBtn?.text = getString(R.string.video_mark_outro)
+            outroBtn?.setTextColor(defaultColor)
+        }
     }
 
     private fun rebuildToolbarMenuForOrientation() {
