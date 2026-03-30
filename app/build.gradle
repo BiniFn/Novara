@@ -178,9 +178,6 @@ android {
 	}
 }
 
-room {
-	schemaDirectory("$projectDir/schemas")
-}
 
 hilt {
     // Enable aggregating task for KSP/Hilt to avoid generic assisted factory validation issues in release
