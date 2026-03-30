@@ -33,7 +33,7 @@ class ScreenOrientationHelper @Inject constructor(
 		get() = activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 		set(value) {
 			activity.requestedOrientation = if (value) {
-				ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+				if (settings.videoLandscapeSensorEnabled) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
 			} else {
 				ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
 			}

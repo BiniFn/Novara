@@ -432,6 +432,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_VIDEO_AUTO_NEXT, true)
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_AUTO_NEXT, value) }
 
+	var videoLandscapeSensorEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_LANDSCAPE_SENSOR, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_LANDSCAPE_SENSOR, value) }
+
 	var videoCacheSizeMb: Int
 		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
@@ -1450,6 +1454,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_VIDEO_SEEK_BACKWARD_MS = "video_seek_backward_ms"
 		const val KEY_VIDEO_VOLUME_BOOST = "video_volume_boost"
 		const val KEY_VIDEO_AUTO_NEXT = "video_auto_next"
+		const val KEY_VIDEO_LANDSCAPE_SENSOR = "video_landscape_sensor"
 		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"
 		const val KEY_VIDEO_ASPECT_RATIO = "video_aspect_ratio"
 		const val KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED = "video_double_tap_seek_enabled"

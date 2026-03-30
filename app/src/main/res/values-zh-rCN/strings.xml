@@ -647,6 +647,7 @@
     <string name="video_seek_backward_time">快退时间</string>
     <string name="video_volume_boost">音量增强</string>
     <string name="video_auto_next">自动续播</string>
+    <string name="video_landscape_sensor">跟随重力上下反转</string>
     <string name="video_send_danmaku_hint">发送弹幕</string>
     <string name="video_info_hw_decoding">硬件解码</string>
     <string name="video_info_sw_decoding">软件解码</string>
@@ -1651,6 +1652,7 @@
     <string name="video_skip_intro_cleared">片头跳过已清除</string>
     <string name="video_skip_outro_cleared">片尾跳过已清除</string>
     <string name="video_skipping_intro">正在跳过片头…</string>
+    <string name="video_skipping_outro">已跳过片尾</string>
     <string name="video_screen_lock">锁定</string>
     <string name="video_screen_unlock">解锁</string>
 </resources>

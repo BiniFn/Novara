@@ -148,6 +148,12 @@ class MpvPlayer : MPVLib.EventObserver {
 		listeners.forEach { it.onSeek(positionMs) }
 	}
 
+	fun seekExact(positionMs: Long) {
+		val seconds = positionMs / 1000.0
+		MPVLib.command("seek", seconds.toString(), "absolute")
+		listeners.forEach { it.onSeek(positionMs) }
+	}
+
 	fun setRate(speed: Double) {
 		MPVLib.setPropertyDouble("speed", speed)
 	}

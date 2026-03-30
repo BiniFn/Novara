@@ -21,12 +21,6 @@
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_screenshot"
-        android:title="@string/video_screenshot"
-        android:icon="@drawable/ic_save"
-        app:showAsAction="ifRoom" />
-
-    <item
         android:id="@+id/action_pip"
         android:title="@string/video_picture_in_picture"
         android:icon="@drawable/ic_picture_in_picture"

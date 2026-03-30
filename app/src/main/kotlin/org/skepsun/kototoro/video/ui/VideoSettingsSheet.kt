@@ -64,8 +64,13 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
             val fm = parentFragmentManager
             val tag = "VideoSuperResolutionSheet"
             if (fm.findFragmentByTag(tag) == null) {
-                VideoSuperResolutionSheet().show(fm, tag)
+                org.skepsun.kototoro.video.ui.VideoSuperResolutionSheet().show(fm, tag)
             }
+            dismiss()
+        }
+        binding.buttonScreenshot.setOnClickListener {
+            (activity as? VideoPlayerActivity)?.takeScreenshot()
+            dismiss()
         }
         binding.buttonPlaybackSpeed.setOnClickListener {
             showSpeedDialog(
@@ -161,6 +166,15 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
         }
         binding.switchScreenLockRotation.setOnCheckedChangeListener { _, isChecked ->
             orientationHelper.isLocked = isChecked
+        }
+
+        binding.switchLandscapeSensor.isChecked = appSettings.videoLandscapeSensorEnabled
+        binding.switchLandscapeSensor.setOnCheckedChangeListener { _, isChecked ->
+            appSettings.videoLandscapeSensorEnabled = isChecked
+            // Apply immediately if currently in landscape
+            if (orientationHelper.isLandscape) {
+                orientationHelper.isLandscape = true
+            }
         }
 
         observeScreenOrientation()

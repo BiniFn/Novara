@@ -216,9 +216,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             if (outroStartMs > 0 && !hasTriggeredOutro && positionMs >= outroStartMs) {
                 hasTriggeredOutro = true
                 runOnUiThread {
+                    Snackbar.make(viewBinding.root, R.string.video_skipping_outro, Snackbar.LENGTH_SHORT).show()
                     val dur = mpvPlayer?.durationMs ?: return@runOnUiThread
-                    if (dur > 0) {
-                        mpvPlayer?.seekTo(dur)
+                    
+                    if (appSettings.videoAutoNextEnabled) {
+                        maybeAutoPlayNext(ignoreRatio = true)
+                    }
+                    if (!autoNextTriggered && dur > 0) {
+                        // Seeking to exactly `dur` often fails or hits the wrong keyframe in mpv
+                        // We do an EXACT seek to 500ms before duration, so it naturally hits EOF
+                        mpvPlayer?.seekExact(dur - 500)
                     }
                 }
             }
@@ -432,10 +439,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
         // 确保标题靠左显示，避免被右侧动作按钮挤占
         viewBinding.toolbar.setTitleCentered(false)
-        // 进度条置顶以免被菜单视图遮挡
         viewBinding.toolbarProgress.bringToFront()
-        // 确保工具栏整体位于其他层级之上，避免被 PlayerView 或控制层遮挡
-        viewBinding.toolbar.bringToFront()
+        // Ensure the entire toolbar container is on top
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_container)?.bringToFront()
         applyPlaybackBackground()
         mpvView = findViewById(org.skepsun.kototoro.R.id.player_view)
         if (!initializeMpvRuntime()) {
@@ -477,10 +483,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 }
                 org.skepsun.kototoro.R.id.action_quality -> {
                     showQualityDialog()
-                    true
-                }
-                org.skepsun.kototoro.R.id.action_screenshot -> {
-                    takeScreenshot()
                     true
                 }
                 org.skepsun.kototoro.R.id.action_pip -> {
@@ -1312,7 +1314,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // 仅调整背景透明度，避免工具栏文本被整体 alpha 变淡
         viewBinding.toolbar.alpha = 1f
-        viewBinding.toolbar.setBackgroundColor(if (useGradient) android.graphics.Color.TRANSPARENT else colored)
+        val bgColor = if (useGradient) android.graphics.Color.TRANSPARENT else colored
+        viewBinding.toolbar.setBackgroundColor(bgColor)
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_secondary)?.setBackgroundColor(bgColor)
         val titleColor = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorOnSurface)
         val subtitleColor = MaterialColors.getColor(viewBinding.toolbar, com.google.android.material.R.attr.colorOnSurfaceVariant)
         viewBinding.toolbar.setTitleTextColor(titleColor)
@@ -1352,6 +1356,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val isLandscape = isLandscapeOrientation()
         val showTopBar = visible
         viewBinding.toolbar.isVisible = showTopBar
+        if (!showTopBar) {
+            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_secondary)?.isVisible = false
+        }
         // 顶部状态栏遮罩与工具栏同步显隐（横屏隐藏，避免拥挤）
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.isVisible = showTopBar
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.isVisible = showTopBar
@@ -1361,7 +1368,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.bringToFront()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.bringToFront()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.bringToFront()
-            viewBinding.toolbar.bringToFront()
+            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_container)?.bringToFront()
             findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.bringToFront()
             // Make sure feedback overlays are on top of everything including the controller
             findViewById<View>(org.skepsun.kototoro.R.id.seek_feedback_layout)?.bringToFront()
@@ -2294,7 +2301,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
-    private fun takeScreenshot() {
+    fun takeScreenshot() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val surfaceView = findViewById<SurfaceView>(org.skepsun.kototoro.R.id.player_view) ?: return
         if (surfaceView.width <= 0 || surfaceView.height <= 0) {
@@ -2675,8 +2682,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             mandatoryGestureInsets.bottom,
             cutoutInsets.bottom,
         )
-        // 顶部工具栏：使用外边距对齐系统栏；避免设置顶部内边距导致导航按钮被裁切
-        viewBinding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+        // 顶部工具栏容器：使用外边距对齐系统栏高度，避免整体内容（如次级工具栏）侵入状态栏
+        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_container)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             leftMargin = bars.left
             rightMargin = bars.right
             topMargin = bars.top
@@ -2810,7 +2817,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         onChapterSelected(targetChapter)
     }
 
-	private fun maybeAutoPlayNext() {
+	private fun maybeAutoPlayNext(ignoreRatio: Boolean = false) {
 		if (!appSettings.videoAutoNextEnabled || autoNextTriggered) return
 		val duration = mpvPlayer?.durationMs ?: 0L
 		val position = mpvPlayer?.positionMs ?: 0L
@@ -2819,7 +2826,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 			return
 		}
 		val ratio = position.toDouble() / duration.toDouble()
-		if (ratio < 0.98) {
+		if (!ignoreRatio && ratio < 0.98) {
 			android.util.Log.d("VideoPlayer", "AutoNext skipped: ratio=$ratio pos=$position dur=$duration")
 			return
 		}
