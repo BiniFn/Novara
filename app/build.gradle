@@ -12,6 +12,10 @@ plugins {
 	// id 'dev.reformator.stacktracedecoroutinator'
 }
 
+room {
+	schemaDirectory("$projectDir/schemas")
+}
+
 android {
 	compileSdk = 36
 	buildToolsVersion = '35.0.0'
