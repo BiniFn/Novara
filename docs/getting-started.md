@@ -16,10 +16,34 @@ Kototoro is built around these practical strengths:
 ## 10-Minute Setup
 
 1. Install the latest APK from [Releases](https://github.com/skepsun/kototoro/releases).
-2. Open the app and confirm which workflow you need first: manga, novel, or video.
-3. Set up your sources.
+2. Open the app and follow the Initialization Wizard to configure your languages, content types, and built-in source plugins.
+3. Set up your sources (if you need extensions beyond the built-in ones).
 4. If you use more than one device, configure WebDAV before you build a large library.
 5. If you want in-reader translation, enable it and download the required models.
+
+## Initialization Wizard
+
+Upon opening Kototoro for the first time, you are greeted by the **Initialization Wizard**. This wizard helps you configure the most important settings in one click.
+
+### Re-opening the Wizard
+If you dismissed the wizard or want to run it again later, you can always open it from:
+`Settings -> General -> Initialization Wizard`
+
+### 1. Source Language and Content Type
+In the first step, you can select which languages you are interested in (e.g., English, Chinese, Japanese, etc.). 
+You can also toggle which content types you want enabled globally in the app:
+- **Manga**
+- **Novels**
+- **Video**
+
+### 2. Built-in Source Initialization
+Kototoro's dynamic built-in sources (the core Kototoro parsers and Kotatsu-Redo parser library) are packaged as dynamic plugins. 
+The wizard allows you to install these with a single click:
+1. **GitHub Mirror:** If you are in a region with poor GitHub connectivity (e.g., users in Mainland China), tap the mirror dropdown and select `GHProxy` or another available node.
+2. **Select Repositories:** Check the plugin repositories you wish to install.
+3. **Deploy:** Tap the install/deploy button to automatically download and initialize the latest parser plugins.
+
+This is the highly recommended way to start using Kototoro, ensuring you have the latest parsers without needing to configure them manually.
 
 ## Choose Your Path
 
