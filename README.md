@@ -16,8 +16,9 @@ Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels,
 - Local automatic OCR + translation directly inside the reader
 - Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
 - Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
-- Reliable multi-device sync through free or self-hosted WebDAV setups
 - Broad source support: built-in Kotatsu-Redo parsers, Mihon, Aniyomi, IReader, Legado, TVBox
+- Dynamic zero-overhead UI plugins via external classloaders
+- Fast pure-Kotlin OTA delta updates
 - Site favorites import and synchronization for supported services
 
 ## Start Here

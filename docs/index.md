@@ -32,6 +32,8 @@ features:
     details: Built-in player with DLNA casting, subtitle and audio track selection, Anime4K super-resolution, and seek gestures.
   - title: Reliable WebDAV Sync
     details: Set up free or self-hosted WebDAV storage for multi-device backup and synchronization.
+  - title: Fast OTA Updates
+    details: Save bandwidth with pure-Kotlin bspatch incremental delta updates direct from GitHub Releases.
 ---
 
 ## Start With The Right Page
@@ -40,6 +42,7 @@ features:
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
 - Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
+- Read [Incremental OTA Updates](./architecture/incremental-updates.md) to learn how Kototoro achieves NDK-free pure Kotlin bspatch delta updating.
 - Read [Dynamic Plugin System Architecture](./architecture/dynamic_plugin_system.md) to understand how Kototoro and Kotatsu extension JARs are loaded dynamically using zero-overhead ClassLoaders.
 - Read [Plugin Development Guide](./plugin_development_guide.md) to learn how to build and publish third-party plugins in an independent repository using GitHub Actions.
 - Read [UI Improvement](./architecture/ui_improvement.md) to track UI enhancements.
@@ -52,8 +55,9 @@ features:
 - Local OCR + translation directly in the reader
 - Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
 - Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
-- WebDAV-based multi-device sync without vendor lock-in
 - Broad source support: built-in, Kotatsu-Redo, Mihon, Aniyomi, IReader, Legado, TVBox
+- Dynamic zero-overhead UI plugins via external classloaders
+- Fast pure-Kotlin OTA delta updates
 
 ## Key External Source Repositories
 
