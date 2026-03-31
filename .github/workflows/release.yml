@@ -44,6 +44,7 @@ jobs:
         echo "changelog<<EOF" >> $GITHUB_OUTPUT
         echo "$CHANGELOG" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
+        echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
     
     - name: Set up JDK
       uses: actions/setup-java@v4
@@ -91,6 +92,13 @@ jobs:
         echo "Listing APK outputs:"
         find app/build/outputs/apk -name "*.apk" -type f
     
+    - name: Prepare for Incremental Update
+      if: steps.changelog.outputs.previous_tag != ''
+      run: |
+        sudo apt-get update && sudo apt-get install -y bsdiff
+        mkdir -p old_apks
+        GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh release download "${{ steps.changelog.outputs.previous_tag }}" -p "*.apk" -D old_apks || echo "Failed to download old APKs"
+        
     - name: Collect Release APKs
       id: assets
       run: |
@@ -114,11 +122,24 @@ jobs:
           if [ "$abi" = "universal" ]; then
             # Keep legacy filename for compatibility with old update clients.
             target="release/Kototoro-${{ steps.version.outputs.version_name }}-release.apk"
+            OLD_TARGET_PATTERN="Kototoro-*-release.apk"
           else
             target="release/Kototoro-${{ steps.version.outputs.version_name }}-${abi}-release.apk"
+            OLD_TARGET_PATTERN="Kototoro-*-${abi}-release.apk"
           fi
           cp "$apk" "$target"
           line="- \`$(basename "$target")\` - ${abi} 架构"
+          
+          if [ -d "old_apks" ]; then
+            old_apk=$(find old_apks -name "$OLD_TARGET_PATTERN" | head -n 1)
+            if [ -n "$old_apk" ] && [ -f "$old_apk" ]; then
+              patch_target="release/Kototoro-${{ steps.version.outputs.version_name }}-${abi}-update.patch"
+              echo "Generating patch between $old_apk and $target"
+              bsdiff "$old_apk" "$target" "$patch_target"
+              line="$line (增量包: \`$(basename "$patch_target")\`)"
+            fi
+          fi
+          
           if [ -z "$DOWNLOAD_NOTES" ]; then
             DOWNLOAD_NOTES="$line"
           else
@@ -136,6 +157,7 @@ jobs:
         tag_name: ${{ env.TAG_NAME }}
         files: |
           release/*.apk
+          release/*.patch
         body: |
           ## Kototoro ${{ steps.version.outputs.version_name }}
           
