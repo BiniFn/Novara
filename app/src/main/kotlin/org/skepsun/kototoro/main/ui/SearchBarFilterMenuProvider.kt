@@ -5,8 +5,10 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
-import android.widget.PopupMenu
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuProvider
+import androidx.core.text.BidiFormatter
+import androidx.core.text.TextDirectionHeuristicsCompat
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
@@ -85,7 +87,7 @@ class SearchBarFilterMenuProvider(
 		}
 
 		entries.forEachIndexed { index, tag ->
-			popup.menu.add(0, index, index + 1, tag.titleRes).apply {
+			popup.menu.add(0, index, index + 1, tag.getPopupTitle(anchorView)).apply {
 				setIcon(tag.iconRes)
 				isCheckable = true
 				isChecked = tag in selectedTags
@@ -117,6 +119,11 @@ class SearchBarFilterMenuProvider(
 		}
 
 		popup.show()
+	}
+
+	private fun SourceTag.getPopupTitle(anchorView: View): CharSequence {
+		val title = anchorView.context.getString(titleRes)
+		return BidiFormatter.getInstance().unicodeWrap(title, TextDirectionHeuristicsCompat.LTR)
 	}
 
 	fun updateVisibility() {

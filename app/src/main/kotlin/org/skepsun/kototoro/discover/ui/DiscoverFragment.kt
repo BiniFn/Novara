@@ -7,8 +7,10 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.PopupMenu
+import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.SearchView
+import androidx.core.text.BidiFormatter
+import androidx.core.text.TextDirectionHeuristicsCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -280,12 +282,12 @@ class DiscoverFragment :
 
 		private fun showServicePopup(anchorItem: MenuItem) {
 			val anchor = activity?.findViewById<View>(R.id.search_bar) ?: return
-			val popup = android.widget.PopupMenu(anchor.context, anchor, android.view.Gravity.END)
+			val popup = PopupMenu(anchor.context, anchor, android.view.Gravity.END)
 			val services = viewModel.availableServices.value
 			val activeService = viewModel.activeService.value
 
 			services.forEachIndexed { index, service ->
-				popup.menu.add(0, index, index, service.titleResId).apply {
+				popup.menu.add(0, index, index, service.getPopupTitle(anchor)).apply {
 					setIcon(service.iconResId)
 					isCheckable = true
 					isChecked = service == activeService
@@ -313,6 +315,11 @@ class DiscoverFragment :
 				true
 			}
 			popup.show()
+		}
+
+		private fun ScrobblerService.getPopupTitle(anchorView: View): CharSequence {
+			val title = anchorView.context.getString(titleResId)
+			return BidiFormatter.getInstance().unicodeWrap(title, TextDirectionHeuristicsCompat.LTR)
 		}
 
 		private fun updateServiceMenuItemTint(item: MenuItem, isActive: Boolean) {
