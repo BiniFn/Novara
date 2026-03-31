@@ -38,6 +38,9 @@ features:
 
 ## Start With The Right Page
 
+> [!IMPORTANT]
+> **Disclaimer:** Kototoro does not bundle, host, or distribute any content sources, media, or copyrighted material. The application is a generic reader and player framework. All content sources are user-provided through third-party extensions, local file imports, or self-configured endpoints. The developers assume no responsibility for content accessed through user-installed sources.
+
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.

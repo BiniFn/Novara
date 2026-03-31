@@ -2,6 +2,9 @@
 
 This directory is organized by task, not by internal implementation. Start with the page that matches what you want to do next.
 
+> [!IMPORTANT]
+> **Kototoro does not bundle, host, or distribute any content sources, media, or copyrighted material.** The application is a generic reader and player framework. All content sources are provided by the user through third-party extensions, local file imports, or self-configured JSON endpoints. The developers of Kototoro are not responsible for any content accessed through user-installed sources.
+
 > **Join the community:** [Discord](https://discord.gg/E2GsMeq2Vh)
 
 ## Start Here
