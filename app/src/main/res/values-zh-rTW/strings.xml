@@ -711,4 +711,10 @@
     <string name="shiki_category_seasonal">當季動畫</string>
     <string name="shiki_category_manga_ranked">漫畫排行</string>
     <string name="shiki_category_manga_popular">熱門漫畫</string>
+    <string name="discover_open_site">開啟站點</string>
+    <string name="discover_open_local">開啟本地</string>
+    <string name="discover_bind_local">綁定本地</string>
+    <string name="discover_manage_binding">管理綁定</string>
+    <string name="discover_local_linked">已連結本地作品</string>
+    <string name="discover_local_unlinked">尚未連結本地作品</string>
 </resources>

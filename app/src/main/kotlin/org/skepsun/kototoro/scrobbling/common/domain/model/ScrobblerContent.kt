@@ -8,6 +8,7 @@ data class ScrobblerContent(
 	val altName: String?,
 	val cover: String?,
 	val url: String,
+	val mediaType: String? = null,
 	val isBestMatch: Boolean = false,
 ) : ListModel {
 

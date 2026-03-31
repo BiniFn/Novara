@@ -13,6 +13,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.util.ext.ensureSuccess
+import org.skepsun.kototoro.core.util.ext.parseJsonOrNull
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSON
@@ -35,6 +37,7 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
+import java.io.IOException
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
@@ -389,19 +392,31 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		else -> "rank"
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
-		val entity = ScrobblingEntity(
-			scrobbler = ScrobblerService.BANGUMI.id,
-			id = scrobblerContentId.toInt(),
-			mangaId = mangaId,
-			targetId = scrobblerContentId,
-			status = "do",
-			chapter = 0,
-			comment = "",
-			rating = 0f,
+	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
+		val scrobblerContentId = content.id
+		db.getScrobblingDao().upsert(
+			ScrobblingEntity(
+				scrobbler = ScrobblerService.BANGUMI.id,
+				id = scrobblerContentId.toInt(),
+				mangaId = mangaId,
+				targetId = scrobblerContentId,
+				status = "do",
+				chapter = 0,
+				comment = "",
+				rating = 0f,
+			),
 		)
-		updateCollection(scrobblerContentId, 2, null, null, null, isCreate = true)
-		db.getScrobblingDao().upsert(entity)
+		findExistingCollection(scrobblerContentId)?.let {
+			saveCollection(it, mangaId)
+			return
+		}
+		updateCollection(scrobblerContentId, 3, null, null, null, isCreate = true)
+		findExistingCollection(scrobblerContentId)?.let {
+			saveCollection(it, mangaId)
+			return
+		}
+		db.getScrobblingDao().delete(ScrobblerService.BANGUMI.id, mangaId)
+		throw IOException("Bangumi collection for subject $scrobblerContentId was not created remotely")
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int) {
@@ -414,8 +429,8 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		val entity = db.getScrobblingDao().find(ScrobblerService.BANGUMI.id, mangaId) ?: return
 		val bgmStatus = when (status) {
 			"wish" -> 1
-			"do" -> 2
-			"collect" -> 3
+			"collect" -> 2
+			"do" -> 3
 			"on_hold" -> 4
 			"dropped" -> 5
 			else -> null
@@ -435,16 +450,63 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		rate?.let { body.put("rate", it) }
 		comment?.let { body.put("comment", it) }
 		ep?.let { body.put("ep_status", it) }
+		if (isCreate) {
+			body.put("private", false)
+		}
 
-		val reqBody = body.toString().toRequestBody("application/json".toMediaType())
+		val reqBody = body.toString().toByteArray(Charsets.UTF_8)
+			.toRequestBody("application/json".toMediaType())
 		val request = Request.Builder()
 			.url("${API_URL}v0/users/-/collections/$subjectId")
-			.apply { if (isCreate) post(reqBody) else patch(reqBody) }
+			.header("Accept", "application/json")
+			.header("Content-Type", "application/json")
+			.post(reqBody)
 
-		okHttp.newCall(request.build()).await()
+		okHttp.newCall(request.build()).await().use { response ->
+			response.ensureSuccess()
+		}
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
+		val apiPayload = getSubjectDetailsFromApi(id)
+		val htmlPayload = runCatching { getSubjectDetailsFromHtml(id) }.getOrNull()
+		return ScrobblerContentInfo(
+			id = id,
+			name = apiPayload.name.ifBlank { htmlPayload?.name ?: "Unknown" },
+			cover = apiPayload.cover.ifBlank { htmlPayload?.cover.orEmpty() },
+			url = "https://bangumi.tv/subject/$id",
+			descriptionHtml = apiPayload.summary.ifBlank { htmlPayload?.summary.orEmpty() },
+			tags = if (apiPayload.tags.isNotEmpty()) apiPayload.tags else htmlPayload?.tags.orEmpty(),
+			authors = htmlPayload?.authors.orEmpty(),
+			infoboxProperties = if (apiPayload.infoboxProperties.isNotEmpty()) {
+				apiPayload.infoboxProperties
+			} else {
+				htmlPayload?.infoboxProperties.orEmpty()
+			},
+			episodes = htmlPayload?.episodes.orEmpty(),
+			relatedWorks = htmlPayload?.relatedWorks.orEmpty(),
+			recommendations = htmlPayload?.recommendations.orEmpty(),
+		)
+	}
+
+	private suspend fun getSubjectDetailsFromApi(id: Long): BangumiApiSubjectPayload {
+		val request = Request.Builder()
+			.url("${API_URL}v0/subjects/$id")
+			.get()
+		val json = okHttp.newCall(request.build()).await().parseJson()
+		return BangumiApiSubjectPayload(
+			name = json.getStringOrNull("name_cn").orEmpty().ifBlank { json.getStringOrNull("name").orEmpty() },
+			cover = json.optJSONObject("images")?.getStringOrNull("large")
+				?: json.optJSONObject("images")?.getStringOrNull("common")
+				?: json.optJSONObject("images")?.getStringOrNull("medium")
+				?: "",
+			summary = json.getStringOrNull("summary").orEmpty(),
+			tags = json.optJSONArray("tags").toBangumiTags(),
+			infoboxProperties = json.optJSONArray("infobox").toBangumiInfoboxProperties(),
+		)
+	}
+
+	private suspend fun getSubjectDetailsFromHtml(id: Long): BangumiHtmlSubjectPayload {
 		val request = Request.Builder()
 			.url("https://bangumi.tv/subject/$id")
 			.get()
@@ -565,12 +627,10 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			}
 		}
 
-		return ScrobblerContentInfo(
-			id = id,
+		return BangumiHtmlSubjectPayload(
 			name = finalName.ifBlank { "Unknown" },
 			cover = cover,
-			url = "https://bangumi.tv/subject/$id",
-			descriptionHtml = summary,
+			summary = summary,
 			tags = tagList,
 			authors = authorsList,
 			infoboxProperties = infoboxProperties,
@@ -587,6 +647,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 	 */
 	suspend fun syncLibraryFromRemote(): Int {
 		val user = cachedUser ?: loadUser()
+		val existingEntities = db.getScrobblingDao().findAllByScrobbler(ScrobblerService.BANGUMI.id)
 		val oldMappings = db.getScrobblingDao()
 			.findAllByScrobbler(ScrobblerService.BANGUMI.id)
 			.groupBy { it.targetId }
@@ -616,8 +677,8 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 					val typeInt = item.optInt("type", 0)
 					val statusStr = when (typeInt) {
 						1 -> "wish"
-						2 -> "do"
-						3 -> "collect"
+						2 -> "collect"
+						3 -> "do"
 						4 -> "on_hold"
 						5 -> "dropped"
 						else -> null
@@ -639,14 +700,104 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 				if (data.length() < limit) break
 			}
 		}
+		val syncedIds = synced.mapTo(HashSet(synced.size)) { it.targetId }
+		val preservedLocal = existingEntities.filter { it.mangaId != 0L && it.targetId !in syncedIds }
 
 		db.withTransaction {
 			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.BANGUMI.id)
-			synced.forEach { entity ->
+			(synced + preservedLocal).forEach { entity ->
 				db.getScrobblingDao().upsert(entity)
 			}
 		}
 		return synced.size
+	}
+
+	private suspend fun findExistingCollection(subjectId: Long): JSONObject? = runCatching {
+		val request = Request.Builder()
+			.url("${API_URL}v0/users/-/collections/$subjectId")
+			.get()
+		okHttp.newCall(request.build()).await().parseJson()
+	}.getOrNull()
+
+	private suspend fun saveCollection(json: JSONObject, mangaId: Long) {
+		val subjectId = json.optLong("subject_id").takeIf { it > 0L }
+			?: json.optJSONObject("subject")?.optLong("id")
+			?: return
+		val statusStr = when (json.optInt("type", 0)) {
+			1 -> "wish"
+			2 -> "collect"
+			3 -> "do"
+			4 -> "on_hold"
+			5 -> "dropped"
+			else -> null
+		}
+		db.getScrobblingDao().upsert(
+			ScrobblingEntity(
+				scrobbler = ScrobblerService.BANGUMI.id,
+				id = subjectId.toInt(),
+				mangaId = mangaId,
+				targetId = subjectId,
+				status = statusStr,
+				chapter = json.optInt("ep_status", 0),
+				comment = json.optString("comment", ""),
+				rating = (json.optInt("rate", 0).toFloat() / 10f).coerceIn(0f, 1f),
+			),
+		)
+	}
+
+	private fun JSONArray?.toBangumiTags(): List<String> {
+		if (this == null) return emptyList()
+		val result = ArrayList<String>(length())
+		for (i in 0 until length()) {
+			val item = optJSONObject(i) ?: continue
+			item.getStringOrNull("name")?.takeIf { it.isNotBlank() }?.let(result::add)
+		}
+		return result
+	}
+
+	private fun JSONArray?.toBangumiInfoboxProperties(): List<Pair<String, String>> {
+		if (this == null) return emptyList()
+		val result = ArrayList<Pair<String, String>>(length())
+		for (i in 0 until length()) {
+			val item = optJSONObject(i) ?: continue
+			val key = item.getStringOrNull("key")?.trim().orEmpty()
+			val value = formatBangumiInfoboxValue(item.opt("value")).orEmpty().trim()
+			if (key.isNotBlank() && value.isNotBlank()) {
+				result.add(key to value)
+			}
+		}
+		return result
+	}
+
+	private fun formatBangumiInfoboxValue(value: Any?): String? = when (value) {
+		null -> null
+		is JSONArray -> buildList {
+			for (i in 0 until value.length()) {
+				when (val item = value.opt(i)) {
+					is JSONObject -> {
+						val key = item.getStringOrNull("k")?.trim().orEmpty()
+						val nested = formatBangumiInfoboxValue(item.opt("v")).orEmpty().trim()
+						when {
+							key.isNotBlank() && nested.isNotBlank() -> add("$key: $nested")
+							key.isNotBlank() -> add(key)
+							nested.isNotBlank() -> add(nested)
+						}
+					}
+					else -> item?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+				}
+			}
+		}.joinToString(" / ").ifBlank { null }
+		is JSONObject -> {
+			val key = value.getStringOrNull("k")?.trim().orEmpty()
+			val nested = formatBangumiInfoboxValue(value.opt("v")).orEmpty().trim()
+			when {
+				key.isNotBlank() && nested.isNotBlank() -> "$key: $nested"
+				key.isNotBlank() -> key
+				nested.isNotBlank() -> nested
+				else -> null
+			}
+		}
+		else -> value.toString().trim().ifBlank { null }
 	}
 
 	private data class BangumiBrowserFilters(
@@ -666,6 +817,26 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 	private data class BrowserTagSelection(
 		val groupIndex: Int,
 		val segment: String,
+	)
+
+	private data class BangumiApiSubjectPayload(
+		val name: String,
+		val cover: String,
+		val summary: String,
+		val tags: List<String>,
+		val infoboxProperties: List<Pair<String, String>>,
+	)
+
+	private data class BangumiHtmlSubjectPayload(
+		val name: String,
+		val cover: String,
+		val summary: String,
+		val tags: List<String>,
+		val authors: List<String>,
+		val infoboxProperties: List<Pair<String, String>>,
+		val episodes: List<ScrobblerContentInfo.EpisodeInfo>,
+		val relatedWorks: List<ScrobblerContentInfo.RelatedWork>,
+		val recommendations: List<ScrobblerContentInfo.RelatedWork>,
 	)
 
 	private companion object {

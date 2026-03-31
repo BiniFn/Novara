@@ -248,4 +248,10 @@
     <string name="novel_reading_mode">阅读模式</string>
     <string name="novel_mode_paged">翻页</string>
     <string name="novel_mode_scroll">滚动</string>
+    <string name="discover_open_site">打开站点</string>
+    <string name="discover_open_local">打开本地</string>
+    <string name="discover_bind_local">绑定本地</string>
+    <string name="discover_manage_binding">管理绑定</string>
+    <string name="discover_local_linked">已关联本地作品</string>
+    <string name="discover_local_unlinked">尚未关联本地作品</string>
 </resources>

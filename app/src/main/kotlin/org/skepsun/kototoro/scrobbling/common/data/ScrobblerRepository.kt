@@ -24,7 +24,7 @@ interface ScrobblerRepository {
 
 	suspend fun getContentInfo(id: Long): ScrobblerContentInfo
 
-	suspend fun createRate(mangaId: Long, scrobblerContentId: Long)
+	suspend fun createRate(mangaId: Long, content: ScrobblerContent)
 
 	suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int)
 

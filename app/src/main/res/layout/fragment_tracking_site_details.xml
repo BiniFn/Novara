@@ -627,7 +627,7 @@
 				android:paddingHorizontal="@dimen/screen_padding"
 				app:layout_constraintEnd_toEndOf="parent"
 				app:layout_constraintStart_toStartOf="parent"
-				app:layout_constraintTop_toBottomOf="@id/layoutRecommendations">
+				app:layout_constraintTop_toBottomOf="@id/cardScrobbling">
 
 				<com.google.android.material.button.MaterialButton
 					android:id="@+id/buttonOpenLocal"

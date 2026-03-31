@@ -47,9 +47,24 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 
 	val details = _details
 	val error = _error
+	private val trackingLinks = db.getTrackingSiteDao().observeLinks(service.id, remoteId)
+	private val scrobblingEntities = db.getScrobblingDao().observeAllByTargetId(service.id, remoteId)
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+
+	private val selectedScrobblingEntity = combine(
+		trackingLinks,
+		scrobblingEntities,
+	) { links, entities ->
+		val linkedMangaIds = links.map { it.mangaId }.toSet()
+		when {
+			linkedMangaIds.isNotEmpty() -> entities.firstOrNull { it.mangaId in linkedMangaIds }
+			else -> entities.firstOrNull { it.mangaId != 0L } ?: entities.firstOrNull()
+		}
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
+
 	val linkedContent = combine(
-		db.getTrackingSiteDao().observeLinks(service.id, remoteId),
-		db.getScrobblingDao().observeByTargetId(service.id, remoteId),
+		trackingLinks,
+		selectedScrobblingEntity,
 	) { links, scrobbling ->
 		links.firstOrNull()?.mangaId ?: scrobbling?.mangaId
 	}.mapLatest { mangaId ->
@@ -61,8 +76,7 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 	 * Observe scrobbling entity for the current tracking item.
 	 * This provides the rating, status, chapter, and comment data.
 	 */
-	val scrobblingEntity = db.getScrobblingDao().observeByTargetId(service.id, remoteId)
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
+	val scrobblingEntity = selectedScrobblingEntity
 
 	private val scrobbler: Scrobbler?
 		get() = scrobblers.find { it.scrobblerService == service }

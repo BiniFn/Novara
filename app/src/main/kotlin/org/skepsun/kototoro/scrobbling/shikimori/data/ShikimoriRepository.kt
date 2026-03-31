@@ -121,7 +121,8 @@ class ShikimoriRepository @Inject constructor(
 		return contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO || contentType == org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
+	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
+		val scrobblerContentId = content.id
 		val user = cachedUser ?: loadUser()
 		val payload = JSONObject()
 		payload.put(
@@ -190,6 +191,14 @@ class ShikimoriRepository @Inject constructor(
 		val isAnime = db.getScrobblingDao()
 			.findAllByScrobbler(ScrobblerService.SHIKIMORI.id)
 			.firstOrNull { it.targetId == id }?.let { isAnimeContent(it.mangaId) } ?: false
+		return getContentInfo(id, isAnime)
+	}
+
+	suspend fun getContentInfo(id: Long, mangaId: Long): ScrobblerContentInfo {
+		return getContentInfo(id, isAnimeContent(mangaId))
+	}
+
+	private suspend fun getContentInfo(id: Long, isAnime: Boolean): ScrobblerContentInfo {
 		if (isAnime) return getAnimeInfo(id)
 
 		val request = Request.Builder()

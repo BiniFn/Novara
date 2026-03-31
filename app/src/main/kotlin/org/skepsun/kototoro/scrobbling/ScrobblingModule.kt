@@ -133,12 +133,14 @@ object ScrobblingModule {
 	@Singleton
 	@ScrobblerType(ScrobblerService.BANGUMI)
 	fun provideBangumiHttpClient(
-		@BaseHttpClient baseHttpClient: OkHttpClient,
 		authenticator: BangumiAuthenticator,
 		@ScrobblerType(ScrobblerService.BANGUMI) storage: ScrobblerStorage,
-	): OkHttpClient = baseHttpClient.newBuilder().apply {
+	): OkHttpClient = OkHttpClient.Builder().apply {
 		authenticator(authenticator)
 		addInterceptor(BangumiInterceptor(storage))
+		if (BuildConfig.DEBUG) {
+			addInterceptor(CurlLoggingInterceptor())
+		}
 	}.build()
 
 	@Provides

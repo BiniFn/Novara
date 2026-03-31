@@ -13,6 +13,7 @@ import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.tracker.data.TrackEntity
 import javax.inject.Inject
@@ -94,7 +95,16 @@ constructor(
 				}
 				val prevInfo = scrobbler.getScrobblingInfoOrNull(oldDetails.id) ?: continue
 				scrobbler.unregisterScrobbling(oldDetails.id)
-				scrobbler.linkContent(newDetails.id, prevInfo.targetId)
+				scrobbler.linkContent(
+					newDetails.id,
+					ScrobblerContent(
+						id = prevInfo.targetId,
+						name = prevInfo.title,
+						altName = null,
+						cover = prevInfo.coverUrl,
+						url = prevInfo.externalUrl,
+					),
+				)
 				scrobbler.updateScrobblingInfo(
 					mangaId = newDetails.id,
 					rating = prevInfo.rating,

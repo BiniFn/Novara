@@ -138,7 +138,8 @@ class AniListRepository @Inject constructor(
 		return data.mapJSON { ScrobblerContent(it, query) }
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
+	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
+		val scrobblerContentId = content.id
 		val response = doRequest(
 			REQUEST_MUTATION,
 			"""

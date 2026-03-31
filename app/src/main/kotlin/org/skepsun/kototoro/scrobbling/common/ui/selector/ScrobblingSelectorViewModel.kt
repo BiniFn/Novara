@@ -159,13 +159,23 @@ class ScrobblingSelectorViewModel @Inject constructor(
 			onClose.call(Unit)
 			return
 		}
+		val selectedContent = scrobblerContentList.value.firstOrNull { it.id == targetId }
+		checkNotNull(selectedContent) { "Selected scrobbler content $targetId not found" }
 		if (!currentScrobbler.isEnabled) {
 			errorEvent.call(ScrobblerAuthRequiredException(currentScrobbler.scrobblerService))
 			return
 		}
 		doneJob = launchLoadingJob(Dispatchers.Default) {
 			val prevInfo = currentScrobbler.getScrobblingInfoOrNull(manga.id)
-			currentScrobbler.linkContent(manga.id, targetId)
+			currentScrobbler.linkContent(manga.id, selectedContent)
+			var linkedInfo = currentScrobbler.getScrobblingInfoOrNull(manga.id)
+			if (linkedInfo == null) {
+				currentScrobbler.syncLibrary()
+				linkedInfo = currentScrobbler.getScrobblingInfoOrNull(manga.id)
+			}
+			checkNotNull(linkedInfo) {
+				"Scrobbling info for manga ${manga.id} not found after linking target $targetId"
+			}
 			val history = historyRepository.getOne(manga)
 			currentScrobbler.updateScrobblingInfo(
 				mangaId = manga.id,

@@ -51,4 +51,3 @@ class BangumiScrobbler @Inject constructor(
 		return repository.syncLibraryFromRemote()
 	}
 }
-

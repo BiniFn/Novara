@@ -188,7 +188,14 @@ class KitsuRepository(
 		val isAnime = db.getScrobblingDao()
 			.findAllByScrobbler(ScrobblerService.KITSU.id)
 			.firstOrNull { it.targetId == id }?.let { isAnimeContent(it.mangaId) } ?: false
+		return getContentInfo(id, isAnime)
+	}
 
+	suspend fun getContentInfo(id: Long, mangaId: Long): ScrobblerContentInfo {
+		return getContentInfo(id, isAnimeContent(mangaId))
+	}
+
+	private suspend fun getContentInfo(id: Long, isAnime: Boolean): ScrobblerContentInfo {
 		val firstType = if (isAnime) "anime" else "manga"
 		val secondType = if (isAnime) "manga" else "anime"
 
@@ -407,7 +414,8 @@ class KitsuRepository(
 		)
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
+	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
+		val scrobblerContentId = content.id
 		val isAnime = isAnimeContent(mangaId)
 		val typeKey = if (isAnime) "anime" else "manga"
 		findExistingRate(scrobblerContentId, isAnime)?.let {
@@ -559,12 +567,19 @@ class KitsuRepository(
 
 	private suspend fun saveRate(json: JSONObject, mangaId: Long, typeKey: String) {
 		val attrs = json.getJSONObject("attributes")
-		val media = json.getJSONObject("relationships").getJSONObject(typeKey).getJSONObject("data")
+		val existingEntity = db.getScrobblingDao().find(ScrobblerService.KITSU.id, mangaId)
+		val mediaId = existingEntity?.targetId ?: json.optJSONObject("relationships")
+			?.optJSONObject(typeKey)
+			?.optJSONObject("data")
+			?.let { media ->
+				if (media.isNull("id")) null else media.getAsLong("id")
+			}
+			?: throw IllegalArgumentException("Kitsu $typeKey relationship missing for manga $mangaId")
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.KITSU.id,
 			id = json.getInt("id"),
 			mangaId = mangaId,
-			targetId = media.getAsLong("id"),
+			targetId = mediaId,
 			status = attrs.getString("status"),
 			chapter = attrs.getIntOrDefault("progress", 0),
 			comment = attrs.getStringOrNull("notes"),

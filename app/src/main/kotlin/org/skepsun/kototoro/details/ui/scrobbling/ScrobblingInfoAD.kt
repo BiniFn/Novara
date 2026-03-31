@@ -15,7 +15,7 @@ fun scrobblingInfoAD(
 	{ layoutInflater, parent -> ItemScrobblingInfoBinding.inflate(layoutInflater, parent, false) },
 ) {
 	binding.root.setOnClickListener {
-		router.showScrobblingInfoSheet(bindingAdapterPosition)
+		router.showScrobblingInfoSheet(item.scrobbler)
 	}
 
 	bind {

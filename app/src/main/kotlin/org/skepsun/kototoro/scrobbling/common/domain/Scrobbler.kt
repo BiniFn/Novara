@@ -1,8 +1,6 @@
 package org.skepsun.kototoro.scrobbling.common.domain
 
 import androidx.annotation.FloatRange
-import androidx.collection.LongSparseArray
-import androidx.collection.getOrElse
 import androidx.core.text.parseAsHtml
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -35,7 +33,7 @@ abstract class Scrobbler(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	private val infoCache = LongSparseArray<ScrobblerContentInfo>()
+	private val infoCache = HashMap<Pair<Long, Long>, ScrobblerContentInfo>()
 	protected val statuses = EnumMap<ScrobblingStatus, String>(ScrobblingStatus::class.java)
 
 	val user: Flow<ScrobblerUser> = flow {
@@ -77,8 +75,8 @@ abstract class Scrobbler(
 		return repository.findContent(query, offset, isAnime)
 	}
 
-	suspend fun linkContent(mangaId: Long, targetId: Long) {
-		repository.createRate(mangaId, targetId)
+	suspend fun linkContent(mangaId: Long, content: ScrobblerContent) {
+		repository.createRate(mangaId, content)
 	}
 
 	suspend fun scrobble(manga: Content, chapterId: Long) {
@@ -139,20 +137,19 @@ abstract class Scrobbler(
 		repository.unregister(mangaId)
 	}
 
-	protected suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
-		return repository.getContentInfo(id)
+	protected open suspend fun getContentInfo(entity: ScrobblingEntity): ScrobblerContentInfo {
+		return repository.getContentInfo(entity.targetId)
 	}
 
 	private suspend fun ScrobblingEntity.toScrobblingInfo(): ScrobblingInfo? {
-		val mangaInfo = infoCache.getOrElse(targetId) {
-			runCatchingCancellable {
-				getContentInfo(targetId)
-			}.onFailure {
-				it.printStackTraceDebug()
-			}.onSuccess {
-				infoCache.put(targetId, it)
-			}.getOrNull() ?: return null
-		}
+		val cacheKey = targetId to mangaId
+		val mangaInfo = infoCache[cacheKey] ?: runCatchingCancellable {
+			getContentInfo(this)
+		}.onFailure {
+			it.printStackTraceDebug()
+		}.onSuccess {
+			infoCache[cacheKey] = it
+		}.getOrNull() ?: return null
 		return ScrobblingInfo(
 			scrobbler = scrobblerService,
 			mangaId = mangaId,

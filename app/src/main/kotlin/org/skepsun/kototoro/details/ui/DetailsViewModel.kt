@@ -255,8 +255,8 @@ class DetailsViewModel @Inject constructor(
 		loadingJob = doLoad(force = true)
 	}
 
-	fun updateScrobbling(index: Int, rating: Float, status: ScrobblingStatus?) {
-		val scrobbler = getScrobbler(index) ?: return
+	fun updateScrobbling(scrobblerServiceId: Int, rating: Float, status: ScrobblingStatus?) {
+		val scrobbler = getScrobbler(scrobblerServiceId) ?: return
 		launchJob(Dispatchers.Default) {
 			scrobbler.updateScrobblingInfo(
 				mangaId = mangaId,
@@ -267,8 +267,8 @@ class DetailsViewModel @Inject constructor(
 		}
 	}
 
-	fun unregisterScrobbling(index: Int) {
-		val scrobbler = getScrobbler(index) ?: return
+	fun unregisterScrobbling(scrobblerServiceId: Int) {
+		val scrobbler = getScrobbler(scrobblerServiceId) ?: return
 		launchJob(Dispatchers.Default) {
 			scrobbler.unregisterScrobbling(
 				mangaId = mangaId,
@@ -356,15 +356,12 @@ class DetailsViewModel @Inject constructor(
 		}
 	}
 
-	private fun getScrobbler(index: Int): Scrobbler? {
-		val info = scrobblingInfo.value.getOrNull(index)
-		val scrobbler = if (info != null) {
-			scrobblers.find { it.scrobblerService == info.scrobbler && it.isEnabled }
-		} else {
-			null
+	private fun getScrobbler(scrobblerServiceId: Int): Scrobbler? {
+		val scrobbler = scrobblers.find {
+			it.scrobblerService.id == scrobblerServiceId && it.isEnabled
 		}
 		if (scrobbler == null) {
-			errorEvent.call(IllegalStateException("Scrobbler [$index] is not available"))
+			errorEvent.call(IllegalStateException("Scrobbler [$scrobblerServiceId] is not available"))
 		}
 		return scrobbler
 	}

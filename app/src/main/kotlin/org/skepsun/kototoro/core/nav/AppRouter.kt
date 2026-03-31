@@ -813,9 +813,9 @@ class AppRouter private constructor(
         }.show()
     }
 
-    fun showScrobblingInfoSheet(index: Int) {
+    fun showScrobblingInfoSheet(scrobblerService: ScrobblerService) {
         ScrobblingInfoSheet().withArgs(1) {
-            putInt(KEY_INDEX, index)
+            putInt(KEY_ID, scrobblerService.id)
         }.showDistinct()
     }
 

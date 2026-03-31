@@ -53,13 +53,13 @@ class ScrobblingInfoSheet :
 	lateinit var discoveryService: TrackingSiteDiscoveryService
 
 	private val viewModel by activityViewModels<DetailsViewModel>()
-	private var scrobblerIndex: Int = -1
+	private var scrobblerServiceId: Int = -1
 
 	private var menu: PopupMenu? = null
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		scrobblerIndex = requireArguments().getInt(AppRouter.KEY_INDEX, scrobblerIndex)
+		scrobblerServiceId = requireArguments().getInt(AppRouter.KEY_ID, scrobblerServiceId)
 	}
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetScrobblingBinding {
@@ -105,7 +105,7 @@ class ScrobblingInfoSheet :
 
 	override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
 		viewModel.updateScrobbling(
-			index = scrobblerIndex,
+			scrobblerServiceId = scrobblerServiceId,
 			rating = requireViewBinding().ratingBar.rating / requireViewBinding().ratingBar.numStars,
 			status = ScrobblingStatus.entries.getOrNull(position),
 		)
@@ -116,7 +116,7 @@ class ScrobblingInfoSheet :
 	override fun onRatingChanged(ratingBar: RatingBar, rating: Float, fromUser: Boolean) {
 		if (fromUser) {
 			viewModel.updateScrobbling(
-				index = scrobblerIndex,
+				scrobblerServiceId = scrobblerServiceId,
 				rating = rating / ratingBar.numStars,
 				status = ScrobblingStatus.entries.getOrNull(requireViewBinding().spinnerStatus.selectedItemPosition),
 			)
@@ -127,7 +127,7 @@ class ScrobblingInfoSheet :
 		when (v.id) {
 			R.id.button_menu -> menu?.show()
 			R.id.imageView_cover -> router.openImage(
-				url = viewModel.scrobblingInfo.value.getOrNull(scrobblerIndex)?.coverUrl ?: return,
+				url = currentScrobbling()?.coverUrl ?: return,
 				source = null,
 				anchor = v,
 			)
@@ -135,7 +135,7 @@ class ScrobblingInfoSheet :
 	}
 
 	private fun onScrobblingInfoChanged(scrobblings: List<ScrobblingInfo>) {
-		val scrobbling = scrobblings.getOrNull(scrobblerIndex)
+		val scrobbling = scrobblings.firstOrNull { it.scrobbler.id == scrobblerServiceId }
 		if (scrobbling == null) {
 			dismissAllowingStateLoss()
 			return
@@ -151,7 +151,7 @@ class ScrobblingInfoSheet :
 	}
 
 	private fun loadTrackingSiteDetails() {
-		val scrobbling = viewModel.scrobblingInfo.value.getOrNull(scrobblerIndex) ?: return
+		val scrobbling = currentScrobbling() ?: return
 		val binding = viewBinding ?: return
 
 		binding.progressDetails.isVisible = true
@@ -274,7 +274,7 @@ class ScrobblingInfoSheet :
 	override fun onMenuItemClick(item: MenuItem): Boolean {
 		when (item.itemId) {
 			R.id.action_browser -> {
-				val url = viewModel.scrobblingInfo.value.getOrNull(scrobblerIndex)?.externalUrl ?: return false
+				val url = currentScrobbling()?.externalUrl ?: return false
 				if (!router.openExternalBrowser(url, getString(R.string.open_in_browser))) {
 					Snackbar.make(
 						viewBinding?.textViewDescription ?: return false,
@@ -285,17 +285,21 @@ class ScrobblingInfoSheet :
 			}
 
 			R.id.action_unregister -> {
-				viewModel.unregisterScrobbling(scrobblerIndex)
+				viewModel.unregisterScrobbling(scrobblerServiceId)
 				dismiss()
 			}
 
 			R.id.action_edit -> {
 				val manga = viewModel.manga.value ?: return false
-				val scrobblerService = viewModel.scrobblingInfo.value.getOrNull(scrobblerIndex)?.scrobbler
+				val scrobblerService = currentScrobbling()?.scrobbler
 				activity?.router?.showScrobblingSelectorSheet(manga, scrobblerService)
 				dismiss()
 			}
 		}
 		return true
+	}
+
+	private fun currentScrobbling(): ScrobblingInfo? {
+		return viewModel.scrobblingInfo.value.firstOrNull { it.scrobbler.id == scrobblerServiceId }
 	}
 }

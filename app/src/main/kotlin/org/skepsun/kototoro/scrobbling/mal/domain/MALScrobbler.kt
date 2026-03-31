@@ -2,6 +2,7 @@ package org.skepsun.kototoro.scrobbling.mal.domain
 
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
@@ -26,6 +27,9 @@ class MALScrobbler @Inject constructor(
 		statuses[ScrobblingStatus.ON_HOLD] = "on_hold"
 		statuses[ScrobblingStatus.DROPPED] = "dropped"
 	}
+
+	override suspend fun getContentInfo(entity: ScrobblingEntity) =
+		repository.getContentInfo(entity.targetId, entity.mangaId)
 
 	override suspend fun updateScrobblingInfo(
 		mangaId: Long,

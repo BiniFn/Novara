@@ -268,7 +268,8 @@ class MangaUpdatesRepository(
 		)
 	}
 
-	override suspend fun createRate(mangaId: Long, scrobblerContentId: Long) {
+	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
+		val scrobblerContentId = content.id
 		val payloadStr = """
 			[
 			  {
