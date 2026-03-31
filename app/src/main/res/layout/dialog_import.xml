@@ -8,6 +8,55 @@
 	android:paddingHorizontal="@dimen/grid_spacing_outer"
 	android:paddingTop="@dimen/margin_normal">
 
+	<TextView
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_marginBottom="8dp"
+		android:text="@string/import_content_type"
+		android:textAppearance="?textAppearanceLabelMedium" />
+
+	<com.google.android.material.button.MaterialButtonToggleGroup
+		android:id="@+id/toggle_content_type"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginBottom="16dp"
+		app:checkedButton="@id/button_type_auto"
+		app:selectionRequired="true"
+		app:singleSelection="true">
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/button_type_auto"
+			style="?attr/materialButtonOutlinedStyle"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:text="@string/import_content_type_auto" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/button_type_manga"
+			style="?attr/materialButtonOutlinedStyle"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:text="@string/manga" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/button_type_novel"
+			style="?attr/materialButtonOutlinedStyle"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:text="@string/novel" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/button_type_video"
+			style="?attr/materialButtonOutlinedStyle"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:text="@string/video" />
+	</com.google.android.material.button.MaterialButtonToggleGroup>
+
 	<org.skepsun.kototoro.core.ui.widgets.TwoLinesItemView
 		android:id="@+id/button_file"
 		android:layout_width="match_parent"

@@ -440,7 +440,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun initializeMpvRuntime(): Boolean {
         return runCatching {
             mpvView.initialize(filesDir.path, cacheDir.path)
-            mpvPlayer = MpvPlayer().also { player ->
+            mpvPlayer = MpvPlayer(mpvView.mpv).also { player ->
                 player.initialize()
                 player.addListener(mpvListener)
             }

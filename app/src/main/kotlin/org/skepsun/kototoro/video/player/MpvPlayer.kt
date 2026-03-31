@@ -1,13 +1,15 @@
 package org.skepsun.kototoro.video.player
 
 import android.view.Surface
-import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPV
 import `is`.xyz.mpv.MPVNode
 import java.util.concurrent.CopyOnWriteArrayList
 import android.util.Log
 import java.io.File
 
-class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
+class MpvPlayer(
+	private val mpv: MPV,
+) : MPV.EventObserver, MPV.LogObserver {
 
 	interface Listener {
 		fun onPositionChanged(positionMs: Long) = Unit
@@ -37,28 +39,28 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 
 	fun initialize() {
 		if (isInitialized) return
-		MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
-		MPVLib.observeProperty("duration", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
-		MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
-		MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
-		MPVLib.observeProperty("sub-text", MPVLib.MpvFormat.MPV_FORMAT_STRING)
-		MPVLib.addObserver(this)
-		MPVLib.addLogObserver(this)
+		mpv.observeProperty("time-pos", MPV.mpvFormat.MPV_FORMAT_DOUBLE)
+		mpv.observeProperty("duration", MPV.mpvFormat.MPV_FORMAT_DOUBLE)
+		mpv.observeProperty("pause", MPV.mpvFormat.MPV_FORMAT_FLAG)
+		mpv.observeProperty("eof-reached", MPV.mpvFormat.MPV_FORMAT_FLAG)
+		mpv.observeProperty("sub-text", MPV.mpvFormat.MPV_FORMAT_STRING)
+		mpv.addObserver(this)
+		mpv.addLogObserver(this)
 		isInitialized = true
 	}
 
 	fun attachSurface(surface: Surface) {
-		MPVLib.attachSurface(surface)
+		mpv.attachSurface(surface)
 	}
 
 	fun detachSurface() {
-		MPVLib.detachSurface()
+		mpv.detachSurface()
 	}
 
 	fun release() {
 		pendingSeekMs = null
-		MPVLib.removeObserver(this)
-		MPVLib.removeLogObserver(this)
+		mpv.removeObserver(this)
+		mpv.removeLogObserver(this)
 		isInitialized = false
 	}
 
@@ -82,10 +84,10 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 		val referer = headers.entries.find { it.key.equals("Referer", ignoreCase = true) }?.value
 		
 		if (!userAgent.isNullOrBlank()) {
-			MPVLib.setOptionString("user-agent", userAgent)
+			mpv.setOptionString("user-agent", userAgent)
 		}
 		if (!referer.isNullOrBlank()) {
-			MPVLib.setOptionString("referrer", referer)
+			mpv.setOptionString("referrer", referer)
 		}
 
 		val otherHeaders = headers.filter { 
@@ -99,106 +101,106 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 		} else {
 			""
 		}
-		MPVLib.setOptionString("http-header-fields", headerValue)
+		mpv.setOptionString("http-header-fields", headerValue)
 		
 		Log.d("MpvPlayer", "load: $url with headers count=${headers.size}")
-		MPVLib.command("loadfile", url, "replace")
+		mpv.command("loadfile", url, "replace")
 	}
 
 	fun setStreamingOptions(cacheSizeMb: Int? = null) {
 		// Optimize for network streaming and seeking
-		MPVLib.setOptionString("cache", "yes")
-		MPVLib.setOptionString("cache-on-disk", "yes")
-		MPVLib.setOptionString("demuxer-seekable-cache", "yes")
-		MPVLib.setOptionString("demuxer-max-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024}")
-		MPVLib.setOptionString("demuxer-max-back-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024 / 2}")
+		mpv.setOptionString("cache", "yes")
+		mpv.setOptionString("cache-on-disk", "yes")
+		mpv.setOptionString("demuxer-seekable-cache", "yes")
+		mpv.setOptionString("demuxer-max-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024}")
+		mpv.setOptionString("demuxer-max-back-bytes", "${(cacheSizeMb ?: 128) * 1024 * 1024 / 2}")
 		
 		// Readahead and buffer settings
-		MPVLib.setOptionString("cache-secs", "30")
-		MPVLib.setOptionString("demuxer-readahead-secs", "20")
+		mpv.setOptionString("cache-secs", "30")
+		mpv.setOptionString("demuxer-readahead-secs", "20")
 		
 		// Network timeout and retries
-		MPVLib.setOptionString("network-timeout", "30")
-		MPVLib.setOptionString("tls-verify", "no") // Some sources have cert issues
+		mpv.setOptionString("network-timeout", "30")
+		mpv.setOptionString("tls-verify", "no") // Some sources have cert issues
 		
 		// Faster seeking
-		MPVLib.setOptionString("hr-seek", "default")
+		mpv.setOptionString("hr-seek", "default")
 		
 		Log.d("MpvPlayer", "setStreamingOptions applied")
 	}
 
 	fun setHardwareDecoding(enabled: Boolean) {
-		MPVLib.setOptionString("hwdec", if (enabled) "auto" else "no")
+		mpv.setOptionString("hwdec", if (enabled) "auto" else "no")
 	}
 
 	fun setHardwareDecodingMode(mode: String) {
 		if (mode.isBlank()) return
-		MPVLib.setOptionString("hwdec", mode)
+		mpv.setOptionString("hwdec", mode)
 		Log.d("MpvPlayer", "setHardwareDecodingMode: $mode")
 	}
 
 	fun setVideoOutput(renderer: String) {
 		if (renderer.isBlank()) return
-		MPVLib.setOptionString("vo", renderer)
+		mpv.setOptionString("vo", renderer)
 		Log.d("MpvPlayer", "setVideoOutput: $renderer")
 	}
 
 	fun play() {
-		MPVLib.setPropertyBoolean("pause", false)
+		mpv.setPropertyBoolean("pause", false)
 	}
 
 	fun pause() {
-		MPVLib.setPropertyBoolean("pause", true)
+		mpv.setPropertyBoolean("pause", true)
 	}
 
 	fun seekTo(positionMs: Long) {
 		val seconds = positionMs / 1000.0
-		MPVLib.command("seek", seconds.toString(), "absolute+keyframes")
+		mpv.command("seek", seconds.toString(), "absolute+keyframes")
 		listeners.forEach { it.onSeek(positionMs) }
 	}
 
 	fun seekExact(positionMs: Long) {
 		val seconds = positionMs / 1000.0
-		MPVLib.command("seek", seconds.toString(), "absolute")
+		mpv.command("seek", seconds.toString(), "absolute")
 		listeners.forEach { it.onSeek(positionMs) }
 	}
 
 	fun setRate(speed: Double) {
-		MPVLib.setPropertyDouble("speed", speed)
+		mpv.setPropertyDouble("speed", speed)
 	}
 
 
 	fun setAspectRatio(type: Int) {
 		when (type) {
 			1 -> { // Fill
-				MPVLib.setPropertyDouble("panscan", 1.0)
-				MPVLib.setOptionString("video-aspect-override", "-1")
-				MPVLib.setOptionString("keepaspect", "yes")
+				mpv.setPropertyDouble("panscan", 1.0)
+				mpv.setOptionString("video-aspect-override", "-1")
+				mpv.setOptionString("keepaspect", "yes")
 			}
 			2 -> { // 16:9
-				MPVLib.setPropertyDouble("panscan", 0.0)
-				MPVLib.setOptionString("video-aspect-override", "16/9")
-				MPVLib.setOptionString("keepaspect", "yes")
+				mpv.setPropertyDouble("panscan", 0.0)
+				mpv.setOptionString("video-aspect-override", "16/9")
+				mpv.setOptionString("keepaspect", "yes")
 			}
 			3 -> { // 4:3
-				MPVLib.setPropertyDouble("panscan", 0.0)
-				MPVLib.setOptionString("video-aspect-override", "4/3")
-				MPVLib.setOptionString("keepaspect", "yes")
+				mpv.setPropertyDouble("panscan", 0.0)
+				mpv.setOptionString("video-aspect-override", "4/3")
+				mpv.setOptionString("keepaspect", "yes")
 			}
 			4 -> { // Stretch
-				MPVLib.setPropertyDouble("panscan", 0.0)
-				MPVLib.setOptionString("video-aspect-override", "-1")
-				MPVLib.setOptionString("keepaspect", "no")
+				mpv.setPropertyDouble("panscan", 0.0)
+				mpv.setOptionString("video-aspect-override", "-1")
+				mpv.setOptionString("keepaspect", "no")
 			}
 			else -> { // Default / Fit
-				MPVLib.setPropertyDouble("panscan", 0.0)
-				MPVLib.setOptionString("video-aspect-override", "-1")
-				MPVLib.setOptionString("keepaspect", "yes")
+				mpv.setPropertyDouble("panscan", 0.0)
+				mpv.setOptionString("video-aspect-override", "-1")
+				mpv.setOptionString("keepaspect", "yes")
 			}
 		}
 	}
 	fun setVolume(volume: Double) {
-		MPVLib.setPropertyDouble("volume", volume)
+		mpv.setPropertyDouble("volume", volume)
 	}
 
 	fun applyCacheSettings(sizeMb: Int, cacheDir: File) {
@@ -207,22 +209,22 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 		if (!cacheDir.exists()) {
 			cacheDir.mkdirs()
 		}
-		MPVLib.setOptionString("cache", "yes")
-		MPVLib.setOptionString("cache-on-disk", "yes")
-		MPVLib.setOptionString("demuxer-seekable-cache", "yes")
-		MPVLib.setOptionString("demuxer-cache-dir", cacheDir.absolutePath)
-		MPVLib.setOptionString("demuxer-max-bytes", bytes.toString())
-		MPVLib.setOptionString("demuxer-max-back-bytes", (bytes / 2).toString())
+		mpv.setOptionString("cache", "yes")
+		mpv.setOptionString("cache-on-disk", "yes")
+		mpv.setOptionString("demuxer-seekable-cache", "yes")
+		mpv.setOptionString("demuxer-cache-dir", cacheDir.absolutePath)
+		mpv.setOptionString("demuxer-max-bytes", bytes.toString())
+		mpv.setOptionString("demuxer-max-back-bytes", (bytes / 2).toString())
 		Log.d("MpvPlayer", "applyCacheSettings: ${clampedMb}MB dir=${cacheDir.absolutePath}")
 	}
 
 	fun applyShaderList(shaderPaths: String?) {
 		Log.d("MpvPlayer", "applyShaderList: ${shaderPaths ?: "none"}")
 		if (shaderPaths.isNullOrBlank()) {
-			MPVLib.command("change-list", "glsl-shaders", "clr", "")
+			mpv.command("change-list", "glsl-shaders", "clr", "")
             return
         }
-        MPVLib.command("change-list", "glsl-shaders", "set", shaderPaths)
+        mpv.command("change-list", "glsl-shaders", "set", shaderPaths)
     }
 
 	data class TrackInfo(
@@ -272,7 +274,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 		// Method 1: Try as int property
 		try {
 			@Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
-			val count: Int = MPVLib.getPropertyInt("track-list/count")!!
+			val count: Int = mpv.getPropertyInt("track-list/count")!!
 			Log.d("MpvPlayer", "getTrackCount via getPropertyInt: $count")
 			return count
 		} catch (e: Exception) {
@@ -280,7 +282,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 		}
 		// Method 2: Try as string property
 		try {
-			val countStr = MPVLib.getPropertyString("track-list/count")
+			val countStr = mpv.getPropertyString("track-list/count")
 			val count = countStr?.toIntOrNull()
 			if (count != null) {
 				Log.d("MpvPlayer", "getTrackCount via getPropertyString: $count")
@@ -295,7 +297,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 		var probed = 0
 		while (probed < 50) { // safety limit
 			try {
-				val type = MPVLib.getPropertyString("track-list/$probed/type")
+				val type = mpv.getPropertyString("track-list/$probed/type")
 				if (type.isNullOrEmpty()) break
 				probed++
 			} catch (e: Exception) {
@@ -308,7 +310,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 
 	private fun getTrackPropertyString(prop: String): String? {
 		return try {
-			MPVLib.getPropertyString(prop)
+			mpv.getPropertyString(prop)
 		} catch (e: Exception) {
 			null
 		}
@@ -316,14 +318,14 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 
 	private fun getTrackPropertyInt(prop: String): Int? {
 		// Try int first, then string
-		runCatching { MPVLib.getPropertyInt(prop) }.getOrNull()?.let { return it }
-		return runCatching { MPVLib.getPropertyString(prop)?.toIntOrNull() }.getOrNull()
+		runCatching { mpv.getPropertyInt(prop) }.getOrNull()?.let { return it }
+		return runCatching { mpv.getPropertyString(prop)?.toIntOrNull() }.getOrNull()
 	}
 
 	private fun getTrackPropertyFlag(prop: String): Boolean {
 		// Try boolean first, then string "yes"/"true"
-		runCatching { MPVLib.getPropertyBoolean(prop) }.getOrNull()?.let { return it }
-		val str = runCatching { MPVLib.getPropertyString(prop) }.getOrNull()
+		runCatching { mpv.getPropertyBoolean(prop) }.getOrNull()?.let { return it }
+		val str = runCatching { mpv.getPropertyString(prop) }.getOrNull()
 		return str == "yes" || str == "true"
 	}
 
@@ -337,31 +339,31 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 
 	fun setSubtitleTrack(id: Int?) {
 		if (id == null || id <= 0) {
-			MPVLib.setPropertyString("sid", "no")
+			mpv.setPropertyString("sid", "no")
 			// Explicitly hide subtitles - try boolean first, then string
-			runCatching { MPVLib.setPropertyBoolean("sub-visibility", false) }
-				.onFailure { runCatching { MPVLib.setPropertyString("sub-visibility", "no") } }
+			runCatching { mpv.setPropertyBoolean("sub-visibility", false) }
+				.onFailure { runCatching { mpv.setPropertyString("sub-visibility", "no") } }
 		} else {
-			runCatching { MPVLib.setPropertyInt("sid", id) }.onFailure {
-				MPVLib.setPropertyString("sid", id.toString())
+			runCatching { mpv.setPropertyInt("sid", id) }.onFailure {
+				mpv.setPropertyString("sid", id.toString())
 			}
 			// Explicitly enable subtitle rendering - try boolean first, then string
-			runCatching { MPVLib.setPropertyBoolean("sub-visibility", true) }
-				.onFailure { runCatching { MPVLib.setPropertyString("sub-visibility", "yes") } }
+			runCatching { mpv.setPropertyBoolean("sub-visibility", true) }
+				.onFailure { runCatching { mpv.setPropertyString("sub-visibility", "yes") } }
 			// Also ensure OSD is enabled (needed for subtitle overlay)
-			runCatching { MPVLib.setPropertyString("osd-level", "1") }
+			runCatching { mpv.setPropertyString("osd-level", "1") }
 		}
-		val currentSid = runCatching { MPVLib.getPropertyString("sid") }.getOrNull()
-		val subVis = runCatching { MPVLib.getPropertyString("sub-visibility") }.getOrNull()
-		val subVisBool = runCatching { MPVLib.getPropertyBoolean("sub-visibility") }.getOrNull()
-		val subText = runCatching { MPVLib.getPropertyString("sub-text") }.getOrNull()
-		val subScale = runCatching { MPVLib.getPropertyString("sub-scale") }.getOrNull()
-		val blendSubs = runCatching { MPVLib.getPropertyString("blend-subtitles") }.getOrNull()
+		val currentSid = runCatching { mpv.getPropertyString("sid") }.getOrNull()
+		val subVis = runCatching { mpv.getPropertyString("sub-visibility") }.getOrNull()
+		val subVisBool = runCatching { mpv.getPropertyBoolean("sub-visibility") }.getOrNull()
+		val subText = runCatching { mpv.getPropertyString("sub-text") }.getOrNull()
+		val subScale = runCatching { mpv.getPropertyString("sub-scale") }.getOrNull()
+		val blendSubs = runCatching { mpv.getPropertyString("blend-subtitles") }.getOrNull()
 		Log.d("MpvPlayer", "setSubtitleTrack: requested=$id, sid=$currentSid, sub-visibility=$subVis/$subVisBool, sub-text='$subText', sub-scale=$subScale, blend-subs=$blendSubs")
 	}
 
 	fun setAudioTrack(id: Int) {
-		MPVLib.setPropertyString("aid", id.toString())
+		mpv.setPropertyString("aid", id.toString())
 		Log.d("MpvPlayer", "setAudioTrack: $id")
 	}
 
@@ -375,7 +377,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 			val args = mutableListOf("sub-add", url, "auto")
 			args.add(title ?: "")
 			args.add(lang ?: "")
-			MPVLib.command(*args.toTypedArray())
+			mpv.command(*args.toTypedArray())
 			Log.d("MpvPlayer", "addSubtitleTrack: url=$url title=$title lang=$lang")
 		} catch (e: Exception) {
 			Log.e("MpvPlayer", "addSubtitleTrack failed: url=$url", e)
@@ -390,7 +392,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 			val args = mutableListOf("audio-add", url, "auto")
 			args.add(title ?: "")
 			args.add(lang ?: "")
-			MPVLib.command(*args.toTypedArray())
+			mpv.command(*args.toTypedArray())
 			Log.d("MpvPlayer", "addAudioTrack: url=$url title=$title lang=$lang")
 		} catch (e: Exception) {
 			Log.e("MpvPlayer", "addAudioTrack failed: url=$url", e)
@@ -398,26 +400,26 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 	}
 
 	fun getPropertyString(name: String): String? {
-		return runCatching { MPVLib.getPropertyString(name) }.getOrNull()
+		return runCatching { mpv.getPropertyString(name) }.getOrNull()
 	}
 
-	override fun event(eventId: Int) {
+	override fun event(eventId: Int, node: MPVNode) {
 		Log.v("MpvPlayer", "MPV Event: $eventId")
 		when (eventId) {
-			MPVLib.MpvEvent.MPV_EVENT_START_FILE -> Log.d("MpvPlayer", "EVENT_START_FILE")
-			MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+			MPV.mpvEvent.MPV_EVENT_START_FILE -> Log.d("MpvPlayer", "EVENT_START_FILE")
+			MPV.mpvEvent.MPV_EVENT_FILE_LOADED -> {
 				Log.d("MpvPlayer", "EVENT_FILE_LOADED")
 				awaitingFileLoaded = false
 				hasLoadedCurrentFile = true
 				if (shouldAutoPlayAfterLoad) {
-					MPVLib.setPropertyBoolean("pause", false)
+					mpv.setPropertyBoolean("pause", false)
 					shouldAutoPlayAfterLoad = false
 				}
 				listeners.forEach { it.onFileLoaded() }
 				pendingSeekMs?.let { seekTo(it) }
 				pendingSeekMs = null
 			}
-			MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
+			MPV.mpvEvent.MPV_EVENT_END_FILE -> {
 				Log.d("MpvPlayer", "EVENT_END_FILE")
 				val failedBeforeLoad = awaitingFileLoaded && !hasLoadedCurrentFile
 				awaitingFileLoaded = false
@@ -428,8 +430,8 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 					listeners.forEach { it.onPlaybackEnded() }
 				}
 			}
-			MPVLib.MpvEvent.MPV_EVENT_IDLE -> Log.d("MpvPlayer", "EVENT_IDLE")
-			MPVLib.MpvEvent.MPV_EVENT_SHUTDOWN -> Log.d("MpvPlayer", "EVENT_SHUTDOWN")
+			MPV.mpvEvent.MPV_EVENT_IDLE -> Log.d("MpvPlayer", "EVENT_IDLE")
+			MPV.mpvEvent.MPV_EVENT_SHUTDOWN -> Log.d("MpvPlayer", "EVENT_SHUTDOWN")
 		}
 	}
 
@@ -475,7 +477,7 @@ class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 	override fun eventProperty(property: String, value: MPVNode) = Unit
 
 	override fun logMessage(prefix: String, level: Int, text: String) {
-		if (level > MPVLib.MpvLogLevel.MPV_LOG_LEVEL_WARN) return
+		if (level > MPV.mpvLogLevel.MPV_LOG_LEVEL_WARN) return
 		val normalized = text.trim()
 		if (normalized.isEmpty()) return
 		if (

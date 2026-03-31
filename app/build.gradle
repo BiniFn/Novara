@@ -103,7 +103,8 @@ android {
 				'lib/arm64-v8a/libquickjs.so',
 				'lib/armeabi-v7a/libquickjs.so',
 				'lib/x86/libquickjs.so',
-				'lib/x86_64/libquickjs.so'
+				'lib/x86_64/libquickjs.so',
+				'**/libc++_shared.so'
 			]
 		}
 		resources {

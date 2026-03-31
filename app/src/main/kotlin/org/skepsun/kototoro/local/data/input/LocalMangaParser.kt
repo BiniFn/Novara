@@ -116,7 +116,14 @@ class LocalContentParser(private val uri: Uri) {
 				val title = rootFile.name.fileNameToTitle()
 				var inferedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
 				val flatFiles = fileSystem.listRecursively(rootPath).toList()
-				if (flatFiles.any { it.name.endsWith(".mp4", true) || it.name.endsWith(".mkv", true) || it.name.endsWith(".ts", true) || it.name.endsWith(".webm", true) }) inferedSource = LocalVideoSource
+				if (flatFiles.any {
+						it.name.endsWith(".mp4", true) ||
+							it.name.endsWith(".mkv", true) ||
+							it.name.endsWith(".ts", true) ||
+							it.name.endsWith(".webm", true) ||
+							it.name.endsWith(".avi", true) ||
+							it.name.endsWith(".m3u8", true)
+					}) inferedSource = LocalVideoSource
 				else if (flatFiles.any { it.name.endsWith(".epub", true) || it.name.endsWith(".txt", true) }) inferedSource = LocalNovelSource
 
 				Content(
@@ -134,13 +141,18 @@ class LocalContentParser(private val uri: Uri) {
 									!fileSystem.isRegularFile(path) -> null
 									path.isImage() -> path.parent
 									hasZipExtension(path.name) -> path
-									path.name.endsWith(".mp4", true) || path.name.endsWith(".mkv", true) || path.name.endsWith(".ts", true) || path.name.endsWith(".webm", true) -> {
+									path.name.endsWith(".mp4", true) ||
+										path.name.endsWith(".mkv", true) ||
+										path.name.endsWith(".ts", true) ||
+										path.name.endsWith(".webm", true) ||
+										path.name.endsWith(".avi", true) ||
+										path.name.endsWith(".m3u8", true) -> {
 										detectedSource = LocalVideoSource
-										path.parent ?: Path.DIRECTORY_SEPARATOR.toPath()
+										path
 									}
 									path.name.endsWith(".epub", true) || path.name.endsWith(".txt", true) -> {
 										detectedSource = LocalNovelSource
-										path.parent ?: Path.DIRECTORY_SEPARATOR.toPath()
+										path
 									}
 									else -> null
 								}

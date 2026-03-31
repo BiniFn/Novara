@@ -16,6 +16,7 @@ import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.databinding.DialogImportBinding
 import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.data.importer.ImportMode
+import org.skepsun.kototoro.local.data.importer.LocalImportKind
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -53,6 +54,12 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 	}
 
 	override fun onClick(v: View) {
+		val selectedKind = when (requireViewBinding().toggleContentType.checkedButtonId) {
+			R.id.button_type_manga -> LocalImportKind.MANGA
+			R.id.button_type_novel -> LocalImportKind.NOVEL
+			R.id.button_type_video -> LocalImportKind.VIDEO
+			else -> null
+		}
 		val res = when (v.id) {
 			R.id.button_file -> importFileCall.tryLaunch(arrayOf("*/*"))
 			R.id.button_dir_single -> importDirSingleCall.tryLaunch(null)
@@ -65,6 +72,12 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 	}
 
 	private fun startImportFiles(uris: Collection<Uri>) {
+		val selectedKind = when (requireViewBinding().toggleContentType.checkedButtonId) {
+			R.id.button_type_manga -> LocalImportKind.MANGA
+			R.id.button_type_novel -> LocalImportKind.NOVEL
+			R.id.button_type_video -> LocalImportKind.VIDEO
+			else -> null
+		}
 		if (uris.isEmpty()) {
 			return
 		}
@@ -72,7 +85,7 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 			storageManager.takePermissions(it)
 		}
 		val ctx = requireContext()
-		val msg = if (ImportService.start(ctx, uris)) {
+		val msg = if (ImportService.start(ctx, uris, selectedKind)) {
 			R.string.import_will_start_soon
 		} else {
 			R.string.error_occurred
@@ -82,12 +95,18 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 	}
 
 	private fun startImportDirectory(uri: Uri?, mode: ImportMode) {
+		val selectedKind = when (requireViewBinding().toggleContentType.checkedButtonId) {
+			R.id.button_type_manga -> LocalImportKind.MANGA
+			R.id.button_type_novel -> LocalImportKind.NOVEL
+			R.id.button_type_video -> LocalImportKind.VIDEO
+			else -> null
+		}
 		if (uri == null) {
 			return
 		}
 		storageManager.takePermissions(uri)
 		val ctx = requireContext()
-		val msg = if (ImportService.start(ctx, uri, mode)) {
+		val msg = if (ImportService.start(ctx, uri, mode, selectedKind)) {
 			R.string.import_will_start_soon
 		} else {
 			R.string.error_occurred

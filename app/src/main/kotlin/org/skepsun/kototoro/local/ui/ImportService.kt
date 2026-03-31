@@ -29,6 +29,7 @@ import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
 import org.skepsun.kototoro.local.data.importer.ImportMode
+import org.skepsun.kototoro.local.data.importer.LocalImportKind
 import org.skepsun.kototoro.local.data.importer.SingleContentImporter
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -54,14 +55,16 @@ class ImportService : CoroutineIntentService() {
 		val uri = requireNotNull(intent.getStringExtra(DATA_URI)?.toUriOrNull()) { "No input uri" }
 		val importModeOrdinal = intent.getIntExtra(DATA_IMPORT_MODE, -1)
 		val importMode = if (importModeOrdinal >= 0) ImportMode.entries.getOrNull(importModeOrdinal) else null
+		val importKindOrdinal = intent.getIntExtra(DATA_IMPORT_KIND, -1)
+		val importKind = if (importKindOrdinal >= 0) LocalImportKind.entries.getOrNull(importKindOrdinal) else null
 		
 		startForeground(this)
 		powerManager.withPartialWakeLock(TAG) {
 			val result = runCatchingCancellable {
 				if (importMode != null) {
-					importer.import(uri, importMode).map { it.manga }
+					importer.import(uri, importMode, importKind).map { it.manga }
 				} else {
-					importer.import(uri).map { it.manga }
+					importer.import(uri, importKind).map { it.manga }
 				}
 			}
 			if (applicationContext.checkNotificationPermission(CHANNEL_ID)) {
@@ -180,6 +183,7 @@ class ImportService : CoroutineIntentService() {
 
 		private const val DATA_URI = "uri"
 		private const val DATA_IMPORT_MODE = "import_mode"
+		private const val DATA_IMPORT_KIND = "import_kind"
 		private const val TAG = "import"
 		private const val CHANNEL_ID = "importing"
 		private const val FOREGROUND_NOTIFICATION_ID = 37
@@ -187,11 +191,12 @@ class ImportService : CoroutineIntentService() {
 		/**
 		 * Start import for files (CBZ/ZIP archives)
 		 */
-		fun start(context: Context, uris: Collection<Uri>): Boolean = try {
+		fun start(context: Context, uris: Collection<Uri>, kind: LocalImportKind? = null): Boolean = try {
 			require(uris.isNotEmpty())
 			for (uri in uris) {
 				val intent = Intent(context, ImportService::class.java)
 				intent.putExtra(DATA_URI, uri.toString())
+				intent.putExtra(DATA_IMPORT_KIND, kind?.ordinal ?: -1)
 				ContextCompat.startForegroundService(context, intent)
 			}
 			true
@@ -203,10 +208,11 @@ class ImportService : CoroutineIntentService() {
 		/**
 		 * Start import for directory with specified mode
 		 */
-		fun start(context: Context, uri: Uri, mode: ImportMode): Boolean = try {
+		fun start(context: Context, uri: Uri, mode: ImportMode, kind: LocalImportKind? = null): Boolean = try {
 			val intent = Intent(context, ImportService::class.java)
 			intent.putExtra(DATA_URI, uri.toString())
 			intent.putExtra(DATA_IMPORT_MODE, mode.ordinal)
+			intent.putExtra(DATA_IMPORT_KIND, kind?.ordinal ?: -1)
 			ContextCompat.startForegroundService(context, intent)
 			true
 		} catch (e: Exception) {

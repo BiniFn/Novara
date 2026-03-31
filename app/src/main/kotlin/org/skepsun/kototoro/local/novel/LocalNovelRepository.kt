@@ -141,6 +141,21 @@ class LocalNovelRepository @Inject constructor(
 				transformedContent to (transformedChapters ?: emptyList())
 			}.getOrNull()
 		}
+
+		if (dir.isDirectory && !File(dir, "index.json").exists()) {
+			return runCatching {
+				val parser = org.skepsun.kototoro.local.data.input.LocalContentParser(dir)
+				val localContent = runBlocking { parser.getContent(withDetails = true) }
+				val transformedChapters = localContent.manga.chapters?.map { chapter ->
+					chapter.copy(source = source)
+				}
+				val transformedContent = localContent.manga.copy(
+					chapters = transformedChapters,
+					source = source,
+				)
+				transformedContent to (transformedChapters ?: emptyList())
+			}.getOrNull()
+		}
 		
 		// Handle multi-CBZ format (directory-based)
 		val indexFile = File(dir, "index.json")
