@@ -58,6 +58,11 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		}
 		observeViewModel(binding)
 		addMenuProvider(RepositoriesMenuProvider())
+
+		arguments?.getString("add_repo_url")?.let { url ->
+			arguments?.remove("add_repo_url")
+			openAddDialog(url)
+		}
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
@@ -105,7 +110,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		viewModel.onTrustPrompt.observeEvent(viewLifecycleOwner, ::openTrustDialog)
 	}
 
-	private fun openAddDialog() {
+	private fun openAddDialog(prefillUrl: String? = null) {
 		val builder = MaterialAlertDialogBuilder(requireContext())
 		val recommendedRepos = getRecommendedRepos()
 		val inputBinding = ViewDialogAutocompleteBinding.inflate(layoutInflater).apply {
@@ -124,6 +129,9 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		builder.setView(inputBinding.root)
 		val input = inputBinding.autoCompleteTextView
 		input.hint = getString(R.string.extension_repository_url_hint)
+		if (!prefillUrl.isNullOrEmpty()) {
+			input.setText(prefillUrl)
+		}
 		input.post(
 			{
 				input.setSelection(input.text?.length ?: 0)

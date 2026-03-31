@@ -177,6 +177,19 @@ class SettingsActivity :
 				when (intent.data?.host) {
 					HOST_ABOUT -> AboutSettingsFragment()
 					HOST_SYNC_SETTINGS -> SyncSettingsFragment()
+					"add-repo" -> {
+						val url = intent.data?.getQueryParameter("url")
+						val type = when (intent.data?.scheme) {
+							"aniyomi", "anikku" -> org.skepsun.kototoro.extensions.repo.ExternalExtensionType.ANIYOMI
+							else -> org.skepsun.kototoro.extensions.repo.ExternalExtensionType.MIHON
+						}
+						org.skepsun.kototoro.settings.sources.extensions.ExtensionRepositoriesFragment().apply {
+							arguments = Bundle().apply {
+								putString(org.skepsun.kototoro.settings.sources.extensions.ARG_EXTENSION_TYPE, type.name)
+								putString("add_repo_url", url)
+							}
+						}
+					}
 					else -> null
 				}
 			}

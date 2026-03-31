@@ -214,8 +214,12 @@
 				<category android:name="android.intent.category.BROWSABLE" />
 
 				<data android:scheme="kototoro" />
+				<data android:scheme="tachiyomi" />
+				<data android:scheme="aniyomi" />
+				<data android:scheme="anikku" />
 				<data android:host="about" />
 				<data android:host="sync-settings" />
+				<data android:host="add-repo" />
 			</intent-filter>
 		</activity>
 		<activity
