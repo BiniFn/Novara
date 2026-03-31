@@ -7,7 +7,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import android.util.Log
 import java.io.File
 
-class MpvPlayer : MPVLib.EventObserver {
+class MpvPlayer : MPVLib.EventObserver, MPVLib.LogObserver {
 
 	interface Listener {
 		fun onPositionChanged(positionMs: Long) = Unit
@@ -15,6 +15,7 @@ class MpvPlayer : MPVLib.EventObserver {
 		fun onIsPlayingChanged(isPlaying: Boolean) = Unit
 		fun onPlaybackEnded() = Unit
 		fun onFileLoaded() = Unit
+		fun onPlaybackFailed(message: String?) = Unit
 		fun onSeek(positionMs: Long) = Unit
 		fun onSubtitleTextChanged(text: String?) = Unit
 	}
@@ -23,6 +24,9 @@ class MpvPlayer : MPVLib.EventObserver {
 	private var isInitialized = false
 	private var pendingSeekMs: Long? = null
 	private var shouldAutoPlayAfterLoad: Boolean = false
+	private var awaitingFileLoaded = false
+	private var hasLoadedCurrentFile = false
+	private var lastPlaybackErrorMessage: String? = null
 
 	var durationMs: Long = 0L
 		private set
@@ -39,6 +43,7 @@ class MpvPlayer : MPVLib.EventObserver {
 		MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
 		MPVLib.observeProperty("sub-text", MPVLib.MpvFormat.MPV_FORMAT_STRING)
 		MPVLib.addObserver(this)
+		MPVLib.addLogObserver(this)
 		isInitialized = true
 	}
 
@@ -53,6 +58,7 @@ class MpvPlayer : MPVLib.EventObserver {
 	fun release() {
 		pendingSeekMs = null
 		MPVLib.removeObserver(this)
+		MPVLib.removeLogObserver(this)
 		isInitialized = false
 	}
 
@@ -67,6 +73,9 @@ class MpvPlayer : MPVLib.EventObserver {
 	fun load(url: String, headers: Map<String, String>, startMs: Long? = null) {
 		pendingSeekMs = startMs
 		shouldAutoPlayAfterLoad = true
+		awaitingFileLoaded = true
+		hasLoadedCurrentFile = false
+		lastPlaybackErrorMessage = null
 		
 		// Handle special headers separately for better compatibility
 		val userAgent = headers.entries.find { it.key.equals("User-Agent", ignoreCase = true) }?.value
@@ -398,6 +407,8 @@ class MpvPlayer : MPVLib.EventObserver {
 			MPVLib.MpvEvent.MPV_EVENT_START_FILE -> Log.d("MpvPlayer", "EVENT_START_FILE")
 			MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
 				Log.d("MpvPlayer", "EVENT_FILE_LOADED")
+				awaitingFileLoaded = false
+				hasLoadedCurrentFile = true
 				if (shouldAutoPlayAfterLoad) {
 					MPVLib.setPropertyBoolean("pause", false)
 					shouldAutoPlayAfterLoad = false
@@ -408,7 +419,14 @@ class MpvPlayer : MPVLib.EventObserver {
 			}
 			MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
 				Log.d("MpvPlayer", "EVENT_END_FILE")
-				listeners.forEach { it.onPlaybackEnded() }
+				val failedBeforeLoad = awaitingFileLoaded && !hasLoadedCurrentFile
+				awaitingFileLoaded = false
+				if (failedBeforeLoad) {
+					Log.w("MpvPlayer", "EVENT_END_FILE before FILE_LOADED, treat as playback failure")
+					listeners.forEach { it.onPlaybackFailed(lastPlaybackErrorMessage) }
+				} else {
+					listeners.forEach { it.onPlaybackEnded() }
+				}
 			}
 			MPVLib.MpvEvent.MPV_EVENT_IDLE -> Log.d("MpvPlayer", "EVENT_IDLE")
 			MPVLib.MpvEvent.MPV_EVENT_SHUTDOWN -> Log.d("MpvPlayer", "EVENT_SHUTDOWN")
@@ -455,4 +473,18 @@ class MpvPlayer : MPVLib.EventObserver {
 	}
 
 	override fun eventProperty(property: String, value: MPVNode) = Unit
+
+	override fun logMessage(prefix: String, level: Int, text: String) {
+		if (level > MPVLib.MpvLogLevel.MPV_LOG_LEVEL_WARN) return
+		val normalized = text.trim()
+		if (normalized.isEmpty()) return
+		if (
+			normalized.contains("HTTP error", ignoreCase = true) ||
+			normalized.contains("error", ignoreCase = true) ||
+			normalized.contains("failed", ignoreCase = true)
+		) {
+			lastPlaybackErrorMessage = "[$prefix] $normalized"
+			Log.w("MpvPlayer", "Captured playback error log: $lastPlaybackErrorMessage")
+		}
+	}
 }

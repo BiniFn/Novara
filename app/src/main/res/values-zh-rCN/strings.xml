@@ -671,6 +671,19 @@
     <string name="video_info_misses">回源: %d</string>
     <string name="video_info_writes">写入次数: %d</string>
     <string name="video_info_write_bytes">写入流量: %s</string>
+    <string name="video_info_playback_diagnostics">播放诊断:</string>
+    <string name="video_info_device_tier">设备档位: %s</string>
+    <string name="video_info_effective_renderer">实际渲染器: %s</string>
+    <string name="video_info_effective_super_res">实际超分模式: %s</string>
+    <string name="video_info_startup_timeouts">启动超时次数: %d</string>
+    <string name="video_info_fallback_count">回退次数: %d</string>
+    <string name="video_info_network_error_count">网络/源错误次数: %d</string>
+    <string name="video_info_compat_error_count">兼容性错误次数: %d</string>
+    <string name="video_info_unknown_error_count">未知错误次数: %d</string>
+    <string name="video_info_last_failure_category">最近失败分类: %s</string>
+    <string name="video_info_last_failure_trigger">最近失败触发点: %s</string>
+    <string name="video_info_last_fallback_reason">最近回退原因: %s</string>
+    <string name="video_info_last_failure_detail">最近失败详情: %s</string>
     <!-- Novel reader strings -->
     <string name="novel_font_size">字体大小</string>
     <string name="novel_line_spacing">行距</string>
@@ -1069,6 +1082,9 @@
     <string name="video_decoder_mode">视频解码方式</string>
     <string name="video_decoder_hardware">硬件解码</string>
     <string name="video_decoder_software">软件解码</string>
+    <string name="video_fallback_super_res_disabled">已临时关闭视频超分，以提升播放稳定性</string>
+    <string name="video_fallback_renderer_downgraded">已切换到更兼容的渲染模式，以改善播放表现</string>
+    <string name="video_fallback_conservative_mode">当前设备已使用保守播放模式，以提升兼容性</string>
     <string name="video_renderer_mode">视频输出</string>
     <string name="video_renderer_auto">自动（GPU）</string>
     <string name="video_renderer_gpu">GPU</string>

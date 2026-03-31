@@ -80,6 +80,14 @@ import org.skepsun.kototoro.video.player.MpvPlayer
 import org.skepsun.kototoro.video.player.MpvShaderManager
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
 import org.skepsun.kototoro.video.data.ExternalPlayerHelper
+import org.skepsun.kototoro.video.performance.DevicePerformanceClassifier
+import org.skepsun.kototoro.video.performance.DevicePerformanceInfo
+import org.skepsun.kototoro.video.performance.EffectiveVideoPlaybackConfig
+import org.skepsun.kototoro.video.performance.PlaybackFailureCategory
+import org.skepsun.kototoro.video.performance.PlaybackFallbackController
+import org.skepsun.kototoro.video.performance.PlaybackFallbackReason
+import org.skepsun.kototoro.video.performance.PlaybackSessionDiagnostics
+import org.skepsun.kototoro.video.performance.VideoPlaybackPolicy
 import org.skepsun.kototoro.video.danmaku.VideoDanmakuController
 import org.skepsun.kototoro.video.danmaku.DanmakuSettings
 import org.skepsun.kototoro.video.danmaku.DanmakuSourceManager
@@ -99,6 +107,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     @Inject
     lateinit var appSettings: AppSettings
+
+    private lateinit var devicePerformanceInfo: DevicePerformanceInfo
+    private lateinit var effectivePlaybackConfig: EffectiveVideoPlaybackConfig
+    private var playbackConfigOverride: EffectiveVideoPlaybackConfig? = null
+    private val shownFallbackHints = mutableSetOf<PlaybackFallbackReason>()
+    private val shownPlaybackErrorHints = mutableSetOf<PlaybackFailureCategory>()
+    private val playbackDiagnostics = PlaybackSessionDiagnostics()
+    private var hasCurrentMediaLoaded = false
+    private val startupTimeoutMs = 8_000L
 
     private var mpvPlayer: MpvPlayer? = null
     internal fun getMpvPlayer(): MpvPlayer? = mpvPlayer
@@ -188,10 +205,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         override fun onFileLoaded() {
             runOnUiThread {
+                hasCurrentMediaLoaded = true
+                cancelPlaybackStartupTimeout()
                 autoNextTriggered = false
                 applySuperResolutionFromSettings()
                 danmakuController.start()
                 loadPendingExternalTracks()
+            }
+        }
+
+        override fun onPlaybackFailed(message: String?) {
+            runOnUiThread {
+                cancelPlaybackStartupTimeout()
+                handlePlaybackFallback("mpv_end_file_before_loaded", message)
             }
         }
 
@@ -258,10 +284,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     // 定期保存播放进度（每5秒）
     private val progressSaveIntervalMs = 5000L
 	private val progressSaveRunnable = object : Runnable {
-        override fun run() {
-            savePlaybackProgress()
-            viewBinding.root.postDelayed(this, progressSaveIntervalMs)
-        }
+		override fun run() {
+			savePlaybackProgress()
+			viewBinding.root.postDelayed(this, progressSaveIntervalMs)
+		}
+	}
+    private val playbackStartupTimeoutRunnable = Runnable {
+        handlePlaybackStartupTimeout()
     }
     // 长按持续快进/快退配置与状态
     private val longSeekIntervalMs = 200
@@ -432,6 +461,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        devicePerformanceInfo = DevicePerformanceClassifier.classify(this)
+        effectivePlaybackConfig = VideoPlaybackPolicy.resolve(appSettings, devicePerformanceInfo)
         setContentView(ActivityVideoPlayerBinding.inflate(layoutInflater))
         // 将布局中的 MaterialToolbar 设为 SupportActionBar，以便正确显示标题/副标题与导航按钮
         setSupportActionBar(viewBinding.toolbar)
@@ -494,11 +525,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     true
                 }
                 org.skepsun.kototoro.R.id.action_more -> {
-                    val tag = "VideoSettingsSheet"
-                    val fm = supportFragmentManager
-                    if (fm.findFragmentByTag(tag) == null) {
-                        VideoSettingsSheet().show(fm, tag)
-                    }
+                    showVideoSettingsSheet()
                     true
                 }
                 else -> false
@@ -1199,6 +1226,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         startMs: Long? = null,
     ) {
         hasRestoredProgress = false
+        hasCurrentMediaLoaded = false
         currentMediaUrl = url
         currentVideoSource = source
         currentMediaHeaders = headers
@@ -1207,8 +1235,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         videoLocalCacheProxy.resetSessionStats("startMpvPlayback")
         val initialStartMs = startMs ?: resolveSavedPlaybackProgress(url)
         skipHistorySeekForCurrentMedia = initialStartMs != null
-        mpvPlayer?.setVideoOutput(resolveVideoRenderer())
-        if (appSettings.videoDecoderMode == VideoDecoderMode.SOFTWARE) {
+        effectivePlaybackConfig = playbackConfigOverride ?: VideoPlaybackPolicy.resolve(appSettings, devicePerformanceInfo)
+        logEffectivePlaybackConfig()
+        mpvPlayer?.setVideoOutput(resolveVideoRenderer(effectivePlaybackConfig.rendererMode))
+        if (effectivePlaybackConfig.decoderMode == VideoDecoderMode.SOFTWARE) {
             mpvPlayer?.setHardwareDecodingMode("no")
         } else {
             mpvPlayer?.setHardwareDecodingMode("auto")
@@ -1242,6 +1272,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         Log.d("VideoPlayerActivity", "Resolved playback URL: $playUrl")
         
         val doLoad = {
+            schedulePlaybackStartupTimeout()
             mpvPlayer?.load(playUrl, playHeaders, initialStartMs)
             mpvPlayer?.play()
         }
@@ -1289,8 +1320,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         return true
     }
 
-    private fun resolveVideoRenderer(): String {
-        return when (appSettings.videoRendererMode) {
+    private fun resolveVideoRenderer(rendererMode: VideoRendererMode): String {
+        return when (rendererMode) {
             VideoRendererMode.AUTO -> {
                 if (Build.VERSION.SDK_INT >= 34) "gpu-next" else "gpu"
             }
@@ -1995,39 +2026,40 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     fun applySuperResolutionFromSettings() {
+        effectivePlaybackConfig = playbackConfigOverride ?: VideoPlaybackPolicy.resolve(appSettings, devicePerformanceInfo)
         val vo = mpvPlayer?.getPropertyString("vo")
         val voParams = mpvPlayer?.getPropertyString("video-out-params/vo")
         val hwdec = mpvPlayer?.getPropertyString("hwdec-current")
         val voCombined = listOfNotNull(vo, voParams).joinToString("|")
         val isMediacodecEmbed = voCombined.contains("mediacodec_embed", ignoreCase = true)
         android.util.Log.d("MpvPlayer", "SuperResolution check: vo=$vo voParams=$voParams hwdec=$hwdec")
-        if (isMediacodecEmbed) {
+        if (isMediacodecEmbed || !effectivePlaybackConfig.allowShaderPipeline) {
             android.util.Log.d("MpvPlayer", "SuperResolution disabled: vo=$voCombined hwdec=$hwdec")
             mpvPlayer?.applyShaderList(null)
-            if (appSettings.videoDecoderMode == VideoDecoderMode.SOFTWARE) {
+            if (effectivePlaybackConfig.decoderMode == VideoDecoderMode.SOFTWARE) {
                 mpvPlayer?.setHardwareDecodingMode("no")
             } else {
                 mpvPlayer?.setHardwareDecodingMode("auto")
             }
             return
         }
-        if (appSettings.videoSuperResolutionMode == VideoSuperResolutionMode.OFF) {
+        if (effectivePlaybackConfig.superResolutionMode == VideoSuperResolutionMode.OFF) {
             android.util.Log.d("MpvPlayer", "SuperResolution disabled: mode=OFF")
             mpvPlayer?.applyShaderList(null)
-            if (appSettings.videoDecoderMode == VideoDecoderMode.SOFTWARE) {
+            if (effectivePlaybackConfig.decoderMode == VideoDecoderMode.SOFTWARE) {
                 mpvPlayer?.setHardwareDecodingMode("no")
             } else {
                 mpvPlayer?.setHardwareDecodingMode("auto")
             }
             return
         }
-        if (appSettings.videoDecoderMode == VideoDecoderMode.SOFTWARE) {
+        if (effectivePlaybackConfig.decoderMode == VideoDecoderMode.SOFTWARE) {
             mpvPlayer?.setHardwareDecodingMode("no")
         } else {
             mpvPlayer?.setHardwareDecodingMode("mediacodec-copy")
         }
         val dir = MpvShaderManager.ensureShadersCopied(this)
-        val shaderList = when (appSettings.videoSuperResolutionMode) {
+        val shaderList = when (effectivePlaybackConfig.superResolutionMode) {
             VideoSuperResolutionMode.OFF -> emptyList()
             VideoSuperResolutionMode.QUALITY -> mapSubModeToPreset(
                 resolveSubMode(VideoSuperResolutionMode.QUALITY, appSettings.videoSuperResolutionQualityShader)
@@ -2046,6 +2078,94 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             MpvShaderManager.buildShaderPathList(dir, shaderList)
         }
         mpvPlayer?.applyShaderList(shaderPaths)
+    }
+
+    private fun logEffectivePlaybackConfig() {
+        Log.i(
+            "VideoPlayerActivity",
+            "Playback policy: tier=${devicePerformanceInfo.tier} score=${devicePerformanceInfo.score} " +
+                "ramMb=${devicePerformanceInfo.totalRamMb} cpu=${devicePerformanceInfo.cpuCores} " +
+                "renderer=${effectivePlaybackConfig.rendererMode} decoder=${effectivePlaybackConfig.decoderMode} " +
+                "superRes=${effectivePlaybackConfig.superResolutionMode} shaders=${effectivePlaybackConfig.allowShaderPipeline}"
+        )
+    }
+
+    private fun schedulePlaybackStartupTimeout() {
+        viewBinding.root.removeCallbacks(playbackStartupTimeoutRunnable)
+        viewBinding.root.postDelayed(playbackStartupTimeoutRunnable, startupTimeoutMs)
+    }
+
+    private fun cancelPlaybackStartupTimeout() {
+        viewBinding.root.removeCallbacks(playbackStartupTimeoutRunnable)
+    }
+
+    private fun handlePlaybackStartupTimeout() {
+        handlePlaybackFallback("startup_timeout", null)
+    }
+
+    private fun handlePlaybackFallback(trigger: String, detail: String?) {
+        if (hasCurrentMediaLoaded) return
+        val currentUrl = currentMediaUrl ?: return
+        val failureCategory = PlaybackFallbackController.classifyFailure(detail, trigger)
+        playbackDiagnostics.recordFailure(trigger, failureCategory, detail)
+        if (failureCategory == PlaybackFailureCategory.NETWORK_OR_SOURCE) {
+            Log.w(
+                "VideoPlayerActivity",
+                "Skip playback fallback for network/source failure: trigger=$trigger url=$currentUrl detail=${detail.orEmpty()}"
+            )
+            showPlaybackErrorHintOnce(failureCategory)
+            return
+        }
+        val fallbackDecision = PlaybackFallbackController.nextConfig(effectivePlaybackConfig) ?: return
+        playbackConfigOverride = fallbackDecision.config
+        playbackDiagnostics.recordFallback(fallbackDecision.reason)
+        showFallbackHintOnce(fallbackDecision.reason)
+        Log.w(
+            "VideoPlayerActivity",
+            "Playback fallback triggered: trigger=$trigger reason=${fallbackDecision.reason} url=$currentUrl detail=${detail.orEmpty()}"
+        )
+        startMpvPlayback(
+            url = currentUrl,
+            source = currentVideoSource,
+            headers = currentMediaHeaders,
+            startMs = 0L,
+        )
+    }
+
+    private fun showFallbackHintOnce(reason: PlaybackFallbackReason) {
+        if (!shownFallbackHints.add(reason)) return
+        val messageRes = when (reason) {
+            PlaybackFallbackReason.SUPER_RES_DISABLED -> R.string.video_fallback_super_res_disabled
+            PlaybackFallbackReason.RENDERER_DOWNGRADED -> R.string.video_fallback_renderer_downgraded
+            PlaybackFallbackReason.CONSERVATIVE_MODE -> R.string.video_fallback_conservative_mode
+        }
+        Snackbar.make(viewBinding.root, messageRes, Snackbar.LENGTH_LONG)
+            .setAction(R.string.settings) {
+                showVideoSettingsSheet()
+            }
+            .show()
+    }
+
+    private fun showPlaybackErrorHintOnce(category: PlaybackFailureCategory) {
+        if (!shownPlaybackErrorHints.add(category)) return
+        val messageRes = when (category) {
+            PlaybackFailureCategory.NETWORK_OR_SOURCE -> R.string.network_error
+            PlaybackFailureCategory.COMPATIBILITY -> R.string.error_occurred
+            PlaybackFailureCategory.UNKNOWN -> R.string.error_occurred
+        }
+        Snackbar.make(viewBinding.root, messageRes, Snackbar.LENGTH_LONG)
+            .setAction(R.string.settings) {
+                showVideoSettingsSheet()
+            }
+            .show()
+    }
+
+    private fun showVideoSettingsSheet() {
+        val tag = "VideoSettingsSheet"
+        val fm = supportFragmentManager
+        if (fm.findFragmentByTag(tag) == null) {
+            VideoSettingsSheet().show(fm, tag)
+        }
     }
 
     private fun resolveSubMode(
@@ -2171,6 +2291,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     override fun onDestroy() {
+        cancelPlaybackStartupTimeout()
         viewBinding.root.removeCallbacks(hideUiRunnable)
         viewBinding.root.removeCallbacks(progressUpdateRunnable)
         viewBinding.root.removeCallbacks(controllerProgressRunnable)
@@ -2289,6 +2410,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             ).orDash()
         val sourceName = currentVideoSource?.name.orDash()
         val proxyStats = videoLocalCacheProxy.getSessionStatsSnapshot()
+        val diagnostics = playbackDiagnostics.snapshot()
+        val effectiveRendererSetting = when (effectivePlaybackConfig.rendererMode) {
+            VideoRendererMode.AUTO -> getString(org.skepsun.kototoro.R.string.video_info_auto)
+            VideoRendererMode.GPU -> "GPU"
+            VideoRendererMode.GPU_NEXT -> "GPU Next"
+            VideoRendererMode.MEDIACODEC_EMBED -> "MediaCodec Embed"
+        }
+        val lastFailureCategory = diagnostics.lastFailureCategory?.name.orDash()
+        val lastFallbackReason = diagnostics.lastFallbackReason?.name.orDash()
 
         val resolution = if (videoWidth != "-" && videoHeight != "-") {
             "${videoWidth}x${videoHeight}"
@@ -2316,7 +2446,21 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             appendLine(getString(org.skepsun.kototoro.R.string.video_info_hits, proxyStats.hit))
             appendLine(getString(org.skepsun.kototoro.R.string.video_info_misses, proxyStats.miss))
             appendLine(getString(org.skepsun.kototoro.R.string.video_info_writes, proxyStats.writeCount))
-            append(getString(org.skepsun.kototoro.R.string.video_info_write_bytes, formatBytes(proxyStats.writeBytes)))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_write_bytes, formatBytes(proxyStats.writeBytes)))
+            appendLine()
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_playback_diagnostics))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_device_tier, devicePerformanceInfo.tier.name))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_effective_renderer, effectiveRendererSetting))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_effective_super_res, effectivePlaybackConfig.superResolutionMode.name))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_startup_timeouts, diagnostics.startupTimeoutCount))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_fallback_count, diagnostics.fallbackCount))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_network_error_count, diagnostics.networkOrSourceErrorCount))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_compat_error_count, diagnostics.compatibilityErrorCount))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_unknown_error_count, diagnostics.unknownErrorCount))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_last_failure_category, lastFailureCategory))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_last_failure_trigger, diagnostics.lastFailureTrigger.orDash()))
+            appendLine(getString(org.skepsun.kototoro.R.string.video_info_last_fallback_reason, lastFallbackReason))
+            append(getString(org.skepsun.kototoro.R.string.video_info_last_failure_detail, diagnostics.lastFailureDetail.orDash()))
         }
     }
 

@@ -393,6 +393,19 @@
     <string name="video_info_misses">Misses: %d</string>
     <string name="video_info_writes">Writes: %d</string>
     <string name="video_info_write_bytes">Write Bytes: %s</string>
+    <string name="video_info_playback_diagnostics">Playback Diagnostics:</string>
+    <string name="video_info_device_tier">Device Tier: %s</string>
+    <string name="video_info_effective_renderer">Effective Renderer: %s</string>
+    <string name="video_info_effective_super_res">Effective Super Resolution: %s</string>
+    <string name="video_info_startup_timeouts">Startup Timeouts: %d</string>
+    <string name="video_info_fallback_count">Fallback Count: %d</string>
+    <string name="video_info_network_error_count">Network/Source Errors: %d</string>
+    <string name="video_info_compat_error_count">Compatibility Errors: %d</string>
+    <string name="video_info_unknown_error_count">Unknown Errors: %d</string>
+    <string name="video_info_last_failure_category">Last Failure Category: %s</string>
+    <string name="video_info_last_failure_trigger">Last Failure Trigger: %s</string>
+    <string name="video_info_last_fallback_reason">Last Fallback Reason: %s</string>
+    <string name="video_info_last_failure_detail">Last Failure Detail: %s</string>
     <!-- Novel reader strings -->
     <string name="novel_font_size">Font Size</string>
     <string name="novel_line_spacing">Line Spacing</string>
@@ -780,6 +793,9 @@
     <string name="video_renderer_gpu">GPU</string>
     <string name="video_renderer_gpu_next">GPU Next (Vulkan)</string>
     <string name="video_renderer_mediacodec_embed">MediaCodec Embed</string>
+    <string name="video_fallback_super_res_disabled">Super resolution was temporarily disabled to improve playback stability</string>
+    <string name="video_fallback_renderer_downgraded">Switched to a more compatible renderer to improve playback</string>
+    <string name="video_fallback_conservative_mode">This device is using a conservative playback mode for better compatibility</string>
     <string name="video_background">Playback background</string>
     <string name="video_cache_size">Cache size (MB)</string>
     <string name="video_cache_size_summary">%1$d MB</string>
