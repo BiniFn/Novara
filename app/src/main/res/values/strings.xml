@@ -694,6 +694,10 @@
     <string name="description">Description</string>
     <string name="this_month">This month</string>
     <string name="voice_search">Voice search</string>
+
+    <string name="about_donate" translatable="false">Donate</string>
+    <string name="url_donate" translatable="false">https://ko-fi.com/skepsun</string>
+    <string name="about_discord" translatable="false">Discord Server</string>
     <string name="related_manga">Related manga</string>
     <string name="color_light">Light</string>
     <string name="color_dark">Dark</string>

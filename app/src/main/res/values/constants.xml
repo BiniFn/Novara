@@ -4,7 +4,8 @@
 	<string name="url_telegram_web" translatable="false">https://t.me/kototoroapp</string>
 	<string name="url_telegram" translatable="false">tg://resolve?domain=kototoroapp</string>
 	<string name="url_weblate" translatable="false">https://hosted.weblate.org/engage/kototoro</string>
-	<string name="url_user_manual" translatable="false">https://kototoro.app/manuals/guides/getting-started/</string>
+	<string name="url_user_manual" translatable="false">https://skepsun.github.io/Kototoro</string>
+	<string name="url_discord" translatable="false">https://discord.gg/E2GsMeq2Vh</string>
 	<string name="url_error_report" translatable="false">https://bugs.kototoro.app/report</string>
 	<string name="account_type_sync" translatable="false">org.kototoro.sync</string>
     <string name="github_updates_repo" translatable="false">skepsun/Kototoro</string>
