@@ -58,18 +58,24 @@ class AppUpdateRepository @Inject constructor(
 		val jsonArray = okHttp.newCall(request.build()).execute().use { it.parseJsonArray() }
 		return jsonArray.mapJSONNotNull { json ->
 			val assets = json.optJSONArray("assets")
-				?.toApkAssets()
+				?.toAssetList()
 				.orEmpty()
-			if (assets.isEmpty()) {
+			
+			val apkAssets = assets.filter { it.isApkAsset() }
+			if (apkAssets.isEmpty()) {
 				return@mapJSONNotNull null
 			}
-			val asset = assets.findBestAssetForCurrentDevice() ?: assets.first()
+			val apkAsset = apkAssets.findBestAssetForCurrentDevice() ?: apkAssets.first()
+			val patchAsset = assets.filter { it.isPatchAsset() }.findBestAssetForCurrentDevice()
+			
 			AppVersion(
 				id = json.getLong("id"),
 				url = json.getString("html_url"),
 				name = json.getString("name").removePrefix("v"),
-				apkSize = asset.getLong("size"),
-				apkUrl = asset.getString("browser_download_url"),
+				apkSize = apkAsset.getLong("size"),
+				apkUrl = apkAsset.getString("browser_download_url"),
+				patchSize = patchAsset?.getLong("size"),
+				patchUrl = patchAsset?.getString("browser_download_url"),
 				description = json.getString("body"),
 			)
 		}
@@ -86,8 +92,21 @@ class AppUpdateRepository @Inject constructor(
 			if (currentVersion.variantType.isEmpty() && !settings.isUnstableUpdatesAllowed) {
 				available.retainAll { it.versionId.variantType.isEmpty() }
 			}
-			available.maxByOrNull { it.versionId }
-				?.takeIf { it.versionId > currentVersion }
+			
+			val latest = available.maxByOrNull { it.versionId }?.takeIf { it.versionId > currentVersion }
+			if (latest != null && latest.patchUrl != null) {
+				// The patch is generated against the immediate prior release.
+				val sorted = available.sortedByDescending { it.versionId }
+				val previousReleaseIndex = sorted.indexOf(latest) + 1
+				val isImmediatePrecursor = previousReleaseIndex < sorted.size && 
+					currentVersion == sorted[previousReleaseIndex].versionId
+					
+				if (!isImmediatePrecursor) {
+					// Fallback to full APK if the user skipped a version
+					return@runCatchingCancellable latest.copy(patchUrl = null, patchSize = null)
+				}
+			}
+			latest
 		}.onFailure {
 			it.printStackTrace()
 		}.onSuccess {
@@ -117,16 +136,16 @@ class AppUpdateRepository @Inject constructor(
 		)
 	}
 
-	private fun JSONArray.toApkAssets(): List<JSONObject> {
-		val apkAssets = ArrayList<JSONObject>(length())
+	private fun JSONArray.toAssetList(): List<JSONObject> {
+		val assetList = ArrayList<JSONObject>(length())
 		val size = length()
 		for (i in 0 until size) {
 			val jo = getJSONObject(i)
-			if (jo.isApkAsset()) {
-				apkAssets += jo
+			if (jo.isApkAsset() || jo.isPatchAsset()) {
+				assetList += jo
 			}
 		}
-		return apkAssets
+		return assetList
 	}
 
 	private fun JSONObject.isApkAsset(): Boolean {
@@ -135,6 +154,10 @@ class AppUpdateRepository @Inject constructor(
 			return true
 		}
 		return optString("name").endsWith(".apk", ignoreCase = true)
+	}
+
+	private fun JSONObject.isPatchAsset(): Boolean {
+		return optString("name").endsWith(".patch", ignoreCase = true)
 	}
 
 	private fun List<JSONObject>.findBestAssetForCurrentDevice(): JSONObject? {

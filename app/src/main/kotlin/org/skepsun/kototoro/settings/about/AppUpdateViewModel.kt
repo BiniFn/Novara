@@ -23,7 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AppUpdateViewModel @Inject constructor(
 	private val repository: AppUpdateRepository,
-	@ApplicationContext context: Context,
+	@ApplicationContext private val context: Context,
 ) : BaseViewModel() {
 
 	val nextVersion = repository.observeAvailableUpdate()
@@ -46,12 +46,14 @@ class AppUpdateViewModel @Inject constructor(
 	fun startDownload() {
 		launchLoadingJob(Dispatchers.Default) {
 			val version = nextVersion.requireValue()
-			val url = version.apkUrl.toUri()
+			val isPatch = version.patchUrl != null
+			val url = (version.patchUrl ?: version.apkUrl).toUri()
+			val title = if (isPatch) "$appName v${version.name} (Delta)" else "$appName v${version.name}"
 			val request = DownloadManager.Request(url)
-				.setTitle("$appName v${version.name}")
+				.setTitle(title)
 				.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, url.lastPathSegment)
 				.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-				.setMimeType("application/vnd.android.package-archive")
+				.setMimeType(if (isPatch) "application/octet-stream" else "application/vnd.android.package-archive")
 			val downloadId = downloadManager.enqueue(request)
 			observeDownload(downloadId)
 		}
@@ -63,13 +65,39 @@ class AppUpdateViewModel @Inject constructor(
 			if (downloadId == 0L) {
 				return@launchLoadingJob
 			}
+			val uri = downloadManager.getUriForDownloadedFile(downloadId) ?: return@launchLoadingJob
+			val mimeType = downloadManager.getMimeTypeForDownloadedFile(downloadId)
+			
+			val installUri = if (mimeType == "application/octet-stream" || uri.path?.endsWith(".patch") == true) {
+				// Incremental update patch downloaded. We need to merge it with the base APK.
+				val patchFile = java.io.File(context.cacheDir, "update.patch")
+				context.contentResolver.openInputStream(uri)?.use { input ->
+					patchFile.outputStream().use { output ->
+						input.copyTo(output)
+					}
+				}
+				val oldApk = java.io.File(context.applicationInfo.sourceDir)
+				val newApk = java.io.File(context.cacheDir, "update_merged.apk")
+				newApk.delete()
+				
+				org.skepsun.kototoro.core.os.PatchUtils.patch(oldApk, patchFile, newApk)
+				
+				// Optional cleanup of the downloaded patch
+				runCatching { patchFile.delete() }
+				
+				androidx.core.content.FileProvider.getUriForFile(
+					context,
+					"${org.skepsun.kototoro.BuildConfig.APPLICATION_ID}.files",
+					newApk,
+				)
+			} else {
+				uri
+			}
+
 			@Suppress("DEPRECATION")
 			val installerIntent = Intent(Intent.ACTION_INSTALL_PACKAGE)
 			installerIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-			installerIntent.setDataAndType(
-				downloadManager.getUriForDownloadedFile(downloadId),
-				downloadManager.getMimeTypeForDownloadedFile(downloadId),
-			)
+			installerIntent.setDataAndType(installUri, "application/vnd.android.package-archive")
 			installerIntent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
 			installIntent.value = installerIntent
 			onDownloadDone.call(installerIntent)
