@@ -772,18 +772,35 @@ class ContentSourcesRepository @Inject constructor(
 	}
 
 	suspend fun setSourcesEnabledExclusive(sources: Set<ContentSource>) {
+		val currentEnabled = getEnabledSources()
 		db.withTransaction {
 			assimilateNewSources()
 			for (s in allContentSources) {
 				dao.setEnabled(s.name, s in sources)
 			}
+			for (s in currentEnabled) {
+				if (s !in allContentSources && s !in sources) {
+					dao.setEnabled(s.name, false)
+				}
+			}
+			for (s in sources) {
+				if (s !in allContentSources) {
+					dao.setEnabled(s.name, true)
+				}
+			}
 		}
 	}
 
 	suspend fun disableAllSources() {
+		val currentEnabled = getEnabledSources()
 		db.withTransaction {
 			assimilateNewSources()
 			dao.disableAllSources()
+			for (s in currentEnabled) {
+				if (s !in allContentSources) {
+					dao.setEnabled(s.name, false)
+				}
+			}
 		}
 	}
 
