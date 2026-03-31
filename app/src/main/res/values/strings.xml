@@ -1813,8 +1813,9 @@
     <string name="bind_manga_success">Bound to \"%s\" successfully</string>
     <string name="pref_panorama_cover">Panorama cover</string>
     <string name="pref_panorama_cover_summary">Show the item cover as a background banner spanning the top of the screen</string>
-    <string name="pref_panorama_cover_blurred">Blur panorama cover</string>
-    <string name="pref_panorama_cover_blurred_summary">Apply a heavy blur effect to the background banner</string>
+    <string name="pref_panorama_blur">Cover blur intensity</string>
+    <string name="pref_panorama_extra_height">Extra cover height (dp)</string>
+    <string name="pref_panorama_gradient_alpha">Edge gradient intensity</string>
 	<string name="reader_translation_ocr_model_selection_not_downloaded_suffix">" (⚠️ Not Downloaded)"</string>
     <string name="reader_translation_ocr_model_rec_selection">OCR Rec model selection</string>
     <string name="reader_translation_ocr_model_rec_autodetect">Auto Select</string>

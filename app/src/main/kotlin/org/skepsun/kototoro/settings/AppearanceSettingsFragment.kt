@@ -92,6 +92,10 @@ class AppearanceSettingsFragment :
             pref.summaryProvider = MultiSummaryProvider(R.string.none)
             pref.values = settings.searchSuggestionTypes.mapToSet { it.name }
         }
+        findPreference<SliderPreference>(AppSettings.KEY_PANORAMA_BLUR)?.summaryProvider = PercentSummaryProvider()
+        findPreference<SliderPreference>(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT)?.summaryProvider =
+            Preference.SummaryProvider<SliderPreference> { "${it.value}dp" }
+        findPreference<SliderPreference>(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA)?.summaryProvider = PercentSummaryProvider()
         bindNavSummary()
     }
 

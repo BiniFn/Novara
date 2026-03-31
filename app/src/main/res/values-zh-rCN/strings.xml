@@ -1233,8 +1233,9 @@
     <string name="video_double_tap_seek">双击快进快退</string>
     <string name="pref_panorama_cover">全景封面</string>
     <string name="pref_panorama_cover_summary">在详情页顶部标题后方显示横幅式的封面背景图</string>
-    <string name="pref_panorama_cover_blurred">模糊全景封面</string>
-    <string name="pref_panorama_cover_blurred_summary">为全景封面背景开启虚化效果</string>
+    <string name="pref_panorama_blur">封面模糊度</string>
+    <string name="pref_panorama_extra_height">额外封面高度 (dp)</string>
+    <string name="pref_panorama_gradient_alpha">边缘渐变效果</string>
     <string name="reader_translation_manage_ocr_models">模型管理</string>
     <string name="reader_translation_manage_ocr_models_summary">下载并管理本地 OCR 与翻译模型</string>
     <string name="reader_translation_ocr_models_title">模型管理</string>

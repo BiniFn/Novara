@@ -108,21 +108,24 @@ class ContentSourcesRepository @Inject constructor(
 				val ireaderSources = getEnabledIReaderSources()
 				
 				val list = ArrayList<ContentSource>()
-				external.forEach { if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it) }
+				enabledSources.mapTo(list) { it.mangaSource }
+				
+				val existingNames = list.mapToSet { it.name }
+				
+				external.forEach { if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it) }
 				jsonSources.forEach { 
-					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it) 
+					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it) 
 				}
 				mihonSources.forEach {
-					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it)
+					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it)
 				}
 				aniyomiSources.forEach {
-					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it)
+					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it)
 				}
 				ireaderSources.forEach {
-					if (settings.isAllSourcesEnabled || it.name !in disabledNames) list.add(it)
+					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it)
 				}
 				
-				enabledSources.mapTo(list) { it.mangaSource }
 				list
 			}
 	}

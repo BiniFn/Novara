@@ -224,7 +224,8 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 			bottom = systemBars.bottom,
 		)
 		binding.appbar.updatePadding(top = trueTopInset)
-		val totalTopOffset = trueTopInset + view.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize)
+		val extraSpace = if (settings.isPanoramaCoverEnabled) (settings.panoramaCoverExtraHeight * view.resources.displayMetrics.density).toInt() else 0
+		val totalTopOffset = trueTopInset + view.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize) + extraSpace
 		binding.scrollView.findViewById<Guideline>(R.id.guideline_status_bar)?.setGuidelineBegin(totalTopOffset)
 
 		return insets.consume(view, WindowInsetsCompat.Type.systemBars(), start = true, end = true, bottom = true)
@@ -499,11 +500,12 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 			return
 		}
 
+		val bottomGradientAlpha = settings.panoramaBottomGradientAlpha / 100f
+
 		panoramaView.isVisible = true
 		scrimView.isVisible = true
 		bottomGradientView.isVisible = true
-
-		val blurEnabled = settings.isPanoramaCoverBlurred
+		bottomGradientView.alpha = bottomGradientAlpha
 
 		val request = ImageRequest.Builder(requireContext())
 			.data(imageUrl)
@@ -513,9 +515,7 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 			.target(
 				onSuccess = { result ->
 					panoramaView.setImageDrawable(result.asDrawable(resources))
-					if (blurEnabled) {
-						applyBlurEffect(panoramaView)
-					}
+					applyBlurEffect(panoramaView)
 				},
 				onError = {
 					panoramaView.isVisible = false
@@ -528,15 +528,25 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 	}
 
 	private fun applyBlurEffect(imageView: android.widget.ImageView) {
+		val blurLevel = settings.panoramaCoverBlur
+		if (blurLevel <= 0) {
+			// No blur applied
+			imageView.alpha = 1f
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+				imageView.setRenderEffect(null)
+			}
+			return
+		}
+		val radius = 1f + (blurLevel / 100f) * 24f // maps 1-100 to 1f-25f
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 			imageView.setRenderEffect(
 				android.graphics.RenderEffect.createBlurEffect(
-					25f, 25f,
+					radius, radius,
 					android.graphics.Shader.TileMode.MIRROR,
 				),
 			)
 		} else {
-			imageView.alpha = 0.3f
+			imageView.alpha = 1f - (blurLevel / 100f) * 0.7f // maps 1-100 to ~1.0-0.3
 		}
 	}
 }

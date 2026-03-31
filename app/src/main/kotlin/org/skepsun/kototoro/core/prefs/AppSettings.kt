@@ -124,12 +124,20 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = !prefs.getBoolean(KEY_COLLAPSE_DESCRIPTION, true)
 
 	var isPanoramaCoverEnabled: Boolean
-		get() = prefs.getBoolean(KEY_PANORAMA_COVER_ENABLED, true)
-		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_COVER_ENABLED, value) }
+		get() = prefs.getBoolean(KEY_PANORAMA_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ENABLED, value) }
 
-	var isPanoramaCoverBlurred: Boolean
-		get() = prefs.getBoolean(KEY_PANORAMA_COVER_BLURRED, false)
-		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_COVER_BLURRED, value) }
+	var panoramaCoverBlur: Int
+		get() = prefs.getInt(KEY_PANORAMA_BLUR, 35)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_BLUR, value) }
+
+	var panoramaCoverExtraHeight: Int
+		get() = prefs.getInt(KEY_PANORAMA_EXTRA_HEIGHT, 50)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_EXTRA_HEIGHT, value) }
+
+	var panoramaBottomGradientAlpha: Int
+		get() = prefs.getInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, value) }
 
 	var historyListMode: ListMode
 		get() = prefs.getEnumValue(KEY_LIST_MODE_HISTORY, listMode)
@@ -1584,8 +1592,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_ANIYOMI_EXTENSIONS = "aniyomi_extensions"
 		const val KEY_QUICK_FILTER = "quick_filter"
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
-		const val KEY_PANORAMA_COVER_ENABLED = "panorama_cover_enabled"
-		const val KEY_PANORAMA_COVER_BLURRED = "panorama_cover_blurred"
+		const val KEY_PANORAMA_ENABLED = "panorama_enabled"
+		const val KEY_PANORAMA_BLUR = "panorama_blur"
+		const val KEY_PANORAMA_EXTRA_HEIGHT = "panorama_extra_height"
+		const val KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA = "panorama_bottom_gradient_alpha"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"
 		const val KEY_BACKUP_TG_CHAT = "backup_periodic_tg_chat_id"
 		// WebDAV backup keys

@@ -385,13 +385,15 @@ class DetailsActivity :
 				start = barsInsets.start(v),
 			)
 			viewBinding.appbar.updatePadding(top = barsInsets.top)
-			val totalTopOffset = barsInsets.top + v.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize)
+			val extraSpace = if (settings.isPanoramaCoverEnabled) (settings.panoramaCoverExtraHeight * v.resources.displayMetrics.density).toInt() else 0
+			val totalTopOffset = barsInsets.top + v.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize) + extraSpace
 			viewBinding.scrollView.findViewById<Guideline>(R.id.guideline_status_bar)?.setGuidelineBegin(totalTopOffset)
 			return insets.consume(v, typeMask, bottom = true, end = true)
 		} else {
 			// portrait: immersive toolbar
 			viewBinding.appbar.updatePadding(top = barsInsets.top)
-			val totalTopOffset = barsInsets.top + v.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize)
+			val extraSpace = if (settings.isPanoramaCoverEnabled) (settings.panoramaCoverExtraHeight * v.resources.displayMetrics.density).toInt() else 0
+			val totalTopOffset = barsInsets.top + v.context.getThemeDimensionPixelSize(androidx.appcompat.R.attr.actionBarSize) + extraSpace
 			viewBinding.scrollView.findViewById<Guideline>(R.id.guideline_status_bar)?.setGuidelineBegin(totalTopOffset)
 			viewBinding.navbarDim?.updateLayoutParams {
 				height = barsInsets.bottom
@@ -664,11 +666,12 @@ class DetailsActivity :
 			return
 		}
 
+		val bottomGradientAlpha = settings.panoramaBottomGradientAlpha / 100f
+
 		panoramaView.isVisible = true
 		scrimView?.isVisible = true
 		bottomGradientView?.isVisible = true
-
-		val blurEnabled = settings.isPanoramaCoverBlurred
+		bottomGradientView?.alpha = bottomGradientAlpha
 
 		val request = ImageRequest.Builder(this)
 			.data(imageUrl)
@@ -679,9 +682,7 @@ class DetailsActivity :
 			.target(
 				onSuccess = { result ->
 					panoramaView.setImageDrawable(result.asDrawable(resources))
-					if (blurEnabled) {
-						applyBlurEffect(panoramaView)
-					}
+					applyBlurEffect(panoramaView)
 				},
 				onError = {
 					panoramaView.isVisible = false
@@ -694,16 +695,25 @@ class DetailsActivity :
 	}
 
 	private fun applyBlurEffect(imageView: android.widget.ImageView) {
+		val blurLevel = settings.panoramaCoverBlur
+		if (blurLevel <= 0) {
+			// No blur applied
+			imageView.alpha = 1f
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+				imageView.setRenderEffect(null)
+			}
+			return
+		}
+		val radius = 1f + (blurLevel / 100f) * 24f // maps 1-100 to 1f-25f
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 			imageView.setRenderEffect(
 				android.graphics.RenderEffect.createBlurEffect(
-					25f, 25f,
+					radius, radius,
 					android.graphics.Shader.TileMode.MIRROR,
 				),
 			)
 		} else {
-			// Fallback: increase alpha to make it more subtle without blur
-			imageView.alpha = 0.3f
+			imageView.alpha = 1f - (blurLevel / 100f) * 0.7f // maps 1-100 to ~1.0-0.3
 		}
 	}
 

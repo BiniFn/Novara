@@ -72,16 +72,36 @@
 
         <SwitchPreferenceCompat
             android:defaultValue="true"
-            android:key="panorama_cover_enabled"
-            android:summary="@string/pref_panorama_cover_summary"
-            android:title="@string/pref_panorama_cover" />
+            android:key="panorama_enabled"
+            android:title="@string/pref_panorama_cover"
+            android:summary="@string/pref_panorama_cover_summary" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="false"
-            android:dependency="panorama_cover_enabled"
-            android:key="panorama_cover_blurred"
-            android:summary="@string/pref_panorama_cover_blurred_summary"
-            android:title="@string/pref_panorama_cover_blurred" />
+        <org.skepsun.kototoro.settings.utils.SliderPreference
+            android:key="panorama_blur"
+            android:dependency="panorama_enabled"
+            android:stepSize="5"
+            android:title="@string/pref_panorama_blur"
+            android:valueFrom="0"
+            android:valueTo="100"
+            app:defaultValue="35" />
+
+        <org.skepsun.kototoro.settings.utils.SliderPreference
+            android:key="panorama_extra_height"
+            android:dependency="panorama_enabled"
+            android:stepSize="5"
+            android:title="@string/pref_panorama_extra_height"
+            android:valueFrom="0"
+            android:valueTo="100"
+            app:defaultValue="50" />
+
+        <org.skepsun.kototoro.settings.utils.SliderPreference
+            android:key="panorama_bottom_gradient_alpha"
+            android:dependency="panorama_enabled"
+            android:stepSize="5"
+            android:title="@string/pref_panorama_gradient_alpha"
+            android:valueFrom="0"
+            android:valueTo="100"
+            app:defaultValue="100" />
 
         <SwitchPreferenceCompat
             android:defaultValue="true"
