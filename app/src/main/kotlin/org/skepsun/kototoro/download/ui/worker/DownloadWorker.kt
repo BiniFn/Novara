@@ -1235,6 +1235,36 @@ class DownloadWorker @AssistedInject constructor(
 				} else {
 					downloadDirectVideo(repo.source, target.url, target.headers, outputFile, progress)
 				}
+				
+				// Download external tracks (subtitles, audio)
+				val baseName = outputFile.nameWithoutExtension
+				target.subtitles.forEach { track ->
+					val rawExt = track.url.substringBefore('?').substringAfterLast('.', "srt").lowercase()
+					val ext = if (rawExt.length <= 5) rawExt else "srt"
+					val langSafe = track.lang.toFileNameSafe().ifEmpty { "Unknown" }
+					val trackFile = File(mangaDir, "${baseName}_sub_${langSafe}.$ext")
+					if (!trackFile.exists() || trackFile.length() == 0L) {
+						try {
+							downloadDirectVideo(repo.source, track.url, target.headers, trackFile) { _, _ -> }
+						} catch (e: Exception) {
+							trackFile.delete()
+						}
+					}
+				}
+				target.audios.forEach { track ->
+					val rawExt = track.url.substringBefore('?').substringAfterLast('.', "m4a").lowercase()
+					val ext = if (rawExt.length <= 5) rawExt else "m4a"
+					val langSafe = track.lang.toFileNameSafe().ifEmpty { "Unknown" }
+					val trackFile = File(mangaDir, "${baseName}_aud_${langSafe}.$ext")
+					if (!trackFile.exists() || trackFile.length() == 0L) {
+						try {
+							downloadDirectVideo(repo.source, track.url, target.headers, trackFile) { _, _ -> }
+						} catch (e: Exception) {
+							trackFile.delete()
+						}
+					}
+				}
+				
 				videoDownloadIndex.put(manga.id, chapter.value.id, outputFile.absolutePath)
 				index.addChapter(chapter, fileName)
 				indexFile.writeText(index.toString())
@@ -1285,6 +1315,8 @@ class DownloadWorker @AssistedInject constructor(
 			return VideoDownloadTarget(
 				url = selected.videoUrl,
 				headers = headerMap,
+				subtitles = selected.subtitleTracks,
+				audios = selected.audioTracks,
 			)
 		}
 		val pages = repo.getPages(chapter, nextChapterUrl = null)
@@ -1622,6 +1654,8 @@ class DownloadWorker @AssistedInject constructor(
 	private data class VideoDownloadTarget(
 		val url: String,
 		val headers: Map<String, String>?,
+		val subtitles: List<eu.kanade.tachiyomi.animesource.model.Track> = emptyList(),
+		val audios: List<eu.kanade.tachiyomi.animesource.model.Track> = emptyList(),
 	) {
 		val isHls: Boolean = url.contains(".m3u8", ignoreCase = true)
 		val extension: String = if (isHls) "ts" else guessExt(url)

@@ -968,6 +968,40 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
         val localUrl = resolveLocalVideoUrl(manga, currentState, url)
         if (localUrl != null) {
+            runCatching {
+                val localUri = Uri.parse(localUrl)
+                val videoFile = File(localUri.path!!)
+                val parentDir = videoFile.parentFile
+                val baseName = videoFile.nameWithoutExtension
+                if (parentDir != null && parentDir.exists()) {
+                    val tracks = parentDir.listFiles { file ->
+                        file.isFile && file.name.startsWith("${baseName}_") && file.name != videoFile.name
+                    }
+                    if (tracks != null && tracks.isNotEmpty()) {
+                        val subtitles = mutableListOf<eu.kanade.tachiyomi.animesource.model.Track>()
+                        val audios = mutableListOf<eu.kanade.tachiyomi.animesource.model.Track>()
+                        tracks.forEach { file ->
+                            val name = file.nameWithoutExtension.removePrefix("${baseName}_")
+                            val type = name.substringBefore("_", "")
+                            val lang = name.substringAfter("_", "Unknown")
+                            if (type == "sub") {
+                                subtitles.add(eu.kanade.tachiyomi.animesource.model.Track(file.absolutePath, lang))
+                            } else if (type == "aud") {
+                                audios.add(eu.kanade.tachiyomi.animesource.model.Track(file.absolutePath, lang))
+                            }
+                        }
+                        pendingExternalSubtitles = subtitles
+                        pendingExternalAudio = audios
+                    } else {
+                        pendingExternalSubtitles = emptyList()
+                        pendingExternalAudio = emptyList()
+                    }
+                }
+            }.onFailure { e ->
+                Log.w("VideoPlayerActivity", "Failed to resolve local external tracks for $localUrl", e)
+                pendingExternalSubtitles = emptyList()
+                pendingExternalAudio = emptyList()
+            }
             currentVideoSource = manga?.source
             availableVideos = emptyList()
             currentVideoIndex = 0
