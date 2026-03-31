@@ -24,7 +24,7 @@ Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels,
 ## Start Here
 
 - Download the latest APK from [Releases](https://github.com/skepsun/kototoro/releases)
-- Complete the in-app **Initialization Wizard** right after installation to configure GitHub mirrors, download core source plugins, and set up your content types.
+- Complete the in-app **Setup wizard** right after installation to configure GitHub mirrors, download core source plugins, and set up your content types.
 - Read the [Documentation Website](https://skepsun.github.io/Kototoro/)
 - Follow [Getting Started](https://skepsun.github.io/Kototoro/getting-started) for detailed wizard instructions and next steps
 - Learn the core product surface in [Reader Features](https://skepsun.github.io/Kototoro/reader-features)
