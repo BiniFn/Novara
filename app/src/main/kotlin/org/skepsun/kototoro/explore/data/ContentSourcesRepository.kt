@@ -61,6 +61,15 @@ class ContentSourcesRepository @Inject constructor(
 	private val ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
 ) {
 
+	private val dao get() = db.getSourcesDao()
+	private val isNewSourcesAssimilated = AtomicBoolean(false)
+	private val cachedKotatsuSources = java.util.concurrent.ConcurrentHashMap<String, org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource>()
+	private val legadoJson = Json {
+		ignoreUnknownKeys = true
+		isLenient = true
+		allowTrailingComma = true
+	}
+
 	init {
 		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.collect {
@@ -73,15 +82,6 @@ class ContentSourcesRepository @Inject constructor(
 				assimilateNewSources(force = true)
 			}
 		}
-	}
-
-	private val dao get() = db.getSourcesDao()
-	private val isNewSourcesAssimilated = AtomicBoolean(false)
-	private val cachedKotatsuSources = java.util.concurrent.ConcurrentHashMap<String, org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource>()
-	private val legadoJson = Json {
-		ignoreUnknownKeys = true
-		isLenient = true
-		allowTrailingComma = true
 	}
 
 	val allContentSources: Set<ContentSource>

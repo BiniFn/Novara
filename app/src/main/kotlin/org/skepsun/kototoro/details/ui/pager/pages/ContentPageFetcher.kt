@@ -88,10 +88,13 @@ class ContentPageFetcher(
 		return loadPage(pageUrl)
 	}
 
-	private suspend fun loadPage(pageUrl: String): FetchResult? = if (pageUrl.toUri().isNetworkUri()) {
-		fetchPage(pageUrl)
-	} else {
-		imageLoader.fetch(pageUrl, options)
+	private suspend fun loadPage(pageUrl: String): FetchResult? {
+		val uri = pageUrl.toUri()
+		return if (uri.isNetworkUri() || uri.scheme.isNullOrEmpty()) {
+			fetchPage(pageUrl)
+		} else {
+			imageLoader.fetch(pageUrl, options)
+		}
 	}
 
 	private suspend fun fetchPage(pageUrl: String): FetchResult {

@@ -246,6 +246,10 @@ class MihonMangaRepository(
                     kotoPage.copy(
                         url = "mihon://resolve?page_url=${java.net.URLEncoder.encode(page.url, "UTF-8")}&index=$index"
                     )
+                } else if (!page.imageUrl.isNullOrBlank() && page.url.isNotBlank() && page.url != page.imageUrl) {
+                    kotoPage.copy(
+                        url = "mihon://image?page_url=${java.net.URLEncoder.encode(page.url, "UTF-8")}&image_url=${java.net.URLEncoder.encode(page.imageUrl!!, "UTF-8")}&index=$index"
+                    )
                 } else {
                     kotoPage
                 }
@@ -256,25 +260,25 @@ class MihonMangaRepository(
     override suspend fun getPageUrl(page: ContentPage): String = withContext(Dispatchers.IO) {
         val url = page.url
         
-        if (url.startsWith("mihon://resolve")) {
-            val pageUrl = try {
-                val params = url.substringAfter("?")
-                val pageUrlEncoded = params.substringAfter("page_url=").substringBefore("&")
-                java.net.URLDecoder.decode(pageUrlEncoded, "UTF-8")
-            } catch (e: Exception) {
-                return@withContext url
-            }
-            
-            val mihonPage = eu.kanade.tachiyomi.source.model.Page(0, pageUrl)
-            
-            val httpSource = mihonSource as? HttpSource
-            if (httpSource != null) {
-                return@withContext rethrowMihonWrappedExceptions {
-                    httpSource.getImageUrl(mihonPage)
+        if (url.startsWith("mihon://")) {
+            val uri = android.net.Uri.parse(url)
+            if (url.startsWith("mihon://image")) {
+                val imageUrl = uri.getQueryParameter("image_url")
+                if (!imageUrl.isNullOrBlank()) return@withContext imageUrl
+            } else if (url.startsWith("mihon://resolve")) {
+                val pageUrl = uri.getQueryParameter("page_url")
+                if (!pageUrl.isNullOrBlank()) {
+                    val mihonPage = eu.kanade.tachiyomi.source.model.Page(0, pageUrl)
+                    val httpSource = mihonSource as? HttpSource
+                    if (httpSource != null) {
+                        return@withContext rethrowMihonWrappedExceptions {
+                            httpSource.getImageUrl(mihonPage)
+                        }
+                    }
+                    return@withContext pageUrl
                 }
             }
-            
-            pageUrl
+            return@withContext url
         } else {
             url
         }
@@ -335,10 +339,27 @@ class MihonMangaRepository(
     }
 
     private fun ContentPage.toMihonPage(imageUrl: String): eu.kanade.tachiyomi.source.model.Page {
+        var pUrl = url
+        var pImageUrl = imageUrl
+        
+        if (url.startsWith("mihon://")) {
+            val uri = android.net.Uri.parse(url)
+            val pageUrl = uri.getQueryParameter("page_url")
+            if (!pageUrl.isNullOrBlank()) {
+                pUrl = pageUrl
+            }
+            if (url.startsWith("mihon://image")) {
+                val originalImageUrl = uri.getQueryParameter("image_url")
+                if (!originalImageUrl.isNullOrBlank()) {
+                    pImageUrl = originalImageUrl
+                }
+            }
+        }
+
         return eu.kanade.tachiyomi.source.model.Page(
             index = id.toInt(), // Use id as index
-            url = url,
-            imageUrl = imageUrl
+            url = pUrl,
+            imageUrl = pImageUrl
         )
     }
 
