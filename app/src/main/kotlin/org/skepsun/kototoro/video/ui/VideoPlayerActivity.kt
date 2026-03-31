@@ -1880,14 +1880,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val text = player.getPropertyString("sub-text")
         if (text != lastSubtitleText) {
             lastSubtitleText = text
-            val overlay = findViewById<android.widget.TextView>(org.skepsun.kototoro.R.id.subtitle_overlay)
-            if (text.isNullOrBlank()) {
-                overlay?.visibility = android.view.View.GONE
-                overlay?.text = ""
-            } else {
-                overlay?.text = text
-                overlay?.visibility = android.view.View.VISIBLE
-            }
+            updateSubtitleOverlay(text)
         }
     }
 
@@ -1897,47 +1890,73 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
      */
     private var subtitleOverlayView: android.widget.TextView? = null
 
-    private fun getOrCreateSubtitleOverlay(): android.widget.TextView {
-        subtitleOverlayView?.let { return it }
-        val ctx = this
-        val overlay = android.widget.TextView(ctx).apply {
-            id = android.view.View.generateViewId()
-            setTextColor(android.graphics.Color.WHITE)
-            textSize = 18f
-            setLineSpacing(4f * resources.displayMetrics.density, 1f)
-            setShadowLayer(8f, 0f, 0f, android.graphics.Color.BLACK)
-            setBackgroundColor(0x66000000)
-            gravity = android.view.Gravity.CENTER
-            val pad = (12 * resources.displayMetrics.density).toInt()
-            val padV = (6 * resources.displayMetrics.density).toInt()
-            setPadding(pad, padV, pad, padV)
-            visibility = android.view.View.GONE
-            isClickable = false
-            isFocusable = false
-            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        val lp = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
-            val margin = (32 * resources.displayMetrics.density).toInt()
-            val bottomMargin = (80 * resources.displayMetrics.density).toInt()
-            setMargins(margin, 0, margin, bottomMargin)
-        }
-        viewBinding.root.addView(overlay, lp)
+    fun applySubtitleOverlayStyle() {
+        val overlay = subtitleOverlayView ?: findViewById<android.widget.TextView>(org.skepsun.kototoro.R.id.subtitle_overlay)
+        if (overlay == null) return
         subtitleOverlayView = overlay
-        Log.d("VideoPlayerActivity", "subtitle overlay CREATED programmatically")
-        return overlay
+
+        val settings = appSettings
+        overlay.textSize = settings.videoSubtitleFontSize
+        overlay.setTextColor(settings.videoSubtitleTextColor)
+
+        // Background color
+        overlay.setBackgroundColor(settings.videoSubtitleBgColor)
+
+        // Shadow/Outline properties
+        if (settings.videoSubtitleBorderSize > 0) {
+            overlay.setShadowLayer(settings.videoSubtitleBorderSize, 0f, 0f, settings.videoSubtitleBorderColor)
+        } else {
+            overlay.setShadowLayer(0f, 0f, 0f, android.graphics.Color.TRANSPARENT)
+        }
+
+        // Bold / Italic
+        val style = if (settings.videoSubtitleBold && settings.videoSubtitleItalic) {
+            android.graphics.Typeface.BOLD_ITALIC
+        } else if (settings.videoSubtitleBold) {
+            android.graphics.Typeface.BOLD
+        } else if (settings.videoSubtitleItalic) {
+            android.graphics.Typeface.ITALIC
+        } else {
+            android.graphics.Typeface.NORMAL
+        }
+        overlay.setTypeface(null, style)
+
+        // Alignment (Gravity)
+        val alignX = settings.videoSubtitleAlignX
+        overlay.gravity = when (alignX) {
+            0 -> android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            2 -> android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+            else -> android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.CENTER_VERTICAL
+        }
+
+        // Bottom Margin / Position
+        val lp = overlay.layoutParams as? android.widget.FrameLayout.LayoutParams
+        lp?.let {
+            it.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+            val posDb = settings.videoSubtitlePosition
+            val density = resources.displayMetrics.density
+            val marginH = (32 * density).toInt()
+            val marginV = (posDb * density).toInt()
+            it.setMargins(marginH, 0, marginH, marginV)
+            overlay.layoutParams = it
+        }
     }
 
     private fun updateSubtitleOverlay(text: String?) {
         runOnUiThread {
-            val overlay = getOrCreateSubtitleOverlay()
+            val overlay = subtitleOverlayView ?: findViewById<android.widget.TextView>(org.skepsun.kototoro.R.id.subtitle_overlay)
+            if (overlay == null) return@runOnUiThread
+            subtitleOverlayView = overlay
+
             if (text.isNullOrBlank()) {
                 overlay.visibility = android.view.View.GONE
                 overlay.text = ""
             } else {
+                // Ensure style is applied at least once
+                if (overlay.textSize == 18f && overlay.tag == null) {
+                    overlay.tag = true
+                    applySubtitleOverlayStyle()
+                }
                 overlay.text = text
                 overlay.visibility = android.view.View.VISIBLE
                 overlay.bringToFront()

@@ -184,6 +184,13 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
         binding.buttonSubtitleTrack.setOnClickListener {
             showSubtitleTrackDialog()
         }
+        binding.buttonSubtitleSettings.setOnClickListener {
+            val fm = parentFragmentManager
+            val tag = "VideoSubtitleSettingsSheet"
+            if (fm.findFragmentByTag(tag) == null) {
+                VideoSubtitleSettingsSheet().show(fm, tag)
+            }
+        }
         binding.buttonAudioTrack.setOnClickListener {
             showAudioTrackDialog()
         }

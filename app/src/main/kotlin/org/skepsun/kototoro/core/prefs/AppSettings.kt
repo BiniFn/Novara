@@ -448,6 +448,42 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED, true)
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED, value) }
 
+	var videoSubtitleFontSize: Float
+		get() = prefs.getFloat(KEY_VIDEO_SUBTITLE_FONT_SIZE, 18f)
+		set(value) = prefs.edit { putFloat(KEY_VIDEO_SUBTITLE_FONT_SIZE, value) }
+
+	var videoSubtitleBold: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_SUBTITLE_BOLD, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_SUBTITLE_BOLD, value) }
+
+	var videoSubtitleItalic: Boolean
+		get() = prefs.getBoolean(KEY_VIDEO_SUBTITLE_ITALIC, false)
+		set(value) = prefs.edit { putBoolean(KEY_VIDEO_SUBTITLE_ITALIC, value) }
+
+	var videoSubtitleTextColor: Int
+		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, android.graphics.Color.WHITE)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, value) }
+
+	var videoSubtitleBorderColor: Int
+		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, android.graphics.Color.BLACK)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, value) }
+
+	var videoSubtitleBorderSize: Float
+		get() = prefs.getFloat(KEY_VIDEO_SUBTITLE_BORDER_SIZE, 8f)
+		set(value) = prefs.edit { putFloat(KEY_VIDEO_SUBTITLE_BORDER_SIZE, value) }
+
+	var videoSubtitleBgColor: Int
+		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_BG_COLOR, 0x66000000)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_BG_COLOR, value) }
+
+	var videoSubtitleAlignX: Int
+		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_ALIGN_X, 1) // 0=left, 1=center, 2=right
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_ALIGN_X, value) }
+
+	var videoSubtitlePosition: Int
+		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_POSITION, 80)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_POSITION, value) }
+
 	@get:FloatRange(0.3, 1.0)
 	var videoControlsAlpha: Float
 		get() = prefs.getInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
@@ -1456,6 +1492,16 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_VIDEO_DEFAULT_SPEED = "video_default_speed"
 		const val KEY_VIDEO_SEEK_FORWARD_MS = "video_seek_forward_ms"
 		const val KEY_VIDEO_SEEK_BACKWARD_MS = "video_seek_backward_ms"
+
+		const val KEY_VIDEO_SUBTITLE_FONT_SIZE = "video_subtitle_font_size"
+		const val KEY_VIDEO_SUBTITLE_BOLD = "video_subtitle_bold"
+		const val KEY_VIDEO_SUBTITLE_ITALIC = "video_subtitle_italic"
+		const val KEY_VIDEO_SUBTITLE_TEXT_COLOR = "video_subtitle_text_color"
+		const val KEY_VIDEO_SUBTITLE_BORDER_COLOR = "video_subtitle_border_color"
+		const val KEY_VIDEO_SUBTITLE_BORDER_SIZE = "video_subtitle_border_size"
+		const val KEY_VIDEO_SUBTITLE_BG_COLOR = "video_subtitle_bg_color"
+		const val KEY_VIDEO_SUBTITLE_ALIGN_X = "video_subtitle_align_x"
+		const val KEY_VIDEO_SUBTITLE_POSITION = "video_subtitle_position"
 		const val KEY_VIDEO_VOLUME_BOOST = "video_volume_boost"
 		const val KEY_VIDEO_AUTO_NEXT = "video_auto_next"
 		const val KEY_VIDEO_LANDSCAPE_SENSOR = "video_landscape_sensor"

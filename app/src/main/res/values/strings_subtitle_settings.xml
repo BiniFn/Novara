@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="video_subtitle_settings">Subtitles settings</string>
+    <string name="video_subtitle_style">Typography</string>
+    <string name="video_subtitle_font_size">Font Size</string>
+    <string name="video_subtitle_border_size">Border Size</string>
+    <string name="video_subtitle_position">Position (Margin)</string>
+    <string name="video_subtitle_color_text">Text</string>
+    <string name="video_subtitle_color_border">Border</string>
+    <string name="video_subtitle_color_bg">Background</string>
+</resources>
