@@ -126,58 +126,61 @@ class LocalContentParser(private val uri: Uri) {
 					}) inferedSource = LocalVideoSource
 				else if (flatFiles.any { it.name.endsWith(".epub", true) || it.name.endsWith(".txt", true) }) inferedSource = LocalNovelSource
 
-				Content(
+				var detectedChapters: List<Pair<ContentChapter, String>>? = null
+				val shouldGenerateIndex = rootFile.isDirectory && rootFile.canWrite() && fileSystem == FileSystem.SYSTEM
+				if (withDetails || shouldGenerateIndex) {
+					var detectedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
+					val chapters = fileSystem.listRecursively(rootPath)
+						.mapNotNullTo(HashSet()) { path ->
+							when {
+								!fileSystem.isRegularFile(path) -> null
+								path.isImage() -> path.parent
+								hasZipExtension(path.name) -> path
+								path.name.endsWith(".mp4", true) ||
+									path.name.endsWith(".mkv", true) ||
+									path.name.endsWith(".ts", true) ||
+									path.name.endsWith(".webm", true) ||
+									path.name.endsWith(".avi", true) ||
+									path.name.endsWith(".m3u8", true) -> {
+									detectedSource = LocalVideoSource
+									path
+								}
+								path.name.endsWith(".epub", true) || path.name.endsWith(".txt", true) -> {
+									detectedSource = LocalNovelSource
+									path
+								}
+								else -> null
+							}
+						}.sortedWith(compareBy(AlphanumComparator()) { x -> x.toString() })
+					detectedChapters = chapters.mapIndexed { i, p ->
+						val s = if (p.root == rootPath.root) {
+							p.relativeTo(rootPath).toString()
+						} else {
+							p
+						}.toString().removePrefix(Path.DIRECTORY_SEPARATOR)
+						val chapter = ContentChapter(
+							id = "$i$s".longHashCode(),
+							title = p.userFriendlyName().takeIf { it.isNotBlank() } ?: "1",
+							number = 0f,
+							volume = 0,
+							source = detectedSource,
+							uploadDate = 0L,
+							url = uri.child(p.relativeTo(rootPath), resolve = false).toString(),
+							scanlator = null,
+							branch = null,
+						)
+						Pair(chapter, s)
+					}
+				}
+
+				val content = Content(
 					id = rootFile.absolutePath.longHashCode(),
 					title = title,
 					url = rootFile.toUri().toString(),
 					publicUrl = rootFile.toUri().toString(),
 					source = inferedSource,
 					coverUrl = fileSystem.findFirstImageUri(rootPath)?.toString(),
-					chapters = if (withDetails) {
-						var detectedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
-						val chapters = fileSystem.listRecursively(rootPath)
-							.mapNotNullTo(HashSet()) { path ->
-								when {
-									!fileSystem.isRegularFile(path) -> null
-									path.isImage() -> path.parent
-									hasZipExtension(path.name) -> path
-									path.name.endsWith(".mp4", true) ||
-										path.name.endsWith(".mkv", true) ||
-										path.name.endsWith(".ts", true) ||
-										path.name.endsWith(".webm", true) ||
-										path.name.endsWith(".avi", true) ||
-										path.name.endsWith(".m3u8", true) -> {
-										detectedSource = LocalVideoSource
-										path
-									}
-									path.name.endsWith(".epub", true) || path.name.endsWith(".txt", true) -> {
-										detectedSource = LocalNovelSource
-										path
-									}
-									else -> null
-								}
-							}.sortedWith(compareBy(AlphanumComparator()) { x -> x.toString() })
-						chapters.mapIndexed { i, p ->
-							val s = if (p.root == rootPath.root) {
-								p.relativeTo(rootPath).toString()
-							} else {
-								p
-							}.toString().removePrefix(Path.DIRECTORY_SEPARATOR)
-							ContentChapter(
-								id = "$i$s".longHashCode(),
-								title = p.userFriendlyName().takeIf { it.isNotBlank() } ?: "1",
-								number = 0f,
-								volume = 0,
-								source = detectedSource,
-								uploadDate = 0L,
-								url = uri.child(p.relativeTo(rootPath), resolve = false).toString(),
-								scanlator = null,
-								branch = null,
-							)
-						}
-					} else {
-						null
-					},
+					chapters = if (withDetails) detectedChapters?.map { it.first } else null,
 					altTitles = emptySet(),
 					rating = -1f,
 					contentRating = null,
@@ -187,6 +190,21 @@ class LocalContentParser(private val uri: Uri) {
 					largeCoverUrl = null,
 					description = null,
 				)
+
+				if (shouldGenerateIndex && detectedChapters != null) {
+					runCatchingCancellable {
+						val newIndex = ContentIndex(null)
+						newIndex.setContentInfo(content.copy(chapters = null))
+						detectedChapters.forEachIndexed { idx, pair ->
+							newIndex.addChapter(IndexedValue(idx, pair.first), pair.second)
+						}
+						File(rootFile, ENTRY_NAME_INDEX).writeText(newIndex.toString())
+					}.onFailure {
+						it.printStackTraceDebug()
+					}
+				}
+
+				content
 			}.let { LocalContent(it, rootFile) }
 		}
 	}

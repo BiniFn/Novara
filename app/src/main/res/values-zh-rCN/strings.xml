@@ -404,8 +404,24 @@
     <string name="folder_with_images_import_description">可选择一个包含压缩包或图片的文件夹。每个压缩包 (或子文件夹) 会被识别为一个章节；如果该文件夹下包含多个子文件夹，则每个子文件夹都会被导入为单独的漫画。</string>
     <string name="folder_single_manga">图片文件夹（单个漫画）</string>
     <string name="folder_single_manga_import_description">选择一个包含单部漫画的文件夹，子文件夹将被识别为章节。</string>
-    <string name="folder_multiple_manga">图片文件夹（多个漫画）</string>
+    <string name="folder_multiple_manga">文件夹（多个漫画）</string>
     <string name="folder_multiple_manga_import_description">选择一个包含多部漫画的文件夹，每个子文件夹将被导入为独立的漫画。</string>
+    <!-- 通用导入方式字符串 -->
+    <string name="import_file">导入文件</string>
+    <string name="import_file_description">选择一个或多个文件进行导入，每个文件将被识别为一个独立的作品。</string>
+    <string name="import_folder_single">文件夹（单个作品）</string>
+    <string name="import_folder_single_description">选择一个包含单个作品的文件夹，内部文件将被识别为章节或剧集。</string>
+    <string name="import_folder_multiple">文件夹（多个作品）</string>
+    <string name="import_folder_multiple_description">选择一个包含多个作品的文件夹，每个子文件夹将被独立导入。</string>
+    <!-- 按类型区分的导入描述 -->
+    <string name="import_file_description_manga">选择一个或多个 CBZ 或 ZIP 文件，每个文件将识别为一本漫画。</string>
+    <string name="import_file_description_novel">选择一个或多个 EPUB 或 TXT 文件，每个文件导入为一部小说。EPUB 在阅读时自动识别章节，TXT 则作为单个章节。</string>
+    <string name="import_file_description_video">选择一个或多个视频文件（.mp4、.mkv 等），每个文件将导入为一部独立的动画。</string>
+    <string name="import_folder_single_description_manga">选择一个包含单部漫画的文件夹，子文件夹将被识别为章节。</string>
+    <string name="import_folder_single_description_novel">选择一个包含小说文件（.epub、.txt）的文件夹，每个文件是一部小说。EPUB 在阅读时自动识别章节，TXT 则作为单个章节。</string>
+    <string name="import_folder_single_description_video">选择一个包含单部动画的文件夹，内部每个视频文件就是一集。</string>
+    <string name="import_folder_multiple_description_manga">选择一个包含多部漫画的文件夹，每个子文件夹将被导入为独立的漫画。</string>
+    <string name="import_folder_multiple_description_video">选择一个包含多部动画的文件夹，每个子文件夹是一部独立的动画。</string>
     <string name="find_similar">搜索相似作品</string>
     <string name="web_view_unavailable">WebView不可用：检查是否已安装WebView</string>
     <string name="sync_host_description">可使用自建同步服务器或默认同步服务器，若不知道有何用处请不要自行修改。</string>

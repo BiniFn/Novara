@@ -634,6 +634,22 @@
     <string name="folder_single_manga_import_description">Select a folder containing one manga. Subdirectories will be treated as chapters.</string>
     <string name="folder_multiple_manga">Folder (multiple manga)</string>
     <string name="folder_multiple_manga_import_description">Select a folder containing multiple manga. Each subdirectory will be imported as a separate manga.</string>
+    <!-- Generic import method strings (dynamically updated by ImportDialogFragment) -->
+    <string name="import_file">Import file</string>
+    <string name="import_file_description">Select one or more files to import. Each file will be recognized as an individual item.</string>
+    <string name="import_folder_single">Folder (single item)</string>
+    <string name="import_folder_single_description">Select a folder containing one series. Files inside will be treated as chapters or episodes.</string>
+    <string name="import_folder_multiple">Folder (multiple items)</string>
+    <string name="import_folder_multiple_description">Select a folder containing multiple series. Each subdirectory will be imported separately.</string>
+    <!-- Content-type-specific import descriptions -->
+    <string name="import_file_description_manga">Select one or more .cbz or .zip files. Each file will be recognized as a separate manga.</string>
+    <string name="import_file_description_novel">Select one or more .epub or .txt files. Each file is imported as one novel. EPUB chapters are recognized when reading; a .txt file is treated as a single chapter.</string>
+    <string name="import_file_description_video">Select one or more video files (.mp4, .mkv, etc.). Each file is imported as a separate anime.</string>
+    <string name="import_folder_single_description_manga">Select a folder containing one manga. Subdirectories will be treated as chapters.</string>
+    <string name="import_folder_single_description_novel">Select a folder containing novel files (.epub, .txt). Each file is a separate novel. EPUB chapters are recognized when reading; a .txt file is treated as a single chapter.</string>
+    <string name="import_folder_single_description_video">Select a folder containing one anime series. Each video file inside is an episode.</string>
+    <string name="import_folder_multiple_description_manga">Select a folder containing multiple manga. Each subdirectory will be imported as a separate manga.</string>
+    <string name="import_folder_multiple_description_video">Select a folder containing multiple anime series. Each subdirectory is a separate series.</string>
     <string name="speed">Speed</string>
     <string name="show_on_shelf">Show on the Shelf</string>
     <string name="sync_auth_hint">You can sign in into an existing account or create a new one</string>

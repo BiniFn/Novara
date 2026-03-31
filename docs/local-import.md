@@ -65,12 +65,12 @@ Kototoro supports reading metadata and custom information through an `index.json
 **Yes.** If your folder or `.zip`/`.cbz` file contains a properly formatted `index.json` file at its root, the local parser will automatically read it during the import process. It maps custom titles, authors, descriptions, cover images, tags, and chapter groupings directly to your library.
 
 ### Is `index.json` generated automatically?
-**No.** The Local Import strictly acts as an importer. It maps the files or copies the folder "as-is" into the internal tracking directory. It will not synthesize or generate a brand new `index.json` for folders that do not have one. Instead, it generates the display data dynamically from the folder structures and file names. (Note: `index.json` *is* automatically generated when you *Download* online content, but not when you locally *Import* it).
+**Yes.** While generating the display data dynamically from the folder structures and file names during a local import or a library scan, Kototoro will automatically synthesize and save a new `index.json` inside the content folder if one is not already present. This ensures that a baseline metadata file is always available.
 
 ### Can users customize information?
-**Yes.** You have two ways to customize information for locally imported content:
-1. **Pre-Import Editing:** Manually create or modify the `index.json` file inside your folder prior to importing it into Kototoro. The app will strictly respect your custom JSON definitions.
-2. **In-App Editing:** After importing, you can often edit the series information (Title, Author, Tags) directly via the app's UI (by tapping the edit button on the detail page). The changes will be safely saved into Kototoro's internal database.
+**Yes.** Since an `index.json` is automatically generated for your local content, you can easily customize its information:
+1. **File Editing:** Navigate to the content folder in your file manager and manually edit the `index.json` file. You can change the title, authors, cover pointers, tags, and chapter groupings. Kototoro will strictly respect your custom JSON definitions upon the next library scan.
+2. **In-App Updates:** Depending on the tracker/metadata providers, some updates can also be synced automatically or manually adjusted through the Kototoro interface.
 ## How to Import
 1. Go to **Settings > Content Sources > Local Storage**.
 2. Tap the **+** (Plus) or **Import** button.
