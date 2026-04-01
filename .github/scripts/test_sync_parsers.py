@@ -40,7 +40,7 @@ print(f"✅ 找到 {file_path}")
 print(f"✅ 找到 {gradle_path}")
 
 targets = {
-    "parsers": "https://github.com/Kototoro-app/Kototoro-parsers.git",
+    "parsers": "https://github.com/skepsun/kototoro-parsers.git",
     "kotatsuParsers": "https://github.com/Kotatsu-Redo/kotatsu-parsers-redo.git",
 }
 
