@@ -37,7 +37,7 @@ The app state, UI, and Database (Data Layer) now interact solely with `GlobalExt
 
 ## Plugin Build Pipeline
 A standard JAR cannot be loaded directly on Android. The generation of these plugins follows a specific pipeline orchestrated via GitHub Actions:
-1. The parser code remains in separate repositories (e.g., `skepsun/kototoro-parsers`).
+1. The parser code remains in separate repositories (e.g., `Kototoro-app/Kototoro-parsers`).
 2. Standard Kotlin compilation produces a standard `.jar`.
 3. The Android SDK's **`d8` (Dexer)** tool converts the `.class` files into Dalvik `classes.dex` and packages it into an Android-compatible `plugin.jar`.
 4. **Manifest Generation**: The GitHub Actions runner executes `generate_index.py` during release, automatically creating an `index.min.json` mapping all hosted `.jar` versions.

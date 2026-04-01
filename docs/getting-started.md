@@ -18,7 +18,7 @@ Kototoro is built around these practical strengths:
 
 ## 10-Minute Setup
 
-1. Install the latest APK from [Releases](https://github.com/skepsun/kototoro/releases).
+1. Install the latest APK from [Releases](https://github.com/Kototoro-app/Kototoro/releases).
 2. Open the app and follow the Setup wizard to configure your languages, content types, and built-in source plugins.
 3. Set up your sources (if you need extensions beyond the built-in ones).
 4. If you use more than one device, configure WebDAV before you build a large library.

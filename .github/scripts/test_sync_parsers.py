@@ -21,7 +21,7 @@ print(f"工作目录: {os.getcwd()}")
 # 模拟 GitHub Actions 环境变量
 GITHUB_OUTPUT_FILE = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
 os.environ["GITHUB_OUTPUT"] = GITHUB_OUTPUT_FILE.name
-os.environ.setdefault("GITHUB_REPOSITORY", "skepsun/kototoro")  # 替换为你的实际仓库名
+os.environ.setdefault("GITHUB_REPOSITORY", "Kototoro-app/Kototoro")  # 替换为你的实际仓库名
 
 # 是否真正写入文件（设为 False 进行干运行）
 DRY_RUN = False
@@ -40,7 +40,7 @@ print(f"✅ 找到 {file_path}")
 print(f"✅ 找到 {gradle_path}")
 
 targets = {
-    "parsers": "https://github.com/skepsun/kototoro-parsers.git",
+    "parsers": "https://github.com/Kototoro-app/Kototoro-parsers.git",
     "kotatsuParsers": "https://github.com/Kotatsu-Redo/kotatsu-parsers-redo.git",
 }
 

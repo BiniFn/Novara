@@ -4,10 +4,10 @@
 
 - **Hybrid fallback 已实现**（NCNN 主 + TFLite 低置信 fallback）
   - 相关文件：
-    - [HybridReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/HybridReaderOcrEngine.kt)
-    - [NcnnReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/NcnnReaderOcrEngine.kt)
-    - [AppSettings.kt](../../app/src/main/kotlin/org/skepsun/kototoro/core/prefs/AppSettings.kt)
-    - [TranslationSettingsFragment.kt](../../app/src/main/kotlin/org/skepsun/kototoro/settings/TranslationSettingsFragment.kt)
+    - [HybridReaderOcrEngine.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/HybridReaderOcrEngine.kt)
+    - [NcnnReaderOcrEngine.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/NcnnReaderOcrEngine.kt)
+    - [AppSettings.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/core/prefs/AppSettings.kt)
+    - [TranslationSettingsFragment.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/settings/TranslationSettingsFragment.kt)
     - [pref_translation.xml](../../app/src/main/res/xml/pref_translation.xml)
   - 状态说明：
     - 已可灰度调节 fallback threshold
@@ -18,8 +18,8 @@
 
 - **按页并发已基本落地**
   - 相关文件：
-    - [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
-    - [PageLoader.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt)
+    - [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
+    - [PageLoader.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/domain/PageLoader.kt)
   - 状态说明：
     - 已不存在文档中提到的 `processingMutex`
     - 当前实现为 `processingSemaphore(MAX_PARALLEL_TRANSLATION_PAGES = 2)`，并由 `PageLoader` 为每页单独调度翻译任务
@@ -28,10 +28,10 @@
 
 - **单页诊断埋点已接入**
   - 相关文件：
-    - [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
-    - [HybridReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/HybridReaderOcrEngine.kt)
-    - [ReaderTranslationDebugLogStore.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderTranslationDebugLogStore.kt)
-    - [ReaderConfigSheet.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/ui/config/ReaderConfigSheet.kt)
+    - [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
+    - [HybridReaderOcrEngine.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/HybridReaderOcrEngine.kt)
+    - [ReaderTranslationDebugLogStore.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderTranslationDebugLogStore.kt)
+    - [ReaderConfigSheet.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/ui/config/ReaderConfigSheet.kt)
   - 状态说明：
     - 已记录单页 `ocr.total_ms`、`process.total_ms`、`ocr.cache_hit`、`render_cache.hit`
     - Hybrid 路径已记录 `hybrid.fallback_rate`、`hybrid.tflite_fallbacks`、`hybrid.feature_cache_hits`
@@ -54,9 +54,9 @@
 
 | 优先级 | 阶段 / 功能 | 说明 | 文件 / 位置 |
 | --- | --- | --- | --- |
-| 1 | **真机 benchmark / 聚合统计** | 现有单页埋点已足够支撑第一轮实验，下一步应补 p50 / p95、设备分层和阈值对比基线 | [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) / [HybridReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/HybridReaderOcrEngine.kt) / [ReaderConfigSheet.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/ui/config/ReaderConfigSheet.kt) |
-| 2 | **并发度与吞吐调优** | 按页并发已在位，后续重点应转向 `MAX_PARALLEL_TRANSLATION_PAGES`、模型并发、内存占用和缓存命中表现的实测调优 | [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) / [PageLoader.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt) |
-| 3 | **CV Bubble Detector** | 已接入第一版纯启发式 MVP：基于整页亮区连通域生成 bubble candidate，并优先吸附 OCR fragments；未命中 fragments 仍回退旧分组逻辑。当前已补 `bubble.detector.candidates`、`matched_fragments`、`coverage_rate`、`used_groups` 埋点，下一步应做真机样本调参与误检分析 | [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) / [CvBubbleDetector.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/CvBubbleDetector.kt) |
+| 1 | **真机 benchmark / 聚合统计** | 现有单页埋点已足够支撑第一轮实验，下一步应补 p50 / p95、设备分层和阈值对比基线 | [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) / [HybridReaderOcrEngine.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/HybridReaderOcrEngine.kt) / [ReaderConfigSheet.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/ui/config/ReaderConfigSheet.kt) |
+| 2 | **并发度与吞吐调优** | 按页并发已在位，后续重点应转向 `MAX_PARALLEL_TRANSLATION_PAGES`、模型并发、内存占用和缓存命中表现的实测调优 | [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) / [PageLoader.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/domain/PageLoader.kt) |
+| 3 | **CV Bubble Detector** | 已接入第一版纯启发式 MVP：基于整页亮区连通域生成 bubble candidate，并优先吸附 OCR fragments；未命中 fragments 仍回退旧分组逻辑。当前已补 `bubble.detector.candidates`、`matched_fragments`、`coverage_rate`、`used_groups` 埋点，下一步应做真机样本调参与误检分析 | [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) / [CvBubbleDetector.kt](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/CvBubbleDetector.kt) |
 | 4 | **YOLO fallback** | 仍建议等待 CV detector 数据后再决定是否落地，目前仓库中尚无相关主流程接入 | - |
 
 > 说明：排序按“当前仓库可落地成本 + 预期收益 + 风险”排列。

@@ -22,16 +22,16 @@ export default defineConfig({
       { text: "Guides", link: "/getting-started" },
       { text: "Reference", link: "/reference/mihon-integration" },
       { text: "Development", link: "/development" },
-      { text: "GitHub", link: "https://github.com/skepsun/Kototoro" },
+      { text: "GitHub", link: "https://github.com/Kototoro-app/Kototoro" },
     ],
     search: {
       provider: "local",
     },
     socialLinks: [
-      { icon: "github", link: "https://github.com/skepsun/Kototoro" },
+      { icon: "github", link: "https://github.com/Kototoro-app/Kototoro" },
     ],
     editLink: {
-      pattern: `https://github.com/skepsun/Kototoro/edit/${editBranch}/docs/:path`,
+      pattern: `https://github.com/Kototoro-app/Kototoro/edit/${editBranch}/docs/:path`,
       text: "Edit this page on GitHub",
     },
     sidebar: [

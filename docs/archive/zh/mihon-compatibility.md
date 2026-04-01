@@ -24,7 +24,7 @@ Kototoro 在 0.2.x 版本开始内置对 Mihon（原 Tachiyomi）扩展生态的
 
 ## 3. 核心流程拆解
 ### 3.1 扩展发现与元数据解析
-- 文件：`Kototoro/app/src/main/kotlin/org/skepsun/kototoro/mihon/MihonExtensionLoader.kt`
+- 文件：`Kototoro/app/src/main/kotlin/org/Kototoro-app/Kototoro/mihon/MihonExtensionLoader.kt`
 - 通过 `PackageManager` 扫描已安装包，检测特征：
   - Manifest feature：`tachiyomi.extension`
   - 包名约定：包含 `.extension`/`eu.kanade.tachiyomi.`/`org.keiyoushi.`

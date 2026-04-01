@@ -14,7 +14,7 @@ kototoro-parsers/
 └── src/
     └── main/
         └── kotlin/
-            └── org/skepsun/kototoro/parsers/
+            └── org/Kototoro-app/Kototoro/parsers/
                 └── ... (Your parser implementations)
 ```
 

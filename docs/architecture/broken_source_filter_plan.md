@@ -23,9 +23,9 @@
 
 **涉及文件：**
 - `parser-api/.../org/koitharu/kotatsu/parsers/Broken.kt`
-- `parser-api/.../org/skepsun/kototoro/parsers/Broken.kt`
+- `parser-api/.../org/Kototoro-app/Kototoro/parsers/Broken.kt`
 - `parser-api/.../org/koitharu/kotatsu/parsers/MangaSourceParser.kt`
-- `parser-api/.../org/skepsun/kototoro/parsers/ContentSourceParser.kt`
+- `parser-api/.../org/Kototoro-app/Kototoro/parsers/ContentSourceParser.kt`
 
 **修改动作：**
 - 注解本身的声明：`@Retention(AnnotationRetention.SOURCE)` 更改为 `@Retention(AnnotationRetention.RUNTIME)`
@@ -37,7 +37,7 @@
 当 `JarExtensionLoader` 装载一个 `.jar` 插件时，由于它是 Dalvik `.dex` 字节码，我们需要遍历 DEX 文件找出带有 `@Broken` 注解的类，以提取哪些 Source name 是已损坏的。
 
 **涉及文件：**
-- `app/.../org/skepsun/kototoro/core/extensions/JarExtensionLoader.kt`
+- `app/.../org/Kototoro-app/Kototoro/core/extensions/JarExtensionLoader.kt`
 
 **修改动作：**
 1. 在 `LoadedJarPlugin` 数据类中，新增一个集合属性 `val brokenSourceNames: Set<String>` 用于存放从该 JAR 解析出来的 broken 解析器名字。
@@ -54,8 +54,8 @@
 宿主的 `PluginMangaSource`、`PluginContentSource` 对象需要保留从 JAR 解析出来的 `isBroken` 状态，传递给后续流程。
 
 **涉及文件：**
-- `app/.../org/skepsun/kototoro/core/extensions/GlobalExtensionManager.kt`
-- `app/.../org/skepsun/kototoro/core/parser/kotatsu/KotatsuParserSource.kt`
+- `app/.../org/Kototoro-app/Kototoro/core/extensions/GlobalExtensionManager.kt`
+- `app/.../org/Kototoro-app/Kototoro/core/parser/kotatsu/KotatsuParserSource.kt`
 
 **修改动作：**
 1. **GlobalExtensionManager.kt:**
@@ -71,7 +71,7 @@
 真正实现 `queryParserSources` 当 `excludeBroken == true` 时去除损坏插件的操作。
 
 **涉及文件：**
-- `app/.../org/skepsun/kototoro/explore/data/ContentSourcesRepository.kt`
+- `app/.../org/Kototoro-app/Kototoro/explore/data/ContentSourcesRepository.kt`
 
 **修改动作：**
 找到 `queryParserSources` 方法底部的过滤代码：
@@ -100,7 +100,7 @@ if (excludeBroken) {
 引入名为 “显示已损坏/不可用的源 (Show broken sources)” 的配置开关。为了不让失效源污染阅读界面，默认需要关闭 (`false`)。
 
 **涉及文件：**
-- `app/.../org/skepsun/kototoro/core/prefs/AppSettings.kt`
+- `app/.../org/Kototoro-app/Kototoro/core/prefs/AppSettings.kt`
 - `app/src/main/res/xml/pref_sources.xml`
 - `app/src/main/res/values/strings.xml` 及对应的中文包 `values-zh-rCN/strings.xml`
 
@@ -121,7 +121,7 @@ if (excludeBroken) {
 当用户在扩展管理、探索区寻找漫画源时，必须根据刚刚配置好的 `AppSettings.isShowBrokenSources` 正确传递拦截指令。
 
 **涉及文件：**
-- `app/.../org/skepsun/kototoro/settings/sources/catalog/SourcesCatalogViewModel.kt`
+- `app/.../org/Kototoro-app/Kototoro/settings/sources/catalog/SourcesCatalogViewModel.kt`
 
 **修改动作：**
 在 `buildSourcesList` 方法调用 `repository.queryParserSources` 的传参中：

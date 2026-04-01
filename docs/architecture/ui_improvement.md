@@ -1035,30 +1035,30 @@
 ### 已落地代码入口
 
 - 主页与导航：
-  - `app/src/main/kotlin/org/skepsun/kototoro/core/prefs/NavItem.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/core/prefs/AppSettings.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/main/ui/MainNavigationDelegate.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/settings/nav/NavConfigViewModel.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/home/ui/HomeFragment.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/home/ui/HomeViewModel.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/core/prefs/NavItem.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/core/prefs/AppSettings.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/main/ui/MainNavigationDelegate.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/settings/nav/NavConfigViewModel.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/home/ui/HomeFragment.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/home/ui/HomeViewModel.kt`
   - `app/src/main/res/layout/fragment_home.xml`
 - Explore：
   - `app/src/main/res/layout/fragment_explore.xml`
-  - `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/model/SourceTag.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/model/BrowseGroupTab.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/search/domain/SearchSourceTypes.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/explore/ui/model/SourceTag.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/explore/ui/model/BrowseGroupTab.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/search/domain/SearchSourceTypes.kt`
   - `app/src/main/res/drawable/ic_source_js.xml`
 - 追踪站点 discovery 抽象：
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingSiteDiscoveryService.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingSiteMatcher.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/PreferredTrackingSiteProvider.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingDiscoveryModels.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/AppSettingsPreferredTrackingSiteProvider.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/TrackingDiscoveryModule.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverFragment.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverViewModel.kt`
-  - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/DiscoverAdapter.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/domain/TrackingSiteDiscoveryService.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/domain/TrackingSiteMatcher.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/domain/PreferredTrackingSiteProvider.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/domain/TrackingDiscoveryModels.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/data/AppSettingsPreferredTrackingSiteProvider.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/tracking/discovery/TrackingDiscoveryModule.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/discover/ui/DiscoverFragment.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/discover/ui/DiscoverViewModel.kt`
+  - `app/src/main/kotlin/org/Kototoro-app/Kototoro/discover/ui/DiscoverAdapter.kt`
   - `app/src/main/res/layout/item_discover_site.xml`
 
 ### 尚未开始或尚未进入可交付状态

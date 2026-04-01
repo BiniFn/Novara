@@ -3,5 +3,5 @@
 	<string name="account_type_sync" translatable="false">org.kototoro.nightly.sync</string>
 	<string name="sync_authority_history" translatable="false">org.skepsun.kototoro.nightly.history</string>
 	<string name="sync_authority_favourites" translatable="false">org.skepsun.kototoro.nightly.favourites</string>
-    <string name="github_updates_repo" translatable="false">skepsun/Kototoro-Nightly</string>
+    <string name="github_updates_repo" translatable="false">Kototoro-app/Kototoro-Nightly</string>
 </resources>

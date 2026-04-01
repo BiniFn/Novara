@@ -808,10 +808,10 @@ Started.
 
 Implemented outcomes:
 
-- translation enhancement orchestration has started moving out of [`PageLoader.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt)
-- a dedicated [`ReaderPageEnhancementController.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/ReaderPageEnhancementController.kt) now owns translation job lifecycle, enhancement state emission, and translated-variant resolution
-- reader-facing view-models and pager holders now consume enhancement-controller APIs directly instead of calling translation-related proxy methods on [`PageLoader.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt)
-- translation-related proxy methods have been removed from [`PageLoader.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/domain/PageLoader.kt), reducing its responsibility back toward page loading and cache coordination
+- translation enhancement orchestration has started moving out of [`PageLoader.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/domain/PageLoader.kt)
+- a dedicated [`ReaderPageEnhancementController.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/domain/ReaderPageEnhancementController.kt) now owns translation job lifecycle, enhancement state emission, and translated-variant resolution
+- reader-facing view-models and pager holders now consume enhancement-controller APIs directly instead of calling translation-related proxy methods on [`PageLoader.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/domain/PageLoader.kt)
+- translation-related proxy methods have been removed from [`PageLoader.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/domain/PageLoader.kt), reducing its responsibility back toward page loading and cache coordination
 
 Remaining work:
 
@@ -886,8 +886,8 @@ Implemented outcomes:
 - key background paths now log `sync_flow` and `backup_flow` separately
 - periodic backup, WebDAV auto-sync upload, and WebDAV auto-restore now produce distinct diagnostic prefixes
 - sync and backup logging now use a shared typed flow helper, which reduces stringly-typed flow names and standardizes `reason` plus key-value detail formatting across the main services
-- backup startup orchestration has begun moving out of [`MainActivity.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/main/ui/MainActivity.kt) into [`BackupStartupCoordinator.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/backups/domain/BackupStartupCoordinator.kt), which gives periodical backup, WebDAV auto-sync upload observation, and WebDAV auto-restore separate ownership at app startup
-- [`BackupStartupCoordinatorTest.kt`](../../app/src/test/kotlin/org/skepsun/kototoro/backups/domain/BackupStartupCoordinatorTest.kt) now covers incomplete-config skip behavior and delayed auto-restore scheduling
+- backup startup orchestration has begun moving out of [`MainActivity.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/main/ui/MainActivity.kt) into [`BackupStartupCoordinator.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/backups/domain/BackupStartupCoordinator.kt), which gives periodical backup, WebDAV auto-sync upload observation, and WebDAV auto-restore separate ownership at app startup
+- [`BackupStartupCoordinatorTest.kt`](../../app/src/test/kotlin/org/Kototoro-app/Kototoro/backups/domain/BackupStartupCoordinatorTest.kt) now covers incomplete-config skip behavior and delayed auto-restore scheduling
 
 Remaining work:
 

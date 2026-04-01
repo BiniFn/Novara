@@ -4,9 +4,9 @@
 
 ![version](https://img.shields.io/badge/version-0.6.2-blue)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/E2GsMeq2Vh)
-[![Docs](https://img.shields.io/badge/docs-hub-blue)](https://skepsun.github.io/Kototoro/)
-[![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://skepsun.github.io/Kototoro/getting-started)
-[![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://skepsun.github.io/Kototoro/automatic-translation)
+[![Docs](https://img.shields.io/badge/docs-hub-blue)](https://kototoro-app.github.io/Kototoro/)
+[![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://kototoro-app.github.io/Kototoro/getting-started)
+[![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://kototoro-app.github.io/Kototoro/automatic-translation)
 
 Kototoro is an open-source Android app that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 
@@ -23,16 +23,16 @@ Kototoro is an open-source Android app that brings manga, novels, and video into
 
 ## Start Here
 
-- Download the latest APK from [Releases](https://github.com/skepsun/kototoro/releases)
+- Download the latest APK from [Releases](https://github.com/Kototoro-app/Kototoro/releases)
 - Complete the in-app **Setup wizard** right after installation to configure GitHub mirrors, download core source plugins, and set up your content types.
-- Read the [Documentation Website](https://skepsun.github.io/Kototoro/)
-- Follow [Getting Started](https://skepsun.github.io/Kototoro/getting-started) for detailed wizard instructions and next steps
-- Learn the core product surface in [Reader Features](https://skepsun.github.io/Kototoro/reader-features)
-- Set up [Automatic Translation](https://skepsun.github.io/Kototoro/automatic-translation)
-- Set up [Source Integrations](https://skepsun.github.io/Kototoro/source-integrations)
-- Set up [WebDAV Sync](https://skepsun.github.io/Kototoro/webdav-sync)
-- Check [FAQ](https://skepsun.github.io/Kototoro/faq) and [Troubleshooting](https://skepsun.github.io/Kototoro/troubleshooting) if something does not work
-- See [Development](https://skepsun.github.io/Kototoro/development) and [Contributing](https://skepsun.github.io/Kototoro/contributing) if you want to work on the project
+- Read the [Documentation Website](https://kototoro-app.github.io/Kototoro/)
+- Follow [Getting Started](https://kototoro-app.github.io/Kototoro/getting-started) for detailed wizard instructions and next steps
+- Learn the core product surface in [Reader Features](https://kototoro-app.github.io/Kototoro/reader-features)
+- Set up [Automatic Translation](https://kototoro-app.github.io/Kototoro/automatic-translation)
+- Set up [Source Integrations](https://kototoro-app.github.io/Kototoro/source-integrations)
+- Set up [WebDAV Sync](https://kototoro-app.github.io/Kototoro/webdav-sync)
+- Check [FAQ](https://kototoro-app.github.io/Kototoro/faq) and [Troubleshooting](https://kototoro-app.github.io/Kototoro/troubleshooting) if something does not work
+- See [Development](https://kototoro-app.github.io/Kototoro/development) and [Contributing](https://kototoro-app.github.io/Kototoro/contributing) if you want to work on the project
 
 ## External Source Ecosystems
 
@@ -53,7 +53,7 @@ Kototoro supports several important external source ecosystems. These repositori
 
 - [XIU2 Yuedu](https://github.com/XIU2/Yuedu)
 
-For setup details, see [Source Integrations](https://skepsun.github.io/Kototoro/source-integrations).
+For setup details, see [Source Integrations](https://kototoro-app.github.io/Kototoro/source-integrations).
 
 ## Screenshots
 
@@ -66,7 +66,7 @@ For setup details, see [Source Integrations](https://skepsun.github.io/Kototoro/
 
 ## Contributing
 
-Issues and pull requests are welcome. Start with [Contributing](https://skepsun.github.io/Kototoro/contributing).
+Issues and pull requests are welcome. Start with [Contributing](https://kototoro-app.github.io/Kototoro/contributing).
 
 ## Disclaimer
 
@@ -102,5 +102,5 @@ limitations under the License.
 ## Contact
 
 - Discord: [Join Server](https://discord.gg/E2GsMeq2Vh)
-- GitHub Issues: [Issue Tracker](https://github.com/skepsun/kototoro/issues)
+- GitHub Issues: [Issue Tracker](https://github.com/Kototoro-app/Kototoro/issues)
 - Email: chuxiongsun@gmail.com

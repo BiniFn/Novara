@@ -17,7 +17,7 @@ hero:
       link: /source-integrations
     - theme: alt
       text: GitHub
-      link: https://github.com/skepsun/Kototoro
+      link: https://github.com/Kototoro-app/Kototoro
 
 features:
   - title: All-in-One Reader

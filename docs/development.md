@@ -57,7 +57,7 @@ Deployment model:
 - The site source lives in `docs/`
 - VitePress configuration lives in `docs/.vitepress/`
 - GitHub Actions publishes the site through `.github/workflows/docs-pages.yml`
-- The production base path is configured for `https://skepsun.github.io/Kototoro/`
+- The production base path is configured for `https://kototoro-app.github.io/Kototoro/`
 
 ## Documentation Map
 

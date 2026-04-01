@@ -102,7 +102,7 @@ This stack is consistent with the product ambition. The project is not just a UI
 
 The application bootstrap logic is centralized in:
 
-- [`app/src/main/kotlin/org/skepsun/kototoro/core/BaseApp.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/core/BaseApp.kt)
+- [`app/src/main/kotlin/org/Kototoro-app/Kototoro/core/BaseApp.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/core/BaseApp.kt)
 
 `BaseApp` is currently responsible for:
 
@@ -131,7 +131,7 @@ As more cross-cutting capabilities are added, `Application` can easily become a 
 
 Main application entry:
 
-- [`app/src/main/kotlin/org/skepsun/kototoro/main/ui/MainActivity.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/main/ui/MainActivity.kt)
+- [`app/src/main/kotlin/org/Kototoro-app/Kototoro/main/ui/MainActivity.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/main/ui/MainActivity.kt)
 
 `MainActivity` already functions as a unified shell for multiple content workflows. The current behavior includes:
 
@@ -149,9 +149,9 @@ The reader subsystem is one of Kototoro's clearest strengths.
 
 Important entry points:
 
-- Manga reader: [`reader/ui/ReaderActivity.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/ui/ReaderActivity.kt)
-- Novel reader: [`reader/novel/NovelReaderActivity.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/novel/NovelReaderActivity.kt)
-- Video player: [`video/ui/VideoPlayerActivity.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/video/ui/VideoPlayerActivity.kt)
+- Manga reader: [`reader/ui/ReaderActivity.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/ui/ReaderActivity.kt)
+- Novel reader: [`reader/novel/NovelReaderActivity.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/novel/NovelReaderActivity.kt)
+- Video player: [`video/ui/VideoPlayerActivity.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/video/ui/VideoPlayerActivity.kt)
 
 ### Manga reader
 
@@ -201,7 +201,7 @@ That is the right choice.
 
 Main database definition:
 
-- [`app/src/main/kotlin/org/skepsun/kototoro/core/db/MangaDatabase.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/core/db/MangaDatabase.kt)
+- [`app/src/main/kotlin/org/Kototoro-app/Kototoro/core/db/MangaDatabase.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/core/db/MangaDatabase.kt)
 
 Even though the database is still named `MangaDatabase`, its real scope is much broader. It now stores or coordinates data for:
 
@@ -236,7 +236,7 @@ The name `MangaDatabase` now understates the actual responsibility. Over time, t
 
 The most strategically important abstraction in the app is the content repository layer:
 
-- [`app/src/main/kotlin/org/skepsun/kototoro/core/parser/MangaRepository.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/core/parser/MangaRepository.kt)
+- [`app/src/main/kotlin/org/Kototoro-app/Kototoro/core/parser/MangaRepository.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/core/parser/MangaRepository.kt)
 
 Despite the name, this interface has become the app's general content-source access contract for many workflows.
 
@@ -303,7 +303,7 @@ The current code is still workable, but it is a natural pressure point.
 
 Main implementation:
 
-- [`app/src/main/kotlin/org/skepsun/kototoro/local/data/LocalMangaRepository.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/local/data/LocalMangaRepository.kt)
+- [`app/src/main/kotlin/org/Kototoro-app/Kototoro/local/data/LocalMangaRepository.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/local/data/LocalMangaRepository.kt)
 
 The local content stack is substantial. It handles:
 
@@ -338,10 +338,10 @@ The external ecosystem work is one of Kototoro's most ambitious and most valuabl
 
 Relevant code and docs:
 
-- [`mihon/MihonExtensionManager.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/mihon/MihonExtensionManager.kt)
-- [`aniyomi/AniyomiExtensionManager.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/aniyomi/AniyomiExtensionManager.kt)
-- [`extensions/repo/ExternalExtensionRepoRepository.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/extensions/repo/ExternalExtensionRepoRepository.kt)
-- [`settings/sources/extensions/ExtensionsBrowserViewModel.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/settings/sources/extensions/ExtensionsBrowserViewModel.kt)
+- [`mihon/MihonExtensionManager.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/mihon/MihonExtensionManager.kt)
+- [`aniyomi/AniyomiExtensionManager.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/aniyomi/AniyomiExtensionManager.kt)
+- [`extensions/repo/ExternalExtensionRepoRepository.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/extensions/repo/ExternalExtensionRepoRepository.kt)
+- [`settings/sources/extensions/ExtensionsBrowserViewModel.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/settings/sources/extensions/ExtensionsBrowserViewModel.kt)
 - [`docs/architecture/architecture-roadmap.md`](./architecture-roadmap.md)
 
 ### Important observation
@@ -377,7 +377,7 @@ Main design reference:
 
 Current OCR interface:
 
-- [`reader/translate/domain/ReaderOcrEngine.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderOcrEngine.kt)
+- [`reader/translate/domain/ReaderOcrEngine.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/reader/translate/domain/ReaderOcrEngine.kt)
 
 The OCR and translation subsystem is one of the deepest technical areas in the codebase. The current design is not just “run OCR and show text.” It includes explicit architectural thinking around:
 
@@ -437,7 +437,7 @@ Sync and backup are first-class parts of the product.
 
 Important references:
 
-- [`sync/domain/SyncController.kt`](../../app/src/main/kotlin/org/skepsun/kototoro/sync/domain/SyncController.kt)
+- [`sync/domain/SyncController.kt`](../../app/src/main/kotlin/org/Kototoro-app/Kototoro/sync/domain/SyncController.kt)
 - backup packages under `backups/*`
 - user docs such as [`docs/webdav-sync.md`](../webdav-sync.md)
 

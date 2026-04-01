@@ -4,7 +4,7 @@
 - 创建日期：2026-03-31
 - 最后更新：2026-03-31
 - 状态：部分已落地
-- 适用范围：`Kototoro/app/src/main/kotlin/org/skepsun/kototoro/video`
+- 适用范围：`Kototoro/app/src/main/kotlin/org/Kototoro-app/Kototoro/video`
 
 ---
 

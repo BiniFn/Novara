@@ -221,7 +221,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			ExternalExtensionType.JAR -> listOf(
 				RecommendedRepo(
 					name = "Kototoro Parsers",
-					url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
+					url = "https://raw.githubusercontent.com/Kototoro-app/Kototoro-parsers/repo/index.min.json",
 				),
 			)
 		}

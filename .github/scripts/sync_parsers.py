@@ -17,7 +17,7 @@ if not gradle_path.exists():
     sys.exit(1)
 
 targets = {
-    "parsers": "https://github.com/skepsun/kototoro-parsers.git",
+    "parsers": "https://github.com/Kototoro-app/Kototoro-parsers.git",
     "kotatsuParsers": "https://github.com/Kotatsu-Redo/kotatsu-parsers-redo.git",
 }
 
