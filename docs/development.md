@@ -71,6 +71,7 @@ Deployment model:
 - [Troubleshooting](./troubleshooting.md)
 - [Contributing](./contributing.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [External Extension Integration Guide](./architecture/external-extension-integration-guide.md)
 - [Architecture Review](./architecture/architecture-review.md)
 - [Architecture Roadmap](./architecture/architecture-roadmap.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
@@ -95,6 +96,7 @@ For contribution expectations, see [Contributing](./contributing.md).
 ## Advanced References
 
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [External Extension Integration Guide](./architecture/external-extension-integration-guide.md)
 - [Architecture Review](./architecture/architecture-review.md)
 - [Architecture Roadmap](./architecture/architecture-roadmap.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)

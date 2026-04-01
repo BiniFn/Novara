@@ -55,6 +55,7 @@ export default defineConfig({
           { text: "OCR Pipeline", link: "/architecture/ocr-pipeline-v2" },
           { text: "UI Improvement", link: "/architecture/ui_improvement" },
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
+          { text: "External Extension Integration Guide", link: "/architecture/external-extension-integration-guide" },
         ],
       },
       {

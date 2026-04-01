@@ -43,6 +43,7 @@ features:
 
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
+- Read [External Extension Integration Guide](./architecture/external-extension-integration-guide.md) if you are a developer looking to integrate Mihon/Tachiyomi extensions into your own app.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
 - Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
 - Read [Incremental OTA Updates](./architecture/incremental-updates.md) to learn how Kototoro achieves NDK-free pure Kotlin bspatch delta updating.
