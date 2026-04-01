@@ -1406,7 +1406,11 @@
     <string name="reader_translation_ocr_model_det_selection">OCR Det 模型选择</string>
     <string name="reader_translation_ocr_model_det_title">检测模型</string>
     <string name="reader_translation_det_download_success">检测模型下载完成</string>
-    <string name="reader_translation_onnx_model_selection">本地翻译模型</string>
+    <string name="reader_translation_onnx_model_selection">ONNX 翻译模型</string>
+    <string name="reader_translation_onnx_bubble_model_selection">ONNX 气泡检测模型</string>
+    <string name="reader_translation_onnx_bubble_model_selection_summary">选择 RT-DETR (多分类) 可实现智能去背与文本识别分离；或选择传统 YOLO 通用模型</string>
+    <string name="reader_translation_bubble_detector_nms">模型去重合并阈值 (NMS)</string>
+    <string name="reader_translation_bubble_detector_nms_summary">滑块用于调整模型剔除重叠气泡的倾向。较低的数值会严格地消除相邻气泡，较高的数值则能原汁原味地保留相互接触的连体气泡。不同模型的最佳初始数值会自动加载。</string>
     <string name="reader_translation_onnx_models_title">本地翻译模型</string>
     <string name="reader_translation_onnx_general_llm_models_title">通用大模型（翻译）</string>
     <string name="reader_translation_onnx_bubble_detector_models_title">气泡检测模型</string>

@@ -788,6 +788,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getString(KEY_READER_TRANSLATION_ONNX_MODEL_ID, "") ?: ""
 		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_ONNX_MODEL_ID, value) }
 
+	var readerTranslationBubbleDetectorModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID, "AUTO") ?: "AUTO"
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID, value) }
+
 	@get:FloatRange(from = 0.0, to = 1.0)
 	var readerTranslationHybridFallbackThreshold: Float
 		get() = prefs.getFloat(KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD, 0.85f)
@@ -796,6 +800,21 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 				putFloat(KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD, value.coerceIn(0f, 1f))
 			}
 		}
+
+	fun getReaderTranslationBubbleDetectorNmsKey(modelId: String): String {
+		return "reader_translation_bubble_detector_nms_${modelId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
+	}
+
+	fun getBubbleDetectorNms(modelId: String, defaultIsDetr: Boolean): Float {
+		val key = getReaderTranslationBubbleDetectorNmsKey(modelId)
+		val defaultVal = if (defaultIsDetr) 85 else 45
+		return prefs.getInt(key, defaultVal) / 100f
+	}
+
+	fun setBubbleDetectorNms(modelId: String, value: Float) {
+		val key = getReaderTranslationBubbleDetectorNmsKey(modelId)
+		prefs.edit { putInt(key, (value * 100).toInt()) }
+	}
 
 	var readerThreads: Int
 		get() = prefs.getInt(KEY_READER_THREADS, 3)
@@ -1445,6 +1464,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_REC_DOWNLOAD_NOW = "reader_translation_rec_download_now"
 		const val KEY_READER_TRANSLATION_DET_MODEL_ID = "reader_translation_det_model_id"
 		const val KEY_READER_TRANSLATION_ONNX_MODEL_ID = "reader_translation_onnx_model_id"
+		const val KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID = "reader_translation_bubble_detector_model_id"
 		const val KEY_READER_TRANSLATION_BUBBLE_YOLO_URL = "reader_translation_bubble_yolo_url"
 		const val KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD = "reader_translation_hybrid_fallback_threshold"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"

@@ -1919,6 +1919,10 @@
 	<string name="reader_translation_tuning_balanced">Balanced</string>
 	<string name="reader_translation_tuning_relaxed">Relaxed</string>
 	<string name="reader_translation_onnx_model_selection">ONNX model selection</string>
+	<string name="reader_translation_onnx_bubble_model_selection">ONNX bubble detector model</string>
+	<string name="reader_translation_onnx_bubble_model_selection_summary">Select DETR (multi-class) for intelligent background handling, or traditional YOLO for universal bubble handling</string>
+	<string name="reader_translation_bubble_detector_nms">Bubble detection NMS threshold</string>
+	<string name="reader_translation_bubble_detector_nms_summary">Controls the strictness of suppressing overlapping bubbles. A lower value removes duplicate boxes aggressively, while a higher value preserves naturally touching dialogue bubbles. The optimal preset is loaded automatically per model.</string>
 	<string name="reader_translation_ocr_model_onnx_automatic">ONNX Automatic</string>
     <!-- Weekdays -->
     <string name="day_monday">Monday</string>

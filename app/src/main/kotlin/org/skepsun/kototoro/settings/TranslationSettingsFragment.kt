@@ -105,6 +105,7 @@ class TranslationSettingsFragment :
 		updateTfliteOfficialModelEntries()
 		updateNcnnOfficialModelEntries()
 		updateOnnxOfficialModelEntries()
+		updateOnnxBubbleOfficialModelEntries()
 		updateBubbleGroupingSummary()
 	}
 
@@ -141,6 +142,8 @@ class TranslationSettingsFragment :
 				updateTfliteOfficialModelEntries()
 				updateNcnnOfficialModelEntries()
 				updateOnnxOfficialModelEntries()
+				updateOnnxBubbleOfficialModelEntries()
+				updateBubbleDetectorNmsPreference()
 			}
 			AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD -> {
 				updateHybridFallbackThresholdPreference()
@@ -159,11 +162,19 @@ class TranslationSettingsFragment :
 			AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID -> {
 				updateOnnxOfficialModelEntries()
 			}
+			AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID -> {
+				updateOnnxBubbleOfficialModelEntries()
+				updateBubbleDetectorNmsPreference()
+			}
 			AppSettings.KEY_READER_TRANSLATION_MODE -> {
 				updateApiPreferenceVisibility()
 				updateOnnxOfficialModelEntries()
 			}
-			AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED,
+			AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED -> {
+				updateBubbleGroupingSummary()
+				updateOnnxBubbleOfficialModelEntries()
+				updateBubbleDetectorNmsPreference()
+			}
 			AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED -> {
 				updateBubbleGroupingSummary()
 			}
@@ -200,6 +211,26 @@ class TranslationSettingsFragment :
 				R.string.reader_translation_hybrid_fallback_threshold_summary,
 				(settings.readerTranslationHybridFallbackThreshold * 100).toInt(),
 			)
+		}
+	}
+
+	private fun updateBubbleDetectorNmsPreference() {
+		val nmsPref = findPreference<androidx.preference.SeekBarPreference>("reader_translation_bubble_detector_nms_dummy")
+		nmsPref?.apply {
+			isPersistent = false
+			val modelId = settings.readerTranslationBubbleDetectorModelId
+			val isDetr = modelId.contains("detr", ignoreCase = true) || modelId.contains("transformers", ignoreCase = true)
+			val nmsVal = settings.getBubbleDetectorNms(modelId, isDetr)
+			value = (nmsVal * 100).toInt()
+			isVisible = settings.isReaderTranslationBubbleDetectorEnabled
+			
+			summary = getString(R.string.reader_translation_bubble_detector_nms_summary)
+			
+			setOnPreferenceChangeListener { _, newValue ->
+				val intValue = newValue as Int
+				settings.setBubbleDetectorNms(modelId, intValue / 100f)
+				true
+			}
 		}
 	}
 
@@ -340,6 +371,27 @@ class TranslationSettingsFragment :
 				value = ""
 			}
 			isVisible = settings.readerTranslationMode != ReaderTranslationMode.API_ONLY
+		}
+	}
+
+	private fun updateOnnxBubbleOfficialModelEntries() {
+		val models = OnnxOfficialModelCatalog.models.filter { model ->
+			model.category == OnnxModelCategory.BUBBLE_DETECTION
+		}
+		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID)?.run {
+			entries = arrayOf(getString(R.string.reader_translation_ocr_model_onnx_automatic)) + models.map { model ->
+				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
+				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+				model.title + suffix
+			}.toTypedArray()
+			entryValues = arrayOf("AUTO") + models.map { it.id }.toTypedArray()
+			setDefaultValue("AUTO")
+			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
+			val values = entryValues?.map { it.toString() }.orEmpty()
+			if (value != null && value !in values) {
+				value = "AUTO"
+			}
+			isVisible = settings.isReaderTranslationBubbleDetectorEnabled
 		}
 	}
 

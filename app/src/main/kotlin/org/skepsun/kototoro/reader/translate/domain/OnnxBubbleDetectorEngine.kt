@@ -17,6 +17,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import java.io.File
 import java.nio.FloatBuffer
@@ -38,8 +39,14 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		SUCCESS,
 	}
 
+	data class DetectedBox(
+		val rect: Rect,
+		val classId: Int,
+		val score: Float,
+	)
+
 	data class DetectionResult(
-		val boxes: List<Rect>,
+		val boxes: List<DetectedBox>,
 		val modelId: String,
 		val backend: String,
 		val parser: String,
@@ -101,11 +108,12 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 
 	private data class ScoredBox(
 		val rect: Rect,
+		val classId: Int,
 		val score: Float,
 	)
 
 	private data class DecodedDetections(
-		val boxes: List<Rect>,
+		val boxes: List<DetectedBox>,
 		val parser: String,
 		val rawBoxCount: Int,
 		val decodedBoxCount: Int,
@@ -114,6 +122,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 	private enum class ParserKind(val wireName: String) {
 		GENERIC_YOLO("generic_yolo"),
 		YOLO26_E2E("yolo26_e2e"),
+		RT_DETR("rt_detr"),
 	}
 
 	private val runtimeLock = Mutex()
@@ -199,11 +208,14 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		}
 	}
 
-	private fun resolveActiveModel() =
-		OnnxOfficialModelCatalog.models.firstOrNull { model ->
-			model.category == OnnxModelCategory.BUBBLE_DETECTION &&
-				onnxModelManager.isModelDownloaded(model.id)
+	private fun resolveActiveModel(): OnnxOfficialModel? {
+		val preferredId = settings.readerTranslationBubbleDetectorModelId
+		val downloaded = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.BUBBLE_DETECTION && onnxModelManager.isModelDownloaded(it.id)
 		}
+		if (downloaded.isEmpty()) return null
+		return downloaded.firstOrNull { it.id == preferredId } ?: downloaded.first()
+	}
 
 	private suspend fun ensureRuntime(modelId: String): RuntimeAttempt {
 		val current = runtime
@@ -262,7 +274,9 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			try {
 				val env = OrtEnvironment.getEnvironment()
 				val session = env.createSession(modelPath.absolutePath, options)
-				val inputEntry = session.inputInfo.entries.firstOrNull()
+				val inputEntry = session.inputInfo.entries.firstOrNull { it.key == "images" || it.key == "input" }
+					?: session.inputInfo.entries.firstOrNull { (it.value.info as? TensorInfo)?.shape?.size == 4 }
+					?: session.inputInfo.entries.firstOrNull()
 				if (inputEntry == null) {
 					lastFailure = RuntimeAttempt(
 						runtime = null,
@@ -381,10 +395,41 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			targetWidth = runtime.inputWidth,
 			targetHeight = runtime.inputHeight,
 		)
+		var sizesTensor: OnnxTensor? = null
 		val inputTensor = createInputTensor(letterboxed.bitmap, letterboxed.inputWidth, letterboxed.inputHeight)
 		var sessionResult: OrtSession.Result? = null
 		try {
-			sessionResult = runtime.session.run(mapOf(runtime.inputName to inputTensor))
+			val inputs = mutableMapOf<String, OnnxTensor>()
+			inputs[runtime.inputName] = inputTensor
+			if ("orig_target_sizes" in runtime.session.inputNames) {
+				val env = OrtEnvironment.getEnvironment()
+				sizesTensor = OnnxTensor.createTensor(
+					env,
+					java.nio.LongBuffer.wrap(longArrayOf(letterboxed.inputHeight.toLong(), letterboxed.inputWidth.toLong())),
+					longArrayOf(1, 2)
+				)
+				inputs["orig_target_sizes"] = sizesTensor
+			}
+			sessionResult = runtime.session.run(inputs)
+
+			val isDetr = runtime.parser == ParserKind.RT_DETR || runtime.parser == ParserKind.AUTO_RT_DETR
+			val nmsThreshold = settings.getBubbleDetectorNms(runtime.modelId, isDetr)
+			
+			if (runtime.parser == ParserKind.RT_DETR) {
+				return decodeRtDetrOutput(
+					sessionResult = sessionResult,
+					parser = runtime.parser,
+					sourceWidth = source.width,
+					sourceHeight = source.height,
+					inputWidth = letterboxed.inputWidth,
+					inputHeight = letterboxed.inputHeight,
+					scale = letterboxed.scale,
+					padX = letterboxed.padX,
+					padY = letterboxed.padY,
+					nmsThreshold = nmsThreshold,
+				)
+			}
+
 			val outputTensor = sessionResult.get(runtime.outputName).orElse(null) as? OnnxTensor
 				?: return DecodedDetections(
 					boxes = emptyList(),
@@ -402,8 +447,10 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				scale = letterboxed.scale,
 				padX = letterboxed.padX,
 				padY = letterboxed.padY,
+				nmsThreshold = nmsThreshold,
 			)
 		} finally {
+			runCatching { sizesTensor?.close() }
 			runCatching { inputTensor.close() }
 			runCatching { sessionResult?.close() }
 			if (letterboxed.bitmap !== source) {
@@ -483,6 +530,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		scale: Float,
 		padX: Float,
 		padY: Float,
+		nmsThreshold: Float,
 	): DecodedDetections {
 		val info = tensor.info as? TensorInfo ?: return DecodedDetections(
 			boxes = emptyList(),
@@ -529,19 +577,175 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				scale = scale,
 				padX = padX,
 				padY = padY,
+				nmsThreshold = nmsThreshold,
 			)
+			ParserKind.RT_DETR -> error("RT_DETR is handled externally")
 		}
 		val finalBoxes = when (parser) {
 			ParserKind.YOLO26_E2E -> scored.sortedByDescending { it.score }.take(MAX_OUTPUT_BOXES)
-			ParserKind.GENERIC_YOLO -> applyNms(scored)
+			ParserKind.GENERIC_YOLO -> applyNms(scored, nmsThreshold)
+			ParserKind.RT_DETR -> error("RT_DETR is handled externally")
 		}
 			return DecodedDetections(
-				boxes = finalBoxes.map { it.rect },
+				boxes = finalBoxes.map { DetectedBox(rect = it.rect, classId = it.classId, score = it.score) },
 				parser = parser.wireName,
 				rawBoxCount = layout.count,
 				decodedBoxCount = scored.size,
 			)
 		}
+
+	private fun decodeRtDetrOutput(
+		sessionResult: OrtSession.Result,
+		parser: ParserKind,
+		sourceWidth: Int,
+		sourceHeight: Int,
+		inputWidth: Int,
+		inputHeight: Int,
+		scale: Float,
+		padX: Float,
+		padY: Float,
+		nmsThreshold: Float,
+	): DecodedDetections {
+		val labelsTensor = sessionResult.get("labels").orElse(null) as? OnnxTensor
+		val boxesTensor = sessionResult.get("boxes").orElse(null) as? OnnxTensor
+		val scoresTensor = sessionResult.get("scores").orElse(null) as? OnnxTensor
+
+		if (labelsTensor == null || boxesTensor == null || scoresTensor == null) {
+			return DecodedDetections(
+				boxes = emptyList(),
+				parser = parser.wireName,
+				rawBoxCount = 0,
+				decodedBoxCount = 0,
+			)
+		}
+
+		val labelsShape = (labelsTensor?.info as? TensorInfo)?.shape ?: longArrayOf()
+		val boxesShape = (boxesTensor?.info as? TensorInfo)?.shape ?: longArrayOf()
+		val scoresShape = (scoresTensor?.info as? TensorInfo)?.shape ?: longArrayOf()
+
+		val labelsFlat = mutableListOf<Float>()
+		if (labelsTensor != null) flattenNumericTensor(labelsTensor.value, labelsFlat)
+
+		val boxesFlat = mutableListOf<Float>()
+		if (boxesTensor != null) flattenNumericTensor(boxesTensor.value, boxesFlat)
+
+		val scoresFlat = mutableListOf<Float>()
+		if (scoresTensor != null) flattenNumericTensor(scoresTensor.value, scoresFlat)
+
+		val numQueries = boxesShape.getOrNull(1)?.toInt() ?: 300
+		val isScores3D = scoresShape.size == 3
+		val numClasses = if (isScores3D) scoresShape.getOrNull(2)?.toInt() ?: 1 else 1
+		val count = if (isScores3D) numQueries else scoresFlat.size
+
+		var isCxCyWh = false
+		var isNormalized = true
+		var maxCoord = -1f
+		for (i in 0 until (boxesFlat.size / 4)) {
+			val x1 = boxesFlat.getOrNull(i * 4) ?: 0f
+			val x2 = boxesFlat.getOrNull(i * 4 + 2) ?: 0f
+			if (x2 < x1) isCxCyWh = true
+			maxCoord = maxOf(maxCoord, x1, boxesFlat.getOrNull(i * 4 + 1) ?: 0f, x2, boxesFlat.getOrNull(i * 4 + 3) ?: 0f)
+		}
+		if (maxCoord > 2.5f) isNormalized = false
+
+		var isLogits = false
+		for (i in 0 until min(100, scoresFlat.size)) {
+			val s = scoresFlat[i]
+			if (s < 0f || s > 1.05f) {
+				isLogits = true
+				break
+			}
+		}
+
+		val scored = ArrayList<ScoredBox>(count)
+		for (index in 0 until count) {
+			val rawScore: Float
+			val label: Int
+
+			if (isScores3D) {
+				var maxScore = -Float.MAX_VALUE
+				var bestClass = 0
+				// Skip the last class (usually background no_object in DETR models)
+				val trueClasses = if (numClasses > 1) numClasses - 1 else numClasses
+				for (c in 0 until trueClasses) {
+					val s = scoresFlat.getOrNull(index * numClasses + c) ?: -Float.MAX_VALUE
+					if (s > maxScore) {
+						maxScore = s
+						bestClass = c
+					}
+				}
+				rawScore = maxScore
+				label = bestClass
+			} else {
+				rawScore = scoresFlat.getOrNull(index) ?: 0f
+				label = labelsFlat.getOrNull(index)?.toInt() ?: 0
+			}
+
+			val score = if (isLogits) (1f / (1f + kotlin.math.exp(-rawScore))) else rawScore
+			
+			// DETR predictions are often lower confidence initially but highly accurate spatially.
+			if (score < 0.15f) continue
+
+			val bx = index * 4
+			val c1 = boxesFlat.getOrNull(bx) ?: 0f
+			val c2 = boxesFlat.getOrNull(bx + 1) ?: 0f
+			val c3 = boxesFlat.getOrNull(bx + 2) ?: 0f
+			val c4 = boxesFlat.getOrNull(bx + 3) ?: 0f
+
+			val scaleX = if (isNormalized) inputWidth.toFloat() else 1f
+			val scaleY = if (isNormalized) inputHeight.toFloat() else 1f
+
+			val rX1: Float
+			val rX2: Float
+			val rY1: Float
+			val rY2: Float
+
+			if (isCxCyWh) {
+				val cx = c1 * scaleX
+				val cy = c2 * scaleY
+				val w = c3 * scaleX
+				val h = c4 * scaleY
+				rX1 = cx - w / 2f
+				rY1 = cy - h / 2f
+				rX2 = cx + w / 2f
+				rY2 = cy + h / 2f
+			} else {
+				rX1 = c1 * scaleX
+				rY1 = c2 * scaleY
+				rX2 = c3 * scaleX
+				rY2 = c4 * scaleY
+			}
+
+			val left = ((min(rX1, rX2)) - padX) / scale
+			val top = ((min(rY1, rY2)) - padY) / scale
+			val right = ((max(rX1, rX2)) - padX) / scale
+			val bottom = ((max(rY1, rY2)) - padY) / scale
+
+			val rect = Rect(
+				left.roundToInt().coerceIn(0, sourceWidth - 1),
+				top.roundToInt().coerceIn(0, sourceHeight - 1),
+				right.roundToInt().coerceIn(1, sourceWidth),
+				bottom.roundToInt().coerceIn(1, sourceHeight),
+			)
+			if (rect.width() < MIN_BOX_SIDE || rect.height() < MIN_BOX_SIDE) continue
+			val areaRatio = rect.width().toFloat() * rect.height().toFloat() / (sourceWidth * sourceHeight).toFloat().coerceAtLeast(1f)
+			if (areaRatio !in MIN_AREA_RATIO..MAX_AREA_RATIO) continue
+
+			scored += ScoredBox(rect = rect, classId = label, score = score)
+		}
+
+		// DETR natively produces discrete predictions and does not require NMS. 
+		// Applying aggressive IoU=0.45 NMS destroys naturally connecting bubbles or two-part dialogue balloons!
+		// We use the dynamic NMS threshold matching the default of 0.85 (unless configured by user).
+		val finalBoxes = applyNms(scored, nmsThreshold)
+
+		return DecodedDetections(
+			boxes = finalBoxes.map { DetectedBox(rect = it.rect, classId = it.classId, score = it.score) },
+			parser = parser.wireName,
+			rawBoxCount = count,
+			decodedBoxCount = finalBoxes.size,
+		)
+	}
 
 	private fun decodeGenericYoloBoxes(
 		layout: OutputLayout,
@@ -553,6 +757,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		scale: Float,
 		padX: Float,
 		padY: Float,
+		nmsThreshold: Float,
 	): List<ScoredBox> {
 		val scored = ArrayList<ScoredBox>(layout.count)
 		for (index in 0 until layout.count) {
@@ -560,7 +765,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			val cyRaw = layout.read(flat, index, 1)
 			val wRaw = layout.read(flat, index, 2)
 			val hRaw = layout.read(flat, index, 3)
-			val score = layout.readConfidence(flat, index)
+			val (score, classId) = layout.readConfidence(flat, index)
 			if (score < MIN_SCORE_THRESHOLD) continue
 			val normalized = max(maxOf(cxRaw, cyRaw), maxOf(wRaw, hRaw)) <= 2.5f
 			val cx = if (normalized) cxRaw * inputWidth else cxRaw
@@ -581,7 +786,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			if (rect.width() < MIN_BOX_SIDE || rect.height() < MIN_BOX_SIDE) continue
 			val areaRatio = rect.width().toFloat() * rect.height().toFloat() / (sourceWidth * sourceHeight).toFloat().coerceAtLeast(1f)
 			if (areaRatio !in MIN_AREA_RATIO..MAX_AREA_RATIO) continue
-			scored += ScoredBox(rect = rect, score = score)
+			scored += ScoredBox(rect = rect, classId = classId, score = score)
 		}
 		return scored
 	}
@@ -623,12 +828,12 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			if (rect.width() < MIN_BOX_SIDE || rect.height() < MIN_BOX_SIDE) continue
 			val areaRatio = rect.width().toFloat() * rect.height().toFloat() / (sourceWidth * sourceHeight).toFloat().coerceAtLeast(1f)
 			if (areaRatio !in MIN_AREA_RATIO..MAX_AREA_RATIO) continue
-			scored += ScoredBox(rect = rect, score = score)
+			scored += ScoredBox(rect = rect, classId = 0, score = score)
 		}
-		return scored
+		return applyNms(scored, nmsThreshold)
 	}
 
-	private fun applyNms(boxes: List<ScoredBox>): List<ScoredBox> {
+	private fun applyNms(boxes: List<ScoredBox>, threshold: Float): List<ScoredBox> {
 		if (boxes.isEmpty()) return emptyList()
 		val sorted = boxes.sortedByDescending { it.score }.toMutableList()
 		val selected = mutableListOf<ScoredBox>()
@@ -636,7 +841,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			val head = sorted.removeAt(0)
 			selected += head
 			sorted.removeAll { candidate ->
-				computeIoU(head.rect, candidate.rect) >= NMS_IOU_THRESHOLD
+				computeIoU(head.rect, candidate.rect) >= threshold
 			}
 		}
 		return selected
@@ -709,7 +914,9 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 
 	private fun resolveParserKind(modelId: String, modelFileName: String): ParserKind {
 		val fingerprint = "$modelId $modelFileName".lowercase()
-		return if ("yolo26" in fingerprint) ParserKind.YOLO26_E2E else ParserKind.GENERIC_YOLO
+		return if ("yolo26" in fingerprint) ParserKind.YOLO26_E2E
+		else if ("detr" in fingerprint) ParserKind.RT_DETR
+		else ParserKind.GENERIC_YOLO
 	}
 
 	private data class OutputLayout(
@@ -726,14 +933,19 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			return flat.getOrElse(flatIndex) { 0f }
 		}
 
-		fun readConfidence(flat: List<Float>, index: Int): Float {
-			if (attributes <= 4) return 0f
-			if (attributes == 5) return read(flat, index, 4)
-			var best = 0f
+		fun readConfidence(flat: List<Float>, index: Int): Pair<Float, Int> {
+			if (attributes <= 4) return 0f to 0
+			if (attributes == 5) return read(flat, index, 4) to 0
+			var bestScore = 0f
+			var bestClass = 0
 			for (attribute in 4 until attributes) {
-				best = max(best, read(flat, index, attribute))
+				val score = read(flat, index, attribute)
+				if (score > bestScore) {
+					bestScore = score
+					bestClass = attribute - 4
+				}
 			}
-			return best
+			return bestScore to bestClass
 		}
 	}
 

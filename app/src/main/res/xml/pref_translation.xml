@@ -124,6 +124,22 @@
         android:title="@string/reader_translation_section_bubble">
 
         <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_bubble_detector_model_id"
+            android:title="@string/reader_translation_onnx_bubble_model_selection"
+            android:summary="@string/reader_translation_onnx_bubble_model_selection_summary" />
+
+        <androidx.preference.SeekBarPreference
+            android:defaultValue="85"
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_bubble_detector_nms_dummy"
+            android:max="100"
+            android:title="@string/reader_translation_bubble_detector_nms"
+            android:summary="@string/reader_translation_bubble_detector_nms_summary"
+            app:showSeekBarValue="true"
+            app:updatesContinuously="true" />
+
+        <ListPreference
             android:defaultValue="BALANCED"
             android:dependency="reader_translation_enabled"
             android:entries="@array/reader_translation_tuning_levels"
