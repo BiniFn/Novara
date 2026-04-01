@@ -73,6 +73,7 @@ class AppUpdateActivity : BaseActivity<ActivityAppUpdateBinding>(), View.OnClick
 		combine(viewModel.isLoading, viewModel.downloadProgress, ::Pair)
 			.observe(this, ::onProgressChanged)
 		viewModel.downloadState.observe(this, ::onDownloadStateChanged)
+		viewModel.updateMessage.observe(this, ::onUpdateMessageChanged)
 		viewModel.onError.observeEvent(this, ::onError)
 		viewModel.onDownloadDone.observeEvent(this) { intent ->
 			try {
@@ -124,7 +125,7 @@ class AppUpdateActivity : BaseActivity<ActivityAppUpdateBinding>(), View.OnClick
 			buildSpannedString {
 				append(getString(R.string.new_version_s, version.name))
 				appendLine()
-				append(getString(R.string.size_s, FileSize.BYTES.format(this@AppUpdateActivity, version.apkSize)))
+				append(getString(R.string.size_s, FileSize.BYTES.format(this@AppUpdateActivity, version.patchSize ?: version.apkSize)))
 				appendLine()
 				appendLine()
 				append(markwon.toMarkdown(version.description))
@@ -174,6 +175,15 @@ class AppUpdateActivity : BaseActivity<ActivityAppUpdateBinding>(), View.OnClick
 			else -> 0
 		}
 		viewBinding.textViewError.setTextAndVisible(message)
+	}
+
+	private fun onUpdateMessageChanged(msg: String?) {
+		if (msg != null) {
+			viewBinding.textViewError.textAndVisible = msg
+		} else {
+			// Restore previous download state visibility
+			onDownloadStateChanged(viewModel.downloadState.value)
+		}
 	}
 
 	private fun onError(e: Throwable) {

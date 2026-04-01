@@ -30,6 +30,7 @@ class AppUpdateViewModel @Inject constructor(
 	val downloadProgress = MutableStateFlow(-1f)
 	val downloadState = MutableStateFlow(DownloadManager.STATUS_PENDING)
 	val installIntent = MutableStateFlow<Intent?>(null)
+	val updateMessage = MutableStateFlow<String?>(null)
 	val onDownloadDone = MutableEventFlow<Intent>()
 
 	private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -80,7 +81,9 @@ class AppUpdateViewModel @Inject constructor(
 				val newApk = java.io.File(context.cacheDir, "update_merged.apk")
 				newApk.delete()
 				
+				updateMessage.value = context.getString(R.string.assembling_apk)
 				org.skepsun.kototoro.core.os.PatchUtils.patch(oldApk, patchFile, newApk)
+				updateMessage.value = null
 				
 				// Optional cleanup of the downloaded patch
 				runCatching { patchFile.delete() }

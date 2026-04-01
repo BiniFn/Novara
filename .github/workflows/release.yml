@@ -111,6 +111,7 @@ jobs:
         fi
 
         DOWNLOAD_NOTES=""
+        declare -a PIDS
         for apk in "${APK_FILES[@]}"; do
           filename=$(basename "$apk")
           abi="${filename#app-}"
@@ -134,8 +135,9 @@ jobs:
             old_apk=$(find old_apks -name "$OLD_TARGET_PATTERN" | head -n 1)
             if [ -n "$old_apk" ] && [ -f "$old_apk" ]; then
               patch_target="release/Kototoro-${{ steps.version.outputs.version_name }}-${abi}-update.patch"
-              echo "Generating patch between $old_apk and $target"
-              bsdiff "$old_apk" "$target" "$patch_target"
+              echo "Generating patch between $old_apk and $target in background..."
+              bsdiff "$old_apk" "$target" "$patch_target" &
+              PIDS+=("$!")
               line="$line (增量包: \`$(basename "$patch_target")\`)"
             fi
           fi
@@ -146,6 +148,15 @@ jobs:
             DOWNLOAD_NOTES="${DOWNLOAD_NOTES}"$'\n'"$line"
           fi
         done
+
+        # Wait for all background bsdiff jobs to finish
+        if [ ${#PIDS[@]} -ne 0 ]; then
+          echo "Waiting for ${#PIDS[@]} bsdiff background jobs to finish..."
+          for pid in "${PIDS[@]}"; do
+            wait "$pid" || echo "bsdiff pid $pid failed"
+          done
+          echo "All patches generated."
+        fi
 
         echo "download_notes<<EOF" >> "$GITHUB_OUTPUT"
         echo "$DOWNLOAD_NOTES" >> "$GITHUB_OUTPUT"
