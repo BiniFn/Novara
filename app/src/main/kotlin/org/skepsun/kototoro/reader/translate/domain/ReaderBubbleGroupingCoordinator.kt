@@ -194,7 +194,7 @@ internal class ReaderBubbleGroupingCoordinator(
 
 	private fun groupFragmentsByDetectedRects(
 		fragments: List<TextFragment>,
-		detectedRects: List<Rect>,
+		detectedRects: List<OnnxBubbleDetectorEngine.DetectedBox>,
 		bitmap: Bitmap,
 	): BubbleDetectorOutcome {
 		if (detectedRects.isEmpty()) {
@@ -214,14 +214,14 @@ internal class ReaderBubbleGroupingCoordinator(
 		}
 		val bitmapArea = (bitmap.width * bitmap.height).toFloat().coerceAtLeast(1f)
 		val uniqueCandidates = linkedMapOf<String, DetectedBubbleCandidate>()
-		for (detectedRect in detectedRects) {
+		for (detectedBox in detectedRects) {
 			val matched = fragments.indices.filter { index ->
-				matchesDetectedBubbleRect(detectedRect, fragments[index].rect)
+				matchesDetectedBubbleRect(detectedBox.rect, fragments[index].rect)
 			}
 			if (matched.isEmpty()) continue
 			val unionRect = mergeRects(matched.map { fragments[it].rect }) ?: continue
 			val candidate = buildDetectedBubbleCandidate(
-				detectedRect = detectedRect,
+				detectedBox = detectedBox,
 				unionRect = unionRect,
 				fragmentRects = fragments.map { it.rect },
 				matchedIndices = matched,
@@ -276,6 +276,7 @@ internal class ReaderBubbleGroupingCoordinator(
 						GroupedBubbleSource(
 							fragments = subgroup.fragments,
 							bubbleRect = subgroup.bubbleRect,
+							classId = candidate.classId,
 						)
 					)
 				}
@@ -321,7 +322,7 @@ internal class ReaderBubbleGroupingCoordinator(
 	}
 
 	private fun buildDetectedBubbleCandidate(
-		detectedRect: Rect,
+		detectedBox: OnnxBubbleDetectorEngine.DetectedBox,
 		unionRect: Rect,
 		fragmentRects: List<Rect>,
 		matchedIndices: List<Int>,
@@ -329,10 +330,10 @@ internal class ReaderBubbleGroupingCoordinator(
 		bitmapWidth: Int,
 		bitmapHeight: Int,
 	): DetectedBubbleCandidate? {
-		val candidateArea = rectArea(detectedRect).coerceAtLeast(1f)
+		val candidateArea = rectArea(detectedBox.rect).coerceAtLeast(1f)
 		if (candidateArea > bitmapArea * 0.45f) return null
-		val touchesEdge = detectedRect.left <= 0 || detectedRect.top <= 0 ||
-			detectedRect.right >= bitmapWidth || detectedRect.bottom >= bitmapHeight
+		val touchesEdge = detectedBox.rect.left <= 0 || detectedBox.rect.top <= 0 ||
+			detectedBox.rect.right >= bitmapWidth || detectedBox.rect.bottom >= bitmapHeight
 		if (touchesEdge && candidateArea > bitmapArea * 0.24f) return null
 		val fragmentsArea = matchedIndices.sumOf { rectArea(fragmentRects[it]).toDouble() }.toFloat()
 		val unionArea = rectArea(unionRect).coerceAtLeast(1f)
@@ -355,7 +356,7 @@ internal class ReaderBubbleGroupingCoordinator(
 		if (inflation > maxInflation || textCoverage < minCoverage) {
 			return null
 		}
-		val tightenedRect = tightenDetectedBubbleRect(detectedRect, unionRect)
+		val tightenedRect = tightenDetectedBubbleRect(detectedBox.rect, unionRect)
 		if (tightenedRect.width() <= dp(8f) || tightenedRect.height() <= dp(8f)) {
 			return null
 		}
@@ -364,6 +365,7 @@ internal class ReaderBubbleGroupingCoordinator(
 			rect = tightenedRect,
 			fragmentIndices = matchedIndices.sorted(),
 			score = score,
+			classId = detectedBox.classId,
 		)
 	}
 

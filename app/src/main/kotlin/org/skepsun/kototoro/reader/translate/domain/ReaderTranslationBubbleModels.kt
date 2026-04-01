@@ -7,11 +7,13 @@ internal data class BubbleInput(
 	val rect: Rect,
 	val sourceText: String,
 	val verticalPreferred: Boolean,
+	val classId: Int = 0,
 )
 
 internal data class GroupedBubbleSource(
 	val fragments: List<TextFragment>,
 	val bubbleRect: Rect?,
+	val classId: Int = 0,
 )
 
 internal data class BubbleGroupingResult(
@@ -55,6 +57,7 @@ internal data class DetectedBubbleCandidate(
 	val rect: Rect,
 	val fragmentIndices: List<Int>,
 	val score: Float,
+	val classId: Int,
 ) {
 	fun isBetterThan(other: DetectedBubbleCandidate): Boolean {
 		if (score != other.score) return score > other.score

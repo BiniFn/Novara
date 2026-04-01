@@ -39,7 +39,11 @@ internal class ReaderBubbleRenderCoordinator(
 				}
 				continue
 			}
-			val bubbleLikeRegion = isLikelySpeechBubbleRegion(bitmap, bubble.rect)
+			val bubbleLikeRegion = when (bubble.classId) {
+				2 -> false // RT-DETR text_free
+				1 -> true  // RT-DETR text_bubble
+				else -> isLikelySpeechBubbleRegion(bitmap, bubble.rect) // Legacy Model fallback (classId=0)
+			}
 			val prepared = prepareTranslatedBubble(
 				bubble.rect,
 				translated,

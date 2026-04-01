@@ -119,13 +119,14 @@ internal class ReaderOcrPipelineCoordinator(
 
 	private fun buildRoiFirstGroupingResult(
 		detectionAttempt: OnnxBubbleDetectorEngine.DetectionAttempt,
-		detectedRects: List<Rect>,
+		detectedRects: List<OnnxBubbleDetectorEngine.DetectedBox>,
 	): BubbleGroupingResult {
 		val detectionResult = detectionAttempt.result
-		val groups = detectedRects.map { rect ->
+		val groups = detectedRects.map { box ->
 			GroupedBubbleSource(
 				fragments = emptyList(),
-				bubbleRect = rect,
+				bubbleRect = box.rect,
+				classId = box.classId,
 			)
 		}
 		return BubbleGroupingResult(
@@ -162,7 +163,7 @@ internal class ReaderOcrPipelineCoordinator(
 
 	private fun buildDetectionFallbackReason(
 		detectionAttempt: OnnxBubbleDetectorEngine.DetectionAttempt,
-		detectedRects: List<Rect>,
+		detectedRects: List<OnnxBubbleDetectorEngine.DetectedBox>,
 	): String {
 		return when {
 			detectionAttempt.status == OnnxBubbleDetectorEngine.AttemptStatus.NO_MODEL_DOWNLOADED -> "roi_first_no_model"

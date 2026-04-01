@@ -649,6 +649,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				rect = mergedRect,
 				sourceText = sourceText,
 				verticalPreferred = verticalPreferred,
+				classId = group.classId,
 			)
 		}
 	}
