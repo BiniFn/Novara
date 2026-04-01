@@ -14,7 +14,7 @@ class BackupsSettingsViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     val periodicalBackupFrequency = settings.observeAsFlow(
-        key = AppSettings.KEY_BACKUP_PERIODICAL_ENABLED,
+        key = AppSettings.KEY_BACKUP_WEBDAV_ENABLED,
         valueProducer = { isPeriodicalBackupEnabled },
     ).flatMapLatest { isEnabled ->
         if (isEnabled) {

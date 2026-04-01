@@ -5,20 +5,16 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	android:title="@string/periodic_backups">
 
-	<SwitchPreferenceCompat
-		android:defaultValue="false"
-		android:key="backup_periodic"
-		android:layout="@layout/preference_toggle_header"
-		android:title="@string/periodic_backups_enable" />
+
 
 	<Preference
-		android:dependency="backup_periodic"
+		android:dependency="backup_periodic_webdav_enabled"
 		android:key="backup_periodic_output"
 		android:title="@string/backups_output_directory" />
 
 	<ListPreference
 		android:defaultValue="7"
-		android:dependency="backup_periodic"
+		android:dependency="backup_periodic_webdav_enabled"
 		android:entries="@array/backup_frequency"
 		android:entryValues="@array/values_backup_frequency"
 		android:key="backup_periodic_freq"
@@ -27,7 +23,7 @@
 
 	<SwitchPreferenceCompat
 		android:defaultValue="true"
-		android:dependency="backup_periodic"
+		android:dependency="backup_periodic_webdav_enabled"
 		android:key="backup_periodic_trim"
 		android:summary="@string/delete_old_backups_summary"
 		android:title="@string/delete_old_backups" />
@@ -43,7 +39,7 @@
 		app:useSimpleSummaryProvider="true" />
 
 	<Preference
-		android:dependency="backup_periodic"
+		android:dependency="backup_periodic_webdav_enabled"
 		android:icon="@drawable/ic_info_outline"
 		android:key="backup_periodic_last"
 		android:persistent="false"
@@ -58,7 +54,7 @@
 
 		<SwitchPreferenceCompat
 			android:defaultValue="false"
-			android:dependency="backup_periodic"
+			android:dependency="backup_periodic_webdav_enabled"
 			android:key="backup_periodic_tg_enabled"
 			android:title="@string/send_backups_telegram" />
 
@@ -89,7 +85,6 @@
 
 		<SwitchPreferenceCompat
 			android:defaultValue="false"
-			android:dependency="backup_periodic"
 			android:key="backup_periodic_webdav_enabled"
 			android:title="@string/send_backups_webdav" />
 

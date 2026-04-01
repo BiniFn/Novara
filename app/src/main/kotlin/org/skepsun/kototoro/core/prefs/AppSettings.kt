@@ -1067,7 +1067,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putString(KEY_DISCORD_TOKEN, value?.nullIfEmpty()) }
 
 	val isPeriodicalBackupEnabled: Boolean
-		get() = prefs.getBoolean(KEY_BACKUP_PERIODICAL_ENABLED, false)
+		get() = isBackupWebDavUploadEnabled
 
 	val periodicalBackupFrequency: Float
 		get() = prefs.getString(KEY_BACKUP_PERIODICAL_FREQUENCY, null)?.toFloatOrNull() ?: 7f
