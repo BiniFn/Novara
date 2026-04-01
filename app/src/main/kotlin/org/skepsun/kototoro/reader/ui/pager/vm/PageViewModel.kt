@@ -125,6 +125,7 @@ class PageViewModel(
 		val source = when (currentState) {
 			is PageState.Shown -> currentState.source
 			is PageState.Loaded -> currentState.source
+			is PageState.AwaitingTranslation -> currentState.source
 			else -> null
 		}
 		val currentUri = (source as? ImageSource.Uri)?.uri
@@ -140,10 +141,22 @@ class PageViewModel(
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
 			)
 			if (targetUri == null || targetUri == currentUri) {
+				if (settingsProducer.value.isTranslationShowTranslated) {
+					val isConverted = when (currentState) {
+						is PageState.Shown -> currentState.isConverted
+						is PageState.Loaded -> currentState.isConverted
+						is PageState.AwaitingTranslation -> currentState.isConverted
+						else -> false
+					}
+					state.value = PageState.AwaitingTranslation(
+						source = currentUri.toImageSource(cachedBounds),
+						isConverted = isConverted,
+					)
+				}
 				return@launch
 			}
 			cachedBounds = resolveTrimmedBounds(targetUri)
-			state.value = PageState.Shown(targetUri.toImageSource(cachedBounds), isConverted = false)
+			state.value = PageState.Loaded(targetUri.toImageSource(cachedBounds), isConverted = false)
 		}
 	}
 
@@ -215,7 +228,11 @@ class PageViewModel(
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
 			) ?: uri
 			cachedBounds = resolveTrimmedBounds(displayUri)
-			state.value = PageState.Loaded(displayUri.toImageSource(cachedBounds), isConverted = false)
+			state.value = if (settingsProducer.value.isTranslationShowTranslated && displayUri == uri) {
+				PageState.AwaitingTranslation(displayUri.toImageSource(cachedBounds), isConverted = false)
+			} else {
+				PageState.Loaded(displayUri.toImageSource(cachedBounds), isConverted = false)
+			}
 			applyPendingLayerSwitchIfNeeded(data, displayUri)
 		} catch (e: CancellationException) {
 			throw e
@@ -273,6 +290,7 @@ class PageViewModel(
 		val source = when (currentState) {
 			is PageState.Shown -> currentState.source
 			is PageState.Loaded -> currentState.source
+			is PageState.AwaitingTranslation -> currentState.source
 			else -> null
 		}
 		val currentUri = (source as? ImageSource.Uri)?.uri ?: return null

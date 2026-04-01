@@ -49,6 +49,8 @@ class ReaderPageEnhancementController @Inject constructor(
 			append('|')
 			append(settings.readerTranslationBubbleGroupingTuning)
 			append('|')
+			append(settings.isReaderTranslationBubbleDetectorEnabled)
+			append('|')
 			append(settings.isReaderTranslationBubbleGroupingEnabled)
 			append('|')
 			append(settings.readerTranslationOverlayCompactness)

@@ -4,56 +4,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:title="@string/translation_settings">
 
-    <Preference
-        android:key="reader_translation_manage_ocr_models"
-        android:title="@string/reader_translation_manage_ocr_models"
-        android:summary="@string/reader_translation_manage_ocr_models_summary"
-        android:fragment="org.skepsun.kototoro.settings.OcrModelsFragment" />
-
     <PreferenceCategory
-        android:key="translation_section_ocr"
-        android:title="@string/reader_translation_section_ocr">
+        android:key="translation_section_general"
+        android:title="@string/reader_translation_section_general">
 
         <SwitchPreferenceCompat
             android:defaultValue="false"
             android:key="reader_translation_enabled"
             android:summary="@string/reader_translation_enabled_summary"
             android:title="@string/reader_translation_enabled" />
-
-        <ListPreference
-            android:defaultValue="MLKIT"
-            android:dependency="reader_translation_enabled"
-            android:entries="@array/reader_translation_ocr_engines"
-            android:entryValues="@array/values_reader_translation_ocr_engines"
-            android:key="reader_translation_ocr_engine"
-            android:title="@string/reader_translation_ocr_engine"
-            app:useSimpleSummaryProvider="true" />
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_det_model_id"
-            android:title="@string/reader_translation_ocr_model_det_selection" />
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_rec_model_id"
-            android:title="@string/reader_translation_ocr_model_rec_selection" />
-
-        <Preference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_hybrid_fallback_threshold"
-            android:title="@string/reader_translation_hybrid_fallback_threshold" />
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_paddle_official_model_id"
-            android:title="@string/reader_translation_ocr_model_paddle_selection" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        android:key="translation_section_translation"
-        android:title="@string/reader_translation_section_translation">
 
         <SwitchPreferenceCompat
             android:defaultValue="true"
@@ -86,27 +45,83 @@
             app:useSimpleSummaryProvider="true" />
 
         <ListPreference
-            android:defaultValue="ja"
+            android:defaultValue="auto"
             android:dependency="reader_translation_enabled"
-            android:entries="@array/reader_translation_languages"
-            android:entryValues="@array/values_reader_translation_languages"
+            android:entries="@array/reader_translation_source_languages"
+            android:entryValues="@array/values_reader_translation_source_languages"
             android:key="reader_translation_source_lang"
+            android:summary="@string/reader_translation_source_lang_summary"
             android:title="@string/reader_translation_source_lang"
             app:useSimpleSummaryProvider="true" />
 
         <ListPreference
             android:defaultValue="zh"
             android:dependency="reader_translation_enabled"
-            android:entries="@array/reader_translation_languages"
-            android:entryValues="@array/values_reader_translation_languages"
+            android:entries="@array/reader_translation_target_languages"
+            android:entryValues="@array/values_reader_translation_target_languages"
             android:key="reader_translation_target_lang"
             android:title="@string/reader_translation_target_lang"
             app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="translation_section_local_models"
+        android:title="@string/reader_translation_section_local_models">
+
+        <Preference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_manage_ocr_models"
+            android:title="@string/reader_translation_manage_ocr_models"
+            android:summary="@string/reader_translation_manage_ocr_models_summary"
+            android:fragment="org.skepsun.kototoro.settings.OcrModelsFragment" />
+
+        <ListPreference
+            android:defaultValue="MLKIT"
+            android:dependency="reader_translation_enabled"
+            android:entries="@array/reader_translation_ocr_engines"
+            android:entryValues="@array/values_reader_translation_ocr_engines"
+            android:key="reader_translation_ocr_engine"
+            android:title="@string/reader_translation_ocr_engine"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_det_model_id"
+            android:title="@string/reader_translation_ocr_model_det_selection" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_rec_model_id"
+            android:title="@string/reader_translation_ocr_model_rec_selection" />
+
+        <Preference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_hybrid_fallback_threshold"
+            android:title="@string/reader_translation_hybrid_fallback_threshold" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_paddle_official_model_id"
+            android:title="@string/reader_translation_ocr_model_paddle_selection" />
 
         <ListPreference
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_onnx_model_id"
             android:title="@string/reader_translation_onnx_model_selection" />
+
+        <PreferenceScreen
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_open_api_settings"
+            android:fragment="org.skepsun.kototoro.settings.TranslationApiSettingsFragment"
+            android:summary="@string/reader_translation_open_api_settings_summary"
+            android:title="@string/reader_translation_open_api_settings" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="translation_section_bubble"
+        android:title="@string/reader_translation_section_bubble">
 
         <ListPreference
             android:defaultValue="BALANCED"
@@ -117,6 +132,13 @@
             android:summary="@string/reader_translation_bubble_grouping_tuning_summary"
             android:title="@string/reader_translation_bubble_grouping_tuning"
             app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_bubble_detector_enabled"
+            android:summary="@string/reader_translation_bubble_detector_enabled_summary"
+            android:title="@string/reader_translation_bubble_detector_enabled" />
 
         <SwitchPreferenceCompat
             android:defaultValue="true"
@@ -135,48 +157,6 @@
             android:title="@string/reader_translation_overlay_compactness"
             app:useSimpleSummaryProvider="true" />
 
-        <EditTextPreference
-            android:defaultValue=""
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_api_endpoint"
-            android:singleLine="true"
-            android:summary="@string/reader_translation_api_endpoint_summary"
-            android:title="@string/reader_translation_api_endpoint"
-            app:useSimpleSummaryProvider="true" />
-
-        <EditTextPreference
-            android:defaultValue=""
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_api_key"
-            android:singleLine="true"
-            android:summary="@string/reader_translation_api_key_summary"
-            android:title="@string/reader_translation_api_key"
-            app:useSimpleSummaryProvider="true" />
-
-        <ListPreference
-            android:defaultValue="CUSTOM"
-            android:dependency="reader_translation_enabled"
-            android:entries="@array/reader_translation_api_provider_presets"
-            android:entryValues="@array/values_reader_translation_api_provider_presets"
-            android:key="reader_translation_api_provider_preset"
-            android:summary="@string/reader_translation_api_provider_preset_summary"
-            android:title="@string/reader_translation_api_provider_preset"
-            app:useSimpleSummaryProvider="true" />
-
-        <EditTextPreference
-            android:defaultValue="gpt-4o-mini"
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_api_model"
-            android:singleLine="true"
-            android:summary="@string/reader_translation_api_model_summary"
-            android:title="@string/reader_translation_api_model"
-            app:useSimpleSummaryProvider="true" />
-
-        <Preference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_api_fetch_models"
-            android:summary="@string/reader_translation_api_models_fetch_summary"
-            android:title="@string/reader_translation_api_models_fetch" />
     </PreferenceCategory>
 
 </PreferenceScreen>

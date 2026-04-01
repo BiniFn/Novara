@@ -156,19 +156,24 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
                     android.text.format.DateUtils.MINUTE_IN_MILLIS,
                     android.text.format.DateUtils.FORMAT_ABBREV_RELATIVE,
                 ).toString()
-            } ?: getString(R.string.reader_translation_task_time_unknown)
+            }
             val preview = item.log.lineSequence().lastOrNull().orEmpty().ifBlank {
                 getString(R.string.reader_translation_page_log_empty)
             }
+            val title = buildString {
+                append("P")
+                append(item.pageIndex + 1)
+                append(" [")
+                append(translationStateLabel(item.state))
+                append(']')
+                if (!timeText.isNullOrBlank()) {
+                    append(' ')
+                    append(timeText)
+                }
+            }
             items += PanelItem.Page(
                 snapshot = item,
-                title = getString(
-                    R.string.reader_translation_task_item,
-                    item.pageIndex + 1,
-                    translationStateLabel(item.state),
-                    timeText,
-                    preview,
-                ).lineSequence().firstOrNull().orEmpty(),
+                title = title,
                 subtitle = preview,
             )
         }
@@ -237,7 +242,7 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
                     "lang=${settings.readerTranslationSourceLanguage}->${settings.readerTranslationTargetLanguage}, " +
                     "mode=${settings.readerTranslationMode}, " +
                     "ocr=${settings.readerTranslationOcrEngine}, " +
-                    "det=$detModel, rec=$recModel, onnx=$onnxModel, grouping=${settings.isReaderTranslationBubbleGroupingEnabled}, threshold=${threshold}%",
+                    "det=$detModel, rec=$recModel, onnx=$onnxModel, detector=${settings.isReaderTranslationBubbleDetectorEnabled}, grouping=${settings.isReaderTranslationBubbleGroupingEnabled}, threshold=${threshold}%",
             )
             appendLine(
                 getString(

@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -33,6 +32,7 @@ import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.PaddleOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
 import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModelCatalog
+import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -72,12 +72,19 @@ class TranslationSettingsFragment :
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.run {
 			setDefaultValue("CUSTOM")
 			setOnPreferenceChangeListener { _, newValue ->
-				applyApiProviderPreset((newValue as? String).orEmpty(), forceOverride = true)
+				TranslationApiSettingsSupport.applyApiProviderPreset(
+					sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext()),
+					presetInput = (newValue as? String).orEmpty(),
+					forceOverride = true,
+				)
 				true
 			}
 		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING)?.run {
 			setDefaultValue("BALANCED")
+		}
+		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED)?.run {
+			setDefaultValue(true)
 		}
 		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED)?.run {
 			setDefaultValue(true)
@@ -98,6 +105,7 @@ class TranslationSettingsFragment :
 		updateTfliteOfficialModelEntries()
 		updateNcnnOfficialModelEntries()
 		updateOnnxOfficialModelEntries()
+		updateBubbleGroupingSummary()
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -154,6 +162,10 @@ class TranslationSettingsFragment :
 			AppSettings.KEY_READER_TRANSLATION_MODE -> {
 				updateApiPreferenceVisibility()
 				updateOnnxOfficialModelEntries()
+			}
+			AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED,
+			AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED -> {
+				updateBubbleGroupingSummary()
 			}
 			AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET -> {
 				applyApiProviderPreset(settings.readerTranslationApiProviderPreset, forceOverride = true)
@@ -214,6 +226,25 @@ class TranslationSettingsFragment :
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.isVisible = showApi
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_MODEL)?.isVisible = showApi
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_FETCH_MODELS)?.isVisible = showApi
+	}
+
+	private fun updateBubbleGroupingSummary() {
+		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED)?.apply {
+			title = getString(
+				if (settings.isReaderTranslationBubbleDetectorEnabled) {
+					R.string.reader_translation_bubble_grouping_enabled
+				} else {
+					R.string.reader_translation_bubble_grouping_enabled_no_detector
+				},
+			)
+			summary = getString(
+				if (settings.isReaderTranslationBubbleDetectorEnabled) {
+					R.string.reader_translation_bubble_grouping_enabled_summary
+				} else {
+					R.string.reader_translation_bubble_grouping_enabled_summary_no_detector
+				},
+			)
+		}
 	}
 
 	private fun applyOfficialPaddleModel() {
@@ -337,33 +368,11 @@ class TranslationSettingsFragment :
 	}
 
 	private fun applyApiProviderPreset(presetInput: String, forceOverride: Boolean = false) {
-		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		val preset = presetInput.trim().uppercase()
-		if (preset.isBlank() || preset == "CUSTOM") return
-		val endpointAndModel = when (preset) {
-			"OPENAI" -> "https://api.openai.com/v1/chat/completions" to "gpt-4o-mini"
-			"DEEPSEEK" -> "https://api.deepseek.com/chat/completions" to "deepseek-chat"
-			"ZHIPU" -> "https://open.bigmodel.cn/api/paas/v4/chat/completions" to "glm-4-plus"
-			"ALIBABA" -> "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" to "qwen-plus"
-			"MOONSHOT" -> "https://api.moonshot.cn/v1/chat/completions" to "moonshot-v1-8k"
-			"MINIMAX" -> "https://api.minimax.chat/v1/text/chatcompletion_v2" to "minimax-m2.5"
-			"BAIDU" -> "https://qianfan.baidubce.com/v2/chat/completions" to "ernie-4.0-8k"
-			"ANTHROPIC" -> "https://api.anthropic.com/v1/chat/completions" to "claude-sonnet-4-6"
-			"GEMINI" -> "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" to "gemini-3-flash-preview"
-			"OPENROUTER" -> "https://openrouter.ai/api/v1/chat/completions" to "openai/gpt-4o-mini"
-			else -> null
-		}
-		endpointAndModel ?: return
-		val currentEndpoint = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, "").orEmpty().trim()
-		val currentModel = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, "").orEmpty().trim()
-		sharedPreferences.edit {
-			if (forceOverride || currentEndpoint.isBlank()) {
-				putString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, endpointAndModel.first)
-			}
-			if (forceOverride || currentModel.isBlank()) {
-				putString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, endpointAndModel.second)
-			}
-		}
+		TranslationApiSettingsSupport.applyApiProviderPreset(
+			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext()),
+			presetInput = presetInput,
+			forceOverride = forceOverride,
+		)
 	}
 
 	private fun fetchAndPickApiModel() {
@@ -378,7 +387,7 @@ class TranslationSettingsFragment :
 					Toast.makeText(requireContext(), R.string.reader_translation_api_endpoint_missing, Toast.LENGTH_SHORT).show()
 					return@launch
 				}
-				val modelsUrl = buildModelsUrl(endpoint)
+				val modelsUrl = TranslationApiSettingsSupport.buildModelsUrl(endpoint)
 				val key = settings.readerTranslationApiKey.trim()
 				val models = withContext(Dispatchers.IO) {
 					val requestBuilder = Request.Builder().get().url(modelsUrl)
@@ -389,7 +398,7 @@ class TranslationSettingsFragment :
 					okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
 						if (!response.isSuccessful) return@withContext emptyList<String>()
 						val body = response.body?.string().orEmpty()
-						parseModelIds(body)
+						TranslationApiSettingsSupport.parseModelIds(body)
 					}
 				}
 				if (models.isEmpty()) {
@@ -405,29 +414,6 @@ class TranslationSettingsFragment :
 				pref?.summary = getString(R.string.reader_translation_api_models_fetch_summary)
 			}
 		}
-	}
-
-	private fun buildModelsUrl(endpoint: String): String {
-		val trimmed = endpoint.trim().trimEnd('/')
-		return when {
-			trimmed.endsWith("/v1/chat/completions", ignoreCase = true) -> trimmed.removeSuffix("/v1/chat/completions") + "/v1/models"
-			trimmed.endsWith("/chat/completions", ignoreCase = true) -> trimmed.removeSuffix("/chat/completions") + "/models"
-			trimmed.endsWith("/v1", ignoreCase = true) -> "$trimmed/models"
-			trimmed.endsWith("/models", ignoreCase = true) -> trimmed
-			else -> "$trimmed/models"
-		}
-	}
-
-	private fun parseModelIds(body: String): List<String> {
-		if (body.isBlank()) return emptyList()
-		val root = runCatching { JSONObject(body) }.getOrNull() ?: return emptyList()
-		val data = root.optJSONArray("data") ?: return emptyList()
-		val ids = linkedSetOf<String>()
-		for (i in 0 until data.length()) {
-			val id = data.optJSONObject(i)?.optString("id").orEmpty().trim()
-			if (id.isNotBlank()) ids.add(id)
-		}
-		return ids.toList().sorted()
 	}
 
 	private fun showModelPickerDialog(models: List<String>) {

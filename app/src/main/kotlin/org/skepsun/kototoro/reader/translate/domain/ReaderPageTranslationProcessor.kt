@@ -30,6 +30,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
@@ -187,8 +188,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		if (!settings.isReaderTranslationEnabled) {
 			return null
 		}
-		val sourceLang = settings.readerTranslationSourceLanguage.lowercase()
-		val targetLang = settings.readerTranslationTargetLanguage.lowercase()
+		val sourceLang = resolveSourceLanguage(page)
+		val targetLang = settings.readerTranslationTargetLanguage.normalizeReaderTranslationLanguageTag() ?: "zh"
 		if (sourceLang == targetLang) {
 			return null
 		}
@@ -216,8 +217,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		if (!enabled) {
 			return sourceUri
 		}
-		val sourceLang = settings.readerTranslationSourceLanguage.lowercase()
-		val targetLang = settings.readerTranslationTargetLanguage.lowercase()
+		val sourceLang = resolveSourceLanguage(page)
+		val targetLang = settings.readerTranslationTargetLanguage.normalizeReaderTranslationLanguageTag() ?: "zh"
 		Log.d(LOG_TAG, "process debug: page=${page.id} sourceLang=$sourceLang targetLang=$targetLang")
 		if (sourceLang == targetLang) {
 			return sourceUri
@@ -1472,6 +1473,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private fun buildOcrCacheKey(sourceUri: String, sourceLang: String): String {
 		val raw = listOf(sourceUri, sourceLang, settings.readerTranslationOcrEngine.name).joinToString("|")
 		return "${OCR_CACHE_PREFIX}${raw.sha256()}"
+	}
+
+	private fun resolveSourceLanguage(page: ContentPage): String {
+		return resolveReaderTranslationSourceLanguage(
+			preferredLanguage = settings.readerTranslationSourceLanguage,
+			contentLanguage = page.source.getLocale()?.language,
+		)
 	}
 
 	private fun serializeOcrBlocks(blocks: List<OcrTextBlock>): String {

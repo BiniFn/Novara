@@ -63,52 +63,11 @@
 		android:summary="@string/reader_actions_summary"
 		android:title="@string/reader_actions" />
 
-	<PreferenceCategory
-		android:title="AI Super Resolution">
-
-		<SwitchPreferenceCompat
-			android:defaultValue="false"
-			android:key="reader_super_resolution_enabled"
-			android:summary="@string/reader_super_resolution_summary"
-			android:title="@string/reader_super_resolution" />
-
-		<ListPreference
-			android:defaultValue="SE"
-			android:dependency="reader_super_resolution_enabled"
-			android:entries="@array/reader_super_resolution_models"
-			android:entryValues="@array/values_reader_super_resolution_models"
-			android:key="reader_super_resolution_model"
-			android:title="@string/reader_super_resolution_model"
-			app:useSimpleSummaryProvider="true" />
-
-		<ListPreference
-			android:defaultValue="-1"
-			android:dependency="reader_super_resolution_enabled"
-			android:entries="@array/reader_super_resolution_noise_levels"
-			android:entryValues="@array/values_reader_super_resolution_noise_levels"
-			android:key="reader_super_resolution_noise_level"
-			android:title="@string/reader_super_resolution_noise"
-			app:useSimpleSummaryProvider="true" />
-			
-		<ListPreference
-			android:defaultValue="512"
-			android:dependency="reader_super_resolution_enabled"
-			android:entries="@array/reader_super_resolution_cache_limits"
-			android:entryValues="@array/values_reader_super_resolution_cache_limits"
-			android:key="reader_super_resolution_cache_limit"
-			android:title="@string/reader_super_resolution_cache_limit" />
-			
-		<Preference
-			android:key="reader_super_resolution_clear_cache"
-			android:summary="@string/reader_super_resolution_clear_cache_summary"
-			android:title="@string/reader_super_resolution_clear_cache" />
-	</PreferenceCategory>
-
 	<PreferenceScreen
-		android:key="reader_translation_settings_entry"
-		android:fragment="org.skepsun.kototoro.settings.TranslationSettingsFragment"
-		android:summary="@string/reader_translation_settings_entry_summary"
-		android:title="@string/translation_settings"
+		android:key="reader_ai_settings_entry"
+		android:fragment="org.skepsun.kototoro.settings.AISettingsFragment"
+		android:summary="@string/ai_settings_entry_summary"
+		android:title="@string/ai_settings"
 		app:allowDividerAbove="true" />
 
 	<SwitchPreferenceCompat

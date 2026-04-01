@@ -672,11 +672,13 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_READER_TRANSLATION_QUALITY_FILTER_ENABLED, true)
 		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_QUALITY_FILTER_ENABLED, value) }
 
-	val readerTranslationSourceLanguage: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_SOURCE_LANG, "ja") ?: "ja"
+	var readerTranslationSourceLanguage: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_SOURCE_LANG, "auto") ?: "auto"
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_SOURCE_LANG, value) }
 
-	val readerTranslationTargetLanguage: String
+	var readerTranslationTargetLanguage: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_TARGET_LANG, "zh") ?: "zh"
+		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_TARGET_LANG, value) }
 
 	val readerTranslationOcrEngine: ReaderOcrEngine
 		get() = when (val engine = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)) {
@@ -704,6 +706,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerTranslationBubbleGroupingTuning: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING, "BALANCED") ?: "BALANCED"
+
+	var isReaderTranslationBubbleDetectorEnabled: Boolean
+		get() = prefs.getBoolean(KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED, value) }
 
 	var isReaderTranslationBubbleGroupingEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED, true)
@@ -1414,6 +1420,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
 			const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
 			const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING = "reader_translation_bubble_grouping_tuning"
+			const val KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED = "reader_translation_bubble_detector_enabled"
 			const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED = "reader_translation_bubble_grouping_enabled"
 			const val KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS = "reader_translation_overlay_compactness"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_PATH = "reader_translation_paddle_model_path"

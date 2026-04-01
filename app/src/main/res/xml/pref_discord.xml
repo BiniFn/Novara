@@ -14,6 +14,12 @@
 		android:summary="@string/discord_token_summary"
 		android:title="@string/discord_token" />
 
+	<Preference
+		android:dependency="discord_rpc"
+		android:key="discord_logout"
+		android:summary="@string/discord_logout_summary"
+		android:title="@string/logout" />
+
 	<SwitchPreferenceCompat
 		android:dependency="discord_rpc"
 		android:key="discord_rpc_skip_nsfw"

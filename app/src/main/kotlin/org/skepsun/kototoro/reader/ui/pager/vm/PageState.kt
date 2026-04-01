@@ -16,6 +16,11 @@ sealed class PageState {
 		val isConverted: Boolean,
 	) : PageState()
 
+	data class AwaitingTranslation(
+		val source: ImageSource,
+		val isConverted: Boolean,
+	) : PageState()
+
 	class Converting() : PageState()
 
 	data class Shown(

@@ -117,7 +117,11 @@ abstract class BasePageHolder<B : ViewBinding>(
 	}
 
 	fun reloadImage() {
-		val source = (viewModel.state.value as? PageState.Shown)?.source ?: return
+		val source = when (val state = viewModel.state.value) {
+			is PageState.Shown -> state.source
+			is PageState.AwaitingTranslation -> state.source
+			else -> null
+		} ?: return
 		ssiv.setImage(source)
 	}
 
@@ -189,6 +193,12 @@ abstract class BasePageHolder<B : ViewBinding>(
 		when (state) {
 			is PageState.Converting -> {
 				bindingInfo.textViewStatus.setText(R.string.processing_)
+			}
+
+			is PageState.AwaitingTranslation -> {
+				bindingInfo.progressBar.isIndeterminate = true
+				bindingInfo.textViewStatus.setText(R.string.reader_translation_render_pending)
+				ssiv.setImage(state.source)
 			}
 
 			is PageState.Empty -> Unit

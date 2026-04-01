@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:title="@string/ai_settings">
+
+    <PreferenceCategory
+        android:key="ai_section_core"
+        android:title="@string/ai_section_core">
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_download"
+            android:key="ai_models"
+            android:fragment="org.skepsun.kototoro.settings.OcrModelsFragment"
+            android:summary="@string/reader_translation_manage_ocr_models_summary"
+            android:title="@string/reader_translation_manage_ocr_models" />
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_settings"
+            android:key="ai_api"
+            android:fragment="org.skepsun.kototoro.settings.TranslationApiSettingsFragment"
+            android:summary="@string/ai_api_settings_summary"
+            android:title="@string/ai_api_settings" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="ai_section_translation"
+        android:title="@string/ai_section_translation">
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_language"
+            android:key="ai_translation"
+            android:fragment="org.skepsun.kototoro.settings.TranslationSettingsFragment"
+            android:summary="@string/reader_translation_settings_entry_summary"
+            android:title="@string/translation_settings" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="ai_section_image"
+        android:title="@string/ai_section_image">
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_images"
+            android:key="ai_image"
+            android:fragment="org.skepsun.kototoro.settings.AIImageEnhancementSettingsFragment"
+            android:summary="@string/ai_image_enhancement_summary"
+            android:title="@string/ai_image_enhancement_settings" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="ai_section_video"
+        android:title="@string/ai_section_video">
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_play"
+            android:key="ai_video"
+            android:fragment="org.skepsun.kototoro.settings.AIVideoEnhancementSettingsFragment"
+            android:summary="@string/ai_video_enhancement_summary"
+            android:title="@string/ai_video_enhancement_settings" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

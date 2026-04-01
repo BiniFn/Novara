@@ -10,7 +10,9 @@ import androidx.preference.get
 import dagger.Reusable
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.LocalizedAppContext
+import org.skepsun.kototoro.settings.AISettingsFragment
 import org.skepsun.kototoro.settings.AppearanceSettingsFragment
+import org.skepsun.kototoro.settings.AIImageEnhancementSettingsFragment
 import org.skepsun.kototoro.settings.DownloadsSettingsFragment
 import org.skepsun.kototoro.settings.ProxySettingsFragment
 import org.skepsun.kototoro.settings.ReaderSettingsFragment
@@ -18,7 +20,9 @@ import org.skepsun.kototoro.settings.PlaybackSettingsFragment
 import org.skepsun.kototoro.settings.ServicesSettingsFragment
 import org.skepsun.kototoro.settings.StorageAndNetworkSettingsFragment
 import org.skepsun.kototoro.settings.SuggestionsSettingsFragment
+import org.skepsun.kototoro.settings.TranslationApiSettingsFragment
 import org.skepsun.kototoro.settings.TranslationSettingsFragment
+import org.skepsun.kototoro.settings.AIVideoEnhancementSettingsFragment
 import org.skepsun.kototoro.settings.about.AboutSettingsFragment
 import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
@@ -37,10 +41,19 @@ class SettingsSearchHelper @Inject constructor(
         val preferenceManager = PreferenceManager(context)
 		val result = ArrayList<SettingsItem>()
 		preferenceManager.inflateTo(result, R.xml.pref_appearance, emptyList(), AppearanceSettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_ai, emptyList(), AISettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_ai_image, listOf(context.getString(R.string.ai_settings)), AIImageEnhancementSettingsFragment::class.java)
+		preferenceManager.inflateTo(result, R.xml.pref_ai_video, listOf(context.getString(R.string.ai_settings)), AIVideoEnhancementSettingsFragment::class.java)
 		preferenceManager.inflateTo(result, R.xml.pref_playback, emptyList(), PlaybackSettingsFragment::class.java)
 		preferenceManager.inflateTo(result, R.xml.pref_sources, emptyList(), SourcesSettingsFragment::class.java)
 		preferenceManager.inflateTo(result, R.xml.pref_reader, emptyList(), ReaderSettingsFragment::class.java)
 		preferenceManager.inflateTo(result, R.xml.pref_translation, emptyList(), TranslationSettingsFragment::class.java)
+		preferenceManager.inflateTo(
+			result,
+			R.xml.pref_translation_api,
+			listOf(context.getString(R.string.ai_settings)),
+			TranslationApiSettingsFragment::class.java,
+		)
         preferenceManager.inflateTo(
             result,
             R.xml.pref_network_storage,

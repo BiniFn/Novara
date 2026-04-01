@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
 import androidx.preference.EditTextPreference
@@ -16,11 +18,15 @@ import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordAuthActivity
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class DiscordSettingsFragment : BasePreferenceFragment(R.string.discord) {
 
 	private val viewModel by viewModels<DiscordSettingsViewModel>()
+
+	@Inject
+	lateinit var appSettings: AppSettings
 
 	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
 		addPreferencesFromResource(R.xml.pref_discord)
@@ -33,6 +39,10 @@ class DiscordSettingsFragment : BasePreferenceFragment(R.string.discord) {
 				it.setHint(R.string.discord_token_hint)
 				it.inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
 			}
+		}
+		findPreference<Preference>(KEY_DISCORD_LOGOUT)?.setOnPreferenceClickListener {
+			logoutDiscord()
+			true
 		}
 	}
 
@@ -59,6 +69,7 @@ class DiscordSettingsFragment : BasePreferenceFragment(R.string.discord) {
 
 	private fun bindTokenPreference(state: TokenState, token: String?) {
 		val pref = findPreference<EditTextPreference>(AppSettings.KEY_DISCORD_TOKEN) ?: return
+		findPreference<Preference>(KEY_DISCORD_LOGOUT)?.isVisible = appSettings.isDiscordRpcEnabled
 		when (state) {
 			TokenState.EMPTY -> {
 				pref.icon = null
@@ -87,6 +98,18 @@ class DiscordSettingsFragment : BasePreferenceFragment(R.string.discord) {
 		}
 	}
 
+	private fun logoutDiscord() {
+		appSettings.discordToken = null
+		val webStorage = WebStorage.getInstance()
+		runCatching { webStorage.deleteOrigin(DISCORD_ORIGIN) }
+		runCatching { webStorage.deleteOrigin(DISCORD_WWW_ORIGIN) }
+
+		val cookieManager = CookieManager.getInstance()
+		cookieManager.removeSessionCookies(null)
+		cookieManager.removeAllCookies(null)
+		cookieManager.flush()
+	}
+
 	class TokenDialogFragment : EditTextPreferenceDialogFragmentCompat() {
 
 		override fun onPrepareDialogBuilder(builder: AlertDialog.Builder) {
@@ -110,5 +133,11 @@ class DiscordSettingsFragment : BasePreferenceFragment(R.string.discord) {
 				putString(ARG_KEY, key)
 			}
 		}
+	}
+
+	private companion object {
+		private const val KEY_DISCORD_LOGOUT = "discord_logout"
+		private const val DISCORD_ORIGIN = "https://discord.com"
+		private const val DISCORD_WWW_ORIGIN = "https://www.discord.com"
 	}
 }

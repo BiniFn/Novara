@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:title="@string/ai_video_enhancement_settings">
+
+    <ListPreference
+        android:entries="@array/video_super_resolution_modes"
+        android:key="video_super_resolution_mode"
+        android:title="@string/video_super_resolution_mode"
+        app:useSimpleSummaryProvider="true" />
+
+    <ListPreference
+        android:entries="@array/video_super_resolution_shaders"
+        android:key="video_super_resolution_quality_shader"
+        android:title="@string/video_super_resolution_submode_quality"
+        app:useSimpleSummaryProvider="true" />
+
+    <ListPreference
+        android:entries="@array/video_super_resolution_shaders"
+        android:key="video_super_resolution_balanced_shader"
+        android:title="@string/video_super_resolution_submode_balanced"
+        app:useSimpleSummaryProvider="true" />
+
+    <ListPreference
+        android:entries="@array/video_super_resolution_shaders"
+        android:key="video_super_resolution_performance_shader"
+        android:title="@string/video_super_resolution_submode_performance"
+        app:useSimpleSummaryProvider="true" />
+
+    <Preference
+        android:key="video_super_resolution_advanced_settings_button"
+        android:summary="@string/video_super_resolution_advanced_shader"
+        android:title="@string/video_super_resolution_advanced_settings" />
+
+</PreferenceScreen>

@@ -215,7 +215,8 @@
 		<item>BALANCED</item>
 		<item>RELAXED</item>
 	</string-array>
-	<string-array name="reader_translation_languages" translatable="false">
+	<string-array name="reader_translation_source_languages" translatable="false">
+		<item>Automatic</item>
 		<item>Arabic</item>
 		<item>Bangla</item>
 		<item>Bulgarian</item>
@@ -229,6 +230,7 @@
 		<item>Spanish</item>
 		<item>Finnish</item>
 		<item>French</item>
+		<item>Hindi</item>
 		<item>Croatian</item>
 		<item>Italian</item>
 		<item>Japanese</item>
@@ -245,7 +247,8 @@
 		<item>Ukrainian</item>
 		<item>Vietnamese</item>
 	</string-array>
-	<string-array name="values_reader_translation_languages" translatable="false">
+	<string-array name="values_reader_translation_source_languages" translatable="false">
+		<item>auto</item>
 		<item>ar</item>
 		<item>bn</item>
 		<item>bg</item>
@@ -259,6 +262,69 @@
 		<item>es</item>
 		<item>fi</item>
 		<item>fr</item>
+		<item>hi</item>
+		<item>hr</item>
+		<item>it</item>
+		<item>ja</item>
+		<item>ko</item>
+		<item>nl</item>
+		<item>pl</item>
+		<item>pt</item>
+		<item>ro</item>
+		<item>ru</item>
+		<item>sk</item>
+		<item>sv</item>
+		<item>tl</item>
+		<item>tr</item>
+		<item>uk</item>
+		<item>vi</item>
+	</string-array>
+	<string-array name="reader_translation_target_languages" translatable="false">
+		<item>Arabic</item>
+		<item>Bangla</item>
+		<item>Bulgarian</item>
+		<item>Catalan</item>
+		<item>Chinese (Simplified)</item>
+		<item>Czech</item>
+		<item>Danish</item>
+		<item>German</item>
+		<item>Greek</item>
+		<item>English</item>
+		<item>Spanish</item>
+		<item>Finnish</item>
+		<item>French</item>
+		<item>Hindi</item>
+		<item>Croatian</item>
+		<item>Italian</item>
+		<item>Japanese</item>
+		<item>Korean</item>
+		<item>Dutch</item>
+		<item>Polish</item>
+		<item>Portuguese</item>
+		<item>Romanian</item>
+		<item>Russian</item>
+		<item>Slovak</item>
+		<item>Swedish</item>
+		<item>Tagalog</item>
+		<item>Turkish</item>
+		<item>Ukrainian</item>
+		<item>Vietnamese</item>
+	</string-array>
+	<string-array name="values_reader_translation_target_languages" translatable="false">
+		<item>ar</item>
+		<item>bn</item>
+		<item>bg</item>
+		<item>ca</item>
+		<item>zh</item>
+		<item>cs</item>
+		<item>da</item>
+		<item>de</item>
+		<item>el</item>
+		<item>en</item>
+		<item>es</item>
+		<item>fi</item>
+		<item>fr</item>
+		<item>hi</item>
 		<item>hr</item>
 		<item>it</item>
 		<item>ja</item>

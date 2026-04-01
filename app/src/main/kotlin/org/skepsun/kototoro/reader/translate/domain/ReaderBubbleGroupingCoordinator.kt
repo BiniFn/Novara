@@ -106,6 +106,21 @@ internal class ReaderBubbleGroupingCoordinator(
 		bitmap: Bitmap,
 		fragments: List<TextFragment>,
 	): BubbleDetectorOutcome {
+		if (!settings.isReaderTranslationBubbleDetectorEnabled) {
+			return BubbleDetectorOutcome(
+				groups = emptyList(),
+				matchedFragmentIndices = emptySet(),
+				candidateCount = 0,
+				matchedFragmentCount = 0,
+				subdividedGroupCount = 0,
+				subdividedFragmentCount = 0,
+				engine = "disabled",
+				modelId = "",
+				rawBoxCount = 0,
+				totalMs = 0L,
+				fallbackReason = "detector_disabled",
+			)
+		}
 		val onnxAttempt = runCatching {
 			onnxBubbleDetectorEngine.detectAttempt(bitmap)
 		}.onFailure {

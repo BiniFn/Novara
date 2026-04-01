@@ -347,9 +347,10 @@ internal class ReaderTranslationCoordinator(
 	}
 
 	private suspend fun translateLocal(text: String, sourceLang: String, targetLang: String): String {
-		val source = TranslateLanguage.fromLanguageTag(sourceLang)
-		val target = TranslateLanguage.fromLanguageTag(targetLang)
+		val source = resolveMlKitLanguage(sourceLang)
+		val target = resolveMlKitLanguage(targetLang)
 		if (source == null || target == null) {
+			log { "translate local skip unsupported source=$sourceLang target=$targetLang" }
 			return text
 		}
 		val options = TranslatorOptions.Builder()
@@ -371,9 +372,10 @@ internal class ReaderTranslationCoordinator(
 		targetLang: String,
 	): Map<String, String> {
 		if (texts.isEmpty()) return emptyMap()
-		val source = TranslateLanguage.fromLanguageTag(sourceLang)
-		val target = TranslateLanguage.fromLanguageTag(targetLang)
+		val source = resolveMlKitLanguage(sourceLang)
+		val target = resolveMlKitLanguage(targetLang)
 		if (source == null || target == null) {
+			log { "translate local batch skip unsupported source=$sourceLang target=$targetLang size=${texts.size}" }
 			return texts.associateWith { "" }
 		}
 		val options = TranslatorOptions.Builder()
@@ -399,6 +401,46 @@ internal class ReaderTranslationCoordinator(
 			results
 		} finally {
 			translator.close()
+		}
+	}
+
+	private fun resolveMlKitLanguage(languageTag: String): String? {
+		val normalized = languageTag
+			.trim()
+			.lowercase()
+			.replace('_', '-')
+			.substringBefore('-')
+		return TranslateLanguage.fromLanguageTag(normalized) ?: when (normalized) {
+			"ar" -> TranslateLanguage.ARABIC
+			"bg" -> TranslateLanguage.BULGARIAN
+			"bn" -> TranslateLanguage.BENGALI
+			"ca" -> TranslateLanguage.CATALAN
+			"cs" -> TranslateLanguage.CZECH
+			"da" -> TranslateLanguage.DANISH
+			"de" -> TranslateLanguage.GERMAN
+			"el" -> TranslateLanguage.GREEK
+			"en" -> TranslateLanguage.ENGLISH
+			"es" -> TranslateLanguage.SPANISH
+			"fi" -> TranslateLanguage.FINNISH
+			"fr" -> TranslateLanguage.FRENCH
+			"hi" -> TranslateLanguage.HINDI
+			"hr" -> TranslateLanguage.CROATIAN
+			"it" -> TranslateLanguage.ITALIAN
+			"ja" -> TranslateLanguage.JAPANESE
+			"ko" -> TranslateLanguage.KOREAN
+			"nl" -> TranslateLanguage.DUTCH
+			"pl" -> TranslateLanguage.POLISH
+			"pt" -> TranslateLanguage.PORTUGUESE
+			"ro" -> TranslateLanguage.ROMANIAN
+			"ru" -> TranslateLanguage.RUSSIAN
+			"sk" -> TranslateLanguage.SLOVAK
+			"sv" -> TranslateLanguage.SWEDISH
+			"tl" -> TranslateLanguage.TAGALOG
+			"tr" -> TranslateLanguage.TURKISH
+			"uk" -> TranslateLanguage.UKRAINIAN
+			"vi" -> TranslateLanguage.VIETNAMESE
+			"zh" -> TranslateLanguage.CHINESE
+			else -> null
 		}
 	}
 

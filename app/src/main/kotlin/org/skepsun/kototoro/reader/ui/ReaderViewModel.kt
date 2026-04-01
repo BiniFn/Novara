@@ -70,6 +70,8 @@ import org.skepsun.kototoro.reader.domain.DetectReaderModeUseCase
 import org.skepsun.kototoro.reader.domain.PageLoader
 import org.skepsun.kototoro.reader.domain.ReaderPageEnhancementController
 import org.skepsun.kototoro.reader.domain.TranslationLayerState
+import org.skepsun.kototoro.reader.translate.domain.normalizeReaderTranslationLanguageTag
+import org.skepsun.kototoro.reader.translate.domain.resolveReaderTranslationSourceLanguage
 import org.skepsun.kototoro.reader.ui.config.ReaderSettings
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordRpc
@@ -373,12 +375,11 @@ class ReaderViewModel @Inject constructor(
 
     fun isTranslationBypassedForCurrentContent(): Boolean {
         if (!settings.isReaderTranslationEnabled) return false
-        val sourceLang = getContentOrNull()?.source?.getLocale()?.language?.lowercase().orEmpty()
+        val sourceLang = resolveCurrentTranslationSourceLanguage()
         if (sourceLang.isBlank()) return false
         val targetLang = settings.readerTranslationTargetLanguage
-            .lowercase()
-            .substringBefore('-')
-            .substringBefore('_')
+            .normalizeReaderTranslationLanguageTag()
+            .orEmpty()
         return sourceLang == targetLang
     }
 
@@ -390,6 +391,13 @@ class ReaderViewModel @Inject constructor(
 
     fun shouldShowTranslationToggle(): Boolean {
         return settings.isReaderTranslationEnabled && !isTranslationBypassedForCurrentContent()
+    }
+
+    private fun resolveCurrentTranslationSourceLanguage(): String {
+        return resolveReaderTranslationSourceLanguage(
+            preferredLanguage = settings.readerTranslationSourceLanguage,
+            contentLanguage = getContentOrNull()?.source?.getLocale()?.language,
+        )
     }
 
     fun onPause() {

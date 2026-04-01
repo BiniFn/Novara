@@ -21,6 +21,12 @@
         android:title="@string/reader_settings" />
 
     <PreferenceScreen
+        android:fragment="org.skepsun.kototoro.settings.AISettingsFragment"
+        android:icon="@drawable/ic_auto_fix"
+        android:key="ai"
+        android:title="@string/ai_settings" />
+
+    <PreferenceScreen
         android:fragment="org.skepsun.kototoro.settings.PlaybackSettingsFragment"
         android:icon="@drawable/ic_play"
         android:key="playback"

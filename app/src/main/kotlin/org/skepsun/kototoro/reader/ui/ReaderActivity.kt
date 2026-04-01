@@ -28,6 +28,7 @@ import androidx.transition.TransitionSet
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -68,6 +69,7 @@ import org.skepsun.kototoro.reader.data.TapGridSettings
 import org.skepsun.kototoro.reader.domain.TapGridArea
 import org.skepsun.kototoro.reader.ui.config.ReaderConfigSheet
 import org.skepsun.kototoro.reader.domain.TranslationLayerState
+import org.skepsun.kototoro.reader.translate.domain.isAutoReaderTranslationLanguage
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import org.skepsun.kototoro.reader.ui.pager.ReaderUiState
 import org.skepsun.kototoro.reader.ui.tapgrid.TapGridDispatcher
@@ -135,6 +137,10 @@ class ReaderActivity :
         viewBinding.actionsView.listener = this
         viewBinding.buttonTimer?.setOnClickListener(this)
         viewBinding.buttonTranslationToggle.setOnClickListener(this)
+        viewBinding.buttonTranslationToggle.setOnLongClickListener {
+            showTranslationLanguageQuickActions()
+            true
+        }
         viewBinding.buttonTranslationLogPanel?.setOnClickListener(this)
         idlingDetector.bindToLifecycle(this)
         screenOrientationHelper.applySettings()
@@ -675,6 +681,119 @@ class ReaderActivity :
         ).setAnchorView(viewBinding.toolbarDocked).show()
     }
 
+    private fun showTranslationLanguageQuickActions() {
+        if (!settings.isReaderTranslationEnabled) return
+        val actions = arrayOf(
+            getString(R.string.reader_translation_quick_change_source),
+            getString(R.string.reader_translation_quick_change_target),
+            getString(R.string.reader_translation_quick_swap_languages),
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.reader_translation_quick_actions)
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> showTranslationLanguagePicker(
+                        titleRes = R.string.reader_translation_source_lang,
+                        entriesRes = R.array.reader_translation_source_languages,
+                        valuesRes = R.array.values_reader_translation_source_languages,
+                        currentValue = settings.readerTranslationSourceLanguage,
+                    ) { selected ->
+                        settings.readerTranslationSourceLanguage = selected
+                        showTranslationLanguageChangedMessage(
+                            R.string.reader_translation_source_lang_updated,
+                            selected,
+                            isSource = true,
+                        )
+                    }
+                    1 -> showTranslationLanguagePicker(
+                        titleRes = R.string.reader_translation_target_lang,
+                        entriesRes = R.array.reader_translation_target_languages,
+                        valuesRes = R.array.values_reader_translation_target_languages,
+                        currentValue = settings.readerTranslationTargetLanguage,
+                    ) { selected ->
+                        settings.readerTranslationTargetLanguage = selected
+                        showTranslationLanguageChangedMessage(
+                            R.string.reader_translation_target_lang_updated,
+                            selected,
+                            isSource = false,
+                        )
+                    }
+                    2 -> swapTranslationLanguages()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showTranslationLanguagePicker(
+        titleRes: Int,
+        entriesRes: Int,
+        valuesRes: Int,
+        currentValue: String,
+        onSelected: (String) -> Unit,
+    ) {
+        val labels = resources.getStringArray(entriesRes)
+        val values = resources.getStringArray(valuesRes)
+        val selectedIndex = values.indexOf(currentValue).takeIf { it >= 0 } ?: 0
+        MaterialAlertDialogBuilder(this)
+            .setTitle(titleRes)
+            .setSingleChoiceItems(labels, selectedIndex) { dialog, which ->
+                onSelected(values[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun swapTranslationLanguages() {
+        val source = settings.readerTranslationSourceLanguage
+        val target = settings.readerTranslationTargetLanguage
+        if (isAutoReaderTranslationLanguage(source)) {
+            Snackbar.make(
+                viewBinding.container,
+                R.string.reader_translation_swap_auto_unsupported,
+                Snackbar.LENGTH_SHORT,
+            ).setAnchorView(viewBinding.toolbarDocked).show()
+            return
+        }
+        settings.readerTranslationSourceLanguage = target
+        settings.readerTranslationTargetLanguage = source
+        Snackbar.make(
+            viewBinding.container,
+            getString(
+                R.string.reader_translation_languages_swapped,
+                displayTranslationLanguage(target, isSource = true),
+                displayTranslationLanguage(source, isSource = false),
+            ),
+            Snackbar.LENGTH_SHORT,
+        ).setAnchorView(viewBinding.toolbarDocked).show()
+    }
+
+    private fun showTranslationLanguageChangedMessage(messageRes: Int, value: String, isSource: Boolean) {
+        Snackbar.make(
+            viewBinding.container,
+            getString(messageRes, displayTranslationLanguage(value, isSource)),
+            Snackbar.LENGTH_SHORT,
+        ).setAnchorView(viewBinding.toolbarDocked).show()
+    }
+
+    private fun displayTranslationLanguage(value: String, isSource: Boolean): String {
+        val valuesRes = if (isSource) {
+            R.array.values_reader_translation_source_languages
+        } else {
+            R.array.values_reader_translation_target_languages
+        }
+        val entriesRes = if (isSource) {
+            R.array.reader_translation_source_languages
+        } else {
+            R.array.reader_translation_target_languages
+        }
+        val values = resources.getStringArray(valuesRes)
+        val labels = resources.getStringArray(entriesRes)
+        val index = values.indexOf(value)
+        return if (index in labels.indices) labels[index] else value
+    }
+
     // Observe foldable window layout to auto-enable double-page if configured
     private fun observeWindowLayout() {
         WindowInfoTracker.getOrCreate(this)
@@ -722,4 +841,3 @@ class ReaderActivity :
         private const val TOAST_DURATION = 2000L
     }
 }
-
