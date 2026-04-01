@@ -134,6 +134,19 @@ object OnnxOfficialModelCatalog {
 			description = "YOLO-based manga bubble/text region detector for ROI OCR pipeline.",
 		),
 		OnnxOfficialModel(
+			id = "comic_text_and_bubble_detector_detr",
+			title = "Comic Text & Bubble Detector (RT-DETR)",
+			version = "hf-main",
+			category = OnnxModelCategory.BUBBLE_DETECTION,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "detector.onnx",
+					downloadUrl = "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector.onnx",
+				),
+			),
+			description = "RT-DETR-v2 model fine-tuned on 11k manga/comics. Differentiates between text bubbles and free text.",
+		),
+		OnnxOfficialModel(
 			id = "translategemma_4b_it_onnx_int4",
 			title = "TranslateGemma 4B ONNX (q4)",
 			version = "int4",
