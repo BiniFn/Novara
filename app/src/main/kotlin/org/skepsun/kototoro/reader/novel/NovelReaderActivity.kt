@@ -859,9 +859,11 @@ class NovelReaderActivity :
                 
                 // For Legado sources, skip EPUB check and go directly to flow-based loading with nextChapterUrl
                 // This ensures proper boundary checking to prevent infinite page loading
+                var prefetchedPages: List<org.skepsun.kototoro.parsers.model.ContentPage>? = null
                 if (!isLegadoSource) {
                     // Non-Legado sources: check for EPUB type
                     val pages = chapterRepo.getPages(chapter)
+                    prefetchedPages = pages
                     
                     android.util.Log.d("NovelReaderActivity", "Got ${pages.size} pages, first page preview: ${pages.firstOrNull()?.preview}, url: ${pages.firstOrNull()?.url?.take(100)}")
                     
@@ -911,11 +913,10 @@ class NovelReaderActivity :
                 
                 try {
                     var isFirstEmit = true
-                    // Pass null for prefetchedPages to ensure getPagesFlow with nextChapterUrl is used
                     novelContentLoader.loadChapterContentFlow(
                         chapterRepo, 
                         chapter, 
-                        prefetchedPages = null,
+                        prefetchedPages = prefetchedPages,
                         priority = org.skepsun.kototoro.core.parser.legado.RequestPriority.FOREGROUND,
                         nextChapterUrl = nextChapterUrl
                     ).onCompletion {

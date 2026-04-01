@@ -298,6 +298,7 @@ private class AnonymousContentSource(override val name: String) : ContentSource 
 	override val contentType: ContentType get() = when {
 		name.startsWith("ANIYOMI_") -> ContentType.VIDEO
 		name.startsWith("JSON_TVBOX_") -> ContentType.VIDEO
+		name.startsWith("JSON_LNREADER_") -> ContentType.NOVEL
 		name.startsWith("JSON_LEGADO_M_") -> ContentType.MANGA
 		name.startsWith("JSON_LEGADO_") -> ContentType.NOVEL
 		name.startsWith("MIHON_") -> ContentType.MANGA

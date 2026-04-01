@@ -296,12 +296,11 @@ class LNReaderPluginBridge(
 	}
 	
 	/**
-	 * Call plugin.parseChapter(novelUrl, chapterUrl).
+	 * Call plugin.parseChapter(chapterUrl).
 	 * Returns chapter HTML text content.
 	 */
-	suspend fun parseChapter(novelPath: String, chapterPath: String): String {
+	suspend fun parseChapter(chapterPath: String): String {
 		val resultVar = "__parseChapterResult_${sanitizedId}"
-		val escapedNovelPath = escapeForJS(novelPath)
 		val escapedChapterPath = escapeForJS(chapterPath)
 		val script = """
 			(async function() {
@@ -309,7 +308,7 @@ class LNReaderPluginBridge(
 					var plugin = globalThis.__plugin_${sanitizedId};
 					if (!plugin) throw new Error('Plugin not found');
 					if (typeof plugin.parseChapter !== 'function') throw new Error('parseChapter not found');
-					var result = await plugin.parseChapter('$escapedNovelPath', '$escapedChapterPath');
+					var result = await plugin.parseChapter('$escapedChapterPath');
 					var text = '';
 					if (typeof result === 'string') {
 						text = result;

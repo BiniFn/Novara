@@ -3,6 +3,7 @@ package org.skepsun.kototoro.core.lnreader
 import android.content.Context
 import android.util.Log
 import com.dokar.quickjs.QuickJs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -10,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.util.MultiMutex
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.model.ContentListFilter
@@ -53,6 +55,12 @@ class LNReaderContentRepository(
 	)
 	
 	private var cachedFilterOptions: ContentListFilterOptions? = null
+	private val chapterHtmlMutex = MultiMutex<String>()
+	private val chapterHtmlCache = object : LinkedHashMap<String, String>(16, 0.75f, true) {
+		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+			return size > 8
+		}
+	}
 	
 	override val listPagingMode: ContentRepository.ListPagingMode
 		get() = ContentRepository.ListPagingMode.PAGE_INDEX
@@ -80,6 +88,8 @@ class LNReaderContentRepository(
 					bridge.popularNovels(page, selectedFilters).map { it.toContent() }
 				}
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getList failed for ${source.name}", e)
@@ -152,6 +162,8 @@ class LNReaderContentRepository(
 					}
 				)
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getDetails failed for ${source.name}", e)
@@ -162,30 +174,26 @@ class LNReaderContentRepository(
 	override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
 		// LNReader chapters return HTML text, not page images
 		// We create a single "page" containing the HTML content
-		val parts = chapter.url.split(CHAPTER_SEPARATOR, limit = 2)
-		val novelPath = parts.firstOrNull() ?: ""
-		val chapterPath = if (parts.size == 2) parts[1] else chapter.url
-		
 		return try {
-			executeInPluginContext { bridge ->
-				val htmlContent = bridge.parseChapter(novelPath, chapterPath)
-				if (htmlContent.isNotBlank()) {
-					val encoded = android.util.Base64.encodeToString(
-						htmlContent.toByteArray(Charsets.UTF_8),
-						android.util.Base64.NO_WRAP
+			val htmlContent = loadChapterHtml(chapter)
+			if (htmlContent.isNotBlank()) {
+				val encoded = android.util.Base64.encodeToString(
+					htmlContent.toByteArray(Charsets.UTF_8),
+					android.util.Base64.NO_WRAP
+				)
+				listOf(
+					ContentPage(
+						id = chapter.id,
+						url = "data:text/html;base64,$encoded",
+						preview = null,
+						source = source
 					)
-					listOf(
-						ContentPage(
-							id = chapter.id,
-							url = "data:text/html;base64,$encoded",
-							preview = null,
-							source = source
-						)
-					)
-				} else {
-					emptyList()
-				}
+				)
+			} else {
+				emptyList()
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getPages failed for ${source.name}", e)
@@ -198,22 +206,18 @@ class LNReaderContentRepository(
 	 * This is the key method for novel reading — returns HTML text.
 	 */
 	override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): NovelChapterContent? {
-		val parts = chapter.url.split(CHAPTER_SEPARATOR, limit = 2)
-		val novelPath = parts.firstOrNull() ?: ""
-		val chapterPath = if (parts.size == 2) parts[1] else chapter.url
-		
 		return try {
-			executeInPluginContext { bridge ->
-				val htmlContent = bridge.parseChapter(novelPath, chapterPath)
-				if (htmlContent.isNotBlank()) {
-					NovelChapterContent(
-						html = htmlContent,
-						images = emptyList(),
-					)
-				} else {
-					null
-				}
+			val htmlContent = loadChapterHtml(chapter)
+			if (htmlContent.isNotBlank()) {
+				NovelChapterContent(
+					html = htmlContent,
+					images = emptyList(),
+				)
+			} else {
+				null
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			if (e is org.skepsun.kototoro.core.exceptions.CloudFlareException || e is org.skepsun.kototoro.core.exceptions.InteractiveActionRequiredException) throw e
 			Log.e(TAG, "getChapterContent failed for ${source.name}", e)
@@ -270,6 +274,8 @@ class LNReaderContentRepository(
 					// even if Javascript swallowed the error and resolved the promise
 					fetchBridge.pendingFatalException?.let { throw it }
 				}
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				fetchBridge.pendingFatalException?.let { throw it }
 				Log.e(TAG, "executeInPluginContext failed for ${source.name}", e)
@@ -277,6 +283,31 @@ class LNReaderContentRepository(
 			} finally {
 				qjs.close()
 			}
+		}
+	}
+
+	private suspend fun loadChapterHtml(chapter: ContentChapter): String {
+		val cacheKey = chapter.url
+		synchronized(chapterHtmlCache) {
+			chapterHtmlCache[cacheKey]?.let { return it }
+		}
+
+		return chapterHtmlMutex.withLock(cacheKey) {
+			synchronized(chapterHtmlCache) {
+				chapterHtmlCache[cacheKey]?.let { return@withLock it }
+			}
+
+			val parts = chapter.url.split(CHAPTER_SEPARATOR, limit = 2)
+			val chapterPath = if (parts.size == 2) parts[1] else chapter.url
+			val htmlContent = executeInPluginContext { bridge ->
+				bridge.parseChapter(chapterPath)
+			}
+			if (htmlContent.isNotBlank()) {
+				synchronized(chapterHtmlCache) {
+					chapterHtmlCache[cacheKey] = htmlContent
+				}
+			}
+			htmlContent
 		}
 	}
 	
