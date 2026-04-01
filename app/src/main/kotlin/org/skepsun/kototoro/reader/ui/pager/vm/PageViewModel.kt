@@ -141,7 +141,7 @@ class PageViewModel(
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
 			)
 			if (targetUri == null || targetUri == currentUri) {
-				if (settingsProducer.value.isTranslationShowTranslated) {
+				if (settingsProducer.value.isTranslationEnabled && settingsProducer.value.isTranslationShowTranslated) {
 					val isConverted = when (currentState) {
 						is PageState.Shown -> currentState.isConverted
 						is PageState.Loaded -> currentState.isConverted
@@ -228,7 +228,7 @@ class PageViewModel(
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
 			) ?: uri
 			cachedBounds = resolveTrimmedBounds(displayUri)
-			state.value = if (settingsProducer.value.isTranslationShowTranslated && displayUri == uri) {
+			state.value = if (settingsProducer.value.isTranslationEnabled && settingsProducer.value.isTranslationShowTranslated && displayUri == uri) {
 				PageState.AwaitingTranslation(displayUri.toImageSource(cachedBounds), isConverted = false)
 			} else {
 				PageState.Loaded(displayUri.toImageSource(cachedBounds), isConverted = false)

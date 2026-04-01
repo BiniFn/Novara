@@ -15,6 +15,13 @@ import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.core.model.isLocal
 
 /**
+ * Checks if a chapter URL points to a local file (i.e. actually downloaded),
+ * as opposed to still being a remote URL in index.json metadata.
+ */
+private fun String.isLocalChapterUrl(): Boolean =
+	startsWith("file:") || startsWith("zip:") || startsWith("epub://")
+
+/**
  * Represents a group of chapters for UI display
  * 
  * @param name Display name of the group
@@ -84,7 +91,7 @@ fun ContentDetails.mapChapters(
 				isCurrent = chapter.id == currentChapterId,
 				isUnread = isUnread,
 				isNew = isUnread && result.size >= newFrom,
-				isDownloaded = finalChapter.source.isLocal,
+				isDownloaded = local != null && local.url.isLocalChapterUrl(),
 				isBookmarked = chapter.id in bookmarked,
 				isGrid = isGrid,
 			)
@@ -96,7 +103,7 @@ fun ContentDetails.mapChapters(
 				isCurrent = chapter.id == currentChapterId,
 				isUnread = true,
 				isNew = false,
-				isDownloaded = chapter.source.isLocal,
+				isDownloaded = chapter.source.isLocal || chapter.url.isLocalChapterUrl(),
 				isBookmarked = chapter.id in bookmarked,
 				isGrid = isGrid,
 			)

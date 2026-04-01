@@ -1245,8 +1245,9 @@ class DownloadWorker @AssistedInject constructor(
 					val trackFile = File(mangaDir, "${baseName}_sub_${langSafe}.$ext")
 					if (!trackFile.exists() || trackFile.length() == 0L) {
 						try {
-							downloadDirectVideo(repo.source, track.url, target.headers, trackFile) { _, _ -> }
+							downloadTrackFile(repo.source, track, target.headers, trackFile)
 						} catch (e: Exception) {
+							android.util.Log.w("DownloadWorker", "Failed to download subtitle track: ${track.lang} url=${track.url}", e)
 							trackFile.delete()
 						}
 					}
@@ -1258,8 +1259,9 @@ class DownloadWorker @AssistedInject constructor(
 					val trackFile = File(mangaDir, "${baseName}_aud_${langSafe}.$ext")
 					if (!trackFile.exists() || trackFile.length() == 0L) {
 						try {
-							downloadDirectVideo(repo.source, track.url, target.headers, trackFile) { _, _ -> }
+							downloadTrackFile(repo.source, track, target.headers, trackFile)
 						} catch (e: Exception) {
+							android.util.Log.w("DownloadWorker", "Failed to download audio track: ${track.lang} url=${track.url}", e)
 							trackFile.delete()
 						}
 					}
@@ -1376,6 +1378,49 @@ class DownloadWorker @AssistedInject constructor(
 				}
 			}
 		}
+	}
+
+	/**
+	 * Downloads a subtitle/audio track file, handling both HTTP URLs and local file:// URIs.
+	 *
+	 * Some Aniyomi extractors (e.g. RapidCloudExtractor via PlaylistUtils.fixSubtitles())
+	 * convert subtitle URLs to temporary local file:// URIs. These cannot be downloaded
+	 * via OkHttp, so we copy from the local file instead.
+	 */
+	private suspend fun downloadTrackFile(
+		source: ContentSource,
+		track: eu.kanade.tachiyomi.animesource.model.Track,
+		headers: Map<String, String>?,
+		outputFile: File,
+	) {
+		val url = track.url
+		if (url.startsWith("file://") || url.startsWith("content://")) {
+			val uri = android.net.Uri.parse(url)
+			if (url.startsWith("file://")) {
+				val sourceFile = uri.path?.let { File(it) }
+				if (sourceFile != null && sourceFile.exists() && sourceFile.length() > 0) {
+					sourceFile.inputStream().use { input ->
+						outputFile.outputStream().use { output ->
+							input.copyTo(output)
+						}
+					}
+					android.util.Log.d("DownloadWorker", "Copied local track file: ${track.lang} ${sourceFile.length()} bytes")
+					return
+				}
+			} else {
+				val resolver = applicationContext.contentResolver
+				resolver.openInputStream(uri)?.use { input ->
+					outputFile.outputStream().use { output ->
+						input.copyTo(output)
+					}
+					android.util.Log.d("DownloadWorker", "Copied content:// track: ${track.lang}")
+					return
+				}
+			}
+			android.util.Log.w("DownloadWorker", "Local track file not found or empty: $url")
+		}
+		// Normal HTTP URL — download via network
+		downloadDirectVideo(source, url, headers, outputFile) { _, _ -> }
 	}
 
 	private suspend fun downloadHls(

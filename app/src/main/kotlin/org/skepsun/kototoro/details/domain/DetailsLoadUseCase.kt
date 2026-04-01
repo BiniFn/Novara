@@ -138,18 +138,38 @@ class DetailsLoadUseCase @Inject constructor(
 				),
 			)
 		}
-		val remoteDetails = remoteDeferred.await().getOrThrow()
-		emit(
-			ContentDetails(
-				manga = remoteDetails,
-				localContent = localContent,
-				override = override,
-				description = (remoteDetails.description
-					?: localContent?.manga?.description)?.parseAsHtml(withImages = true),
-				isLoaded = true,
-			),
-		)
-		mangaDataRepository.updateChapters(remoteDetails)
+		val remoteResult = remoteDeferred.await()
+		val remoteDetails = if (localContent != null) {
+			// If we have local content, don't let network errors crash the flow
+			remoteResult.getOrNull()
+		} else {
+			// No local fallback — propagate error
+			remoteResult.getOrThrow()
+		}
+		if (remoteDetails != null) {
+			emit(
+				ContentDetails(
+					manga = remoteDetails,
+					localContent = localContent,
+					override = override,
+					description = (remoteDetails.description
+						?: localContent?.manga?.description)?.parseAsHtml(withImages = true),
+					isLoaded = true,
+				),
+			)
+			mangaDataRepository.updateChapters(remoteDetails)
+		} else if (localContent != null) {
+			// Network failed but we have local content — mark as loaded with local data
+			emit(
+				ContentDetails(
+					manga = manga,
+					localContent = localContent,
+					override = override,
+					description = localContent.manga.description?.parseAsHtml(withImages = true),
+					isLoaded = true,
+				),
+			)
+		}
 	}
 
 	private suspend fun getDetails(seed: Content, force: Boolean) = runCatchingCancellable {
