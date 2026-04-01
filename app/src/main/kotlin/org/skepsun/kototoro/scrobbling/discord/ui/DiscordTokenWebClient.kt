@@ -10,9 +10,11 @@ class DiscordTokenWebClient(private val callback: Callback) : BrowserClient(call
 
 	override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
 		super.onPageStarted(view, url, favicon)
-		if (view != null) {
-			checkToken(view)
-		}
+	}
+
+	override fun onPageFinished(webView: WebView, url: String) {
+		super.onPageFinished(webView, url)
+		checkToken(webView)
 	}
 
 	private fun checkToken(view: WebView) {
