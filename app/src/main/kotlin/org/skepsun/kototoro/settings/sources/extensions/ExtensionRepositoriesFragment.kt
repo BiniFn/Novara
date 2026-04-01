@@ -152,8 +152,16 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 					popupMenu.menu.add(0, index, 0, repo.name)
 				}
 				popupMenu.setOnMenuItemClickListener { menuItem ->
-					input.setText(recommendedRepos[menuItem.itemId].url)
-					input.setSelection(input.text?.length ?: 0)
+					val repo = recommendedRepos[menuItem.itemId]
+					MaterialAlertDialogBuilder(requireContext())
+						.setTitle(repo.name)
+						.setMessage(R.string.welcome_plugins_disclaimer)
+						.setPositiveButton(android.R.string.ok) { _, _ ->
+							input.setText(repo.url)
+							input.setSelection(input.text?.length ?: 0)
+						}
+						.setNegativeButton(android.R.string.cancel, null)
+						.show()
 					true
 				}
 				popupMenu.show()

@@ -103,7 +103,15 @@ class LNReaderRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBin
 					popupMenu.menu.add(0, index, 0, url)
 				}
 				popupMenu.setOnMenuItemClickListener { menuItem ->
-					input.setText(presets[menuItem.itemId])
+					val url = presets[menuItem.itemId]
+					MaterialAlertDialogBuilder(requireContext())
+						.setTitle(R.string.recommended_repositories)
+						.setMessage(R.string.welcome_plugins_disclaimer)
+						.setPositiveButton(android.R.string.ok) { _, _ ->
+							input.setText(url)
+						}
+						.setNegativeButton(android.R.string.cancel, null)
+						.show()
 					true
 				}
 				popupMenu.show()

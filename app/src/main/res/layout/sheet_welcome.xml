@@ -151,6 +151,15 @@
 					android:inputType="none" />
 			</com.google.android.material.textfield.TextInputLayout>
 
+			<com.google.android.material.checkbox.MaterialCheckBox
+				android:id="@+id/checkbox_plugins_disclaimer"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginHorizontal="@dimen/margin_normal"
+				android:layout_marginTop="8dp"
+				android:text="@string/welcome_plugins_disclaimer"
+				android:textAppearance="?textAppearanceBodySmall" />
+
 			<com.google.android.material.button.MaterialButton
 				android:id="@+id/button_plugins_init"
 				style="@style/Widget.MaterialComponents.Button.Icon"

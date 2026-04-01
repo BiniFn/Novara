@@ -72,11 +72,18 @@ class WelcomeSheet : BaseAdaptiveSheet<SheetWelcomeBinding>(), ChipsView.OnChipC
 			viewModel.initializePlugins(selectedMirrorsPosition, repoUrls)
 		}
 
+		binding.buttonPluginsInit.isEnabled = false
+		binding.checkboxPluginsDisclaimer.setOnCheckedChangeListener { _, isChecked ->
+			val isInitializing = viewModel.isInitializingPlugins.value == true
+			binding.buttonPluginsInit.isEnabled = isChecked && !isInitializing
+		}
+
 		viewModel.isInitializingPlugins.observe(viewLifecycleOwner) { isInitializing ->
 			binding.progressBarPluginsInit.isGone = !isInitializing
-			binding.buttonPluginsInit.isEnabled = !isInitializing
+			binding.buttonPluginsInit.isEnabled = !isInitializing && binding.checkboxPluginsDisclaimer.isChecked
 			binding.autoCompleteMirror.isEnabled = !isInitializing
 			binding.chipGroupRepos.isEnabled = !isInitializing
+			binding.checkboxPluginsDisclaimer.isEnabled = !isInitializing
 		}
 
 		viewModel.locales.observe(viewLifecycleOwner, ::onLocalesChanged)

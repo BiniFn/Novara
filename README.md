@@ -68,6 +68,10 @@ For setup details, see [Source Integrations](https://skepsun.github.io/Kototoro/
 
 Issues and pull requests are welcome. Start with [Contributing](https://skepsun.github.io/Kototoro/contributing).
 
+## Disclaimer
+
+The developer(s) of this open-source application does not have any affiliation with the content providers available, nor do the developers maintain or govern any extension repositories. This application hosts and bundles zero content. All content parsing is strictly provided by user-installed, third-party extensions and sources. The developers assume no liability or responsibility for any content accessed through user-configured endpoints.
+
 ## License
 
 This project follows the upstream Kotatsu license. See [LICENSE](LICENSE).
