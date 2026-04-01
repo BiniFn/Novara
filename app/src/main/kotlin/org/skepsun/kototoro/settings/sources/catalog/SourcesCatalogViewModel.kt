@@ -37,7 +37,7 @@ import javax.inject.Inject
 class SourcesCatalogViewModel @Inject constructor(
 	private val repository: ContentSourcesRepository,
 	db: MangaDatabase,
-	settings: AppSettings,
+	private val settings: AppSettings,
 ) : BaseViewModel() {
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
@@ -113,7 +113,7 @@ class SourcesCatalogViewModel @Inject constructor(
 		val allSources = repository.queryParserSources(
 			isDisabledOnly = true,
 			isNewOnly = filter.isNewOnly,
-			excludeBroken = false,
+			excludeBroken = !settings.isShowBrokenSources,
 			types = filter.types,
 			query = query,
 			locale = filter.locale,

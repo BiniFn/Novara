@@ -69,7 +69,7 @@ fun ContentSource(name: String?): ContentSource {
 		return ExternalContentSource(packageName = parts.first, authority = parts.second)
 	}
 	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == name }?.let { return org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }
-	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == name }?.let { return it.originalSource }
+	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == name }?.let { return it }
 
 	// Fallbacks: If not loaded yet, return stable AnonymousContentSource
 	if (name.startsWith("JSON_") || name.startsWith("TRACKING_") || name.startsWith("MIHON_") || name.startsWith("ANIYOMI_") || name.startsWith("IREADER_")) {
@@ -224,38 +224,61 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 	}
 }
 
-fun ContentSource.getTitle(context: Context): String = when (val source = unwrap()) {
-	is KotatsuParserSource -> source.title
-	LocalMangaSource -> context.getString(R.string.local_storage)
-	LocalNovelSource -> context.getString(R.string.domain_novel) + " " + context.getString(R.string.local_storage)
-	LocalVideoSource -> context.getString(R.string.domain_video) + " " + context.getString(R.string.local_storage)
-	TestContentSource -> context.getString(R.string.test_parser)
-	is ExternalContentSource -> source.resolveName(context)
-	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> source.displayName.ifBlank { source.name }
-	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
-	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.displayName
-	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.displayName
-	else -> {
-		// Try to handle anonymous wrappers for JSON, Mihon, or Aniyomi sources
-		if (source.name.startsWith("MIHON_")) {
-			"Loading Mihon source..."
-		} else if (source.name.startsWith("JSON_")) {
-			"Loading JSON source..."
-		} else if (source.name.startsWith("ANIYOMI_")) {
-			"Loading Aniyomi source..."
-		} else if (source.name.startsWith("TRACKING_")) {
-			source.name.removePrefix("TRACKING_")
-		} else {
-			// If it's a dynamic plugin, it might have a title property reflectively, or we use name
-			val titleMethod = try { source.javaClass.getMethod("getTitle") } catch(e: Exception) { null }
-			if (titleMethod != null) {
-				titleMethod.invoke(source) as? String ?: source.name
+fun ContentSource.getTitle(context: Context): String {
+	val baseTitle = when (val source = unwrap()) {
+		is KotatsuParserSource -> source.title
+		LocalMangaSource -> context.getString(R.string.local_storage)
+		LocalNovelSource -> context.getString(R.string.domain_novel) + " " + context.getString(R.string.local_storage)
+		LocalVideoSource -> context.getString(R.string.domain_video) + " " + context.getString(R.string.local_storage)
+		TestContentSource -> context.getString(R.string.test_parser)
+		is ExternalContentSource -> source.resolveName(context)
+		is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> source.displayName.ifBlank { source.name }
+		is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
+		is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.displayName
+		is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.displayName
+		else -> {
+			// Try to handle anonymous wrappers for JSON, Mihon, or Aniyomi sources
+			if (source.name.startsWith("MIHON_")) {
+				"Loading Mihon source..."
+			} else if (source.name.startsWith("JSON_")) {
+				"Loading JSON source..."
+			} else if (source.name.startsWith("ANIYOMI_")) {
+				"Loading Aniyomi source..."
+			} else if (source.name.startsWith("TRACKING_")) {
+				source.name.removePrefix("TRACKING_")
 			} else {
-				source.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+				// If it's a dynamic plugin, it might have a title property reflectively, or we use name
+				val underlying = if (source is org.skepsun.kototoro.core.extensions.PluginContentSource) source.originalSource else source
+				val titleMethod = try { underlying.javaClass.getMethod("getTitle") } catch(e: Exception) { null }
+				if (titleMethod != null) {
+					titleMethod.invoke(underlying) as? String ?: source.name
+				} else {
+					source.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+				}
 			}
 		}
 	}
+	return if (this.isBroken) {
+		"$baseTitle (${context.getString(R.string.source_broken)})"
+	} else {
+		baseTitle
+	}
 }
+
+val ContentSource.isBroken: Boolean
+	get() {
+		val unwrapped = this.unwrap()
+		return when (unwrapped) {
+			is KotatsuParserSource -> unwrapped.isBroken
+			is org.skepsun.kototoro.core.extensions.PluginContentSource -> unwrapped.isBroken
+			is org.skepsun.kototoro.core.extensions.PluginMangaSource -> unwrapped.isBroken
+			else -> {
+				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.originalSource == unwrapped || it.name == unwrapped.name }?.isBroken == true ||
+				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.originalSource == unwrapped || it.name == unwrapped.name }?.isBroken == true
+			}
+		}
+	}
+
 
 fun SpannableStringBuilder.appendIcon(textView: TextView, @DrawableRes resId: Int): SpannableStringBuilder {
 	val icon = ContextCompat.getDrawable(textView.context, resId) ?: return this

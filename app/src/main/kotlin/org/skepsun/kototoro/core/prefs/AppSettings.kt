@@ -642,6 +642,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_ENABLE_KOTATSU_SOURCES, true)
 		set(value) = prefs.edit { putBoolean(KEY_ENABLE_KOTATSU_SOURCES, value) }
 
+	var isShowBrokenSources: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_BROKEN_SOURCES, false)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_BROKEN_SOURCES, value) }
+
 	val isPagesNumbersEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PAGES_NUMBERS, false)
 
@@ -1586,6 +1590,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
 		const val KEY_EXTENSIONS_GRID = "extensions_grid"
 		const val KEY_ENABLE_KOTATSU_SOURCES = "enable_kotatsu_sources"
+		const val KEY_SHOW_BROKEN_SOURCES = "show_broken_sources"
 		const val KEY_EXTENSIONS = "extensions"
 		const val KEY_JSON_SOURCES = "json_sources"
 		const val KEY_MIHON_EXTENSIONS = "mihon_extensions"

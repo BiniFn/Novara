@@ -1607,6 +1607,9 @@
 
     <string name="enable_kotatsu_sources">Enable Kotatsu Internal Sources</string>
     <string name="enable_kotatsu_sources_summary">Enable sources from kotatsu-parsers repository</string>
+    <string name="show_broken_sources">Show broken/unavailable sources</string>
+    <string name="show_broken_sources_summary">Allow viewing and using parser extensions marked as broken</string>
+    <string name="source_broken">Broken</string>
     
     <string name="available_sources_count">%1$d available</string>
     <string name="source_deleted">Source deleted</string>

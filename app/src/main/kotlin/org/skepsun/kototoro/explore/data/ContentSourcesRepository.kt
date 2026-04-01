@@ -28,6 +28,8 @@ import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -87,7 +89,7 @@ class ContentSourcesRepository @Inject constructor(
 	val allContentSources: Set<ContentSource>
 		get() {
 			val set = LinkedHashSet<ContentSource>()
-			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.forEach { set.add(it.originalSource) }
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.forEach { set.add(it) }
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.forEach { 
 				set.add(cachedKotatsuSources.getOrPut(it.name) { org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }) 
 			}
@@ -126,6 +128,9 @@ class ContentSourcesRepository @Inject constructor(
 					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it)
 				}
 				
+				if (!settings.isShowBrokenSources) {
+					list.retainAll { !it.isBroken }
+				}
 				list
 			}
 	}
@@ -349,8 +354,7 @@ class ContentSourcesRepository @Inject constructor(
 			sources.retainAll { it.getLocale()?.language == locale }
 		}
 		if (excludeBroken) {
-			// Plugins loaded from the registry are considered valid/not broken
-			// If we need to filter broken plugins, we would do it here.
+			sources.retainAll { !it.isBroken }
 		}
 		if (types.isNotEmpty()) {
 			sources.retainAll { it.getContentType() in types }
@@ -558,7 +562,8 @@ class ContentSourcesRepository @Inject constructor(
 		observeAllEnabled(),
 		observeSortOrder(),
 		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
+		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled },
+		settings.observeAsFlow(AppSettings.KEY_SHOW_BROKEN_SOURCES) { isShowBrokenSources }
 	) { args ->
 		val skipNsfw = args[0] as Boolean
 		val allEnabled = args[1] as Boolean
@@ -566,6 +571,7 @@ class ContentSourcesRepository @Inject constructor(
 		@Suppress("UNCHECKED_CAST")
 		val contentLanguages = args[3] as Set<String>
 		val isExtFilterEnabled = args[4] as Boolean
+		val showBroken = args[5] as Boolean
 
 		combine(
 			dao.observeAll(false, order),
@@ -577,6 +583,7 @@ class ContentSourcesRepository @Inject constructor(
 			val enabledEntities = if (!allEnabled) entities.filter { it.isEnabled } else entities
 			val sources = enabledEntities.toSources(skipNsfw, order).filter { info ->
 				val source = info.mangaSource
+				if (!showBroken && source.isBroken) return@filter false
 				
 				if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
 					if (!isExtFilterEnabled) return@filter true
@@ -1073,7 +1080,7 @@ class ContentSourcesRepository @Inject constructor(
 
 	private fun String.toContentSourceOrNull(): ContentSource? {
 		// Try Global Registry for PluginContentSources first
-		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == this }?.let { return it.originalSource }
+		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == this }?.let { return it }
 		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == this }?.let { 
 			return cachedKotatsuSources.getOrPut(it.name) { org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) } 
 		}

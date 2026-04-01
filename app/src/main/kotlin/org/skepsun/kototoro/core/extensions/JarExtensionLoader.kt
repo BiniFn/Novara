@@ -2,6 +2,7 @@ package org.skepsun.kototoro.core.extensions
 
 import android.content.Context
 import dalvik.system.DexClassLoader
+import dalvik.system.DexFile
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaParser
 import org.koitharu.kotatsu.parsers.model.MangaSource
@@ -80,7 +81,8 @@ data class LoadedJarPlugin(
     val classLoader: PluginClassLoader,
     val isMangaParser: Boolean,
     val factoryMethod: Method,
-    val sources: List<Any> // Either List<MangaSource> or List<ContentSource>
+    val sources: List<Any>, // Either List<MangaSource> or List<ContentSource>
+    val brokenSourceNames: Set<String>
 )
 
 object JarExtensionLoader {
@@ -103,6 +105,40 @@ object JarExtensionLoader {
                 parentClassLoader
             )
 
+            // Parse DEX to find broken sources
+            val brokenSourceNames = mutableSetOf<String>()
+            try {
+                val dexFile = DexFile(jarFile.absolutePath)
+                val entries = dexFile.entries()
+                while (entries.hasMoreElements()) {
+                    val className = entries.nextElement()
+                    try {
+                        val clazz = dexClassLoader.loadClass(className)
+                        
+                        val brokenKotatsu = clazz.getAnnotation(org.koitharu.kotatsu.parsers.Broken::class.java)
+                        if (brokenKotatsu != null) {
+                            val mangaParserAnn = clazz.getAnnotation(org.koitharu.kotatsu.parsers.MangaSourceParser::class.java)
+                            if (mangaParserAnn != null) {
+                                brokenSourceNames.add(mangaParserAnn.name)
+                            }
+                        }
+                        
+                        val brokenKototoro = clazz.getAnnotation(org.skepsun.kototoro.parsers.Broken::class.java)
+                        if (brokenKototoro != null) {
+                            val contentParserAnn = clazz.getAnnotation(org.skepsun.kototoro.parsers.ContentSourceParser::class.java)
+                            if (contentParserAnn != null) {
+                                brokenSourceNames.add(contentParserAnn.name)
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        // ignore class loading errors
+                    }
+                }
+                dexFile.close()
+            } catch (e: Throwable) {
+                android.util.Log.e("KototoroInit", "Failed to parse DexFile for broken sources: ${e.message}", e)
+            }
+
             // Try Kotatsu Parser Architecture
             try {
                 val factoryClass = dexClassLoader.loadClass("org.koitharu.kotatsu.parsers.MangaParserFactoryKt")
@@ -114,7 +150,7 @@ object JarExtensionLoader {
                     val enumConstants = enumPath.enumConstants?.filterIsInstance<MangaSource>() ?: emptyList()
                     
                     if (enumConstants.isNotEmpty()) {
-                        plugins.add(LoadedJarPlugin(jarFile.name, dexClassLoader, true, newParserMethod, enumConstants))
+                        plugins.add(LoadedJarPlugin(jarFile.name, dexClassLoader, true, newParserMethod, enumConstants, brokenSourceNames))
                         continue // Success, move to next jar
                     }
                 }
@@ -133,7 +169,7 @@ object JarExtensionLoader {
                     val enumConstants = enumPath.enumConstants?.filterIsInstance<ContentSource>() ?: emptyList()
                     
                     if (enumConstants.isNotEmpty()) {
-                        plugins.add(LoadedJarPlugin(jarFile.name, dexClassLoader, false, newParserMethod, enumConstants))
+                        plugins.add(LoadedJarPlugin(jarFile.name, dexClassLoader, false, newParserMethod, enumConstants, brokenSourceNames))
                     }
                 }
             } catch (e: Exception) {

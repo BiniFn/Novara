@@ -15,14 +15,16 @@ import java.util.concurrent.ConcurrentHashMap
 
 data class PluginMangaSource(
     val originalSource: MangaSource,
-    val jarName: String
+    val jarName: String,
+    val isBroken: Boolean
 ) : MangaSource by originalSource {
     val id: String get() = "$jarName:${originalSource.name}"
 }
 
 data class PluginContentSource(
     val originalSource: ContentSource,
-    val jarName: String
+    val jarName: String,
+    val isBroken: Boolean
 ) : ContentSource by originalSource {
     val id: String get() = "$jarName:${originalSource.name}"
 }
@@ -50,11 +52,17 @@ object GlobalExtensionManager {
         for (plugin in plugins) {
             if (plugin.isMangaParser) {
                 mangaPlugins[plugin.jarName] = plugin
-                val wrapped = plugin.sources.map { PluginMangaSource(it as MangaSource, plugin.jarName) }
+                val wrapped = plugin.sources.map { 
+                    val source = it as MangaSource
+                    PluginMangaSource(source, plugin.jarName, plugin.brokenSourceNames.contains(source.name)) 
+                }
                 newMangaSources.addAll(wrapped)
             } else {
                 contentPlugins[plugin.jarName] = plugin
-                val wrapped = plugin.sources.map { PluginContentSource(it as ContentSource, plugin.jarName) }
+                val wrapped = plugin.sources.map { 
+                    val source = it as ContentSource
+                    PluginContentSource(source, plugin.jarName, plugin.brokenSourceNames.contains(source.name)) 
+                }
                 newContentSources.addAll(wrapped)
             }
         }

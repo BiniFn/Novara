@@ -12,11 +12,14 @@ data class KotatsuParserSource(
 ) : ContentSource {
     override val name: String = delegate.name
     val title: String = try {
-        delegate.javaClass.getMethod("getTitle").invoke(delegate) as? String
+        val underlying = if (delegate is org.skepsun.kototoro.core.extensions.PluginMangaSource) delegate.originalSource else delegate
+        underlying.javaClass.getMethod("getTitle").invoke(underlying) as? String
     } catch (_: Exception) {
         null
     } ?: delegate.name.lowercase().replaceFirstChar { it.uppercase() }
     override val locale: String = delegate.locale
     override val contentType: ContentType = delegate.contentType.toKototoro()
-    val isBroken: Boolean = false
+    val isBroken: Boolean
+        get() = org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value
+            .find { it.originalSource.name == delegate.name }?.isBroken == true
 }
