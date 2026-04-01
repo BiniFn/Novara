@@ -194,11 +194,6 @@ class ReaderViewModel @Inject constructor(
         valueProducer = { isWebtoonPullGestureEnabled },
     )
 
-    val isWebtoonNavButtonsEnabled = settings.observeAsStateFlow(
-        scope = viewModelScope + Dispatchers.Default,
-        key = AppSettings.KEY_WEBTOON_NAV_BUTTONS,
-        valueProducer = { isWebtoonNavButtonsEnabled },
-    )
 
     val defaultWebtoonZoomOut = observeIsWebtoonZoomEnabled().flatMapLatest {
         if (it) {

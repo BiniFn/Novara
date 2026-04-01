@@ -51,10 +51,6 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 	private var recyclerLifecycleDispatcher: RecyclerViewLifecycleDispatcher? = null
 	private var canGoPrev = true
 	private var canGoNext = true
-	private var isNavEnabled = false
-	private var isMenuVisible = false
-	private var isNearTop = false
-	private var isNearBottom = false
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
@@ -93,14 +89,6 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 		viewModel.isWebtoonPullGestureEnabled.observe(viewLifecycleOwner) { enabled ->
 			binding.recyclerView.isPullGestureEnabled = enabled
 		}
-		viewModel.isWebtoonNavButtonsEnabled.observe(viewLifecycleOwner) { enabled ->
-			isNavEnabled = enabled
-			updateNavButtonsVisibility()
-		}
-		viewModel.isMenuVisible.observe(viewLifecycleOwner) { visible ->
-			isMenuVisible = visible
-			updateNavButtonsVisibility()
-		}
 		viewModel.uiState.observe(viewLifecycleOwner) { state ->
 			if (state != null) {
 				canGoPrev = state.chapterIndex > 0
@@ -109,14 +97,6 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 				canGoPrev = true
 				canGoNext = true
 			}
-			updateNavButtonsVisibility()
-		}
-
-		binding.buttonNavPrev.setOnClickListener {
-			if (canGoPrev) viewModel.switchChapterBy(-1)
-		}
-		binding.buttonNavNext.setOnClickListener {
-			if (canGoNext) viewModel.switchChapterBy(1)
 		}
 	}
 
@@ -155,18 +135,6 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 		lastVisiblePosition: Int,
 	) {
 		viewModel.onCurrentPageChanged(firstVisiblePosition, lastVisiblePosition)
-		val adapter = recyclerView.adapter
-		if (adapter != null && adapter.itemCount > 0) {
-			val isAtTop = firstVisiblePosition <= 1
-			// Use slightly earlier threshold for bottom to feel more responsive, 1 or 2 pages before end
-			val isAtBottom = lastVisiblePosition >= adapter.itemCount - 2
-			
-			if (isNearTop != isAtTop || isNearBottom != isAtBottom) {
-				isNearTop = isAtTop
-				isNearBottom = isAtBottom
-				updateNavButtonsVisibility()
-			}
-		}
 	}
 
 	override suspend fun onPagesChanged(pages: List<ReaderPage>, pendingState: ReaderState?) = coroutineScope {
@@ -316,32 +284,7 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 		}
 	}
 
-	private fun updateNavButtonsVisibility() {
-		val binding = viewBinding ?: return
-		val showPrev = isNavEnabled && !isMenuVisible && isNearTop && canGoPrev
-		val showNext = isNavEnabled && !isMenuVisible && isNearBottom && canGoNext
-		
-		binding.buttonNavPrev.fadeVisibility(showPrev)
-		binding.buttonNavNext.fadeVisibility(showNext)
-	}
 
-	private fun View.fadeVisibility(visible: Boolean) {
-		if (visible && visibility != View.VISIBLE) {
-			visibility = View.VISIBLE
-		}
-		val targetAlpha = if (visible) 1f else 0f
-		if (alpha == targetAlpha) return
-		
-		animate()
-			.alpha(targetAlpha)
-			.setDuration(150L)
-			.withEndAction {
-				if (!visible && alpha == 0f) {
-					visibility = View.GONE
-				}
-			}
-			.start()
-	}
 
 	companion object {
 		private const val LOG_TAG = "ReaderDebug"
