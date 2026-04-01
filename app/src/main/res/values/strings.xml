@@ -1605,8 +1605,8 @@
     <string name="import_json">Import Legado</string>
     <string name="test">Test</string>
 
-    <string name="enable_kotatsu_sources">Enable Kotatsu Internal Sources</string>
-    <string name="enable_kotatsu_sources_summary">Enable sources from kotatsu-parsers repository</string>
+    <string name="enable_kotatsu_sources">Enable Internal Sources</string>
+    <string name="enable_kotatsu_sources_summary">Enable sources from the internal parsers repository</string>
     <string name="show_broken_sources">Show broken/unavailable sources</string>
     <string name="show_broken_sources_summary">Allow viewing and using parser extensions marked as broken</string>
     <string name="source_broken">Broken</string>
@@ -1791,7 +1791,7 @@
     <string name="welcome_plugins_summary">Kototoro now uses dynamic decoupled plugins. Select preset repositories and a proxy mirror to initialize parsers first.</string>
     <string name="welcome_plugins_repo_kototoro">Kototoro Parsers</string>
     <string name="welcome_plugins_repo_yakateam">Yakateam Parsers</string>
-    <string name="welcome_plugins_repo_redo">Kotatsu-Redo Parsers</string>
+    <string name="welcome_plugins_repo_redo">Redo Parsers</string>
     <string name="welcome_plugins_disclaimer">These extension repositories are maintained by independent online communities. The Kototoro developers have no affiliation, control, or association with these third-party repositories. I acknowledge that I am configuring these sources at my own risk.</string>
     <string name="welcome_plugins_start_btn">1-Click Initialize</string>
 

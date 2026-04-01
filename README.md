@@ -8,7 +8,7 @@
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://skepsun.github.io/Kototoro/getting-started)
 [![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://skepsun.github.io/Kototoro/automatic-translation)
 
-Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
+Kototoro is an open-source Android app that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 
 ## Why Kototoro
 
@@ -16,7 +16,7 @@ Kototoro is an unofficial fork of Kotatsu for Android that brings manga, novels,
 - Local automatic OCR + translation directly inside the reader
 - Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
 - Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
-- Broad source support: built-in Kotatsu-Redo parsers, Mihon, Aniyomi, IReader, Legado, TVBox
+- Broad source support: external dynamic parsers, Mihon, Aniyomi, IReader, Legado, TVBox
 - Dynamic zero-overhead UI plugins via external classloaders
 - Fast pure-Kotlin OTA delta updates
 - Site favorites import and synchronization for supported services
@@ -74,11 +74,19 @@ The developer(s) of this open-source application does not have any affiliation w
 
 ## License
 
-This project follows the upstream Kotatsu license. See [LICENSE](LICENSE).
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+See the [LICENSE](LICENSE) file for more details.
 
 ## Acknowledgements
 
-- [Kotatsu](https://github.com/KotatsuApp/Kotatsu)
 - [Mihon](https://github.com/mihonapp/mihon)
 - [Yomihon](https://github.com/yomihon/yomihon)
 - [Venera](https://github.com/venera-app/venera)
