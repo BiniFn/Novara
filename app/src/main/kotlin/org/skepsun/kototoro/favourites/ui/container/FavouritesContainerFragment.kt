@@ -60,6 +60,10 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 	SearchBarFilterMenuProvider.Callback {
 
 	private val viewModel: FavouritesContainerViewModel by viewModels()
+	
+	@javax.inject.Inject
+	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
+
 	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
 
 	override val recyclerView: RecyclerView?
@@ -183,6 +187,10 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.selectedSourceTags.value
 
 	override fun getSourceTagEntries(): List<SourceTag> = viewModel.availableSourceTags.value.toList()
+
+	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
+
+	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.selectedSourceTags.value

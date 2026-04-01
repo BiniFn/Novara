@@ -563,6 +563,10 @@ abstract class ContentListFragment :
 
 	override fun getSourceTagEntries(): List<SourceTag> = sourceTagChipEntries()
 
+	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
+
+	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
+
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.currentSourceTags.value
 		return selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }

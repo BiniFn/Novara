@@ -14,6 +14,12 @@
         android:key="sources_grid"
         android:title="@string/show_in_grid_view" />
 
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="sources_grouped_by_language"
+        android:summary="@string/group_sources_by_language_summary"
+        android:title="@string/group_sources_by_language" />
+
     <Preference
         android:key="setup_wizard"
         android:persistent="false"

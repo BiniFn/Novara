@@ -24,6 +24,7 @@ import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.lifecycleScope
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
@@ -91,7 +92,7 @@ class DiscordRpc @Inject constructor(
 			updateRpcAsync(
 				activity = Activity(
 					applicationId = appId,
-					name = appName,
+					name = context.getString(manga.source.contentType.titleResId),
 					details = manga.title,
 					state = context.getString(R.string.chapter_d_of_d, state.chapterNumber, state.chaptersTotal),
 					type = 3,

@@ -29,6 +29,9 @@ import kotlin.math.abs
 @AndroidEntryPoint
 class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuProvider.Callback {
 
+	@javax.inject.Inject
+	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
+
 	private val viewModel by viewModels<HomeViewModel>()
 	private val recentCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
 	private val updateCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
@@ -259,9 +262,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 		return viewModel.summaryState.value.selectedSourceTags
 	}
 
-	override fun isContentTypeFilterVisible(): Boolean = true
+	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
 
-	override fun isSourceTagFilterVisible(): Boolean = true
+	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = getSelectedSourceTags()

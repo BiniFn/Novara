@@ -57,6 +57,9 @@ class FeedFragment :
 	@Inject
 	lateinit var coil: ImageLoader
 
+	@Inject
+	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
+
 	private val viewModel by viewModels<FeedViewModel>()
 	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
 
@@ -166,6 +169,10 @@ class FeedFragment :
 	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value
 
 	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
+
+	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
+
+	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.currentSourceTags.value

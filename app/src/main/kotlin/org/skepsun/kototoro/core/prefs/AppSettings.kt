@@ -120,6 +120,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isQuickFilterEnabled: Boolean
 		get() = prefs.getBoolean(KEY_QUICK_FILTER, true)
 
+	var isSearchBarFilterHidden: Boolean
+		get() = prefs.getBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, false)
+		set(value) = prefs.edit { putBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, value) }
+
 	val isDescriptionExpanded: Boolean
 		get() = !prefs.getBoolean(KEY_COLLAPSE_DESCRIPTION, true)
 
@@ -617,6 +621,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var sourcesSortOrder: SourcesSortOrder
 		get() = prefs.getEnumValue(KEY_SOURCES_ORDER, SourcesSortOrder.MANUAL)
 		set(value) = prefs.edit { putEnumValue(KEY_SOURCES_ORDER, value) }
+
+	var isSourcesGroupedByLanguage: Boolean
+		get() = prefs.getBoolean(KEY_SOURCES_GROUPED_BY_LANGUAGE, false)
+		set(value) = prefs.edit { putBoolean(KEY_SOURCES_GROUPED_BY_LANGUAGE, value) }
 
 	var isSourcesGridMode: Boolean
 		get() = prefs.getBoolean(KEY_SOURCES_GRID, true)
@@ -1313,6 +1321,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	}
 
 	companion object {
+
+		const val KEY_SEARCH_BAR_FILTER_HIDDEN = "search_filter_hidden"
+		const val KEY_SOURCES_GROUPED_BY_LANGUAGE = "sources_grouped_by_language"
 
 		const val TRACK_HISTORY = "history"
 		const val TRACK_FAVOURITES = "favourites"

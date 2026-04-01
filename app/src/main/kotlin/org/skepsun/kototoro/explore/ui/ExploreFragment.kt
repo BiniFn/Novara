@@ -24,9 +24,13 @@ import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFilterMenuProvider.Callback {
+
+	@Inject
+	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
 
 	private val viewModel by viewModels<ExploreViewModel>()
 	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
@@ -120,9 +124,9 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 
 	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
-	override fun isContentTypeFilterVisible(): Boolean = viewBinding?.viewPager?.currentItem == 0
+	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && viewBinding?.viewPager?.currentItem == 0
 
-	override fun isSourceTagFilterVisible(): Boolean = viewBinding?.viewPager?.currentItem == 0
+	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && viewBinding?.viewPager?.currentItem == 0
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.currentSourceTags.value ?: emptySet()

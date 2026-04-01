@@ -16,6 +16,7 @@ import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 import org.skepsun.kototoro.core.model.ContentSourceInfo
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -183,6 +184,11 @@ class ExploreViewModel @Inject constructor(
 			sourcesRepository.observeHasNewSourcesForBadge(),
 			currentGroupTab,
 			currentSourceTags,
+			settings.observeAsStateFlow(
+				key = AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE,
+				scope = viewModelScope + Dispatchers.IO,
+				valueProducer = { isSourcesGroupedByLanguage },
+			)
 		) { values: Array<Any?> ->
 			@Suppress("UNCHECKED_CAST")
 			buildList(
@@ -192,6 +198,7 @@ class ExploreViewModel @Inject constructor(
 				values[3] as Boolean,
 				values[4] as BrowseGroupTab,
 				values[5] as Set<SourceTag>,
+				values[6] as Boolean,
 			)
 		}.withErrorHandling()
 
@@ -202,18 +209,44 @@ class ExploreViewModel @Inject constructor(
 		hasNewSources: Boolean,
 		groupTab: BrowseGroupTab,
 		sourceTags: Set<SourceTag>,
+		isGroupedByLanguage: Boolean,
 	): List<ListModel> {
 		// Apply group tab filtering
 		val filteredSources = applyGroupTabFilter(sources, groupTab, sourceTags)
 		
 		val result = ArrayList<ListModel>(filteredSources.size + 3)
 		if (filteredSources.isNotEmpty()) {
-			result += ListHeader(
-				textRes = R.string.remote_sources,
-				buttonTextRes = if (allSourcesEnabled) R.string.manage else R.string.catalog,
-				badge = if (!allSourcesEnabled && hasNewSources) "" else null,
-			)
-			filteredSources.mapTo(result) { ContentSourceItem(it, isGrid) }
+			if (isGroupedByLanguage) {
+				val (pinned, unpinned) = filteredSources.partition { it.isPinned }
+				if (pinned.isNotEmpty()) {
+					result += ListHeader(
+						textRes = R.string.source_pinned,
+						buttonTextRes = if (allSourcesEnabled) R.string.manage else R.string.catalog,
+						badge = if (!allSourcesEnabled && hasNewSources) "" else null,
+					)
+					pinned.mapTo(result) { ContentSourceItem(it, isGrid) }
+				}
+				
+				val grouped = unpinned.groupBy { 
+					it.mangaSource.getLocale()?.getDisplayName(java.util.Locale.getDefault())?.replaceFirstChar { c -> c.uppercase() } ?: "Other"
+				}.toSortedMap()
+				
+				grouped.forEach { (language, sourcesInLang) ->
+					result += ListHeader(
+						text = language,
+						buttonTextRes = if (allSourcesEnabled && result.none { it is ListHeader && it.buttonTextRes == R.string.manage }) R.string.manage else if (result.none { it is ListHeader && it.buttonTextRes == R.string.catalog }) R.string.catalog else 0,
+						badge = if (!allSourcesEnabled && hasNewSources && result.none { it is ListHeader && it.badge != null }) "" else null,
+					)
+					sourcesInLang.mapTo(result) { ContentSourceItem(it, isGrid) }
+				}
+			} else {
+				result += ListHeader(
+					textRes = R.string.remote_sources,
+					buttonTextRes = if (allSourcesEnabled) R.string.manage else R.string.catalog,
+					badge = if (!allSourcesEnabled && hasNewSources) "" else null,
+				)
+				filteredSources.mapTo(result) { ContentSourceItem(it, isGrid) }
+			}
 		} else {
 			result += EmptyHint(
 				icon = R.drawable.ic_empty_common,

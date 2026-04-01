@@ -217,6 +217,7 @@
 	</string-array>
 	<string-array name="reader_translation_languages" translatable="false">
 		<item>Arabic</item>
+		<item>Bangla</item>
 		<item>Bulgarian</item>
 		<item>Catalan</item>
 		<item>Chinese (Simplified)</item>
@@ -246,6 +247,7 @@
 	</string-array>
 	<string-array name="values_reader_translation_languages" translatable="false">
 		<item>ar</item>
+		<item>bn</item>
 		<item>bg</item>
 		<item>ca</item>
 		<item>zh</item>

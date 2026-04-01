@@ -2054,4 +2054,11 @@
         <item>native</item>
         <item>hf_mirror</item>
     </string-array>
+    <!-- Search Filter Settings -->
+    <string name="hide_search_filter">Hide search filters</string>
+    <string name="hide_search_filter_summary">Hide the content and source filter icons from the main search bar.</string>
+    <!-- Source list settings -->
+    <string name="group_sources_by_language">Group sources by language</string>
+    <string name="group_sources_by_language_summary">Display content sources grouped by their locale language rather than a flat list.</string>
+
 </resources>

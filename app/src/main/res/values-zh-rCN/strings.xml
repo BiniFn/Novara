@@ -1702,4 +1702,11 @@
     <string name="video_skipping_outro">已跳过片尾</string>
     <string name="video_screen_lock">锁定</string>
     <string name="video_screen_unlock">解锁</string>
+
+    <!-- Search Filter Settings -->
+    <string name="hide_search_filter">隐藏搜索栏过滤器</string>
+    <string name="hide_search_filter_summary">在主搜索栏中隐藏内容类型和来源类型的筛选图标。</string>
+    <!-- Source list settings -->
+    <string name="group_sources_by_language">按语言分组来源</string>
+    <string name="group_sources_by_language_summary">将内容源按其语言区域进行分组显示，而不是平铺展示。</string>
 </resources>
