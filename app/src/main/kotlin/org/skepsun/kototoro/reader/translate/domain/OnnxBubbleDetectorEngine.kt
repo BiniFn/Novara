@@ -123,6 +123,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		GENERIC_YOLO("generic_yolo"),
 		YOLO26_E2E("yolo26_e2e"),
 		RT_DETR("rt_detr"),
+		AUTO_RT_DETR("auto_rt_detr"),
 	}
 
 	private val runtimeLock = Mutex()
@@ -415,7 +416,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			val isDetr = runtime.parser == ParserKind.RT_DETR || runtime.parser == ParserKind.AUTO_RT_DETR
 			val nmsThreshold = settings.getBubbleDetectorNms(runtime.modelId, isDetr)
 			
-			if (runtime.parser == ParserKind.RT_DETR) {
+			if (isDetr) {
 				return decodeRtDetrOutput(
 					sessionResult = sessionResult,
 					parser = runtime.parser,
@@ -566,6 +567,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				scale = scale,
 				padX = padX,
 				padY = padY,
+				nmsThreshold = nmsThreshold,
 			)
 			ParserKind.GENERIC_YOLO -> decodeGenericYoloBoxes(
 				layout = layout,
@@ -579,12 +581,12 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				padY = padY,
 				nmsThreshold = nmsThreshold,
 			)
-			ParserKind.RT_DETR -> error("RT_DETR is handled externally")
+			ParserKind.RT_DETR, ParserKind.AUTO_RT_DETR -> error("RT_DETR is handled externally")
 		}
 		val finalBoxes = when (parser) {
 			ParserKind.YOLO26_E2E -> scored.sortedByDescending { it.score }.take(MAX_OUTPUT_BOXES)
 			ParserKind.GENERIC_YOLO -> applyNms(scored, nmsThreshold)
-			ParserKind.RT_DETR -> error("RT_DETR is handled externally")
+			ParserKind.RT_DETR, ParserKind.AUTO_RT_DETR -> error("RT_DETR is handled externally")
 		}
 			return DecodedDetections(
 				boxes = finalBoxes.map { DetectedBox(rect = it.rect, classId = it.classId, score = it.score) },
@@ -801,6 +803,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		scale: Float,
 		padX: Float,
 		padY: Float,
+		nmsThreshold: Float,
 	): List<ScoredBox> {
 		val scored = ArrayList<ScoredBox>(layout.count)
 		for (index in 0 until layout.count) {
