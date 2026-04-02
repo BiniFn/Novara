@@ -8,12 +8,15 @@ internal data class BubbleInput(
 	val sourceText: String,
 	val verticalPreferred: Boolean,
 	val classId: Int = 0,
+	val detectorAnchored: Boolean = false,
+	val sourceContentRect: Rect? = null,
 )
 
 internal data class GroupedBubbleSource(
 	val fragments: List<TextFragment>,
 	val bubbleRect: Rect?,
 	val classId: Int = 0,
+	val detectorAnchored: Boolean = false,
 )
 
 internal data class BubbleGroupingResult(

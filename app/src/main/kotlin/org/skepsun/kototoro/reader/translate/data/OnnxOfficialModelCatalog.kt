@@ -135,6 +135,19 @@ object OnnxOfficialModelCatalog {
 			description = "YOLO-based manga bubble/text region detector for ROI OCR pipeline.",
 		),
 		OnnxOfficialModel(
+			id = "ysgyolo_obb",
+			title = "YSG YOLO v11 OBB (1024)",
+			version = "1.2_OS1.0",
+			category = OnnxModelCategory.BUBBLE_DETECTION,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "ysgyolo_1.2_OS1.0.onnx",
+					downloadUrl = "https://huggingface.co/Skepsun/ysg_1.2_onnx/resolve/main/ysgyolo_1.2_OS1.0.onnx",
+				),
+			),
+			description = "YOLO11 OBB model for robust manga text detection.",
+		),
+		OnnxOfficialModel(
 			id = "comic_text_and_bubble_detector_detr",
 			title = "Comic Text & Bubble Detector (RT-DETR)",
 			version = "hf-main",
@@ -167,6 +180,27 @@ object OnnxOfficialModelCatalog {
 				),
 			),
 			description = "PaddleOCR PP-OCRv5 mobile detector + recognizer converted to ONNX Runtime.",
+		),
+		OnnxOfficialModel(
+			id = "ppocrv5_server_onnx",
+			title = "PP-OCRv5 Server ONNX",
+			version = "v1.7.1",
+			category = OnnxModelCategory.OCR,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "ppocrv5_det.onnx",
+					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/ppocrv5_det.onnx",
+				),
+				OnnxModelFile(
+					fileName = "ppocrv5_rec.onnx",
+					downloadUrl = "https://github.com/hgmzhn/manga-translator-ui/releases/download/v1.7.1/ch_PP-OCRv5_rec_server_infer.onnx",
+				),
+				OnnxModelFile(
+					fileName = "ppocrv5_dict.txt",
+					downloadUrl = "https://github.com/hgmzhn/manga-translator-ui/releases/download/v1.7.1/ppocrv5_dict.txt",
+				),
+			),
+			description = "PaddleOCR PP-OCRv5 server recognizer. Larger model heavily optimized for Japanese and Chinese text.",
 		),
 		OnnxOfficialModel(
 			id = "translategemma_4b_it_onnx_int4",

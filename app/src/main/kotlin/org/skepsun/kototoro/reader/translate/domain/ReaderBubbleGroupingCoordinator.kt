@@ -47,6 +47,7 @@ internal class ReaderBubbleGroupingCoordinator(
 				GroupedBubbleSource(
 					fragments = listOf(fragment),
 					bubbleRect = null,
+					detectorAnchored = false,
 				)
 			}
 			return BubbleGroupingResult(
@@ -73,6 +74,7 @@ internal class ReaderBubbleGroupingCoordinator(
 			GroupedBubbleSource(
 				fragments = listOf(fragment),
 				bubbleRect = null,
+				detectorAnchored = false,
 			)
 		}
 		return BubbleGroupingResult(
@@ -261,6 +263,7 @@ internal class ReaderBubbleGroupingCoordinator(
 						fragments = groupFragments,
 						bubbleRect = tightened,
 						classId = candidate.classId,
+						detectorAnchored = true,
 					)
 				)
 			}
@@ -339,13 +342,14 @@ internal class ReaderBubbleGroupingCoordinator(
 		if (inflation > maxInflation || textCoverage < minCoverage) {
 			return null
 		}
-		val tightenedRect = tightenDetectedBubbleRect(detectedBox.rect, unionRect)
-		if (tightenedRect.width() <= dp(8f) || tightenedRect.height() <= dp(8f)) {
+		// Store the original detector rect (not tightened) so the single tighten
+		// call at group assembly time has full bubble dimensions for padding.
+		if (detectedBox.rect.width() <= dp(8f) || detectedBox.rect.height() <= dp(8f)) {
 			return null
 		}
 		val score = matchedCount * 4f + textCoverage * 120f - inflation - if (touchesEdge) 2f else 0f
 		return DetectedBubbleCandidate(
-			rect = tightenedRect,
+			rect = detectedBox.rect,
 			fragmentIndices = matchedIndices.sorted(),
 			score = score,
 			classId = detectedBox.classId,
@@ -353,8 +357,16 @@ internal class ReaderBubbleGroupingCoordinator(
 	}
 
 	private fun tightenDetectedBubbleRect(candidateRect: Rect, unionRect: Rect): Rect {
-		val padX = max(dp(8f), unionRect.width() / 5)
-		val padY = max(dp(8f), unionRect.height() / 5)
+		val candidateArea = rectArea(candidateRect).coerceAtLeast(1f)
+		val unionCoverage = rectArea(unionRect) / candidateArea
+		if (unionCoverage <= 0.38f) {
+			return Rect(candidateRect)
+		}
+		// Use the larger of candidate-based and union-based padding so that
+		// the rendering rect covers most of the detected bubble area even when
+		// MLKit only found a small portion of the text inside.
+		val padX = max(dp(8f), max(candidateRect.width() / 3, unionRect.width() / 5))
+		val padY = max(dp(8f), max(candidateRect.height() / 3, unionRect.height() / 5))
 		val left = max(candidateRect.left, unionRect.left - padX)
 		val top = max(candidateRect.top, unionRect.top - padY)
 		val right = min(candidateRect.right, unionRect.right + padX)

@@ -121,6 +121,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 
 	private enum class ParserKind(val wireName: String) {
 		GENERIC_YOLO("generic_yolo"),
+		YSG_YOLO_OBB("ysg_yolo_obb"),
 		YOLO26_E2E("yolo26_e2e"),
 		RT_DETR("rt_detr"),
 		AUTO_RT_DETR("auto_rt_detr"),
@@ -580,11 +581,26 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				padX = padX,
 				padY = padY,
 				nmsThreshold = nmsThreshold,
+				isObb = false,
+			)
+			ParserKind.YSG_YOLO_OBB -> decodeGenericYoloBoxes(
+				layout = layout,
+				flat = flat,
+				sourceWidth = sourceWidth,
+				sourceHeight = sourceHeight,
+				inputWidth = inputWidth,
+				inputHeight = inputHeight,
+				scale = scale,
+				padX = padX,
+				padY = padY,
+				nmsThreshold = nmsThreshold,
+				isObb = true,
 			)
 			ParserKind.RT_DETR, ParserKind.AUTO_RT_DETR -> error("RT_DETR is handled externally")
 		}
 		val finalBoxes = when (parser) {
 			ParserKind.YOLO26_E2E -> scored.sortedByDescending { it.score }.take(MAX_OUTPUT_BOXES)
+			ParserKind.YSG_YOLO_OBB -> applyNms(scored, kotlin.math.max(nmsThreshold, 0.85f), MAX_OUTPUT_BOXES_OBB)
 			ParserKind.GENERIC_YOLO -> applyNms(scored, nmsThreshold)
 			ParserKind.RT_DETR, ParserKind.AUTO_RT_DETR -> error("RT_DETR is handled externally")
 		}
@@ -760,14 +776,16 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		padX: Float,
 		padY: Float,
 		nmsThreshold: Float,
+		isObb: Boolean = false,
 	): List<ScoredBox> {
+		val excludeLastN = if (isObb) 1 else 0
 		val scored = ArrayList<ScoredBox>(layout.count)
 		for (index in 0 until layout.count) {
 			val cxRaw = layout.read(flat, index, 0)
 			val cyRaw = layout.read(flat, index, 1)
 			val wRaw = layout.read(flat, index, 2)
 			val hRaw = layout.read(flat, index, 3)
-			val (score, classId) = layout.readConfidence(flat, index)
+			val (score, classId) = layout.readConfidence(flat, index, excludeLastN)
 			if (score < MIN_SCORE_THRESHOLD) continue
 			val normalized = max(maxOf(cxRaw, cyRaw), maxOf(wRaw, hRaw)) <= 2.5f
 			val cx = if (normalized) cxRaw * inputWidth else cxRaw
@@ -775,17 +793,32 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			val width = if (normalized) wRaw * inputWidth else wRaw
 			val height = if (normalized) hRaw * inputHeight else hRaw
 			if (width <= 1f || height <= 1f) continue
-			val left = ((cx - width / 2f) - padX) / scale
-			val top = ((cy - height / 2f) - padY) / scale
-			val right = ((cx + width / 2f) - padX) / scale
-			val bottom = ((cy + height / 2f) - padY) / scale
+			
+			val finalWidth: Float
+			val finalHeight: Float
+			if (isObb) {
+				val angleRad = layout.read(flat, index, layout.attributes - 1)
+				val cosA = kotlin.math.abs(kotlin.math.cos(angleRad))
+				val sinA = kotlin.math.abs(kotlin.math.sin(angleRad))
+				finalWidth = width * cosA + height * sinA
+				finalHeight = width * sinA + height * cosA
+			} else {
+				finalWidth = width
+				finalHeight = height
+			}
+
+			val left = ((cx - finalWidth / 2f) - padX) / scale
+			val top = ((cy - finalHeight / 2f) - padY) / scale
+			val right = ((cx + finalWidth / 2f) - padX) / scale
+			val bottom = ((cy + finalHeight / 2f) - padY) / scale
 			val rect = Rect(
 				left.roundToInt().coerceIn(0, sourceWidth - 1),
 				top.roundToInt().coerceIn(0, sourceHeight - 1),
 				right.roundToInt().coerceIn(1, sourceWidth),
 				bottom.roundToInt().coerceIn(1, sourceHeight),
 			)
-			if (rect.width() < MIN_BOX_SIDE || rect.height() < MIN_BOX_SIDE) continue
+			val minSide = if (isObb) MIN_BOX_SIDE_OBB else MIN_BOX_SIDE
+			if (rect.width() < minSide || rect.height() < minSide) continue
 			val areaRatio = rect.width().toFloat() * rect.height().toFloat() / (sourceWidth * sourceHeight).toFloat().coerceAtLeast(1f)
 			if (areaRatio !in MIN_AREA_RATIO..MAX_AREA_RATIO) continue
 			scored += ScoredBox(rect = rect, classId = classId, score = score)
@@ -833,14 +866,14 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			if (areaRatio !in MIN_AREA_RATIO..MAX_AREA_RATIO) continue
 			scored += ScoredBox(rect = rect, classId = 0, score = score)
 		}
-		return applyNms(scored, nmsThreshold)
+		return scored
 	}
 
-	private fun applyNms(boxes: List<ScoredBox>, threshold: Float): List<ScoredBox> {
+	private fun applyNms(boxes: List<ScoredBox>, threshold: Float, maxBoxes: Int = MAX_OUTPUT_BOXES): List<ScoredBox> {
 		if (boxes.isEmpty()) return emptyList()
 		val sorted = boxes.sortedByDescending { it.score }.toMutableList()
 		val selected = mutableListOf<ScoredBox>()
-		while (sorted.isNotEmpty() && selected.size < MAX_OUTPUT_BOXES) {
+		while (sorted.isNotEmpty() && selected.size < maxBoxes) {
 			val head = sorted.removeAt(0)
 			selected += head
 			sorted.removeAll { candidate ->
@@ -918,6 +951,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 	private fun resolveParserKind(modelId: String, modelFileName: String): ParserKind {
 		val fingerprint = "$modelId $modelFileName".lowercase()
 		return if ("yolo26" in fingerprint) ParserKind.YOLO26_E2E
+		else if ("ysgyolo" in fingerprint || "ysg_yolo" in fingerprint) ParserKind.YSG_YOLO_OBB
 		else if ("detr" in fingerprint) ParserKind.RT_DETR
 		else ParserKind.GENERIC_YOLO
 	}
@@ -936,12 +970,13 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			return flat.getOrElse(flatIndex) { 0f }
 		}
 
-		fun readConfidence(flat: List<Float>, index: Int): Pair<Float, Int> {
-			if (attributes <= 4) return 0f to 0
-			if (attributes == 5) return read(flat, index, 4) to 0
+		fun readConfidence(flat: List<Float>, index: Int, excludeLastN: Int = 0): Pair<Float, Int> {
+			val limit = (attributes - excludeLastN).coerceAtLeast(4)
+			if (limit <= 4) return 0f to 0
+			if (limit == 5) return read(flat, index, 4) to 0
 			var bestScore = 0f
 			var bestClass = 0
-			for (attribute in 4 until attributes) {
+			for (attribute in 4 until limit) {
 				val score = read(flat, index, attribute)
 				if (score > bestScore) {
 					bestScore = score
@@ -964,7 +999,9 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		const val MIN_DYNAMIC_INPUT_SIZE = 640
 		const val MAX_DYNAMIC_INPUT_SIZE = 1280
 		const val MIN_BOX_SIDE = 24
+		const val MIN_BOX_SIDE_OBB = 12
 		const val MAX_OUTPUT_BOXES = 24
+		const val MAX_OUTPUT_BOXES_OBB = 64
 		const val MIN_SCORE_THRESHOLD = 0.20f
 		const val MIN_AREA_RATIO = 0.0008f
 		const val MAX_AREA_RATIO = 0.45f

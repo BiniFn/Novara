@@ -641,6 +641,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				sourceText = sourceText,
 				verticalPreferred = verticalPreferred,
 				classId = group.classId,
+				detectorAnchored = group.detectorAnchored,
+				sourceContentRect = mergeRects(group.fragments.map { it.rect }),
 			)
 		}
 	}
@@ -859,6 +861,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		bitmapHeight: Int,
 		verticalPreferred: Boolean,
 		bubbleLikeRegion: Boolean,
+		detectorAnchored: Boolean,
+		sourceContentRect: Rect?,
 	): PreparedBubble? {
 		if (bitmapWidth <= 1 || bitmapHeight <= 1) {
 			return null
@@ -874,7 +878,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			rect = rawRect,
 			bitmapWidth = bitmapWidth,
 			bitmapHeight = bitmapHeight,
+			verticalPreferred = verticalPreferred,
 			bubbleLikeRegion = bubbleLikeRegion,
+			detectorAnchored = detectorAnchored,
+			sourceContentRect = sourceContentRect,
 		)
 
 		if (verticalPreferred) {
@@ -1005,12 +1012,60 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		rect: Rect,
 		bitmapWidth: Int,
 		bitmapHeight: Int,
+		verticalPreferred: Boolean,
 		bubbleLikeRegion: Boolean,
+		detectorAnchored: Boolean,
+		sourceContentRect: Rect?,
 	): Rect {
-		if (bubbleLikeRegion) return rect
 		val width = rect.width()
 		val height = rect.height()
 		if (width <= 0 || height <= 0) return rect
+		if (detectorAnchored) {
+			val normalizedContentRect = sourceContentRect?.let {
+				Rect(
+					it.left.coerceIn(0, bitmapWidth - 1),
+					it.top.coerceIn(0, bitmapHeight - 1),
+					it.right.coerceIn(1, bitmapWidth),
+					it.bottom.coerceIn(1, bitmapHeight),
+				)
+			}
+			val contentWidth = normalizedContentRect?.width()?.coerceAtLeast(0) ?: 0
+			val isTallStrip = verticalPreferred || height > width * 2
+			if (isTallStrip) {
+				val minDetectorWidth = dp(34f)
+				val maxDetectorWidth = dp(72f)
+				val targetWidth = max(
+					width,
+					max(
+						minDetectorWidth,
+						max(
+							contentWidth + dp(10f),
+							(height * DETECTOR_ANCHORED_MIN_WIDTH_RATIO).toInt(),
+						),
+					),
+				).coerceAtMost(min(maxDetectorWidth, bitmapWidth))
+				if (targetWidth > width) {
+					val cx = rect.centerX()
+					var left = cx - targetWidth / 2
+					var right = left + targetWidth
+					if (left < 0) {
+						left = 0
+						right = targetWidth
+					}
+					if (right > bitmapWidth) {
+						right = bitmapWidth
+						left = right - targetWidth
+					}
+					return Rect(
+						left.coerceIn(0, bitmapWidth - 1),
+						rect.top.coerceIn(0, bitmapHeight - 1),
+						right.coerceIn(1, bitmapWidth),
+						rect.bottom.coerceIn(1, bitmapHeight),
+					)
+				}
+			}
+		}
+		if (bubbleLikeRegion) return rect
 		val minRenderColumnWidth = dp(56f)
 		val maxRenderColumnWidth = dp(120f)
 		if (width >= minRenderColumnWidth || height <= width * 2) return rect
@@ -1564,7 +1619,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 		const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 		const val MAX_OPENAI_BATCH_SIZE = 3
-		const val TRANSLATION_PIPELINE_VERSION = "2026-04-02-text-detector-3"
+		const val TRANSLATION_PIPELINE_VERSION = "2026-04-02-text-detector-4"
 		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
 		You translate manga OCR text.
 		Output only the translation.
@@ -1573,6 +1628,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val MAX_PARALLEL_TRANSLATION_PAGES = 2
 		const val MAX_DETECTED_GROUP_FRAGMENTS = 28
 		const val MIN_RENDER_COLUMN_WIDTH_RATIO = 0.22f
+		const val DETECTOR_ANCHORED_MIN_WIDTH_RATIO = 0.30f
 		const val HORIZONTAL_TEXT_SIZE_WIDTH_RATIO = 0.58f
 		const val VERTICAL_TEXT_SIZE_WIDTH_RATIO = 0.78f
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")

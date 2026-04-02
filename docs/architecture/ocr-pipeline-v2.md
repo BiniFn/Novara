@@ -95,7 +95,7 @@ This document follows that stricter interpretation from this point onward.
 
 ## Current Branch Status
 
-The branch has already completed these architectural moves:
+The branch has completed these architectural moves:
 
 - the active OCR coordinator is page-text-first only
 - `ROI_FIRST_FALLBACK` is no longer part of the active OCR coordination path
@@ -103,18 +103,18 @@ The branch has already completed these architectural moves:
 - `PADDLE` is now a real ONNX `det + rec` implementation
 - merge now sits between OCR and bubble-related downstream logic
 - bubble logic no longer defines the OCR search space
+- **YSG YOLO v11 OBB** integrated as post-OCR bubble grouping assistant
+- **PP-OCRv5 Server** recognizer available as higher-quality alternative to Mobile variant
+- OBB angle→AABB conversion handles rotated manga text correctly
+- OBB-specific NMS (≥0.85), max boxes (64), and min side (12px) tuned for manga
+- rendering area double-compression bug fixed in `tightenDetectedBubbleRect`
 
-The current highest-priority blocker is no longer high-level architecture. It is detector quality.
+The current quality profile on device:
 
-Observed runtime behavior on device now shows:
-
-- `PADDLE` can run end-to-end
-- `PADDLE` misses many dialogue regions
-- detected regions are often too small
-- recognized text is frequently truncated because the detector boxes are too tight
-- switching to `MLKIT` yields much better dialogue-region coverage
-
-So the next phase of work should focus on detector quality and detector / recognizer pairing, not on reopening the old ROI-first path.
+- MLKit detects 30+ text fragments per page
+- YOLO OBB successfully groups fragments into 13+ logical bubbles with 100% coverage
+- All detected bubbles are translated and rendered
+- Remaining issue: rendering area padding still needs tuning for edge cases
 
 ## Target Pipeline
 
@@ -470,13 +470,19 @@ Current incremental status:
 
 ### 5.1 Immediate quality work
 
-Given current device behavior, the next quality iteration should be prioritized as:
+The following quality improvements have been completed:
 
-1. improve or replace the active page-text detector geometry
-2. ensure recognizer crops are not overly tight
-3. compare `PADDLE det + PADDLE rec` against mixed detector / recognizer combinations before changing the architecture again
+1. ✅ YSG YOLO v11 OBB integrated as bubble grouping assistant (100% fragment coverage)
+2. ✅ PP-OCRv5 Server recognizer added for stronger Japanese/Chinese recognition
+3. ✅ OBB angle correction ensures rotated manga text is correctly bounded
+4. ✅ OBB-specific NMS/filtering parameters prevent adjacent bubble suppression
+5. ✅ Rendering area double-compression fixed
 
-At this point, detector quality is a more urgent problem than further coordinator refactoring.
+Remaining quality work:
+
+- evaluate PP-OCRv5 Server vs Mobile on diverse manga styles
+- consider dedicated MangaOCR integration as alternative recognizer
+- further tune `tightenDetectedBubbleRect` padding for edge cases with very small text fragments
 
 ### 6. Demote bubble detection to a non-authoritative helper
 
@@ -499,6 +505,11 @@ Current incremental status:
 - bubble detection no longer defines OCR entry or OCR search space
 - the active OCR coordinator always starts from page-level text detection and region recognition
 - bubble-related logic now runs after merge as grouping / render assistance
+- **YSG YOLO v11 OBB** model integrated with proper OBB angle→AABB conversion
+- OBB-specific parameters tuned: NMS ≥0.85, max 64 boxes, min 12px side
+- `tightenDetectedBubbleRect` fixed: removed double-compression, padding now based on detector box dimensions
+- **PP-OCRv5 Server** recognizer added to model catalog (same `ch_PP-OCRv5_rec_server_infer.onnx` weights as `manga-translator-ui`)
+- model catalog now offers both Mobile (lightweight) and Server (high-accuracy) PP-OCRv5 variants
 
 ### 7. Reduce destructive OCR postprocessing
 

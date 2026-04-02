@@ -6,7 +6,7 @@ internal class ReaderBubbleRenderCoordinator(
 	private val isLikelyGarbledText: (String) -> Boolean,
 	private val shouldSuppressRenderedBubble: (String, String, String) -> Boolean,
 	private val isLikelySpeechBubbleRegion: (Bitmap, android.graphics.Rect) -> Boolean,
-	private val prepareTranslatedBubble: (android.graphics.Rect, String, Int, Int, Boolean, Boolean) -> PreparedBubble?,
+	private val prepareTranslatedBubble: (android.graphics.Rect, String, Int, Int, Boolean, Boolean, Boolean, android.graphics.Rect?) -> PreparedBubble?,
 	private val qualityFilterEnabled: () -> Boolean,
 	private val log: (() -> String) -> Unit,
 	private val oneLine: (String, Int) -> String,
@@ -39,10 +39,14 @@ internal class ReaderBubbleRenderCoordinator(
 				}
 				continue
 			}
-			val bubbleLikeRegion = when (bubble.classId) {
-				2 -> false // RT-DETR text_free
-				1 -> true  // RT-DETR text_bubble
-				else -> isLikelySpeechBubbleRegion(bitmap, bubble.rect) // Legacy Model fallback (classId=0)
+			val bubbleLikeRegion = if (bubble.detectorAnchored) {
+				true
+			} else {
+				when (bubble.classId) {
+					2 -> false // RT-DETR text_free
+					1 -> true  // RT-DETR text_bubble
+					else -> isLikelySpeechBubbleRegion(bitmap, bubble.rect) // Legacy Model fallback (classId=0)
+				}
 			}
 			val prepared = prepareTranslatedBubble(
 				bubble.rect,
@@ -51,6 +55,8 @@ internal class ReaderBubbleRenderCoordinator(
 				bitmap.height,
 				bubble.verticalPreferred,
 				bubbleLikeRegion,
+				bubble.detectorAnchored,
+				bubble.sourceContentRect,
 			)
 			if (prepared == null) {
 				log {

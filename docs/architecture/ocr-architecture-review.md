@@ -8,30 +8,31 @@ It is a review of the implementation that exists today. The target replacement a
 
 ## Executive Summary
 
-The branch no longer runs the original bubble-first main path.
+The branch has completed a major upgrade cycle focused on manga OCR quality.
 
 The current primary path is now:
 
 ```text
 page image
-  -> Paddle ONNX text detection
-  -> Paddle ONNX region recognition
+  -> MLKit text detection (primary) / Paddle ONNX detection (alternative)
   -> text merge
-  -> bubble grouping / optional bubble hints
+  -> bubble grouping with YSG YOLO v11 OBB auxiliary detection
+  -> Paddle ONNX region recognition (PP-OCRv5 Server)
   -> translation
   -> render
 ```
 
-This is substantially closer to a manga-oriented OCR stack, but it is still not fully aligned yet.
+This pipeline is now substantially aligned with `manga-translator-ui`'s architecture, with the key improvement being that bubble detection (YOLO OBB) is used exclusively as a **post-OCR grouping assistant**, not as the OCR gate.
 
-The most important practical update is that the branch is no longer failing because of the old bubble-first structure. The current visible failure mode is different:
+### Key Changes Since Last Review
 
-- `PADDLE` now runs as the active local manga OCR path
-- but `PADDLE` page detection currently misses many dialogue regions
-- and the regions it does detect are often too tight, which shortens or corrupts recognition results
-- `MLKIT` currently produces much better dialogue-region coverage on the same pages
+1. **YSG YOLO v11 OBB** bubble detector integrated with proper angle→AABB conversion
+2. **PP-OCRv5 Server** recognizer added (same weights as `manga-translator-ui`)
+3. **Rendering area double-compression** bug fixed in `ReaderBubbleGroupingCoordinator`
+4. **OBB-specific NMS/filtering** parameters tuned for manga (IoU≥0.85, max 64 boxes, min 12px side)
+5. Legacy `ReaderTextHybridDetector` removed — native pipeline already implements the same logic
 
-For manga OCR, the more reliable architecture is usually:
+For manga OCR, the architecture now closely follows:
 
 ```text
 page image
@@ -151,19 +152,22 @@ This is no longer the dominant OCR failure for the active path, because OCR no l
 
 For closer alignment with `manga-translator-ui`, text structure rebuilding should continue to be owned primarily by merge, with bubble-related grouping reduced further into optional bubble assignment and render hints. The branch has already moved merge toward explicit reading-order composition, lightweight direction hints, lightweight angle / axis-aligned hints, optional quad-point carriage, quad-aware edge-distance pruning, region-geometry-based cropping, lightweight four-point warp support, and away from blind newline concatenation.
 
-## 5. The active Paddle detector is currently the main quality bottleneck
+## 5. The active detector quality has improved significantly
 
-The current `PaddleReaderOcrEngine.kt` detector path is functionally correct, but the present lightweight postprocess is still too weak for manga pages.
+With the integration of YSG YOLO v11 OBB as a bubble grouping assistant:
 
-Observed behavior on device:
+- MLKit now serves as the primary text detector with strong dialogue-region coverage
+- YOLO OBB provides structural bubble geometry that groups MLKit fragments into logical units
+- PP-OCRv5 Server recognizer provides much stronger Japanese/Chinese character recognition than the Mobile variant
 
-- many dialogue areas are missed entirely
-- detected text boxes are often too small
-- tight boxes lead to short, partial, or incorrect recognition results
+Observed runtime metrics on device:
 
-This is consistent with the current implementation: the detector path still uses a simplified probability-map connected-component decode rather than a stronger manga-oriented text-box decode.
+- MLKit detects 30+ text fragments per page
+- YOLO OBB produces 40-60 bubble boxes after NMS
+- Fragment coverage rate reaches 100% (all fragments matched to bubbles)
+- 13/13 bubbles translated and rendered on test pages
 
-So the current issue is no longer "the architecture is bubble-first". The current issue is "the active detector geometry is weaker than the recognizer and weaker than ML Kit's page text blocks".
+The remaining quality issue is now primarily about **rendering area sizing** — ensuring the translated text fills the full bubble area rather than being clipped to a narrow strip around the original text fragments.
 
 ## 6. Remaining gap versus manga-translator-ui
 
@@ -219,24 +223,22 @@ These are good building blocks. The problem is the order of operations and which
 
 ## Main Refactor Direction
 
-Kototoro should move toward a text-first manga OCR pipeline:
+The refactoring has been substantially completed. The pipeline now follows:
 
 ```text
 page image
-  -> text detector
-  -> text-region OCR
-  -> merge text fragments into logical bubbles / blocks
-  -> optional bubble detector for render refinement only
+  -> MLKit text detection (全図テキスト検出)
+  -> text merge (フラグメント結合)
+  -> YOLO OBB bubble grouping (気泡辅助分组)
+  -> PP-OCRv5 Server recognition (可选升级)
   -> translation
   -> render
 ```
 
-This means:
+Remaining optimization areas:
 
-- bubble detection stops being the OCR gate
-- ROI stops meaning "bubble crop"
-- page-level detection becomes the authoritative geometry source
-- recognizers become pluggable recognition backends
-- merge becomes the stage that rebuilds speech blocks
+- further tuning of `tightenDetectedBubbleRect` padding for edge cases
+- evaluating PP-OCRv5 Server vs Mobile recognizer quality on diverse manga styles
+- potential integration of dedicated manga OCR models (MangaOCR) as an alternative recognizer
 
 The target design and migration plan are documented in [OCR Pipeline](./ocr-pipeline-v2.md).
