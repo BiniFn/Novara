@@ -136,7 +136,10 @@ object OnnxOfficialModelCatalog {
 			id = "comic_text_detector_onnx",
 			title = "ComicTextDetector (CTD, 1024)",
 			version = "beta-0.3",
-			category = OnnxModelCategory.OCR_DETECTOR,
+			// NOTE: CTD requires its own inference pipeline (letterbox 1024×1024, stride=64,
+			// YOLO+DBNet hybrid postprocessing). NOT compatible with PaddleTextDetector.
+			// Kept under BUBBLE_DETECTION until a dedicated CTD engine is implemented.
+			category = OnnxModelCategory.BUBBLE_DETECTION,
 			files = listOf(
 				OnnxModelFile(
 					fileName = "comictextdetector.pt.onnx",
