@@ -681,13 +681,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_TARGET_LANG, value) }
 
 	val readerTranslationOcrEngine: ReaderOcrEngine
-		get() = when (val engine = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)) {
-			ReaderOcrEngine.PADDLE,
-			ReaderOcrEngine.TFLITE,
-			ReaderOcrEngine.NCNN,
-			-> ReaderOcrEngine.HYBRID
-			else -> engine
-		}
+		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT)
 
 	val readerTranslationMode: ReaderTranslationMode
 		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_MODE, ReaderTranslationMode.LOCAL_FIRST)
@@ -714,10 +708,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var isReaderTranslationBubbleGroupingEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED, true)
 		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED, value) }
-
-	var isReaderTranslationBubbleCatchAllEnabled: Boolean
-		get() = prefs.getBoolean(KEY_READER_TRANSLATION_BUBBLE_CATCH_ALL_ENABLED, false)
-		set(value) = prefs.edit { putBoolean(KEY_READER_TRANSLATION_BUBBLE_CATCH_ALL_ENABLED, value) }
 
 	val readerTranslationOverlayCompactness: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS, "BALANCED") ?: "BALANCED"
@@ -767,26 +757,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationPaddleClsModelSha256: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256, "") ?: ""
 
-	var readerTranslationRecModelUrl: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_URL, null)
-			?: context.getString(R.string.reader_translation_rec_model_url_default)
-		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_URL, value) }
-
 	var readerTranslationBubbleYoloUrl: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_YOLO_URL, "") ?: ""
 		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_BUBBLE_YOLO_URL, value) }
-
-	var readerTranslationRecModelPath: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_PATH, "") ?: ""
-		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_PATH, value) }
-
-	var readerTranslationRecModelId: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_REC_MODEL_ID, "") ?: ""
-		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_REC_MODEL_ID, value) }
-
-	var readerTranslationDetModelId: String
-		get() = prefs.getString(KEY_READER_TRANSLATION_DET_MODEL_ID, "") ?: ""
-		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_DET_MODEL_ID, value) }
 
 	var readerTranslationOnnxModelId: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_ONNX_MODEL_ID, "") ?: ""
@@ -795,15 +768,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var readerTranslationBubbleDetectorModelId: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID, "AUTO") ?: "AUTO"
 		set(value) = prefs.edit { putString(KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID, value) }
-
-	@get:FloatRange(from = 0.0, to = 1.0)
-	var readerTranslationHybridFallbackThreshold: Float
-		get() = prefs.getFloat(KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD, 0.85f)
-		set(@FloatRange(from = 0.0, to = 1.0) value) {
-			prefs.edit {
-				putFloat(KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD, value.coerceIn(0f, 1f))
-			}
-		}
 
 	fun getReaderTranslationBubbleDetectorNmsKey(modelId: String): String {
 		return "reader_translation_bubble_detector_nms_${modelId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
@@ -1444,7 +1408,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
 			const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING = "reader_translation_bubble_grouping_tuning"
 			const val KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED = "reader_translation_bubble_detector_enabled"
-			const val KEY_READER_TRANSLATION_BUBBLE_CATCH_ALL_ENABLED = "reader_translation_bubble_catch_all_enabled"
 			const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED = "reader_translation_bubble_grouping_enabled"
 			const val KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS = "reader_translation_overlay_compactness"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_PATH = "reader_translation_paddle_model_path"
@@ -1463,15 +1426,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION = "reader_translation_paddle_cls_model_version"
 		const val KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256 = "reader_translation_paddle_cls_model_sha256"
 		const val KEY_READER_TRANSLATION_PADDLE_DOWNLOAD_NOW = "reader_translation_paddle_download_now"
-		const val KEY_READER_TRANSLATION_REC_MODEL_URL = "reader_translation_rec_model_url"
-		const val KEY_READER_TRANSLATION_REC_MODEL_PATH = "reader_translation_rec_model_path"
-		const val KEY_READER_TRANSLATION_REC_MODEL_ID = "reader_translation_rec_model_id"
 		const val KEY_READER_TRANSLATION_REC_DOWNLOAD_NOW = "reader_translation_rec_download_now"
-		const val KEY_READER_TRANSLATION_DET_MODEL_ID = "reader_translation_det_model_id"
 		const val KEY_READER_TRANSLATION_ONNX_MODEL_ID = "reader_translation_onnx_model_id"
 		const val KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID = "reader_translation_bubble_detector_model_id"
 		const val KEY_READER_TRANSLATION_BUBBLE_YOLO_URL = "reader_translation_bubble_yolo_url"
-		const val KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD = "reader_translation_hybrid_fallback_threshold"
 		const val KEY_SCREENSHOTS_POLICY = "screenshots_policy"
 		const val KEY_READER_THREADS = "reader_threads"
 		const val KEY_READER_PREFETCH_LIMIT = "reader_prefetch_limit"

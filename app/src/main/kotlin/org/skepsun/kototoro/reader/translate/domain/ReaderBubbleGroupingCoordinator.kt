@@ -11,15 +11,11 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 internal class ReaderBubbleGroupingCoordinator(
 	private val settings: AppSettings,
 	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
-	private val heuristicGroupFragments: (List<TextFragment>, Bitmap) -> List<List<TextFragment>>,
-	private val shouldMergeFragments: (TextFragment, TextFragment, Bitmap) -> Boolean,
 	private val mergeRects: (List<Rect>) -> Rect?,
 	private val rectArea: (Rect) -> Float,
 	private val dp: (Float) -> Int,
 	private val log: (() -> String) -> Unit,
 	private val formatError: (String, Int) -> String,
-	private val maxIndividualFallbackFragments: Int,
-	private val maxIndividualFallbackRatio: Float,
 	private val maxDetectedGroupFragments: Int,
 ) {
 
@@ -43,35 +39,41 @@ internal class ReaderBubbleGroupingCoordinator(
 				detectorFallbackReason = "",
 				fallbackFragmentCount = 0,
 				fallbackGroupCount = 0,
-				fallbackMode = if (settings.isReaderTranslationBubbleGroupingEnabled) "heuristic" else "individual",
+				fallbackMode = "merge_primary",
 			)
 		}
-		val detectorOutcome = detectBubbleGroups(bitmap, fragments)
-		val fallbackFragments = fragments.filterIndexed { index, _ -> index !in detectorOutcome.matchedFragmentIndices }
-		val forceHeuristicFallback = !settings.isReaderTranslationBubbleGroupingEnabled &&
-			shouldForceHeuristicFallback(
-				totalFragmentCount = fragments.size,
-				fallbackFragmentCount = fallbackFragments.size,
-			)
-		val fallbackMode = when {
-			settings.isReaderTranslationBubbleGroupingEnabled -> "heuristic"
-			forceHeuristicFallback -> "individual_guarded_to_heuristic"
-			else -> "individual"
-		}
-		val fallbackGroups = if (settings.isReaderTranslationBubbleGroupingEnabled || forceHeuristicFallback) {
-			heuristicGroupFragments(fallbackFragments, bitmap).map { group ->
-				GroupedBubbleSource(
-					fragments = group,
-					bubbleRect = null,
-				)
-			}
-		} else {
-			fallbackFragments.map { fragment ->
+		if (!settings.isReaderTranslationBubbleGroupingEnabled) {
+			val groups = fragments.map { fragment ->
 				GroupedBubbleSource(
 					fragments = listOf(fragment),
 					bubbleRect = null,
 				)
 			}
+			return BubbleGroupingResult(
+				groups = groups,
+				detectorCandidateCount = 0,
+				detectorMatchedFragmentCount = 0,
+				detectorUsedGroupCount = 0,
+				detectorSubdividedGroupCount = 0,
+				detectorSubdividedFragmentCount = 0,
+				detectorCoverageRate = 0f,
+				detectorEngine = "disabled",
+				detectorModelId = "",
+				detectorRawBoxCount = 0,
+				detectorTotalMs = 0L,
+				detectorFallbackReason = "grouping_disabled",
+				fallbackFragmentCount = fragments.size,
+				fallbackGroupCount = groups.size,
+				fallbackMode = "merge_primary",
+			)
+		}
+		val detectorOutcome = detectBubbleGroups(bitmap, fragments)
+		val fallbackFragments = fragments.filterIndexed { index, _ -> index !in detectorOutcome.matchedFragmentIndices }
+		val fallbackGroups = fallbackFragments.map { fragment ->
+			GroupedBubbleSource(
+				fragments = listOf(fragment),
+				bubbleRect = null,
+			)
 		}
 		return BubbleGroupingResult(
 			groups = detectorOutcome.groups + fallbackGroups,
@@ -88,18 +90,8 @@ internal class ReaderBubbleGroupingCoordinator(
 			detectorFallbackReason = detectorOutcome.fallbackReason,
 			fallbackFragmentCount = fallbackFragments.size,
 			fallbackGroupCount = fallbackGroups.size,
-			fallbackMode = fallbackMode,
+			fallbackMode = "merge_primary",
 		)
-	}
-
-	private fun shouldForceHeuristicFallback(
-		totalFragmentCount: Int,
-		fallbackFragmentCount: Int,
-	): Boolean {
-		if (fallbackFragmentCount <= 0) return false
-		if (fallbackFragmentCount >= maxIndividualFallbackFragments) return true
-		if (totalFragmentCount <= 0) return false
-		return fallbackFragmentCount.toFloat() / totalFragmentCount.toFloat() >= maxIndividualFallbackRatio
 	}
 
 	private suspend fun detectBubbleGroups(
@@ -251,8 +243,6 @@ internal class ReaderBubbleGroupingCoordinator(
 			)
 		}
 		val claimed = linkedSetOf<Int>()
-		var subdividedGroups = 0
-		var subdividedFragments = 0
 		val groups = buildList {
 			for (candidate in uniqueCandidates.values.sortedWith(
 				compareByDescending<DetectedBubbleCandidate> { it.fragmentIndices.size }
@@ -261,25 +251,18 @@ internal class ReaderBubbleGroupingCoordinator(
 			)) {
 				val available = candidate.fragmentIndices.filterNot { it in claimed }
 				if (available.isEmpty()) continue
-				val subdivided = splitDetectedCandidate(
-					candidate = candidate,
-					fragmentIndices = available,
-					fragments = fragments,
-					bitmap = bitmap,
-				)
-				if (subdivided.isEmpty()) continue
-				subdividedGroups += subdivided.size
-				subdividedFragments += subdivided.sumOf { it.indices.size }
-				subdivided.forEach { subgroup ->
-					claimed += subgroup.indices
-					add(
-						GroupedBubbleSource(
-							fragments = subgroup.fragments,
-							bubbleRect = subgroup.bubbleRect,
-							classId = candidate.classId,
-						)
+				val groupFragments = available.map { fragments[it] }
+				val groupRect = mergeRects(groupFragments.map { it.rect }) ?: continue
+				val tightened = tightenDetectedBubbleRect(candidate.rect, groupRect)
+				if (tightened.width() <= dp(8f) || tightened.height() <= dp(8f)) continue
+				claimed += available
+				add(
+					GroupedBubbleSource(
+						fragments = groupFragments,
+						bubbleRect = tightened,
+						classId = candidate.classId,
 					)
-				}
+				)
 			}
 		}
 		return BubbleDetectorOutcome(
@@ -287,8 +270,8 @@ internal class ReaderBubbleGroupingCoordinator(
 			matchedFragmentIndices = claimed,
 			candidateCount = uniqueCandidates.size,
 			matchedFragmentCount = claimed.size,
-			subdividedGroupCount = subdividedGroups,
-			subdividedFragmentCount = subdividedFragments,
+			subdividedGroupCount = 0,
+			subdividedFragmentCount = 0,
 			engine = "onnx",
 			modelId = "",
 			rawBoxCount = detectedRects.size,
@@ -388,112 +371,5 @@ internal class ReaderBubbleGroupingCoordinator(
 		val width = (min(a.right, b.right) - max(a.left, b.left)).coerceAtLeast(0)
 		val height = (min(a.bottom, b.bottom) - max(a.top, b.top)).coerceAtLeast(0)
 		return (width * height).toFloat()
-	}
-
-	private fun splitDetectedCandidate(
-		candidate: DetectedBubbleCandidate,
-		fragmentIndices: List<Int>,
-		fragments: List<TextFragment>,
-		bitmap: Bitmap,
-	): List<DetectedCandidateSubdivision> {
-		val indexed = fragmentIndices.mapNotNull { index ->
-			fragments.getOrNull(index)?.let { fragment ->
-				IndexedFragment(index = index, fragment = fragment)
-			}
-		}
-		if (indexed.isEmpty()) return emptyList()
-		val groupedIndices = groupIndexedFragmentsByBubble(indexed, bitmap)
-		return groupedIndices.mapNotNull { subgroup ->
-			val subgroupFragments = subgroup.map { it.fragment }
-			val subgroupRect = mergeRects(subgroupFragments.map { it.rect }) ?: return@mapNotNull null
-			val tightened = tightenDetectedBubbleRect(candidate.rect, subgroupRect)
-			if (tightened.width() <= dp(8f) || tightened.height() <= dp(8f)) {
-				return@mapNotNull null
-			}
-			val pageArea = bitmap.width.toFloat() * bitmap.height.toFloat()
-			val rectArea = tightened.width().toFloat() * tightened.height().toFloat()
-			if (rectArea > pageArea * 0.35f || tightened.width() > bitmap.width * 0.8f || tightened.height() > bitmap.height * 0.8f) {
-				return@mapNotNull null
-			}
-			DetectedCandidateSubdivision(
-				indices = subgroup.map { it.index },
-				fragments = subgroupFragments,
-				bubbleRect = tightened,
-			)
-		}
-	}
-
-	private fun groupIndexedFragmentsByBubble(
-		fragments: List<IndexedFragment>,
-		bitmap: Bitmap,
-	): List<List<IndexedFragment>> {
-		if (fragments.isEmpty()) return emptyList()
-		val parent = IntArray(fragments.size) { it }
-
-		fun find(x: Int): Int {
-			var cur = x
-			while (parent[cur] != cur) {
-				parent[cur] = parent[parent[cur]]
-				cur = parent[cur]
-			}
-			return cur
-		}
-
-		fun union(a: Int, b: Int) {
-			val ra = find(a)
-			val rb = find(b)
-			if (ra != rb) parent[rb] = ra
-		}
-
-		for (i in fragments.indices) {
-			val fA = fragments[i].fragment
-			val aRect = fA.rect
-			for (j in i + 1 until fragments.size) {
-				val fB = fragments[j].fragment
-				val bRect = fB.rect
-
-				val xOverlap = overlapLen(aRect.left, aRect.right, bRect.left, bRect.right)
-				val yOverlap = overlapLen(aRect.top, aRect.bottom, bRect.top, bRect.bottom)
-				val gapX = axisGap(aRect.left, aRect.right, bRect.left, bRect.right)
-				val gapY = axisGap(aRect.top, aRect.bottom, bRect.top, bRect.bottom)
-
-				val minW = min(aRect.width(), bRect.width()).coerceAtLeast(1)
-				val minH = min(aRect.height(), bRect.height()).coerceAtLeast(1)
-
-				val sameCol = xOverlap > minW * 0.3f
-				val sameRow = yOverlap > minH * 0.3f
-
-				val canMerge = if (sameCol) {
-					gapX <= dp(4f) && gapY <= dp(16f)
-				} else if (sameRow) {
-					gapY <= dp(4f) && gapX <= dp(16f)
-				} else {
-					gapX <= dp(2f) && gapY <= dp(2f) && (xOverlap > 0 || yOverlap > 0)
-				}
-
-				if (canMerge && shouldMergeFragments(fA, fB, bitmap)) {
-					union(i, j)
-				}
-			}
-		}
-
-		val groups = linkedMapOf<Int, MutableList<IndexedFragment>>()
-		for (i in fragments.indices) {
-			val root = find(i)
-			groups.getOrPut(root) { mutableListOf() }.add(fragments[i])
-		}
-		return groups.values.toList()
-	}
-
-	private fun overlapLen(aStart: Int, aEnd: Int, bStart: Int, bEnd: Int): Int {
-		return (min(aEnd, bEnd) - max(aStart, bStart)).coerceAtLeast(0)
-	}
-
-	private fun axisGap(aStart: Int, aEnd: Int, bStart: Int, bEnd: Int): Int {
-		return when {
-			aEnd < bStart -> bStart - aEnd
-			bEnd < aStart -> aStart - bEnd
-			else -> 0
-		}
 	}
 }

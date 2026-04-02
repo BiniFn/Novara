@@ -87,21 +87,6 @@
 
         <ListPreference
             android:dependency="reader_translation_enabled"
-            android:key="reader_translation_det_model_id"
-            android:title="@string/reader_translation_ocr_model_det_selection" />
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_rec_model_id"
-            android:title="@string/reader_translation_ocr_model_rec_selection" />
-
-        <Preference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_hybrid_fallback_threshold"
-            android:title="@string/reader_translation_hybrid_fallback_threshold" />
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
             android:key="reader_translation_paddle_official_model_id"
             android:title="@string/reader_translation_ocr_model_paddle_selection" />
 
@@ -155,13 +140,6 @@
             android:key="reader_translation_bubble_detector_enabled"
             android:summary="@string/reader_translation_bubble_detector_enabled_summary"
             android:title="@string/reader_translation_bubble_detector_enabled" />
-
-        <SwitchPreferenceCompat
-            android:defaultValue="false"
-            android:dependency="reader_translation_bubble_detector_enabled"
-            android:key="reader_translation_bubble_catch_all_enabled"
-            android:summary="@string/reader_translation_bubble_catch_all_enabled_summary"
-            android:title="@string/reader_translation_bubble_catch_all_enabled" />
 
         <SwitchPreferenceCompat
             android:defaultValue="true"

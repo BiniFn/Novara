@@ -889,11 +889,8 @@
     <string name="reader_translation_quality_filter_enabled_summary">Hide translations that look garbled, unchanged, or likely OCR noise. Disable to render all non-empty translations.</string>
     <string name="reader_translation_mode">Translation mode</string>
     <string name="reader_translation_ocr_engine">OCR engine</string>
-    <string name="reader_translation_ocr_engine_mlkit">ML Kit (default)</string>
-    <string name="reader_translation_ocr_engine_paddle">PP-OCRv5 (Paddle)</string>
-    <string name="reader_translation_ocr_engine_tflite">MangaOCR (Experimental)</string>
-    <string name="reader_translation_ocr_engine_hybrid">Separated Det + Rec</string>
-    <string name="reader_translation_ocr_engine_ncnn">PP-OCRv5 (Recommended)</string>
+    <string name="reader_translation_ocr_engine_mlkit">ML Kit (no local model download)</string>
+    <string name="reader_translation_ocr_engine_paddle">PaddleOCR ONNX (det + rec)</string>
     <string name="reader_translation_paddle_model_path">Paddle model path</string>
     <string name="reader_translation_paddle_model_path_summary">Model directory, e.g. /sdcard/... or assets path like models/ch_PP-OCRv4</string>
     <string name="reader_translation_paddle_ocr_only">Only show OCR models</string>
@@ -929,9 +926,6 @@
     <string name="reader_translation_paddle_download_missing">Please select model and URL/version first</string>
     <string name="reader_translation_paddle_download_success">Paddle model downloaded</string>
     <string name="reader_translation_paddle_download_failed_toast">Paddle model download failed</string>
-    <string name="reader_translation_rec_model_url">Recognition model URL</string>
-    <string name="reader_translation_rec_model_url_default">https://huggingface.co/bluolightning/manga-ocr-tflite/resolve/main/ocr_fast.zip</string>
-    <string name="reader_translation_rec_model_url_summary">Download address for the end-to-end recognition model (.tflite)</string>
     <string name="reader_translation_rec_download_now">Download recognition model now</string>
     <string name="reader_translation_rec_download_now_summary">Tap to download the selected recognition model for offline manga translation</string>
     <string name="reader_translation_rec_download_starting">Starting recognition model download…</string>
@@ -1903,20 +1897,16 @@
     <string name="reader_translation_ocr_model_rec_ppocr_v5">PP-OCRv5 Rec (follow Det model)</string>
 	<string name="reader_translation_ocr_model_paddle_selection">PaddleOCR model selection</string>
 	<string name="reader_translation_settings_advanced">Advanced settings</string>
-    <string name="reader_translation_bubble_detector_enabled">Use bubble detector model</string>
-    <string name="reader_translation_bubble_detector_enabled_summary">When an optional detector model has been downloaded, try it first to locate bubble or text regions for ROI OCR and grouping.</string>
-    <string name="reader_translation_bubble_grouping_tuning">Bubble grouping strictness</string>
-    <string name="reader_translation_bubble_grouping_tuning_summary">Controls how aggressively nearby text blocks are merged into one bubble</string>
-    <string name="reader_translation_bubble_grouping_enabled">Merge unmatched text blocks heuristically</string>
-    <string name="reader_translation_bubble_grouping_enabled_no_detector">Use heuristic text grouping</string>
-    <string name="reader_translation_bubble_grouping_enabled_summary">After bubble detection, merge unmatched OCR text blocks heuristically. Disable this to translate unmatched blocks individually.</string>
-    <string name="reader_translation_bubble_grouping_enabled_summary_no_detector">Without bubble detection, merge nearby OCR text blocks heuristically before translation. Disable this to translate blocks individually.</string>
-    <string name="reader_translation_bubble_catch_all_enabled">Catch-all background text</string>
-    <string name="reader_translation_bubble_catch_all_enabled_summary">When detector is enabled, also scan the remaining background out of bubbles for floating text and SFX to translate. May cause garbage translation noise and uses more battery.</string>
+    <string name="reader_translation_bubble_detector_enabled">Use bubble detector as a post-OCR helper</string>
+    <string name="reader_translation_bubble_detector_enabled_summary">Run the optional detector after page OCR to help assign text blocks into bubbles for translation and rendering. It is not the primary OCR entry point.</string>
+    <string name="reader_translation_bubble_grouping_tuning">Text merge strictness</string>
+    <string name="reader_translation_bubble_grouping_tuning_summary">Controls how aggressively nearby OCR text blocks are merged before translation</string>
+    <string name="reader_translation_bubble_grouping_enabled">Enable bubble-assisted grouping</string>
+    <string name="reader_translation_bubble_grouping_enabled_no_detector">Enable bubble-assisted grouping</string>
+    <string name="reader_translation_bubble_grouping_enabled_summary">After text detection, recognition, and merge, let the optional bubble detector attach merged text units to bubbles for translation and rendering. Disable this to keep merged text units independent.</string>
+    <string name="reader_translation_bubble_grouping_enabled_summary_no_detector">After text detection, recognition, and merge, keep merged text units as the translation input. Enable a bubble detector to allow post-OCR bubble-assisted grouping.</string>
     <string name="reader_translation_overlay_compactness">Non-bubble overlay compactness</string>
     <string name="reader_translation_overlay_compactness_summary">Controls how tightly translated overlays fit text outside speech bubbles</string>
-    <string name="reader_translation_hybrid_fallback_threshold">Hybrid fallback threshold</string>
-    <string name="reader_translation_hybrid_fallback_threshold_summary">NCNN results below %1$d%% confidence fall back to MangaOCR</string>
 	<string name="reader_translation_tuning_strict">Strict</string>
 	<string name="reader_translation_tuning_balanced">Balanced</string>
 	<string name="reader_translation_tuning_relaxed">Relaxed</string>
@@ -2061,16 +2051,6 @@
     <string name="reader_translation_task_stat_render_cache">Render Cache: %1$s</string>
     <string name="reader_translation_task_stat_hit">Hit</string>
     <string name="reader_translation_task_stat_miss">Miss</string>
-    <string name="reader_translation_task_stat_hybrid_ncnn">NCNN: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_cand">Cand: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_feat_hit">Feat Hit=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_tfl_fb">TFLite FB=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_fb_rate">FB Rate: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_prefix">Hybrid: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_timing">Hybrid Time: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_total">Total: %1$s ms</string>
-    <string name="reader_translation_task_stat_hybrid_ncnn_ms">NCNN=%1$s ms</string>
-    <string name="reader_translation_task_stat_hybrid_tfl_ms">TFLite=%1$s ms</string>
     <string name="reader_translation_task_bench_title">[Chapter Baseline]</string>
     <string name="reader_translation_task_bench_sampled">Sampled: %1$d/%2$d pg</string>
     <string name="reader_translation_task_bench_dist_total">Total Time</string>
@@ -2085,9 +2065,6 @@
     <string name="reader_translation_task_bench_dist_ocr_sel">Selected OCR</string>
     <string name="reader_translation_task_bench_dist_fail_code">Fail Code</string>
     <string name="reader_translation_task_bench_conc_title">[Comparison Conclusion]</string>
-    <string name="reader_translation_task_bench_hyb_fb_pages">Fallback Pg=%1$s</string>
-    <string name="reader_translation_task_bench_hyb_fb_avg">Fallback avg/p95=%1$s / %2$s</string>
-    <string name="reader_translation_task_bench_hyb_tfl_avg">TFLite FB avg/p95=%1$s / %2$s</string>
     <string name="reader_translation_task_bench_roi_pages">ROI-first Pg=%1$s</string>
     <string name="reader_translation_task_bench_roi_hits">, Direct Hit=%1$s</string>
     <string name="reader_translation_task_bench_roi_fb">, Fallback=%1$s</string>

@@ -287,14 +287,11 @@
 -keep class androidx.collection.** { *; }
 -keep interface androidx.collection.** { *; }
 
-# NCNN Android PPOCR JNI classes
--keep class com.equationl.ncnnandroidppocr.** { *; }
 
 # ONNX Runtime JNI classes
 -keep class ai.onnxruntime.** { *; }
 
 # Google LiteRT (TFLite) JNI classes
--keep class com.google.ai.edge.litert.** { *; }
 
 # RealCUGAN Engine JNI classes
 -keep class com.akari.realcugan_ncnn_android.** { *; }

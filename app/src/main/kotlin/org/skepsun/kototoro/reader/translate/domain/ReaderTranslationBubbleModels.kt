@@ -48,11 +48,6 @@ internal data class BubbleDetectorOutcome(
 	val fallbackReason: String,
 )
 
-internal data class IndexedFragment(
-	val index: Int,
-	val fragment: TextFragment,
-)
-
 internal data class DetectedBubbleCandidate(
 	val rect: Rect,
 	val fragmentIndices: List<Int>,
@@ -81,12 +76,10 @@ internal data class BubbleRoiOcrResult(
 internal data class TextFragment(
 	val rect: Rect,
 	val text: String,
-)
-
-internal data class DetectedCandidateSubdivision(
-	val indices: List<Int>,
-	val fragments: List<TextFragment>,
-	val bubbleRect: Rect,
+	val directionHint: TextDirectionHint = inferTextDirectionHint(rect, text),
+	val angleHintDegrees: Float = inferTextAngleHintDegrees(rect, text),
+	val isAxisAligned: Boolean = inferAxisAlignedHint(rect),
+	val quadPoints: TextQuad = rectToTextQuad(rect),
 )
 
 internal data class PreparedBubble(

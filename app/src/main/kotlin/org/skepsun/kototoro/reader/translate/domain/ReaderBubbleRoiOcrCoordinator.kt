@@ -75,10 +75,7 @@ internal class ReaderBubbleRoiOcrCoordinator(
 	}
 
 	private fun preferredRoiOcrEngine(): ReaderOcrEngine {
-		return when (settings.readerTranslationOcrEngine) {
-			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
-			else -> settings.readerTranslationOcrEngine
-		}
+		return settings.readerTranslationOcrEngine
 	}
 
 	private fun shouldTryRoiOcr(rect: Rect, bitmap: Bitmap): Boolean {
@@ -100,6 +97,10 @@ internal class ReaderBubbleRoiOcrCoordinator(
 			TextFragment(
 				rect = block.boundingBox ?: fallbackRect,
 				text = text,
+				directionHint = block.directionHint,
+				angleHintDegrees = block.angleHintDegrees,
+				isAxisAligned = block.isAxisAligned,
+				quadPoints = block.quadPoints ?: rectToTextQuad(block.boundingBox ?: fallbackRect),
 			)
 		}
 		if (fragments.isEmpty()) return ""

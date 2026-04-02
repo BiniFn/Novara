@@ -227,9 +227,7 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val mangaTitle = viewModel.getContentOrNull()?.title.orEmpty().ifBlank { "?" }
         val chapterTitle = viewModel.uiState.value?.chapter?.title.orEmpty().ifBlank { "?" }
         val onnxModel = settings.readerTranslationOnnxModelId.ifBlank { "MLKIT" }
-        val detModel = settings.readerTranslationDetModelId.ifBlank { "AUTO" }
-        val recModel = settings.readerTranslationRecModelId.ifBlank { "AUTO" }
-        val threshold = (settings.readerTranslationHybridFallbackThreshold * 100).toInt()
+        val paddleModel = settings.readerTranslationPaddleOfficialModelId.ifBlank { "AUTO" }
         val generatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.US).format(Date())
         return buildString {
             appendLine(getString(R.string.reader_translation_task_diag_baseline))
@@ -242,7 +240,7 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
                     "lang=${settings.readerTranslationSourceLanguage}->${settings.readerTranslationTargetLanguage}, " +
                     "mode=${settings.readerTranslationMode}, " +
                     "ocr=${settings.readerTranslationOcrEngine}, " +
-                    "det=$detModel, rec=$recModel, onnx=$onnxModel, detector=${settings.isReaderTranslationBubbleDetectorEnabled}, grouping=${settings.isReaderTranslationBubbleGroupingEnabled}, threshold=${threshold}%",
+                    "paddle=$paddleModel, onnx=$onnxModel, detector=${settings.isReaderTranslationBubbleDetectorEnabled}, grouping=${settings.isReaderTranslationBubbleGroupingEnabled}",
             )
             appendLine(
                 getString(
@@ -391,20 +389,6 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         metrics["render.translated_bubbles"]?.let { lines += getString(R.string.reader_translation_task_stat_render_bubble, it) }
         metrics["ocr.cache_hit"]?.let { lines += getString(R.string.reader_translation_task_stat_ocr_cache, if (it == "1") getString(R.string.reader_translation_task_stat_hit) else getString(R.string.reader_translation_task_stat_miss)) }
         metrics["render_cache.hit"]?.let { lines += getString(R.string.reader_translation_task_stat_render_cache, if (it == "1") getString(R.string.reader_translation_task_stat_hit) else getString(R.string.reader_translation_task_stat_miss)) }
-        val parts = listOfNotNull(
-            metrics["hybrid.ncnn_blocks"]?.let { getString(R.string.reader_translation_task_stat_hybrid_ncnn, it) },
-            metrics["hybrid.fallback_candidates"]?.let { getString(R.string.reader_translation_task_stat_hybrid_cand, it) },
-            metrics["hybrid.feature_cache_hits"]?.let { getString(R.string.reader_translation_task_stat_hybrid_feat_hit, it) },
-            metrics["hybrid.tflite_fallbacks"]?.let { getString(R.string.reader_translation_task_stat_hybrid_tfl_fb, it) },
-            metrics["hybrid.fallback_rate"]?.let { getString(R.string.reader_translation_task_stat_hybrid_fb_rate, it) },
-        )
-        if (parts.isNotEmpty()) lines += getString(R.string.reader_translation_task_stat_hybrid_prefix, parts.joinToString(" / "))
-        val hybridTiming = listOfNotNull(
-            metrics["hybrid.total_ms"]?.let { getString(R.string.reader_translation_task_stat_hybrid_total, it) },
-            metrics["hybrid.ncnn_ms"]?.let { getString(R.string.reader_translation_task_stat_hybrid_ncnn_ms, it) },
-            metrics["hybrid.tflite_ms"]?.let { getString(R.string.reader_translation_task_stat_hybrid_tfl_ms, it) },
-        )
-        if (hybridTiming.isNotEmpty()) lines += getString(R.string.reader_translation_task_stat_hybrid_timing, hybridTiming.joinToString(" / "))
         return lines
     }
 
@@ -426,7 +410,6 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_pipe_fb), samples.mapNotNull { it.ocrPipelineFallbackReason })?.let { lines += it }
         formatPercentileLine(getString(R.string.reader_translation_task_bench_dist_roi_box), samples.mapNotNull { it.roiFirstDetectedBoxes?.toLong() })?.let { lines += it }
         formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_ocr_sel), samples.mapNotNull { it.selectedEngine })?.let { lines += it }
-        formatHybridSummaryLine(samples)?.let { lines += it }
         formatDistributionLine(getString(R.string.reader_translation_task_bench_dist_fail_code), samples.mapNotNull { it.failCode })?.let { lines += it }
         buildOcrPipelineConclusion(samples)?.let {
             lines += ""
@@ -461,8 +444,6 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
             roiFirstDetectedBoxes = metrics["ocr.pipeline.roi_first_detected_boxes"]?.toIntOrNull(),
             translatedBubbles = metrics["render.translated_bubbles"]?.toIntOrNull(),
             translationBubbles = metrics["translation.bubbles"]?.toIntOrNull(),
-            hybridFallbackRate = metrics["hybrid.fallback_rate"]?.toDoubleOrNull(),
-            hybridTfliteFallbacks = metrics["hybrid.tflite_fallbacks"]?.toIntOrNull(),
             selectedEngine = metrics["ocr.selected_engine"]?.takeIf { it.isNotBlank() },
             failCode = snapshot.failCode,
         )
@@ -486,21 +467,6 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
             .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
             .joinToString(" / ") { "${it.key}:${it.value}" }
         return "$label: $summary"
-    }
-
-    private fun formatHybridSummaryLine(samples: List<TranslationBenchmarkSample>): String? {
-        val fallbackRates = samples.mapNotNull { it.hybridFallbackRate }
-        val fallbackBlocks = samples.mapNotNull { it.hybridTfliteFallbacks }
-        if (fallbackRates.isEmpty() && fallbackBlocks.isEmpty()) return null
-        val parts = mutableListOf<String>()
-        if (fallbackRates.isNotEmpty()) {
-            parts += getString(R.string.reader_translation_task_bench_hyb_fb_pages, "${fallbackRates.count { it > 0.0 }}/${fallbackRates.size}")
-            parts += getString(R.string.reader_translation_task_bench_hyb_fb_avg, formatPercent(fallbackRates.average() * 100), formatPercent((percentile(fallbackRates, 0.95) ?: 0.0) * 100))
-        }
-        if (fallbackBlocks.isNotEmpty()) {
-            parts += getString(R.string.reader_translation_task_bench_hyb_tfl_avg, formatDecimal(fallbackBlocks.average()), (percentile(fallbackBlocks, 0.95) ?: 0).toString())
-        }
-        return getString(R.string.reader_translation_task_stat_hybrid_prefix, parts.joinToString(" | "))
     }
 
     private fun buildOcrPipelineConclusion(samples: List<TranslationBenchmarkSample>): String? {
@@ -572,10 +538,6 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         return sorted[index]
     }
 
-    private fun formatPercent(value: Double): String {
-        return String.format(java.util.Locale.US, "%.1f%%", value)
-    }
-
     private fun formatDecimal(value: Double): String {
         return String.format(java.util.Locale.US, "%.2f", value)
     }
@@ -615,8 +577,6 @@ class TranslationTaskPanelSheet : BaseAdaptiveSheet<SheetTranslationTaskPanelBin
         val roiFirstDetectedBoxes: Int?,
         val translatedBubbles: Int?,
         val translationBubbles: Int?,
-        val hybridFallbackRate: Double?,
-        val hybridTfliteFallbacks: Int?,
         val selectedEngine: String?,
         val failCode: String?,
     )

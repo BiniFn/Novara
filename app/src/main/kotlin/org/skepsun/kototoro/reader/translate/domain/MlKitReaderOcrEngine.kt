@@ -69,6 +69,10 @@ class MlKitReaderOcrEngine @Inject constructor(
 					OcrTextBlock(
 						text = it.text,
 						boundingBox = boundingBox,
+						directionHint = inferTextDirectionHint(boundingBox, it.text),
+						angleHintDegrees = inferTextAngleHintDegrees(boundingBox, it.text),
+						isAxisAligned = inferAxisAlignedHint(boundingBox),
+						quadPoints = boundingBox?.let(::rectToTextQuad),
 					)
 				}
 				log { "recognize done blocks=${blocks.size}" }

@@ -76,9 +76,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val okHttpClient: OkHttpClient,
 	private val mlKitOcrEngine: MlKitReaderOcrEngine,
 	private val paddleOcrEngine: PaddleReaderOcrEngine,
-	private val tfliteOcrEngine: TfLiteReaderOcrEngine,
-	private val hybridOcrEngine: HybridReaderOcrEngine,
-	private val ncnnOcrEngine: NcnnReaderOcrEngine,
 	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
 	private val onnxTranslationEngine: OnnxReaderTranslationEngine,
 	private val debugLogStore: ReaderTranslationDebugLogStore,
@@ -100,30 +97,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		color = Color.BLACK
 		textAlign = Paint.Align.LEFT
 	}
-	private val bubbleRoiOcrCoordinator by lazy(LazyThreadSafetyMode.NONE) {
-		ReaderBubbleRoiOcrCoordinator(
-			settings = settings,
-			recognizeTextByEngine = { engine, request -> recognizeTextByEngine(engine, request) },
-			composeGroupedText = ::composeGroupedText,
-			mergeRects = ::mergeRects,
-			isLikelySpeechBubbleRegion = ::isLikelySpeechBubbleRegion,
-			dp = ::dp,
-			log = ::log,
-		)
-	}
 	private val bubbleGroupingCoordinator by lazy(LazyThreadSafetyMode.NONE) {
 		ReaderBubbleGroupingCoordinator(
 			settings = settings,
 			onnxBubbleDetectorEngine = onnxBubbleDetectorEngine,
-			heuristicGroupFragments = ::groupFragmentsByBubble,
-			shouldMergeFragments = ::shouldMergeFragments,
 			mergeRects = ::mergeRects,
 			rectArea = ::rectArea,
 			dp = ::dp,
 			log = ::log,
 			formatError = ::oneLine,
-			maxIndividualFallbackFragments = MAX_INDIVIDUAL_FALLBACK_FRAGMENTS,
-			maxIndividualFallbackRatio = MAX_INDIVIDUAL_FALLBACK_RATIO,
 			maxDetectedGroupFragments = MAX_DETECTED_GROUP_FRAGMENTS,
 		)
 	}
@@ -138,6 +120,17 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			oneLine = ::oneLine,
 		)
 	}
+	private val textMergeCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderTextMergeCoordinator(
+			shouldMergeFragments = ::shouldMergeFragments,
+			mergeRects = ::mergeRects,
+			composeMergedText = ::composeGroupedText,
+		)
+	}
+	private val paddleTextDetector: ReaderTextDetector
+		get() = paddleOcrEngine
+	private val paddleTextRecognizer: ReaderTextRecognizer
+		get() = paddleOcrEngine
 	private val translationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
 		ReaderTranslationCoordinator(
 			settings = settings,
@@ -159,10 +152,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val ocrPipelineCoordinator by lazy(LazyThreadSafetyMode.NONE) {
 		ReaderOcrPipelineCoordinator(
 			loadPageText = ::loadPageTextWithCache,
-			detectBubbleRects = onnxBubbleDetectorEngine::detectAttempt,
+			mergePageTextBlocks = ::mergePageTextBlocks,
 			groupFragmentsForTranslation = ::groupFragmentsForTranslation,
-			recognizeBubbleTextsByRoi = ::recognizeBubbleTextsByRoi,
-			heuristicGroupFragments = ::groupFragmentsByBubble,
 		)
 	}
 
@@ -300,14 +291,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		var bubbleGroupingFallbackFragments = 0
 		var bubbleGroupingFallbackGroups = 0
 		var bubbleGroupingFallbackMode = "heuristic"
-		var roiRequestCount = 0
-		var roiSuccessCount = 0
-		var roiFallbackCount = 0
-		var roiDurationMs = 0L
-		var roiCoverageArea = 0f
-		var ocrPipelineStrategy = OcrPipelineStrategy.PAGE_FIRST
-		var ocrPipelineFallbackReason = ""
-		var roiFirstDetectedBoxes = 0
 		var processResult = "source"
 		appendPageLog(pageId, "metric.render_cache.hit=0")
 
@@ -326,15 +309,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				sourceLang = sourceLang,
 				pageId = pageId,
 				bitmap = bitmap,
-				strategy = OcrPipelineStrategy.ROI_FIRST_FALLBACK,
-				catchAllEnabled = settings.isReaderTranslationBubbleCatchAllEnabled,
 			)
-			ocrPipelineStrategy = ocrPipeline.strategy
-			ocrPipelineFallbackReason = ocrPipeline.fallbackReason
-			roiFirstDetectedBoxes = ocrPipeline.roiFirstDetectedBoxCount
 			ocrCacheHit = ocrPipeline.pageOcr?.cacheHit ?: false
 			ocrDurationMs = ocrPipeline.pageOcr?.durationMs ?: 0L
 			ocrBlocks = ocrPipeline.pageTextBlocks.size
+			log { "metric.ocr.merged_fragments=${ocrPipeline.mergedTextFragments.size}" }
 			val groupingResult = ocrPipeline.groupingResult
 			if (groupingResult == null) {
 				log { "fail_code=$FAIL_CODE_OCR_EMPTY" }
@@ -355,15 +334,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			bubbleGroupingFallbackFragments = groupingResult.fallbackFragmentCount
 			bubbleGroupingFallbackGroups = groupingResult.fallbackGroupCount
 			bubbleGroupingFallbackMode = groupingResult.fallbackMode
-			val roiResult = ocrPipeline.roiResult
-			roiRequestCount = roiResult.requestCount
-			roiSuccessCount = roiResult.successCount
-			roiFallbackCount = roiResult.fallbackCount
-			roiDurationMs = roiResult.totalMs
-			roiCoverageArea = roiResult.coverageArea
 			val bubbleInputs = buildBubbleInputs(
 				groups = groupingResult.groups,
-				roiResult = roiResult,
 				sourceLang = sourceLang,
 				targetLang = targetLang,
 			)
@@ -413,9 +385,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		} finally {
 			log { "metric.ocr.cache_hit=${if (ocrCacheHit) 1 else 0}" }
 			if (ocrDurationMs >= 0L) log { "metric.ocr.total_ms=$ocrDurationMs" }
-			log { "metric.ocr.pipeline.strategy=${ocrPipelineStrategy.name.lowercase()}" }
-			log { "metric.ocr.pipeline.fallback_reason=${ocrPipelineFallbackReason.ifBlank { "none" }}" }
-			log { "metric.ocr.pipeline.roi_first_detected_boxes=$roiFirstDetectedBoxes" }
+			log { "metric.ocr.pipeline.strategy=page_text_first" }
 			log { "metric.ocr.blocks=$ocrBlocks" }
 			log { "metric.translation.bubbles=$bubbleCount" }
 			log { "metric.bubble.grouping.enabled=$bubbleGroupingEnabled" }
@@ -434,11 +404,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			log { "metric.bubble.detector.raw_boxes=$bubbleDetectorRawBoxes" }
 			log { "metric.bubble.detector.total_ms=$bubbleDetectorTotalMs" }
 			log { "metric.bubble.detector.fallback_reason=${bubbleDetectorFallbackReason.ifBlank { "none" }}" }
-			log { "metric.ocr.roi.request_count=$roiRequestCount" }
-			log { "metric.ocr.roi.success_count=$roiSuccessCount" }
-			log { "metric.ocr.roi.fallback_count=$roiFallbackCount" }
-			log { "metric.ocr.roi.total_ms=$roiDurationMs" }
-			log { "metric.ocr.roi.coverage_area=$roiCoverageArea" }
 			if (translateDurationMs >= 0L) log { "metric.translation.total_ms=$translateDurationMs" }
 			if (renderDurationMs >= 0L) log { "metric.render.total_ms=$renderDurationMs" }
 			log { "metric.render.translated_bubbles=$renderedBubbleCount" }
@@ -478,10 +443,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	private suspend fun recognizeTextWithFallback(sourceUri: Uri, sourceLang: String, pageId: Long): List<OcrTextBlock> {
-		val primary = when (settings.readerTranslationOcrEngine) {
-			ReaderOcrEngine.PADDLE -> ReaderOcrEngine.NCNN
-			else -> settings.readerTranslationOcrEngine
-		}
+		val primary = settings.readerTranslationOcrEngine
 		val minAcceptableBlocks = when {
 			sourceLang.startsWith("ja") -> 3
 			sourceLang.startsWith("zh") || sourceLang.startsWith("ko") -> 2
@@ -489,8 +451,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		val order = linkedSetOf<ReaderOcrEngine>().apply {
 			add(primary)
-			// Avoid aggressively falling back to heavy local models to prevent unexpected memory exhaustion.
-			// Users specifically selecting MLKit or TFLite should not silently load NCNN in the background.
+			// Keep the fallback order explicit. Do not silently introduce heavyweight local OCR engines.
 		}
 		var bestResult: List<OcrTextBlock> = emptyList()
 		var bestEngine: ReaderOcrEngine? = null
@@ -556,11 +517,23 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	): List<OcrTextBlock> {
 		return when (engine) {
 			ReaderOcrEngine.MLKIT -> mlKitOcrEngine.recognize(request)
-			ReaderOcrEngine.PADDLE -> emptyList()
-			ReaderOcrEngine.TFLITE -> tfliteOcrEngine.recognize(request)
-			ReaderOcrEngine.HYBRID -> hybridOcrEngine.recognize(request)
-			ReaderOcrEngine.NCNN -> ncnnOcrEngine.recognize(request)
+			ReaderOcrEngine.PADDLE -> {
+				if (request.requestType == OcrRequestType.PAGE && request.roi == null) {
+					recognizePageTextByPipeline(request.sourceUri)
+				} else {
+					paddleOcrEngine.recognize(request)
+				}
+			}
 		}
+	}
+
+	private suspend fun recognizePageTextByPipeline(sourceUri: Uri): List<OcrTextBlock> {
+		val regions = paddleTextDetector.detect(sourceUri)
+		log { "metric.ocr.paddle.detected_regions=${regions.size}" }
+		if (regions.isEmpty()) return emptyList()
+		val blocks = paddleTextRecognizer.recognize(sourceUri, regions)
+		log { "metric.ocr.paddle.recognized_blocks=${blocks.size}" }
+		return blocks
 	}
 
 	private suspend fun translateBlocksCached(
@@ -615,32 +588,48 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		)
 	}
 
-	private suspend fun recognizeBubbleTextsByRoi(
-		groups: List<GroupedBubbleSource>,
-		sourceUri: Uri,
-		sourceLang: String,
-		pageId: Long,
+	private fun mergePageTextBlocks(
+		textBlocks: List<OcrTextBlock>,
 		bitmap: Bitmap,
-	): BubbleRoiOcrResult {
-		return bubbleRoiOcrCoordinator.recognize(
-			groups = groups,
-			sourceUri = sourceUri,
-			sourceLang = sourceLang,
-			pageId = pageId,
+		sourceLang: String,
+	): List<TextFragment> {
+		val sourceFragments = textBlocks.asSequence()
+			.mapNotNull { block ->
+				val rect = block.boundingBox ?: return@mapNotNull null
+				val text = block.text.trim()
+				if (text.isEmpty()) {
+					null
+				} else {
+					TextFragment(
+						rect = rect,
+						text = text,
+						directionHint = if (block.directionHint != TextDirectionHint.UNKNOWN) {
+							block.directionHint
+						} else {
+							inferTextDirectionHint(rect, text)
+						},
+						angleHintDegrees = block.angleHintDegrees,
+						isAxisAligned = block.isAxisAligned,
+						quadPoints = block.quadPoints ?: rectToTextQuad(rect),
+					)
+				}
+			}
+			.toList()
+		return textMergeCoordinator.merge(
+			fragments = sourceFragments,
 			bitmap = bitmap,
-			maxRequestsPerPage = MAX_ROI_OCR_REQUESTS_PER_PAGE,
+			sourceLang = sourceLang,
 		)
 	}
 
 	private fun buildBubbleInputs(
 		groups: List<GroupedBubbleSource>,
-		roiResult: BubbleRoiOcrResult,
 		sourceLang: String,
 		targetLang: String,
 	): List<BubbleInput> {
 		return groups.mapIndexedNotNull { index, group ->
 			val mergedRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: return@mapIndexedNotNull null
-			val sourceText = (roiResult.textsByGroupIndex[index] ?: composeGroupedText(group.fragments, sourceLang)).trim()
+			val sourceText = composeGroupedText(group.fragments, sourceLang).trim()
 			if (sourceText.isBlank()) {
 				return@mapIndexedNotNull null
 			}
@@ -656,46 +645,23 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 	}
 
-	private fun groupFragmentsByBubble(fragments: List<TextFragment>, bitmap: Bitmap): List<List<TextFragment>> {
-		if (fragments.isEmpty()) return emptyList()
-		val parent = IntArray(fragments.size) { it }
-
-		fun find(x: Int): Int {
-			var cur = x
-			while (parent[cur] != cur) {
-				parent[cur] = parent[parent[cur]]
-				cur = parent[cur]
-			}
-			return cur
-		}
-
-		fun union(a: Int, b: Int) {
-			val ra = find(a)
-			val rb = find(b)
-			if (ra != rb) parent[rb] = ra
-		}
-
-		val mergePad = dp(24f)
-		for (i in fragments.indices) {
-			for (j in i + 1 until fragments.size) {
-				val ra = expandRect(fragments[i].rect, mergePad)
-				val rb = expandRect(fragments[j].rect, mergePad)
-				if (Rect.intersects(ra, rb) && shouldMergeFragments(fragments[i], fragments[j], bitmap)) {
-					union(i, j)
-				}
-			}
-		}
-
-		val groups = linkedMapOf<Int, MutableList<TextFragment>>()
-		for (i in fragments.indices) {
-			val root = find(i)
-			groups.getOrPut(root) { mutableListOf() }.add(fragments[i])
-		}
-		return groups.values.toList()
-	}
-
 	private fun shouldMergeFragments(a: TextFragment, b: TextFragment, bitmap: Bitmap): Boolean {
 		val grouping = groupingTuningLevel()
+		val aDirection = effectiveDirectionHint(a)
+		val bDirection = effectiveDirectionHint(b)
+		if (a.isAxisAligned && b.isAxisAligned) {
+			val angleDiff = kotlin.math.abs(effectiveAngleHintDegrees(a) - effectiveAngleHintDegrees(b))
+			if (angleDiff in 45.1f..134.9f) {
+				return false
+			}
+		}
+		if (
+			aDirection != TextDirectionHint.UNKNOWN &&
+			bDirection != TextDirectionHint.UNKNOWN &&
+			aDirection != bDirection
+		) {
+			return false
+		}
 		val acx = a.rect.centerX().toFloat()
 		val acy = a.rect.centerY().toFloat()
 		val bcx = b.rect.centerX().toFloat()
@@ -727,11 +693,20 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		val maxGapX = minW * maxGapScale + dp(3f)
 		val maxGapY = minH * maxGapScale + dp(3f)
+		val primaryAxisAligned = when {
+			aDirection == TextDirectionHint.VERTICAL || bDirection == TextDirectionHint.VERTICAL -> {
+				yOverlapRatio >= (minOverlapRatio * 1.2f) && gapX <= maxGapX * 1.25f
+			}
+			aDirection == TextDirectionHint.HORIZONTAL || bDirection == TextDirectionHint.HORIZONTAL -> {
+				xOverlapRatio >= (minOverlapRatio * 1.2f) && gapY <= maxGapY * 1.25f
+			}
+			else -> false
+		}
 
 		// At least one axis should have meaningful overlap, otherwise nearby panels are easily merged.
-		if (xOverlapRatio < minOverlapRatio && yOverlapRatio < minOverlapRatio) return false
+		if (!primaryAxisAligned && xOverlapRatio < minOverlapRatio && yOverlapRatio < minOverlapRatio) return false
 		// Distance gate, normalized by glyph size.
-		if (gapX > maxGapX || gapY > maxGapY) return false
+		if (!primaryAxisAligned && (gapX > maxGapX || gapY > maxGapY)) return false
 		// Reject pair if merged area grows too much compared with two source boxes.
 		val merged = Rect(
 			min(a.rect.left, b.rect.left),
@@ -761,6 +736,20 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			TuningLevel.RELAXED -> 2.6f
 		}
 		return dx <= minW * distanceScale && dy <= minH * distanceScale
+	}
+
+	private fun effectiveDirectionHint(fragment: TextFragment): TextDirectionHint {
+		if (fragment.directionHint != TextDirectionHint.UNKNOWN) {
+			return fragment.directionHint
+		}
+		return inferTextDirectionHint(fragment.rect, fragment.text)
+	}
+
+	private fun effectiveAngleHintDegrees(fragment: TextFragment): Float {
+		if (fragment.angleHintDegrees != 0f || fragment.directionHint == TextDirectionHint.HORIZONTAL) {
+			return fragment.angleHintDegrees
+		}
+		return inferTextAngleHintDegrees(fragment.rect, fragment.text)
 	}
 
 	private fun overlapLen(aStart: Int, aEnd: Int, bStart: Int, bEnd: Int): Int {
@@ -1443,7 +1432,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			settings.readerTranslationBubbleGroupingTuning,
 			settings.isReaderTranslationBubbleGroupingEnabled.toString(),
 			settings.readerTranslationOverlayCompactness,
-			settings.readerTranslationHybridFallbackThreshold.toString(),
 			settings.isReaderTranslationQualityFilterEnabled.toString(),
 		).joinToString("|")
 		return "${RENDER_CACHE_PREFIX}${raw.sha256()}"
@@ -1474,7 +1462,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	private fun buildOcrCacheKey(sourceUri: String, sourceLang: String): String {
-		val raw = listOf(sourceUri, sourceLang, settings.readerTranslationOcrEngine.name).joinToString("|")
+		val raw = listOf(
+			TRANSLATION_PIPELINE_VERSION,
+			sourceUri,
+			sourceLang,
+			settings.readerTranslationOcrEngine.name,
+			settings.readerTranslationPaddleOfficialModelId,
+		).joinToString("|")
 		return "${OCR_CACHE_PREFIX}${raw.sha256()}"
 	}
 
@@ -1491,6 +1485,18 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			val obj = JSONObject()
 			obj.put("text", block.text)
 			obj.put("confidence", block.confidence)
+			if (block.directionHint != TextDirectionHint.UNKNOWN) {
+				obj.put("direction", block.directionHint.name)
+			}
+			obj.put("angle", block.angleHintDegrees)
+			obj.put("axis_aligned", block.isAxisAligned)
+			block.quadPoints?.let { quad ->
+				val quadArray = JSONArray()
+				quad.points.forEach { (x, y) ->
+					quadArray.put(JSONArray().put(x).put(y))
+				}
+				obj.put("quad", quadArray)
+			}
 			block.boundingBox?.let { box ->
 				obj.put("left", box.left)
 				obj.put("top", box.top)
@@ -1510,15 +1516,39 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			val box = if (obj.has("left")) {
 				Rect(obj.getInt("left"), obj.getInt("top"), obj.getInt("right"), obj.getInt("bottom"))
 			} else null
+			val quad = if (obj.has("quad")) {
+				obj.optJSONArray("quad")?.let(::parseTextQuad)
+			} else {
+				box?.let(::rectToTextQuad)
+			}
 			result.add(
 				OcrTextBlock(
 					text = obj.getString("text"),
 					boundingBox = box,
 					confidence = obj.optDouble("confidence", 1.0).toFloat(),
+					directionHint = obj.optString("direction")
+						.takeIf { it.isNotBlank() }
+						?.let { runCatching { TextDirectionHint.valueOf(it) }.getOrNull() }
+						?: inferTextDirectionHint(box, obj.optString("text")),
+					angleHintDegrees = obj.optDouble("angle", inferTextAngleHintDegrees(box, obj.optString("text")).toDouble()).toFloat(),
+					isAxisAligned = if (obj.has("axis_aligned")) obj.optBoolean("axis_aligned", true) else inferAxisAlignedHint(box),
+					quadPoints = quad,
 				)
 			)
 		}
 		return result
+	}
+
+	private fun parseTextQuad(arr: JSONArray): TextQuad? {
+		if (arr.length() != 4) return null
+		val points = buildList {
+			for (i in 0 until arr.length()) {
+				val point = arr.optJSONArray(i) ?: return null
+				if (point.length() != 2) return null
+				add(point.optDouble(0).toFloat() to point.optDouble(1).toFloat())
+			}
+		}
+		return runCatching { TextQuad(points) }.getOrNull()
 	}
 
 	private fun dp(value: Float): Int = (value * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
@@ -1534,16 +1564,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 		const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 		const val MAX_OPENAI_BATCH_SIZE = 3
-			const val TRANSLATION_PIPELINE_VERSION = "2026-03-11-roi-ocr-8"
+		const val TRANSLATION_PIPELINE_VERSION = "2026-04-02-text-detector-3"
 		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
 		You translate manga OCR text.
 		Output only the translation.
 		Do not explain.
 """
 		const val MAX_PARALLEL_TRANSLATION_PAGES = 2
-		const val MAX_ROI_OCR_REQUESTS_PER_PAGE = 8
-		const val MAX_INDIVIDUAL_FALLBACK_FRAGMENTS = 8
-		const val MAX_INDIVIDUAL_FALLBACK_RATIO = 0.25f
 		const val MAX_DETECTED_GROUP_FRAGMENTS = 28
 		const val MIN_RENDER_COLUMN_WIDTH_RATIO = 0.22f
 		const val HORIZONTAL_TEXT_SIZE_WIDTH_RATIO = 0.58f

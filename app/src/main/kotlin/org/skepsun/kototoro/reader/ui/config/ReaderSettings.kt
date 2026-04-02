@@ -66,7 +66,6 @@ data class ReaderSettings(
 	val translationPaddleClsModelUrl: String,
 	val translationPaddleClsModelVersion: String,
 	val translationPaddleClsModelSha256: String,
-	val translationDetModelId: String,
 	val translationOnnxModelId: String,
 	val isSuperResolutionEnabled: Boolean,
 	val superResolutionModel: String,
@@ -113,7 +112,6 @@ data class ReaderSettings(
 		translationPaddleClsModelUrl = settings.readerTranslationPaddleClsModelUrl,
 		translationPaddleClsModelVersion = settings.readerTranslationPaddleClsModelVersion,
 		translationPaddleClsModelSha256 = settings.readerTranslationPaddleClsModelSha256,
-		translationDetModelId = settings.readerTranslationDetModelId,
 		translationOnnxModelId = settings.readerTranslationOnnxModelId,
 		isSuperResolutionEnabled = settings.isReaderSuperResolutionEnabled,
 		superResolutionModel = settings.readerSuperResolutionModel,
@@ -188,8 +186,6 @@ data class ReaderSettings(
 		append(translationPaddleClsModelVersion)
 		append('|')
 		append(translationPaddleClsModelSha256)
-		append('|')
-		append(translationDetModelId)
 	}
 
 	fun translationDisplaySignature(): String = buildString {
@@ -248,8 +244,6 @@ data class ReaderSettings(
 		append(translationPaddleClsModelVersion)
 		append('|')
 		append(translationPaddleClsModelSha256)
-		append('|')
-		append(translationDetModelId)
 		append('|')
 		append(translationOnnxModelId)
 	}
@@ -313,7 +307,6 @@ data class ReaderSettings(
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_URL,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_VERSION,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_CLS_MODEL_SHA256,
-			AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID,
 			AppSettings.KEY_READER_SUPER_RESOLUTION_ENABLED,
 			AppSettings.KEY_READER_SUPER_RESOLUTION_MODEL,
 			AppSettings.KEY_READER_SUPER_RESOLUTION_NOISE_LEVEL,

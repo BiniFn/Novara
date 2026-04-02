@@ -1398,11 +1398,8 @@
     <string name="reader_translation_source_lang">源语言</string>
     <string name="reader_translation_target_lang">目标语言</string>
     <string name="reader_translation_ocr_engine">OCR 引擎</string>
-    <string name="reader_translation_ocr_engine_mlkit">ML Kit（默认）</string>
-    <string name="reader_translation_ocr_engine_paddle">PP-OCRv5 (Paddle)</string>
-    <string name="reader_translation_ocr_engine_tflite">MangaOCR（实验性）</string>
-    <string name="reader_translation_ocr_engine_hybrid">分离 Det 与 Rec</string>
-    <string name="reader_translation_ocr_engine_ncnn">PP-OCRv5（推荐）</string>
+    <string name="reader_translation_ocr_engine_mlkit">ML Kit（无需下载本地模型）</string>
+    <string name="reader_translation_ocr_engine_paddle">PaddleOCR ONNX（检测 + 识别）</string>
     <string name="reader_translation_ocr_model_det_selection">OCR Det 模型选择</string>
     <string name="reader_translation_ocr_model_det_title">检测模型</string>
     <string name="reader_translation_det_download_success">检测模型下载完成</string>
@@ -1461,9 +1458,6 @@
     <string name="reader_translation_paddle_download_missing">请先选择模型并填写 URL/版本</string>
     <string name="reader_translation_paddle_download_success">Paddle 模型下载完成</string>
     <string name="reader_translation_paddle_download_failed_toast">Paddle 模型下载失败</string>
-    <string name="reader_translation_rec_model_url">识别模型 URL</string>
-    <string name="reader_translation_rec_model_url_default">https://huggingface.co/bluolightning/manga-ocr-tflite/resolve/main/ocr_fast.zip</string>
-    <string name="reader_translation_rec_model_url_summary">端到端识别模型（.tflite）的下载地址</string>
     <string name="reader_translation_rec_download_now">立即下载识别模型</string>
     <string name="reader_translation_rec_download_now_summary">点击下载所选识别模型，用于离线漫画翻译</string>
     <string name="reader_translation_rec_download_starting">开始下载识别模型…</string>
@@ -1475,8 +1469,8 @@
     <string name="reader_translation_rec_download_success">识别模型下载完成</string>
     <string name="reader_translation_rec_download_failed_toast">识别模型下载失败</string>
     <string name="reader_translation_bypass_hint">当前漫画语言已匹配目标语言 (%1$s)，将跳过翻译。</string>
-    <string name="reader_translation_bubble_grouping_tuning">气泡分组严格度</string>
-    <string name="reader_translation_bubble_grouping_tuning_summary">控制邻近文本块合并为同一气泡的积极程度</string>
+    <string name="reader_translation_bubble_grouping_tuning">文本合并严格度</string>
+    <string name="reader_translation_bubble_grouping_tuning_summary">控制翻译前邻近 OCR 文本块的合并强度</string>
     <string name="reader_translation_overlay_compactness">非气泡覆盖层紧凑度</string>
     <string name="reader_translation_overlay_compactness_summary">控制气泡外文字覆盖层与原文的贴合紧密程度</string>
     <string name="reader_translation_tuning_strict">严格</string>
@@ -1682,16 +1676,6 @@
     <string name="reader_translation_task_stat_render_cache">渲染缓存: %1$s</string>
     <string name="reader_translation_task_stat_hit">命中</string>
     <string name="reader_translation_task_stat_miss">未命中</string>
-    <string name="reader_translation_task_stat_hybrid_ncnn">NCNN块=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_cand">候选=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_feat_hit">特征缓存命中=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_tfl_fb">TFLite回退=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_fb_rate">回退率=%1$s</string>
-    <string name="reader_translation_task_stat_hybrid_prefix">Hybrid: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_timing">Hybrid耗时: %1$s</string>
-    <string name="reader_translation_task_stat_hybrid_total">总=%1$s ms</string>
-    <string name="reader_translation_task_stat_hybrid_ncnn_ms">NCNN=%1$s ms</string>
-    <string name="reader_translation_task_stat_hybrid_tfl_ms">TFLite=%1$s ms</string>
     <string name="reader_translation_task_bench_title">【章节基线】</string>
     <string name="reader_translation_task_bench_sampled">已采样: %1$d/%2$d 页</string>
     <string name="reader_translation_task_bench_dist_total">总耗时</string>
@@ -1706,9 +1690,6 @@
     <string name="reader_translation_task_bench_dist_ocr_sel">选中 OCR</string>
     <string name="reader_translation_task_bench_dist_fail_code">失败代码</string>
     <string name="reader_translation_task_bench_conc_title">【对比结论】</string>
-    <string name="reader_translation_task_bench_hyb_fb_pages">回退页=%1$s</string>
-    <string name="reader_translation_task_bench_hyb_fb_avg">回退率 avg/p95=%1$s / %2$s</string>
-    <string name="reader_translation_task_bench_hyb_tfl_avg">TFLite回退块 avg/p95=%1$s / %2$s</string>
     <string name="reader_translation_task_bench_roi_pages">ROI-first 页面=%1$s</string>
     <string name="reader_translation_task_bench_roi_hits">，直接命中=%1$s</string>
     <string name="reader_translation_task_bench_roi_fb">，回退=%1$s</string>
@@ -1861,14 +1842,12 @@
     <string name="error_no_valid_sources">JSON 中没有找到有效的源</string>
     <string name="all">全部</string>
     <string name="adult">成人</string>
-    <string name="reader_translation_bubble_grouping_enabled">启发式合并未匹配文本块</string>
-    <string name="reader_translation_bubble_grouping_enabled_no_detector">启发式文本分组</string>
-    <string name="reader_translation_bubble_grouping_enabled_summary">在气泡检测之后，对未匹配到的 OCR 文本块继续做启发式合并。关闭后，这些未匹配文本块将按单块翻译。</string>
-    <string name="reader_translation_bubble_grouping_enabled_summary_no_detector">在不使用气泡检测时，翻译前对邻近 OCR 文本块做启发式合并。关闭后，这些文本块将按单块翻译。</string>
-    <string name="reader_translation_bubble_detector_enabled">使用气泡检测模型</string>
-    <string name="reader_translation_bubble_detector_enabled_summary">当已下载可选检测模型时，优先用它定位气泡或文本区域，供 ROI OCR 和后续分组使用。</string>
-    <string name="reader_translation_bubble_catch_all_enabled">兼收背景文字</string>
-    <string name="reader_translation_bubble_catch_all_enabled_summary">当使用气泡检测模型寻找主线气泡时，额外在背景图中全屏扫描遗漏的浮空字或音效以翻译。注意：该选项更容易让背景条纹被错误识别为脏字，且会增加设备性能与电量消耗。</string>
+    <string name="reader_translation_bubble_grouping_enabled">启用气泡辅助分组</string>
+    <string name="reader_translation_bubble_grouping_enabled_no_detector">启用气泡辅助分组</string>
+    <string name="reader_translation_bubble_grouping_enabled_summary">在文本检测、识别与合并之后，如果气泡检测可用，再让它把已合并的文本单元附着到气泡上，以便翻译和渲染。关闭后，已合并文本单元将保持独立。</string>
+    <string name="reader_translation_bubble_grouping_enabled_summary_no_detector">在文本检测、识别与合并之后，直接以已合并文本单元作为翻译输入。启用气泡检测后，才会允许 OCR 后的气泡辅助分组。</string>
+    <string name="reader_translation_bubble_detector_enabled">将气泡检测作为 OCR 后辅助</string>
+    <string name="reader_translation_bubble_detector_enabled_summary">在整页 OCR 完成后运行可选检测模型，用于辅助把文本块归入气泡并服务渲染，而不是作为 OCR 主入口。</string>
     <string name="novel_reading_mode">阅读模式</string>
     <string name="novel_mode_paged">翻页</string>
     <string name="novel_mode_scroll">滚动</string>

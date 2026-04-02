@@ -55,8 +55,6 @@ class ReaderPageEnhancementController @Inject constructor(
 			append('|')
 			append(settings.readerTranslationOverlayCompactness)
 			append('|')
-			append(settings.readerTranslationDetModelId)
-			append('|')
 			append(settings.readerTranslationOnnxModelId)
 		}
 	}

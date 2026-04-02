@@ -15,6 +15,7 @@ enum class OnnxModelCategory {
 	CLASSIC_TRANSLATION,
 	GENERAL_LLM,
 	BUBBLE_DETECTION,
+	OCR,
 }
 
 data class OnnxModelFile(
@@ -24,7 +25,7 @@ data class OnnxModelFile(
 )
 
 object OnnxOfficialModelCatalog {
-	const val source = "https://github.com/niedev/OnnxModelsEnhancer/releases, https://github.com/niedev/RTranslator/releases"
+	const val source = "https://github.com/niedev/OnnxModelsEnhancer/releases, https://github.com/niedev/RTranslator/releases, https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx"
 
 	val models = listOf(
 		OnnxOfficialModel(
@@ -145,6 +146,27 @@ object OnnxOfficialModelCatalog {
 				),
 			),
 			description = "RT-DETR-v2 model fine-tuned on 11k manga/comics. Differentiates between text bubbles and free text.",
+		),
+		OnnxOfficialModel(
+			id = "ppocrv5_mobile_onnx",
+			title = "PP-OCRv5 Mobile ONNX",
+			version = "hf-main",
+			category = OnnxModelCategory.OCR,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "ppocrv5_det.onnx",
+					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/ppocrv5_det.onnx",
+				),
+				OnnxModelFile(
+					fileName = "ppocrv5_rec.onnx",
+					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/ppocrv5_rec.onnx",
+				),
+				OnnxModelFile(
+					fileName = "ppocrv5_dict.txt",
+					downloadUrl = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/ppocrv5_dict.txt",
+				),
+			),
+			description = "PaddleOCR PP-OCRv5 mobile detector + recognizer converted to ONNX Runtime.",
 		),
 		OnnxOfficialModel(
 			id = "translategemma_4b_it_onnx_int4",

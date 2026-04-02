@@ -24,14 +24,9 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
 import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.reader.translate.data.NcnnModelManager
-import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
-import org.skepsun.kototoro.reader.translate.data.PaddleOfficialModelCatalog
-import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
-import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModelCatalog
 import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
 import javax.inject.Inject
 
@@ -39,12 +34,6 @@ import javax.inject.Inject
 class TranslationSettingsFragment :
 	BasePreferenceFragment(R.string.translation_settings),
 	SharedPreferences.OnSharedPreferenceChangeListener {
-
-	@Inject
-	lateinit var tfliteModelManager: TfliteModelManager
-
-	@Inject
-	lateinit var ncnnModelManager: NcnnModelManager
 
 	@Inject
 	lateinit var onnxModelManager: OnnxModelManager
@@ -63,11 +52,16 @@ class TranslationSettingsFragment :
 			setDefaultValue(ReaderTranslationMode.LOCAL_FIRST.name)
 		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE)?.run {
+			entries = arrayOf(
+				getString(R.string.reader_translation_ocr_engine_mlkit),
+				getString(R.string.reader_translation_ocr_engine_paddle),
+			)
 			entryValues = arrayOf(
 				ReaderOcrEngine.MLKIT.name,
-				ReaderOcrEngine.HYBRID.name,
+				ReaderOcrEngine.PADDLE.name,
 			)
 			setDefaultValue(ReaderOcrEngine.MLKIT.name)
+			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.run {
 			setDefaultValue("CUSTOM")
@@ -99,14 +93,12 @@ class TranslationSettingsFragment :
 		normalizeDeprecatedOcrEngineSelection()
 		applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
 		updateOcrEngineDependency()
-		updateHybridFallbackThresholdPreference()
 		updateApiPreferenceVisibility()
 		updatePaddleOfficialModelEntries()
-		updateTfliteOfficialModelEntries()
-		updateNcnnOfficialModelEntries()
 		updateOnnxOfficialModelEntries()
 		updateOnnxBubbleOfficialModelEntries()
 		updateBubbleGroupingSummary()
+		updateBubbleExperimentVisibility()
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -125,10 +117,6 @@ class TranslationSettingsFragment :
 				fetchAndPickApiModel()
 				true
 			}
-			AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD -> {
-				showHybridFallbackThresholdDialog()
-				true
-			}
 			else -> super.onPreferenceTreeClick(preference)
 		}
 	}
@@ -137,27 +125,15 @@ class TranslationSettingsFragment :
 		when (key) {
 			AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE -> {
 				updateOcrEngineDependency()
-				updateHybridFallbackThresholdPreference()
 				updatePaddleOfficialModelEntries()
-				updateTfliteOfficialModelEntries()
-				updateNcnnOfficialModelEntries()
 				updateOnnxOfficialModelEntries()
 				updateOnnxBubbleOfficialModelEntries()
 				updateBubbleDetectorNmsPreference()
-			}
-			AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD -> {
-				updateHybridFallbackThresholdPreference()
+				updateBubbleExperimentVisibility()
 			}
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID -> {
 				applyOfficialPaddleModel()
 				updatePaddleOfficialModelEntries()
-			}
-			AppSettings.KEY_READER_TRANSLATION_REC_MODEL_ID -> {
-				applyOfficialTfliteModel()
-				updateTfliteOfficialModelEntries()
-			}
-			AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID -> {
-				updateNcnnOfficialModelEntries()
 			}
 			AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID -> {
 				updateOnnxOfficialModelEntries()
@@ -174,6 +150,7 @@ class TranslationSettingsFragment :
 				updateBubbleGroupingSummary()
 				updateOnnxBubbleOfficialModelEntries()
 				updateBubbleDetectorNmsPreference()
+				updateBubbleExperimentVisibility()
 			}
 			AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED -> {
 				updateBubbleGroupingSummary()
@@ -188,30 +165,8 @@ class TranslationSettingsFragment :
 	}
 
 	private fun updateOcrEngineDependency() {
-		val isHybrid = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
-		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-
-		if (isHybrid) {
-			if (sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL, "").isNullOrBlank()) {
-				sharedPreferences.edit {
-					putString(
-						AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL,
-						getString(R.string.reader_translation_rec_model_url_default),
-					)
-				}
-			}
-		}
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD)?.isVisible = isHybrid
-	}
-
-	private fun updateHybridFallbackThresholdPreference() {
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_HYBRID_FALLBACK_THRESHOLD)?.apply {
-			isVisible = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
-			summary = getString(
-				R.string.reader_translation_hybrid_fallback_threshold_summary,
-				(settings.readerTranslationHybridFallbackThreshold * 100).toInt(),
-			)
-		}
+		val usesPaddleOnnx = settings.readerTranslationOcrEngine == ReaderOcrEngine.PADDLE
+		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.isVisible = usesPaddleOnnx
 	}
 
 	private fun updateBubbleDetectorNmsPreference() {
@@ -232,22 +187,6 @@ class TranslationSettingsFragment :
 				true
 			}
 		}
-	}
-
-	private fun showHybridFallbackThresholdDialog() {
-		val values = floatArrayOf(0.7f, 0.75f, 0.8f, 0.85f, 0.9f, 0.95f)
-		val labels = values.map { "${(it * 100).toInt()}%" }.toTypedArray()
-		val current = settings.readerTranslationHybridFallbackThreshold
-		val selected = values.indexOfFirst { kotlin.math.abs(it - current) < 0.001f }
-			.takeIf { it >= 0 } ?: values.indices.minBy { kotlin.math.abs(values[it] - current) }
-		MaterialAlertDialogBuilder(requireContext())
-			.setTitle(R.string.reader_translation_hybrid_fallback_threshold)
-			.setSingleChoiceItems(labels, selected) { dialog, which ->
-				settings.readerTranslationHybridFallbackThreshold = values[which]
-				dialog.dismiss()
-			}
-			.setNegativeButton(android.R.string.cancel, null)
-			.show()
 	}
 
 	private fun updateApiPreferenceVisibility() {
@@ -278,72 +217,30 @@ class TranslationSettingsFragment :
 		}
 	}
 
+	private fun updateBubbleExperimentVisibility() {
+		// ROI catch-all has been removed from runtime settings.
+	}
+
 	private fun applyOfficialPaddleModel() {
-		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		val modelId = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, null)
-		val model = PaddleOfficialModelCatalog.findById(modelId)
-		sharedPreferences.edit {
-			if (model == null) {
-				remove(AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL)
-				remove(AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION)
-				remove(AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256)
-			} else {
-				putString(AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL, model.downloadUrl)
-				putString(AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION, model.version)
-				remove(AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256)
-			}
-		}
+		// The active Paddle path now uses ONNX OCR bundles resolved by model id.
 	}
 
 	private fun updatePaddleOfficialModelEntries() {
+		val models = OnnxOfficialModelCatalog.models.filter { it.category == OnnxModelCategory.OCR }
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.run {
-			isVisible = false
-		}
-	}
-
-	private fun updateTfliteOfficialModelEntries() {
-		val isHybrid = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
-		val models = TfliteOfficialModelCatalog.models
-
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_ID)?.run {
-			entries = arrayOf(
-				getString(R.string.reader_translation_ocr_model_rec_ppocr_v5),
-				getString(R.string.reader_translation_ocr_model_rec_autodetect),
-			) + models.map { model ->
-				val suffix = if (tfliteModelManager.isModelDownloaded(model.version)) ""
+			entries = models.map { model ->
+				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
 				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
 				model.title + suffix
 			}.toTypedArray()
-			entryValues = arrayOf("PPOCR_V5_REC", "AUTO") + models.map { it.id }.toTypedArray()
-			setDefaultValue("PPOCR_V5_REC")
+			entryValues = models.map { it.id }.toTypedArray()
+			setDefaultValue(models.firstOrNull()?.id ?: "")
 			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 			val values = entryValues?.map { it.toString() }.orEmpty()
-			if (value != null && value !in values) {
-				value = "PPOCR_V5_REC"
-				applyOfficialTfliteModel()
+			if (value.isNullOrBlank() || value !in values) {
+				value = models.firstOrNull()?.id ?: ""
 			}
-			isVisible = isHybrid
-		}
-	}
-
-	private fun updateNcnnOfficialModelEntries() {
-		val isNcnnFamily = settings.readerTranslationOcrEngine == ReaderOcrEngine.HYBRID
-		val models = NcnnOfficialModelCatalog.models
-
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_DET_MODEL_ID)?.run {
-			entries = arrayOf(getString(R.string.reader_translation_ocr_model_det_autodetect)) + models.map { model ->
-				val suffix = if (ncnnModelManager.isModelDownloaded(model.version)) ""
-				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				model.title + suffix
-			}.toTypedArray()
-			entryValues = arrayOf("AUTO") + models.map { it.id }.toTypedArray()
-			setDefaultValue("AUTO")
-			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-			val values = entryValues?.map { it.toString() }.orEmpty()
-			if (value != null && value !in values) {
-					value = "AUTO"
-			}
-			isVisible = isNcnnFamily
+			isVisible = settings.readerTranslationOcrEngine == ReaderOcrEngine.PADDLE
 		}
 	}
 
@@ -360,6 +257,7 @@ class TranslationSettingsFragment :
 					OnnxModelCategory.GENERAL_LLM -> "${model.title} [LLM]"
 					OnnxModelCategory.CLASSIC_TRANSLATION -> model.title
 					OnnxModelCategory.BUBBLE_DETECTION -> "${model.title} [Detector]"
+					OnnxModelCategory.OCR -> "${model.title} [OCR]"
 				}
 				title + suffix
 			}.toTypedArray()
@@ -398,23 +296,9 @@ class TranslationSettingsFragment :
 	private fun normalizeDeprecatedOcrEngineSelection() {
 		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
 		val raw = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT.name)
-		if (raw == ReaderOcrEngine.PADDLE.name || raw == ReaderOcrEngine.TFLITE.name || raw == ReaderOcrEngine.NCNN.name) {
+		if (raw == "TFLITE" || raw == "HYBRID" || raw == "NCNN") {
 			sharedPreferences.edit {
-				putString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.HYBRID.name)
-			}
-		}
-	}
-
-	private fun applyOfficialTfliteModel() {
-		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		val modelId = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_ID, null)
-		val model = TfliteOfficialModelCatalog.findById(modelId)
-		sharedPreferences.edit {
-			if (model == null || modelId == "PPOCR_V5_REC") {
-				remove(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL)
-				remove(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_PATH)
-			} else {
-				putString(AppSettings.KEY_READER_TRANSLATION_REC_MODEL_URL, model.encoderUrl)
+				putString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.PADDLE.name)
 			}
 		}
 	}

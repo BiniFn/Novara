@@ -10,16 +10,12 @@ import androidx.preference.Preference
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import org.skepsun.kototoro.reader.translate.data.NcnnModelManager
-import org.skepsun.kototoro.reader.translate.data.NcnnOfficialModelCatalog
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.reader.translate.data.TfliteModelManager
-import org.skepsun.kototoro.reader.translate.data.TfliteOfficialModelCatalog
 import org.skepsun.kototoro.settings.support.AISettingsSummarySupport
 import javax.inject.Inject
 
@@ -27,12 +23,6 @@ import javax.inject.Inject
 class AISettingsFragment :
 	BasePreferenceFragment(R.string.ai_settings),
 	SharedPreferences.OnSharedPreferenceChangeListener {
-
-	@Inject
-	lateinit var tfliteModelManager: TfliteModelManager
-
-	@Inject
-	lateinit var ncnnModelManager: NcnnModelManager
 
 	@Inject
 	lateinit var onnxModelManager: OnnxModelManager
@@ -140,25 +130,19 @@ class AISettingsFragment :
 	}
 
 	private fun getDownloadedModelCount(): Int {
-		val tfliteCount = TfliteOfficialModelCatalog.models.count { tfliteModelManager.isModelDownloaded(it.version) }
-		val ncnnCount = NcnnOfficialModelCatalog.models.count { ncnnModelManager.isModelDownloaded(it.version) }
-		val onnxCount = OnnxOfficialModelCatalog.models.count { onnxModelManager.isModelDownloaded(it.id) }
-		return tfliteCount + ncnnCount + onnxCount
+		return OnnxOfficialModelCatalog.models.count { onnxModelManager.isModelDownloaded(it.id) }
 	}
 
 	private fun getTotalModelCount(): Int {
-		return TfliteOfficialModelCatalog.models.size +
-			NcnnOfficialModelCatalog.models.size +
-			OnnxOfficialModelCatalog.models.size
+		return OnnxOfficialModelCatalog.models.size
 	}
 
 	private fun getDownloadedOcrModelCount(): Int {
-		return TfliteOfficialModelCatalog.models.count { tfliteModelManager.isModelDownloaded(it.version) } +
-			NcnnOfficialModelCatalog.models.count { ncnnModelManager.isModelDownloaded(it.version) }
+		return OnnxOfficialModelCatalog.models.count { it.category == OnnxModelCategory.OCR && onnxModelManager.isModelDownloaded(it.id) }
 	}
 
 	private fun getTotalOcrModelCount(): Int {
-		return TfliteOfficialModelCatalog.models.size + NcnnOfficialModelCatalog.models.size
+		return OnnxOfficialModelCatalog.models.count { it.category == OnnxModelCategory.OCR }
 	}
 
 	private fun getDownloadedTranslationModelCount(): Int {

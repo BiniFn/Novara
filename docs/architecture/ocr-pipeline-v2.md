@@ -1,147 +1,301 @@
-# Kototoro OCR Pipeline V2 Design
+# OCR Pipeline
 
-## 1. 背景
+## Goal
 
-当前阅读器翻译链路已经具备以下能力：
+This document defines the OCR pipeline Kototoro should move toward.
 
-- 整页 OCR（NCNN / HYBRID / TFLite / MLKit）
-- OCR fallback
-- OCR block grouping
-- 第一版 `CV Bubble Detector` 辅助 grouping
-- 单页诊断埋点与章节级 benchmark 汇总
-
-当前主流程仍然是典型的 **Full-page OCR pipeline**：
+The target is to align with the manga-oriented design used by projects such as `manga-translator-ui`:
 
 ```text
 page image
-  -> OCR(det + rec)
-  -> text blocks
-  -> bubble grouping
+  -> text detection
+  -> text-region recognition
+  -> line / block merge
+  -> optional bubble assignment
   -> translation
   -> render
 ```
 
-该流程已经能工作，但存在两个结构性问题：
+The current implementation review is documented in [OCR Architecture Review](./ocr-architecture-review.md).
 
-1. **文本归属依赖后处理猜测**
-   - OCR 返回的是整页 text blocks。
-   - `groupFragmentsByBubble(...)` / `groupFragmentsForTranslation(...)` 需要再去推断哪些 block 属于同一气泡。
-   - 这一步天然容易把相邻 bubble、旁白框、SFX 误并或漏并。
+## Why This Architecture
 
-2. **OCR 识别区域过大**
-   - 漫画页里大量像素区域并非对白。
-   - 整页 det + rec 会扫描大量无关区域，造成无效 latency 与误识别噪声。
+For manga OCR, text geometry is more reliable than bubble geometry.
 
-因此，下一阶段的核心目标不是继续增强 grouping，而是逐步过渡到 **ROI-aware OCR pipeline**。
+Text-first OCR has several advantages:
 
-## 2. v1 当前架构
+- it detects actual text regions instead of guessed bubble regions
+- it supports narration boxes and SFX without special routing
+- it separates detection quality from recognition quality
+- it allows recognizers to specialize in recognition instead of page structure
+- it makes merge a text-structure problem instead of a bubble-guessing problem
 
-### 2.1 当前数据流
+This is the main architectural change Kototoro needs.
+
+## Alignment With manga-translator-ui
+
+This plan is aligned with the **core OCR architecture** of `manga-translator-ui`, but not yet identical in every detail.
+
+The local implementation of `manga-translator-ui` on this machine confirms the following main order:
 
 ```text
-page image
-  -> recognizeTextWithFallback(...)
-  -> drawableBlocks
-  -> sourceFragments
-  -> groupFragmentsForTranslation(...)
-       -> CvBubbleDetector.detect(bitmap, fragmentRects)
-       -> fallback groupFragmentsByBubble(...)
-  -> bubbleInputs
-  -> translateBlocksCached(...)
-  -> render
+dispatch_detection(...)
+  -> dispatch_ocr(...)
+  -> dispatch_textline_merge(...)
 ```
 
-### 2.2 当前实现特点
+Relevant local sources:
 
-- `CvBubbleDetector` 只是 **辅助分组**，不是 OCR 主入口。
-- `readerTranslationDetModelId` 当前只用于 **NCNN OCR det 模型选择**，不控制 bubble detector。
-- `NcnnReaderOcrEngine.detectBoxes(...)` 已存在，但当前主流程没有消费它。
-- 当前 `bubble.detector.coverage_rate` 仍偏低，不能支撑纯 ROI OCR。
+- [manga_translator.py](/Users/sunchuxiong/kotatsu_demo/manga-translator-ui/manga_translator/manga_translator.py)
+- [detection/common.py](/Users/sunchuxiong/kotatsu_demo/manga-translator-ui/manga_translator/detection/common.py)
+- [ocr/common.py](/Users/sunchuxiong/kotatsu_demo/manga-translator-ui/manga_translator/ocr/common.py)
 
-### 2.3 当前阶段结论
+That means the strongest architectural invariants are:
 
-当前版本适合作为 **过渡态**：
+- detection is text-first, not bubble-first
+- OCR consumes detector regions
+- merge happens after recognition
+- bubble-related logic is auxiliary, not the OCR gate
 
-- 保留整页 OCR 的稳定性。
-- 用 `CvBubbleDetector` 收集 recall / coverage /误检数据。
-- 为 ROI OCR 铺设接口和 fallback 机制。
-
-## 3. v2 目标架构
-
-### 3.1 目标流程
+So the strict alignment target for Kototoro should be interpreted as:
 
 ```text
 page image
-  -> bubble detect
-  -> bubble bbox list
-  -> ROI OCR
-  -> coverage check
-  -> if coverage low:
-       fallback page OCR
-  -> merge
+  -> text detection
+  -> text-region recognition
+  -> textline / block merge
   -> translation
   -> render
 ```
 
-### 3.2 设计原则
+If a bubble detector remains in Kototoro, it must be demoted to one of these roles only:
 
-- **兼容优先**：不删除现有整页 OCR 路径。
-- **渐进迁移**：先支持 ROI OCR，再决定默认策略。
-- **ROI 优先，整页兜底**：避免因 detector recall 不足导致漏字。
-- **统一接口**：整页 OCR 与 ROI OCR 走同一套 request / cache / metrics 语义。
-- **可灰度**：支持按开关、阈值、样本集逐步验证。
+- render anchor refinement
+- optional grouping hint
+- optional filtering hint
 
-## 4. 为什么不能直接切纯 ROI Pipeline
+It must not define the OCR search space.
 
-当前 `CvBubbleDetector` 的真实埋点已经说明：
+## What Is Still Not Fully Aligned Yet
 
-- `bubble.detector.coverage_rate` 在不少页面接近 `0.0`
-- `matched_fragments` / `used_groups` 仍然偏低
+Compared with `manga-translator-ui`, the current target design in Kototoro still preserves one extra concept:
 
-这意味着：
+- `optional bubble assignment`
 
-```text
-bubble detect
-  -> ROI OCR
-```
+That is acceptable only as a downstream rendering helper.
 
-在当前阶段会直接退化成：
+If the goal is to align **as closely as possible** with `manga-translator-ui`, then Kototoro should adopt the stricter rule:
 
 ```text
-很多页面没有任何文本输入
+OCR core path = detection -> recognition -> merge
+bubble logic = non-authoritative post-OCR helper
 ```
 
-因此 v2 的正确方向不是：
+This document follows that stricter interpretation from this point onward.
+
+## Current Branch Status
+
+The branch has already completed these architectural moves:
+
+- the active OCR coordinator is page-text-first only
+- `ROI_FIRST_FALLBACK` is no longer part of the active OCR coordination path
+- local OCR runtime has been reduced to `MLKIT` and `PADDLE`
+- `PADDLE` is now a real ONNX `det + rec` implementation
+- merge now sits between OCR and bubble-related downstream logic
+- bubble logic no longer defines the OCR search space
+
+The current highest-priority blocker is no longer high-level architecture. It is detector quality.
+
+Observed runtime behavior on device now shows:
+
+- `PADDLE` can run end-to-end
+- `PADDLE` misses many dialogue regions
+- detected regions are often too small
+- recognized text is frequently truncated because the detector boxes are too tight
+- switching to `MLKIT` yields much better dialogue-region coverage
+
+So the next phase of work should focus on detector quality and detector / recognizer pairing, not on reopening the old ROI-first path.
+
+## Target Pipeline
+
+## Stage 1. Page-level text detection
+
+Input:
+
+- full page bitmap
+
+Output:
+
+- `List<TextRegion>`
+
+Minimum region fields:
+
+- bounding box or quadrilateral
+- confidence
+- optional orientation hint
+- optional detector class
+
+Notes:
+
+- this stage is authoritative for OCR geometry
+- detector output must use page coordinates
+- detector should not depend on bubble brightness heuristics
+
+## Stage 2. Region recognition
+
+Input:
+
+- page bitmap
+- detector regions
+
+Output:
+
+- `List<OcrTextBlock>`
+
+Rules:
+
+- each detector region is cropped and normalized
+- recognition backends only recognize text for that region
+- recognition does not decide the page search space
+
+Recognition engines may differ, but they must all consume the same region list.
+
+## Stage 3. Text merge
+
+Input:
+
+- recognized text blocks
+
+Output:
+
+- logical text groups for translation
+
+Responsibilities:
+
+- merge fragments that belong to the same speech unit
+- preserve vertical Japanese ordering when needed
+- keep narration and non-bubble text representable
+- deduplicate overlapping or repeated fragments
+
+This is where manga structure should be rebuilt.
+
+## Stage 4. Optional post-OCR bubble hinting
+
+Input:
+
+- merged text groups
+- optional bubble detector output
+
+Output:
+
+- text groups with optional improved render anchors
+
+Important:
+
+- bubble hinting is not OCR gating
+- bubble detection is only used to improve render placement and, when safe, merge confidence
+- if bubble detection fails, OCR should still succeed
+
+## Stage 5. Translation
+
+Input:
+
+- merged source text groups
+
+Output:
+
+- translated groups
+
+The translation stage should operate on stable merged text units produced by the page-text-first OCR path.
+
+## Stage 6. Render
+
+Input:
+
+- translated groups
+- target render rects
+
+Output:
+
+- translated page overlay or translated page bitmap
+
+Render should consume the final merged and translated groups. It should not decide OCR behavior.
+
+## Processes To Remove Or Demote
+
+The following behaviors should not remain in the OCR critical path.
+
+## 1. Bubble-first OCR
+
+Current shape:
 
 ```text
-ROI OCR only
+bubble detector -> bubble ROI OCR
 ```
 
-而是：
+Target:
 
 ```text
-ROI OCR + fallback page OCR
+text detector -> region OCR
 ```
 
-## 5. OCR 接口抽象
+Bubble detector becomes optional downstream metadata, not the OCR entrance.
 
-### 5.1 当前接口问题
+## 2. Brightness-based speech-bubble gating
 
-当前 `ReaderOcrService` 是：
+The current `isLikelySpeechBubbleRegion(...)` style luminance gate is too brittle for manga and comics.
+
+Target:
+
+- do not block OCR because a region is not bright enough
+- if heuristics remain, keep them as ranking hints only
+
+## 3. ROI re-running full OCR
+
+Current ROI behavior in NCNN re-runs detect + rec on each cropped image.
+
+Target:
+
+- page detector runs once
+- ROI recognition only performs recognition and crop normalization
+- no temporary PNG files in the critical path
+
+## 4. Hidden engine aliasing
+
+The runtime must stop silently mapping multiple OCR engine choices back to `HYBRID`.
+
+Target:
+
+- UI engine selection must match actual runtime behavior
+- `PADDLE`, `NCNN`, `TFLITE`, `HYBRID`, and future engines must be explicit
+
+## 5. Destructive early text rewriting
+
+Whitespace stripping, forced full-width conversion, and punctuation rewriting should not run as mandatory OCR output normalization.
+
+Target:
+
+- keep OCR output close to raw recognition
+- move heavy normalization into optional language-specific postprocessing
+
+## Minimal Target Interfaces
+
+## Text detector
 
 ```kotlin
-interface ReaderOcrService {
-    suspend fun recognize(sourceUri: Uri, sourceLang: String, pageId: Long? = null): List<OcrTextBlock>
+data class TextRegion(
+    val rect: Rect,
+    val confidence: Float,
+    val angle: Float? = null,
+    val classId: Int? = null,
+)
+
+interface ReaderTextDetector {
+    suspend fun detect(sourceUri: Uri, pageId: Long? = null): List<TextRegion>
 }
 ```
 
-问题：
-
-- 无法统一描述 ROI 请求。
-- 无法自然表达 request type / debug tag / area ratio。
-- page OCR 与 ROI OCR 后续会出现两套 cache / metrics 语义。
-
-### 5.2 建议接口
+## OCR recognizer
 
 ```kotlin
 data class OcrRequest(
@@ -153,361 +307,324 @@ data class OcrRequest(
     val debugTag: String? = null,
 )
 
-enum class OcrRequestType {
-    PAGE,
-    ROI,
-    FALLBACK,
-}
-
 interface ReaderOcrService {
     suspend fun recognize(request: OcrRequest): List<OcrTextBlock>
 }
 ```
 
-### 5.3 为什么用 `OcrRequest`
+The recognizer remains region-aware, but the region list must come from the detector stage rather than from bubble detection.
 
-- **统一缓存 key**
-- **统一 debug log**
-- **统一埋点模型**
-- **便于未来扩展 batch ROI OCR**
-
-## 6. ROI OCR 流程
-
-### 6.1 最小实现
-
-1. `CvBubbleDetector.detect(bitmap, fragmentRects)` 或未来 detector 返回 `List<Rect>`
-2. 对每个 `Rect` 生成 ROI 请求
-3. OCR engine 内部执行 crop
-4. 对 ROI 结果排序、合并、归一化
-5. 若 coverage 低于阈值，则触发整页 OCR fallback
-
-### 6.2 OCR engine 内部建议
-
-建议不要在 `ReaderPageTranslationProcessor` 手动 crop，再把临时 bitmap 传满链路。
-
-更稳的方式是：
-
-- Processor 构造 `OcrRequest(roi=...)`
-- OCR engine 自己决定如何 crop / decode / preprocess
-
-优点：
-
-- cache key 更统一
-- 日志更统一
-- 后续更容易做引擎级优化
-
-### 6.3 ROI 结果的最小语义
-
-ROI OCR 输出仍可沿用 `List<OcrTextBlock>`，但要求：
-
-- bbox 坐标使用 **页坐标系**，不要保留裁剪局部坐标
-- 保持与整页 OCR 输出结构一致
-- 允许后续 merge / dedup 复用同一工具函数
-
-## 7. Fallback 策略
-
-### 7.1 基本策略
-
-```text
-roiResults = runRoiOcr()
-
-if coverage(roiResults) < threshold:
-    pageResults = runPageOcr()
-    finalResults = merge(roiResults, pageResults)
-else:
-    finalResults = roiResults
-```
-
-### 7.2 为什么 fallback 必须存在
-
-- bubble detector recall 目前不稳定
-- 对话框外文本依然存在
-- 旁白框、SFX、标题字不一定落在 bubble detector 范畴内
-
-### 7.3 merge 规则
-
-建议优先级：
-
-```text
-ROI result > Page result
-```
-
-理由：
-
-- ROI 天然分组更准确
-- Page OCR 主要负责补漏
-
-### 7.4 去重建议
-
-最小去重规则：
-
-- 若 page block 与 ROI block 有明显 bbox overlap，保留 ROI
-- 若文本完全相同且中心点距离很近，保留 ROI
-- 若 page block 落在已命中的 bubble rect 内，优先视为重复
-
-## 8. Coverage 设计
-
-### 8.1 不建议的算法
-
-不要用：
-
-- `roiResultCount > 0`
-- `matchedBubbleCount / detectedBubbleCount`
-
-这些指标容易造成假高 coverage。
-
-### 8.2 建议的 coverage 语义
-
-建议至少落两种指标：
-
-1. **bubble coverage**
-
-```text
-recognizedBubbleCount / detectedBubbleCount
-```
-
-2. **area coverage**
-
-```text
-recognizedTextArea / detectedBubbleArea
-```
-
-在 Phase 2 MVP 中，先实现更简单但可用的版本：
-
-```text
-roiRecognizedArea / detectorBubbleArea
-```
-
-并辅以：
-
-```text
-roiRecognizedCharCount
-```
-
-作为调试辅助指标。
-
-### 8.3 fallback 判定建议
-
-可先使用双阈值：
-
-```text
-if bubbleCoverage < 0.5 || areaCoverage < 0.12:
-    fallback page OCR
-```
-
-阈值不应写死为最终值，应通过真机样本调优。
-
-## 9. Cache 设计
-
-### 9.1 当前风险
-
-当前缓存更偏向整页维度：
-
-- OCR cache
-- render cache
-- text cache
-
-如果直接引入 ROI OCR 而不扩展 key，会出现：
-
-- page OCR 与 ROI OCR 命中冲突
-- bbox 调整后缓存失效不正确
-
-### 9.2 建议 cache key
-
-建议统一成：
-
-```text
-ocr_cache_key =
-    pipeline_version
-  + source_uri
-  + source_lang
-  + request_type
-  + roi_hash
-  + engine_signature
-```
-
-其中：
-
-- `roi_hash`
-  - `PAGE` 请求时为空
-  - `ROI` / `FALLBACK` 时由 `Rect(left,top,right,bottom)` 生成
-- `engine_signature`
-  - 包含 OCR engine、det model、rec model、fallback threshold 等
-
-### 9.3 Phase 2 的最低要求
-
-Phase 2 不要求立即把所有缓存拆到最优，但必须保证：
-
-- ROI OCR 与 page OCR key 不冲突
-- pipeline version 升级后可整体失效
-
-## 10. Metrics & Debug Logging
-
-### 10.1 新增埋点建议
-
-在现有 `metric.ocr.*`、`metric.translation.*` 基础上新增：
-
-```text
-metric.ocr.request.page=1
-metric.ocr.request.roi_count=8
-metric.ocr.roi.total_ms=420
-metric.ocr.roi.coverage.bubbles=0.62
-metric.ocr.roi.coverage.area=0.18
-metric.ocr.roi.char_count=57
-metric.ocr.roi.fallback=1
-metric.ocr.roi.fallback_reason=LOW_COVERAGE
-metric.ocr.merge.roi_blocks=14
-metric.ocr.merge.page_blocks=22
-metric.ocr.merge.deduped_blocks=9
-```
-
-### 10.2 debugTag 的作用
-
-`OcrRequest.debugTag` 建议用于把日志直接对齐到业务语义：
-
-```text
-OCR[ROI bubble#3]
-OCR[FALLBACK page]
-```
-
-对真机调试比只看引擎耗时更有帮助。
-
-## 11. ReaderPageTranslationProcessor 改造建议
-
-### 11.1 当前职责
-
-当前 `ReaderPageTranslationProcessor` 已经很大，继续把 ROI / merge / fallback 逻辑直接塞进去会进一步失控。
-
-### 11.2 建议拆分
-
-新增一个中间协调层，例如：
+## Bubble hint provider
 
 ```kotlin
-class ReaderOcrPipelineCoordinator {
-    suspend fun recognizeForTranslation(
-        sourceUri: Uri,
-        sourceLang: String,
+interface ReaderBubbleHintProvider {
+    suspend fun provideHints(
         bitmap: Bitmap,
-        pageId: Long,
-    ): OcrPipelineResult
+        groups: List<GroupedBubbleSource>,
+    ): List<GroupedBubbleSource>
 }
 ```
 
-返回：
+This stage is optional and non-authoritative.
 
-```kotlin
-data class OcrPipelineResult(
-    val textBlocks: List<OcrTextBlock>,
-    val usedMode: OcrPipelineMode,
-    val roiMetrics: RoiMetrics?,
-)
-```
+## Migration Plan
 
-这样 `ReaderPageTranslationProcessor` 只消费最终 blocks，而不承担全部细节。
+## Phase 1. Stop making bubble detection authoritative
 
-### 11.3 Phase 2 不强制拆类
+Changes:
 
-若当前迭代目标是快速验证，也可以先在 processor 内部加私有 helper，但建议：
+- keep current detector and recognizers
+- introduce a dedicated text-detector abstraction
+- route page OCR through page-level text detection first
+- keep bubble detector only for optional post-OCR hinting and render assist
 
-- 新逻辑至少抽成独立函数
-- 避免再把 `processImpl(...)` 继续拉长
+Expected result:
 
-## 12. 并发模型
+- immediate reduction in ROI-related missed text
+- cleaner debug metrics
 
-### 12.1 风险点
+## Phase 1 Implementation Checklist
 
-ROI OCR 引入后，最容易失控的是：
+The first implementation phase should be intentionally narrow and should not attempt a full rewrite.
 
-- 每页多个 bubble 并发 OCR
-- 多页翻译并发
-- 引擎本身是否线程安全
+### 1. Make runtime engine selection honest
 
-当前已有：
+Files:
 
-- 按页并发：`MAX_PARALLEL_TRANSLATION_PAGES = 2`
+- [AppSettings.kt](../../app/src/main/kotlin/org/skepsun/kototoro/core/prefs/AppSettings.kt)
+- [TranslationSettingsFragment.kt](../../app/src/main/kotlin/org/skepsun/kototoro/settings/TranslationSettingsFragment.kt)
 
-新增 ROI 后建议：
+Changes:
 
-- 页级并发继续保守
-- ROI 级并发先串行或小并发
-- 不要同时放开页并发和 ROI 并发
+- stop mapping `PADDLE`, `TFLITE`, and `NCNN` to `HYBRID`
+- show the actual active engine in settings and debug metrics
+- if an engine is not implemented, hide it or mark it unavailable instead of silently aliasing it
 
-### 12.2 建议起步策略
+Settings design rules:
 
-```text
-page parallelism = 2
-roi parallelism per page = 1
-```
+- OCR engine options must describe the real runtime path, not an internal codename
+- model-selection preferences must only appear for engines that actually use them
+- bubble-detector preferences must be placed under post-OCR grouping / render assistance, not under OCR entrance semantics
+- summary text must explain that the primary OCR path is page-first
+- ROI catch-all experiments should not remain in runtime settings once page-first is the only supported primary path
 
-待真机稳定后再考虑：
+### 2. Remove `ROI_FIRST_FALLBACK` as the default OCR strategy
 
-```text
-roi parallelism per page = 2~3
-```
+Files:
 
-## 13. Rollout Plan
+- [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
+- [ReaderOcrPipelineCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderOcrPipelineCoordinator.kt)
 
-### Phase 2-A: 接口准备
+Changes:
 
-- 引入 `OcrRequest`
-- OCR engine 兼容 `roi != null`
-- cache key 支持 request type / roi hash
-- 不改默认 pipeline
+- stop hardcoding `ROI_FIRST_FALLBACK` in the main page-processing path
+- introduce a text-first default path:
+  - page OCR or page text detection first
+  - merge second
+  - optional bubble hints later
+Current incremental status:
 
-### Phase 2-B: MVP 接线
+- `PAGE_FIRST` is already the default OCR strategy
+- ROI catch-all has been removed from runtime settings and coordinator wiring
+- `ReaderOcrPipelineCoordinator` now exposes only the page-text-first execution path
+- any remaining ROI-first code is now inactive legacy code rather than a live coordinator branch
+- the practical quality bottleneck has shifted to `PADDLE` detector quality rather than pipeline routing
 
-- `CvBubbleDetector` 产出 ROI candidate
-- 跑 ROI OCR
-- 计算 coverage
-- coverage 低时触发 page OCR fallback
-- 加 merge / dedup
+### 3. Introduce a dedicated text-detector abstraction
 
-### Phase 2-C: 数据验证
+Files:
 
-- 真机样本看 `roi coverage`
-- 看 fallback rate
-- 看 merge 后识别质量
-- 调 detector 阈值与 coverage 阈值
+- new file under `reader/translate/domain`, for example `ReaderTextDetector.kt`
+- [PaddleReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/PaddleReaderOcrEngine.kt)
+- [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
 
-### Phase 2-D: 策略灰度
+Changes:
 
-- 开关形式支持：
-  - `Page OCR only`
-  - `ROI + fallback`
-- 不建议在数据不足时默认切纯 ROI
+- add `ReaderTextDetector.detect(...)`
+- let Paddle ONNX expose page-level text boxes through that abstraction
+- make page-level detector output the authoritative OCR region list
 
-## 14. 不建议现在做的事
+Current incremental status:
 
-- 不建议把 bubble detector 塞进 `det model` 选择项
-  - 当前二者不是同一语义
-  - `det model` 是 OCR 检测模型，不是 bubble detector 策略
+- the old NCNN/TFLite branches have been removed
+- Paddle ONNX is now the only model-backed local OCR path
+- page OCR already runs in a text-first path and no longer depends on bubble ROI admission
+- `ReaderTextDetector` and `ReaderTextRecognizer` now exist as formal pipeline contracts
+- `ReaderPageTranslationProcessor` now orchestrates the `PADDLE` page path through `ReaderTextDetector -> ReaderTextRecognizer`
+- the next remaining step is to extend that first-class orchestration boundary so it becomes the OCR-core default shape rather than a `PADDLE`-specific branch
+- current on-device validation shows that the `PADDLE` detector itself is still underperforming compared with `MLKIT` region geometry
 
-- 不建议直接删除整页 OCR 路径
-  - 当前 detector coverage 明显不足
+### 4. Split Paddle page detection from region recognition
 
-- 不建议立即上更重模型
-  - 在 `CV Bubble Detector + ROI fallback` 还没跑出数据前，YOLO/ONNX detector 的收益无法判断
+Files:
 
-## 15. 最终结论
+- [PaddleReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/PaddleReaderOcrEngine.kt)
 
-Kototoro 的 OCR v2 正确方向是：
+Changes:
 
-```text
-Bubble detect
-  -> ROI OCR
-  -> coverage check
-  -> fallback page OCR
-  -> merge
-  -> translation
-```
+- separate page detection and crop recognition into distinct components
+- keep one page-level detection pass
+- feed detector regions into the recognizer
+- preserve page coordinates after recognition
 
-这不是对现有 pipeline 的推翻，而是一次 **兼容式架构升级**。
+Current incremental status:
 
-当前最合理的推进方式：
+- `PaddleReaderOcrEngine` now has explicit internal detector and recognizer components
+- the outer engine now also exposes formal `detect(...)` and region-level `recognize(...)` entry points
+- the reader pipeline now consumes those interfaces directly for page-level `PADDLE` OCR
+- the remaining work is to simplify away the remaining legacy OCR-service-only paths
 
-1. 先引入 `OcrRequest`
-2. 支持 ROI OCR
-3. 保留 page OCR fallback
-4. 通过 coverage / fallback / merge metrics 做真机验证
+### 5. Move grouping after recognition
 
-在 `CvBubbleDetector` recall 未经验证前，不应切纯 ROI pipeline。
+Files:
+
+- [ReaderBubbleGroupingCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderBubbleGroupingCoordinator.kt)
+- [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
+
+Changes:
+
+- feed grouping with recognized text fragments, not bubble-gated ROI results
+- make grouping the place where fragmented lines become translation units
+- allow grouping to operate even when bubble hints are absent
+
+Current incremental status:
+
+- a dedicated [ReaderTextMergeCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderTextMergeCoordinator.kt) now sits between page OCR and bubble grouping
+- the page-first path is now:
+  - page OCR blocks
+  - text merge
+  - bubble grouping
+- this is the first concrete step toward the `manga-translator-ui` style `det -> rec -> merge` structure
+- unmatched merged text fragments now stay as independent translation units instead of being regrouped heuristically a second time
+- bubble grouping is being reduced toward a post-merge bubble-assignment helper rather than a second text-structure reconstruction layer
+- detector-side subdivision of merged text groups has been removed; bubble assignment now preserves merge output instead of rewriting it again
+- merge now receives `sourceLang` and uses explicit reading-order composition instead of fixed newline concatenation
+- merge now prunes disproportionate long-chain edges to reduce accidental over-merge across nearby but unrelated fragments
+- detector and OCR results now carry a lightweight direction hint, and merge uses that hint to distinguish horizontal and vertical chains
+- detector, OCR blocks, and merged fragments now also carry lightweight `angle` / `axis-aligned` hints, which merge uses as an additional guard before connecting fragments
+- text regions, OCR blocks, and merged fragments now support optional `quadPoints`; current implementations derive them from `Rect`, but the data path is ready for detector-provided quadrilaterals later
+- merge edge-distance pruning now consults `quadPoints` in addition to `Rect` gaps, so the geometry path is no longer strictly rectangle-only
+- the Paddle recognizer now crops from `TextRegion` geometry rather than a bare `Rect`, using axis-aligned quad-compatible cropping as the current compatibility step toward transformed-region recognition
+- the Paddle recognizer now also attempts a four-point `Matrix.setPolyToPoly` warp for non-axis-aligned quads before falling back to bounding-rect cropping
+- the remaining quality issue is now dominated by detector recall and detector box size, not by recognizer wiring
+
+### 5.1 Immediate quality work
+
+Given current device behavior, the next quality iteration should be prioritized as:
+
+1. improve or replace the active page-text detector geometry
+2. ensure recognizer crops are not overly tight
+3. compare `PADDLE det + PADDLE rec` against mixed detector / recognizer combinations before changing the architecture again
+
+At this point, detector quality is a more urgent problem than further coordinator refactoring.
+
+### 6. Demote bubble detection to a non-authoritative helper
+
+Files:
+
+- [OnnxBubbleDetectorEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/OnnxBubbleDetectorEngine.kt)
+- [ReaderBubbleRoiOcrCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderBubbleRoiOcrCoordinator.kt)
+- [ReaderBubbleGroupingCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderBubbleGroupingCoordinator.kt)
+
+Changes:
+
+- remove bubble detector from the OCR front door
+- keep it as:
+  - optional grouping hint
+  - optional render anchor hint
+- remove bright-region gating from the OCR admission path
+
+Current incremental status:
+
+- bubble detection no longer defines OCR entry or OCR search space
+- the active OCR coordinator always starts from page-level text detection and region recognition
+- bubble-related logic now runs after merge as grouping / render assistance
+
+### 7. Reduce destructive OCR postprocessing
+
+Files:
+
+- [TextPostprocessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/TextPostprocessor.kt)
+
+Changes:
+
+- keep only minimal cleanup in the default path
+- avoid unconditional whitespace stripping and forced full-width conversion
+- move aggressive normalization behind explicit language-specific handling
+
+Current incremental status:
+
+- the old destructive `TextPostprocessor.kt` has already been removed from the active codebase
+
+## Phase 2. Promote `det -> rec -> merge` to first-class pipeline objects
+
+Changes:
+
+- introduce shared `ReaderTextDetector` and `ReaderTextRecognizer` interfaces
+- move Paddle ONNX detector/recognizer out of the monolithic engine wrapper
+- let the page processor coordinate explicit `det -> rec -> merge`
+- keep coordinates in page space
+
+Expected result:
+
+- lower latency
+- better geometry consistency
+- easier engine comparison
+
+## Phase 3. Keep bubble handling strictly post-OCR
+
+Changes:
+
+- keep bubble detection as optional grouping/render metadata only
+- prevent bubble hints from changing OCR search space
+- continue reducing ROI-first legacy code until it is isolated as an experiment or removed
+
+Expected result:
+
+- predictable tuning
+- reliable benchmarks
+
+## Phase 4. Rebuild merge around text structure
+
+Changes:
+
+- make merge operate on recognized text fragments
+- support vertical text order explicitly
+- deduplicate overlapping blocks
+- treat narration and SFX as first-class text groups
+
+Expected result:
+
+- behavior closer to `manga-translator-ui`
+- less incorrect merging based on bubble guesses
+
+## Phase 5. Restrict bubble detection to rendering concerns
+
+Changes:
+
+- bubble detector only refines render anchor and, when safe, post-OCR group boundary hints
+- OCR still succeeds when bubble detector misses everything
+
+Expected result:
+
+- stable OCR independent of bubble-detector recall
+
+## Concrete Refactor Targets In Current Code
+
+## High priority
+
+- [AppSettings.kt](../../app/src/main/kotlin/org/skepsun/kototoro/core/prefs/AppSettings.kt)
+  Remove OCR engine aliasing that rewrites explicit engine choices into `HYBRID`.
+
+- [PaddleReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/PaddleReaderOcrEngine.kt)
+  Replace delegation placeholder with either a real implementation or remove the engine option until it exists.
+
+- [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
+  Stop hardcoding `ROI_FIRST_FALLBACK` as the authoritative OCR path.
+
+- [ReaderOcrPipelineCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderOcrPipelineCoordinator.kt)
+  Rework orchestration so text detection is the first-class front-end, not bubble detection.
+
+- [NcnnReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/NcnnReaderOcrEngine.kt)
+  Split page detection from region recognition. Remove temp-file ROI re-detect path.
+
+## Medium priority
+
+- [ReaderBubbleRoiOcrCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderBubbleRoiOcrCoordinator.kt)
+  Rename or redesign around region OCR requests instead of bubble OCR requests.
+
+- [ReaderBubbleGroupingCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderBubbleGroupingCoordinator.kt)
+  Move it later in the pipeline so it groups recognized text rather than deciding OCR scope.
+
+- [TextPostprocessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/TextPostprocessor.kt)
+  Reduce default normalization to minimal cleanup.
+
+## Benchmark Criteria
+
+The refactor should be judged by these metrics:
+
+- detector recall on representative manga pages
+- OCR text coverage per page
+- merged bubble count stability
+- translated bubble count
+- p50 and p95 OCR latency
+- fallback rate by engine
+- render success rate
+
+Quality should be measured on real manga samples, not only synthetic pages.
+
+## Success Criteria
+
+The OCR redesign is successful when:
+
+- OCR quality no longer depends on bubble brightness heuristics
+- missing bubble boxes do not cause missing OCR
+- recognition engines can be compared fairly under the same detected regions
+- merge quality improves on vertical Japanese dialogue and narration
+- the runtime behavior matches the engine and model settings shown in UI
+
+## Related Documents
+
+- [OCR Architecture Review](./ocr-architecture-review.md)
+- [Automatic Translation](../automatic-translation.md)
+- [OCR Roadmap Review (2026-03)](../archive/ocr-roadmap-review-2026-03.md)
