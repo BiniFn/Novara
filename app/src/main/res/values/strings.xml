@@ -1911,6 +1911,8 @@
     <string name="reader_translation_bubble_grouping_enabled_no_detector">Use heuristic text grouping</string>
     <string name="reader_translation_bubble_grouping_enabled_summary">After bubble detection, merge unmatched OCR text blocks heuristically. Disable this to translate unmatched blocks individually.</string>
     <string name="reader_translation_bubble_grouping_enabled_summary_no_detector">Without bubble detection, merge nearby OCR text blocks heuristically before translation. Disable this to translate blocks individually.</string>
+    <string name="reader_translation_bubble_catch_all_enabled">Catch-all background text</string>
+    <string name="reader_translation_bubble_catch_all_enabled_summary">When detector is enabled, also scan the remaining background out of bubbles for floating text and SFX to translate. May cause garbage translation noise and uses more battery.</string>
     <string name="reader_translation_overlay_compactness">Non-bubble overlay compactness</string>
     <string name="reader_translation_overlay_compactness_summary">Controls how tightly translated overlays fit text outside speech bubbles</string>
     <string name="reader_translation_hybrid_fallback_threshold">Hybrid fallback threshold</string>

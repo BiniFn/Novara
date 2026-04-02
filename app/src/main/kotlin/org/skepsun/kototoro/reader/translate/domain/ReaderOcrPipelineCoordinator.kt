@@ -9,6 +9,7 @@ internal class ReaderOcrPipelineCoordinator(
 	private val detectBubbleRects: suspend (Bitmap) -> OnnxBubbleDetectorEngine.DetectionAttempt,
 	private val groupFragmentsForTranslation: suspend (List<TextFragment>, Bitmap) -> BubbleGroupingResult,
 	private val recognizeBubbleTextsByRoi: suspend (List<GroupedBubbleSource>, Uri, String, Long, Bitmap) -> BubbleRoiOcrResult,
+	private val heuristicGroupFragments: (List<TextFragment>, Bitmap) -> List<List<TextFragment>>,
 ) {
 
 	suspend fun execute(
@@ -17,6 +18,7 @@ internal class ReaderOcrPipelineCoordinator(
 		pageId: Long,
 		bitmap: Bitmap,
 		strategy: OcrPipelineStrategy = OcrPipelineStrategy.PAGE_FIRST,
+		catchAllEnabled: Boolean = false,
 	): OcrPipelineResult {
 		return when (strategy) {
 			OcrPipelineStrategy.PAGE_FIRST -> executePageFirst(
@@ -30,6 +32,7 @@ internal class ReaderOcrPipelineCoordinator(
 				sourceLang = sourceLang,
 				pageId = pageId,
 				bitmap = bitmap,
+				catchAllEnabled = catchAllEnabled,
 			)
 		}
 	}
@@ -83,6 +86,7 @@ internal class ReaderOcrPipelineCoordinator(
 		sourceLang: String,
 		pageId: Long,
 		bitmap: Bitmap,
+		catchAllEnabled: Boolean,
 	): OcrPipelineResult {
 		val detectionAttempt = detectBubbleRects(bitmap)
 		val detectedRects = detectionAttempt.result?.boxes.orEmpty()
@@ -106,10 +110,50 @@ internal class ReaderOcrPipelineCoordinator(
 				roiFirstDetectedBoxCount = detectedRects.size,
 			)
 		}
+
+		var workingGroupingResult = groupingResult
+		var workingPageTextBlocks = emptyList<OcrTextBlock>()
+		var workingPageOcr: PageOcrLoadResult? = null
+
+		if (catchAllEnabled) {
+			val pageOcr = loadPageText(sourceUri, sourceLang, pageId)
+			workingPageOcr = pageOcr
+			workingPageTextBlocks = pageOcr.textBlocks
+
+			val drawableBlocks = pageOcr.textBlocks.filter { it.boundingBox != null && it.text.trim().isNotBlank() }
+			
+			val backgroundFragments = drawableBlocks.map { it to it.boundingBox!! }.filter { (block, blockRect) ->
+				detectedRects.none { detBox ->
+					val intersection = Rect(blockRect).apply { intersect(detBox.rect) }
+					val intersectionArea = intersection.width().coerceAtLeast(0) * intersection.height().coerceAtLeast(0)
+					val blockArea = blockRect.width() * blockRect.height()
+					intersectionArea.toFloat() / blockArea.coerceAtLeast(1).toFloat() > 0.3f
+				}
+			}.map {
+				TextFragment(rect = it.second, text = it.first.text.trim())
+			}
+
+			if (backgroundFragments.isNotEmpty()) {
+				val backgroundGroups = heuristicGroupFragments(backgroundFragments, bitmap)
+				val newGroups = backgroundGroups.map { group ->
+					GroupedBubbleSource(
+						fragments = group,
+						bubbleRect = null,
+					)
+				}
+				workingGroupingResult = workingGroupingResult.copy(
+					groups = workingGroupingResult.groups + newGroups,
+					fallbackFragmentCount = backgroundFragments.size,
+					fallbackGroupCount = newGroups.size,
+					fallbackMode = "heuristic_catch_all",
+				)
+			}
+		}
+
 		return OcrPipelineResult(
-			pageTextBlocks = emptyList(),
-			pageOcr = null,
-			groupingResult = groupingResult,
+			pageTextBlocks = workingPageTextBlocks,
+			pageOcr = workingPageOcr,
+			groupingResult = workingGroupingResult,
 			roiResult = roiResult,
 			strategy = OcrPipelineStrategy.ROI_FIRST_FALLBACK,
 			fallbackReason = "",

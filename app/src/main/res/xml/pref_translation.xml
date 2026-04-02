@@ -157,6 +157,13 @@
             android:title="@string/reader_translation_bubble_detector_enabled" />
 
         <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="reader_translation_bubble_detector_enabled"
+            android:key="reader_translation_bubble_catch_all_enabled"
+            android:summary="@string/reader_translation_bubble_catch_all_enabled_summary"
+            android:title="@string/reader_translation_bubble_catch_all_enabled" />
+
+        <SwitchPreferenceCompat
             android:defaultValue="true"
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_bubble_grouping_enabled"

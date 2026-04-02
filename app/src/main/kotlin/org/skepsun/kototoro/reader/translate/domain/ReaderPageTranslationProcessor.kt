@@ -162,6 +162,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			detectBubbleRects = onnxBubbleDetectorEngine::detectAttempt,
 			groupFragmentsForTranslation = ::groupFragmentsForTranslation,
 			recognizeBubbleTextsByRoi = ::recognizeBubbleTextsByRoi,
+			heuristicGroupFragments = ::groupFragmentsByBubble,
 		)
 	}
 
@@ -326,6 +327,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				pageId = pageId,
 				bitmap = bitmap,
 				strategy = OcrPipelineStrategy.ROI_FIRST_FALLBACK,
+				catchAllEnabled = settings.isReaderTranslationBubbleCatchAllEnabled,
 			)
 			ocrPipelineStrategy = ocrPipeline.strategy
 			ocrPipelineFallbackReason = ocrPipeline.fallbackReason

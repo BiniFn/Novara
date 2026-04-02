@@ -1867,6 +1867,8 @@
     <string name="reader_translation_bubble_grouping_enabled_summary_no_detector">在不使用气泡检测时，翻译前对邻近 OCR 文本块做启发式合并。关闭后，这些文本块将按单块翻译。</string>
     <string name="reader_translation_bubble_detector_enabled">使用气泡检测模型</string>
     <string name="reader_translation_bubble_detector_enabled_summary">当已下载可选检测模型时，优先用它定位气泡或文本区域，供 ROI OCR 和后续分组使用。</string>
+    <string name="reader_translation_bubble_catch_all_enabled">兼收背景文字</string>
+    <string name="reader_translation_bubble_catch_all_enabled_summary">当使用气泡检测模型寻找主线气泡时，额外在背景图中全屏扫描遗漏的浮空字或音效以翻译。注意：该选项更容易让背景条纹被错误识别为脏字，且会增加设备性能与电量消耗。</string>
     <string name="novel_reading_mode">阅读模式</string>
     <string name="novel_mode_paged">翻页</string>
     <string name="novel_mode_scroll">滚动</string>
