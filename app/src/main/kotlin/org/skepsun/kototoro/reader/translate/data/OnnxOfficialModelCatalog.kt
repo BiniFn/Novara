@@ -133,6 +133,20 @@ object OnnxOfficialModelCatalog {
 			description = "PaddleOCR PP-OCRv5 mobile text detector converted to ONNX Runtime.",
 		),
 		OnnxOfficialModel(
+			id = "comic_text_detector_onnx",
+			title = "ComicTextDetector (CTD, 1024)",
+			version = "beta-0.3",
+			category = OnnxModelCategory.OCR_DETECTOR,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "comictextdetector.pt.onnx",
+					downloadUrl = "https://github.com/zyddnys/manga-image-translator/releases/download/beta-0.3/comictextdetector.pt.onnx",
+					sha256 = "1a86ace74961413cbd650002e7bb4dcec4980ffa21b2f19b86933372071d718f",
+				),
+			),
+			description = "Comic text detector from manga-image-translator. YOLO+DBNet hybrid, optimized for manga/comics. Input: 1024×1024, letterbox with stride=64.",
+		),
+		OnnxOfficialModel(
 			id = "ppocrv5_mobile_rec_onnx",
 			title = "PP-OCRv5 Mobile Recognizer",
 			version = "hf-main",
@@ -165,6 +179,40 @@ object OnnxOfficialModelCatalog {
 				),
 			),
 			description = "PaddleOCR PP-OCRv5 server recognizer. Larger model optimized for Japanese and Chinese text.",
+		),
+		OnnxOfficialModel(
+			id = "en_ppocrv5_mobile_rec_onnx",
+			title = "PP-OCRv5 Mobile Recognizer (English)",
+			version = "hf-main",
+			category = OnnxModelCategory.OCR_RECOGNIZER,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "ppocrv5_rec_en.onnx",
+					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/en_PP-OCRv5_rec.onnx",
+				),
+				OnnxModelFile(
+					fileName = "en_dict.txt",
+					downloadUrl = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt",
+				),
+			),
+			description = "PaddleOCR PP-OCRv5 mobile recognizer optimized for English text.",
+		),
+		OnnxOfficialModel(
+			id = "korean_ppocrv3_mobile_rec_onnx",
+			title = "PP-OCRv3 Mobile Recognizer (Korean)",
+			version = "hf-main",
+			category = OnnxModelCategory.OCR_RECOGNIZER,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "ppocrv3_rec_ko.onnx",
+					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv3_mobile_onnx/resolve/main/korean_PP-OCRv3_rec.onnx",
+				),
+				OnnxModelFile(
+					fileName = "korean_dict.txt",
+					downloadUrl = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/korean_dict.txt",
+				),
+			),
+			description = "PaddleOCR PP-OCRv3 mobile recognizer optimized for Korean text.",
 		),
 		OnnxOfficialModel(
 			id = "mangaocr_2025_onnx",

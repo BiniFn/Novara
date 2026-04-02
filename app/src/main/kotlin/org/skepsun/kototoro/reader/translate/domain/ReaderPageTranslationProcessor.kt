@@ -509,6 +509,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		sourceLang: String,
 	): List<PageOcrRoute> {
 		val strategy = resolveOcrPipelineStrategy(sourceLang)
+		val detModelId = settings.readerTranslationPaddleDetModelId
+		val recModelId = settings.readerTranslationPaddleOfficialModelId
+		// DET model ID directly determines the detector backend
+		val detBackend = if (detModelId == "MLKIT") OcrDetectorBackend.MLKIT else OcrDetectorBackend.PADDLE
+		// REC model ID directly determines the recognizer backend
+		val recBackend = when (recModelId) {
+			"MLKIT" -> OcrRecognizerBackend.MLKIT
+			"mangaocr_2025_onnx" -> OcrRecognizerBackend.MANGA_OCR
+			else -> OcrRecognizerBackend.PADDLE // "AUTO" or specific PP-OCR model
+		}
 		val routes = linkedSetOf<PageOcrRoute>()
 		if (strategy != OcrPipelineStrategy.PAGE_TEXT_FIRST && sourceLang.startsWith("ja") && settings.isReaderTranslationBubbleDetectorEnabled) {
 			routes += PageOcrRoute(
@@ -516,29 +526,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				recognizer = OcrRecognizerBackend.MANGA_OCR,
 			)
 		}
-		if (strategy != OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST && sourceLang.startsWith("ja")) {
-			routes += when (primary) {
-				ReaderOcrEngine.MLKIT -> PageOcrRoute(
-					detector = OcrDetectorBackend.MLKIT,
-					recognizer = OcrRecognizerBackend.MANGA_OCR,
-				)
-				ReaderOcrEngine.PADDLE -> PageOcrRoute(
-					detector = OcrDetectorBackend.PADDLE,
-					recognizer = OcrRecognizerBackend.MANGA_OCR,
-				)
-			}
-		}
 		if (strategy != OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST) {
-			routes += when (primary) {
-				ReaderOcrEngine.MLKIT -> PageOcrRoute(
-					detector = OcrDetectorBackend.MLKIT,
-					recognizer = OcrRecognizerBackend.MLKIT,
-				)
-				ReaderOcrEngine.PADDLE -> PageOcrRoute(
-					detector = OcrDetectorBackend.PADDLE,
-					recognizer = OcrRecognizerBackend.PADDLE,
-				)
-			}
+			routes += PageOcrRoute(
+				detector = detBackend,
+				recognizer = recBackend,
+			)
 		}
 		return routes.toList()
 	}
@@ -663,6 +655,22 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				} finally {
 					bitmap.recycle()
 				}
+			}
+			route.detector == OcrDetectorBackend.MLKIT &&
+				route.recognizer == OcrRecognizerBackend.PADDLE -> {
+				// ML Kit detection → Paddle recognition
+				val detectedBlocks = recognizeTextByEngine(
+					engine = ReaderOcrEngine.MLKIT,
+					sourceUri = sourceUri,
+					sourceLang = sourceLang,
+					pageId = pageId,
+				)
+				val regions = detectedBlocksToRegions(detectedBlocks)
+				log { "metric.ocr.mlkit_det_paddle_rec.detected_regions=${regions.size}" }
+				if (regions.isEmpty()) return emptyList()
+				val recognized = paddleTextRecognizer.recognize(sourceUri, regions)
+				log { "metric.ocr.mlkit_det_paddle_rec.recognized_blocks=${recognized.size}" }
+				recognized
 			}
 			else -> emptyList()
 		}

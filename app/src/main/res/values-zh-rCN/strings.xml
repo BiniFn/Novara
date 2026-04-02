@@ -1486,6 +1486,11 @@
     <string name="reader_translation_settings_entry_summary">配置 OCR 引擎、本地翻译模型和 API 提供商预置</string>
     <string name="reader_translation_ocr_model_det_autodetect">自动检测</string>
     <string name="reader_translation_ocr_model_onnx_automatic">ONNX 自动选择</string>
+    <string name="reader_translation_ocr_det_model_selection">OCR 文字检测模型</string>
+    <string name="reader_translation_ocr_det_model_selection_summary">选择用于定位页面上文字区域的模型。"自动"默认使用 PP-OCRv5 检测器。</string>
+    <string name="reader_translation_ocr_rec_model_auto">自动（根据源语言选择）</string>
+    <string name="reader_translation_ocr_rec_model_auto_summary">自动挑选最佳识别模型：日语→MangaOCR 或 PP-OCRv5 Server，英语→PP-OCRv5 EN，韩语→PP-OCRv3 KO，中文/其他→PP-OCRv5 Server 或 Mobile</string>
+    <string name="reader_translation_ocr_det_mlkit">ML Kit（Google 设备端，无需下载）</string>
     <string name="quick_access">快捷入口</string>
     <string name="sync_status">同步</string>
     <string name="recent_history">历史</string>

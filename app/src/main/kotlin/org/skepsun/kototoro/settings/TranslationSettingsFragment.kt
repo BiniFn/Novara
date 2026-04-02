@@ -86,6 +86,7 @@ class TranslationSettingsFragment :
 		applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
 		updateOcrEngineDependency()
 		updateApiPreferenceVisibility()
+		updatePaddleDetModelEntries()
 		updatePaddleOfficialModelEntries()
 		updateOnnxOfficialModelEntries()
 		updateOnnxBubbleOfficialModelEntries()
@@ -117,6 +118,7 @@ class TranslationSettingsFragment :
 		when (key) {
 			AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE -> {
 				updateOcrEngineDependency()
+				updatePaddleDetModelEntries()
 				updatePaddleOfficialModelEntries()
 				updateOnnxOfficialModelEntries()
 				updateOnnxBubbleOfficialModelEntries()
@@ -127,6 +129,9 @@ class TranslationSettingsFragment :
 				normalizeDeprecatedOcrModelSelection()
 				applyOfficialPaddleModel()
 				updatePaddleOfficialModelEntries()
+			}
+			AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_ID -> {
+				updatePaddleDetModelEntries()
 			}
 			AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID -> {
 				updateOnnxOfficialModelEntries()
@@ -217,22 +222,52 @@ class TranslationSettingsFragment :
 		// The active Paddle path now uses ONNX OCR bundles resolved by model id.
 	}
 
-	private fun updatePaddleOfficialModelEntries() {
+	private fun updatePaddleDetModelEntries() {
 		val models = OnnxOfficialModelCatalog.models.filter {
-			it.category == OnnxModelCategory.OCR_RECOGNIZER && it.id.startsWith("ppocr")
+			it.category == OnnxModelCategory.OCR_DETECTOR
 		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.run {
-			entries = models.map { model ->
+		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_ID)?.run {
+			entries = arrayOf(
+				getString(R.string.reader_translation_ocr_det_mlkit),
+			) + models.map { model ->
 				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
 				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
 				model.title + suffix
 			}.toTypedArray()
-			entryValues = models.map { it.id }.toTypedArray()
-			setDefaultValue(models.firstOrNull()?.id ?: "")
+			entryValues = arrayOf("MLKIT") + models.map { it.id }.toTypedArray()
+			setDefaultValue("MLKIT")
+			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
+			val values = entryValues?.map { it.toString() }.orEmpty()
+			if (value.isNullOrBlank() || value == "AUTO" || value !in values) {
+				value = "MLKIT"
+			}
+			isVisible = true
+		}
+	}
+
+	private fun updatePaddleOfficialModelEntries() {
+		val paddleModels = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.OCR_RECOGNIZER && !it.id.startsWith("mangaocr")
+		}
+		val isMangaOcrDownloaded = onnxModelManager.isModelDownloaded("mangaocr_2025_onnx")
+		val mangaOcrSuffix = if (isMangaOcrDownloaded) ""
+			else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.run {
+			entries = arrayOf(
+				getString(R.string.reader_translation_ocr_rec_model_auto),
+				getString(R.string.reader_translation_ocr_det_mlkit),
+				"MangaOCR 2025$mangaOcrSuffix",
+			) + paddleModels.map { model ->
+				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
+				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+				model.title + suffix
+			}.toTypedArray()
+			entryValues = arrayOf("AUTO", "MLKIT", "mangaocr_2025_onnx") + paddleModels.map { it.id }.toTypedArray()
+			setDefaultValue("AUTO")
 			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 			val values = entryValues?.map { it.toString() }.orEmpty()
 			if (value.isNullOrBlank() || value !in values) {
-				value = models.firstOrNull()?.id ?: ""
+				value = "AUTO"
 			}
 			isVisible = true
 		}

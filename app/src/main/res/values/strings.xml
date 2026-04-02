@@ -1923,6 +1923,11 @@
 	<string name="reader_translation_bubble_detector_nms">Bubble detection NMS threshold</string>
 	<string name="reader_translation_bubble_detector_nms_summary">Controls the strictness of suppressing overlapping bubbles. A lower value removes duplicate boxes aggressively, while a higher value preserves naturally touching dialogue bubbles. The optimal preset is loaded automatically per model.</string>
 	<string name="reader_translation_ocr_model_onnx_automatic">ONNX Automatic</string>
+	<string name="reader_translation_ocr_det_model_selection">OCR text detector model</string>
+	<string name="reader_translation_ocr_det_model_selection_summary">Select the model used to locate text regions on the page. \"Auto\" uses the default PP-OCRv5 detector.</string>
+	<string name="reader_translation_ocr_rec_model_auto">Auto (select by source language)</string>
+	<string name="reader_translation_ocr_rec_model_auto_summary">Automatically picks the best recognizer: Japanese→MangaOCR or PP-OCRv5 Server, English→PP-OCRv5 EN, Korean→PP-OCRv3 KO, Chinese/other→PP-OCRv5 Server or Mobile</string>
+	<string name="reader_translation_ocr_det_mlkit">ML Kit (Google on-device, no download)</string>
     <!-- Weekdays -->
     <string name="day_monday">Monday</string>
     <string name="day_tuesday">Tuesday</string>

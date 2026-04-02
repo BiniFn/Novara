@@ -399,12 +399,13 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 
 	private fun detectInternal(source: Bitmap, runtime: Runtime): DecodedDetections {
 		val isDetr = runtime.parser == ParserKind.RT_DETR || runtime.parser == ParserKind.AUTO_RT_DETR
-		val letterboxed = if (isDetr) null else createLetterboxBitmap(
+		val isResizeOnly = isDetr || runtime.parser == ParserKind.GENERIC_YOLO
+		val letterboxed = if (isResizeOnly) null else createLetterboxBitmap(
 			source = source,
 			targetWidth = runtime.inputWidth,
 			targetHeight = runtime.inputHeight,
 		)
-		val resized = if (isDetr) createResizedBitmap(
+		val resized = if (isResizeOnly) createResizedBitmap(
 			source = source,
 			targetWidth = runtime.inputWidth,
 			targetHeight = runtime.inputHeight,
@@ -462,9 +463,10 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				sourceHeight = source.height,
 				inputWidth = preparedWidth,
 				inputHeight = preparedHeight,
-				scale = letterboxed!!.scale,
-				padX = letterboxed.padX,
-				padY = letterboxed.padY,
+				scaleX = if (isResizeOnly) preparedWidth.toFloat() / source.width else letterboxed!!.scale,
+				scaleY = if (isResizeOnly) preparedHeight.toFloat() / source.height else letterboxed!!.scale,
+				padX = if (isResizeOnly) 0f else letterboxed!!.padX,
+				padY = if (isResizeOnly) 0f else letterboxed!!.padY,
 				nmsThreshold = nmsThreshold,
 			)
 		} finally {
@@ -490,7 +492,7 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		val padY = ((resolvedHeight - scaledHeight) / 2f).coerceAtLeast(0f)
 		val output = Bitmap.createBitmap(resolvedWidth, resolvedHeight, Bitmap.Config.ARGB_8888)
 		val canvas = Canvas(output)
-		canvas.drawColor(0xFFFFFFFF.toInt())
+		canvas.drawColor(android.graphics.Color.rgb(114, 114, 114))
 		val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 		canvas.drawBitmap(
 			source,
@@ -564,7 +566,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		sourceHeight: Int,
 		inputWidth: Int,
 		inputHeight: Int,
-		scale: Float,
+		scaleX: Float,
+		scaleY: Float,
 		padX: Float,
 		padY: Float,
 		nmsThreshold: Float,
@@ -600,7 +603,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				sourceHeight = sourceHeight,
 				inputWidth = inputWidth,
 				inputHeight = inputHeight,
-				scale = scale,
+				scaleX = scaleX,
+				scaleY = scaleY,
 				padX = padX,
 				padY = padY,
 				nmsThreshold = nmsThreshold,
@@ -612,7 +616,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				sourceHeight = sourceHeight,
 				inputWidth = inputWidth,
 				inputHeight = inputHeight,
-				scale = scale,
+				scaleX = scaleX,
+				scaleY = scaleY,
 				padX = padX,
 				padY = padY,
 				nmsThreshold = nmsThreshold,
@@ -625,7 +630,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				sourceHeight = sourceHeight,
 				inputWidth = inputWidth,
 				inputHeight = inputHeight,
-				scale = scale,
+				scaleX = scaleX,
+				scaleY = scaleY,
 				padX = padX,
 				padY = padY,
 				nmsThreshold = nmsThreshold,
@@ -820,7 +826,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		sourceHeight: Int,
 		inputWidth: Int,
 		inputHeight: Int,
-		scale: Float,
+		scaleX: Float,
+		scaleY: Float,
 		padX: Float,
 		padY: Float,
 		nmsThreshold: Float,
@@ -855,10 +862,10 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				finalHeight = height
 			}
 
-			val left = ((cx - finalWidth / 2f) - padX) / scale
-			val top = ((cy - finalHeight / 2f) - padY) / scale
-			val right = ((cx + finalWidth / 2f) - padX) / scale
-			val bottom = ((cy + finalHeight / 2f) - padY) / scale
+			val left = ((cx - finalWidth / 2f) - padX) / scaleX
+			val top = ((cy - finalHeight / 2f) - padY) / scaleY
+			val right = ((cx + finalWidth / 2f) - padX) / scaleX
+			val bottom = ((cy + finalHeight / 2f) - padY) / scaleY
 			val rect = Rect(
 				left.roundToInt().coerceIn(0, sourceWidth - 1),
 				top.roundToInt().coerceIn(0, sourceHeight - 1),
@@ -881,7 +888,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		sourceHeight: Int,
 		inputWidth: Int,
 		inputHeight: Int,
-		scale: Float,
+		scaleX: Float,
+		scaleY: Float,
 		padX: Float,
 		padY: Float,
 		nmsThreshold: Float,
@@ -899,10 +907,10 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			val y1 = if (normalized) y1Raw * inputHeight else y1Raw
 			val x2 = if (normalized) x2Raw * inputWidth else x2Raw
 			val y2 = if (normalized) y2Raw * inputHeight else y2Raw
-			val left = ((min(x1, x2)) - padX) / scale
-			val top = ((min(y1, y2)) - padY) / scale
-			val right = ((max(x1, x2)) - padX) / scale
-			val bottom = ((max(y1, y2)) - padY) / scale
+			val left = ((min(x1, x2)) - padX) / scaleX
+			val top = ((min(y1, y2)) - padY) / scaleY
+			val right = ((max(x1, x2)) - padX) / scaleX
+			val bottom = ((max(y1, y2)) - padY) / scaleY
 			val rect = Rect(
 				left.roundToInt().coerceIn(0, sourceWidth - 1),
 				top.roundToInt().coerceIn(0, sourceHeight - 1),

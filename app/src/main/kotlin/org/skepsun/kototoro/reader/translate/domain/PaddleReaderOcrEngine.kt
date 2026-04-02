@@ -141,16 +141,66 @@ class PaddleReaderOcrEngine @Inject constructor(
 	)
 
 	private fun resolveActiveModelPair(): ModelPair? {
-		val detector = OnnxOfficialModelCatalog.models.firstOrNull {
-			it.category == OnnxModelCategory.OCR_DETECTOR
-		} ?: return null
-		val recognizers = OnnxOfficialModelCatalog.models.filter {
-			it.category == OnnxModelCategory.OCR_RECOGNIZER && it.id.startsWith("ppocr")
-		}
-		val recognizer = recognizers.firstOrNull {
-			it.id == normalizeRecognizerModelId(settings.readerTranslationPaddleOfficialModelId)
-		} ?: recognizers.firstOrNull() ?: return null
+		val detector = resolveDetectorModel() ?: return null
+		val recognizer = resolveRecognizerModel() ?: return null
 		return ModelPair(detector = detector, recognizer = recognizer)
+	}
+
+	private fun resolveDetectorModel(): org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel? {
+		val preferredId = settings.readerTranslationPaddleDetModelId
+		val detectors = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.OCR_DETECTOR
+		}
+		if (detectors.isEmpty()) return null
+		// When DET is set to MLKIT, Paddle engine won't be used for detection —
+		// but if called, fall back to the first ONNX detector anyway.
+		if (preferredId == "MLKIT") {
+			return detectors.first()
+		}
+		return detectors.firstOrNull { it.id == preferredId } ?: detectors.first()
+	}
+
+	/**
+	 * Resolves the recognizer model. When set to "AUTO", selects the best model
+	 * based on the user's configured source language, aligning with manga-translator-android:
+	 * - Japanese (ja) → MangaOCR 2025 (encoder-decoder, best for manga) or PP-OCRv5 Server
+	 * - English (en) → PP-OCRv5 Mobile EN recognizer
+	 * - Korean (ko) → PP-OCRv3 Mobile KO recognizer
+	 * - Chinese (zh) / auto / other → PP-OCRv5 Server (larger, better for CJK) or Mobile
+	 */
+	private fun resolveRecognizerModel(): org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel? {
+		val preferredId = normalizeRecognizerModelId(settings.readerTranslationPaddleOfficialModelId)
+		// Only include Paddle-compatible recognizers (those with dict files).
+		// MangaOCR is an encoder-decoder model with its own pipeline — not compatible here.
+		val allRecognizers = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.OCR_RECOGNIZER && !it.id.startsWith("mangaocr")
+		}
+		if (allRecognizers.isEmpty()) return null
+
+		if (preferredId.isNotBlank() && preferredId != "AUTO") {
+			return allRecognizers.firstOrNull { it.id == preferredId }
+				?: allRecognizers.first()
+		}
+
+		// AUTO: select by source language
+		val sourceLang = settings.readerTranslationSourceLanguage
+		val autoResolved = when (sourceLang) {
+			"ja" -> allRecognizers.firstOrNull { it.id == "ppocrv5_server_rec_onnx" && onnxModelManager.isModelDownloaded(it.id) }
+				?: allRecognizers.firstOrNull { it.id == "ppocrv5_mobile_rec_onnx" && onnxModelManager.isModelDownloaded(it.id) }
+			"en" -> allRecognizers.firstOrNull { it.id == "en_ppocrv5_mobile_rec_onnx" && onnxModelManager.isModelDownloaded(it.id) }
+			"ko" -> allRecognizers.firstOrNull { it.id == "korean_ppocrv3_mobile_rec_onnx" && onnxModelManager.isModelDownloaded(it.id) }
+			"zh" -> allRecognizers.firstOrNull { it.id == "ppocrv5_server_rec_onnx" && onnxModelManager.isModelDownloaded(it.id) }
+				?: allRecognizers.firstOrNull { it.id == "ppocrv5_mobile_rec_onnx" && onnxModelManager.isModelDownloaded(it.id) }
+			else -> null // "auto" or unrecognized
+		}
+		if (autoResolved != null) return autoResolved
+
+		// Fallback: best available downloaded model
+		val downloaded = allRecognizers.filter { onnxModelManager.isModelDownloaded(it.id) }
+		return downloaded.firstOrNull { it.id == "ppocrv5_server_rec_onnx" }
+			?: downloaded.firstOrNull { it.id == "ppocrv5_mobile_rec_onnx" }
+			?: downloaded.firstOrNull()
+			?: allRecognizers.first()
 	}
 
 	private suspend fun ensureRuntime(
@@ -178,16 +228,16 @@ class PaddleReaderOcrEngine @Inject constructor(
 				?.takeIf { it.category == OnnxModelCategory.OCR_DETECTOR }
 				?: return@withLock null
 			val recognizerModel = OnnxOfficialModelCatalog.findById(recognizerModelId)
-				?.takeIf { it.category == OnnxModelCategory.OCR_RECOGNIZER && it.id.startsWith("ppocr") }
+				?.takeIf { it.category == OnnxModelCategory.OCR_RECOGNIZER }
 				?: return@withLock null
 			val detectorModelDir = File(onnxModelManager.ensureModelReady(detectorModel))
 			val recognizerModelDir = File(onnxModelManager.ensureModelReady(recognizerModel))
-			val detFile = File(detectorModelDir, "ppocrv5_det.onnx")
-			val recFile = File(recognizerModelDir, "ppocrv5_rec.onnx")
-			val dictFile = File(recognizerModelDir, "ppocrv5_dict.txt")
-			check(detFile.isFile) { "Missing Paddle OCR det model: ${detFile.absolutePath}" }
-			check(recFile.isFile) { "Missing Paddle OCR rec model: ${recFile.absolutePath}" }
-			check(dictFile.isFile) { "Missing Paddle OCR dict: ${dictFile.absolutePath}" }
+			val detFile = findOnnxFile(detectorModelDir, detectorModel)
+				?: error("Missing OCR det model in: ${detectorModelDir.absolutePath}")
+			val recFile = findOnnxFile(recognizerModelDir, recognizerModel)
+				?: error("Missing OCR rec model in: ${recognizerModelDir.absolutePath}")
+			val dictFile = findDictFile(recognizerModelDir)
+				?: error("Missing OCR dict in: ${recognizerModelDir.absolutePath}")
 			val env = OrtEnvironment.getEnvironment()
 			val options = OrtSession.SessionOptions().apply {
 				setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
@@ -203,6 +253,33 @@ class PaddleReaderOcrEngine @Inject constructor(
 			runtime = created
 			created
 		}
+	}
+
+	/**
+	 * Find the .onnx file inside the model directory.
+	 * Tries the explicit file names from the catalog first, then falls back to the first .onnx file found.
+	 */
+	private fun findOnnxFile(dir: File, model: org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel): File? {
+		for (mf in model.files) {
+			if (mf.fileName.endsWith(".onnx", ignoreCase = true)) {
+				val f = File(dir, mf.fileName)
+				if (f.isFile) return f
+			}
+		}
+		return dir.listFiles()?.firstOrNull { it.isFile && it.extension.equals("onnx", ignoreCase = true) }
+	}
+
+	/**
+	 * Find the dictionary .txt file inside the model directory.
+	 * Tries common names, then falls back to the first .txt file found.
+	 */
+	private fun findDictFile(dir: File): File? {
+		val candidates = listOf("ppocrv5_dict.txt", "en_dict.txt", "korean_dict.txt")
+		for (name in candidates) {
+			val f = File(dir, name)
+			if (f.isFile) return f
+		}
+		return dir.listFiles()?.firstOrNull { it.isFile && it.extension.equals("txt", ignoreCase = true) }
 	}
 
 	private fun buildRecDictionary(dictFile: File): List<String> {

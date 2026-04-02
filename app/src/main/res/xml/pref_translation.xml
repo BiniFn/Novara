@@ -78,6 +78,12 @@
 
         <ListPreference
             android:dependency="reader_translation_enabled"
+            android:key="reader_translation_paddle_det_model_id"
+            android:title="@string/reader_translation_ocr_det_model_selection"
+            android:summary="@string/reader_translation_ocr_det_model_selection_summary" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
             android:key="reader_translation_paddle_official_model_id"
             android:title="@string/reader_translation_ocr_recognizer_model_selection" />
 

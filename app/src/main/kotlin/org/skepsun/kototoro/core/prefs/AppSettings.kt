@@ -721,6 +721,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationPaddleOfficialModelId: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "") ?: ""
 
+	val readerTranslationPaddleDetModelId: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_DET_MODEL_ID, "MLKIT") ?: "MLKIT"
+
 	val readerTranslationPaddleModelUrl: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_PADDLE_MODEL_URL, null) 
 			?: context.getString(R.string.reader_translation_paddle_model_url_default)
@@ -1417,6 +1420,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_PATH = "reader_translation_paddle_model_path"
 		const val KEY_READER_TRANSLATION_PADDLE_OCR_ONLY = "reader_translation_paddle_ocr_only"
 		const val KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID = "reader_translation_paddle_official_model_id"
+		const val KEY_READER_TRANSLATION_PADDLE_DET_MODEL_ID = "reader_translation_paddle_det_model_id"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_URL = "reader_translation_paddle_model_url"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION = "reader_translation_paddle_model_version"
 		const val KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256 = "reader_translation_paddle_model_sha256"
