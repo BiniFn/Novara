@@ -76,6 +76,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val okHttpClient: OkHttpClient,
 	private val mlKitOcrEngine: MlKitReaderOcrEngine,
 	private val paddleOcrEngine: PaddleReaderOcrEngine,
+	private val mangaOcrReaderTextRecognizer: MangaOcrReaderTextRecognizer,
 	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
 	private val onnxTranslationEngine: OnnxReaderTranslationEngine,
 	private val debugLogStore: ReaderTranslationDebugLogStore,
@@ -88,6 +89,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val loggingPageId = ThreadLocal<Long?>()
 	@Volatile
 	private var renderCacheEpoch: Int = 0
+	@Volatile
+	private var lastResolvedOcrPipelineStrategy: String = "page_text_first"
 	private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 		color = Color.WHITE
 		style = Paint.Style.FILL
@@ -131,6 +134,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		get() = paddleOcrEngine
 	private val paddleTextRecognizer: ReaderTextRecognizer
 		get() = paddleOcrEngine
+	private val mangaTextRecognizer: ReaderTextRecognizer
+		get() = mangaOcrReaderTextRecognizer
+	private val bubbleDetectorOcrCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+		ReaderBubbleDetectorOcrCoordinator(
+			settings = settings,
+			onnxBubbleDetectorEngine = onnxBubbleDetectorEngine,
+			dp = ::dp,
+			log = ::log,
+		)
+	}
 	private val translationCoordinator by lazy(LazyThreadSafetyMode.NONE) {
 		ReaderTranslationCoordinator(
 			settings = settings,
@@ -385,7 +398,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		} finally {
 			log { "metric.ocr.cache_hit=${if (ocrCacheHit) 1 else 0}" }
 			if (ocrDurationMs >= 0L) log { "metric.ocr.total_ms=$ocrDurationMs" }
-			log { "metric.ocr.pipeline.strategy=page_text_first" }
+			log { "metric.ocr.pipeline.strategy=$lastResolvedOcrPipelineStrategy" }
 			log { "metric.ocr.blocks=$ocrBlocks" }
 			log { "metric.translation.bubbles=$bubbleCount" }
 			log { "metric.bubble.grouping.enabled=$bubbleGroupingEnabled" }
@@ -449,48 +462,98 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			sourceLang.startsWith("zh") || sourceLang.startsWith("ko") -> 2
 			else -> 1
 		}
-		val order = linkedSetOf<ReaderOcrEngine>().apply {
-			add(primary)
-			// Keep the fallback order explicit. Do not silently introduce heavyweight local OCR engines.
-		}
+		val order = resolvePageOcrRouteOrder(primary, sourceLang)
+		lastResolvedOcrPipelineStrategy = resolveOcrPipelineStrategy(sourceLang).metricKey
 		var bestResult: List<OcrTextBlock> = emptyList()
-		var bestEngine: ReaderOcrEngine? = null
-		for (engine in order) {
+		var bestRoute: PageOcrRoute? = null
+		for (route in order) {
 			val attemptStartMs = SystemClock.elapsedRealtime()
 			val result = runCatching {
-				recognizeTextByEngine(engine, sourceUri, sourceLang, pageId)
+				recognizeTextByRoute(route, sourceUri, sourceLang, pageId)
 			}.onFailure {
 				it.printStackTraceDebug()
 			}.getOrDefault(emptyList())
 			val attemptDurationMs = SystemClock.elapsedRealtime() - attemptStartMs
-			log { "metric.ocr.attempt.${engine.name.lowercase()}.ms=$attemptDurationMs" }
-			log { "metric.ocr.attempt.${engine.name.lowercase()}.blocks=${result.size}" }
+			log { "metric.ocr.attempt.${route.metricKey}.ms=$attemptDurationMs" }
+			log { "metric.ocr.attempt.${route.metricKey}.blocks=${result.size}" }
 			if (result.isNotEmpty()) {
 				if (result.size > bestResult.size) {
 					bestResult = result
-					bestEngine = engine
+					bestRoute = route
 				}
-				if (result.size >= minAcceptableBlocks || engine == ReaderOcrEngine.MLKIT) {
-					log { "metric.ocr.selected_engine=${engine.name.lowercase()}" }
+				if (result.size >= minAcceptableBlocks || route.detector == OcrDetectorBackend.MLKIT) {
+					log { "metric.ocr.selected_engine=${route.metricKey}" }
 					log { "metric.ocr.selected_blocks=${result.size}" }
-					log { "ocr engine=$engine blocks=${result.size}" }
+					log { "ocr route=${route.metricKey} blocks=${result.size}" }
 					return result
 				}
 				log {
-					"ocr engine=$engine blocks=${result.size}, below threshold=$minAcceptableBlocks, trying fallback"
+					"ocr route=${route.metricKey} blocks=${result.size}, below threshold=$minAcceptableBlocks, trying fallback"
 				}
 				continue
 			}
-			log { "ocr engine=$engine blocks=0, trying fallback" }
+			log { "ocr route=${route.metricKey} blocks=0, trying fallback" }
 		}
 		if (bestResult.isNotEmpty()) {
-			bestEngine?.let {
-				log { "metric.ocr.selected_engine=${it.name.lowercase()}" }
+			bestRoute?.let {
+				log { "metric.ocr.selected_engine=${it.metricKey}" }
 			}
 			log { "metric.ocr.selected_blocks=${bestResult.size}" }
-			log { "ocr fallback use best engine=$bestEngine blocks=${bestResult.size}" }
+			log { "ocr fallback use best route=${bestRoute?.metricKey} blocks=${bestResult.size}" }
 		}
 		return bestResult
+	}
+
+	private fun resolvePageOcrRouteOrder(
+		primary: ReaderOcrEngine,
+		sourceLang: String,
+	): List<PageOcrRoute> {
+		val strategy = resolveOcrPipelineStrategy(sourceLang)
+		val routes = linkedSetOf<PageOcrRoute>()
+		if (strategy != OcrPipelineStrategy.PAGE_TEXT_FIRST && sourceLang.startsWith("ja") && settings.isReaderTranslationBubbleDetectorEnabled) {
+			routes += PageOcrRoute(
+				detector = OcrDetectorBackend.BUBBLE_DETECTOR,
+				recognizer = OcrRecognizerBackend.MANGA_OCR,
+			)
+		}
+		if (strategy != OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST && sourceLang.startsWith("ja")) {
+			routes += when (primary) {
+				ReaderOcrEngine.MLKIT -> PageOcrRoute(
+					detector = OcrDetectorBackend.MLKIT,
+					recognizer = OcrRecognizerBackend.MANGA_OCR,
+				)
+				ReaderOcrEngine.PADDLE -> PageOcrRoute(
+					detector = OcrDetectorBackend.PADDLE,
+					recognizer = OcrRecognizerBackend.MANGA_OCR,
+				)
+			}
+		}
+		if (strategy != OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST) {
+			routes += when (primary) {
+				ReaderOcrEngine.MLKIT -> PageOcrRoute(
+					detector = OcrDetectorBackend.MLKIT,
+					recognizer = OcrRecognizerBackend.MLKIT,
+				)
+				ReaderOcrEngine.PADDLE -> PageOcrRoute(
+					detector = OcrDetectorBackend.PADDLE,
+					recognizer = OcrRecognizerBackend.PADDLE,
+				)
+			}
+		}
+		return routes.toList()
+	}
+
+	private fun resolveOcrPipelineStrategy(sourceLang: String): OcrPipelineStrategy {
+		return when (settings.readerTranslationOcrPipelineStrategy) {
+			"PAGE_TEXT_FIRST" -> OcrPipelineStrategy.PAGE_TEXT_FIRST
+			"BUBBLE_DETECTOR_FIRST" -> OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST
+			"HYBRID" -> if (sourceLang.startsWith("ja")) {
+				OcrPipelineStrategy.HYBRID
+			} else {
+				OcrPipelineStrategy.PAGE_TEXT_FIRST
+			}
+			else -> OcrPipelineStrategy.HYBRID
+		}
 	}
 
 	private suspend fun recognizeTextByEngine(
@@ -534,6 +597,105 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val blocks = paddleTextRecognizer.recognize(sourceUri, regions)
 		log { "metric.ocr.paddle.recognized_blocks=${blocks.size}" }
 		return blocks
+	}
+
+	private suspend fun recognizeTextByRoute(
+		route: PageOcrRoute,
+		sourceUri: Uri,
+		sourceLang: String,
+		pageId: Long,
+	): List<OcrTextBlock> {
+		mangaOcrReaderTextRecognizer.setDiagnosticsEmitter(::log)
+		return when {
+			route.detector == OcrDetectorBackend.MLKIT &&
+				route.recognizer == OcrRecognizerBackend.MLKIT -> recognizeTextByEngine(
+				engine = ReaderOcrEngine.MLKIT,
+				sourceUri = sourceUri,
+				sourceLang = sourceLang,
+				pageId = pageId,
+			)
+			route.detector == OcrDetectorBackend.PADDLE &&
+				route.recognizer == OcrRecognizerBackend.PADDLE -> recognizeTextByEngine(
+				engine = ReaderOcrEngine.PADDLE,
+				sourceUri = sourceUri,
+				sourceLang = sourceLang,
+				pageId = pageId,
+			)
+			route.detector == OcrDetectorBackend.MLKIT &&
+				route.recognizer == OcrRecognizerBackend.MANGA_OCR -> {
+				val detectedBlocks = recognizeTextByEngine(
+					engine = ReaderOcrEngine.MLKIT,
+					sourceUri = sourceUri,
+					sourceLang = sourceLang,
+					pageId = pageId,
+				)
+				val regions = detectedBlocksToRegions(detectedBlocks)
+				log { "metric.ocr.mlkit.detected_regions=${regions.size}" }
+				if (regions.isEmpty()) return emptyList()
+				val recognized = mangaTextRecognizer.recognize(sourceUri, regions)
+				logMangaOcrDiagnostics()
+				log { "metric.ocr.mangaocr.recognized_blocks=${recognized.size}" }
+				recognized
+			}
+			route.detector == OcrDetectorBackend.PADDLE &&
+				route.recognizer == OcrRecognizerBackend.MANGA_OCR -> {
+				val regions = paddleTextDetector.detect(sourceUri)
+				log { "metric.ocr.paddle.detected_regions=${regions.size}" }
+				if (regions.isEmpty()) return emptyList()
+				val recognized = mangaTextRecognizer.recognize(sourceUri, regions)
+				logMangaOcrDiagnostics()
+				log { "metric.ocr.mangaocr.recognized_blocks=${recognized.size}" }
+				recognized
+			}
+			route.detector == OcrDetectorBackend.BUBBLE_DETECTOR &&
+				route.recognizer == OcrRecognizerBackend.MANGA_OCR -> {
+				val localUri = ensureLocalFileUri(sourceUri) ?: return emptyList()
+				val bitmap = runInterruptible(Dispatchers.IO) {
+					BitmapDecoderCompat.decode(localUri.toFile())
+				}
+				try {
+					bubbleDetectorOcrCoordinator.recognize(
+						bitmap = bitmap,
+						recognizer = mangaTextRecognizer,
+					).textBlocks.also {
+						logMangaOcrDiagnostics()
+					}
+				} finally {
+					bitmap.recycle()
+				}
+			}
+			else -> emptyList()
+		}
+	}
+
+	private fun logMangaOcrDiagnostics() {
+		val diagnostics = mangaOcrReaderTextRecognizer.consumeLastDiagnostics() ?: return
+		log {
+			"metric.ocr.mangaocr.attempted=${diagnostics.attemptedCount} recognized=${diagnostics.recognizedCount} " +
+				"empty=${diagnostics.emptyCount} empty_ratio=${diagnostics.emptyRatio}"
+		}
+		log { "metric.ocr.mangaocr.crops ${diagnostics.cropSummary}" }
+		if (diagnostics.emptySamples.isNotEmpty()) {
+			log { "metric.ocr.mangaocr.empty_crop_samples=${diagnostics.emptySamples.joinToString(";")}" }
+		}
+		diagnostics.traceSamples.forEachIndexed { index, sample ->
+			log { "metric.ocr.mangaocr.trace[$index]=$sample" }
+		}
+	}
+
+	private fun detectedBlocksToRegions(blocks: List<OcrTextBlock>): List<TextRegion> {
+		return blocks.mapNotNull { block ->
+			val rect = block.boundingBox ?: return@mapNotNull null
+			TextRegion(
+				rect = rect,
+				confidence = block.confidence,
+				detectorId = "mlkit_block",
+				directionHint = block.directionHint,
+				angleHintDegrees = block.angleHintDegrees,
+				isAxisAligned = block.isAxisAligned,
+				quadPoints = block.quadPoints ?: rectToTextQuad(rect),
+			)
+		}
 	}
 
 	private suspend fun translateBlocksCached(
@@ -1619,7 +1781,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 		const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 		const val MAX_OPENAI_BATCH_SIZE = 3
-		const val TRANSLATION_PIPELINE_VERSION = "2026-04-02-text-detector-4"
+		const val TRANSLATION_PIPELINE_VERSION = "2026-04-02-text-detector-6"
 		const val OPENAI_TRANSLATION_SYSTEM_PROMPT = """
 		You translate manga OCR text.
 		Output only the translation.
@@ -1643,6 +1805,32 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val FAIL_CODE_TRANSLATE_EMPTY = "TRANSLATE_EMPTY"
 		const val FAIL_CODE_RENDER_FILTERED = "RENDER_FILTERED"
 		const val FAIL_CODE_PROCESS_EXCEPTION = "PROCESS_EXCEPTION"
+
+		private enum class OcrDetectorBackend {
+			MLKIT,
+			PADDLE,
+			BUBBLE_DETECTOR,
+		}
+
+		private enum class OcrPipelineStrategy(val metricKey: String) {
+			PAGE_TEXT_FIRST("page_text_first"),
+			BUBBLE_DETECTOR_FIRST("bubble_detector_first"),
+			HYBRID("hybrid"),
+		}
+
+		private enum class OcrRecognizerBackend {
+			MLKIT,
+			PADDLE,
+			MANGA_OCR,
+		}
+
+		private data class PageOcrRoute(
+			val detector: OcrDetectorBackend,
+			val recognizer: OcrRecognizerBackend,
+		) {
+			val metricKey: String
+				get() = "${detector.name.lowercase()}_${recognizer.name.lowercase()}"
+		}
 
 			private fun sanitizeTranslation(text: String): String {
 			if (text.isBlank()) return ""

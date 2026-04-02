@@ -51,18 +51,6 @@ class TranslationSettingsFragment :
 			entryValues = ReaderTranslationMode.entries.map { it.name }.toTypedArray()
 			setDefaultValue(ReaderTranslationMode.LOCAL_FIRST.name)
 		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE)?.run {
-			entries = arrayOf(
-				getString(R.string.reader_translation_ocr_engine_mlkit),
-				getString(R.string.reader_translation_ocr_engine_paddle),
-			)
-			entryValues = arrayOf(
-				ReaderOcrEngine.MLKIT.name,
-				ReaderOcrEngine.PADDLE.name,
-			)
-			setDefaultValue(ReaderOcrEngine.MLKIT.name)
-			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.run {
 			setDefaultValue("CUSTOM")
 			setOnPreferenceChangeListener { _, newValue ->
@@ -89,8 +77,12 @@ class TranslationSettingsFragment :
 		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OCR_ONLY)?.run {
 			setDefaultValue(true)
 		}
+		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_OCR_PIPELINE_STRATEGY)?.run {
+			setDefaultValue("HYBRID")
+		}
 
 		normalizeDeprecatedOcrEngineSelection()
+		normalizeDeprecatedOcrModelSelection()
 		applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
 		updateOcrEngineDependency()
 		updateApiPreferenceVisibility()
@@ -132,6 +124,7 @@ class TranslationSettingsFragment :
 				updateBubbleExperimentVisibility()
 			}
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID -> {
+				normalizeDeprecatedOcrModelSelection()
 				applyOfficialPaddleModel()
 				updatePaddleOfficialModelEntries()
 			}
@@ -165,8 +158,7 @@ class TranslationSettingsFragment :
 	}
 
 	private fun updateOcrEngineDependency() {
-		val usesPaddleOnnx = settings.readerTranslationOcrEngine == ReaderOcrEngine.PADDLE
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.isVisible = usesPaddleOnnx
+		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.isVisible = true
 	}
 
 	private fun updateBubbleDetectorNmsPreference() {
@@ -226,7 +218,9 @@ class TranslationSettingsFragment :
 	}
 
 	private fun updatePaddleOfficialModelEntries() {
-		val models = OnnxOfficialModelCatalog.models.filter { it.category == OnnxModelCategory.OCR }
+		val models = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.OCR_RECOGNIZER && it.id.startsWith("ppocr")
+		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.run {
 			entries = models.map { model ->
 				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
@@ -240,26 +234,19 @@ class TranslationSettingsFragment :
 			if (value.isNullOrBlank() || value !in values) {
 				value = models.firstOrNull()?.id ?: ""
 			}
-			isVisible = settings.readerTranslationOcrEngine == ReaderOcrEngine.PADDLE
+			isVisible = true
 		}
 	}
 
 	private fun updateOnnxOfficialModelEntries() {
 		val models = OnnxOfficialModelCatalog.models.filter { model ->
-			model.category == OnnxModelCategory.CLASSIC_TRANSLATION ||
-				model.category == OnnxModelCategory.GENERAL_LLM
+			model.category == OnnxModelCategory.CLASSIC_TRANSLATION
 		}
 		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID)?.run {
 			entries = arrayOf(getString(R.string.reader_translation_local_model_mlkit)) + models.map { model ->
 				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
 				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				val title = when (model.category) {
-					OnnxModelCategory.GENERAL_LLM -> "${model.title} [LLM]"
-					OnnxModelCategory.CLASSIC_TRANSLATION -> model.title
-					OnnxModelCategory.BUBBLE_DETECTION -> "${model.title} [Detector]"
-					OnnxModelCategory.OCR -> "${model.title} [OCR]"
-				}
-				title + suffix
+				model.title + suffix
 			}.toTypedArray()
 			entryValues = arrayOf("") + models.map { it.id }.toTypedArray()
 			setDefaultValue("")
@@ -299,6 +286,18 @@ class TranslationSettingsFragment :
 		if (raw == "TFLITE" || raw == "HYBRID" || raw == "NCNN") {
 			sharedPreferences.edit {
 				putString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.PADDLE.name)
+			}
+		}
+	}
+
+	private fun normalizeDeprecatedOcrModelSelection() {
+		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
+		when (sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "")) {
+			"ppocrv5_mobile_onnx" -> sharedPreferences.edit {
+				putString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "ppocrv5_mobile_rec_onnx")
+			}
+			"ppocrv5_server_onnx" -> sharedPreferences.edit {
+				putString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "ppocrv5_server_rec_onnx")
 			}
 		}
 	}

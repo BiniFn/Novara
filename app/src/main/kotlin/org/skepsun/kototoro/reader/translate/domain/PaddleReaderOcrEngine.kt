@@ -35,7 +35,8 @@ class PaddleReaderOcrEngine @Inject constructor(
 ) : ReaderOcrService, ReaderTextDetector, ReaderTextRecognizer {
 
 	private data class Runtime(
-		val modelId: String,
+		val detectorModelId: String,
+		val recognizerModelId: String,
 		val detSession: OrtSession,
 		val recSession: OrtSession,
 		val recDict: List<String>,
@@ -60,11 +61,14 @@ class PaddleReaderOcrEngine @Inject constructor(
 	private val textRecognizer = PaddleTextRecognizer()
 
 	override suspend fun recognize(request: OcrRequest): List<OcrTextBlock> {
-		val model = resolveActiveModel() ?: run {
+		val modelPair = resolveActiveModelPair() ?: run {
 			log { "paddle onnx model unavailable" }
 			return emptyList()
 		}
-		val runtime = ensureRuntime(model.id) ?: return emptyList()
+		val runtime = ensureRuntime(
+			detectorModelId = modelPair.detector.id,
+			recognizerModelId = modelPair.recognizer.id,
+		) ?: return emptyList()
 		val decodedBitmap = runInterruptible(Dispatchers.IO) {
 			BitmapDecoderCompat.decode(request.sourceUri.toFile())
 		}
@@ -96,11 +100,14 @@ class PaddleReaderOcrEngine @Inject constructor(
 	}
 
 	override suspend fun detect(bitmap: Bitmap): List<TextRegion> {
-		val model = resolveActiveModel() ?: run {
+		val modelPair = resolveActiveModelPair() ?: run {
 			log { "paddle onnx detector unavailable" }
 			return emptyList()
 		}
-		val runtime = ensureRuntime(model.id) ?: return emptyList()
+		val runtime = ensureRuntime(
+			detectorModelId = modelPair.detector.id,
+			recognizerModelId = modelPair.recognizer.id,
+		) ?: return emptyList()
 		return detectTextRegions(bitmap, runtime)
 	}
 
@@ -117,36 +124,67 @@ class PaddleReaderOcrEngine @Inject constructor(
 
 	override suspend fun recognize(bitmap: Bitmap, regions: List<TextRegion>): List<OcrTextBlock> {
 		if (regions.isEmpty()) return emptyList()
-		val model = resolveActiveModel() ?: run {
+		val modelPair = resolveActiveModelPair() ?: run {
 			log { "paddle onnx recognizer unavailable" }
 			return emptyList()
 		}
-		val runtime = ensureRuntime(model.id) ?: return emptyList()
+		val runtime = ensureRuntime(
+			detectorModelId = modelPair.detector.id,
+			recognizerModelId = modelPair.recognizer.id,
+		) ?: return emptyList()
 		return recognizeRegions(bitmap, regions, runtime)
 	}
 
-	private fun resolveActiveModel() = OnnxOfficialModelCatalog.models.firstOrNull {
-		it.category == OnnxModelCategory.OCR &&
-			(it.id == settings.readerTranslationPaddleOfficialModelId || settings.readerTranslationPaddleOfficialModelId.isBlank())
-	} ?: OnnxOfficialModelCatalog.models.firstOrNull { it.category == OnnxModelCategory.OCR }
+	private data class ModelPair(
+		val detector: org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel,
+		val recognizer: org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel,
+	)
 
-	private suspend fun ensureRuntime(modelId: String): Runtime? {
+	private fun resolveActiveModelPair(): ModelPair? {
+		val detector = OnnxOfficialModelCatalog.models.firstOrNull {
+			it.category == OnnxModelCategory.OCR_DETECTOR
+		} ?: return null
+		val recognizers = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.OCR_RECOGNIZER && it.id.startsWith("ppocr")
+		}
+		val recognizer = recognizers.firstOrNull {
+			it.id == normalizeRecognizerModelId(settings.readerTranslationPaddleOfficialModelId)
+		} ?: recognizers.firstOrNull() ?: return null
+		return ModelPair(detector = detector, recognizer = recognizer)
+	}
+
+	private suspend fun ensureRuntime(
+		detectorModelId: String,
+		recognizerModelId: String,
+	): Runtime? {
 		val current = runtime
-		if (current != null && current.modelId == modelId) {
+		if (current != null &&
+			current.detectorModelId == detectorModelId &&
+			current.recognizerModelId == recognizerModelId
+		) {
 			return current
 		}
 		return runtimeLock.withLock {
 			val again = runtime
-			if (again != null && again.modelId == modelId) {
+			if (again != null &&
+				again.detectorModelId == detectorModelId &&
+				again.recognizerModelId == recognizerModelId
+			) {
 				return@withLock again
 			}
 			runtime?.close()
 			runtime = null
-			val model = OnnxOfficialModelCatalog.findById(modelId)?.takeIf { it.category == OnnxModelCategory.OCR } ?: return@withLock null
-			val modelDir = File(onnxModelManager.ensureModelReady(model))
-			val detFile = File(modelDir, "ppocrv5_det.onnx")
-			val recFile = File(modelDir, "ppocrv5_rec.onnx")
-			val dictFile = File(modelDir, "ppocrv5_dict.txt")
+			val detectorModel = OnnxOfficialModelCatalog.findById(detectorModelId)
+				?.takeIf { it.category == OnnxModelCategory.OCR_DETECTOR }
+				?: return@withLock null
+			val recognizerModel = OnnxOfficialModelCatalog.findById(recognizerModelId)
+				?.takeIf { it.category == OnnxModelCategory.OCR_RECOGNIZER && it.id.startsWith("ppocr") }
+				?: return@withLock null
+			val detectorModelDir = File(onnxModelManager.ensureModelReady(detectorModel))
+			val recognizerModelDir = File(onnxModelManager.ensureModelReady(recognizerModel))
+			val detFile = File(detectorModelDir, "ppocrv5_det.onnx")
+			val recFile = File(recognizerModelDir, "ppocrv5_rec.onnx")
+			val dictFile = File(recognizerModelDir, "ppocrv5_dict.txt")
 			check(detFile.isFile) { "Missing Paddle OCR det model: ${detFile.absolutePath}" }
 			check(recFile.isFile) { "Missing Paddle OCR rec model: ${recFile.absolutePath}" }
 			check(dictFile.isFile) { "Missing Paddle OCR dict: ${dictFile.absolutePath}" }
@@ -156,7 +194,8 @@ class PaddleReaderOcrEngine @Inject constructor(
 				setIntraOpNumThreads(2)
 			}
 			val created = Runtime(
-				modelId = modelId,
+				detectorModelId = detectorModelId,
+				recognizerModelId = recognizerModelId,
 				detSession = env.createSession(detFile.absolutePath, options),
 				recSession = env.createSession(recFile.absolutePath, options),
 				recDict = buildRecDictionary(dictFile),
@@ -171,6 +210,14 @@ class PaddleReaderOcrEngine @Inject constructor(
 			.map { it.trimEnd('\r') }
 			.filter { it.isNotEmpty() }
 		return entries + " "
+	}
+
+	private fun normalizeRecognizerModelId(modelId: String): String {
+		return when (modelId) {
+			"ppocrv5_mobile_onnx" -> "ppocrv5_mobile_rec_onnx"
+			"ppocrv5_server_onnx" -> "ppocrv5_server_rec_onnx"
+			else -> modelId
+		}
 	}
 
 	private fun detectTextRegions(bitmap: Bitmap, runtime: Runtime): List<TextRegion> {

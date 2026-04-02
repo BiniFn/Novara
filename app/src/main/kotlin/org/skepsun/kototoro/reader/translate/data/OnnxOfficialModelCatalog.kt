@@ -13,9 +13,9 @@ data class OnnxOfficialModel(
 
 enum class OnnxModelCategory {
 	CLASSIC_TRANSLATION,
-	GENERAL_LLM,
 	BUBBLE_DETECTION,
-	OCR,
+	OCR_DETECTOR,
+	OCR_RECOGNIZER,
 }
 
 data class OnnxModelFile(
@@ -25,7 +25,7 @@ data class OnnxModelFile(
 )
 
 object OnnxOfficialModelCatalog {
-	const val source = "https://github.com/niedev/OnnxModelsEnhancer/releases, https://github.com/niedev/RTranslator/releases, https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx"
+	const val source = "https://github.com/niedev/OnnxModelsEnhancer/releases, https://github.com/niedev/RTranslator/releases, https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx, https://huggingface.co/l0wgear/manga-ocr-2025-onnx"
 
 	val models = listOf(
 		OnnxOfficialModel(
@@ -81,47 +81,6 @@ object OnnxOfficialModelCatalog {
 			description = "Mozilla translation model pack mirrored for RTranslator compatibility.",
 		),
 		OnnxOfficialModel(
-			id = "qwen3_5_0_8b_onnx_q4",
-			title = "Qwen3.5-0.8B ONNX (q4)",
-			version = "onnx-community",
-			category = OnnxModelCategory.GENERAL_LLM,
-			files = listOf(
-				OnnxModelFile(
-					fileName = "decoder_model_merged_q4.onnx",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/decoder_model_merged_q4.onnx",
-				),
-				OnnxModelFile(
-					fileName = "decoder_model_merged_q4.onnx_data",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/decoder_model_merged_q4.onnx_data",
-				),
-				OnnxModelFile(
-					fileName = "embed_tokens_q4.onnx",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/embed_tokens_q4.onnx",
-				),
-				OnnxModelFile(
-					fileName = "embed_tokens_q4.onnx_data",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/onnx/embed_tokens_q4.onnx_data",
-				),
-				OnnxModelFile(
-					fileName = "tokenizer.json",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/tokenizer.json",
-				),
-				OnnxModelFile(
-					fileName = "tokenizer_config.json",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/tokenizer_config.json",
-				),
-				OnnxModelFile(
-					fileName = "config.json",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/config.json",
-				),
-				OnnxModelFile(
-					fileName = "generation_config.json",
-					downloadUrl = "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX/resolve/main/generation_config.json",
-				),
-			),
-			description = "General small LLM for translation fallback, based on Qwen3.5-0.8B ONNX q4.",
-		),
-		OnnxOfficialModel(
 			id = "manga_bubble_yolo_hf_main",
 			title = "Content Bubble YOLO",
 			version = "hf-main",
@@ -161,15 +120,24 @@ object OnnxOfficialModelCatalog {
 			description = "RT-DETR-v2 model fine-tuned on 11k manga/comics. Differentiates between text bubbles and free text.",
 		),
 		OnnxOfficialModel(
-			id = "ppocrv5_mobile_onnx",
-			title = "PP-OCRv5 Mobile ONNX",
+			id = "ppocrv5_mobile_det_onnx",
+			title = "PP-OCRv5 Mobile Detector",
 			version = "hf-main",
-			category = OnnxModelCategory.OCR,
+			category = OnnxModelCategory.OCR_DETECTOR,
 			files = listOf(
 				OnnxModelFile(
 					fileName = "ppocrv5_det.onnx",
 					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/ppocrv5_det.onnx",
 				),
+			),
+			description = "PaddleOCR PP-OCRv5 mobile text detector converted to ONNX Runtime.",
+		),
+		OnnxOfficialModel(
+			id = "ppocrv5_mobile_rec_onnx",
+			title = "PP-OCRv5 Mobile Recognizer",
+			version = "hf-main",
+			category = OnnxModelCategory.OCR_RECOGNIZER,
+			files = listOf(
 				OnnxModelFile(
 					fileName = "ppocrv5_rec.onnx",
 					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/ppocrv5_rec.onnx",
@@ -179,18 +147,14 @@ object OnnxOfficialModelCatalog {
 					downloadUrl = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/ppocrv5_dict.txt",
 				),
 			),
-			description = "PaddleOCR PP-OCRv5 mobile detector + recognizer converted to ONNX Runtime.",
+			description = "PaddleOCR PP-OCRv5 mobile recognizer converted to ONNX Runtime.",
 		),
 		OnnxOfficialModel(
-			id = "ppocrv5_server_onnx",
-			title = "PP-OCRv5 Server ONNX",
+			id = "ppocrv5_server_rec_onnx",
+			title = "PP-OCRv5 Server Recognizer",
 			version = "v1.7.1",
-			category = OnnxModelCategory.OCR,
+			category = OnnxModelCategory.OCR_RECOGNIZER,
 			files = listOf(
-				OnnxModelFile(
-					fileName = "ppocrv5_det.onnx",
-					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/ppocrv5_det.onnx",
-				),
 				OnnxModelFile(
 					fileName = "ppocrv5_rec.onnx",
 					downloadUrl = "https://github.com/hgmzhn/manga-translator-ui/releases/download/v1.7.1/ch_PP-OCRv5_rec_server_infer.onnx",
@@ -200,48 +164,40 @@ object OnnxOfficialModelCatalog {
 					downloadUrl = "https://github.com/hgmzhn/manga-translator-ui/releases/download/v1.7.1/ppocrv5_dict.txt",
 				),
 			),
-			description = "PaddleOCR PP-OCRv5 server recognizer. Larger model heavily optimized for Japanese and Chinese text.",
+			description = "PaddleOCR PP-OCRv5 server recognizer. Larger model optimized for Japanese and Chinese text.",
 		),
 		OnnxOfficialModel(
-			id = "translategemma_4b_it_onnx_int4",
-			title = "TranslateGemma 4B ONNX (q4)",
-			version = "int4",
-			category = OnnxModelCategory.GENERAL_LLM,
+			id = "mangaocr_2025_onnx",
+			title = "MangaOCR 2025 ONNX",
+			version = "hf-main",
+			category = OnnxModelCategory.OCR_RECOGNIZER,
 			files = listOf(
 				OnnxModelFile(
-					fileName = "chat_template.jinja",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/chat_template.jinja",
+					fileName = "encoder_model.onnx",
+					downloadUrl = "https://huggingface.co/l0wgear/manga-ocr-2025-onnx/resolve/main/encoder_model.onnx",
 				),
 				OnnxModelFile(
-					fileName = "config.json",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/config.json",
+					fileName = "decoder_model.onnx",
+					downloadUrl = "https://huggingface.co/l0wgear/manga-ocr-2025-onnx/resolve/main/decoder_model.onnx",
 				),
 				OnnxModelFile(
-					fileName = "genai_config.json",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/genai_config.json",
+					fileName = "generation_config.json",
+					downloadUrl = "https://huggingface.co/l0wgear/manga-ocr-2025-onnx/resolve/main/generation_config.json",
 				),
 				OnnxModelFile(
-					fileName = "model.onnx",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/model.onnx",
-				),
-				OnnxModelFile(
-					fileName = "model.onnx.data",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/model.onnx.data",
+					fileName = "preprocessor_config.json",
+					downloadUrl = "https://huggingface.co/l0wgear/manga-ocr-2025-onnx/resolve/main/preprocessor_config.json",
 				),
 				OnnxModelFile(
 					fileName = "special_tokens_map.json",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/special_tokens_map.json",
+					downloadUrl = "https://huggingface.co/l0wgear/manga-ocr-2025-onnx/resolve/main/special_tokens_map.json",
 				),
 				OnnxModelFile(
 					fileName = "tokenizer.json",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/tokenizer.json",
-				),
-				OnnxModelFile(
-					fileName = "tokenizer_config.json",
-					downloadUrl = "https://huggingface.co/keisuke-miyako/translategemma-4b-it-onnx-int4/resolve/main/tokenizer_config.json",
+					downloadUrl = "https://huggingface.co/l0wgear/manga-ocr-2025-onnx/resolve/main/tokenizer.json",
 				),
 			),
-			description = "TranslateGemma 4B IT ONNX Int4. Supports text translation and direct image translation (vision-language).",
+			description = "MangaOCR encoder-decoder recognizer optimized for Japanese manga text.",
 		),
 	)
 

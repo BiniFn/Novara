@@ -138,22 +138,27 @@ class AISettingsFragment :
 	}
 
 	private fun getDownloadedOcrModelCount(): Int {
-		return OnnxOfficialModelCatalog.models.count { it.category == OnnxModelCategory.OCR && onnxModelManager.isModelDownloaded(it.id) }
+		return OnnxOfficialModelCatalog.models.count {
+			(it.category == OnnxModelCategory.OCR_DETECTOR || it.category == OnnxModelCategory.OCR_RECOGNIZER) &&
+				onnxModelManager.isModelDownloaded(it.id)
+		}
 	}
 
 	private fun getTotalOcrModelCount(): Int {
-		return OnnxOfficialModelCatalog.models.count { it.category == OnnxModelCategory.OCR }
+		return OnnxOfficialModelCatalog.models.count {
+			it.category == OnnxModelCategory.OCR_DETECTOR || it.category == OnnxModelCategory.OCR_RECOGNIZER
+		}
 	}
 
 	private fun getDownloadedTranslationModelCount(): Int {
 		return OnnxOfficialModelCatalog.models
-			.filter { it.category == OnnxModelCategory.CLASSIC_TRANSLATION || it.category == OnnxModelCategory.GENERAL_LLM }
+			.filter { it.category == OnnxModelCategory.CLASSIC_TRANSLATION }
 			.count { onnxModelManager.isModelDownloaded(it.id) }
 	}
 
 	private fun getTotalTranslationModelCount(): Int {
 		return OnnxOfficialModelCatalog.models.count {
-			it.category == OnnxModelCategory.CLASSIC_TRANSLATION || it.category == OnnxModelCategory.GENERAL_LLM
+			it.category == OnnxModelCategory.CLASSIC_TRANSLATION
 		}
 	}
 

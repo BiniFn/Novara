@@ -895,7 +895,7 @@
     <string name="reader_translation_paddle_model_path_summary">Model directory, e.g. /sdcard/... or assets path like models/ch_PP-OCRv4</string>
     <string name="reader_translation_paddle_ocr_only">Only show OCR models</string>
     <string name="reader_translation_paddle_ocr_only_summary">Filter official list to OCR-focused models only (recommended)</string>
-    <string name="reader_translation_paddle_official_model_id">Official Paddle model list</string>
+    <string name="reader_translation_paddle_official_model_id">Official OCR recognizer model list</string>
     <string name="reader_translation_paddle_official_model_id_summary">Extracted from PaddleOCR docs/version3.x/model_list.md, selecting one auto-fills URL/version</string>
     <string name="reader_translation_paddle_model_url">Paddle model archive URL</string>
     <string name="reader_translation_paddle_model_url_default">https://github.com/skepsun/PaddleOCR_Models/releases/download/v1.0/ch_PP-OCRv4_mobile_det.zip</string>
@@ -936,7 +936,6 @@
     <string name="reader_translation_ocr_model_det_title">Detection Models</string>
     <string name="reader_translation_det_download_success">Detection model downloaded</string>
     <string name="reader_translation_onnx_models_title">Local Translation Models</string>
-    <string name="reader_translation_onnx_general_llm_models_title">General LLM Models (Translation)</string>
     <string name="reader_translation_onnx_bubble_detector_models_title">Bubble Detector Models</string>
     <string name="reader_translation_local_model_mlkit">ML Kit (on-device default)</string>
     <string name="reader_translation_onnx_download_success">ONNX model downloaded</string>
@@ -1895,7 +1894,15 @@
     <string name="reader_translation_ocr_model_rec_selection">OCR Rec model selection</string>
     <string name="reader_translation_ocr_model_rec_autodetect">Auto Select</string>
     <string name="reader_translation_ocr_model_rec_ppocr_v5">PP-OCRv5 Rec (follow Det model)</string>
-	<string name="reader_translation_ocr_model_paddle_selection">PaddleOCR model selection</string>
+	<string name="reader_translation_ocr_model_paddle_selection">OCR model selection</string>
+	<string name="reader_translation_ocr_models_group_title">OCR Models</string>
+	<string name="reader_translation_ocr_detector_models_title">OCR Detector Models</string>
+	<string name="reader_translation_ocr_recognizer_models_title">OCR Recognizer Models</string>
+	<string name="reader_translation_ocr_recognizer_model_selection">OCR recognizer model selection</string>
+	<string name="reader_translation_ocr_pipeline_strategy">OCR pipeline strategy</string>
+	<string name="reader_translation_ocr_pipeline_page_text_first">Page Text First</string>
+	<string name="reader_translation_ocr_pipeline_bubble_detector_first">Bubble Detector First</string>
+	<string name="reader_translation_ocr_pipeline_hybrid">Hybrid</string>
 	<string name="reader_translation_settings_advanced">Advanced settings</string>
     <string name="reader_translation_bubble_detector_enabled">Use bubble detector as a post-OCR helper</string>
     <string name="reader_translation_bubble_detector_enabled_summary">Run the optional detector after page OCR to help assign text blocks into bubbles for translation and rendering. It is not the primary OCR entry point.</string>
@@ -1910,7 +1917,7 @@
 	<string name="reader_translation_tuning_strict">Strict</string>
 	<string name="reader_translation_tuning_balanced">Balanced</string>
 	<string name="reader_translation_tuning_relaxed">Relaxed</string>
-	<string name="reader_translation_onnx_model_selection">ONNX model selection</string>
+	<string name="reader_translation_onnx_model_selection">Translation model selection</string>
 	<string name="reader_translation_onnx_bubble_model_selection">ONNX bubble detector model</string>
 	<string name="reader_translation_onnx_bubble_model_selection_summary">Select DETR (multi-class) for intelligent background handling, or traditional YOLO for universal bubble handling</string>
 	<string name="reader_translation_bubble_detector_nms">Bubble detection NMS threshold</string>

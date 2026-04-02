@@ -44,39 +44,39 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
             updateOnnxStatus(pref, model)
         }
 
-        val onnxOcrCategory = PreferenceCategory(requireContext()).apply {
-            title = getString(R.string.reader_translation_paddle_official_model_id)
+        val onnxOcrDetectorCategory = PreferenceCategory(requireContext()).apply {
+            title = getString(R.string.reader_translation_ocr_detector_models_title)
         }
-        screen.addPreference(onnxOcrCategory)
+        screen.addPreference(onnxOcrDetectorCategory)
 
         OnnxOfficialModelCatalog.models
-            .filter { it.category == OnnxModelCategory.OCR }
+            .filter { it.category == OnnxModelCategory.OCR_DETECTOR }
             .forEach { model ->
                 val pref = Preference(requireContext()).apply {
                     title = model.title
                     summary = model.description
-                    key = "onnx_ocr_${model.id}"
+                    key = "onnx_ocr_detector_${model.id}"
                 }
-                onnxOcrCategory.addPreference(pref)
+                onnxOcrDetectorCategory.addPreference(pref)
                 updateOnnxStatus(pref, model)
             }
 
-        val onnxLlmCategory = PreferenceCategory(requireContext()).apply {
-            title = getString(R.string.reader_translation_onnx_general_llm_models_title)
+        val onnxOcrRecognizerCategory = PreferenceCategory(requireContext()).apply {
+            title = getString(R.string.reader_translation_ocr_recognizer_models_title)
         }
-        screen.addPreference(onnxLlmCategory)
+        screen.addPreference(onnxOcrRecognizerCategory)
 
         OnnxOfficialModelCatalog.models
-            .filter { it.category == OnnxModelCategory.GENERAL_LLM }
+            .filter { it.category == OnnxModelCategory.OCR_RECOGNIZER }
             .forEach { model ->
                 val pref = Preference(requireContext()).apply {
                     title = model.title
                     summary = model.description
-                key = "onnx_${model.id}"
+                    key = "onnx_ocr_recognizer_${model.id}"
+                }
+                onnxOcrRecognizerCategory.addPreference(pref)
+                updateOnnxStatus(pref, model)
             }
-            onnxLlmCategory.addPreference(pref)
-            updateOnnxStatus(pref, model)
-        }
 
         val onnxBubbleDetectorCategory = PreferenceCategory(requireContext()).apply {
             title = getString(R.string.reader_translation_onnx_bubble_detector_models_title)

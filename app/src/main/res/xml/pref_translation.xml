@@ -77,18 +77,18 @@
             android:fragment="org.skepsun.kototoro.settings.OcrModelsFragment" />
 
         <ListPreference
-            android:defaultValue="MLKIT"
-            android:dependency="reader_translation_enabled"
-            android:entries="@array/reader_translation_ocr_engines"
-            android:entryValues="@array/values_reader_translation_ocr_engines"
-            android:key="reader_translation_ocr_engine"
-            android:title="@string/reader_translation_ocr_engine"
-            app:useSimpleSummaryProvider="true" />
-
-        <ListPreference
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_paddle_official_model_id"
-            android:title="@string/reader_translation_ocr_model_paddle_selection" />
+            android:title="@string/reader_translation_ocr_recognizer_model_selection" />
+
+        <ListPreference
+            android:defaultValue="HYBRID"
+            android:dependency="reader_translation_enabled"
+            android:entries="@array/reader_translation_ocr_pipeline_strategies"
+            android:entryValues="@array/values_reader_translation_ocr_pipeline_strategies"
+            android:key="reader_translation_ocr_pipeline_strategy"
+            android:title="@string/reader_translation_ocr_pipeline_strategy"
+            app:useSimpleSummaryProvider="true" />
 
         <ListPreference
             android:dependency="reader_translation_enabled"

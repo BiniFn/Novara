@@ -106,6 +106,12 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		val padY: Float,
 	)
 
+	private data class ResizedBitmap(
+		val bitmap: Bitmap,
+		val inputWidth: Int,
+		val inputHeight: Int,
+	)
+
 	private data class ScoredBox(
 		val rect: Rect,
 		val classId: Int,
@@ -392,29 +398,42 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 	}
 
 	private fun detectInternal(source: Bitmap, runtime: Runtime): DecodedDetections {
-		val letterboxed = createLetterboxBitmap(
+		val isDetr = runtime.parser == ParserKind.RT_DETR || runtime.parser == ParserKind.AUTO_RT_DETR
+		val letterboxed = if (isDetr) null else createLetterboxBitmap(
 			source = source,
 			targetWidth = runtime.inputWidth,
 			targetHeight = runtime.inputHeight,
 		)
+		val resized = if (isDetr) createResizedBitmap(
+			source = source,
+			targetWidth = runtime.inputWidth,
+			targetHeight = runtime.inputHeight,
+		) else null
+		val preparedBitmap = resized?.bitmap ?: letterboxed!!.bitmap
+		val preparedWidth = resized?.inputWidth ?: letterboxed!!.inputWidth
+		val preparedHeight = resized?.inputHeight ?: letterboxed!!.inputHeight
 		var sizesTensor: OnnxTensor? = null
-		val inputTensor = createInputTensor(letterboxed.bitmap, letterboxed.inputWidth, letterboxed.inputHeight)
+		val inputTensor = createInputTensor(preparedBitmap, preparedWidth, preparedHeight)
 		var sessionResult: OrtSession.Result? = null
 		try {
 			val inputs = mutableMapOf<String, OnnxTensor>()
 			inputs[runtime.inputName] = inputTensor
 			if ("orig_target_sizes" in runtime.session.inputNames) {
 				val env = OrtEnvironment.getEnvironment()
+				val targetSizes = if (isDetr) {
+					longArrayOf(source.height.toLong(), source.width.toLong())
+				} else {
+					longArrayOf(preparedHeight.toLong(), preparedWidth.toLong())
+				}
 				sizesTensor = OnnxTensor.createTensor(
 					env,
-					java.nio.LongBuffer.wrap(longArrayOf(letterboxed.inputHeight.toLong(), letterboxed.inputWidth.toLong())),
+					java.nio.LongBuffer.wrap(targetSizes),
 					longArrayOf(1, 2)
 				)
 				inputs["orig_target_sizes"] = sizesTensor
 			}
 			sessionResult = runtime.session.run(inputs)
 
-			val isDetr = runtime.parser == ParserKind.RT_DETR || runtime.parser == ParserKind.AUTO_RT_DETR
 			val nmsThreshold = settings.getBubbleDetectorNms(runtime.modelId, isDetr)
 			
 			if (isDetr) {
@@ -423,11 +442,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 					parser = runtime.parser,
 					sourceWidth = source.width,
 					sourceHeight = source.height,
-					inputWidth = letterboxed.inputWidth,
-					inputHeight = letterboxed.inputHeight,
-					scale = letterboxed.scale,
-					padX = letterboxed.padX,
-					padY = letterboxed.padY,
+					inputWidth = preparedWidth,
+					inputHeight = preparedHeight,
 					nmsThreshold = nmsThreshold,
 				)
 			}
@@ -444,9 +460,9 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				tensor = outputTensor,
 				sourceWidth = source.width,
 				sourceHeight = source.height,
-				inputWidth = letterboxed.inputWidth,
-				inputHeight = letterboxed.inputHeight,
-				scale = letterboxed.scale,
+				inputWidth = preparedWidth,
+				inputHeight = preparedHeight,
+				scale = letterboxed!!.scale,
 				padX = letterboxed.padX,
 				padY = letterboxed.padY,
 				nmsThreshold = nmsThreshold,
@@ -455,8 +471,8 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			runCatching { sizesTensor?.close() }
 			runCatching { inputTensor.close() }
 			runCatching { sessionResult?.close() }
-			if (letterboxed.bitmap !== source) {
-				letterboxed.bitmap.recycle()
+			if (preparedBitmap !== source) {
+				preparedBitmap.recycle()
 			}
 		}
 	}
@@ -494,6 +510,25 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 			scale = scale,
 			padX = padX,
 			padY = padY,
+		)
+	}
+
+	private fun createResizedBitmap(source: Bitmap, targetWidth: Int?, targetHeight: Int?): ResizedBitmap {
+		val resolvedWidth = targetWidth ?: chooseDynamicInputSize(source.width, source.height)
+		val resolvedHeight = targetHeight ?: chooseDynamicInputSize(source.height, source.width)
+		val output = Bitmap.createBitmap(resolvedWidth, resolvedHeight, Bitmap.Config.ARGB_8888)
+		val canvas = Canvas(output)
+		val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+		canvas.drawBitmap(
+			source,
+			null,
+			android.graphics.Rect(0, 0, resolvedWidth, resolvedHeight),
+			paint,
+		)
+		return ResizedBitmap(
+			bitmap = output,
+			inputWidth = resolvedWidth,
+			inputHeight = resolvedHeight,
 		)
 	}
 
@@ -619,9 +654,6 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		sourceHeight: Int,
 		inputWidth: Int,
 		inputHeight: Int,
-		scale: Float,
-		padX: Float,
-		padY: Float,
 		nmsThreshold: Float,
 	): DecodedDetections {
 		val labelsTensor = sessionResult.get("labels").orElse(null) as? OnnxTensor
@@ -642,13 +674,13 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 		val scoresShape = (scoresTensor?.info as? TensorInfo)?.shape ?: longArrayOf()
 
 		val labelsFlat = mutableListOf<Float>()
-		if (labelsTensor != null) flattenNumericTensor(labelsTensor.value, labelsFlat)
+		flattenNumericTensor(labelsTensor.value, labelsFlat)
 
 		val boxesFlat = mutableListOf<Float>()
-		if (boxesTensor != null) flattenNumericTensor(boxesTensor.value, boxesFlat)
+		flattenNumericTensor(boxesTensor.value, boxesFlat)
 
 		val scoresFlat = mutableListOf<Float>()
-		if (scoresTensor != null) flattenNumericTensor(scoresTensor.value, scoresFlat)
+		flattenNumericTensor(scoresTensor.value, scoresFlat)
 
 		val numQueries = boxesShape.getOrNull(1)?.toInt() ?: 300
 		val isScores3D = scoresShape.size == 3
@@ -734,10 +766,26 @@ class OnnxBubbleDetectorEngine @Inject constructor(
 				rY2 = c4 * scaleY
 			}
 
-			val left = ((min(rX1, rX2)) - padX) / scale
-			val top = ((min(rY1, rY2)) - padY) / scale
-			val right = ((max(rX1, rX2)) - padX) / scale
-			val bottom = ((max(rY1, rY2)) - padY) / scale
+			val left = if (isNormalized) {
+				min(rX1, rX2) * sourceWidth
+			} else {
+				(min(rX1, rX2) / inputWidth) * sourceWidth
+			}
+			val top = if (isNormalized) {
+				min(rY1, rY2) * sourceHeight
+			} else {
+				(min(rY1, rY2) / inputHeight) * sourceHeight
+			}
+			val right = if (isNormalized) {
+				max(rX1, rX2) * sourceWidth
+			} else {
+				(max(rX1, rX2) / inputWidth) * sourceWidth
+			}
+			val bottom = if (isNormalized) {
+				max(rY1, rY2) * sourceHeight
+			} else {
+				(max(rY1, rY2) / inputHeight) * sourceHeight
+			}
 
 			val rect = Rect(
 				left.roundToInt().coerceIn(0, sourceWidth - 1),

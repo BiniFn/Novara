@@ -170,6 +170,11 @@
 		<item>@string/reader_translation_ocr_engine_mlkit</item>
 		<item>@string/reader_translation_ocr_engine_paddle</item>
 	</string-array>
+	<string-array name="reader_translation_ocr_pipeline_strategies" translatable="false">
+		<item>@string/reader_translation_ocr_pipeline_page_text_first</item>
+		<item>@string/reader_translation_ocr_pipeline_bubble_detector_first</item>
+		<item>@string/reader_translation_ocr_pipeline_hybrid</item>
+	</string-array>
 	<string-array name="reader_translation_api_provider_presets" translatable="false">
 		<item>@string/reader_translation_api_provider_custom</item>
 		<item>@string/reader_translation_api_provider_openai</item>
@@ -196,6 +201,11 @@
 	<string-array name="values_reader_translation_ocr_engines" translatable="false">
 		<item>MLKIT</item>
 		<item>PADDLE</item>
+	</string-array>
+	<string-array name="values_reader_translation_ocr_pipeline_strategies" translatable="false">
+		<item>PAGE_TEXT_FIRST</item>
+		<item>BUBBLE_DETECTOR_FIRST</item>
+		<item>HYBRID</item>
 	</string-array>
 	<string-array name="values_reader_translation_api_provider_presets" translatable="false">
 		<item>CUSTOM</item>
