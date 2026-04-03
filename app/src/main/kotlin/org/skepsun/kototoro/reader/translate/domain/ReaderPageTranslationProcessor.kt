@@ -35,6 +35,7 @@ import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
 import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
+import org.skepsun.kototoro.core.prefs.ReaderTranslationPipelineMode
 import org.skepsun.kototoro.core.util.ext.isFileUri
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
@@ -84,6 +85,20 @@ class ReaderPageTranslationProcessor @Inject constructor(
 ) {
 
 	private val processingSemaphore = Semaphore(MAX_PARALLEL_TRANSLATION_PAGES)
+	
+	@Volatile
+	private var currentE2eConcurrency = 3
+	@Volatile
+	private var e2eSemaphore = Semaphore(3)
+
+	private fun getE2eSemaphore(): Semaphore {
+		val target = settings.readerE2eApiConcurrency.coerceAtLeast(1)
+		if (currentE2eConcurrency != target) {
+			currentE2eConcurrency = target
+			e2eSemaphore = Semaphore(target)
+		}
+		return e2eSemaphore
+	}
 	private val pageStateLock = Any()
 	private val renderedSourceMap = LruCache<String, String>(512)
 	private val pageRenderEpochs = LongSparseArray<Int>()
@@ -184,6 +199,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			oneLine = ::oneLine,
 		)
 	}
+	private val endToEndTranslator by lazy(LazyThreadSafetyMode.NONE) {
+		GeminiEndToEndTranslator(
+			settings = settings,
+			okHttpClient = okHttpClient,
+			jsonMediaType = JSON_MEDIA_TYPE,
+			log = ::log,
+		)
+	}
 	private val ocrPipelineCoordinator by lazy(LazyThreadSafetyMode.NONE) {
 		ReaderOcrPipelineCoordinator(
 			loadPageText = ::loadPageTextWithCache,
@@ -267,8 +290,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			}
 		}
 		log { "process start page=${page.id} sourceLang=$sourceLang targetLang=$targetLang ocr=${settings.readerTranslationOcrEngine}" }
+		
+		val permitSemaphore = if (settings.readerTranslationPipelineMode == ReaderTranslationPipelineMode.END_TO_END_API) {
+			getE2eSemaphore()
+		} else {
+			processingSemaphore
+		}
+		
 		return withContext(loggingPageId.asContextElement(page.id)) {
-			processingSemaphore.withPermit {
+			permitSemaphore.withPermit {
 				appendPageLog(page.id, "process start page=${page.id}")
 				cache[renderCacheKey]?.let {
 					appendPageLog(page.id, "metric.render_cache.hit=1")
@@ -339,6 +369,53 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				sourceBitmap.recycle()
 			}
 			val canvas = Canvas(bitmap)
+			if (settings.readerTranslationPipelineMode == ReaderTranslationPipelineMode.END_TO_END_API) {
+				val bubblePairs = endToEndTranslator.processImage(bitmap, sourceLang, targetLang)
+				val inputs = bubblePairs.map { it.first }
+				val map = bubblePairs.associate { it.first.sourceText to it.second }
+				
+				bubbleCount = inputs.size
+				val renderStartMs = SystemClock.elapsedRealtime()
+				val renderPreparation = bubbleRenderCoordinator.prepareBubbles(
+					bubbleInputs = inputs,
+					translatedMap = map,
+					targetLang = targetLang,
+					bitmap = bitmap,
+				)
+				val preparedBubbles = renderPreparation.preparedBubbles
+				val nonEmptyTranslatedCount = renderPreparation.nonEmptyTranslatedCount
+				for (bubble in preparedBubbles) {
+					drawBubbleBackground(canvas, bubble)
+				}
+				for (bubble in preparedBubbles) {
+					drawBubbleText(canvas, bubble)
+				}
+				if (settings.isReaderTranslationDebugLogsEnabled) {
+					for (bubble in preparedBubbles) {
+						drawBubbleDebugOverlay(canvas, bubble)
+					}
+				}
+				log { "render done e2eBubbles=${preparedBubbles.size}" }
+				renderedBubbleCount = preparedBubbles.size
+				if (preparedBubbles.isEmpty()) {
+					val failCode = if (nonEmptyTranslatedCount == 0) {
+						FAIL_CODE_TRANSLATE_EMPTY
+					} else {
+						FAIL_CODE_RENDER_FILTERED
+					}
+					renderDurationMs = SystemClock.elapsedRealtime() - renderStartMs
+					log { "fail_code=$failCode" }
+					bitmap.recycle()
+					return sourceUri
+				}
+				val output = cache.set(renderCacheKey, bitmap).toUri()
+				rememberRenderedSource(output, sourceUri)
+				renderDurationMs = SystemClock.elapsedRealtime() - renderStartMs
+				processResult = "rendered_e2e"
+				bitmap.recycle()
+				return output
+			}
+
 			val ocrPipeline = ocrPipelineCoordinator.execute(
 				sourceUri = sourceUri,
 				sourceLang = sourceLang,
@@ -655,7 +732,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				log { "metric.ocr.mlkit.detected_regions=${regions.size}" }
 				if (regions.isEmpty()) return emptyList()
 				val recognized = mangaTextRecognizer.recognize(sourceUri, regions)
-				logMangaOcrDiagnostics()
+				mangaOcrReaderTextRecognizer.consumeLastDiagnostics()
 				log { "metric.ocr.mangaocr.recognized_blocks=${recognized.size}" }
 				recognized
 			}
@@ -665,7 +742,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				log { "metric.ocr.paddle.detected_regions=${regions.size}" }
 				if (regions.isEmpty()) return emptyList()
 				val recognized = mangaTextRecognizer.recognize(sourceUri, regions)
-				logMangaOcrDiagnostics()
+				mangaOcrReaderTextRecognizer.consumeLastDiagnostics()
 				log { "metric.ocr.mangaocr.recognized_blocks=${recognized.size}" }
 				recognized
 			}
@@ -675,7 +752,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				log { "metric.ocr.ctd.detected_regions=${regions.size}" }
 				if (regions.isEmpty()) return emptyList()
 				val recognized = mangaTextRecognizer.recognize(sourceUri, regions)
-				logMangaOcrDiagnostics()
+				mangaOcrReaderTextRecognizer.consumeLastDiagnostics()
 				log { "metric.ocr.ctd_mangaocr.recognized_blocks=${recognized.size}" }
 				recognized
 			}
@@ -690,7 +767,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 						bitmap = bitmap,
 						recognizer = mangaTextRecognizer,
 					).textBlocks.also {
-						logMangaOcrDiagnostics()
+						mangaOcrReaderTextRecognizer.consumeLastDiagnostics()
 					}
 				} finally {
 					bitmap.recycle()
@@ -1148,6 +1225,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 						contentWidth = contentW,
 						contentHeight = contentH,
 						padding = padding,
+						sourceContentRect = sourceContentRect,
 					)
 				}
 				val drawContentWidth = max(1, drawRect.width() - padding * 2)
@@ -1181,7 +1259,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			val width = max(1, safeRect.width() - padding * 2)
 			val height = max(1, safeRect.height() - padding * 2)
 			if (width <= 1 || height <= 1) continue
-			var textSize = initialHorizontalTextSize(width = width, height = height)
+			var textSize = initialHorizontalTextSize(text = text, width = width, height = height)
 			var layout = buildTextLayout(text, width, textSize)
 			while (layout.height > height && textSize > dp(8f)) {
 				textSize -= 1f
@@ -1198,6 +1276,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 					contentWidth = contentW,
 					contentHeight = contentH,
 					padding = padding,
+					sourceContentRect = sourceContentRect,
 				)
 			}
 			val drawContentWidth = max(1, drawRect.width() - padding * 2)
@@ -1379,17 +1458,26 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		)
 	}
 
-	private fun initialHorizontalTextSize(width: Int, height: Int): Float {
+	private fun initialHorizontalTextSize(text: String, width: Int, height: Int): Float {
+		val len = text.filterNot { it.isWhitespace() }.length.coerceAtLeast(1)
+		val areaBasedSize = Math.sqrt(width.toDouble() * height * 0.45 / len).toFloat()
+		val dimBound = min(
+			height * 0.42f,
+			width * HORIZONTAL_TEXT_SIZE_WIDTH_RATIO,
+		)
 		return min(
-			dp(18f).toFloat(),
-			min(
-				height * 0.42f,
-				width * HORIZONTAL_TEXT_SIZE_WIDTH_RATIO,
-			),
+			dp(14f).toFloat(),
+			min(areaBasedSize, dimBound)
 		).coerceAtLeast(dp(8f).toFloat())
 	}
 
-	private fun centerRectByContent(outer: Rect, contentWidth: Int, contentHeight: Int, padding: Int): Rect {
+	private fun centerRectByContent(
+		outer: Rect,
+		contentWidth: Int,
+		contentHeight: Int,
+		padding: Int,
+		sourceContentRect: Rect? = null,
+	): Rect {
 		val compactness = overlayCompactnessLevel()
 		val extraScale = when (compactness) {
 			TuningLevel.STRICT -> 1.02f
@@ -1403,10 +1491,19 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		val minTargetW = min(minSide, outer.width()).coerceAtLeast(1)
 		val minTargetH = min(minSide, outer.height()).coerceAtLeast(1)
-		val targetW = ((contentWidth + padding * 2) * extraScale).toInt().coerceIn(minTargetW, outer.width())
-		val targetH = ((contentHeight + padding * 2) * extraScale).toInt().coerceIn(minTargetH, outer.height())
-		val cx = outer.centerX()
-		val cy = outer.centerY()
+		// Ensure the rendered rect at least covers the source text area so original text is masked
+		val minSourceW = sourceContentRect?.let { it.width() + padding * 2 } ?: 0
+		val minSourceH = sourceContentRect?.let { it.height() + padding * 2 } ?: 0
+		val targetW = max(
+			((contentWidth + padding * 2) * extraScale).toInt(),
+			minSourceW,
+		).coerceIn(minTargetW, outer.width())
+		val targetH = max(
+			((contentHeight + padding * 2) * extraScale).toInt(),
+			minSourceH,
+		).coerceIn(minTargetH, outer.height())
+		val cx = sourceContentRect?.centerX() ?: outer.centerX()
+		val cy = sourceContentRect?.centerY() ?: outer.centerY()
 		var left = cx - targetW / 2
 		var top = cy - targetH / 2
 		var right = left + targetW
@@ -1590,12 +1687,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private fun buildVerticalPlan(text: String, width: Int, height: Int): VerticalLayoutPlan? {
 		val glyphs = textToGlyphs(text)
 		if (glyphs.isEmpty()) return null
+		val len = glyphs.count { it.isNotBlank() }.coerceAtLeast(1)
+		val areaBasedSize = Math.sqrt(width.toDouble() * height * 0.45 / len).toFloat()
+		val dimBound = min(
+			height * 0.42f,
+			width * VERTICAL_TEXT_SIZE_WIDTH_RATIO,
+		)
 		var textSize = min(
-			dp(18f).toFloat(),
-			min(
-				height * 0.42f,
-				width * VERTICAL_TEXT_SIZE_WIDTH_RATIO,
-			),
+			dp(14f).toFloat(),
+			min(areaBasedSize, dimBound)
 		)
 		val minSize = dp(8f).toFloat()
 		while (textSize >= minSize) {

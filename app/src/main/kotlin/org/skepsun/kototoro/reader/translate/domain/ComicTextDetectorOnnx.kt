@@ -626,9 +626,9 @@ class ComicTextDetectorOnnx @Inject constructor(
 		const val BLOCK_CONF_THRESHOLD = 0.40f
 		const val BLOCK_NMS_THRESHOLD = 0.35f
 		const val DUPLICATE_IOU_THRESHOLD = 0.60f
-		const val MIN_LINE_COMPONENT_PIXELS = 4
-		const val MIN_SEG_COMPONENT_PIXELS = 8
-		const val MIN_BOX_SIZE = 6
+		const val MIN_LINE_COMPONENT_PIXELS = 16
+		const val MIN_SEG_COMPONENT_PIXELS = 24
+		const val MIN_BOX_SIZE = 20
 		const val READ_ORDER_ROW_BUCKET = 48
 		val NEIGHBOR_OFFSETS = arrayOf(
 			1 to 0,

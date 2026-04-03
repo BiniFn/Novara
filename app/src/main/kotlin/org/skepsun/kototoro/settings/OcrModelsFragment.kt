@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModel
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
@@ -94,6 +95,23 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
                 onnxBubbleDetectorCategory.addPreference(pref)
                 updateOnnxStatus(pref, model)
             }
+
+        val onnxSuperResolutionCategory = PreferenceCategory(requireContext()).apply {
+            title = getString(R.string.reader_translation_onnx_super_resolution_models_title)
+        }
+        screen.addPreference(onnxSuperResolutionCategory)
+
+        OnnxOfficialModelCatalog.models
+            .filter { it.category == OnnxModelCategory.IMAGE_SUPER_RESOLUTION }
+            .forEach { model ->
+                val pref = Preference(requireContext()).apply {
+                    title = model.title
+                    summary = model.description
+                    key = "onnx_super_resolution_${model.id}"
+                }
+                onnxSuperResolutionCategory.addPreference(pref)
+                updateOnnxStatus(pref, model)
+            }
     }
 
     private fun updateOnnxStatus(pref: Preference, model: OnnxOfficialModel) {
@@ -104,7 +122,21 @@ class OcrModelsFragment : BasePreferenceFragment(R.string.reader_translation_ocr
             "${getString(R.string.reader_translation_ocr_model_status_not_downloaded)} (${model.version})"
         }
         pref.setOnPreferenceClickListener {
-            downloadOnnxModel(pref, model)
+            if (downloaded) {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(getString(R.string.delete) + "?")
+                    .setMessage("Are you sure you want to delete ${model.title}?")
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        if (onnxModelManager.deleteModel(model.id)) {
+                            updateOnnxStatus(pref, model)
+                            Toast.makeText(context, "${model.title} deleted.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            } else {
+                downloadOnnxModel(pref, model)
+            }
             true
         }
     }

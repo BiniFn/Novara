@@ -937,6 +937,7 @@
     <string name="reader_translation_det_download_success">Detection model downloaded</string>
     <string name="reader_translation_onnx_models_title">Local Translation Models</string>
     <string name="reader_translation_onnx_bubble_detector_models_title">Bubble Detector Models</string>
+    <string name="reader_translation_onnx_super_resolution_models_title">Super Resolution Models</string>
     <string name="reader_translation_local_model_mlkit">ML Kit (on-device default)</string>
     <string name="reader_translation_onnx_download_success">Model downloaded</string>
     <string name="reader_translation_manage_ocr_models">Download and Manage Models</string>
@@ -1903,6 +1904,9 @@
 	<string name="reader_translation_ocr_pipeline_page_text_first">Page Text First</string>
 	<string name="reader_translation_ocr_pipeline_bubble_detector_first">Bubble Detector First</string>
 	<string name="reader_translation_ocr_pipeline_hybrid">Hybrid</string>
+	<string name="reader_translation_pipeline_mode">Pipeline mode</string>
+	<string name="reader_translation_pipeline_mode_two_stage">Two-stage (Local OCR + API Translation)</string>
+	<string name="reader_translation_pipeline_mode_end_to_end_api">End-to-End API (Vision GenAI)</string>
 	<string name="reader_translation_settings_advanced">Advanced settings</string>
     <string name="reader_translation_bubble_detector_enabled">Use bubble detector as a post-OCR helper</string>
     <string name="reader_translation_bubble_detector_enabled_summary">Run the optional detector after page OCR to help assign text blocks into bubbles for translation and rendering. It is not the primary OCR entry point.</string>

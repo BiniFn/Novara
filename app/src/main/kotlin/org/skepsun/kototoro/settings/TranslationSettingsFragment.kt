@@ -23,6 +23,8 @@ import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
 import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
+import org.skepsun.kototoro.core.prefs.ReaderTranslationPipelineMode
+import androidx.preference.PreferenceCategory
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
@@ -92,6 +94,7 @@ class TranslationSettingsFragment :
 		updateOnnxBubbleOfficialModelEntries()
 		updateBubbleGroupingSummary()
 		updateBubbleExperimentVisibility()
+		updatePipelineModeVisibility()
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -159,6 +162,9 @@ class TranslationSettingsFragment :
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION,
 			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256 -> applyOfficialPaddleModel()
+			AppSettings.KEY_READER_TRANSLATION_PIPELINE_MODE -> {
+				updatePipelineModeVisibility()
+			}
 		}
 	}
 
@@ -187,12 +193,25 @@ class TranslationSettingsFragment :
 	}
 
 	private fun updateApiPreferenceVisibility() {
-		val showApi = settings.readerTranslationMode != ReaderTranslationMode.LOCAL_ONLY
+		val showApi = settings.readerTranslationMode != ReaderTranslationMode.LOCAL_ONLY && settings.readerTranslationPipelineMode != ReaderTranslationPipelineMode.END_TO_END_API
+		val showE2eApi = settings.readerTranslationPipelineMode == ReaderTranslationPipelineMode.END_TO_END_API
+
+		findPreference<Preference>("reader_translation_open_api_settings")?.isVisible = showApi
+		findPreference<Preference>("reader_e2e_open_api_settings")?.isVisible = showE2eApi
+
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT)?.isVisible = showApi
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_KEY)?.isVisible = showApi
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.isVisible = showApi
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_MODEL)?.isVisible = showApi
 		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_FETCH_MODELS)?.isVisible = showApi
+	}
+
+	private fun updatePipelineModeVisibility() {
+		val isTwoStage = settings.readerTranslationPipelineMode == ReaderTranslationPipelineMode.TWO_STAGE
+		findPreference<PreferenceCategory>("translation_section_ocr")?.isVisible = isTwoStage
+		findPreference<PreferenceCategory>("translation_section_bubble")?.isVisible = isTwoStage
+		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_MODE)?.isVisible = isTwoStage
+		updateApiPreferenceVisibility()
 	}
 
 	private fun updateBubbleGroupingSummary() {

@@ -161,6 +161,14 @@
 		<item>@string/automatic_scroll</item>
 		<item>@string/bookmark_add</item>
 	</string-array>
+	<string-array name="reader_translation_pipeline_modes" translatable="false">
+		<item>@string/reader_translation_pipeline_mode_two_stage</item>
+		<item>@string/reader_translation_pipeline_mode_end_to_end_api</item>
+	</string-array>
+	<string-array name="values_reader_translation_pipeline_modes" translatable="false">
+		<item>TWO_STAGE</item>
+		<item>END_TO_END_API</item>
+	</string-array>
 	<string-array name="reader_translation_modes" translatable="false">
 		<item>@string/reader_translation_mode_local_only</item>
 		<item>@string/reader_translation_mode_local_first</item>

@@ -130,7 +130,12 @@ class MangaOcrReaderTextRecognizer @Inject constructor(
 		val emptySamples = ArrayList<String>(MAX_EMPTY_LOG_SAMPLES)
 		val traceSamples = ArrayList<String>(MAX_TRACE_SAMPLES)
 		activeTraceCollector.set(traceSamples)
-		val result = regions.mapNotNull { region ->
+		val cappedRegions = if (regions.size > MAX_REGIONS_PER_PAGE) {
+			regions.sortedByDescending { it.rect.width() * it.rect.height() }.take(MAX_REGIONS_PER_PAGE)
+		} else {
+			regions
+		}
+		val result = cappedRegions.mapNotNull { region ->
 			val rect = region.rect
 			attemptedCount += 1
 			minWidth = minOf(minWidth, rect.width())
@@ -242,12 +247,12 @@ class MangaOcrReaderTextRecognizer @Inject constructor(
 
 	private fun recognizeSingle(bitmap: Bitmap, region: TextRegion, runtime: Runtime): OcrTextBlock? {
 		val rect = region.rect
-		if (rect.width() <= 1 || rect.height() <= 1) return null
+		if (rect.width() < MIN_CROP_SIZE || rect.height() < MIN_CROP_SIZE) return null
 		val crop = cropBitmap(bitmap, rect)
 		return try {
 			val trace = recognizeCrop(crop, runtime)
 			val text = trace.decodedText.trim()
-			if (text.isBlank()) {
+			if (text.isBlank() || isHallucinatedNoiseText(text)) {
 				logDecodeTrace(rect, crop, trace, success = false)
 				null
 			} else {
@@ -265,6 +270,26 @@ class MangaOcrReaderTextRecognizer @Inject constructor(
 		} finally {
 			crop.recycle()
 		}
+	}
+
+	/**
+	 * Detects MangaOCR hallucinations on noise crops: pure dots/ellipsis,
+	 * a single repeated character, or very short interjections from tiny regions.
+	 */
+	private fun isHallucinatedNoiseText(text: String): Boolean {
+		// Pure dots/ellipsis: "......", "...", "・・・・・・"
+		val stripped = text.replace(".", "").replace("…", "").replace("・", "")
+			.replace("。", "").replace("、", "").replace("!", "").replace("！", "")
+			.replace("?", "").replace("？", "").replace("ー", "").replace("～", "")
+			.replace("ッ", "").replace("っ", "")
+			.trim()
+		if (stripped.isEmpty()) return true
+		// Single unique character repeated: "ああああああ", "ハハハ"
+		val uniqueChars = stripped.toSet()
+		if (uniqueChars.size == 1 && stripped.length <= 8) return true
+		// Very short text (1-2 meaningful chars) is likely noise from tiny crops
+		if (stripped.length <= 1) return true
+		return false
 	}
 
 	private fun recognizeCrop(bitmap: Bitmap, runtime: Runtime): DecodeTrace {
@@ -329,8 +354,12 @@ class MangaOcrReaderTextRecognizer @Inject constructor(
 	}
 
 	private fun emitDiagnostic(message: () -> String) {
-		diagnosticsEmitter?.invoke(message)
-		Log.d(TAG, message())
+		val emitter = diagnosticsEmitter
+		if (emitter != null) {
+			emitter.invoke(message)
+		} else {
+			Log.d(TAG, message())
+		}
 	}
 
 	private fun preprocess(bitmap: Bitmap, imageConfig: ImageConfig): OnnxTensor {
@@ -493,5 +522,7 @@ class MangaOcrReaderTextRecognizer @Inject constructor(
 		const val MAX_TRACE_SAMPLES = 6
 		const val MAX_TOKEN_PREVIEW = 16
 		const val MAX_TEXT_PREVIEW = 80
+		const val MIN_CROP_SIZE = 16
+		const val MAX_REGIONS_PER_PAGE = 150
 	}
 }

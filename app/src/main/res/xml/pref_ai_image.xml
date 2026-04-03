@@ -11,10 +11,8 @@
         android:title="@string/reader_super_resolution" />
 
     <ListPreference
-        android:defaultValue="SE"
+        android:defaultValue="hugglyberry_realcugan_2x_conservative"
         android:dependency="reader_super_resolution_enabled"
-        android:entries="@array/reader_super_resolution_models"
-        android:entryValues="@array/values_reader_super_resolution_models"
         android:key="reader_super_resolution_model"
         android:title="@string/reader_super_resolution_model"
         app:useSimpleSummaryProvider="true" />

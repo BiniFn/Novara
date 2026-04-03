@@ -45,6 +45,15 @@
             app:useSimpleSummaryProvider="true" />
 
         <ListPreference
+            android:defaultValue="TWO_STAGE"
+            android:dependency="reader_translation_enabled"
+            android:entries="@array/reader_translation_pipeline_modes"
+            android:entryValues="@array/values_reader_translation_pipeline_modes"
+            android:key="reader_translation_pipeline_mode"
+            android:title="@string/reader_translation_pipeline_mode"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
             android:defaultValue="auto"
             android:dependency="reader_translation_enabled"
             android:entries="@array/reader_translation_source_languages"
@@ -62,6 +71,25 @@
             android:key="reader_translation_target_lang"
             android:title="@string/reader_translation_target_lang"
             app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_onnx_model_id"
+            android:title="@string/reader_translation_onnx_model_selection" />
+
+        <PreferenceScreen
+            android:dependency="reader_translation_enabled"
+            android:key="reader_translation_open_api_settings"
+            android:fragment="org.skepsun.kototoro.settings.TranslationApiSettingsFragment"
+            android:summary="@string/reader_translation_open_api_settings_summary"
+            android:title="@string/reader_translation_open_api_settings" />
+
+        <PreferenceScreen
+            android:dependency="reader_translation_enabled"
+            android:key="reader_e2e_open_api_settings"
+            android:fragment="org.skepsun.kototoro.settings.TranslationEndToEndApiSettingsFragment"
+            android:summary="Configure API keys and Endpoint for End-to-End Multimodal OCR"
+            android:title="End-to-End API Settings" />
 
     </PreferenceCategory>
 
@@ -95,30 +123,6 @@
             android:key="reader_translation_ocr_pipeline_strategy"
             android:title="@string/reader_translation_ocr_pipeline_strategy"
             app:useSimpleSummaryProvider="true" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        android:key="translation_section_translation"
-        android:title="@string/reader_translation_section_translation">
-
-        <ListPreference
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_onnx_model_id"
-            android:title="@string/reader_translation_onnx_model_selection" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        android:key="translation_section_api"
-        android:title="@string/reader_translation_section_api">
-
-        <PreferenceScreen
-            android:dependency="reader_translation_enabled"
-            android:key="reader_translation_open_api_settings"
-            android:fragment="org.skepsun.kototoro.settings.TranslationApiSettingsFragment"
-            android:summary="@string/reader_translation_open_api_settings_summary"
-            android:title="@string/reader_translation_open_api_settings" />
 
     </PreferenceCategory>
 

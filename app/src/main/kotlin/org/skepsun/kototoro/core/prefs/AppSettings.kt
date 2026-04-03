@@ -686,6 +686,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationMode: ReaderTranslationMode
 		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_MODE, ReaderTranslationMode.LOCAL_FIRST)
 
+	val readerTranslationPipelineMode: org.skepsun.kototoro.core.prefs.ReaderTranslationPipelineMode
+		get() = prefs.getEnumValue(KEY_READER_TRANSLATION_PIPELINE_MODE, org.skepsun.kototoro.core.prefs.ReaderTranslationPipelineMode.TWO_STAGE)
+
 	val readerTranslationApiEndpoint: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_API_ENDPOINT, "") ?: ""
 
@@ -697,6 +700,21 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerTranslationApiProviderPreset: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM") ?: "CUSTOM"
+
+	val readerE2eApiEndpoint: String
+		get() = prefs.getString(KEY_READER_E2E_API_ENDPOINT, "") ?: ""
+
+	val readerE2eApiKey: String
+		get() = prefs.getString(KEY_READER_E2E_API_KEY, "") ?: ""
+
+	val readerE2eApiModel: String
+		get() = prefs.getString(KEY_READER_E2E_API_MODEL, "gemini-2.0-flash") ?: "gemini-2.0-flash"
+
+	val readerE2eApiProviderPreset: String
+		get() = prefs.getString(KEY_READER_E2E_API_PROVIDER_PRESET, "GEMINI") ?: "GEMINI"
+
+	val readerE2eApiConcurrency: Int
+		get() = prefs.getString(KEY_READER_E2E_API_CONCURRENCY, "3")?.toIntOrNull() ?: 3
 
 	val readerTranslationBubbleGroupingTuning: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING, "BALANCED") ?: "BALANCED"
@@ -1407,11 +1425,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_TARGET_LANG = "reader_translation_target_lang"
 		const val KEY_READER_TRANSLATION_OCR_ENGINE = "reader_translation_ocr_engine"
 		const val KEY_READER_TRANSLATION_MODE = "reader_translation_mode"
+		const val KEY_READER_TRANSLATION_PIPELINE_MODE = "reader_translation_pipeline_mode"
 		const val KEY_READER_TRANSLATION_API_ENDPOINT = "reader_translation_api_endpoint"
 		const val KEY_READER_TRANSLATION_API_KEY = "reader_translation_api_key"
 		const val KEY_READER_TRANSLATION_API_MODEL = "reader_translation_api_model"
 		const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
 		const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
+
+		const val KEY_READER_E2E_API_ENDPOINT = "reader_e2e_api_endpoint"
+		const val KEY_READER_E2E_API_KEY = "reader_e2e_api_key"
+		const val KEY_READER_E2E_API_MODEL = "reader_e2e_api_model"
+		const val KEY_READER_E2E_API_PROVIDER_PRESET = "reader_e2e_api_provider_preset"
+		const val KEY_READER_E2E_API_FETCH_MODELS = "reader_e2e_api_fetch_models"
+		const val KEY_READER_E2E_API_CONCURRENCY = "reader_e2e_api_concurrency"
 		const val KEY_READER_TRANSLATION_OCR_PIPELINE_STRATEGY = "reader_translation_ocr_pipeline_strategy"
 		const val KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING = "reader_translation_bubble_grouping_tuning"
 			const val KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED = "reader_translation_bubble_detector_enabled"

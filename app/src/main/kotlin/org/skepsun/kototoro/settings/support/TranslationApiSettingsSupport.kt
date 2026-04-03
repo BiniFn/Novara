@@ -11,6 +11,8 @@ object TranslationApiSettingsSupport {
 		sharedPreferences: SharedPreferences,
 		presetInput: String,
 		forceOverride: Boolean = false,
+		endpointKey: String = AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT,
+		modelKey: String = AppSettings.KEY_READER_TRANSLATION_API_MODEL,
 	) {
 		val preset = presetInput.trim().uppercase()
 		if (preset.isBlank() || preset == "CUSTOM") return
@@ -29,14 +31,14 @@ object TranslationApiSettingsSupport {
 		}
 		endpointAndModel ?: return
 
-		val currentEndpoint = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, "").orEmpty().trim()
-		val currentModel = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, "").orEmpty().trim()
+		val currentEndpoint = sharedPreferences.getString(endpointKey, "").orEmpty().trim()
+		val currentModel = sharedPreferences.getString(modelKey, "").orEmpty().trim()
 		sharedPreferences.edit {
 			if (forceOverride || currentEndpoint.isBlank()) {
-				putString(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT, endpointAndModel.first)
+				putString(endpointKey, endpointAndModel.first)
 			}
 			if (forceOverride || currentModel.isBlank()) {
-				putString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, endpointAndModel.second)
+				putString(modelKey, endpointAndModel.second)
 			}
 		}
 	}

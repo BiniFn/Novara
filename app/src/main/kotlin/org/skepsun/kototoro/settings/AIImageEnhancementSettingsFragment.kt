@@ -12,11 +12,40 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 
+import javax.inject.Inject
+import androidx.preference.ListPreference
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
+import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
+
 @AndroidEntryPoint
 class AIImageEnhancementSettingsFragment : BasePreferenceFragment(R.string.ai_image_enhancement_settings) {
 
+	@Inject
+	lateinit var onnxModelManager: OnnxModelManager
+
 	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
 		addPreferencesFromResource(R.xml.pref_ai_image)
+		updateSuperResolutionModelEntries()
+	}
+
+	private fun updateSuperResolutionModelEntries() {
+		val models = OnnxOfficialModelCatalog.models.filter {
+			it.category == OnnxModelCategory.IMAGE_SUPER_RESOLUTION
+		}
+		findPreference<ListPreference>(AppSettings.KEY_READER_SUPER_RESOLUTION_MODEL)?.run {
+			entries = models.map { model ->
+				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
+				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+				model.title + suffix
+			}.toTypedArray()
+			entryValues = models.map { it.id }.toTypedArray()
+
+			if (value == null || models.none { it.id == value }) {
+				value = models.firstOrNull()?.id
+			}
+		}
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

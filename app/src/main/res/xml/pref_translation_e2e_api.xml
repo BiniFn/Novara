@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:title="End-to-End Multimodal API Settings">
+
+    <Preference
+        android:key="reader_e2e_api_usage_info"
+        android:selectable="false"
+        android:summary="End-to-End API handles both OCR text detection and translation directly in a single pass using Large Multimodal Models (e.g. Gemini Vision). Standard local OCR models and Two-Stage translation API will be bypassed."
+        android:title="Multimodal Pipeline Mode" />
+
+    <ListPreference
+        android:defaultValue="GEMINI"
+        android:entries="@array/reader_translation_api_provider_presets"
+        android:entryValues="@array/values_reader_translation_api_provider_presets"
+        android:key="reader_e2e_api_provider_preset"
+        android:summary="@string/reader_translation_api_provider_preset_summary"
+        android:title="@string/reader_translation_api_provider_preset"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:defaultValue=""
+        android:key="reader_e2e_api_endpoint"
+        android:singleLine="true"
+        android:summary="@string/reader_translation_api_endpoint_summary"
+        android:title="@string/reader_translation_api_endpoint"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:defaultValue=""
+        android:key="reader_e2e_api_key"
+        android:singleLine="true"
+        android:summary="@string/reader_translation_api_key_summary"
+        android:title="@string/reader_translation_api_key"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:defaultValue="gemini-2.0-flash"
+        android:key="reader_e2e_api_model"
+        android:singleLine="true"
+        android:summary="@string/reader_translation_api_model_summary"
+        android:title="@string/reader_translation_api_model"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:defaultValue="3"
+        android:inputType="number"
+        android:key="reader_e2e_api_concurrency"
+        android:singleLine="true"
+        android:summary="Number of pages to translate in parallel. Increase carefully to avoid rate limits."
+        android:title="API Parallel Translation Concurrency"
+        app:useSimpleSummaryProvider="true" />
+
+    <Preference
+        android:key="reader_e2e_api_fetch_models"
+        android:summary="@string/reader_translation_api_models_fetch_summary"
+        android:title="@string/reader_translation_api_models_fetch" />
+
+</PreferenceScreen>
