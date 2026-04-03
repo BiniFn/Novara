@@ -42,7 +42,7 @@ We enforced hardware-appropriate initialization profiles directly within the JNI
 // RealCUGAN Defaults
 realcugan->scale = 2;
 realcugan->tilesize = 400; // Optimal sweet-spot for Snapdragon Adreno/Mali
-realcugan->prepadding = 3;
+realcugan->prepadding = 18; // MUST match official realcugan-ncnn-vulkan values
 realcugan->syncgap = 3;
 
 // RealESRGAN Defaults
@@ -69,7 +69,7 @@ However, modern Android system UI pipelines (surface buffers) apply heavy byte-p
 ### The Solution: "Smart Dense Packing" Bridge
 We replaced the risky Zero-Copy implementation with a dynamically resilient memory marshaller in the JNI:
 - The system interrogates the Android target buffer: `bool needsCopy = (info.stride != info.width * 4);`
-- If padding is detected, we allocate a densely packed heap intermediate matrix.
+- If padding is detected, we allocate a **zero-initialized** densely packed heap intermediate matrix (`new uint8_t[n]()`).
 - We perform a high-speed pointer-jumping `memcpy` loop to copy Android's padded format into the dense contiguous array.
 - NCNN performs flawless mathematics on the dense array.
 - Post-processing, the array is decompressed back into the padded Android stride geometry.
@@ -85,3 +85,136 @@ if (outNeedsCopy && ret == 0) {
 ```
 
 This ensures absolute calculation stability regardless of whether the specific user's SoC OEM modifies the OS-level bitmap graphics pipeline buffer alignment rules, and completely eliminates the visual tearing artifacts.
+
+## 4. Tile-Seam "White/Yellow Bar" Artifacts
+
+### The Issue
+After resolving the stride misalignment (Section 3), the super-resolved output still exhibited prominent horizontal white and yellow bars at regular vertical intervals spanning the full image width. The bars appeared exactly at tile processing boundaries (every `tilesize × scale` output pixels).
+
+### Root Causes (Three Contributing Factors)
+
+#### 4a. Insufficient Tile Prepadding (Primary Cause)
+The `prepadding` parameter for RealCUGAN was set to `3`, but the official `realcugan-ncnn-vulkan` repository requires `prepadding = 18` for all `scale=2` models. This parameter controls how many border pixels of context each tile overlaps with its neighbors during processing.
+
+With only 3 pixels of overlap, the neural network lacked sufficient contextual information at tile edges, producing high-energy edge artifacts (manifesting as bright white/yellow bands) at every tile boundary. The official prepadding values per model configuration:
+| Model  | Scale | Prepadding |
+|--------|-------|------------|
+| RealCUGAN | 2x | 18 |
+| RealCUGAN | 3x | 14 |
+| RealCUGAN | 4x | 19 |
+| RealESRGAN | 4x | 10 |
+
+#### 4b. GLSL `uint(negative_float)` Undefined Behavior
+The postproc compute shaders contained:
+```glsl
+uint v32 = clamp(uint(floor(v)), 0, 255);
+```
+Per the GLSL 4.50 specification, converting a negative `float` to `uint` is **undefined behavior**. On some mobile GPU shader compilers (Adreno, Mali), this produces either `0` or `MAX_UINT`, which after `clamp` yields either `0` (black) or `255` (white/max). When only the Blue channel goes negative while R and G remain at 255, the result is yellow (R=255, G=255, B=0).
+
+#### 4c. Uninitialized Dense Output Buffer
+When bitmap stride padding was detected, the intermediate `denseOut` buffer was allocated with `new uint8_t[n]` (uninitialized). Any output pixels that the GPU failed to write (due to rounding gaps at tile edges) would contain random heap garbage, contributing scattered colored pixels.
+
+### The Solution
+
+1. **Corrected Prepadding**: Changed RealCUGAN `prepadding` from 3 to 18, matching the official repository.
+2. **Safe GLSL Clamping**: All four postproc shaders (realcugan/realesrgan × normal/tta) now clamp before the uint cast:
+   ```glsl
+   uint v32 = clamp(uint(floor(max(v, 0.0))), 0, 255);
+   ```
+3. **Zero-Initialized Buffer**: Changed to `new uint8_t[n]()` (value-initialization).
+4. **Bitmap Format Validation**: Added explicit `ANDROID_BITMAP_FORMAT_RGBA_8888` checks in JNI, and forced `inPreferredConfig = ARGB_8888` in the Kotlin decoder to prevent `RGB_565` format mismatches on certain devices.
+
+## 5. RealESRGAN Pipeline Specialization Mismatch (`SIGSEGV`)
+
+### The Issue
+Switching to the RealESRGAN engine caused an immediate `SIGSEGV` crash. Logcat:
+```
+pipeline specialization count mismatch, expect 0 but got 1
+binding_count not match, expect 0 but got 3 + 0
+```
+
+### Root Cause
+RealESRGAN used pre-compiled SPIR-V binary hex headers (`_int8s.comp.hex.h`, `_fp16s.comp.hex.h`) for pipeline creation, directly via `Pipeline::create()`. These stale binaries lacked the `bgr` specialization constant, causing pipeline creation to fail silently. Subsequent `record_pipeline()` on the invalid pipeline triggered `SIGSEGV`.
+
+### The Solution
+Changed RealESRGAN to use runtime `compile_spirv_module()` (like RealCUGAN), which compiles GLSL source to SPIR-V at runtime. This automatically handles `NCNN_fp16_storage`/`NCNN_int8_storage` defines and preserves specialization constants.
+
+## 6. `VK_ERROR_DEVICE_LOST` from GPU Watchdog Timeout
+
+### The Issue
+RealESRGAN 4x triggered repeated `vkQueueSubmit failed -4` (`VK_ERROR_DEVICE_LOST`), even on devices with 10+ GB GPU VRAM (Adreno 840).
+
+### Root Cause
+**Not a VRAM issue — a GPU compute timeout.** With `tilesize=400`, each tile through the 4x model takes >2 seconds of GPU compute time, exceeding the Adreno GPU kernel watchdog limit (~2 seconds). The driver forcefully terminates the GPU context.
+
+### The Solution: Official Tilesize Thresholds
+Adopted the **official** `realesrgan-ncnn-vulkan` thresholds (much more conservative than RealCUGAN):
+```cpp
+// RealESRGAN 4x (official thresholds — max tilesize is 200)
+if (heap_budget > 1900)      tilesize = 200;
+else if (heap_budget > 550)  tilesize = 100;
+else if (heap_budget > 190)  tilesize = 64;
+else                          tilesize = 32;
+
+// RealCUGAN 2x (can use larger tiles — lighter model)
+if (heap_budget > 3500)      tilesize = 400;
+else if (heap_budget > 1900)  tilesize = 300;
+else if (heap_budget > 800)   tilesize = 200;
+else                          tilesize = 100;
+```
+
+## 7. GPU Failure Cascade & Bitmap Memory Leak
+
+### The Issue
+After `VK_ERROR_DEVICE_LOST`, the SR engine would continue retrying indefinitely, flooding logcat with thousands of error lines. Each failed attempt leaked an 84MB output bitmap.
+
+### Root Cause
+1. **No error recovery**: The Vulkan device, once LOST, is permanently broken for the process lifetime.
+2. **Bitmap leak**: `Bitmap.createBitmap(4x output)` was never recycled when `processNative()` returned false.
+
+### The Solution
+- Consecutive failure counter (max 3) — auto-disables SR engine after repeated failures
+- `outBitmap.recycle()` on failure in both `RealEsrganNcnnEngine` and `RealCuganNcnnEngine`
+- `OutOfMemoryError` catch around bitmap allocation
+- Input pixel size limits to prevent enormous output bitmaps
+
+## 8. "Loading Stuck" — Semaphore Starvation
+
+### The Issue
+Pages showed a permanent loading spinner when SR was active. Users had to back out and re-enter.
+
+### Root Cause
+SR processing (5-10s per page for ESRGAN 4x) ran **inside** `semaphore.withPermit` in `PageLoader.loadPageImpl()`. With 3 reader threads, all permits were consumed by SR-processing pages, blocking ALL new page downloads.
+
+### The Solution
+Restructured `loadPageImpl()` into two phases:
+1. **Phase 1 (inside semaphore)**: Download + prepare — fast network I/O only
+2. **Phase 2 (outside semaphore)**: SR processing — runs independently, doesn't block other downloads
+
+## 9. UI Fluidity During SR Processing
+
+### The Issue
+Even with correct tilesize and error recovery, translating pages caused 50-80+ frame drops (`Skipped 82 frames!`, `Davey! duration=1500ms`).
+
+### Root Cause
+NCNN Vulkan compute monopolizes the GPU queue. HWUI (Android's hardware UI renderer) shares the same GPU and cannot render frames while NCNN is submitting continuous compute dispatches.
+
+### The Solution: Multi-Layer Yield Strategy
+
+**C++ Layer — Inter-tile GPU yield** (`realesrgan.cpp`, `realcugan.cpp`):
+```cpp
+// After each tile's submit_and_wait(), yield 2ms for HWUI
+std::this_thread::sleep_for(std::chrono::milliseconds(2));
+```
+
+**Kotlin Layer — Background thread priority** (`RealEsrganNcnnEngine.kt`, `RealCuganNcnnEngine.kt`):
+```kotlin
+android.os.Process.setThreadPriority(THREAD_PRIORITY_BACKGROUND)
+try { processNative(...) }
+finally { Process.setThreadPriority(oldPriority) }
+```
+
+This two-layer approach ensures:
+- GPU: HWUI can submit draw commands between tiles (2ms windows)
+- CPU: OS scheduler prioritizes UI thread over SR thread
+

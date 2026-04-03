@@ -234,23 +234,7 @@ object OnnxOfficialModelCatalog {
 			),
 			description = "MangaOCR encoder-decoder recognizer optimized for Japanese manga text.",
 		),
-		OnnxOfficialModel(
-			id = "hugglyberry_realcugan_2x_conservative",
-			title = "RealCUGAN 2x Conservative (ONNX)",
-			version = "hf-main",
-			category = OnnxModelCategory.IMAGE_SUPER_RESOLUTION,
-			files = listOf(
-				OnnxModelFile(
-					fileName = "realcugan-2x-conservative.onnx",
-					downloadUrl = "https://huggingface.co/hugglyberry/upscale-and-refine-models/resolve/main/realcugan-2x-conservative.onnx",
-				),
-				OnnxModelFile(
-					fileName = "realcugan-2x-conservative.onnx.data",
-					downloadUrl = "https://huggingface.co/hugglyberry/upscale-and-refine-models/resolve/main/realcugan-2x-conservative.onnx.data",
-				)
-			),
-			description = "ONNX export of RealCUGAN conservative scale 2x.",
-		),
+
 		OnnxOfficialModel(
 			id = "realesrgan_ncnn_x4plus_anime",
 			title = "RealESRGAN 4x Anime (NCNN Native)",

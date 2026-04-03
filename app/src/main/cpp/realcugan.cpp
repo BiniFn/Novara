@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include <thread>
+#include <chrono>
 
 // ncnn
 #include "cpu.h"
@@ -702,6 +704,9 @@ int RealCUGAN::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) const
                 cmd.submit_and_wait();
                 cmd.reset();
             }
+
+            // Yield to let HWUI render frames between tiles
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
 
         // download

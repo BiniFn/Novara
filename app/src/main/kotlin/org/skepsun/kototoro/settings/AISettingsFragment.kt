@@ -65,7 +65,7 @@ class AISettingsFragment :
 			AppSettings.KEY_READER_TRANSLATION_API_MODEL,
 			AppSettings.KEY_READER_SUPER_RESOLUTION_ENABLED,
 			AppSettings.KEY_READER_SUPER_RESOLUTION_MODEL,
-			AppSettings.KEY_READER_SUPER_RESOLUTION_NOISE_LEVEL,
+
 			AppSettings.KEY_VIDEO_SUPER_RES_MODE,
 			AppSettings.KEY_VIDEO_SUPER_RES_SHADER,
 			AppSettings.KEY_VIDEO_SUPER_RES_QUALITY_SHADER,
@@ -118,8 +118,7 @@ class AISettingsFragment :
 			} else {
 				R.string.ai_image_enhancement_summary_disabled
 			},
-			AISettingsSummarySupport.getReaderSuperResolutionModelLabel(requireContext(), settings.readerSuperResolutionModel),
-			AISettingsSummarySupport.getReaderSuperResolutionNoiseLabel(requireContext(), settings.readerSuperResolutionNoiseLevel),
+			AISettingsSummarySupport.getReaderSuperResolutionEngineLabel(settings.readerSuperResolutionEngine, settings.readerSuperResolutionModel),
 		)
 
 		findPreference<Preference>("ai_video")?.summary = getString(

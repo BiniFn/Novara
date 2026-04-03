@@ -930,6 +930,12 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_READER_SUPER_RESOLUTION_ENABLED, false)
 		set(value) = prefs.edit().putBoolean(KEY_READER_SUPER_RESOLUTION_ENABLED, value).apply()
 
+	val readerSuperResolutionEngine: String
+		get() = prefs.getString(KEY_READER_SUPER_RESOLUTION_ENGINE, "ANIME4K") ?: "ANIME4K"
+
+	val readerSuperResolutionAnime4kMode: String
+		get() = prefs.getString(KEY_READER_SUPER_RESOLUTION_ANIME4K_MODE, "ANIME4K_A") ?: "ANIME4K_A"
+
 	val readerSuperResolutionModel: String
 		get() = prefs.getString(KEY_READER_SUPER_RESOLUTION_MODEL, "SE") ?: "SE"
 
@@ -1503,6 +1509,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_BAR_TRANSPARENT = "reader_bar_transparent"
 		const val KEY_READER_CHAPTER_TOAST = "reader_chapter_toast"
 		const val KEY_READER_SUPER_RESOLUTION_ENABLED = "reader_super_resolution_enabled"
+		const val KEY_READER_SUPER_RESOLUTION_ENGINE = "reader_super_resolution_engine"
+		const val KEY_READER_SUPER_RESOLUTION_ANIME4K_MODE = "reader_super_resolution_anime4k_mode"
 		const val KEY_READER_SUPER_RESOLUTION_MODEL = "reader_super_resolution_model"
 		const val KEY_READER_SUPER_RESOLUTION_NOISE_LEVEL = "reader_super_resolution_noise_level"
 		const val KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT = "reader_super_resolution_cache_limit"

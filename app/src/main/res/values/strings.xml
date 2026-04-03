@@ -755,10 +755,12 @@
 
     <string name="reader_super_resolution">AI Super Resolution</string>
     <string name="reader_super_resolution_summary">Upscales images using RealCUGAN (may consume significantly more battery and performance)</string>
+    <string name="reader_super_resolution_engine">Super Resolution Engine</string>
     <string name="reader_super_resolution_model">Neural Model</string>
     <string name="reader_super_resolution_model_se">SE Mode (General enhancement)</string>
     <string name="reader_super_resolution_model_pro">Pro Mode (Aggressive noise reduction)</string>
     <string name="reader_super_resolution_model_nose">Nose Mode (Denoise only)</string>
+    <string name="reader_super_resolution_anime4k_mode">Anime4K Mode</string>
     <string name="reader_super_resolution_noise">Noise Level</string>
     <string name="reader_super_resolution_noise_n1">None (-1)</string>
     <string name="reader_super_resolution_noise_0">Low (0)</string>
@@ -981,8 +983,8 @@
     <string name="ai_api_usage_summary_api_only">Current translation mode is API only. Every translation request will use the configured remote provider.</string>
     <string name="ai_image_enhancement_settings">Image enhancement</string>
     <string name="ai_image_enhancement_summary">Configure reader-side AI super resolution and cache behavior</string>
-    <string name="ai_image_enhancement_summary_enabled">Enabled, %1$s\nNoise: %2$s</string>
-    <string name="ai_image_enhancement_summary_disabled">Disabled, %1$s\nNoise: %2$s</string>
+    <string name="ai_image_enhancement_summary_enabled">Enabled, %1$s</string>
+    <string name="ai_image_enhancement_summary_disabled">Disabled, %1$s</string>
     <string name="ai_video_enhancement_settings">Video enhancement</string>
     <string name="ai_video_enhancement_summary">Configure video super resolution modes and advanced shader selection</string>
     <string name="ai_models_summary_format">%1$d/%2$d downloaded\nOCR %3$d/%4$d, translation %5$d/%6$d, bubble %7$d/%8$d</string>

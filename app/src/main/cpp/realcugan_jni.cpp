@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/bitmap.h>
 #include <android/log.h>
+#include <cstring>
 #include "realcugan.h"
 #include "cpu.h"
 #include "gpu.h"
@@ -29,11 +30,36 @@ Java_org_skepsun_kototoro_reader_translate_data_RealCuganNcnnEngine_initNative(J
     realcugan = new RealCUGAN(gpuid, ttaMode);
     
     // Default model args for RealCUGAN anime models
+    // prepadding MUST match the official realcugan-ncnn-vulkan values:
+    //   scale=2 → prepadding=18
+    //   scale=3 → prepadding=14
+    //   scale=4 → prepadding=19
+    // Using too-small prepadding (e.g. 3) causes severe tile-seam artifacts
+    // (white/yellow bars at tile boundaries) because the model lacks enough
+    // context pixels at the edge of each processing tile.
     realcugan->noise = -1;
-    realcugan->scale = 2; // Can be parameterized if needed
-    realcugan->tilesize = 400;
+    realcugan->scale = 2;
     realcugan->syncgap = 3;
-    realcugan->prepadding = 3;
+    realcugan->prepadding = 18;
+
+    // Auto-detect tilesize based on GPU heap budget.
+    // RealCUGAN 2x is less demanding than ESRGAN 4x, but still needs to respect
+    // mobile GPU VRAM limits to avoid VK_ERROR_DEVICE_LOST.
+    if (gpuid >= 0) {
+        uint32_t heap_budget = ncnn::get_gpu_device(gpuid)->get_heap_budget();
+        LOGD("GPU %d heap budget: %u MB", gpuid, heap_budget);
+        if (heap_budget > 1900)
+            realcugan->tilesize = 400;
+        else if (heap_budget > 800)
+            realcugan->tilesize = 300;
+        else if (heap_budget > 400)
+            realcugan->tilesize = 200;
+        else
+            realcugan->tilesize = 100;
+        LOGD("Auto-selected tilesize: %d", realcugan->tilesize);
+    } else {
+        realcugan->tilesize = 400; // CPU mode, no VRAM concern
+    }
 
     int ret = realcugan->load(param_str, bin_str);
 
@@ -59,6 +85,15 @@ Java_org_skepsun_kototoro_reader_translate_data_RealCuganNcnnEngine_processNativ
     AndroidBitmap_getInfo(env, inBitmap, &inInfo);
     AndroidBitmap_getInfo(env, outBitmap, &outInfo);
 
+    // Validate that both bitmaps are RGBA_8888, otherwise the 4-byte-per-pixel
+    // assumption breaks (e.g. RGB_565 = 2 bytes/pixel → garbled output).
+    if (inInfo.format != ANDROID_BITMAP_FORMAT_RGBA_8888 ||
+        outInfo.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
+        LOGE("Bitmap format mismatch: in=%d out=%d, need RGBA_8888(%d)",
+             inInfo.format, outInfo.format, ANDROID_BITMAP_FORMAT_RGBA_8888);
+        return JNI_FALSE;
+    }
+
     void* inPixels;
     void* outPixels;
     AndroidBitmap_lockPixels(env, inBitmap, &inPixels);
@@ -81,13 +116,18 @@ Java_org_skepsun_kototoro_reader_translate_data_RealCuganNcnnEngine_processNativ
 
     uint8_t* denseOut = (uint8_t*)outPixels;
     if (outNeedsCopy) {
-        denseOut = new uint8_t[outInfo.width * outInfo.height * 4];
+        // Value-initialize (zero) the buffer so any pixels the GPU misses
+        // remain transparent instead of showing as random garbage colors.
+        denseOut = new uint8_t[outInfo.width * outInfo.height * 4]();
     }
 
     ncnn::Mat inMat(inInfo.width, inInfo.height, denseIn, (size_t)4u, 4);
     ncnn::Mat outMat(outInfo.width, outInfo.height, denseOut, (size_t)4u, 4);
     
     int ret = cugan->process(inMat, outMat);
+    if (ret != 0) {
+        LOGE("RealCUGAN process() failed with code %d (likely VK_ERROR_DEVICE_LOST)", ret);
+    }
 
     if (outNeedsCopy && ret == 0) {
         for (uint32_t y = 0; y < outInfo.height; y++) {

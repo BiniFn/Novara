@@ -32,8 +32,28 @@ Java_org_skepsun_kototoro_reader_translate_data_RealEsrganNcnnEngine_initNative(
     
     // Default model args for RealESRGAN anime models
     realesrgan->scale = 4; // Most RealESRGAN anime models are 4x by default
-    realesrgan->tilesize = 400; // 400 is optimal for modern mobile Adreno/Mali
     realesrgan->prepadding = 10;
+
+    // Auto-detect tilesize based on GPU heap budget.
+    // IMPORTANT: These thresholds are from the OFFICIAL realesrgan-ncnn-vulkan repo.
+    // RealESRGAN 4x has MUCH heavier per-tile compute than RealCUGAN 2x.
+    // Even with 10+ GB VRAM, tilesize=400 exceeds the Adreno GPU watchdog timeout
+    // (~2 seconds), triggering VK_ERROR_DEVICE_LOST. Max safe tilesize is 200.
+    if (gpuid >= 0) {
+        uint32_t heap_budget = ncnn::get_gpu_device(gpuid)->get_heap_budget();
+        LOGD("GPU %d heap budget: %u MB", gpuid, heap_budget);
+        if (heap_budget > 1900)
+            realesrgan->tilesize = 200;
+        else if (heap_budget > 550)
+            realesrgan->tilesize = 100;
+        else if (heap_budget > 190)
+            realesrgan->tilesize = 64;
+        else
+            realesrgan->tilesize = 32;
+        LOGD("Auto-selected tilesize: %d", realesrgan->tilesize);
+    } else {
+        realesrgan->tilesize = 200; // safe CPU fallback
+    }
     
     int ret = realesrgan->load(param_str, bin_str);
 
@@ -59,6 +79,15 @@ Java_org_skepsun_kototoro_reader_translate_data_RealEsrganNcnnEngine_processNati
     AndroidBitmap_getInfo(env, inBitmap, &inInfo);
     AndroidBitmap_getInfo(env, outBitmap, &outInfo);
 
+    // Validate that both bitmaps are RGBA_8888, otherwise the 4-byte-per-pixel
+    // assumption breaks (e.g. RGB_565 = 2 bytes/pixel → garbled output).
+    if (inInfo.format != ANDROID_BITMAP_FORMAT_RGBA_8888 ||
+        outInfo.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
+        LOGE("Bitmap format mismatch: in=%d out=%d, need RGBA_8888(%d)",
+             inInfo.format, outInfo.format, ANDROID_BITMAP_FORMAT_RGBA_8888);
+        return JNI_FALSE;
+    }
+
     void* inPixels;
     void* outPixels;
     AndroidBitmap_lockPixels(env, inBitmap, &inPixels);
@@ -81,13 +110,18 @@ Java_org_skepsun_kototoro_reader_translate_data_RealEsrganNcnnEngine_processNati
 
     uint8_t* denseOut = (uint8_t*)outPixels;
     if (outNeedsCopy) {
-        denseOut = new uint8_t[outInfo.width * outInfo.height * 4];
+        // Value-initialize (zero) the buffer so any pixels the GPU misses
+        // remain transparent instead of showing as random garbage colors.
+        denseOut = new uint8_t[outInfo.width * outInfo.height * 4]();
     }
 
     ncnn::Mat inMat(inInfo.width, inInfo.height, denseIn, (size_t)4u, 4);
     ncnn::Mat outMat(outInfo.width, outInfo.height, denseOut, (size_t)4u, 4);
     
     int ret = esrgan->process(inMat, outMat);
+    if (ret != 0) {
+        LOGE("RealESRGAN process() failed with code %d (likely VK_ERROR_DEVICE_LOST)", ret);
+    }
 
     if (outNeedsCopy && ret == 0) {
         for (uint32_t y = 0; y < outInfo.height; y++) {

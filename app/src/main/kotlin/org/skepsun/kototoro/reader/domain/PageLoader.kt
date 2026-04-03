@@ -323,73 +323,85 @@ class PageLoader @Inject constructor(
 		progress: MutableStateFlow<Float>,
 		isPrefetch: Boolean,
 		skipCache: Boolean,
-	): Uri = semaphore.withPermit {
-		val pageUrl = getPageUrl(page)
-		check(pageUrl.isNotBlank()) { "Cannot obtain full image url for $page" }
-		val sourceUri = if (!skipCache) {
-			cache.get(pageUrl)?.toUri()
-		} else {
-			null
-		} ?: run {
-			val uri = pageUrl.toUri()
-			when {
-				uri.isZipUri() -> if (uri.scheme == URI_SCHEME_ZIP) {
-					uri
-				} else { // legacy uri
-					uri.buildUpon().scheme(URI_SCHEME_ZIP).build()
-				}
-
-				uri.isFileUri() -> uri
-				uri.scheme == "data" -> {
-					val dataUrl = pageUrl
-					val commaIndex = dataUrl.indexOf(',')
-					if (commaIndex == -1) error("Invalid data URL: $dataUrl")
-
-					val header = dataUrl.substring(0, commaIndex)
-					val data = dataUrl.substring(commaIndex + 1)
-					val isBase64 = header.contains(";base64")
-					val contentType = header.substringAfter("data:").substringBefore(";")
-
-					val bytes = if (isBase64) {
-						android.util.Base64.decode(data, android.util.Base64.DEFAULT)
-					} else {
-						java.net.URLDecoder.decode(data, "UTF-8").toByteArray()
+	): Uri {
+		// Phase 1: Download + prepare — holds semaphore (fast: network I/O only)
+		val preparedPage = semaphore.withPermit {
+			val pageUrl = getPageUrl(page)
+			check(pageUrl.isNotBlank()) { "Cannot obtain full image url for $page" }
+			val sourceUri = if (!skipCache) {
+				cache.get(pageUrl)?.toUri()
+			} else {
+				null
+			} ?: run {
+				val uri = pageUrl.toUri()
+				when {
+					uri.isZipUri() -> if (uri.scheme == URI_SCHEME_ZIP) {
+						uri
+					} else { // legacy uri
+						uri.buildUpon().scheme(URI_SCHEME_ZIP).build()
 					}
 
-					cache.set(pageUrl, bytes.inputStream().source(), contentType.toMimeTypeOrNull()).toUri()
-				}
+					uri.isFileUri() -> uri
+					uri.scheme == "data" -> {
+						val dataUrl = pageUrl
+						val commaIndex = dataUrl.indexOf(',')
+						if (commaIndex == -1) error("Invalid data URL: $dataUrl")
 
-				else -> {
-					if (isPrefetch) {
-						downloadSlowdownDispatcher.delay(page.source)
-					}
-					val repo = getRepository(page.source)
-					val request = repo.createPageRequest(pageUrl, page)
-					val imageClient = repo.getImageClient() ?: okHttp
-					val response = imageProxyInterceptor.interceptPageRequest(request, imageClient)
-					Log.d(
-						"JsPageResponse",
-						"resp code=${response.code} protocol=${response.protocol} redirected=${response.priorResponse != null} reqUrl=${response.request.url} prior=${response.priorResponse?.code}"
-					)
-					response.ensureSuccess().use { resp ->
-						resp.requireBody().withProgress(progress).use {
-							cache.set(pageUrl, it.source(), it.contentType()?.toMimeType())
+						val header = dataUrl.substring(0, commaIndex)
+						val data = dataUrl.substring(commaIndex + 1)
+						val isBase64 = header.contains(";base64")
+						val contentType = header.substringAfter("data:").substringBefore(";")
+
+						val bytes = if (isBase64) {
+							android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+						} else {
+							java.net.URLDecoder.decode(data, "UTF-8").toByteArray()
 						}
-					}.toUri()
+
+						cache.set(pageUrl, bytes.inputStream().source(), contentType.toMimeTypeOrNull()).toUri()
+					}
+
+					else -> {
+						if (isPrefetch) {
+							downloadSlowdownDispatcher.delay(page.source)
+						}
+						val repo = getRepository(page.source)
+						val request = repo.createPageRequest(pageUrl, page)
+						val imageClient = repo.getImageClient() ?: okHttp
+						val response = imageProxyInterceptor.interceptPageRequest(request, imageClient)
+						Log.d(
+							"JsPageResponse",
+							"resp code=${response.code} protocol=${response.protocol} redirected=${response.priorResponse != null} reqUrl=${response.request.url} prior=${response.priorResponse?.code}"
+						)
+						response.ensureSuccess().use { resp ->
+							resp.requireBody().withProgress(progress).use {
+								cache.set(pageUrl, it.source(), it.contentType()?.toMimeType())
+							}
+						}.toUri()
+					}
 				}
 			}
+			enhancementController.preparePage(
+				page = page,
+				sourceUri = sourceUri,
+				convertZipBitmap = ::convertBimap,
+			)
 		}
-		val preparedPage = enhancementController.preparePage(
-			page = page,
-			sourceUri = sourceUri,
-			convertZipBitmap = ::convertBimap,
-		)
+		// Semaphore released here — other pages can now download while SR runs
 
+		// Phase 2: Super-resolution — runs OUTSIDE semaphore (can take 5-10s for ESRGAN 4x)
 		var displayUri = preparedPage.displayUri
 		if (settings.isReaderSuperResolutionEnabled && !isLowRam() && !context.isPowerSaveMode()) {
+			val engine = settings.readerSuperResolutionEngine
+			val modelId = if (engine == "ANIME4K") {
+				settings.readerSuperResolutionAnime4kMode
+			} else {
+				settings.readerSuperResolutionModel
+			}
+
 			val srUri = srManager.processImage(
 				originalUri = displayUri,
-				modelId = settings.readerSuperResolutionModel,
+				modelId = modelId,
 				noiseLevel = settings.readerSuperResolutionNoiseLevel,
 				cacheLimitMb = settings.readerSuperResolutionCacheLimitMb
 			)
@@ -398,6 +410,7 @@ class PageLoader @Inject constructor(
 			}
 		}
 
+		// Phase 3: Schedule translation (if enabled)
 		if (preparedPage.shouldScheduleTranslation) {
 			Log.d("ReaderTranslate", "PageLoader debug: scheduling translation for page=${page.id} (show=${settings.isReaderTranslationShowTranslated})")
 			enhancementController.scheduleTranslation(

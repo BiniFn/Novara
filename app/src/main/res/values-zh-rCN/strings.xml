@@ -1299,8 +1299,8 @@
     <string name="ai_api_usage_summary_api_only">当前翻译模式为仅 API。所有翻译请求都会使用这里配置的远程提供商。</string>
     <string name="ai_image_enhancement_settings">图像增强</string>
     <string name="ai_image_enhancement_summary">配置阅读器侧 AI 超分辨率和缓存行为</string>
-    <string name="ai_image_enhancement_summary_enabled">已启用，%1$s\n降噪：%2$s</string>
-    <string name="ai_image_enhancement_summary_disabled">已关闭，%1$s\n降噪：%2$s</string>
+    <string name="ai_image_enhancement_summary_enabled">已启用，%1$s</string>
+    <string name="ai_image_enhancement_summary_disabled">已关闭，%1$s</string>
     <string name="ai_video_enhancement_settings">视频增强</string>
     <string name="ai_video_enhancement_summary">配置视频超分模式和高级着色器选择</string>
     <string name="ai_models_summary_format">已下载 %1$d/%2$d 个模型\nOCR %3$d/%4$d，翻译 %5$d/%6$d，气泡检测 %7$d/%8$d</string>
@@ -1863,4 +1863,10 @@
     <string name="novel_reading_mode">阅读模式</string>
     <string name="novel_mode_paged">翻页</string>
     <string name="novel_mode_scroll">滚动</string>
+    <string name="reader_super_resolution_engine">超分辨率画质选项</string>
+    <string name="reader_super_resolution_model">神经网络模型</string>
+    <string name="reader_super_resolution_model_se">SE 模式 (均衡增强)</string>
+    <string name="reader_super_resolution_model_pro">Pro 模式 (激进降噪，适合高扫描噪声)</string>
+    <string name="reader_super_resolution_model_nose">Nose 模式 (仅降噪，无细节提升)</string>
+    <string name="reader_super_resolution_anime4k_mode">Anime4K 模式</string>
 </resources>

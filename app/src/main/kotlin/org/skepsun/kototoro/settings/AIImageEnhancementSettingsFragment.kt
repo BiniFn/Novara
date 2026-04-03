@@ -46,6 +46,21 @@ class AIImageEnhancementSettingsFragment : BasePreferenceFragment(R.string.ai_im
 				value = models.firstOrNull()?.id
 			}
 		}
+
+		val enginePref = findPreference<ListPreference>(AppSettings.KEY_READER_SUPER_RESOLUTION_ENGINE)
+		val anime4kPref = findPreference<ListPreference>(AppSettings.KEY_READER_SUPER_RESOLUTION_ANIME4K_MODE)
+		val modelPref = findPreference<ListPreference>(AppSettings.KEY_READER_SUPER_RESOLUTION_MODEL)
+
+		fun updateVisibility(engineValue: String?) {
+			anime4kPref?.isVisible = (engineValue == "ANIME4K")
+			modelPref?.isVisible = (engineValue == "NCNN")
+		}
+
+		enginePref?.setOnPreferenceChangeListener { _, newValue ->
+			updateVisibility(newValue as? String)
+			true
+		}
+		updateVisibility(enginePref?.value)
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

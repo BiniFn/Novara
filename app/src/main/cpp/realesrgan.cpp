@@ -4,43 +4,13 @@
 
 #include <algorithm>
 #include <vector>
-
+#include <thread>
+#include <chrono>
 
 #include "realesrgan_preproc.comp.hex.h"
-
-
-#include "realesrgan_preproc_fp16s.comp.hex.h"
-
-
-#include "realesrgan_preproc_int8s.comp.hex.h"
-
-
 #include "realesrgan_postproc.comp.hex.h"
-
-
-#include "realesrgan_postproc_fp16s.comp.hex.h"
-
-
-#include "realesrgan_postproc_int8s.comp.hex.h"
-
-
-
 #include "realesrgan_preproc_tta.comp.hex.h"
-
-
-#include "realesrgan_preproc_tta_fp16s.comp.hex.h"
-
-
-#include "realesrgan_preproc_tta_int8s.comp.hex.h"
-
-
 #include "realesrgan_postproc_tta.comp.hex.h"
-
-
-#include "realesrgan_postproc_tta_fp16s.comp.hex.h"
-
-
-#include "realesrgan_postproc_tta_int8s.comp.hex.h"
 
 
 RealESRGAN::RealESRGAN(int gpuid, bool _tta_mode)
@@ -115,6 +85,11 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
 #endif
 
     // initialize preprocess and postprocess pipeline
+    // Use runtime GLSL->SPIR-V compilation (like RealCUGAN) instead of pre-compiled
+    // SPIR-V blobs. The pre-compiled _int8s/_fp16s variants had missing specialization
+    // constants causing "pipeline specialization count mismatch" -> SIGSEGV.
+    // compile_spirv_module automatically handles NCNN_fp16_storage / NCNN_int8_storage
+    // preprocessor defines based on net.opt settings.
     {
         std::vector<ncnn::vk_specialization_type> specializations(1);
 #if _WIN32
@@ -123,43 +98,42 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
         specializations[0].i = 0;
 #endif
 
-        realesrgan_preproc = new ncnn::Pipeline(net.vulkan_device());
-        realesrgan_preproc->set_optimal_local_size_xyz(32, 32, 3);
-
-        realesrgan_postproc = new ncnn::Pipeline(net.vulkan_device());
-        realesrgan_postproc->set_optimal_local_size_xyz(32, 32, 3);
-
-        if (tta_mode)
         {
-            if (net.opt.use_fp16_storage && net.opt.use_int8_storage)
-                realesrgan_preproc->create((const uint32_t*)realesrgan_preproc_tta_int8s_comp_data, sizeof(realesrgan_preproc_tta_int8s_comp_data), specializations);
-            else if (net.opt.use_fp16_storage)
-                realesrgan_preproc->create((const uint32_t*)realesrgan_preproc_tta_fp16s_comp_data, sizeof(realesrgan_preproc_tta_fp16s_comp_data), specializations);
-            else
-                realesrgan_preproc->create((const uint32_t*)realesrgan_preproc_tta_comp_data, sizeof(realesrgan_preproc_tta_comp_data), specializations);
+            static std::vector<uint32_t> spirv;
+            static ncnn::Mutex lock;
+            {
+                ncnn::MutexLockGuard guard(lock);
+                if (spirv.empty())
+                {
+                    if (tta_mode)
+                        compile_spirv_module(realesrgan_preproc_tta_comp_data, net.opt, spirv);
+                    else
+                        compile_spirv_module(realesrgan_preproc_comp_data, net.opt, spirv);
+                }
+            }
 
-            if (net.opt.use_fp16_storage && net.opt.use_int8_storage)
-                realesrgan_postproc->create((const uint32_t*)realesrgan_postproc_tta_int8s_comp_data, sizeof(realesrgan_postproc_tta_int8s_comp_data), specializations);
-            else if (net.opt.use_fp16_storage)
-                realesrgan_postproc->create((const uint32_t*)realesrgan_postproc_tta_fp16s_comp_data, sizeof(realesrgan_postproc_tta_fp16s_comp_data), specializations);
-            else
-                realesrgan_postproc->create((const uint32_t*)realesrgan_postproc_tta_comp_data, sizeof(realesrgan_postproc_tta_comp_data), specializations);
+            realesrgan_preproc = new ncnn::Pipeline(net.vulkan_device());
+            realesrgan_preproc->set_optimal_local_size_xyz(32, 32, 3);
+            realesrgan_preproc->create(spirv.data(), spirv.size() * 4, specializations);
         }
-        else
-        {
-            if (net.opt.use_fp16_storage && net.opt.use_int8_storage)
-                realesrgan_preproc->create((const uint32_t*)realesrgan_preproc_int8s_comp_data, sizeof(realesrgan_preproc_int8s_comp_data), specializations);
-            else if (net.opt.use_fp16_storage)
-                realesrgan_preproc->create((const uint32_t*)realesrgan_preproc_fp16s_comp_data, sizeof(realesrgan_preproc_fp16s_comp_data), specializations);
-            else
-                realesrgan_preproc->create((const uint32_t*)realesrgan_preproc_comp_data, sizeof(realesrgan_preproc_comp_data), specializations);
 
-            if (net.opt.use_fp16_storage && net.opt.use_int8_storage)
-                realesrgan_postproc->create((const uint32_t*)realesrgan_postproc_int8s_comp_data, sizeof(realesrgan_postproc_int8s_comp_data), specializations);
-            else if (net.opt.use_fp16_storage)
-                realesrgan_postproc->create((const uint32_t*)realesrgan_postproc_fp16s_comp_data, sizeof(realesrgan_postproc_fp16s_comp_data), specializations);
-            else
-                realesrgan_postproc->create((const uint32_t*)realesrgan_postproc_comp_data, sizeof(realesrgan_postproc_comp_data), specializations);
+        {
+            static std::vector<uint32_t> spirv;
+            static ncnn::Mutex lock;
+            {
+                ncnn::MutexLockGuard guard(lock);
+                if (spirv.empty())
+                {
+                    if (tta_mode)
+                        compile_spirv_module(realesrgan_postproc_tta_comp_data, net.opt, spirv);
+                    else
+                        compile_spirv_module(realesrgan_postproc_comp_data, net.opt, spirv);
+                }
+            }
+
+            realesrgan_postproc = new ncnn::Pipeline(net.vulkan_device());
+            realesrgan_postproc->set_optimal_local_size_xyz(32, 32, 3);
+            realesrgan_postproc->create(spirv.data(), spirv.size() * 4, specializations);
         }
     }
 
@@ -550,7 +524,11 @@ int RealESRGAN::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) const
                 cmd.reset();
             }
 
-            fprintf(stderr, "%.2f%%\n", (float)(yi * xtiles + xi) / (ytiles * xtiles) * 100);
+            // Yield to let HWUI render frames between tiles.
+            // Without this, NCNN monopolizes the Vulkan queue and
+            // the UI thread drops 50-80+ frames during SR processing.
+            // 2ms is enough for HWUI to submit 1-2 draw commands.
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
 
         // download

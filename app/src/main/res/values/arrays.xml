@@ -368,6 +368,14 @@
 		<item>@string/ask_every_time</item>
 		<item>@string/disable</item>
 	</string-array>
+	<string-array name="reader_super_resolution_engines" translatable="false">
+		<item>Anime4K (Fast Shaders)</item>
+		<item>RealCUGAN / RealESRGAN (NCNN)</item>
+	</string-array>
+	<string-array name="values_reader_super_resolution_engines" translatable="false">
+		<item>ANIME4K</item>
+		<item>NCNN</item>
+	</string-array>
 	<string-array name="reader_super_resolution_models" translatable="false">
 		<item>@string/reader_super_resolution_model_se</item>
 		<item>@string/reader_super_resolution_model_pro</item>
@@ -377,6 +385,14 @@
 		<item>SE</item>
 		<item>PRO</item>
 		<item>NOSE</item>
+	</string-array>
+	<string-array name="values_reader_super_resolution_anime4k_modes" translatable="false">
+		<item>ANIME4K_A</item>
+		<item>ANIME4K_B</item>
+		<item>ANIME4K_C</item>
+		<item>ANIME4K_AA</item>
+		<item>ANIME4K_BB</item>
+		<item>ANIME4K_CA</item>
 	</string-array>
 	<string-array name="reader_super_resolution_noise_levels" translatable="false">
 		<item>@string/reader_super_resolution_noise_n1</item>

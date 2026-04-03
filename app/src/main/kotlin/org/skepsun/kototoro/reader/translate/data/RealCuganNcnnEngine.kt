@@ -29,10 +29,28 @@ class RealCuganNcnnEngine(private val gpuId: Int = 0) {
 
         val outW = inBitmap.width * 2
         val outH = inBitmap.height * 2
-        val outBitmap = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
 
-        val success = processNative(nativeHandle, inBitmap, outBitmap)
-        if (success) outBitmap else null
+        val outBitmap = try {
+            Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            Log.e("RealCuganNcnnEngine", "OOM allocating ${outW}x${outH} output bitmap " +
+                    "(${outW.toLong() * outH * 4 / 1_048_576}MB)")
+            return@withContext null
+        }
+
+        val oldPriority = android.os.Process.getThreadPriority(android.os.Process.myTid())
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        try {
+            val success = processNative(nativeHandle, inBitmap, outBitmap)
+            if (success) {
+                outBitmap
+            } else {
+                outBitmap.recycle()
+                null
+            }
+        } finally {
+            android.os.Process.setThreadPriority(oldPriority)
+        }
     }
 
     fun release() {

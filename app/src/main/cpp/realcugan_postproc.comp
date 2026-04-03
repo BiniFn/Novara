@@ -70,7 +70,9 @@ void main()
 #if NCNN_int8_storage
     int v_offset = gy * p.outw + gx + p.offset_x;
 
-    uint v32 = clamp(uint(floor(v)), 0, 255);
+    // Clamp before uint cast: uint(negative_float) is UNDEFINED in GLSL
+    // and produces white/yellow garbage on some mobile GPUs (Adreno, Mali).
+    uint v32 = clamp(uint(floor(max(v, 0.0))), 0, 255);
 
     if (bgr == 1 && gz != 3)
         top_blob_data[v_offset * p.channels + 2 - gz] = uint8_t(v32);

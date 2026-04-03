@@ -54,23 +54,20 @@ object AISettingsSummarySupport {
 			?: code.ifBlank { context.getString(R.string.unknown) }
 	}
 
-	fun getReaderSuperResolutionModelLabel(context: Context, model: String): String = context.getString(
-		when (model.uppercase()) {
-			"PRO" -> R.string.reader_super_resolution_model_pro
-			"NOSE" -> R.string.reader_super_resolution_model_nose
-			else -> R.string.reader_super_resolution_model_se
-		},
-	)
+	fun getReaderSuperResolutionEngineLabel(engine: String, model: String): String {
+		return if (engine == "ANIME4K" || model.startsWith("ANIME4K_")) {
+			"Anime4K"
+		} else {
+			if (model.contains("realesrgan", ignoreCase = true)) {
+				"RealESRGAN"
+			} else {
+				"RealCUGAN"
+			}
+		}
+	}
 
-	fun getReaderSuperResolutionNoiseLabel(context: Context, noiseLevel: Int): String = context.getString(
-		when (noiseLevel) {
-			0 -> R.string.reader_super_resolution_noise_0
-			1 -> R.string.reader_super_resolution_noise_1
-			2 -> R.string.reader_super_resolution_noise_2
-			3 -> R.string.reader_super_resolution_noise_3
-			else -> R.string.reader_super_resolution_noise_n1
-		},
-	)
+
+
 
 	fun getVideoShaderLabel(context: Context, shader: VideoSuperResolutionShader): String = context.getString(
 		when (shader) {
