@@ -6,7 +6,7 @@ internal class ReaderBubbleRenderCoordinator(
 	private val isLikelyGarbledText: (String) -> Boolean,
 	private val shouldSuppressRenderedBubble: (String, String, String) -> Boolean,
 	private val isLikelySpeechBubbleRegion: (Bitmap, android.graphics.Rect) -> Boolean,
-	private val prepareTranslatedBubble: (android.graphics.Rect, String, Int, Int, Boolean, Boolean, Boolean, android.graphics.Rect?) -> PreparedBubble?,
+	private val prepareTranslatedBubble: (BubbleInput, String, Int, Int, Boolean) -> PreparedBubble?,
 	private val qualityFilterEnabled: () -> Boolean,
 	private val log: (() -> String) -> Unit,
 	private val oneLine: (String, Int) -> String,
@@ -49,20 +49,23 @@ internal class ReaderBubbleRenderCoordinator(
 				}
 			}
 			val prepared = prepareTranslatedBubble(
-				bubble.rect,
+				bubble,
 				translated,
 				bitmap.width,
 				bitmap.height,
-				bubble.verticalPreferred,
 				bubbleLikeRegion,
-				bubble.detectorAnchored,
-				bubble.sourceContentRect,
 			)
 			if (prepared == null) {
 				log {
 					"bubble render skipped_layout src=${oneLine(bubble.sourceText, 140)} out=${oneLine(translated, 140)} box=${bubble.rect} verticalPreferred=${bubble.verticalPreferred} bubbleLike=$bubbleLikeRegion"
 				}
 				continue
+			}
+			prepared.debugOverlay?.let { overlay ->
+				log {
+					"bubble debug diagnosis=${overlay.diagnosis} detectorAnchored=${overlay.detectorAnchored} vertical=${overlay.verticalPreferred} " +
+						"source=${overlay.sourceRect} content=${overlay.contentRect} prepared=${overlay.preparedRect} contentArea=${overlay.contentAreaRect}"
+				}
 			}
 			preparedBubbles.add(prepared)
 		}

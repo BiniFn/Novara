@@ -2,243 +2,281 @@
 
 ## Scope
 
-This document describes the OCR pipeline that is currently implemented in Kototoro on this branch, why the real-world manga quality is still poor, and which design choices differ from a manga-oriented OCR stack such as `manga-translator-ui`.
+This document describes the OCR pipeline that is currently implemented in Kototoro on this branch.
 
-It is a review of the implementation that exists today. The target replacement architecture is documented separately in [OCR Pipeline](./ocr-pipeline-v2.md).
+It focuses on:
+
+- the active runtime architecture
+- what has already been corrected
+- which quality issues still remain
+- how the current branch differs from the stricter target documented in [OCR Pipeline](./ocr-pipeline-v2.md)
+
+This document intentionally describes the code that exists now, not an aspirational design.
 
 ## Executive Summary
 
-The branch has completed a major upgrade cycle focused on manga OCR quality.
+The OCR stack is no longer bubble-first.
 
-The current primary path is now:
+The active branch now follows a detector-first, recognizer-second pipeline, with bubble logic demoted to optional post-OCR assistance:
 
 ```text
 page image
-  -> MLKit text detection (primary) / Paddle ONNX detection (alternative)
+  -> text detection
+  -> region recognition
   -> text merge
-  -> bubble grouping with YSG YOLO v11 OBB auxiliary detection
-  -> Paddle ONNX region recognition (PP-OCRv5 Server)
+  -> optional bubble-assisted grouping
   -> translation
   -> render
 ```
 
-This pipeline is now substantially aligned with `manga-translator-ui`'s architecture, with the key improvement being that bubble detection (YOLO OBB) is used exclusively as a **post-OCR grouping assistant**, not as the OCR gate.
+The main branch-level improvements are:
 
-### Key Changes Since Last Review
+1. `ComicTextDetectorOnnx` is now a standalone detector implementation instead of being mounted under the Paddle engine.
+2. OCR routing in `ReaderPageTranslationProcessor` now explicitly models detector and recognizer backends.
+3. CTD is a first-class `OCR_DETECTOR` model and can be paired with `MangaOCR` or Paddle recognition.
+4. Bubble detection is no longer the default OCR entrance. It is retained only as an optional downstream assistant.
+5. Render sizing for detector-anchored groups has been widened, and the reader now exposes a render debug overlay with explicit diagnoses.
 
-1. **YSG YOLO v11 OBB** bubble detector integrated with proper angle→AABB conversion
-2. **PP-OCRv5 Server** recognizer added (same weights as `manga-translator-ui`)
-3. **Rendering area double-compression** bug fixed in `ReaderBubbleGroupingCoordinator`
-4. **OBB-specific NMS/filtering** parameters tuned for manga (IoU≥0.85, max 64 boxes, min 12px side)
-5. Legacy `ReaderTextHybridDetector` removed — native pipeline already implements the same logic
+The current architecture is much closer to `manga-translator-ui` than the earlier bubble-ROI-centric design, but it is still not identical.
 
-For manga OCR, the architecture now closely follows:
+## Current Runtime Behavior
+
+## OCR routing is now detector/recognizer-based
+
+The real runtime behavior is no longer well described by a single "OCR engine" label.
+
+At the page level, `ReaderPageTranslationProcessor` now resolves a `PageOcrRoute` with:
+
+- detector backend:
+  - `MLKIT`
+  - `PADDLE`
+  - `CTD`
+  - `BUBBLE_DETECTOR` as an optional bubble-first Japanese fallback path
+- recognizer backend:
+  - `MLKIT`
+  - `PADDLE`
+  - `MANGA_OCR`
+
+This is the most important architecture correction on the branch. The pipeline is now expressed in terms of:
+
+```text
+detector -> recognizer
+```
+
+instead of a monolithic OCR engine abstraction.
+
+## CTD is now a real standalone detector
+
+[ComicTextDetectorOnnx.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ComicTextDetectorOnnx.kt) is now a dedicated `ReaderTextDetector`.
+
+It is no longer treated as a Paddle detector variant.
+
+Its current behavior is:
+
+- ONNX Runtime inference
+- `1024x1024` letterbox preprocessing
+- primary decoding from the `det` score map
+- secondary recovery from `seg`
+- fallback region recovery from `blk`
+- quad generation for rotated regions
+
+That means CTD now contributes detector geometry directly, including non-axis-aligned quads that can later be used for crop warping.
+
+## Supported active page OCR routes
+
+The current active routes in [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) include:
+
+- `MLKIT -> MLKIT`
+- `MLKIT -> MANGA_OCR`
+- `MLKIT -> PADDLE`
+- `PADDLE -> PADDLE`
+- `PADDLE -> MANGA_OCR`
+- `CTD -> PADDLE`
+- `CTD -> MANGA_OCR`
+
+There is also an optional Japanese-only `BUBBLE_DETECTOR -> MANGA_OCR` path when the configured pipeline strategy prefers bubble-first behavior.
+
+This bubble-detector route still exists, but it is no longer the default architecture and should be treated as an escape hatch rather than the primary manga OCR path.
+
+## Merge and grouping are downstream from OCR
+
+The active reader flow now behaves like:
+
+1. Detect text regions.
+2. Recognize text from those regions.
+3. Merge fragments into translation units.
+4. Optionally use bubble detection to attach groups to bubbles.
+5. Translate and render.
+
+This is a material improvement over the old "bubble detector decides the OCR search space" design.
+
+## Rendering diagnostics now exist in the runtime
+
+The branch now contains a dedicated render-debug layer:
+
+- `BubbleDebugOverlay` in [ReaderTranslationBubbleModels.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderTranslationBubbleModels.kt)
+- debug drawing and diagnosis in [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt)
+
+When translation debug logging is enabled, the runtime can now visualize:
+
+- source rect
+- source content rect
+- prepared render rect
+- final content area
+
+It also emits a diagnosis string:
+
+- `渲染框偏小`
+- `内容区偏小`
+- `渲染框偏大`
+- `基本匹配`
+- `无内容框`
+
+This has turned render debugging from guesswork into an inspectable runtime feature.
+
+## What Has Been Corrected
+
+## 1. CTD is no longer mounted under Paddle
+
+Earlier versions mixed CTD into the Paddle engine path, which violated separation of concerns.
+
+That is now fixed:
+
+- Paddle handles Paddle detection and recognition.
+- CTD handles CTD detection.
+- recognizers consume detector regions through shared contracts.
+
+This is a clear SRP improvement.
+
+## 2. OCR model taxonomy is more truthful
+
+`comic_text_detector_onnx` is now registered as `OCR_DETECTOR`, not as bubble detection.
+
+That means model selection and runtime routing now agree with the actual role of the model.
+
+## 3. Detector-anchored render rects are less aggressively compressed
+
+The render path used to produce regions that were visibly too small even when OCR text and translation were complete.
+
+The main correction in `prepareTranslatedBubble(...)` is:
+
+- merge detector rect with `sourceContentRect` when available
+- widen detector-anchored stabilization
+- allow larger detector-anchored expansion scales
+
+This corrected a real rendering bug rather than an OCR bug.
+
+## 4. UI naming is more user-facing
+
+The translation settings and model-management pages have been renamed to reflect user intent:
+
+- text detection / recognition
+- local translation
+- online translation
+- bubble detection
+
+instead of exposing too many `Paddle` / `ONNX` implementation names at the top level.
+
+This does not change the core architecture, but it makes the runtime model more truthful for users.
+
+## What Still Limits Quality
+
+## 1. Bubble-first fallback still exists
+
+`BUBBLE_DETECTOR -> MANGA_OCR` is still present as a strategy-dependent route.
+
+That means the codebase has not fully committed to the rule:
+
+```text
+OCR core path = detector -> recognizer -> merge
+```
+
+as the only runtime architecture.
+
+The branch is much closer to that rule now, but not completely exclusive yet.
+
+## 2. Brightness-based speech-bubble heuristics still exist
+
+`isLikelySpeechBubbleRegion(...)` still uses luminance thresholds.
+
+This is no longer the dominant OCR gate, which is good, but it still affects downstream bubble-like rendering behavior.
+
+That heuristic remains brittle for:
+
+- dark bubbles
+- colored bubbles
+- dense screentones
+- narration boxes
+- text outside classic white speech bubbles
+
+## 3. Render still relies on rectangle-centric sizing
+
+CTD now provides quads, and recognizers can warp from quads, but the final render-preparation stage still works mostly with rectangles.
+
+This means the branch has improved:
+
+- crop quality
+- region alignment
+
+more than it has improved:
+
+- final translated overlay geometry
+
+For vertical or rotated dialogue, this is still a visible limitation.
+
+## 4. Merge and bubble assignment are still tightly coupled in some downstream behavior
+
+The branch has already demoted bubble logic relative to OCR, but bubble grouping still influences how merged units are anchored for rendering.
+
+That is acceptable for now, but it means merge is not yet fully independent from downstream bubble-placement assumptions.
+
+## Comparison With manga-translator-ui
+
+The closest shared architectural shape is now:
 
 ```text
 page image
   -> text detection
   -> text-region recognition
-  -> line / block merge
-  -> optional bubble assignment
+  -> merge
   -> translation
   -> render
 ```
 
-The old Kototoro pipeline optimized for bubble rendering too early and asked the bubble detector to decide the OCR search space. That was a weak assumption for manga pages containing:
+Kototoro is now aligned with `manga-translator-ui` on these core principles:
 
-- vertical Japanese text
-- long narrow bubbles
-- narration boxes
-- SFX
-- dark bubbles / colored bubbles
-- broken or overlapping bubble boundaries
-
-## Current Runtime Behavior
-
-## OCR engine selection is now truthful
-
-The current runtime only exposes real OCR engine choices:
-
-- `MLKIT`
-- `PADDLE`
-
-Legacy `TFLITE`, `HYBRID`, and `NCNN` values have been removed from the active OCR runtime. Existing saved values are migrated to `PADDLE` where needed.
-
-## The current Paddle engine is a real ONNX implementation
-
-[PaddleReaderOcrEngine.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/PaddleReaderOcrEngine.kt) now runs local `PP-OCRv5` ONNX detection and recognition directly. It no longer delegates to NCNN.
-
-The engine now also exposes formal text-pipeline contracts:
-
-- `ReaderTextDetector`
-- `ReaderTextRecognizer`
-
-Those contracts now drive the page-level `PADDLE` path in the reader pipeline, but they are not yet the only OCR orchestration boundary in the codebase.
-
-## The reader primary path is page-text-first
-
-[ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) now uses `PAGE_FIRST` as the default OCR strategy.
-
-`ReaderOcrPipelineCoordinator.kt` now coordinates only the page-text-first path. The older ROI-first logic is no longer part of the active pipeline coordinator.
-
-## The current coordination flow
-
-The main path coordinated by [ReaderOcrPipelineCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderOcrPipelineCoordinator.kt) is now:
-
-1. Run page OCR.
-2. Merge OCR fragments through `ReaderTextMergeCoordinator`.
-3. Group merged fragments for translation.
-4. Use bubble-related logic only as downstream grouping and rendering assistance.
-
-This is a major improvement over the previous bubble-gated path.
-
-## Why quality can still be poor
-
-## 1. The detector / recognizer split is not yet the primary pipeline boundary
-
-The codebase now has `ReaderTextDetector` and `ReaderTextRecognizer`, and the `PADDLE` page path in [ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) already uses them directly.
-
-That means the architecture is improved, but the reader pipeline still does not express:
-
-```text
-detect -> recognize -> merge
-```
-
-as the only orchestration contract across all OCR entry paths.
-
-In practice, this now matters less than detector quality. The active branch already follows the intended order closely enough that the current on-device bottleneck is the detector output itself.
-
-## 2. Legacy ROI-first code is no longer on the active OCR path
-
-[ReaderBubbleRoiOcrCoordinator.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderBubbleRoiOcrCoordinator.kt) still exists in the codebase, and it preserves old assumptions such as:
-
-- width or height is below `24dp`
-- ROI area is larger than `22%` of the page
-- `isLikelySpeechBubbleRegion(bitmap, rect)` returns `false`
-
-These gates are too aggressive for manga:
-
-- small bubbles are common
-- tall narrow vertical dialogue is common
-- large dialogue bubbles are common
-- narration boxes can be large
-
-That is now a cleanup issue rather than an active architecture problem, because the main OCR coordinator no longer routes through ROI-first logic.
-
-## 3. Bubble-region validation is still based on brightness heuristics
-
-[ReaderPageTranslationProcessor.kt](../../app/src/main/kotlin/org/skepsun/kototoro/reader/translate/domain/ReaderPageTranslationProcessor.kt) implements `isLikelySpeechBubbleRegion(...)` by sampling luminance and measuring bright-pixel ratio.
-
-This works only for a subset of pages that look like:
-
-- white bubble
-- black text
-- relatively clean background
-
-It fails or becomes unstable on:
-
-- dark bubbles
-- colored bubbles
-- grayscale gradients
-- transparent or weak bubble outlines
-- dense screentones
-- text outside bubbles
-
-This is no longer the dominant OCR failure for the active path, because OCR no longer enters through bubble gating. It remains a downstream rendering / grouping weakness.
-
-## 4. Bubble grouping is still too close to OCR structure rebuilding
-
-`ReaderTextMergeCoordinator` now exists, which is the correct direction. `ReaderBubbleGroupingCoordinator` has already been reduced so unmatched merged fragments remain independent translation units by default, and detector-side subdivision has been removed.
-
-For closer alignment with `manga-translator-ui`, text structure rebuilding should continue to be owned primarily by merge, with bubble-related grouping reduced further into optional bubble assignment and render hints. The branch has already moved merge toward explicit reading-order composition, lightweight direction hints, lightweight angle / axis-aligned hints, optional quad-point carriage, quad-aware edge-distance pruning, region-geometry-based cropping, lightweight four-point warp support, and away from blind newline concatenation.
-
-## 5. The active detector quality has improved significantly
-
-With the integration of YSG YOLO v11 OBB as a bubble grouping assistant:
-
-- MLKit now serves as the primary text detector with strong dialogue-region coverage
-- YOLO OBB provides structural bubble geometry that groups MLKit fragments into logical units
-- PP-OCRv5 Server recognizer provides much stronger Japanese/Chinese character recognition than the Mobile variant
-
-Observed runtime metrics on device:
-
-- MLKit detects 30+ text fragments per page
-- YOLO OBB produces 40-60 bubble boxes after NMS
-- Fragment coverage rate reaches 100% (all fragments matched to bubbles)
-- 13/13 bubbles translated and rendered on test pages
-
-The remaining quality issue is now primarily about **rendering area sizing** — ensuring the translated text fills the full bubble area rather than being clipped to a narrow strip around the original text fragments.
-
-## 6. Remaining gap versus manga-translator-ui
-
-The remaining architectural gap is now much narrower:
-
-- Kototoro already has text-first page OCR
-- Kototoro already has post-recognition merge
-- Kototoro has removed NCNN and TFLite OCR baggage
-
-What still remains is to make the runtime orchestration itself explicitly follow:
-
-- text detection as a first-class stage
-- region recognition as a first-class stage
-- merge as the main text-structure reconstruction stage
-- bubble logic as non-authoritative post-OCR assistance
-
-## Comparison With manga-translator-ui
-
-The most important difference is architectural.
-
-`manga-translator-ui` uses a modular manga OCR stack:
-
-```text
-detector -> recognizer -> merge -> translation -> render
-```
-
-Characteristics:
-
-- text detection is independent from recognition
-- recognition is applied on text-oriented crops
+- text detection is a first-class stage
+- recognition consumes detector regions
 - merge happens after recognition
-- bubble-like structure is optional downstream information, not the OCR gate
+- bubble logic is not the default OCR gate
 
-The old Kototoro architecture used to do the opposite:
+The main remaining gap is not the detector/recognizer split anymore. The main remaining gap is that Kototoro still preserves more downstream bubble-aware rendering and optional bubble-first fallback behavior than `manga-translator-ui`.
 
-```text
-bubble detector -> ROI OCR -> fallback page OCR
-```
+## Current Architectural Assessment
 
-This makes rendering easier, but OCR weaker.
+The branch is no longer in the "wrong architecture" state.
 
-## What Should Be Preserved
+The current state is better described as:
 
-Not everything in the current implementation is wrong. The following parts are still useful:
+- the core OCR direction is correct
+- the detector/recognizer split is implemented
+- CTD has been promoted to a real detector
+- render sizing and bubble-assisted downstream behavior still need refinement
 
-- `OcrRequest` as a unified OCR request model
-- per-page debug metrics and logs
-- cached OCR and render outputs
-- a dedicated bubble grouping / rendering coordinator
-- model management for ONNX assets
-
-These are good building blocks. The problem is the order of operations and which module is allowed to define OCR search space.
-
-## Main Refactor Direction
-
-The refactoring has been substantially completed. The pipeline now follows:
+In other words:
 
 ```text
-page image
-  -> MLKit text detection (全図テキスト検出)
-  -> text merge (フラグメント結合)
-  -> YOLO OBB bubble grouping (気泡辅助分组)
-  -> PP-OCRv5 Server recognition (可选升级)
-  -> translation
-  -> render
+Main risk has moved from OCR entrance design
+to detector quality, merge quality, and render geometry quality.
 ```
 
-Remaining optimization areas:
+## Recommended Next Focus
 
-- further tuning of `tightenDetectedBubbleRect` padding for edge cases
-- evaluating PP-OCRv5 Server vs Mobile recognizer quality on diverse manga styles
-- potential integration of dedicated manga OCR models (MangaOCR) as an alternative recognizer
+The highest-value next steps are:
 
-The target design and migration plan are documented in [OCR Pipeline](./ocr-pipeline-v2.md).
+1. Keep `detector -> recognizer -> merge` as the default and preferred route for all mainstream cases.
+2. Continue reducing the architectural importance of bubble-first fallback.
+3. Push quad-aware geometry further into render preparation, not just crop preparation.
+4. Use the new debug overlay and diagnosis output to tune render sizing with real page evidence instead of heuristics alone.
+
+The stricter target design is documented in [OCR Pipeline](./ocr-pipeline-v2.md).

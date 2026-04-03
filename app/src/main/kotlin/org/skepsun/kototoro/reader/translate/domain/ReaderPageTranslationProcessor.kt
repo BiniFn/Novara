@@ -76,6 +76,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private val okHttpClient: OkHttpClient,
 	private val mlKitOcrEngine: MlKitReaderOcrEngine,
 	private val paddleOcrEngine: PaddleReaderOcrEngine,
+	private val comicTextDetectorOnnx: ComicTextDetectorOnnx,
 	private val mangaOcrReaderTextRecognizer: MangaOcrReaderTextRecognizer,
 	private val onnxBubbleDetectorEngine: OnnxBubbleDetectorEngine,
 	private val onnxTranslationEngine: OnnxReaderTranslationEngine,
@@ -95,6 +96,25 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		color = Color.WHITE
 		style = Paint.Style.FILL
 		alpha = 242
+	}
+	private val debugSourceRectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+		color = Color.argb(220, 255, 160, 0)
+		style = Paint.Style.STROKE
+		strokeWidth = dp(1.5f).toFloat()
+	}
+	private val debugPreparedRectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+		color = Color.argb(220, 0, 220, 255)
+		style = Paint.Style.STROKE
+		strokeWidth = dp(1.5f).toFloat()
+	}
+	private val debugContentRectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+		color = Color.argb(220, 80, 255, 120)
+		style = Paint.Style.STROKE
+		strokeWidth = dp(1f).toFloat()
+	}
+	private val debugLabelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+		color = Color.argb(240, 255, 80, 80)
+		textSize = dp(10f).toFloat()
 	}
 	private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
 		color = Color.BLACK
@@ -132,6 +152,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 	private val paddleTextDetector: ReaderTextDetector
 		get() = paddleOcrEngine
+	private val ctdTextDetector: ReaderTextDetector
+		get() = comicTextDetectorOnnx
 	private val paddleTextRecognizer: ReaderTextRecognizer
 		get() = paddleOcrEngine
 	private val mangaTextRecognizer: ReaderTextRecognizer
@@ -376,6 +398,11 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			for (bubble in preparedBubbles) {
 				drawBubbleText(canvas, bubble)
 			}
+			if (settings.isReaderTranslationDebugLogsEnabled) {
+				for (bubble in preparedBubbles) {
+					drawBubbleDebugOverlay(canvas, bubble)
+				}
+			}
 			log { "render done translatedBubbles=${preparedBubbles.size}" }
 			renderedBubbleCount = preparedBubbles.size
 			if (preparedBubbles.isEmpty()) {
@@ -511,14 +538,20 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val strategy = resolveOcrPipelineStrategy(sourceLang)
 		val detModelId = settings.readerTranslationPaddleDetModelId
 		val recModelId = settings.readerTranslationPaddleOfficialModelId
-		// DET model ID directly determines the detector backend
-		val detBackend = if (detModelId == "MLKIT") OcrDetectorBackend.MLKIT else OcrDetectorBackend.PADDLE
-		// REC model ID directly determines the recognizer backend
+		val detBackend = when (detModelId) {
+			"MLKIT" -> OcrDetectorBackend.MLKIT
+			ComicTextDetectorOnnx.MODEL_ID -> OcrDetectorBackend.CTD
+			else -> OcrDetectorBackend.PADDLE
+		}
 		val recBackend = when (recModelId) {
 			"MLKIT" -> OcrRecognizerBackend.MLKIT
 			"mangaocr_2025_onnx" -> OcrRecognizerBackend.MANGA_OCR
-			else -> OcrRecognizerBackend.PADDLE // "AUTO" or specific PP-OCR model
+			else -> OcrRecognizerBackend.PADDLE
 		}
+		val effectiveRoute = PageOcrRoute(
+			detector = if (recBackend == OcrRecognizerBackend.MLKIT) OcrDetectorBackend.MLKIT else detBackend,
+			recognizer = recBackend,
+		)
 		val routes = linkedSetOf<PageOcrRoute>()
 		if (strategy != OcrPipelineStrategy.PAGE_TEXT_FIRST && sourceLang.startsWith("ja") && settings.isReaderTranslationBubbleDetectorEnabled) {
 			routes += PageOcrRoute(
@@ -527,10 +560,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			)
 		}
 		if (strategy != OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST) {
-			routes += PageOcrRoute(
-				detector = detBackend,
-				recognizer = recBackend,
-			)
+			routes += effectiveRoute
 		}
 		return routes.toList()
 	}
@@ -639,6 +669,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				log { "metric.ocr.mangaocr.recognized_blocks=${recognized.size}" }
 				recognized
 			}
+			route.detector == OcrDetectorBackend.CTD &&
+				route.recognizer == OcrRecognizerBackend.MANGA_OCR -> {
+				val regions = ctdTextDetector.detect(sourceUri)
+				log { "metric.ocr.ctd.detected_regions=${regions.size}" }
+				if (regions.isEmpty()) return emptyList()
+				val recognized = mangaTextRecognizer.recognize(sourceUri, regions)
+				logMangaOcrDiagnostics()
+				log { "metric.ocr.ctd_mangaocr.recognized_blocks=${recognized.size}" }
+				recognized
+			}
 			route.detector == OcrDetectorBackend.BUBBLE_DETECTOR &&
 				route.recognizer == OcrRecognizerBackend.MANGA_OCR -> {
 				val localUri = ensureLocalFileUri(sourceUri) ?: return emptyList()
@@ -670,6 +710,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				if (regions.isEmpty()) return emptyList()
 				val recognized = paddleTextRecognizer.recognize(sourceUri, regions)
 				log { "metric.ocr.mlkit_det_paddle_rec.recognized_blocks=${recognized.size}" }
+				recognized
+			}
+			route.detector == OcrDetectorBackend.CTD &&
+				route.recognizer == OcrRecognizerBackend.PADDLE -> {
+				val regions = ctdTextDetector.detect(sourceUri)
+				log { "metric.ocr.ctd.detected_regions=${regions.size}" }
+				if (regions.isEmpty()) return emptyList()
+				val recognized = paddleTextRecognizer.recognize(sourceUri, regions)
+				log { "metric.ocr.ctd_paddle.recognized_blocks=${recognized.size}" }
 				recognized
 			}
 			else -> emptyList()
@@ -1025,25 +1074,44 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	private fun prepareTranslatedBubble(
-		rect: Rect,
+		input: BubbleInput,
 		text: String,
 		bitmapWidth: Int,
 		bitmapHeight: Int,
-		verticalPreferred: Boolean,
 		bubbleLikeRegion: Boolean,
-		detectorAnchored: Boolean,
-		sourceContentRect: Rect?,
 	): PreparedBubble? {
 		if (bitmapWidth <= 1 || bitmapHeight <= 1) {
 			return null
 		}
+		val rect = input.rect
+		val verticalPreferred = input.verticalPreferred
+		val detectorAnchored = input.detectorAnchored
+		val sourceContentRect = input.sourceContentRect
 		val padding = dp(4f)
-		val rawRect = Rect(
+		val normalizedRect = Rect(
 			rect.left.coerceIn(0, bitmapWidth - 1),
 			rect.top.coerceIn(0, bitmapHeight - 1),
 			rect.right.coerceIn(1, bitmapWidth),
 			rect.bottom.coerceIn(1, bitmapHeight),
 		)
+		val normalizedContentRect = sourceContentRect?.let {
+			Rect(
+				it.left.coerceIn(0, bitmapWidth - 1),
+				it.top.coerceIn(0, bitmapHeight - 1),
+				it.right.coerceIn(1, bitmapWidth),
+				it.bottom.coerceIn(1, bitmapHeight),
+			)
+		}
+		val rawRect = if (detectorAnchored && normalizedContentRect != null) {
+			mergeRects(
+				listOf(
+					normalizedRect,
+					expandRect(normalizedContentRect, dp(DETECTOR_CONTENT_MERGE_PADDING_DP)),
+				),
+			) ?: normalizedRect
+		} else {
+			normalizedRect
+		}
 		val baseRect = stabilizeRenderRect(
 			rect = rawRect,
 			bitmapWidth = bitmapWidth,
@@ -1053,9 +1121,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			detectorAnchored = detectorAnchored,
 			sourceContentRect = sourceContentRect,
 		)
+		val expansionScales = if (detectorAnchored) {
+			DETECTOR_ANCHORED_EXPAND_SCALES
+		} else {
+			BUBBLE_EXPAND_SCALES
+		}
 
 		if (verticalPreferred) {
-			for (scale in BUBBLE_EXPAND_SCALES) {
+			for (scale in expansionScales) {
 				val safeRect = if (scale <= 1f) {
 					baseRect
 				} else {
@@ -1086,13 +1159,20 @@ class ReaderPageTranslationProcessor @Inject constructor(
 					contentHeight = drawContentHeight,
 					layout = null,
 					verticalPlan = vertical,
+					debugOverlay = buildBubbleDebugOverlay(
+						input = input,
+						preparedRect = drawRect,
+						padding = padding,
+						contentWidth = drawContentWidth,
+						contentHeight = drawContentHeight,
+					),
 				)
 			}
 		}
 
 		var best: PreparedBubble? = null
 		var bestOverflow = Int.MAX_VALUE
-		for (scale in BUBBLE_EXPAND_SCALES) {
+		for (scale in expansionScales) {
 			val safeRect = if (scale <= 1f) {
 				baseRect
 			} else {
@@ -1150,6 +1230,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				contentHeight = drawContentHeight,
 				layout = adjustedLayout,
 				verticalPlan = null,
+				debugOverlay = buildBubbleDebugOverlay(
+					input = input,
+					preparedRect = drawRect,
+					padding = padding,
+					contentWidth = drawContentWidth,
+					contentHeight = drawContentHeight,
+				),
 			)
 			if (overflow < bestOverflow) {
 				bestOverflow = overflow
@@ -1200,22 +1287,24 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				)
 			}
 			val contentWidth = normalizedContentRect?.width()?.coerceAtLeast(0) ?: 0
+			val contentHeight = normalizedContentRect?.height()?.coerceAtLeast(0) ?: 0
 			val isTallStrip = verticalPreferred || height > width * 2
+			var expanded = Rect(rect)
 			if (isTallStrip) {
 				val minDetectorWidth = dp(34f)
-				val maxDetectorWidth = dp(72f)
+				val maxDetectorWidth = dp(140f)
 				val targetWidth = max(
-					width,
+					expanded.width(),
 					max(
 						minDetectorWidth,
 						max(
-							contentWidth + dp(10f),
-							(height * DETECTOR_ANCHORED_MIN_WIDTH_RATIO).toInt(),
+							contentWidth + dp(18f),
+							(expanded.height() * DETECTOR_ANCHORED_MIN_WIDTH_RATIO).toInt(),
 						),
 					),
 				).coerceAtMost(min(maxDetectorWidth, bitmapWidth))
-				if (targetWidth > width) {
-					val cx = rect.centerX()
+				if (targetWidth > expanded.width()) {
+					val cx = expanded.centerX()
 					var left = cx - targetWidth / 2
 					var right = left + targetWidth
 					if (left < 0) {
@@ -1226,14 +1315,41 @@ class ReaderPageTranslationProcessor @Inject constructor(
 						right = bitmapWidth
 						left = right - targetWidth
 					}
-					return Rect(
+					expanded = Rect(
 						left.coerceIn(0, bitmapWidth - 1),
-						rect.top.coerceIn(0, bitmapHeight - 1),
+						expanded.top.coerceIn(0, bitmapHeight - 1),
 						right.coerceIn(1, bitmapWidth),
-						rect.bottom.coerceIn(1, bitmapHeight),
+						expanded.bottom.coerceIn(1, bitmapHeight),
 					)
 				}
 			}
+			val minDetectorHeight = max(
+				expanded.height(),
+				max(
+					contentHeight + dp(18f),
+					if (verticalPreferred) contentHeight + dp(28f) else contentHeight + dp(14f),
+				),
+			).coerceAtMost(bitmapHeight)
+			if (minDetectorHeight > expanded.height()) {
+				val cy = expanded.centerY()
+				var top = cy - minDetectorHeight / 2
+				var bottom = top + minDetectorHeight
+				if (top < 0) {
+					top = 0
+					bottom = minDetectorHeight
+				}
+				if (bottom > bitmapHeight) {
+					bottom = bitmapHeight
+					top = bottom - minDetectorHeight
+				}
+				expanded = Rect(
+					expanded.left.coerceIn(0, bitmapWidth - 1),
+					top.coerceIn(0, bitmapHeight - 1),
+					expanded.right.coerceIn(1, bitmapWidth),
+					bottom.coerceIn(1, bitmapHeight),
+				)
+			}
+			return expanded
 		}
 		if (bubbleLikeRegion) return rect
 		val minRenderColumnWidth = dp(56f)
@@ -1377,6 +1493,83 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			bubble.layout?.draw(canvas)
 		}
 		canvas.restore()
+	}
+
+	private fun drawBubbleDebugOverlay(canvas: Canvas, bubble: PreparedBubble) {
+		val overlay = bubble.debugOverlay ?: return
+		canvas.drawRect(overlay.sourceRect, debugSourceRectPaint)
+		overlay.contentRect?.let { canvas.drawRect(it, debugSourceRectPaint) }
+		canvas.drawRect(overlay.preparedRect, debugPreparedRectPaint)
+		canvas.drawRect(overlay.contentAreaRect, debugContentRectPaint)
+		val label = buildString {
+			append(if (overlay.detectorAnchored) "DET" else "GRP")
+			append(' ')
+			append(if (overlay.verticalPreferred) "V" else "H")
+		}
+		val diagnosis = overlay.diagnosis
+		val labelX = overlay.preparedRect.left.toFloat() + dp(2f)
+		val labelY = (overlay.preparedRect.top - dp(3f)).coerceAtLeast(dp(10f)).toFloat()
+		canvas.drawText(
+			label,
+			labelX,
+			labelY,
+			debugLabelPaint,
+		)
+		canvas.drawText(
+			diagnosis,
+			labelX,
+			labelY + debugLabelPaint.textSize + dp(1f),
+			debugLabelPaint,
+		)
+	}
+
+	private fun buildBubbleDebugOverlay(
+		input: BubbleInput,
+		preparedRect: Rect,
+		padding: Int,
+		contentWidth: Int,
+		contentHeight: Int,
+	): BubbleDebugOverlay {
+		val contentAreaRect = Rect(
+			preparedRect.left + padding,
+			preparedRect.top + padding,
+			preparedRect.left + padding + contentWidth,
+			preparedRect.top + padding + contentHeight,
+		)
+		val diagnosis = diagnoseBubbleRender(
+			contentRect = input.sourceContentRect,
+			preparedRect = preparedRect,
+			contentAreaRect = contentAreaRect,
+		)
+		return BubbleDebugOverlay(
+			sourceRect = Rect(input.rect),
+			contentRect = input.sourceContentRect?.let(::Rect),
+			preparedRect = Rect(preparedRect),
+			contentAreaRect = contentAreaRect,
+			detectorAnchored = input.detectorAnchored,
+			verticalPreferred = input.verticalPreferred,
+			diagnosis = diagnosis,
+		)
+	}
+
+	private fun diagnoseBubbleRender(
+		contentRect: Rect?,
+		preparedRect: Rect,
+		contentAreaRect: Rect,
+	): String {
+		contentRect ?: return "无内容框"
+		val contentWidth = contentRect.width().coerceAtLeast(1)
+		val contentHeight = contentRect.height().coerceAtLeast(1)
+		val preparedWidthRatio = preparedRect.width().toFloat() / contentWidth.toFloat()
+		val preparedHeightRatio = preparedRect.height().toFloat() / contentHeight.toFloat()
+		val contentAreaWidthRatio = contentAreaRect.width().toFloat() / contentWidth.toFloat()
+		val contentAreaHeightRatio = contentAreaRect.height().toFloat() / contentHeight.toFloat()
+		return when {
+			preparedWidthRatio < 0.96f || preparedHeightRatio < 0.96f -> "渲染框偏小"
+			contentAreaWidthRatio < 0.92f || contentAreaHeightRatio < 0.92f -> "内容区偏小"
+			preparedWidthRatio > 1.35f || preparedHeightRatio > 1.35f -> "渲染框偏大"
+			else -> "基本匹配"
+		}
 	}
 
 	private fun drawVerticalText(canvas: Canvas, plan: VerticalLayoutPlan, contentWidth: Int) {
@@ -1798,11 +1991,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val MAX_PARALLEL_TRANSLATION_PAGES = 2
 		const val MAX_DETECTED_GROUP_FRAGMENTS = 28
 		const val MIN_RENDER_COLUMN_WIDTH_RATIO = 0.22f
-		const val DETECTOR_ANCHORED_MIN_WIDTH_RATIO = 0.30f
+		const val DETECTOR_ANCHORED_MIN_WIDTH_RATIO = 0.42f
+		const val DETECTOR_CONTENT_MERGE_PADDING_DP = 8f
 		const val HORIZONTAL_TEXT_SIZE_WIDTH_RATIO = 0.58f
 		const val VERTICAL_TEXT_SIZE_WIDTH_RATIO = 0.78f
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
 		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f, 1.12f, 1.24f)
+		val DETECTOR_ANCHORED_EXPAND_SCALES = floatArrayOf(1f, 1.18f, 1.34f, 1.52f)
 		const val TEXT_CACHE_PREFIX = "reader_translate_text_"
 		const val RENDER_CACHE_PREFIX = "reader_translate_render_"
 		const val OCR_CACHE_PREFIX = "reader_translate_ocr_"
@@ -1817,6 +2012,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		private enum class OcrDetectorBackend {
 			MLKIT,
 			PADDLE,
+			CTD,
 			BUBBLE_DETECTOR,
 		}
 

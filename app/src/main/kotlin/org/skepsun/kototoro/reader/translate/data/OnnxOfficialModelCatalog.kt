@@ -136,10 +136,7 @@ object OnnxOfficialModelCatalog {
 			id = "comic_text_detector_onnx",
 			title = "ComicTextDetector (CTD, 1024)",
 			version = "beta-0.3",
-			// NOTE: CTD requires its own inference pipeline (letterbox 1024×1024, stride=64,
-			// YOLO+DBNet hybrid postprocessing). NOT compatible with PaddleTextDetector.
-			// Kept under BUBBLE_DETECTION until a dedicated CTD engine is implemented.
-			category = OnnxModelCategory.BUBBLE_DETECTION,
+			category = OnnxModelCategory.OCR_DETECTOR,
 			files = listOf(
 				OnnxModelFile(
 					fileName = "comictextdetector.pt.onnx",
@@ -147,7 +144,7 @@ object OnnxOfficialModelCatalog {
 					sha256 = "1a86ace74961413cbd650002e7bb4dcec4980ffa21b2f19b86933372071d718f",
 				),
 			),
-			description = "Comic text detector from manga-image-translator. YOLO+DBNet hybrid, optimized for manga/comics. Input: 1024×1024, letterbox with stride=64.",
+			description = "Comic text detector from manga-image-translator. Dedicated CTD detector with 1024×1024 letterbox preprocessing and hybrid YOLO + segmentation outputs.",
 		),
 		OnnxOfficialModel(
 			id = "ppocrv5_mobile_rec_onnx",

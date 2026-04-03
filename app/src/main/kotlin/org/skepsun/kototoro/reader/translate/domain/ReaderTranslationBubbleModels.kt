@@ -12,6 +12,16 @@ internal data class BubbleInput(
 	val sourceContentRect: Rect? = null,
 )
 
+internal data class BubbleDebugOverlay(
+	val sourceRect: Rect,
+	val contentRect: Rect?,
+	val preparedRect: Rect,
+	val contentAreaRect: Rect,
+	val detectorAnchored: Boolean,
+	val verticalPreferred: Boolean,
+	val diagnosis: String,
+)
+
 internal data class GroupedBubbleSource(
 	val fragments: List<TextFragment>,
 	val bubbleRect: Rect?,
@@ -92,6 +102,7 @@ internal data class PreparedBubble(
 	val contentHeight: Int,
 	val layout: StaticLayout?,
 	val verticalPlan: VerticalLayoutPlan?,
+	val debugOverlay: BubbleDebugOverlay? = null,
 )
 
 internal data class VerticalLayoutPlan(

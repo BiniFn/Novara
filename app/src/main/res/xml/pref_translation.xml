@@ -66,8 +66,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:key="translation_section_local_models"
-        android:title="@string/reader_translation_section_local_models">
+        android:key="translation_section_ocr"
+        android:title="@string/reader_translation_section_ocr">
 
         <Preference
             android:dependency="reader_translation_enabled"
@@ -96,10 +96,22 @@
             android:title="@string/reader_translation_ocr_pipeline_strategy"
             app:useSimpleSummaryProvider="true" />
 
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="translation_section_translation"
+        android:title="@string/reader_translation_section_translation">
+
         <ListPreference
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_onnx_model_id"
             android:title="@string/reader_translation_onnx_model_selection" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="translation_section_api"
+        android:title="@string/reader_translation_section_api">
 
         <PreferenceScreen
             android:dependency="reader_translation_enabled"
