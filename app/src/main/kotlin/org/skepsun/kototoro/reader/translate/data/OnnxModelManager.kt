@@ -174,6 +174,10 @@ class OnnxModelManager @Inject constructor(
 			}
 		}
 	}
+	fun deleteModel(modelId: String): Boolean {
+		val dir = File(context.getExternalFilesDir(null), "$ROOT_DIR/$modelId")
+		return dir.deleteRecursively()
+	}
 
 	private companion object {
 		const val ROOT_DIR = "models/translation_onnx"

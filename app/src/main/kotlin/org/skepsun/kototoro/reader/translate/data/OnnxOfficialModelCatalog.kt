@@ -16,6 +16,7 @@ enum class OnnxModelCategory {
 	BUBBLE_DETECTION,
 	OCR_DETECTOR,
 	OCR_RECOGNIZER,
+	IMAGE_SUPER_RESOLUTION,
 }
 
 data class OnnxModelFile(
@@ -133,20 +134,6 @@ object OnnxOfficialModelCatalog {
 			description = "PaddleOCR PP-OCRv5 mobile text detector converted to ONNX Runtime.",
 		),
 		OnnxOfficialModel(
-			id = "comic_text_detector_onnx",
-			title = "ComicTextDetector (CTD, 1024)",
-			version = "beta-0.3",
-			category = OnnxModelCategory.OCR_DETECTOR,
-			files = listOf(
-				OnnxModelFile(
-					fileName = "comictextdetector.pt.onnx",
-					downloadUrl = "https://github.com/zyddnys/manga-image-translator/releases/download/beta-0.3/comictextdetector.pt.onnx",
-					sha256 = "1a86ace74961413cbd650002e7bb4dcec4980ffa21b2f19b86933372071d718f",
-				),
-			),
-			description = "Comic text detector from manga-image-translator. Dedicated CTD detector with 1024×1024 letterbox preprocessing and hybrid YOLO + segmentation outputs.",
-		),
-		OnnxOfficialModel(
 			id = "ppocrv5_mobile_rec_onnx",
 			title = "PP-OCRv5 Mobile Recognizer",
 			version = "hf-main",
@@ -246,6 +233,49 @@ object OnnxOfficialModelCatalog {
 				),
 			),
 			description = "MangaOCR encoder-decoder recognizer optimized for Japanese manga text.",
+		),
+		OnnxOfficialModel(
+			id = "hugglyberry_realcugan_2x_conservative",
+			title = "RealCUGAN 2x Conservative (ONNX)",
+			version = "hf-main",
+			category = OnnxModelCategory.IMAGE_SUPER_RESOLUTION,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "realcugan-2x-conservative.onnx",
+					downloadUrl = "https://huggingface.co/hugglyberry/upscale-and-refine-models/resolve/main/realcugan-2x-conservative.onnx",
+				),
+				OnnxModelFile(
+					fileName = "realcugan-2x-conservative.onnx.data",
+					downloadUrl = "https://huggingface.co/hugglyberry/upscale-and-refine-models/resolve/main/realcugan-2x-conservative.onnx.data",
+				)
+			),
+			description = "ONNX export of RealCUGAN conservative scale 2x.",
+		),
+		OnnxOfficialModel(
+			id = "realesrgan_ncnn_x4plus_anime",
+			title = "RealESRGAN 4x Anime (NCNN Native)",
+			version = "v0.2.5.0",
+			category = OnnxModelCategory.IMAGE_SUPER_RESOLUTION,
+			archiveUrl = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+			files = emptyList(),
+			description = "Official RealESRGAN anime-optimized super-resolution model for NCNN GPU acceleration (Includes realesrgan-x4plus-anime param and bin).",
+		),
+		OnnxOfficialModel(
+			id = "realcugan_ncnn_2x_conservative",
+			title = "RealCUGAN 2x Conservative (NCNN Native)",
+			version = "master",
+			category = OnnxModelCategory.IMAGE_SUPER_RESOLUTION,
+			files = listOf(
+				OnnxModelFile(
+					fileName = "up2x-conservative.param",
+					downloadUrl = "https://raw.githubusercontent.com/nihui/realcugan-ncnn-vulkan/master/models/models-se/up2x-conservative.param",
+				),
+				OnnxModelFile(
+					fileName = "up2x-conservative.bin",
+					downloadUrl = "https://raw.githubusercontent.com/nihui/realcugan-ncnn-vulkan/master/models/models-se/up2x-conservative.bin",
+				)
+			),
+			description = "Official RealCUGAN 2x conservative super-resolution model for native NCNN GPU acceleration.",
 		),
 	)
 
