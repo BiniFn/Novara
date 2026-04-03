@@ -389,7 +389,7 @@ class PageLoader @Inject constructor(
 		if (settings.isReaderSuperResolutionEnabled && !isLowRam() && !context.isPowerSaveMode()) {
 			val srUri = srManager.processImage(
 				originalUri = displayUri,
-				model = settings.readerSuperResolutionModel,
+				modelId = settings.readerSuperResolutionModel,
 				noiseLevel = settings.readerSuperResolutionNoiseLevel,
 				cacheLimitMb = settings.readerSuperResolutionCacheLimitMb
 			)
