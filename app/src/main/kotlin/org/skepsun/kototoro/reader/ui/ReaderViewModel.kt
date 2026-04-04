@@ -690,7 +690,7 @@ class ReaderViewModel @Inject constructor(
                         mangaDetails.value = details.filterChapters(selectedBranch.value)
 
                         // save state
-                        if (!isIncognitoMode.firstNotNull()) {
+                        if (isIncognitoMode.value == false) {
                             readingState.value?.let {
                                 val percent = computePercent(it.chapterId, it.page)
                                 historyUpdateUseCase(manga, it, percent)
@@ -839,18 +839,27 @@ class ReaderViewModel @Inject constructor(
             return
         }
         launchJob(Dispatchers.Default) {
-            interactor.observeIncognitoMode(manga)
-                .collect {
-                    when (it) {
-                        TriStateOption.ENABLED -> isIncognitoMode.value = true
-                        TriStateOption.ASK -> {
-                            onAskNsfwIncognito.call(Unit)
-                            return@collect
-                        }
+            try {
+                interactor.observeIncognitoMode(manga)
+                    .collect {
+                        when (it) {
+                            TriStateOption.ENABLED -> isIncognitoMode.value = true
+                            TriStateOption.ASK -> {
+                                onAskNsfwIncognito.call(Unit)
+                                return@collect
+                            }
 
-                        TriStateOption.DISABLED -> isIncognitoMode.value = false
+                            TriStateOption.DISABLED -> isIncognitoMode.value = false
+                        }
                     }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, "initIncognitoMode failed", e)
+                if (isIncognitoMode.value == null) {
+                    isIncognitoMode.value = false
                 }
+            }
         }
     }
 
