@@ -112,7 +112,8 @@ object Anime4kCompiler {
         sb.appendLine(pass.fragmentCode)
         
         sb.appendLine("void main() {")
-        sb.appendLine("    outColor = hook();")
+        sb.appendLine("    vec4 color = hook();")
+        sb.appendLine("    outColor = vec4(color.rgb, 1.0);")
         sb.appendLine("}")
         return sb.toString()
     }

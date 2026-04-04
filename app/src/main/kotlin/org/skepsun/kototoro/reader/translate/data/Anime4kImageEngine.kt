@@ -60,6 +60,8 @@ class Anime4kImageEngine(private val context: Context) {
             Log.e(TAG, "Initialization failed", e)
             release()
             false
+        } finally {
+            eglCore?.makeNothingCurrent()
         }
     }
 
@@ -68,18 +70,44 @@ class Anime4kImageEngine(private val context: Context) {
 
         surface?.makeCurrent()
 
+        var currentOutputTex = 0
+        var currentWidth = inBitmap.width
+        var currentHeight = inBitmap.height
+
         val textureSizes = mutableMapOf<String, Pair<Int, Int>>()
         textureSizes["MAIN"] = Pair(inBitmap.width, inBitmap.height)
         textureSizes["OUTPUT"] = Pair(inBitmap.width, inBitmap.height)
 
         val textures = mutableMapOf<String, Int>()
         val fbos = mutableMapOf<String, Int>()
+        
         val allCreatedTextures = mutableListOf<Int>()
         val allCreatedFbos = mutableListOf<Int>()
 
-        var currentOutputTex = 0
-        var currentWidth = inBitmap.width
-        var currentHeight = inBitmap.height
+        val freePoolDims = mutableMapOf<Int, Pair<Int, Int>>()
+        val freePool = mutableListOf<Int>()
+        
+        fun acquireTextureAndFbo(w: Int, h: Int): Pair<Int, Int> {
+            val texIdx = freePool.indexOfFirst { freePoolDims[it]?.first == w && freePoolDims[it]?.second == h }
+            if (texIdx >= 0) {
+                val tex = freePool.removeAt(texIdx)
+                val fbo = allCreatedFbos[allCreatedTextures.indexOf(tex)]
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
+                return Pair(tex, fbo)
+            }
+            val tex = GlUtil.createEmptyTexture(w, h)
+            allCreatedTextures.add(tex)
+            freePoolDims[tex] = Pair(w, h)
+            val fbo = IntArray(1).also { GLES30.glGenFramebuffers(1, it, 0) }[0]
+            allCreatedFbos.add(fbo)
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
+            GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, tex, 0)
+            val status = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+            if (status != GLES30.GL_FRAMEBUFFER_COMPLETE) {
+                throw RuntimeException("FBO incomplete in acquire: \$status")
+            }
+            return Pair(tex, fbo)
+        }
 
         try {
             val initialMainTex = GlUtil.createTexture(inBitmap)
@@ -112,40 +140,24 @@ class Anime4kImageEngine(private val context: Context) {
                 currentWidth = passW
                 currentHeight = passH
 
-                // Setup output FBO
+                // Always use a specific output FBO to prevent GL feedback loops (read/write same texture)
                 val saveName = pass.save
-                val outTex = if (saveName != null && (!textures.containsKey(saveName) || fbos[saveName] == null)) {
-                    val tex = GlUtil.createEmptyTexture(passW, passH)
-                    textures[saveName] = tex
+                val isLastPass = (i == passes.size - 1)
+                val (outTex, outFbo) = if (isLastPass) {
+                    val tex = GlUtil.createEmpty8BitTexture(passW, passH)
                     allCreatedTextures.add(tex)
-                    textureSizes[saveName] = Pair(passW, passH)
                     val fbo = IntArray(1).also { GLES30.glGenFramebuffers(1, it, 0) }[0]
                     allCreatedFbos.add(fbo)
                     GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
                     GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, tex, 0)
-                    fbos[saveName] = fbo
-                    tex
-                } else if (saveName != null) {
-                    val tex = textures[saveName]!!
-                    val fbo = fbos[saveName]!!
-                    GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
-                    GLES30.glViewport(0, 0, passW, passH)
-                    tex
+                    val status = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+                    if (status != GLES30.GL_FRAMEBUFFER_COMPLETE) {
+                        throw RuntimeException("FBO incomplete in last pass: \$status")
+                    }
+                    Pair(tex, fbo)
                 } else {
-                    // Update MAIN or default output
-                    val tex = GlUtil.createEmptyTexture(passW, passH)
-                    allCreatedTextures.add(tex)
-                    val fbo = IntArray(1).also { GLES30.glGenFramebuffers(1, it, 0) }[0]
-                    allCreatedFbos.add(fbo)
-                    GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
-                    GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, tex, 0)
-                    fbos["TEMP_$i"] = fbo
-                    textures["TEMP_$i"] = tex
-                    textureSizes["MAIN"] = Pair(passW, passH)
-                    textures["MAIN"] = tex // Main gets updated
-                    tex
+                    acquireTextureAndFbo(passW, passH)
                 }
-                
                 currentOutputTex = outTex
                 GLES30.glViewport(0, 0, passW, passH)
 
@@ -189,6 +201,24 @@ class Anime4kImageEngine(private val context: Context) {
 
                 GLES30.glDisableVertexAttribArray(posLoc)
                 GLES30.glDisableVertexAttribArray(texLoc)
+                
+                // Now safely update the texture map and sizes
+                if (saveName != null) {
+                    textures[saveName] = outTex
+                    textureSizes[saveName] = Pair(passW, passH)
+                    fbos[saveName] = outFbo
+                } else {
+                    textures["MAIN"] = outTex
+                    textureSizes["MAIN"] = Pair(passW, passH)
+                    fbos["MAIN"] = outFbo
+                }
+                
+                // Recycle orphaned FBOs instead of deleting them to prevent VRAM allocation thrashing
+                val activeTex = textures.values.toSet()
+                val orphanedTex = allCreatedTextures.filter { 
+                    it !in activeTex && it !in freePool && freePoolDims.containsKey(it)
+                }
+                freePool.addAll(orphanedTex)
             }
 
             // Readback
@@ -210,6 +240,7 @@ class Anime4kImageEngine(private val context: Context) {
             if (allCreatedTextures.isNotEmpty()) {
                 GLES30.glDeleteTextures(allCreatedTextures.size, allCreatedTextures.toIntArray(), 0)
             }
+            eglCore?.makeNothingCurrent()
         }
     }
 
