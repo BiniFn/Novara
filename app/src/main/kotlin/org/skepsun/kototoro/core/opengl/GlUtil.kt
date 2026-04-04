@@ -80,8 +80,26 @@ object GlUtil {
         GLES30.glTexParameterf(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR.toFloat())
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
-        GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bitmap, 0)
-        checkGlError("texImage2D")
+        // Manual upload: extract ARGB ints from Bitmap, convert to RGBA bytes,
+        // and use glTexImage2D directly. This avoids GLUtils.texImage2D's
+        // device-dependent BGRA/RGBA behavior that can swap R↔B channels.
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        val buf = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
+        for (pixel in pixels) {
+            buf.put(((pixel shr 16) and 0xFF).toByte()) // R
+            buf.put(((pixel shr 8) and 0xFF).toByte())  // G
+            buf.put((pixel and 0xFF).toByte())           // B
+            buf.put(((pixel shr 24) and 0xFF).toByte()) // A
+        }
+        buf.position(0)
+        GLES30.glTexImage2D(
+            GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA8, w, h, 0,
+            GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buf
+        )
+        checkGlError("glTexImage2D bitmap")
         return textureId
     }
 

@@ -73,7 +73,7 @@ object Anime4kCompiler {
     fun compileToFragmentShader(pass: Anime4kPass): String {
         val sb = StringBuilder()
         sb.appendLine("#version 300 es")
-        sb.appendLine("precision mediump float;")
+        sb.appendLine("precision highp float;")
         sb.appendLine("in vec2 vTexCoord;")
         sb.appendLine("out vec4 outColor;")
         
@@ -112,8 +112,7 @@ object Anime4kCompiler {
         sb.appendLine(pass.fragmentCode)
         
         sb.appendLine("void main() {")
-        sb.appendLine("    vec4 color = hook();")
-        sb.appendLine("    outColor = vec4(color.rgb, 1.0);")
+        sb.appendLine("    outColor = hook();")
         sb.appendLine("}")
         return sb.toString()
     }

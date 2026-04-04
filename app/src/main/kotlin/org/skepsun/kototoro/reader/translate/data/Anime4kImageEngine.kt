@@ -115,16 +115,25 @@ class Anime4kImageEngine(private val context: Context) {
             allCreatedTextures.add(initialMainTex)
             currentOutputTex = textures["MAIN"]!!
 
+            // Standard fullscreen quad: GLUtils.texImage2D and glReadPixels
+            // both invert Y, so the double-inversion cancels out.
             val vboData = floatArrayOf(
                 // x, y, u, v
-                -1f, -1f, 0f, 1f,
-                 1f, -1f, 1f, 1f,
-                -1f,  1f, 0f, 0f,
-                 1f,  1f, 1f, 0f
+                -1f, -1f, 0f, 0f,
+                 1f, -1f, 1f, 0f,
+                -1f,  1f, 0f, 1f,
+                 1f,  1f, 1f, 1f
             )
             val vboBuffer = GlUtil.createFloatBuffer(vboData)
 
             for ((i, pass) in passes.withIndex()) {
+                // Skip passes that hook textures that don't exist in our pipeline
+                // (e.g. PREKERNEL is an mpv-only hook point from Clamp_Highlights)
+                if (pass.hook != "MAIN" && !textures.containsKey(pass.hook)) {
+                    Log.d(TAG, "Skipping pass ${pass.desc}: hook '${pass.hook}' not available")
+                    continue
+                }
+
                 val prog = programs[i]
                 GLES30.glUseProgram(prog)
 
@@ -142,7 +151,11 @@ class Anime4kImageEngine(private val context: Context) {
 
                 // Always use a specific output FBO to prevent GL feedback loops (read/write same texture)
                 val saveName = pass.save
-                val isLastPass = (i == passes.size - 1)
+                // Determine if this is the last *executable* pass (accounting for skipped ones)
+                val isLastPass = (i == passes.indices.lastOrNull { idx ->
+                    val p = passes[idx]
+                    p.hook == "MAIN" || textures.containsKey(p.hook) || (p.save != null && textures.containsKey(p.save))
+                })
                 val (outTex, outFbo) = if (isLastPass) {
                     val tex = GlUtil.createEmpty8BitTexture(passW, passH)
                     allCreatedTextures.add(tex)
@@ -221,13 +234,22 @@ class Anime4kImageEngine(private val context: Context) {
                 freePool.addAll(orphanedTex)
             }
 
-            // Readback
+            // Readback: read RGBA bytes, convert to ARGB ints for Bitmap.setPixels()
             val buffer = ByteBuffer.allocateDirect(currentWidth * currentHeight * 4)
             GLES30.glReadPixels(0, 0, currentWidth, currentHeight, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
+            buffer.position(0)
+            
+            val pixels = IntArray(currentWidth * currentHeight)
+            for (j in pixels.indices) {
+                val r = buffer.get().toInt() and 0xFF
+                val g = buffer.get().toInt() and 0xFF
+                val b = buffer.get().toInt() and 0xFF
+                buffer.get() // skip alpha
+                pixels[j] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            }
             
             val outBmp = Bitmap.createBitmap(currentWidth, currentHeight, Bitmap.Config.ARGB_8888)
-            buffer.position(0)
-            outBmp.copyPixelsFromBuffer(buffer)
+            outBmp.setPixels(pixels, 0, currentWidth, 0, 0, currentWidth, currentHeight)
 
             return@withContext outBmp
         } catch (e: Exception) {
