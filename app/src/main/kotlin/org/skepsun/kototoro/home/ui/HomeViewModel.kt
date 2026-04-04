@@ -18,6 +18,8 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.jsonsource.OriginGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.prefs.observeAsFlow
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import org.skepsun.kototoro.backups.data.BackupRepository
@@ -168,6 +170,7 @@ class HomeViewModel @Inject constructor(
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
 	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT * 12, filterOptions = emptySet())
 	private val recommendationsFlow = suggestionRepository.observeAll()
+	private val isNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_DISABLE_NSFW) { isNsfwContentDisabled }
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
 		.map { counts ->
@@ -237,16 +240,17 @@ class HomeViewModel @Inject constructor(
 		) { enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState ->
 			Quadruple(enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState)
 		},
-	) { selectedTab, selectedSourceTags, left, right ->
-		val resumeState = left.first.filtered(selectedTab)
-		val allHistory = left.second
+		isNsfwDisabledFlow,
+	) { selectedTab, selectedSourceTags, left, right, isNsfwDisabled ->
+		val resumeState = left.first.filtered(selectedTab).filteredNsfw(isNsfwDisabled)
+		val allHistory = if (isNsfwDisabled) left.second.filterNot { it.isNsfw() } else left.second
 		val recentHistory = allHistory.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
-		val allUpdates = left.sixth
+		val allUpdates = if (isNsfwDisabled) left.sixth.filterNot { it.manga.isNsfw() } else left.sixth
 		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
-		val allRecommendations = left.seventh
+		val allRecommendations = if (isNsfwDisabled) left.seventh.filterNot { it.isNsfw() } else left.seventh
 		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val actualHistoryCount = if (selectedTab == null) allHistory.size else allHistory.count { it.contentTab() == selectedTab }
 		val enabledSourcesCount = right.first
@@ -495,6 +499,10 @@ private fun List<ContentTracking>.groupTrackingsByTabThenSelect(
 
 private fun HomeResumeState.filtered(tab: HomeContentTab?): HomeResumeState {
 	return if (tab == null || content?.contentTab() == tab) this else HomeResumeState()
+}
+
+private fun HomeResumeState.filteredNsfw(isNsfwDisabled: Boolean): HomeResumeState {
+	return if (isNsfwDisabled && content?.isNsfw() == true) HomeResumeState() else this
 }
 
 private fun ContentType.toHomeTab(): HomeContentTab? = when (this) {
