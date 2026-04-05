@@ -44,6 +44,11 @@
             android:persistent="false"
             android:title="@string/extensions" />
 
+        <EditTextPreference
+            android:defaultValue="kototoro-parsers,kotatsu-parsers-redo,kotatsu-parsers"
+            android:key="jar_priority_order"
+            android:summary="@string/jar_priority_order_summary"
+            android:title="@string/jar_priority_order_title" />
 
     </PreferenceCategory>
 

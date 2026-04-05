@@ -2109,4 +2109,7 @@
     <string name="group_sources_by_language">Group sources by language</string>
     <string name="group_sources_by_language_summary">Display content sources grouped by their locale language rather than a flat list.</string>
 
+    <string name="jar_priority_order_title">Plugin Deduplication Priority Sequence</string>
+    <string name="jar_priority_order_summary">Comma-separated JAR prefixes. When multiple parsers share the same name, only the parser from the highest ranking repository is exposed. Example: kototoro-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
+
 </resources>

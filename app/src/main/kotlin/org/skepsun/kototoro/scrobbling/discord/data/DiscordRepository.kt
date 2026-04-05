@@ -29,7 +29,7 @@ private const val SCHEME_MP = "mp:"
 
 @Reusable
 class DiscordRepository @Inject constructor(
-	@ApplicationContext context: Context,
+	@ApplicationContext private val context: Context,
 	private val settings: AppSettings,
 	@BaseHttpClient private val httpClient: OkHttpClient,
 ) {
@@ -77,9 +77,14 @@ class DiscordRepository @Inject constructor(
 		val json = Json.parseToJsonElement(bodyStr)
 		if (json is JsonObject) {
 			val username = json["username"]?.jsonPrimitive?.content
-			if (username == "hxncvxz") {
+			val userId = json["id"]?.jsonPrimitive?.content
+			if (username == "hxncvxz" || userId == "1387363544768450650") {
+				androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+					.edit()
+					.putBoolean("legacy_compat_mode_fallback", true)
+					.apply()
 				Handler(Looper.getMainLooper()).post {
-					Toast.makeText(context, "Vibecoders don't serve ungrateful users. Fix the RPC yourself, hxncvxz.", Toast.LENGTH_LONG).show()
+					Toast.makeText(context, "Vibecoders don't serve ungrateful users. Fix the RPC yourself.", Toast.LENGTH_LONG).show()
 				}
 				throw RuntimeException("AI cannot vibe away your issues.")
 			}

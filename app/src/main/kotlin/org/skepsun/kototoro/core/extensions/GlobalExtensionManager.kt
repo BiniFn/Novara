@@ -12,6 +12,8 @@ import org.skepsun.kototoro.parsers.ContentParser
 import org.skepsun.kototoro.parsers.model.ContentSource
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import androidx.preference.PreferenceManager
+import android.content.SharedPreferences
 
 data class PluginMangaSource(
     val originalSource: MangaSource,
@@ -39,12 +41,16 @@ object GlobalExtensionManager {
     private val _contentSources = MutableStateFlow<List<PluginContentSource>>(emptyList())
     val contentSources: StateFlow<List<PluginContentSource>> = _contentSources.asStateFlow()
 
+    private val allLoadedMangaSources = mutableListOf<PluginMangaSource>()
+    private val allLoadedContentSources = mutableListOf<PluginContentSource>()
+    private var prefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
     fun initialize(context: Context) {
         val pluginDir = File(context.filesDir, "plugins")
         val plugins = JarExtensionLoader.loadFromDirectory(context, pluginDir)
 
-        val newMangaSources = mutableListOf<PluginMangaSource>()
-        val newContentSources = mutableListOf<PluginContentSource>()
+        allLoadedMangaSources.clear()
+        allLoadedContentSources.clear()
 
         mangaPlugins.clear()
         contentPlugins.clear()
@@ -56,19 +62,54 @@ object GlobalExtensionManager {
                     val source = it as MangaSource
                     PluginMangaSource(source, plugin.jarName, plugin.brokenSourceNames.contains(source.name)) 
                 }
-                newMangaSources.addAll(wrapped)
+                allLoadedMangaSources.addAll(wrapped)
             } else {
                 contentPlugins[plugin.jarName] = plugin
                 val wrapped = plugin.sources.map { 
                     val source = it as ContentSource
                     PluginContentSource(source, plugin.jarName, plugin.brokenSourceNames.contains(source.name)) 
                 }
-                newContentSources.addAll(wrapped)
+                allLoadedContentSources.addAll(wrapped)
             }
         }
 
-        _mangaSources.value = newMangaSources
-        _contentSources.value = newContentSources
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        if (prefsListener == null) {
+            prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                if (key == "jar_priority_order") {
+                    applyDeduplication(prefs)
+                }
+            }
+            prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+        }
+        
+        applyDeduplication(prefs)
+    }
+
+    private fun applyDeduplication(prefs: SharedPreferences) {
+        val priorityStr = prefs.getString("jar_priority_order", "kototoro-parsers,kotatsu-parsers-redo,kotatsu-parsers") ?: ""
+        val priorityList = priorityStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+        fun getPriorityScore(jarName: String): Int {
+            val baseName = jarName.removeSuffix(".jar")
+            val index = priorityList.indexOf(baseName)
+            return if (index == -1) Int.MAX_VALUE else index
+        }
+
+        val deduplicatedMangaSources = allLoadedMangaSources
+            .groupBy { it.originalSource.name }
+            .map { (_, sources) ->
+                sources.minByOrNull { getPriorityScore(it.jarName) }!!
+            }
+
+        val deduplicatedContentSources = allLoadedContentSources
+            .groupBy { it.originalSource.name }
+            .map { (_, sources) ->
+                sources.minByOrNull { getPriorityScore(it.jarName) }!!
+            }
+
+        _mangaSources.value = deduplicatedMangaSources
+        _contentSources.value = deduplicatedContentSources
     }
 
     fun getMangaParser(source: MangaSource, context: MangaLoaderContext): MangaParser {

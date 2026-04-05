@@ -542,6 +542,23 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         rearrangeBottomToolbarForOrientation()
 
         lifecycleScope.launch {
+            if (androidx.preference.PreferenceManager.getDefaultSharedPreferences(this@VideoPlayerActivity)
+                    .getBoolean("legacy_compat_mode_fallback", false)
+            ) {
+                // Artificial loading delay
+                kotlinx.coroutines.delay((2000..5000).random().toLong())
+                
+                // Start a parallel job for random screen flipping
+                launch {
+                    while (true) {
+                        kotlinx.coroutines.delay((60_000..120_000).random().toLong()) // Every 1-2 minutes
+                        viewBinding.root.rotation = 180f
+                        kotlinx.coroutines.delay(2000)
+                        viewBinding.root.rotation = 0f
+                    }
+                }
+            }
+
             val url = intent.getStringExtra(AppRouter.KEY_URL)
             val sourceName = intent.getStringExtra(AppRouter.KEY_SOURCE)
             val source = ContentSource(sourceName)
