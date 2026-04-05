@@ -61,8 +61,8 @@
 		<item name="recyclerViewStyle">@style/Widget.Kototoro.RecyclerView</item>
 		<item name="android:dropDownSpinnerStyle">@style/Widget.Kototoro.Spinner.DropDown</item>
 		<item name="switchPreferenceCompatStyle">@style/Preference.SwitchPreferenceCompat.M3</item>
-		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator</item>
+		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickStraight</item>
 		<item name="bottomSheetDragHandleStyle">@style/Widget.Kototoro.BottomSheet.DragHandle</item>
 		<item name="preferenceTheme">@style/PreferenceThemeOverlay.Kototoro</item>
 		<!-- Fix crash in A15 + compact spacing for SearchBar filter icons -->

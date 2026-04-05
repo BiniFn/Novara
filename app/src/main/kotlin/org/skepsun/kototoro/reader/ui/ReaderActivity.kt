@@ -223,6 +223,13 @@ class ReaderActivity :
             currentTranslationLayerState = it
             updateTranslationToggleButton()
         }.launchIn(lifecycleScope)
+
+        settings.observeAsFlow(AppSettings.KEY_READER_TOOLBAR_FLOATING) {
+            isReaderToolbarFloating
+        }.onEach { isFloating ->
+            updateToolbarFloatingStyle(isFloating)
+        }.launchIn(lifecycleScope)
+
         observeWindowLayout()
 
         // Apply initial double-mode considering foldable setting
@@ -493,10 +500,19 @@ class ReaderActivity :
             leftMargin = systemBars.left
         }
         if (viewBinding.toolbarDocked != null) {
+            val navMargin = if (isToolbarFloating) (16 * resources.displayMetrics.density).toInt() else 0
+            val bottomMargin = if (isToolbarFloating) systemBars.bottom + navMargin else 0
+
+
+            viewBinding.toolbarDocked?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                this.bottomMargin = bottomMargin
+                leftMargin = if (isToolbarFloating) systemBars.left + navMargin else 0
+                rightMargin = if (isToolbarFloating) systemBars.right + navMargin else 0
+            }
             viewBinding.actionsView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                bottomMargin = systemBars.bottom
-                rightMargin = systemBars.right
-                leftMargin = systemBars.left
+                this.bottomMargin = if (isToolbarFloating) 0 else systemBars.bottom
+                leftMargin = if (isToolbarFloating) 0 else systemBars.left
+                rightMargin = if (isToolbarFloating) 0 else systemBars.right
             }
         }
         viewBinding.infoBar.updatePadding(
@@ -792,6 +808,44 @@ class ReaderActivity :
         val labels = resources.getStringArray(entriesRes)
         val index = values.indexOf(value)
         return if (index in labels.indices) labels[index] else value
+    }
+
+    private var isToolbarFloating = false
+    
+    private fun updateToolbarFloatingStyle(isFloating: Boolean) {
+        if (isToolbarFloating == isFloating) return
+        isToolbarFloating = isFloating
+        val toolbar = viewBinding.toolbarDocked ?: return
+        val radius = if (isFloating) 24 * resources.displayMetrics.density else 0f
+        
+        if (toolbar is com.google.android.material.card.MaterialCardView) {
+            toolbar.radius = radius
+        } else {
+            val bg = toolbar.background
+            if (bg is com.google.android.material.shape.MaterialShapeDrawable) {
+                bg.shapeAppearanceModel = bg.shapeAppearanceModel.toBuilder().setAllCornerSizes(radius).build()
+            }
+            toolbar.clipToOutline = isFloating
+        }
+        
+        val appbarTop = viewBinding.appbarTop
+        val blurMode = settings.blurMode
+        val handleBgColor = { targetView: View ->
+            if (targetView.background is com.google.android.material.shape.MaterialShapeDrawable) {
+                val bg = targetView.background as com.google.android.material.shape.MaterialShapeDrawable
+                val baseColor = com.google.android.material.color.MaterialColors.getColor(targetView, com.google.android.material.R.attr.colorSurfaceContainer)
+                if (isFloating && blurMode != org.skepsun.kototoro.core.prefs.AppSettings.BlurMode.STANDARD) {
+                    val alphaVal = if (blurMode == org.skepsun.kototoro.core.prefs.AppSettings.BlurMode.ENHANCED) 180 else 220
+                    bg.fillColor = android.content.res.ColorStateList.valueOf(androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, alphaVal))
+                } else {
+                    bg.fillColor = android.content.res.ColorStateList.valueOf(baseColor)
+                }
+            }
+        }
+        handleBgColor(toolbar)
+        handleBgColor(viewBinding.appbarTop)
+        
+        viewBinding.root.requestApplyInsets()
     }
 
     // Observe foldable window layout to auto-enable double-page if configured

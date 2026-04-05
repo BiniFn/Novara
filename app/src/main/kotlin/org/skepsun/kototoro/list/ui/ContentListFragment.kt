@@ -149,6 +149,8 @@ abstract class ContentListFragment :
 		with(binding.swipeRefreshLayout) {
 			setOnRefreshListener(this@ContentListFragment)
 			isEnabled = isSwipeRefreshEnabled
+			clipChildren = false
+			clipToPadding = false
 		}
 		addMenuProvider(ContentListMenuProvider(this))
 

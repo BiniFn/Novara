@@ -146,10 +146,11 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 
 	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+		requireViewBinding().root.clipToPadding = false
 		requireViewBinding().root.updatePadding(
 			left = systemBars.left,
 			right = systemBars.right,
-			bottom = systemBars.bottom,
+			bottom = 0, // padding is handled by the container below
 		)
 		requireViewBinding().homeContentContainer.updatePadding(
 			bottom = systemBars.bottom + resources.getDimensionPixelOffset(R.dimen.list_spacing_normal),

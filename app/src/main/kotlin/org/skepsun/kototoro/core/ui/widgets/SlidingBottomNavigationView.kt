@@ -154,7 +154,7 @@ class SlidingBottomNavigationView @JvmOverloads constructor(
 		clearAnimation()
 
 		currentState = STATE_DOWN
-		val target = measureHeight()
+		val target = measureHeight() + ((layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0)
 		if (target == 0) {
 			return
 		}

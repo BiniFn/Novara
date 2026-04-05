@@ -32,6 +32,12 @@
 		app:showAsAction="never" />
 
 	<item
+		android:id="@+id/action_mark_safe"
+		android:orderInCategory="45"
+		android:title="@string/mark_as_safe"
+		app:showAsAction="never" />
+
+	<item
 		android:id="@+id/action_scrobbling"
 		android:orderInCategory="50"
 		android:title="@string/tracking"

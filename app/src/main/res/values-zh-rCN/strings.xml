@@ -1869,4 +1869,22 @@
     <string name="reader_super_resolution_model_pro">Pro 模式 (激进降噪，适合高扫描噪声)</string>
     <string name="reader_super_resolution_model_nose">Nose 模式 (仅降噪，无细节提升)</string>
     <string name="reader_super_resolution_anime4k_mode">Anime4K 模式</string>
+    <string name="pref_nav_floating">悬浮导航栏</string>
+    <string name="pref_nav_floating_summary">在底部导航栏周围添加边距，使其呈现悬浮效果</string>
+    <string name="pref_reader_toolbar_floating">悬浮阅读器工具栏</string>
+    <string name="pref_reader_toolbar_floating_summary">使阅读器底部工具栏悬浮在屏幕边缘上方</string>
+    <string name="pref_loading_circle_style">加载圆圈样式</string>
+    <string name="loading_circle_style_thick_straight">粗直线 (MD3 默认)</string>
+    <string name="loading_circle_style_thick_wavy">粗波浪 (MD3 Expressive)</string>
+    <string name="loading_circle_style_thin_straight">细直线 (系统经典)</string>
+    <string name="loading_circle_style_thin_wavy">细波浪</string>
+    <string name="reader">阅读器</string>
+
+    <string name="pref_blur_mode">透明特效等级</string>
+    <string name="pref_blur_mode_summary">设置界面组件的毛玻璃效果强度</string>
+    <string name="blur_mode_standard">标准模式 (无模糊，纯MD3)</string>
+    <string name="blur_mode_immersive">沉浸模式 (局部模糊，推荐)</string>
+    <string name="blur_mode_enhanced">增强模式 (提升模糊，偏iOS风)</string>
+    <string name="mark_as_safe">标记为非 NSFW</string>
+    <string name="remove_safe_mark">移除非 NSFW 标记</string>
 </resources>

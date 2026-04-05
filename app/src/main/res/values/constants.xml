@@ -87,4 +87,15 @@
 		<item>4</item>
 		<item>1</item>
 	</string-array>
+	<string-array name="values_loading_circle_style" translatable="false">
+		<item>thick_straight</item>
+		<item>thick_wavy</item>
+		<item>thin_straight</item>
+		<item>thin_wavy</item>
+	</string-array>
+	<string-array name="values_blur_mode" translatable="false">
+		<item>standard</item>
+		<item>immersive</item>
+		<item>enhanced</item>
+	</string-array>
 </resources>

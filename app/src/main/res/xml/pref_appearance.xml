@@ -26,6 +26,14 @@
         android:key="app_locale"
         android:title="@string/language" />
 
+    <ListPreference
+        android:entries="@array/loading_circle_styles"
+        android:entryValues="@array/values_loading_circle_style"
+        android:key="loading_circle_style"
+        android:title="@string/pref_loading_circle_style"
+        android:defaultValue="md3"
+        app:useSimpleSummaryProvider="true" />
+
     <PreferenceCategory android:title="@string/manga_list">
 
         <ListPreference
@@ -153,6 +161,26 @@
             android:key="nav_pinned"
             android:summary="@string/pin_navigation_ui_summary"
             android:title="@string/pin_navigation_ui" />
+
+        <ListPreference
+            android:defaultValue="standard"
+            android:entries="@array/blur_modes"
+            android:entryValues="@array/values_blur_mode"
+            android:key="blur_mode"
+            android:summary="@string/pref_blur_mode_summary"
+            android:title="@string/pref_blur_mode" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="nav_floating"
+            android:summary="@string/pref_nav_floating_summary"
+            android:title="@string/pref_nav_floating" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="reader_toolbar_floating"
+            android:summary="@string/pref_reader_toolbar_floating_summary"
+            android:title="@string/pref_reader_toolbar_floating" />
 
         <SwitchPreferenceCompat
             android:defaultValue="false"

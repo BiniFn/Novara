@@ -422,4 +422,15 @@
 		<item>2048</item>
 		<item>-1</item>
 	</string-array>
+	<string-array name="loading_circle_styles" translatable="false">
+		<item>@string/loading_circle_style_thick_straight</item>
+		<item>@string/loading_circle_style_thick_wavy</item>
+		<item>@string/loading_circle_style_thin_straight</item>
+		<item>@string/loading_circle_style_thin_wavy</item>
+	</string-array>
+	<string-array name="blur_modes" translatable="false">
+		<item>@string/blur_mode_standard</item>
+		<item>@string/blur_mode_immersive</item>
+		<item>@string/blur_mode_enhanced</item>
+	</string-array>
 </resources>

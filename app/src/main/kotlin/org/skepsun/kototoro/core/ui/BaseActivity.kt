@@ -64,6 +64,12 @@ abstract class BaseActivity<B : ViewBinding> :
 		if (isAmoledTheme) {
 			setTheme(R.style.ThemeOverlay_Kototoro_Amoled)
 		}
+		when(settings.loadingCircleStyle) {
+			org.skepsun.kototoro.core.prefs.AppSettings.LoadingCircleStyle.THICK_STRAIGHT -> setTheme(R.style.ThemeOverlay_Kototoro_Loading_ThickStraight)
+			org.skepsun.kototoro.core.prefs.AppSettings.LoadingCircleStyle.THICK_WAVY -> setTheme(R.style.ThemeOverlay_Kototoro_Loading_ThickWavy)
+			org.skepsun.kototoro.core.prefs.AppSettings.LoadingCircleStyle.THIN_STRAIGHT -> setTheme(R.style.ThemeOverlay_Kototoro_Loading_ThinStraight)
+			org.skepsun.kototoro.core.prefs.AppSettings.LoadingCircleStyle.THIN_WAVY -> setTheme(R.style.ThemeOverlay_Kototoro_Loading_ThinWavy)
+		}
 		putDataToExtras(intent)
 		exceptionResolver = entryPoint.exceptionResolverFactory.create(this)
 		enableEdgeToEdge()

@@ -52,6 +52,13 @@ class DetailsMenuProvider(
 		menu.findItem(R.id.action_scrobbling).isVisible = viewModel.isScrobblingAvailable
 		menu.findItem(R.id.action_online).isVisible = viewModel.remoteContent.value != null
 		menu.findItem(R.id.action_stats).isVisible = viewModel.isStatsAvailable.value
+
+		val actionMarkSafe = menu.findItem(R.id.action_mark_safe)
+		if (viewModel.isMarkedSafe.value) {
+			actionMarkSafe.setTitle(R.string.remove_safe_mark)
+		} else {
+			actionMarkSafe.setTitle(R.string.mark_as_safe)
+		}
 	}
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
@@ -110,6 +117,10 @@ class DetailsMenuProvider(
 			R.id.action_edit_override -> {
 				val intent = AppRouter.overrideEditIntent(activity, manga)
 				activityForResultLauncher.launch(intent)
+			}
+
+			R.id.action_mark_safe -> {
+				viewModel.toggleMarkSafe()
 			}
 
 			else -> return false

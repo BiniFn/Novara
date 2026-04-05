@@ -153,7 +153,10 @@ fun Content.chaptersCount(): Int {
 	return max
 }
 
-fun Content.isNsfw(): Boolean = contentRating == ContentRating.ADULT || source.isNsfw()
+fun Content.isNsfw(): Boolean {
+	if (contentRating == ContentRating.SAFE) return false
+	return contentRating == ContentRating.ADULT || source.isNsfw()
+}
 
 fun ContentListFilter.getSummary() = buildSpannedString {
 	if (!query.isNullOrEmpty()) {

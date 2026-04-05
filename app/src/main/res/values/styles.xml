@@ -50,8 +50,40 @@
 		<item name="android:textSize">18sp</item>
 	</style>
 
-	<style name="Widget.Kototoro.CircularProgressIndicator" parent="Widget.Material3.CircularProgressIndicator">
-		<item name="trackCornerRadius">@dimen/mtrl_progress_indicator_full_rounded_corner_radius</item>
+	<style name="Widget.Kototoro.CircularProgressIndicator.ThickStraight" parent="Widget.Material3.CircularProgressIndicator" />
+	<style name="Widget.Kototoro.LinearProgressIndicator.ThickStraight" parent="Widget.Material3.LinearProgressIndicator" />
+
+	<style name="Widget.Kototoro.CircularProgressIndicator.ThickWavy" parent="Widget.Material3Expressive.CircularProgressIndicator.Wavy" />
+	<style name="Widget.Kototoro.LinearProgressIndicator.ThickWavy" parent="Widget.Material3Expressive.LinearProgressIndicator.Wavy" />
+
+	<style name="Widget.Kototoro.CircularProgressIndicator.ThinStraight" parent="Widget.MaterialComponents.CircularProgressIndicator" />
+	<style name="Widget.Kototoro.LinearProgressIndicator.ThinStraight" parent="Widget.MaterialComponents.LinearProgressIndicator" />
+
+	<style name="Widget.Kototoro.CircularProgressIndicator.ThinWavy" parent="Widget.Material3Expressive.CircularProgressIndicator.Wavy">
+		<item name="trackThickness">2dp</item>
+	</style>
+	<style name="Widget.Kototoro.LinearProgressIndicator.ThinWavy" parent="Widget.Material3Expressive.LinearProgressIndicator.Wavy">
+		<item name="trackThickness">2dp</item>
+	</style>
+
+	<style name="ThemeOverlay.Kototoro.Loading.ThickStraight" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickStraight</item>
+	</style>
+
+	<style name="ThemeOverlay.Kototoro.Loading.ThickWavy" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickWavy</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickWavy</item>
+	</style>
+
+	<style name="ThemeOverlay.Kototoro.Loading.ThinStraight" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThinStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThinStraight</item>
+	</style>
+
+	<style name="ThemeOverlay.Kototoro.Loading.ThinWavy" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThinWavy</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThinWavy</item>
 	</style>
 
 	<style name="Widget.Kototoro.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">

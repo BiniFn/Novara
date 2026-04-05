@@ -230,6 +230,7 @@ class DetailsActivity :
 		val menuInvalidator = MenuInvalidator(this)
 		viewModel.isStatsAvailable.observe(this, menuInvalidator)
 		viewModel.remoteContent.observe(this, menuInvalidator)
+		viewModel.isMarkedSafe.observe(this, menuInvalidator)
 		viewModel.tags.observe(this, ::onTagsChanged)
 		viewModel.chapters.observe(this, PrefetchObserver(this))
 		viewModel.onDownloadStarted

@@ -106,6 +106,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isNavBarPinned: Boolean
 		get() = prefs.getBoolean(KEY_NAV_PINNED, false)
 
+	var isNavFloating: Boolean
+		get() = prefs.getBoolean(KEY_NAV_FLOATING, false)
+		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
+
 	val isMainFabEnabled: Boolean
 		get() = prefs.getBoolean(KEY_MAIN_FAB, true)
 
@@ -269,6 +273,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val isReaderFullscreenEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_FULLSCREEN, true)
+
+	var isReaderToolbarFloating: Boolean
+		get() = prefs.getBoolean(KEY_READER_TOOLBAR_FLOATING, false)
+		set(value) = prefs.edit { putBoolean(KEY_READER_TOOLBAR_FLOATING, value) }
 
 	val isReaderOptimizationEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READER_OPTIMIZE, false)
@@ -530,6 +538,37 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val progressIndicatorMode: ProgressIndicatorMode
 		get() = prefs.getEnumValue(KEY_PROGRESS_INDICATORS, ProgressIndicatorMode.PERCENT_READ)
+
+	enum class LoadingCircleStyle(val value: String) {
+		THICK_STRAIGHT("thick_straight"),
+		THICK_WAVY("thick_wavy"),
+		THIN_STRAIGHT("thin_straight"),
+		THIN_WAVY("thin_wavy");
+
+		companion object {
+			fun fromValue(value: String?): LoadingCircleStyle =
+				entries.find { it.value == value } ?: THICK_STRAIGHT
+		}
+	}
+
+	var loadingCircleStyle: LoadingCircleStyle
+		get() = LoadingCircleStyle.fromValue(prefs.getString(KEY_LOADING_CIRCLE_STYLE, LoadingCircleStyle.THICK_STRAIGHT.value))
+		set(value) = prefs.edit { putString(KEY_LOADING_CIRCLE_STYLE, value.value) }
+
+	enum class BlurMode(val value: String) {
+		STANDARD("standard"),
+		IMMERSIVE("immersive"),
+		ENHANCED("enhanced");
+
+		companion object {
+			fun fromValue(value: String?): BlurMode =
+				entries.find { it.value == value } ?: STANDARD
+		}
+	}
+
+	var blurMode: BlurMode
+		get() = BlurMode.fromValue(prefs.getString(KEY_BLUR_MODE, BlurMode.STANDARD.value))
+		set(value) = prefs.edit { putString(KEY_BLUR_MODE, value.value) }
 
 	var incognitoModeForNsfw: TriStateOption
 		get() = prefs.getEnumValue(KEY_INCOGNITO_NSFW, TriStateOption.ASK)
@@ -1606,6 +1645,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_NAV_MAIN = "nav_main"
 		const val KEY_NAV_LABELS = "nav_labels"
 		const val KEY_NAV_PINNED = "nav_pinned"
+		const val KEY_NAV_FLOATING = "nav_floating"
+		const val KEY_READER_TOOLBAR_FLOATING = "reader_toolbar_floating"
+		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
+		const val KEY_BLUR_MODE = "blur_mode"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"
 		const val KEY_SOURCES_ORDER = "sources_sort_order"

@@ -79,7 +79,8 @@ class HideBottomNavigationOnScrollBehavior @JvmOverloads constructor(
 	) {
 		super.onNestedPreScroll(coordinatorLayout, child, target, dx, dy, consumed, type)
 		if (!isPinned) {
-			child.translationY = (child.translationY + (dy * dyRatio)).coerceIn(0F, child.height.toFloat())
+			val targetHeight = child.height.toFloat() + ((child.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0)
+			child.translationY = (child.translationY + (dy * dyRatio)).coerceIn(0F, targetHeight)
 		}
 	}
 
@@ -96,6 +97,7 @@ class HideBottomNavigationOnScrollBehavior @JvmOverloads constructor(
 
 	private fun animateBottomNavigationVisibility(child: NavigationBarView, isVisible: Boolean) {
 		offsetAnimator?.cancel()
+		val targetHeight = child.height.toFloat() + ((child.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0)
 		offsetAnimator = ValueAnimator().apply {
 			interpolator = DecelerateInterpolator()
 			duration = child.context.getAnimationDuration(R.integer.config_shorterAnimTime)
@@ -105,7 +107,7 @@ class HideBottomNavigationOnScrollBehavior @JvmOverloads constructor(
 		}
 		offsetAnimator?.setFloatValues(
 			child.translationY,
-			if (isVisible) 0F else child.height.toFloat(),
+			if (isVisible) 0F else targetHeight,
 		)
 		offsetAnimator?.start()
 	}

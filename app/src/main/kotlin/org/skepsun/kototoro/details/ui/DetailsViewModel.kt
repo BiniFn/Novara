@@ -91,6 +91,7 @@ class DetailsViewModel @Inject constructor(
 	private val videoDownloadIndex: VideoDownloadIndex,
 	mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory,
 	private val trackingSiteMatcher: TrackingSiteMatcher,
+	private val dataRepository: org.skepsun.kototoro.core.parser.ContentDataRepository,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -130,6 +131,8 @@ class DetailsViewModel @Inject constructor(
 	val isStatsAvailable = statsRepository.observeHasStats(mangaId)
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
+
+	val isMarkedSafe = MutableStateFlow(false)
 
 	val remoteContent = MutableStateFlow<Content?>(null)
 
@@ -248,6 +251,12 @@ class DetailsViewModel @Inject constructor(
 			}
 			refreshTrackingMatchSuggestion()
 		}
+		launchJob(Dispatchers.Default) {
+			mangaDetails.filterNotNull().collect { details ->
+				val override = dataRepository.getOverride(details.id)
+				isMarkedSafe.value = override?.contentRating == org.skepsun.kototoro.parsers.model.ContentRating.SAFE
+			}
+		}
 	}
 
 	fun reload() {
@@ -296,6 +305,17 @@ class DetailsViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			val handle = historyRepository.delete(setOf(mangaId))
 			onActionDone.call(ReversibleAction(R.string.removed_from_history, handle))
+		}
+	}
+
+	fun toggleMarkSafe() {
+		launchJob(Dispatchers.Default) {
+			val manga = mangaDetails.value?.toContent() ?: return@launchJob
+			val override = dataRepository.getOverride(manga.id) ?: org.skepsun.kototoro.core.ui.model.ContentOverride(null, null, null)
+			val isSafe = override.contentRating == org.skepsun.kototoro.parsers.model.ContentRating.SAFE
+			val newRating = if (isSafe) null else org.skepsun.kototoro.parsers.model.ContentRating.SAFE
+			dataRepository.setOverride(manga, override.copy(contentRating = newRating))
+			isMarkedSafe.value = !isSafe
 		}
 	}
 
