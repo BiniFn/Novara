@@ -173,6 +173,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private var currentMediaUrl: String? = null
     private var lastSubtitleTextFromPoll: String? = null
     private var subtitlePollCounter = 0
+    // Track user's manual subtitle selection to restore after file reload
+    private var userManualSubtitleSelection: ManualSubtitleSelection? = null
     private val mpvListener = object : MpvPlayer.Listener {
         override fun onDurationChanged(durationMs: Long) {
             if (!hasRestoredProgress && durationMs > 0) {
@@ -2001,28 +2003,64 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
      */
     private fun autoSelectTracksByLanguage() {
         val player = mpvPlayer ?: return
-        val systemLang = java.util.Locale.getDefault().language // e.g. "zh", "en", "ja"
-        Log.d("VideoPlayerActivity", "autoSelectTracksByLanguage: systemLang=$systemLang")
+        val manualSelection = userManualSubtitleSelection
+        Log.d("VideoPlayerActivity", "autoSelectTracksByLanguage: manualSelection=$manualSelection")
 
-        // Auto-select subtitle track matching system language
+        // Auto-select subtitle track: prefer user's manual selection, fall back to system language
         val subTracks = player.getSubtitleTracks()
         if (subTracks.isNotEmpty()) {
-            val match = subTracks.find { it.language?.startsWith(systemLang, ignoreCase = true) == true }
-            if (match != null && !match.isSelected) {
-                player.setSubtitleTrack(match.id)
-                Log.d("VideoPlayerActivity", "Auto-selected subtitle: ${match.displayName()}")
+            when (manualSelection) {
+                is ManualSubtitleSelection.Off -> {
+                    // User explicitly turned off subtitles
+                    player.setSubtitleTrack(null)
+                    Log.d("VideoPlayerActivity", "Restored manual selection: subtitles off")
+                }
+                is ManualSubtitleSelection.Track -> {
+                    // Try to find a matching track by language or title
+                    val match = subTracks.find { track ->
+                        (!manualSelection.language.isNullOrBlank() && track.language?.equals(manualSelection.language, ignoreCase = true) == true) ||
+                        (!manualSelection.title.isNullOrBlank() && track.title?.equals(manualSelection.title, ignoreCase = true) == true)
+                    }
+                    if (match != null && !match.isSelected) {
+                        player.setSubtitleTrack(match.id)
+                        Log.d("VideoPlayerActivity", "Restored manual subtitle: ${match.displayName()}")
+                    } else if (match == null) {
+                        // Manual selection not available in new file, fall back to system language
+                        autoSelectSubtitleBySystemLanguage(subTracks)
+                    }
+                }
+                null -> {
+                    // No manual selection yet, use system language
+                    autoSelectSubtitleBySystemLanguage(subTracks)
+                }
             }
         }
 
         // Auto-select audio track matching system language (if multiple audio tracks exist)
         val audioTracks = player.getAudioTracks()
         if (audioTracks.size > 1) {
+            val systemLang = java.util.Locale.getDefault().language
             val match = audioTracks.find { it.language?.startsWith(systemLang, ignoreCase = true) == true }
             if (match != null && !match.isSelected) {
                 player.setAudioTrack(match.id)
                 Log.d("VideoPlayerActivity", "Auto-selected audio: ${match.displayName()}")
             }
         }
+    }
+
+    private fun autoSelectSubtitleBySystemLanguage(subTracks: List<MpvPlayer.TrackInfo>) {
+        val systemLang = java.util.Locale.getDefault().language
+        val player = mpvPlayer ?: return
+        val match = subTracks.find { it.language?.startsWith(systemLang, ignoreCase = true) == true }
+        if (match != null && !match.isSelected) {
+            player.setSubtitleTrack(match.id)
+            Log.d("VideoPlayerActivity", "Auto-selected subtitle by system lang: ${match.displayName()}")
+        }
+    }
+
+    private sealed class ManualSubtitleSelection {
+        data object Off : ManualSubtitleSelection()
+        data class Track(val language: String?, val title: String?) : ManualSubtitleSelection()
     }
 
     fun applySuperResolutionFromSettings() {
@@ -2227,8 +2265,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             .setSingleChoiceItems(labels, checked) { dialog, which ->
                 if (which == 0) {
                     player.setSubtitleTrack(null)
+                    userManualSubtitleSelection = ManualSubtitleSelection.Off
                 } else {
-                    player.setSubtitleTrack(tracks[which - 1].id)
+                    val track = tracks[which - 1]
+                    player.setSubtitleTrack(track.id)
+                    userManualSubtitleSelection = ManualSubtitleSelection.Track(
+                        language = track.language,
+                        title = track.title,
+                    )
                 }
                 dialog.dismiss()
             }
@@ -2926,35 +2970,75 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         
         android.util.Log.d("VideoPlayer", "Chapter selected: ${chapter.title} (id=${chapter.id})")
         
+        // Save current progress before switching
+        savePlaybackProgress()
+        saveHistoryProgressAsync()
+        
         // Find the new chapter's video URL asynchronously
         lifecycleScope.launch {
             try {
                 val repo = mangaRepositoryFactory.create(manga.source)
-                val pages = repo.getPages(chapter)
-                val page = pages.firstOrNull()
-                val streamUrl = page?.let { repo.getPageUrl(it) }
-                val streamHeaders = page?.headers
+                var resolved = false
                 
-                if (streamUrl != null) {
-                    android.util.Log.d("VideoPlayer", "Stream URL resolved: $streamUrl")
+                // Try AniyomiAnimeRepository first (most video sources)
+                if (repo is AniyomiAnimeRepository) {
+                    val videos = runCatching {
+                        repo.getVideoListForChapter(chapter)
+                            .filter { it.videoUrl.isNotBlank() }
+                    }.getOrNull()
                     
-                    // Update ReaderState with new chapter
-                    readerState = ReaderState(chapter.id, 0, 0)
-                    // Reset intro/outro per-chapter flags so new chapter gets auto-skip
-                    hasSkippedIntro = false
-                    hasTriggeredOutro = false
-                    hasRestoredProgress = false
-                    updateChapterNavButtons()
+                    if (!videos.isNullOrEmpty()) {
+                        availableVideos = videos
+                        updateQualityButtonVisibility()
+                        currentVideoSource = manga.source
+                        currentVideoIndex = videos.indexOfFirst { it.preferred }
+                            .takeIf { it >= 0 } ?: 0
+                        val selected = videos[currentVideoIndex]
+                        val mergedHeaders = mergeHeaders(repo.getRequestHeaders(), headersToMap(selected.headers))
+                        pendingExternalSubtitles = selected.subtitleTracks
+                        pendingExternalAudio = selected.audioTracks
+                        
+                        // Update ReaderState with new chapter
+                        readerState = ReaderState(chapter.id, 0, 0)
+                        hasSkippedIntro = false
+                        hasTriggeredOutro = false
+                        hasRestoredProgress = false
+                        updateChapterNavButtons()
+                        
+                        startMpvPlayback(selected.videoUrl, manga.source, mergedHeaders)
+                        updateTitleAndSubtitle()
+                        saveHistoryProgressAsync()
+                        resolved = true
+                    }
+                }
+                
+                // Fallback to getPages for non-Aniyomi sources
+                if (!resolved) {
+                    val pages = repo.getPages(chapter)
+                    val page = pages.firstOrNull()
+                    val streamUrl = page?.let { repo.getPageUrl(it) }
+                    val streamHeaders = page?.let { mergeHeaders(repo.getRequestHeaders(), it.headers) }
                     
-                    // Update player with new URL
-                    prepareAndPlay(streamUrl, manga.source, streamHeaders)
-                    
-                    // Update title/subtitle to reflect new chapter
-                    updateTitleAndSubtitle()
-                    
-                    // Save progress for new chapter
-                    saveHistoryProgressAsync()
-                } else {
+                    if (streamUrl != null) {
+                        availableVideos = emptyList()
+                        currentVideoIndex = 0
+                        updateQualityButtonVisibility()
+                        currentVideoSource = manga.source
+                        
+                        readerState = ReaderState(chapter.id, 0, 0)
+                        hasSkippedIntro = false
+                        hasTriggeredOutro = false
+                        hasRestoredProgress = false
+                        updateChapterNavButtons()
+                        
+                        prepareAndPlay(streamUrl, manga.source, streamHeaders)
+                        updateTitleAndSubtitle()
+                        saveHistoryProgressAsync()
+                        resolved = true
+                    }
+                }
+                
+                if (!resolved) {
                     android.util.Log.w("VideoPlayer", "Failed to resolve stream URL for chapter ${chapter.id}")
                     Snackbar.make(
                         viewBinding.root,
