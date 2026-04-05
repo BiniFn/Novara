@@ -8,6 +8,12 @@
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://kototoro-app.github.io/Kototoro/getting-started)
 [![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://kototoro-app.github.io/Kototoro/automatic-translation)
 
+## Development Philosophy
+
+Kototoro is proudly built with the assistance of AI large language models. However, while modern AI is fantastic at generating boilerplate and scaffolding (the "0 to 1"), the reality of shipping a production-ready reader dealing with complex video buffering, OCR pipelines, JNI, and memory leaks is a purely human endeavor.
+
+The past 6 months of development have been dedicated to relentless debugging, performance tuning, and architectural refactoring to make Kototoro the robust platform it is today. To anyone (especially @hxncvxz) who dismisses this intensive engineering effort as mere "vibecoding": you are warmly invited to fix the next core memory leak or Vulkan synchronization bug yourself. 😉
+
 Kototoro is an open-source Android app that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 
 ## Why Kototoro

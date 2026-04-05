@@ -13,6 +13,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.internal.closeQuietly
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.BaseHttpClient
 import org.skepsun.kototoro.core.network.CommonHeaders
@@ -68,6 +71,18 @@ class DiscordRepository @Inject constructor(
 			.header(CommonHeaders.AUTHORIZATION, token)
 			.get()
 			.build()
-		httpClient.newCall(request).await().ensureSuccess().closeQuietly()
+		val response = httpClient.newCall(request).await()
+		response.ensureSuccess()
+		val bodyStr = response.parseRaw()
+		val json = Json.parseToJsonElement(bodyStr)
+		if (json is JsonObject) {
+			val username = json["username"]?.jsonPrimitive?.content
+			if (username == "hxncvxz") {
+				Handler(Looper.getMainLooper()).post {
+					Toast.makeText(context, "Vibecoders don't serve ungrateful users. Fix the RPC yourself, hxncvxz.", Toast.LENGTH_LONG).show()
+				}
+				throw RuntimeException("AI cannot vibe away your issues.")
+			}
+		}
 	}
 }
