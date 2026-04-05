@@ -51,6 +51,7 @@
 -keepattributes EnclosingMethod
 -keepattributes RuntimeVisibleAnnotations
 -keepattributes RuntimeVisibleParameterAnnotations
+-keepattributes AnnotationDefault
 
 # Tachiyomi / Mihon API classes - keep everything including constructors
 -keep class eu.kanade.tachiyomi.** { *; }
@@ -256,6 +257,7 @@
 # Required because JarExtensionLoader resolves classes via string reflection against the parent ClassLoader.
 -keep class org.skepsun.kototoro.parsers.** { *; }
 -keep interface org.skepsun.kototoro.parsers.** { *; }
+-keep @interface org.skepsun.kototoro.parsers.** { *; }
 -keepclassmembers class org.skepsun.kototoro.parsers.** {
     public <init>(...);
     public protected *;
@@ -270,6 +272,7 @@
 
 -keep class org.koitharu.kotatsu.parsers.** { *; }
 -keep interface org.koitharu.kotatsu.parsers.** { *; }
+-keep @interface org.koitharu.kotatsu.parsers.** { *; }
 -keepclassmembers class org.koitharu.kotatsu.parsers.** {
     public <init>(...);
     public protected *;
