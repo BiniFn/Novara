@@ -66,9 +66,14 @@ class MlKitReaderOcrEngine @Inject constructor(
 							)
 						}
 					}
+					val symbolBox = it.lines.firstOrNull()?.elements?.firstOrNull()?.symbols?.firstOrNull()?.boundingBox
+					val correctedSymbolBox = symbolBox?.let { box ->
+						if (offsetRect == null) box else Rect(box.left + offsetRect.left, box.top + offsetRect.top, box.right + offsetRect.left, box.bottom + offsetRect.top)
+					}
 					OcrTextBlock(
 						text = it.text,
 						boundingBox = boundingBox,
+						firstSymbolBox = correctedSymbolBox,
 						directionHint = inferTextDirectionHint(boundingBox, it.text),
 						angleHintDegrees = inferTextAngleHintDegrees(boundingBox, it.text),
 						isAxisAligned = inferAxisAlignedHint(boundingBox),

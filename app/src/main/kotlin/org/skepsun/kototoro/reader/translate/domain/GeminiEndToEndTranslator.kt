@@ -49,13 +49,15 @@ internal class GeminiEndToEndTranslator(
 			appendLine("This is a manga page. The text is in $sourceLang. Please translate it into $targetLang.")
 			appendLine("Please output the information of each text block in a JSON array format. Do not use markdown blocks, output raw JSON only.")
 			appendLine("The JSON format MUST be an array of objects, where each object contains:")
-			appendLine("- `coordinates`: an array of exactly 4 numbers [ymin, xmin, ymax, xmax], representing normalized coordinates from 0 to 1000.")
+			appendLine("- `coordinates`: an array of exactly 4 numbers [ymin, xmin, ymax, xmax], representing normalized coordinates from 0 to 1000. If you are unsure about the coordinates, strictly output [0, 0, 0, 0] instead of leaving it empty.")
 			appendLine("- `original_text`: the original text.")
 			appendLine("- `translated_text`: the $targetLang translation.")
+			appendLine("- IMPORTANT: If the detected text is explicitly a pirate manga website URL, watermark (like 'colamanga'), or completely meaningless background texture rather than human dialogue/story structure, set `translated_text` exactly to 'KOTOTORO_IGNORE_BLOCK'.")
 		}
 
-		// Choose payload format based on endpoint: Assume OpenAI if it's not explicitly native Google API
-		val isOpenAiFormat = !endpoint.contains("googleapis.com/v1beta/models/")
+		// Choose payload format based on endpoint: Assume Native Google API if it ends with generateContent
+		val isNativeGoogleFormat = endpoint.contains("generateContent") || endpoint.contains("googleapis.com/v1beta/models/")
+		val isOpenAiFormat = !isNativeGoogleFormat
 		
 		val payload = JSONObject()
 		if (isOpenAiFormat) {
@@ -111,6 +113,12 @@ internal class GeminiEndToEndTranslator(
 
 		// Support Google's URL parameter key if no headers were expected
 		var finalUrl = endpoint
+		val trimmedEndpoint = endpoint.trimEnd('/')
+		if (isOpenAiFormat && !trimmedEndpoint.endsWith("/chat/completions")) {
+			finalUrl = "$trimmedEndpoint/chat/completions"
+		} else if (isOpenAiFormat) {
+			finalUrl = trimmedEndpoint // ensures no trailing slash breaks proxy routers
+		}
 		if (!isOpenAiFormat && !endpoint.contains("key=")) {
 			val separator = if (endpoint.contains("?")) "&" else "?"
 			finalUrl = "$endpoint${separator}key=$apiKey"
@@ -122,7 +130,7 @@ internal class GeminiEndToEndTranslator(
 		val request = Request.Builder()
 			.url(finalUrl)
 			.post(payloadStr.toRequestBody(jsonMediaType))
-			.header("Content-Type", "application/json")
+			.header("Content-Encoding", "identity") // Bypasses Kototoro's broken GZipInterceptor which adds the gzip header without compressing
 			.apply {
 				if (isOpenAiFormat) {
 					header("Authorization", "Bearer $apiKey")
@@ -183,7 +191,7 @@ internal class GeminiEndToEndTranslator(
 			// Some models might output translation directly under translatedText
 			val translatedText = if (optTranslatedText.isBlank()) obj.optString("translation", "") else optTranslatedText
 			
-			if (translatedText.isBlank()) continue
+			if (translatedText.isBlank() || translatedText.contains("KOTOTORO_IGNORE_BLOCK")) continue
 			
 			// Discard completely invalid or degenerate boxes
 			if (left >= right || top >= bottom) continue
@@ -233,7 +241,9 @@ internal class GeminiEndToEndTranslator(
 	}
 	
 	private fun parseJsonArray(content: String): JSONArray? {
-		val clean = content.replace("```json", "").replace("```", "").trim()
+		var clean = content.replace("```json", "").replace("```", "").trim()
+		// Fallback patch for Gemini occasionally generating malformed JSON like `"coordinates":,`
+		clean = clean.replace(Regex("\"\\s*:\\s*,"), "\": null,")
 		return runCatching {
 			JSONArray(clean)
 		}.onFailure {
@@ -242,10 +252,23 @@ internal class GeminiEndToEndTranslator(
 	}
 
 	private fun encodeBitmapToBase64(bitmap: Bitmap): String {
-		val outputStream = ByteArrayOutputStream()
-		// Quality 85 for jpeg offers good balance of size and performance
-		bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
-		val byteArray = outputStream.toByteArray()
-		return Base64.encodeToString(byteArray, Base64.NO_WRAP)
+		var scaledBitmap = bitmap
+		val maxDim = 1024 // Extremely aggressive downscale for strict domestic proxy body size limits (e.g. 256KB)
+		if (bitmap.width > maxDim || bitmap.height > maxDim) {
+			val ratio = kotlin.math.min(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
+			val newWidth = (bitmap.width * ratio).toInt()
+			val newHeight = (bitmap.height * ratio).toInt()
+			scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+		}
+		try {
+			val outputStream = ByteArrayOutputStream()
+			scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
+			val byteArray = outputStream.toByteArray()
+			return Base64.encodeToString(byteArray, Base64.NO_WRAP)
+		} finally {
+			if (scaledBitmap !== bitmap) {
+				scaledBitmap.recycle()
+			}
+		}
 	}
 }

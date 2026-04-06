@@ -70,13 +70,7 @@ internal class ReaderBubbleGroupingCoordinator(
 		}
 		val detectorOutcome = detectBubbleGroups(bitmap, fragments)
 		val fallbackFragments = fragments.filterIndexed { index, _ -> index !in detectorOutcome.matchedFragmentIndices }
-		val fallbackGroups = fallbackFragments.map { fragment ->
-			GroupedBubbleSource(
-				fragments = listOf(fragment),
-				bubbleRect = null,
-				detectorAnchored = false,
-			)
-		}
+		val fallbackGroups = groupFallbackFragments(fallbackFragments)
 		return BubbleGroupingResult(
 			groups = detectorOutcome.groups + fallbackGroups,
 			detectorCandidateCount = detectorOutcome.candidateCount,
@@ -94,6 +88,59 @@ internal class ReaderBubbleGroupingCoordinator(
 			fallbackGroupCount = fallbackGroups.size,
 			fallbackMode = "merge_primary",
 		)
+	}
+
+	private fun groupFallbackFragments(fragments: List<TextFragment>): List<GroupedBubbleSource> {
+		if (fragments.isEmpty()) return emptyList()
+		val parent = IntArray(fragments.size) { it }
+
+		fun find(x: Int): Int {
+			var current = x
+			while (parent[current] != current) {
+				parent[current] = parent[parent[current]]
+				current = parent[current]
+			}
+			return current
+		}
+
+		fun union(a: Int, b: Int) {
+			val rootA = find(a)
+			val rootB = find(b)
+			if (rootA != rootB) {
+				parent[rootB] = rootA
+			}
+		}
+
+		for (i in fragments.indices) {
+			val rectI = fragments[i].rect
+			for (j in i + 1 until fragments.size) {
+				val rectJ = fragments[j].rect
+				val dx = kotlin.math.abs(rectI.centerX() - rectJ.centerX())
+				val dy = kotlin.math.abs(rectI.centerY() - rectJ.centerY())
+				val avgW = (rectI.width() + rectJ.width()) / 2.0
+				val avgH = (rectI.height() + rectJ.height()) / 2.0
+
+				val isCloseVertically = dx < avgW * 2.5 && dy < avgH * 3.5
+				val isCloseHorizontally = dy < avgH * 1.5 && dx < avgW * 3.0
+
+				if (isCloseVertically || isCloseHorizontally) {
+					union(i, j)
+				}
+			}
+		}
+
+		val groupsMap = linkedMapOf<Int, MutableList<TextFragment>>()
+		for (i in fragments.indices) {
+			groupsMap.getOrPut(find(i)) { mutableListOf() }.add(fragments[i])
+		}
+
+		return groupsMap.values.map { group ->
+			GroupedBubbleSource(
+				fragments = group.sortedBy { it.rect.top },
+				bubbleRect = null,
+				detectorAnchored = false,
+			)
+		}
 	}
 
 	private suspend fun detectBubbleGroups(

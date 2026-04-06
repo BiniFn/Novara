@@ -566,7 +566,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			sourceLang.startsWith("zh") || sourceLang.startsWith("ko") -> 2
 			else -> 1
 		}
-		val order = resolvePageOcrRouteOrder(primary, sourceLang)
+		val order = resolvePageOcrRouteOrder(sourceLang)
 		lastResolvedOcrPipelineStrategy = resolveOcrPipelineStrategy(sourceLang).metricKey
 		var bestResult: List<OcrTextBlock> = emptyList()
 		var bestRoute: PageOcrRoute? = null
@@ -609,7 +609,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	}
 
 	private fun resolvePageOcrRouteOrder(
-		primary: ReaderOcrEngine,
 		sourceLang: String,
 	): List<PageOcrRoute> {
 		val strategy = resolveOcrPipelineStrategy(sourceLang)
@@ -630,15 +629,24 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			recognizer = recBackend,
 		)
 		val routes = linkedSetOf<PageOcrRoute>()
+		
 		if (strategy != OcrPipelineStrategy.PAGE_TEXT_FIRST && sourceLang.startsWith("ja") && settings.isReaderTranslationBubbleDetectorEnabled) {
 			routes += PageOcrRoute(
 				detector = OcrDetectorBackend.BUBBLE_DETECTOR,
 				recognizer = OcrRecognizerBackend.MANGA_OCR,
 			)
 		}
-		if (strategy != OcrPipelineStrategy.BUBBLE_DETECTOR_FIRST) {
-			routes += effectiveRoute
-		}
+		
+		// If BUBBLE_DETECTOR_FIRST was chosen but the language isn't Japanese, the first block is skipped.
+		// Always push the user's selected effective route as fallback.
+		routes += effectiveRoute
+		
+		// Absolute fallback to ensure pipeline never returns empty route list
+		routes += PageOcrRoute(
+			detector = OcrDetectorBackend.MLKIT,
+			recognizer = OcrRecognizerBackend.MLKIT,
+		)
+		
 		return routes.toList()
 	}
 

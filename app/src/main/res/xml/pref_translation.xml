@@ -104,12 +104,14 @@
             android:summary="@string/reader_translation_manage_ocr_models_summary"
             android:fragment="org.skepsun.kototoro.settings.OcrModelsFragment" />
 
+        <!-- Note: This legacy key 'reader_translation_paddle_det_model_id' now maps to the global OCR Detector Selection -->
         <ListPreference
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_paddle_det_model_id"
             android:title="@string/reader_translation_ocr_det_model_selection"
             android:summary="@string/reader_translation_ocr_det_model_selection_summary" />
 
+        <!-- Note: This legacy key 'reader_translation_paddle_official_model_id' now maps to the global OCR Recognizer Selection -->
         <ListPreference
             android:dependency="reader_translation_enabled"
             android:key="reader_translation_paddle_official_model_id"

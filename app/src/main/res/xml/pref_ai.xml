@@ -21,6 +21,13 @@
             android:summary="@string/ai_api_settings_summary"
             android:title="@string/ai_api_settings" />
 
+        <PreferenceScreen
+            android:icon="@drawable/ic_settings"
+            android:key="ai_api_e2e"
+            android:fragment="org.skepsun.kototoro.settings.TranslationEndToEndApiSettingsFragment"
+            android:summary="Configure API keys and Endpoint for End-to-End Multimodal OCR"
+            android:title="End-to-End API Settings" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

@@ -5,6 +5,7 @@ import android.graphics.Rect
 data class OcrTextBlock(
 	val text: String,
 	val boundingBox: Rect?,
+	val firstSymbolBox: Rect? = null,
 	val confidence: Float = 1f,
 	val directionHint: TextDirectionHint = inferTextDirectionHint(boundingBox, text),
 	val angleHintDegrees: Float = inferTextAngleHintDegrees(boundingBox, text),
