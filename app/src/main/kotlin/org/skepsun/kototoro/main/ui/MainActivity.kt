@@ -159,6 +159,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		viewModel.onFirstStart.observeEvent(this) { router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
 		viewModel.isNavFloating.observe(this, ::setNavFloating)
+		viewModel.navHeight.observe(this, ::setNavHeight)
 		searchSuggestionViewModel.isIncognitoModeEnabled.observe(this, this::onIncognitoModeChanged)
 		viewBinding.bottomNav?.addOnLayoutChangeListener(this)
 		viewBinding.searchView.addTransitionListener(this)
@@ -389,7 +390,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 			viewBinding.appbar.fitsSystemWindows = false
 		}
 
-		if (topFragment is FavouritesContainerFragment) {
+		if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
 			fadingAppbarMediator.bind()
 		} else {
 			fadingAppbarMediator.unbind()
@@ -507,6 +508,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				.setAllCornerSizes(radius)
 				.build()
 		}
+		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
+	}
+
+	private fun setNavHeight(heightDp: Int) {
+		val bottomNavBar = viewBinding.bottomNav ?: return
+		val px = (heightDp * resources.displayMetrics.density).toInt()
+		bottomNavBar.minimumHeight = px
+		// In SlidingBottomNavigationView, the minimumHeight forces the view to take that height,
+		// and the icons will naturally remain centered.
 		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
 	}
 

@@ -14,7 +14,7 @@ class SuggestionsListQuickFilter @Inject constructor(
 		suggestionRepository.getTopTags(5).mapTo(this) {
 			ListFilterOption.Tag(it)
 		}
-		if (!settings.isNsfwContentDisabled && !settings.isSuggestionsExcludeNsfw) {
+		if (!settings.isSuggestionsExcludeNsfw) {
 			add(ListFilterOption.Macro.NSFW)
 			add(ListFilterOption.SFW)
 		}

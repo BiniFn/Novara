@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.core.model.isNsfw
 
 private const val PAGE_SIZE = 16
 
@@ -208,14 +209,17 @@ class HistoryListViewModel @Inject constructor(
 			groupMatches && originMatches
 		}
 
-		if (filteredList.isEmpty()) {
+		val hideAdult = settings.isHistoryExcludeNsfw
+		val visibleItems = if (hideAdult) filteredList.filterNot { it.manga.isNsfw() } else filteredList
+
+		if (visibleItems.isEmpty()) {
 			return if (filters.isEmpty() && groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
 				listOf(getEmptyState(hasFilters = false))
 			} else {
 				listOfNotNull(quickFilter.filterItem(filters), getEmptyState(hasFilters = true))
 			}
 		}
-		val result = ArrayList<ListModel>((if (grouped) (filteredList.size * 1.4).toInt() else filteredList.size) + 2)
+		val result = ArrayList<ListModel>((if (grouped) (visibleItems.size * 1.4).toInt() else visibleItems.size) + 2)
 		quickFilter.filterItem(filters)?.let(result::add)
 		if (isIncognito) {
 			result += InfoModel(
@@ -228,7 +232,7 @@ class HistoryListViewModel @Inject constructor(
 		val order = sortOrder.value
 		var prevHeader: ListHeader? = null
 		var isEmpty = true
-		for ((manga, history) in filteredList) {
+		for ((manga, history) in visibleItems) {
 			isEmpty = false
 			if (grouped) {
 				val header = history.header(order)

@@ -20,20 +20,20 @@ import org.skepsun.kototoro.discover.ui.DiscoverFragment
 import androidx.fragment.app.viewModels
 import androidx.viewpager2.widget.ViewPager2
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
-import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFilterMenuProvider.Callback {
+class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFilterViewController.Callback {
 
 	@Inject
 	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
 
 	private val viewModel by viewModels<ExploreViewModel>()
-	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+	private var filterMenuProvider: SearchBarFilterViewController? = null
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentExploreHostBinding {
 		return FragmentExploreHostBinding.inflate(inflater, container, false)
@@ -71,14 +71,8 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 		}
 
 		// Set up SearchBar filter icons
-		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
-			appBar.findViewById<View>(R.id.search_bar)
-		} ?: activity?.findViewById(R.id.search_bar)
-
-		if (searchBar != null) {
-			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
-			requireActivity().addMenuProvider(filterMenuProvider!!, viewLifecycleOwner)
-		}
+		filterMenuProvider = SearchBarFilterViewController(this)
+		filterMenuProvider?.attachTo(this)
 
 		binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
 			override fun onPageSelected(position: Int) {
@@ -107,7 +101,7 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 		filterMenuProvider = null
 	}
 
-	// === SearchBarFilterMenuProvider.Callback implementation ===
+	// === SearchBarFilterViewController.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
 		viewModel.setSelectedGroupTab(tab)
@@ -124,9 +118,9 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 
 	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
-	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && viewBinding?.viewPager?.currentItem == 0
+	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
 
-	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && viewBinding?.viewPager?.currentItem == 0
+	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.currentSourceTags.value ?: emptySet()
@@ -135,5 +129,14 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 
 	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
 		return viewModel.getSelectedGroupTab().supportsSourceTag(tag)
+	}
+
+	override fun onFilterIconClicked(anchor: View): Boolean {
+		if (viewBinding?.viewPager?.currentItem == 1) {
+			val discoverFragment = childFragmentManager.fragments.firstOrNull { it is DiscoverFragment } as? DiscoverFragment
+			discoverFragment?.showServicePopup(anchor)
+			return true // Handled
+		}
+		return false // Default behavior (show SourceTag popup)
 	}
 }

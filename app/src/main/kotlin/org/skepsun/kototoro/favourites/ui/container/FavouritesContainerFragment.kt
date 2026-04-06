@@ -47,7 +47,7 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import com.google.android.material.appbar.AppBarLayout
-import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 
 @AndroidEntryPoint
@@ -57,14 +57,14 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 	ViewStub.OnInflateListener,
 	View.OnClickListener,
 	AppBarLayout.OnOffsetChangedListener,
-	SearchBarFilterMenuProvider.Callback {
+	SearchBarFilterViewController.Callback {
 
 	private val viewModel: FavouritesContainerViewModel by viewModels()
 	
 	@javax.inject.Inject
 	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
 
-	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+	private var filterMenuProvider: SearchBarFilterViewController? = null
 
 	override val recyclerView: RecyclerView?
 		get() = (findCurrentFragment() as? RecyclerViewOwner)?.recyclerView
@@ -116,8 +116,9 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		} ?: activity?.findViewById(R.id.search_bar)
 
 		if (searchBar != null) {
-			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
-			addMenuProvider(filterMenuProvider!!)
+			filterMenuProvider = SearchBarFilterViewController(this)
+			filterMenuProvider?.attachTo(this)
+			
 		}
 
 		viewModel.currentGroupTab.observe(viewLifecycleOwner) { _ ->
@@ -167,7 +168,7 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		// No longer need to adjust filterScrollView padding
 	}
 
-	// === SearchBarFilterMenuProvider.Callback implementation ===
+	// === SearchBarFilterViewController.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
 		viewModel.setSelectedGroupTab(tab)
@@ -350,3 +351,4 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		}
 	}
 }
+

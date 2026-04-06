@@ -878,6 +878,15 @@
     <string name="manual">Manual</string>
     <string name="available_d">Available: %1$d</string>
     <string name="disable_nsfw_summary">Disable NSFW sources and hide adult manga from list if possible</string>
+    <string name="adult_content_filtering">Adult content filtering</string>
+    <string name="disable_history_nsfw">Hide from History</string>
+    <string name="disable_history_nsfw_summary">Hide adult contents from History</string>
+    <string name="disable_favourites_nsfw">Hide from Favourites</string>
+    <string name="disable_favourites_nsfw_summary">Hide adult contents from Favourites</string>
+    <string name="disable_updates_nsfw">Hide from Updates</string>
+    <string name="disable_updates_nsfw_summary">Hide adult contents from Updates</string>
+    <string name="disable_suggestions_nsfw">Hide from Suggestions</string>
+    <string name="disable_suggestions_nsfw_summary">Hide adult contents from Suggestions</string>
     <string name="state_paused">Paused</string>
     <string name="reader_optimize">Reduce memory consumption (beta)</string>
     <string name="reader_optimize_summary">Reduce offscreen pages quality to use less memory</string>
@@ -2114,6 +2123,8 @@
 
     <string name="pref_nav_floating">Floating navigation bar</string>
     <string name="pref_nav_floating_summary">Add a margin around the bottom navigation bar so it appears floating</string>
+    <string name="pref_nav_height">Navigation bar height</string>
+    <string name="pref_nav_floating_height">Floating navigation bar height</string>
     <string name="pref_reader_toolbar_floating">Floating bottom toolbar</string>
     <string name="pref_reader_toolbar_floating_summary">Make the reader bottom toolbar float above the screen edge</string>
     <string name="pref_loading_circle_style">Loading circle style</string>

@@ -22,12 +22,12 @@ import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
-import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import kotlin.math.abs
 
 @AndroidEntryPoint
-class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuProvider.Callback {
+class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewController.Callback {
 
 	@javax.inject.Inject
 	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
@@ -38,7 +38,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 	private val recommendationCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
 	private var homeScrollAnchorY = 0
 	private var isHomeChromeHidden = false
-	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+	private var filterMenuProvider: SearchBarFilterViewController? = null
 	private val sharedViewPool = RecyclerView.RecycledViewPool()
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentHomeBinding {
@@ -68,14 +68,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 			setupCoverStrip(recyclerViewRecommendations, recommendationCoverAdapter)
 		}
 		
-		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
-			appBar.findViewById<View>(R.id.search_bar)
-		} ?: activity?.findViewById(R.id.search_bar)
-
-		if (searchBar != null) {
-			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
-			requireActivity().addMenuProvider(filterMenuProvider!!, viewLifecycleOwner)
-		}
+		filterMenuProvider = SearchBarFilterViewController(this)
+		filterMenuProvider?.attachTo(this)
+		
 		setupHomeScrollChrome(binding.root)
 		showHomeChrome()
 
@@ -238,7 +233,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterMenuPro
 		isHomeChromeHidden = false
 	}
 	
-	// === SearchBarFilterMenuProvider.Callback implementation ===
+	// === SearchBarFilterViewController.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
 		val homeTab = when (tab) {

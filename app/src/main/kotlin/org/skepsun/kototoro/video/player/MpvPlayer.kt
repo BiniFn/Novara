@@ -24,10 +24,10 @@ class MpvPlayer(
 
 	private val listeners = CopyOnWriteArrayList<Listener>()
 	private var isInitialized = false
-	private var pendingSeekMs: Long? = null
 	private var shouldAutoPlayAfterLoad: Boolean = false
 	private var awaitingFileLoaded = false
 	private var hasLoadedCurrentFile = false
+	private var isStoppingForLoad = false
 	private var lastPlaybackErrorMessage: String? = null
 
 	var durationMs: Long = 0L
@@ -58,7 +58,6 @@ class MpvPlayer(
 	}
 
 	fun release() {
-		pendingSeekMs = null
 		mpv.removeObserver(this)
 		mpv.removeLogObserver(this)
 		isInitialized = false
@@ -73,11 +72,22 @@ class MpvPlayer(
 	}
 
 	fun load(url: String, headers: Map<String, String>, startMs: Long? = null) {
-		pendingSeekMs = startMs
+		isStoppingForLoad = true
+		runCatching { mpv.command("stop") }
+		isStoppingForLoad = false
+
 		shouldAutoPlayAfterLoad = true
 		awaitingFileLoaded = true
 		hasLoadedCurrentFile = false
 		lastPlaybackErrorMessage = null
+		
+		if (startMs != null && startMs > 0L) {
+			val seconds = startMs / 1000.0
+			mpv.setOptionString("start", seconds.toString())
+		} else {
+			// Clear any previous start time to avoid carrying it over
+			mpv.setOptionString("start", "none")
+		}
 		
 		// Handle special headers separately for better compatibility
 		val userAgent = headers.entries.find { it.key.equals("User-Agent", ignoreCase = true) }?.value
@@ -416,14 +426,14 @@ class MpvPlayer(
 					shouldAutoPlayAfterLoad = false
 				}
 				listeners.forEach { it.onFileLoaded() }
-				pendingSeekMs?.let { seekTo(it) }
-				pendingSeekMs = null
 			}
 			MPV.mpvEvent.MPV_EVENT_END_FILE -> {
 				Log.d("MpvPlayer", "EVENT_END_FILE")
 				val failedBeforeLoad = awaitingFileLoaded && !hasLoadedCurrentFile
 				awaitingFileLoaded = false
-				if (failedBeforeLoad) {
+				if (isStoppingForLoad) {
+					Log.d("MpvPlayer", "EVENT_END_FILE ignored due to manual stop for loading")
+				} else if (failedBeforeLoad) {
 					Log.w("MpvPlayer", "EVENT_END_FILE before FILE_LOADED, treat as playback failure")
 					listeners.forEach { it.onPlaybackFailed(lastPlaybackErrorMessage) }
 				} else {

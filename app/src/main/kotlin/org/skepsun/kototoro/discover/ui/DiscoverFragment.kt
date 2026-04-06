@@ -175,7 +175,7 @@ class DiscoverFragment :
 		}
 
 		// Add the service menu provider to the SearchBar
-		addMenuProvider(DiscoverServiceMenuProvider())
+		
 		addMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
 
 		settings.subscribe(this)
@@ -254,111 +254,42 @@ class DiscoverFragment :
 
 	override fun onQueryTextChange(newText: String?): Boolean = false
 
-	/**
-	 * MenuProvider that adds tracking service icons to the SearchBar.
-	 * Each service gets a toggle icon (e.g. MAL, Bangumi, Kitsu).
-	 */
-	private inner class DiscoverServiceMenuProvider : MenuProvider {
+	
 
-		private var serviceMenuItem: MenuItem? = null
+	fun showServicePopup(anchor: View) {
+		val popup = PopupMenu(anchor.context, anchor, android.view.Gravity.END)
+		val services = viewModel.availableServices.value
+		val activeService = viewModel.activeService.value
 
-		override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-			val services = viewModel.availableServices.value
-			if (services.size <= 1) return
-
-			val activeService = viewModel.activeService.value
-			val item = menu.add(Menu.NONE, View.generateViewId(), 0, activeService.titleResId)
-			item.setIcon(createDropdownIcon(activeService.iconResId))
-			item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-			updateServiceMenuItemTint(item, true)
-			serviceMenuItem = item
-		}
-
-		override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-			if (menuItem != serviceMenuItem) return false
-			showServicePopup(menuItem)
-			return true
-		}
-
-		private fun showServicePopup(anchorItem: MenuItem) {
-			val anchor = activity?.findViewById<View>(R.id.search_bar) ?: return
-			val popup = PopupMenu(anchor.context, anchor, android.view.Gravity.END)
-			val services = viewModel.availableServices.value
-			val activeService = viewModel.activeService.value
-
-			services.forEachIndexed { index, service ->
-				popup.menu.add(0, index, index, service.getPopupTitle(anchor)).apply {
-					setIcon(service.iconResId)
-					isCheckable = true
-					isChecked = service == activeService
-					isEnabled = viewModel.isServiceSelectable(service)
-				}
-			}
-
-			// Show icons in popup
-			try {
-				val field = popup.javaClass.getDeclaredField("mPopup")
-				field.isAccessible = true
-				val menuPopupHelper = field.get(popup)
-				menuPopupHelper.javaClass.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
-					.invoke(menuPopupHelper, true)
-			} catch (_: Exception) { }
-
-			popup.setOnMenuItemClickListener { item ->
-				services.getOrNull(item.itemId)?.let { service ->
-					viewModel.selectService(service)
-					// Update the toolbar icon to match the selected service
-					serviceMenuItem?.icon = createDropdownIcon(service.iconResId)
-					serviceMenuItem?.title = getString(service.titleResId)
-					updateServiceMenuItemTint(serviceMenuItem ?: return@let, true)
-				}
-				true
-			}
-			popup.show()
-		}
-
-		private fun ScrobblerService.getPopupTitle(anchorView: View): CharSequence {
-			val title = anchorView.context.getString(titleResId)
-			return BidiFormatter.getInstance().unicodeWrap(title, TextDirectionHeuristicsCompat.LTR)
-		}
-
-		private fun updateServiceMenuItemTint(item: MenuItem, isActive: Boolean) {
-			val context = context ?: return
-			val tint = if (isActive) {
-				MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0)
-			} else {
-				MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
-			}
-			val icon = item.icon
-			if (icon is android.graphics.drawable.LayerDrawable) {
-				// Only tint layer 0 (service icon); layer 1 (arrow) stays black
-				icon.getDrawable(0)?.setTint(tint)
-			} else {
-				icon?.setTint(tint)
+		services.forEachIndexed { index, service ->
+			popup.menu.add(0, index, index, service.getPopupTitle(anchor)).apply {
+				setIcon(service.iconResId)
+				isCheckable = true
+				isChecked = service == activeService
+				isEnabled = viewModel.isServiceSelectable(service)
 			}
 		}
 
-		private fun createDropdownIcon(@androidx.annotation.DrawableRes iconRes: Int): android.graphics.drawable.Drawable? {
-			val context = context ?: return null
-			val serviceIcon = androidx.core.content.ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return null
-			val arrowIcon = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_expand_more)?.mutate() ?: return serviceIcon
-			arrowIcon.setTint(android.graphics.Color.BLACK)
-			val dp = context.resources.displayMetrics.density
-			val iconSize = (24 * dp).toInt()   // standard 24dp icon
-			val arrowSize = (14 * dp).toInt()   // 14dp arrow for visibility
-			val totalW = iconSize + arrowSize / 2
-			val totalH = iconSize + arrowSize / 2
-			// Service icon fills the top-left area
-			val serviceInsetRight = totalW - iconSize
-			val serviceInsetBottom = totalH - iconSize
-			// Arrow in the absolute bottom-right corner
-			val arrowInsetLeft = totalW - arrowSize
-			val arrowInsetTop = totalH - arrowSize
-			val layers = android.graphics.drawable.LayerDrawable(arrayOf(serviceIcon, arrowIcon))
-			layers.setLayerInset(0, 0, 0, serviceInsetRight, serviceInsetBottom)
-			layers.setLayerInset(1, arrowInsetLeft, arrowInsetTop, 0, 0)
-			layers.setBounds(0, 0, totalW, totalH)
-			return layers
+		// Show icons in popup
+		try {
+			val field = popup.javaClass.getDeclaredField("mPopup")
+			field.isAccessible = true
+			val menuPopupHelper = field.get(popup)
+			menuPopupHelper.javaClass.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
+				.invoke(menuPopupHelper, true)
+		} catch (_: Exception) { }
+
+		popup.setOnMenuItemClickListener { item ->
+			services.getOrNull(item.itemId)?.let { service ->
+				viewModel.selectService(service)
+			}
+			true
 		}
+		popup.show()
+	}
+
+	private fun ScrobblerService.getPopupTitle(anchorView: View): CharSequence {
+		val title = anchorView.context.getString(titleResId)
+		return BidiFormatter.getInstance().unicodeWrap(title, TextDirectionHeuristicsCompat.LTR)
 	}
 }

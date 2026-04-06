@@ -101,6 +101,11 @@ class ContentDataRepository @Inject constructor(
 					contentRatingOverride = override?.contentRating?.name,
 				),
 			)
+			// Sync the manga table's nsfw/content_rating columns so SQL-level filters
+			// (e.g. HistoryDao "manga.nsfw = 1") respect the manual override.
+			val effectiveRating = override?.contentRating ?: manga.contentRating
+			val effectiveNsfw = effectiveRating == org.skepsun.kototoro.parsers.model.ContentRating.ADULT
+			db.getMangaDao().updateContentRating(manga.id, effectiveNsfw, effectiveRating?.name)
 		}
 	}
 

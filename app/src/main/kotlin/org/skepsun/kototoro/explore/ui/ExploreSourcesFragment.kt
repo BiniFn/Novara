@@ -44,7 +44,7 @@ import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
-import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.isLocal
@@ -56,8 +56,7 @@ class ExploreSourcesFragment :
 	BaseFragment<FragmentExploreSourcesBinding>(),
 	RecyclerViewOwner,
 	ExploreListEventListener,
-	OnListItemClickListener<ContentSourceItem>, ListSelectionController.Callback,
-	AppBarLayout.OnOffsetChangedListener {
+	OnListItemClickListener<ContentSourceItem>, ListSelectionController.Callback {
 
 	private val viewModel by viewModels<ExploreViewModel>()
 	private var exploreAdapter: ExploreAdapter? = null
@@ -114,41 +113,17 @@ class ExploreSourcesFragment :
 			updateTvBoxRepositoryLabel(binding)
 		}
 
-		// Register for appbar offset changes
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.addOnOffsetChangedListener(this)
-
-		// Remove snap flag from ALL children for this screen
-		appBar?.children?.forEach { child ->
-			val lp = child.layoutParams as? AppBarLayout.LayoutParams
-			if (lp != null && (lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP != 0)) {
-				lp.scrollFlags = lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP.inv()
-				child.layoutParams = lp
-			}
-		}
 	}
 
 	override fun onDestroyView() {
 		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.removeOnOffsetChangedListener(this)
-
-		// Restore snap flag when leaving
-		appBar?.children?.forEach { child ->
-			val lp = child.layoutParams as? AppBarLayout.LayoutParams
-			if (lp != null && (child.id == R.id.search_bar || child.id == R.id.insetsHolder)) {
-				lp.scrollFlags = lp.scrollFlags or AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
-				child.layoutParams = lp
-			}
-		}
 
 		super.onDestroyView()
 		sourceSelectionController = null
 		exploreAdapter = null
 	}
 
-	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
-		// No longer need to adjust filterScrollView padding
-	}
+
 
 	// === Other methods ===
 

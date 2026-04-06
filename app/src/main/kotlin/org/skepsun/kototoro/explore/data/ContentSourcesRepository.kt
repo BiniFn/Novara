@@ -199,26 +199,14 @@ class ContentSourcesRepository @Inject constructor(
 			}
 		}
 		
-		val userLanguages = settings.contentLanguages
 		val isNsfwDisabled = settings.isNsfwContentDisabled
-		val isMultiLangEnabled = userLanguages.contains("")
 		
+		// Note: We bypass `isExtensionsFilterLangEnabled` for Aniyomi because anime viewers
+		// often watch subbed content regardless of the extension's declared language, 
+		// and Aniyomi extensions frequently mislabel locales or only offer 'en'/'pt-BR' etc.
 		return allSources.filter { source ->
 			if (isNsfwDisabled && source.isNsfw) return@filter false
-			
-			// If language filter is disabled, show all sources
-			if (!settings.isExtensionsFilterLangEnabled) {
-				return@filter true
-			}
-
-			val lang = source.language.lowercase()
-			if (lang == "all") {
-				isMultiLangEnabled
-			} else {
-				userLanguages.any { userLang ->
-					userLang.isNotEmpty() && (lang == userLang || lang.startsWith("$userLang-"))
-				}
-			}
+			true
 		}
 	}
 	

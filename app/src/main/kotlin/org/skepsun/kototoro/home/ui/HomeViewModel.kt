@@ -170,7 +170,9 @@ class HomeViewModel @Inject constructor(
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
 	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT * 12, filterOptions = emptySet())
 	private val recommendationsFlow = suggestionRepository.observeAll()
-	private val isNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_DISABLE_NSFW) { isNsfwContentDisabled }
+	private val isTrackerNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_TRACKER_NO_NSFW) { isTrackerNsfwDisabled }
+	private val isSuggestionNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_SUGGESTIONS_EXCLUDE_NSFW) { isSuggestionsExcludeNsfw }
+	private val isHistoryNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_HISTORY_EXCLUDE_NSFW) { isHistoryExcludeNsfw }
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
 		.map { counts ->
@@ -240,17 +242,27 @@ class HomeViewModel @Inject constructor(
 		) { enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState ->
 			Quadruple(enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState)
 		},
-		isNsfwDisabledFlow,
-	) { selectedTab, selectedSourceTags, left, right, isNsfwDisabled ->
-		val resumeState = left.first.filtered(selectedTab).filteredNsfw(isNsfwDisabled)
-		val allHistory = if (isNsfwDisabled) left.second.filterNot { it.isNsfw() } else left.second
+		combine(
+			isTrackerNsfwDisabledFlow,
+			isSuggestionNsfwDisabledFlow,
+			isHistoryNsfwDisabledFlow,
+		) { tracker, suggestion, history ->
+			Triple(tracker, suggestion, history)
+		},
+	) { selectedTab, selectedSourceTags, left, right, nsfwFlags ->
+		val isTrackerNsfwDisabled = nsfwFlags.first
+		val isSuggestionNsfwDisabled = nsfwFlags.second
+		val isHistoryNsfwDisabled = nsfwFlags.third
+
+		val resumeState = left.first.filtered(selectedTab).filteredNsfw(isHistoryNsfwDisabled)
+		val allHistory = if (isHistoryNsfwDisabled) left.second.filterNot { it.isNsfw() } else left.second
 		val recentHistory = allHistory.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
-		val allUpdates = if (isNsfwDisabled) left.sixth.filterNot { it.manga.isNsfw() } else left.sixth
+		val allUpdates = if (isTrackerNsfwDisabled) left.sixth.filterNot { it.manga.isNsfw() } else left.sixth
 		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
-		val allRecommendations = if (isNsfwDisabled) left.seventh.filterNot { it.isNsfw() } else left.seventh
+		val allRecommendations = if (isSuggestionNsfwDisabled) left.seventh.filterNot { it.isNsfw() } else left.seventh
 		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
 		val actualHistoryCount = if (selectedTab == null) allHistory.size else allHistory.count { it.contentTab() == selectedTab }
 		val enabledSourcesCount = right.first

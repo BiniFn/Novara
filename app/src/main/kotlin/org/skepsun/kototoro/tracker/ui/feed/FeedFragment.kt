@@ -36,7 +36,7 @@ import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.StaticItemSizeResolver
-import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
@@ -52,7 +52,7 @@ class FeedFragment :
 	ContentListListener,
 	SwipeRefreshLayout.OnRefreshListener,
 	AppBarLayout.OnOffsetChangedListener,
-	SearchBarFilterMenuProvider.Callback {
+	SearchBarFilterViewController.Callback {
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -61,7 +61,7 @@ class FeedFragment :
 	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
 
 	private val viewModel by viewModels<FeedViewModel>()
-	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+	private var filterMenuProvider: SearchBarFilterViewController? = null
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -80,8 +80,9 @@ class FeedFragment :
 		} ?: activity?.findViewById(R.id.search_bar)
 
 		if (searchBar != null) {
-			filterMenuProvider = SearchBarFilterMenuProvider(this, searchBar)
-			addMenuProvider(filterMenuProvider!!)
+			filterMenuProvider = SearchBarFilterViewController(this)
+			filterMenuProvider?.attachTo(this)
+			
 		}
 
 		val sizeResolver = StaticItemSizeResolver(resources.getDimensionPixelSize(R.dimen.smaller_grid_width))
@@ -149,7 +150,7 @@ class FeedFragment :
 		// No longer need to adjust filterScrollView padding
 	}
 
-	// === SearchBarFilterMenuProvider.Callback implementation ===
+	// === SearchBarFilterViewController.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
 		viewModel.setSelectedGroupTab(tab)
@@ -232,3 +233,4 @@ class FeedFragment :
 
 	override fun onTagClick(manga: Content, tag: ContentTag, view: View) = Unit
 }
+

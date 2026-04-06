@@ -44,13 +44,6 @@
 		android:summary="@string/suggestions_preferred_genres_summary"
 		android:title="@string/suggestions_preferred_genres" />
 
-	<SwitchPreferenceCompat
-		android:defaultValue="false"
-		android:dependency="suggestions"
-		android:key="suggestions_exclude_nsfw"
-		android:summary="@string/exclude_nsfw_from_suggestions_summary"
-		android:title="@string/exclude_nsfw_from_suggestions" />
-
 	<Preference
 		android:icon="@drawable/ic_info_outline"
 		android:key="track_warning"

@@ -45,12 +45,6 @@
 		android:key="notifications_settings"
 		android:title="@string/notifications_settings" />
 
-	<SwitchPreferenceCompat
-		android:defaultValue="false"
-		android:dependency="tracker_enabled"
-		android:key="tracker_no_nsfw"
-		android:summary="@string/disable_nsfw_notifications_summary"
-		android:title="@string/disable_nsfw_notifications" />
 
 	<ListPreference
 		android:dependency="tracker_enabled"

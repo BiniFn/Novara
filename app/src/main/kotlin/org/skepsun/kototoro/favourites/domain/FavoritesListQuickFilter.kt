@@ -42,7 +42,7 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 
 	override suspend fun getAvailableFilterOptions(): List<ListFilterOption> = buildList {
 		add(ListFilterOption.Downloaded)
-		if (!settings.isNsfwContentDisabled) {
+		if (!settings.isFavouritesExcludeNsfw) {
 			add(ListFilterOption.SFW)          // 全年龄
 			add(ListFilterOption.Macro.NSFW)   // R18
 		}
@@ -50,7 +50,7 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 			add(ListFilterOption.Macro.NEW_CHAPTERS)
 		}
 		add(ListFilterOption.Macro.COMPLETED)
-		val hideNsfw = settings.isNsfwContentDisabled
+		val hideNsfw = settings.isFavouritesExcludeNsfw
 		repository.findPopularSources(categoryId, 3)
 			.filterNot { hideNsfw && it.isNsfw() }
 			.mapTo(this) { ListFilterOption.Source(it) }

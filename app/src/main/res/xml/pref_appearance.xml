@@ -176,6 +176,22 @@
             android:summary="@string/pref_nav_floating_summary"
             android:title="@string/pref_nav_floating" />
 
+        <org.skepsun.kototoro.settings.utils.SliderPreference
+            android:key="nav_height"
+            android:stepSize="4"
+            android:title="@string/pref_nav_height"
+            android:valueFrom="48"
+            android:valueTo="88"
+            app:defaultValue="80" />
+
+        <org.skepsun.kototoro.settings.utils.SliderPreference
+            android:key="nav_floating_height"
+            android:stepSize="4"
+            android:title="@string/pref_nav_floating_height"
+            android:valueFrom="48"
+            android:valueTo="84"
+            app:defaultValue="56" />
+
         <SwitchPreferenceCompat
             android:defaultValue="false"
             android:key="reader_toolbar_floating"

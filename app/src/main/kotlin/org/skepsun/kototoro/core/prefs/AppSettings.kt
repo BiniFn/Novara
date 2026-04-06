@@ -110,6 +110,12 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_NAV_FLOATING, false)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
 
+	val navHeight: Int
+		get() = prefs.getInt(KEY_NAV_HEIGHT, 80)
+
+	val navFloatingHeight: Int
+		get() = prefs.getInt(KEY_NAV_FLOATING_HEIGHT, 64)
+
 	val isMainFabEnabled: Boolean
 		get() = prefs.getBoolean(KEY_MAIN_FAB, true)
 
@@ -165,6 +171,14 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var isNsfwContentDisabled: Boolean
 		get() = prefs.getBoolean(KEY_DISABLE_NSFW, true)
 		set(value) = prefs.edit { putBoolean(KEY_DISABLE_NSFW, value) }
+
+	var isHistoryExcludeNsfw: Boolean
+		get() = prefs.getBoolean(KEY_HISTORY_EXCLUDE_NSFW, false)
+		set(value) = prefs.edit { putBoolean(KEY_HISTORY_EXCLUDE_NSFW, value) }
+
+	var isFavouritesExcludeNsfw: Boolean
+		get() = prefs.getBoolean(KEY_FAVOURITES_EXCLUDE_NSFW, false)
+		set(value) = prefs.edit { putBoolean(KEY_FAVOURITES_EXCLUDE_NSFW, value) }
 
 	var appLocales: LocaleListCompat
 		get() {
@@ -1640,12 +1654,16 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_PROXY_PASSWORD = "proxy_password"
 		const val KEY_IMAGES_PROXY = "images_proxy_2"
 		const val KEY_LOCAL_MANGA_DIRS = "local_manga_dirs"
+		const val KEY_HISTORY_EXCLUDE_NSFW = "history_exclude_nsfw"
+		const val KEY_FAVOURITES_EXCLUDE_NSFW = "favourites_exclude_nsfw"
 		const val KEY_DISABLE_NSFW = "no_nsfw"
 		const val KEY_RELATED_MANGA = "related_manga"
 		const val KEY_NAV_MAIN = "nav_main"
 		const val KEY_NAV_LABELS = "nav_labels"
 		const val KEY_NAV_PINNED = "nav_pinned"
 		const val KEY_NAV_FLOATING = "nav_floating"
+		const val KEY_NAV_HEIGHT = "nav_height"
+		const val KEY_NAV_FLOATING_HEIGHT = "nav_floating_height"
 		const val KEY_READER_TOOLBAR_FLOATING = "reader_toolbar_floating"
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
 		const val KEY_BLUR_MODE = "blur_mode"

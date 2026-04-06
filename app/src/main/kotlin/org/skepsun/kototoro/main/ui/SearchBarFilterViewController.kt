@@ -1,32 +1,33 @@
 package org.skepsun.kototoro.main.ui
 
 import android.graphics.PorterDuff
+import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import android.widget.ImageView
 import androidx.appcompat.widget.PopupMenu
-import androidx.core.view.MenuProvider
 import androidx.core.text.BidiFormatter
 import androidx.core.text.TextDirectionHeuristicsCompat
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 
 /**
- * MenuProvider that adds content type toggle icons and a source tag dropdown
- * to the SearchBar toolbar, replacing the separate filter chip bars.
+ * MenuProvider that adds a 2x2 grid of filter icons to the SearchBar toolbar.
  *
  * Each Fragment implements [Callback] to customize which items are visible
  * and how selections are handled.
  */
-class SearchBarFilterMenuProvider(
+class SearchBarFilterViewController(
 	private val callback: Callback,
-	private val anchorView: View,
 ) : MenuProvider {
-
-	private var menu: Menu? = null
 
 	interface Callback {
 		fun onContentTypeSelected(tab: BrowseGroupTab)
@@ -38,35 +39,57 @@ class SearchBarFilterMenuProvider(
 		fun isSourceTagFilterVisible(): Boolean = true
 		fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean = true
 		fun isSourceTagEnabled(tag: SourceTag): Boolean = true
+		fun getSourceTagIconRes(): Int = R.drawable.ic_filter_menu
+		/** Return true to consume the click and prevent default popup */
+		fun onFilterIconClicked(anchor: View): Boolean = false
+	}
+
+	private var checkManga: ImageView? = null
+	private var checkNovel: ImageView? = null
+	private var checkVideo: ImageView? = null
+	private var checkTag: ImageView? = null
+	private var customView: View? = null
+
+	fun attachTo(fragment: Fragment) {
+		fragment.addMenuProvider(this)
 	}
 
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-		menuInflater.inflate(R.menu.menu_searchbar_filter, menu)
-		this.menu = menu
+		val item = menu.add(0, 8888, 0, "")
+		item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+		customView = LayoutInflater.from((callback as Fragment).requireContext())
+			.inflate(R.layout.layout_searchbar_filters_2x2, null, false)
+		
+		item.actionView = customView
+
+		checkManga = customView?.findViewById(R.id.filter_content_manga)
+		checkNovel = customView?.findViewById(R.id.filter_content_novel)
+		checkVideo = customView?.findViewById(R.id.filter_content_video)
+		checkTag = customView?.findViewById(R.id.filter_source_tag)
+
+		checkManga?.setOnClickListener { toggleContentType(BrowseGroupTab.Content) }
+		checkNovel?.setOnClickListener { toggleContentType(BrowseGroupTab.Novel) }
+		checkVideo?.setOnClickListener { toggleContentType(BrowseGroupTab.Video) }
+		checkTag?.setOnClickListener {
+			if (!callback.onFilterIconClicked(checkTag!!)) {
+				showSourceTagPopup()
+			}
+		}
+
 		updateVisibility()
 		updateIcons()
 	}
 
-	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-		return when (menuItem.itemId) {
-			R.id.filter_content_manga -> {
-				toggleContentType(BrowseGroupTab.Content)
-				true
-			}
-			R.id.filter_content_novel -> {
-				toggleContentType(BrowseGroupTab.Novel)
-				true
-			}
-			R.id.filter_content_video -> {
-				toggleContentType(BrowseGroupTab.Video)
-				true
-			}
-			R.id.filter_source_tag -> {
-				showSourceTagPopup()
-				true
-			}
-			else -> false
-		}
+	override fun onMenuItemSelected(menuItem: MenuItem): Boolean = false
+
+	fun destroy() {
+		// Android automatically removes action views when menu is destroyed/cleared.
+		customView = null
+		checkManga = null
+		checkNovel = null
+		checkVideo = null
+		checkTag = null
 	}
 
 	private fun toggleContentType(tab: BrowseGroupTab) {
@@ -76,7 +99,8 @@ class SearchBarFilterMenuProvider(
 	}
 
 	private fun showSourceTagPopup() {
-		val popup = PopupMenu(anchorView.context, anchorView, android.view.Gravity.END)
+		val checkTagView = checkTag ?: return
+		val popup = PopupMenu(checkTagView.context, checkTagView, android.view.Gravity.END)
 		val entries = callback.getSourceTagEntries()
 		val selectedTags = callback.getSelectedSourceTags()
 
@@ -87,7 +111,7 @@ class SearchBarFilterMenuProvider(
 		}
 
 		entries.forEachIndexed { index, tag ->
-			popup.menu.add(0, index, index + 1, tag.getPopupTitle(anchorView)).apply {
+			popup.menu.add(0, index, index + 1, tag.getPopupTitle(checkTagView)).apply {
 				setIcon(tag.iconRes)
 				isCheckable = true
 				isChecked = tag in selectedTags
@@ -103,12 +127,11 @@ class SearchBarFilterMenuProvider(
 			menuPopupHelper.javaClass.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
 				.invoke(menuPopupHelper, true)
 		} catch (_: Exception) {
-			// Fallback: icons won't show, but titles will
 		}
 
 		popup.setOnMenuItemClickListener { item ->
 			if (item.itemId == -1) {
-				callback.onSourceTagSelected(null) // Clear selection
+				callback.onSourceTagSelected(null)
 			} else {
 				entries.getOrNull(item.itemId)?.let { tag ->
 					callback.onSourceTagSelected(tag)
@@ -127,31 +150,30 @@ class SearchBarFilterMenuProvider(
 	}
 
 	fun updateVisibility() {
-		val m = menu ?: return
 		val showContent = callback.isContentTypeFilterVisible()
 		val showSource = callback.isSourceTagFilterVisible()
 
-		m.findItem(R.id.filter_content_manga)?.isVisible = showContent
-		m.findItem(R.id.filter_content_novel)?.isVisible = showContent
-		m.findItem(R.id.filter_content_video)?.isVisible = showContent
-		m.findItem(R.id.filter_source_tag)?.isVisible = showSource
+		checkManga?.isVisible = showContent
+		checkNovel?.isVisible = showContent
+		checkVideo?.isVisible = showContent
+		checkTag?.isVisible = showSource
 	}
 
 	fun updateIcons() {
-		val m = menu ?: return
 		val selectedTab = callback.getSelectedContentType()
 		val selectedTags = callback.getSelectedSourceTags()
 
-		tintItem(m.findItem(R.id.filter_content_manga), selectedTab == BrowseGroupTab.Content, callback.isContentTypeEnabled(BrowseGroupTab.Content))
-		tintItem(m.findItem(R.id.filter_content_novel), selectedTab == BrowseGroupTab.Novel, callback.isContentTypeEnabled(BrowseGroupTab.Novel))
-		tintItem(m.findItem(R.id.filter_content_video), selectedTab == BrowseGroupTab.Video, callback.isContentTypeEnabled(BrowseGroupTab.Video))
-		tintItem(m.findItem(R.id.filter_source_tag), selectedTags.isNotEmpty(), true)
+		checkManga?.let { tintItem(it, selectedTab == BrowseGroupTab.Content, callback.isContentTypeEnabled(BrowseGroupTab.Content)) }
+		checkNovel?.let { tintItem(it, selectedTab == BrowseGroupTab.Novel, callback.isContentTypeEnabled(BrowseGroupTab.Novel)) }
+		checkVideo?.let { tintItem(it, selectedTab == BrowseGroupTab.Video, callback.isContentTypeEnabled(BrowseGroupTab.Video)) }
+		
+		val iconRes = callback.getSourceTagIconRes()
+		checkTag?.setImageResource(iconRes)
+		checkTag?.let { tintItem(it, selectedTags.isNotEmpty(), true) }
 	}
 
-	private fun tintItem(item: MenuItem?, isSelected: Boolean, isEnabled: Boolean) {
-		val icon = item?.icon ?: return
-		val context = anchorView.context
-
+	private fun tintItem(icon: ImageView, isSelected: Boolean, isEnabled: Boolean) {
+		val context = icon.context
 		val color = when {
 			!isEnabled -> MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurface, 0).let { c ->
 				android.graphics.Color.argb(97, android.graphics.Color.red(c), android.graphics.Color.green(c), android.graphics.Color.blue(c))
@@ -159,7 +181,7 @@ class SearchBarFilterMenuProvider(
 			isSelected -> MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0)
 			else -> MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 		}
-		icon.mutate().setColorFilter(color, PorterDuff.Mode.SRC_IN)
-		item.isEnabled = isEnabled
+		icon.setColorFilter(color, PorterDuff.Mode.SRC_IN)
+		icon.isEnabled = isEnabled
 	}
 }

@@ -31,6 +31,7 @@ import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.UpdatesListQuickFilter
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import javax.inject.Inject
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.model.LocalContent
 import kotlinx.coroutines.flow.SharedFlow
@@ -155,7 +156,10 @@ class UpdatesViewModel @Inject constructor(
 			groupMatches && originMatches
 		}
 
-		if (filteredList.isEmpty()) {
+		val hideAdult = settings.isTrackerNsfwDisabled
+		val visibleList = if (hideAdult) filteredList.filterNot { it.manga.isNsfw() } else filteredList
+
+		if (visibleList.isEmpty()) {
 			return listOfNotNull(
 				quickFilter.filterItem(filters),
 				EmptyState(
@@ -167,10 +171,10 @@ class UpdatesViewModel @Inject constructor(
 			)
 		}
 
-		val result = ArrayList<ListModel>(if (grouped) (filteredList.size * 1.4).toInt() else filteredList.size + 1)
+		val result = ArrayList<ListModel>(if (grouped) (visibleList.size * 1.4).toInt() else visibleList.size + 1)
 		quickFilter.filterItem(filters)?.let(result::add)
 		var prevHeader: DateTimeAgo? = null
-		for (item in filteredList) {
+		for (item in visibleList) {
 			if (grouped) {
 				val header = item.lastChapterDate?.let { calculateTimeAgo(it) }
 				if (header != prevHeader) {

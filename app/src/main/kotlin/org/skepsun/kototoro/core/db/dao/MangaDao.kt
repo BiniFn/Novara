@@ -51,6 +51,9 @@ abstract class MangaDao {
 	@Update(onConflict = OnConflictStrategy.IGNORE)
 	abstract suspend fun update(manga: MangaEntity): Int
 
+	@Query("UPDATE manga SET nsfw = :isNsfw, content_rating = :contentRating WHERE manga_id = :mangaId")
+	abstract suspend fun updateContentRating(mangaId: Long, isNsfw: Boolean, contentRating: String?)
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	abstract suspend fun insertTagRelation(tag: MangaTagsEntity): Long
 

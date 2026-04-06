@@ -36,6 +36,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.core.model.isNsfw
 
 @HiltViewModel
 class SuggestionsViewModel @Inject constructor(
@@ -93,9 +94,12 @@ class SuggestionsViewModel @Inject constructor(
 			groupMatches && originMatches
 		}
 
+		val hideAdult = settings.isSuggestionsExcludeNsfw
+		val visibleList = if (hideAdult) filteredList.filterNot { it.isNsfw() } else filteredList
+
 		val resultList = ArrayList<ListModel>()
 
-		if (filteredList.isEmpty()) {
+		if (visibleList.isEmpty()) {
 			if (filters.isEmpty() && groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
 				resultList.add(
 					EmptyState(
@@ -118,7 +122,7 @@ class SuggestionsViewModel @Inject constructor(
 			}
 		} else {
 			quickFilter.filterItem(filters)?.let { resultList.add(it) }
-			mangaListMapper.toListModelList(resultList, filteredList, mode)
+			mangaListMapper.toListModelList(resultList, visibleList, mode)
 		}
 		resultList as List<ListModel>
 	}.onStart {

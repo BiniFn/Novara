@@ -280,15 +280,6 @@ class MainNavigationDelegate(
 	}
 
 	private fun setNavbarIsLabeled(value: Boolean) {
-		if (navBar is SlidingBottomNavigationView) {
-			navBar.minimumHeight = navBar.resources.getDimensionPixelSize(
-				if (value) {
-					materialR.dimen.m3_bottom_nav_min_height
-				} else {
-					R.dimen.nav_bar_height_compact
-				},
-			)
-		}
 		navRailHeader?.buttonExpand?.isVisible = value
 		if (!value) {
 			setNavbarIsExpanded(false)

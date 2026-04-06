@@ -58,7 +58,7 @@ import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.main.ui.SearchBarFilterMenuProvider
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
@@ -84,7 +84,7 @@ abstract class ContentListFragment :
 	ListSelectionController.Callback,
 	FastScroller.FastScrollListener,
 	AppBarLayout.OnOffsetChangedListener,
-	SearchBarFilterMenuProvider.Callback {
+	SearchBarFilterViewController.Callback {
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -100,7 +100,7 @@ abstract class ContentListFragment :
 	open val isSwipeRefreshEnabled = true
 
 	private var isFoldUnfolded = false
-	private var filterMenuProvider: SearchBarFilterMenuProvider? = null
+	private var filterMenuProvider: SearchBarFilterViewController? = null
 
 	// Track chip IDs for filter groups
 	private val categoryChipIds = mutableMapOf<Long, Int>()
@@ -171,7 +171,7 @@ abstract class ContentListFragment :
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.recyclerView))
 
 		// Determine if we have a SearchBar available (main activity) and we're not a child
-		// of a container fragment that already adds its own SearchBarFilterMenuProvider
+		// of a container fragment that already adds its own SearchBarFilterViewController
 		val isInsideContainer = parentFragment != null
 		val filterAnchorView = if (!isInsideContainer) {
 			(activity as? AppBarOwner)?.appBar?.let { appBar ->
@@ -183,8 +183,9 @@ abstract class ContentListFragment :
 
 		if (filterAnchorView != null) {
 			// Mode A: Use Toolbar/SearchBar filter icons
-			filterMenuProvider = SearchBarFilterMenuProvider(this, filterAnchorView)
-			addMenuProvider(filterMenuProvider!!)
+			filterMenuProvider = SearchBarFilterViewController(this)
+			filterMenuProvider?.attachTo(this)
+			
 			binding.filterScrollView.visibility = View.GONE
 		} else if (!isInsideContainer) {
 			// Mode B: Inline chip groups (standalone activity without SearchBar/Toolbar)
@@ -200,7 +201,7 @@ abstract class ContentListFragment :
 			}
 			updateFilterScrollViewVisibility(binding)
 		} else {
-			// Mode C: Inside a container (e.g. FavouritesContainerFragment) — no filters here
+			// Mode C: Inside a container (e.g. FavouritesContainerFragment) �?no filters here
 			binding.filterScrollView.visibility = View.GONE
 		}
 
@@ -541,14 +542,14 @@ abstract class ContentListFragment :
 	}
 
 	private fun adjustLayoutForFoldableState() {
-		// 始终使用用户持久化的网格大小进行布局调整，避免被折叠状态覆盖
+		// 始终使用用户持久化的网格大小进行布局调整，避免被折叠状态覆�?
 		val rv = viewBinding?.recyclerView ?: return
 		val persistedScale = settings.gridSize / 100f
 		spanResolver?.setGridSize(persistedScale, rv)
 		viewBinding?.root?.requestLayout()
 	}
 
-	// === SearchBarFilterMenuProvider.Callback implementation ===
+	// === SearchBarFilterViewController.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
 		viewModel.setSelectedGroupTab(tab)
@@ -785,3 +786,4 @@ abstract class ContentListFragment :
 		}
 	}
 }
+

@@ -79,11 +79,39 @@
         android:summary="@string/filter_extensions_by_language_summary"
         android:title="@string/filter_extensions_by_language" />
 
-    <SwitchPreferenceCompat
-        android:defaultValue="true"
-        android:key="no_nsfw"
-        android:summary="@string/disable_nsfw_summary"
-        android:title="@string/disable_nsfw" />
+    <PreferenceCategory android:title="@string/adult_content_filtering">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="no_nsfw"
+            android:summary="@string/disable_nsfw_summary"
+            android:title="@string/disable_nsfw" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="history_exclude_nsfw"
+            android:summary="@string/disable_history_nsfw_summary"
+            android:title="@string/disable_history_nsfw" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="favourites_exclude_nsfw"
+            android:summary="@string/disable_favourites_nsfw_summary"
+            android:title="@string/disable_favourites_nsfw" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="tracker_no_nsfw"
+            android:summary="@string/disable_updates_nsfw_summary"
+            android:title="@string/disable_updates_nsfw" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="suggestions_exclude_nsfw"
+            android:summary="@string/disable_suggestions_nsfw_summary"
+            android:title="@string/disable_suggestions_nsfw" />
+
+    </PreferenceCategory>
 
     <ListPreference
         android:entries="@array/incognito_nsfw_options"

@@ -5,6 +5,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
@@ -59,6 +60,23 @@ class MainViewModel @Inject constructor(
 		AppSettings.KEY_NAV_FLOATING,
 	) {
 		isNavFloating
+	}.flowOn(Dispatchers.Default)
+
+	val navHeight = settings.observe(
+		AppSettings.KEY_NAV_HEIGHT,
+		AppSettings.KEY_NAV_FLOATING_HEIGHT,
+		AppSettings.KEY_NAV_FLOATING,
+		AppSettings.KEY_NAV_LABELS,
+	).map {
+		val floating = settings.isNavFloating
+		val labeled = settings.isNavLabelsVisible
+		if (floating) {
+			settings.navFloatingHeight
+		} else if (!labeled) {
+			56
+		} else {
+			settings.navHeight
+		}
 	}.flowOn(Dispatchers.Default)
 
 	val isIncognitoModeEnabled = settings.observeAsStateFlow(

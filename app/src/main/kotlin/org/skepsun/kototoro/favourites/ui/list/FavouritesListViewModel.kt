@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.flowOf
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.core.model.isNsfw
 
 private const val PAGE_SIZE = 16
 
@@ -203,9 +204,9 @@ class FavouritesListViewModel @Inject constructor(
 			groupMatches && originMatches && categoryMatches
 		}
 
-		val hideAdult = settings.isNsfwContentDisabled
-		val adultItems = filteredList.filter { it.isNsfw }
-		val visibleItems = if (hideAdult) filteredList.filterNot { it.isNsfw } else filteredList
+		val hideAdult = settings.isFavouritesExcludeNsfw
+		val adultItems = filteredList.filter { it.isNsfw() }
+		val visibleItems = if (hideAdult) filteredList.filterNot { it.isNsfw() } else filteredList
 
 		if (visibleItems.isEmpty()) {
 			val models = mutableListOf<ListModel>()

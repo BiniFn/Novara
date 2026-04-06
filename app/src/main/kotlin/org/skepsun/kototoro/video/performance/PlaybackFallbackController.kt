@@ -76,15 +76,6 @@ object PlaybackFallbackController {
 				reason = PlaybackFallbackReason.RENDERER_DOWNGRADED,
 			)
 
-			current.rendererMode != VideoRendererMode.MEDIACODEC_EMBED -> PlaybackFallbackDecision(
-				config = current.copy(
-					rendererMode = VideoRendererMode.MEDIACODEC_EMBED,
-					superResolutionMode = VideoSuperResolutionMode.OFF,
-					allowShaderPipeline = false,
-				),
-				reason = PlaybackFallbackReason.CONSERVATIVE_MODE,
-			)
-
 			else -> null
 		}
 	}
