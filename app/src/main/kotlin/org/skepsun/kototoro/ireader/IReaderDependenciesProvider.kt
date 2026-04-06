@@ -66,9 +66,28 @@ private class KotoHttpClients(
         get() = throw UnsupportedOperationException("CookieSynchronizer not available in Kototoro bridge")
     override val cloudflareBypassHandler: CloudflareBypassHandler = NoOpCloudflareBypassHandler
 
+    // Some IReader extensions (e.g. novelfire) format page numbers as {N} in
+    // URL query values. The server expects plain N, so we strip the braces.
+    private val sanitizedClient = kototoroClient.newBuilder()
+        .addInterceptor { chain ->
+            val original = chain.request()
+            val originalUrl = original.url
+            val rawUrl = originalUrl.toString()
+            if ('{' in rawUrl) {
+                val cleanUrl = rawUrl.replace(Regex("\\{(\\d+)\\}"), "$1")
+                val newRequest = original.newBuilder()
+                    .url(cleanUrl)
+                    .build()
+                chain.proceed(newRequest)
+            } else {
+                chain.proceed(original)
+            }
+        }
+        .build()
+
     override val default: HttpClient = HttpClient(OkHttp) {
         engine {
-            preconfigured = kototoroClient
+            preconfigured = sanitizedClient
         }
         BrowserUserAgent()
     }

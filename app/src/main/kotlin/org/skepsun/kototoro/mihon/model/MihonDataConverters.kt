@@ -53,9 +53,19 @@ fun SManga.toKotoContent(
         publicUrl = if (publicUrl.isNotBlank()) publicUrl else absolutePublicUrl,
         rating = RATING_UNKNOWN,
         contentRating = run {
+            val safeTags = setOf("safe", "all ages", "non-h", "sfw", "非h", "正常向", "全年龄", "全年龄向")
+            val isExplicitlySafe = safeGenres?.any { it.lowercase() in safeTags } == true
+            
             val adultGenres = setOf("adult", "hentai", "18+", "nsfw", "mature", "ecchi")
-            val isContentNsfw = source.isNsfw || safeGenres?.any { it.lowercase() in adultGenres } == true
-            if (isContentNsfw) ContentRating.ADULT else null
+            val isContentNsfw = (!isExplicitlySafe && source.isNsfw) || safeGenres?.any { it.lowercase() in adultGenres } == true
+            
+            if (isExplicitlySafe) {
+                ContentRating.SAFE
+            } else if (isContentNsfw) {
+                ContentRating.ADULT
+            } else {
+                null
+            }
         },
         coverUrl = absoluteThumbnailUrl,
         largeCoverUrl = absoluteThumbnailUrl, // Also set largeCoverUrl for details page

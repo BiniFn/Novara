@@ -49,7 +49,7 @@ class DetailsLoadUseCase @Inject constructor(
 		val manga = requireNotNull(mangaDataRepository.resolveIntent(intent, withChapters = true)) {
 			"Cannot resolve intent $intent"
 		}
-		val override = checkAndApplySafeOverride(manga, mangaDataRepository.getOverride(manga.id))
+		val override = mangaDataRepository.getOverride(manga.id)
 		emit(
 			ContentDetails(
 				manga = manga,
@@ -92,7 +92,7 @@ class DetailsLoadUseCase @Inject constructor(
 				ContentDetails(
 					manga = localDetails,
 					localContent = null,
-					override = checkAndApplySafeOverride(localDetails, override),
+					override = override,
 					description = localDetails.description?.parseAsHtml(withImages = true),
 					isLoaded = true,
 				),
@@ -103,7 +103,7 @@ class DetailsLoadUseCase @Inject constructor(
 				ContentDetails(
 					manga = remoteDetails ?: remoteContent,
 					localContent = LocalContent(localDetails),
-					override = remoteDetails?.let { checkAndApplySafeOverride(it, override) } ?: override,
+					override = override,
 					description = (remoteDetails ?: localDetails).description?.parseAsHtml(withImages = true),
 					isLoaded = true,
 				),
@@ -151,7 +151,7 @@ class DetailsLoadUseCase @Inject constructor(
 				ContentDetails(
 					manga = remoteDetails,
 					localContent = localContent,
-					override = checkAndApplySafeOverride(remoteDetails, override),
+					override = override,
 					description = (remoteDetails.description
 						?: localContent?.manga?.description)?.parseAsHtml(withImages = true),
 					isLoaded = true,
@@ -198,20 +198,6 @@ class DetailsLoadUseCase @Inject constructor(
 		} else {
 			null
 		}
-	}
-
-	private suspend fun checkAndApplySafeOverride(manga: Content, currentOverride: ContentOverride?): ContentOverride? {
-		if (currentOverride?.contentRating != null) return currentOverride
-		val hasSafeTag = manga.tags.any { tag ->
-			val name = tag.title.lowercase()
-			name == "safe" || name == "all ages" || name == "non-h" || name == "sfw"
-		}
-		if (hasSafeTag) {
-			val newOverride = (currentOverride ?: ContentOverride(null, null, null)).copy(contentRating = org.skepsun.kototoro.parsers.model.ContentRating.SAFE)
-			mangaDataRepository.setOverride(manga, newOverride)
-			return newOverride
-		}
-		return currentOverride
 	}
 	
 	/**

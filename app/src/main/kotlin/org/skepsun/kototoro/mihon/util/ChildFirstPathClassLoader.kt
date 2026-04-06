@@ -36,6 +36,7 @@ class ChildFirstPathClassLoader(
         "uy.kohesive.injekt.",
         "ireader.core.",
         "io.ktor.",
+        "com.fleeksoft.",
     )
 
     override fun loadClass(name: String, resolve: Boolean): Class<*> {

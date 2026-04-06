@@ -2140,5 +2140,5 @@
     <string name="blur_mode_immersive">Immersive Mode (Recommended)</string>
     <string name="blur_mode_enhanced">Enhanced Mode</string>
     <string name="mark_as_safe">Mark as non-NSFW</string>
-    <string name="remove_safe_mark">Remove non-NSFW mark</string>
+    <string name="mark_as_nsfw">Mark as NSFW</string>
 </resources>

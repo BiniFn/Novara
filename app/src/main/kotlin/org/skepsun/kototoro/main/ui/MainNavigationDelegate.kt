@@ -199,7 +199,7 @@ class MainNavigationDelegate(
 			R.id.nav_updated -> UpdatesFragment::class.java
 			else -> return false
 		}
-		if (!setPrimaryFragment(newFragment)) {
+		if (!setPrimaryFragment(newFragment, itemId)) {
 			// probably already selected
 			onNavigationItemReselected()
 		}
@@ -220,7 +220,7 @@ class MainNavigationDelegate(
 		else -> 0
 	}
 
-	private fun setPrimaryFragment(fragmentClass: Class<out Fragment>): Boolean {
+	private fun setPrimaryFragment(fragmentClass: Class<out Fragment>, newItemId: Int? = null): Boolean {
 		if (fragmentManager.isStateSaved || fragmentClass.isInstance(primaryFragment)) {
 			return false
 		}
@@ -228,13 +228,35 @@ class MainNavigationDelegate(
 		val args = buildBundle(1) {
 			putBoolean(AppRouter.KEY_IS_BOTTOMTAB, true)
 		}
-		fragment.enterTransition = MaterialFadeThrough()
+		
+		val currentFrag = primaryFragment
+		if (currentFrag != null && newItemId != null) {
+			val oldItemId = getItemId(currentFrag)
+			val oldIndex = getMenuIndex(oldItemId)
+			val newIndex = getMenuIndex(newItemId)
+			val forward = newIndex >= oldIndex
+			
+			fragment.enterTransition = com.google.android.material.transition.MaterialSharedAxis(com.google.android.material.transition.MaterialSharedAxis.X, forward)
+			currentFrag.exitTransition = com.google.android.material.transition.MaterialSharedAxis(com.google.android.material.transition.MaterialSharedAxis.X, forward)
+		} else {
+			fragment.enterTransition = com.google.android.material.transition.MaterialFadeThrough()
+			currentFrag?.exitTransition = com.google.android.material.transition.MaterialFadeThrough()
+		}
+		
 		fragmentManager.beginTransaction()
 			.setReorderingAllowed(true)
 			.replace(R.id.container, fragmentClass, args, TAG_PRIMARY)
 			.runOnCommit { onFragmentChanged(fragment, fromUser = true) }
 			.commit()
 		return true
+	}
+
+	private fun getMenuIndex(itemId: Int): Int {
+		val menu = navBar.menu
+		for (i in 0 until menu.size) {
+			if (menu.getItem(i).itemId == itemId) return i
+		}
+		return -1
 	}
 
 	private fun onNavigationItemReselected() {

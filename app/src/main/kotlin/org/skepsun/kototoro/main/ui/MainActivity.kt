@@ -508,6 +508,17 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				.setAllCornerSizes(radius)
 				.build()
 		}
+		val floating = settings.isNavFloating
+		val labeled = settings.isNavLabelsVisible
+		val heightDp = if (floating) {
+			settings.navFloatingHeight
+		} else if (!labeled) {
+			56
+		} else {
+			settings.navHeight
+		}
+		setNavHeight(heightDp)
+		
 		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
 	}
 
@@ -515,6 +526,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		val bottomNavBar = viewBinding.bottomNav ?: return
 		val px = (heightDp * resources.displayMetrics.density).toInt()
 		bottomNavBar.minimumHeight = px
+		
+		val padding = (12 * resources.displayMetrics.density).toInt()
+		bottomNavBar.itemActiveIndicatorHeight = if (isNavFloating) px - padding else (32 * resources.displayMetrics.density).toInt()
+		
 		// In SlidingBottomNavigationView, the minimumHeight forces the view to take that height,
 		// and the icons will naturally remain centered.
 		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)

@@ -1886,5 +1886,5 @@
     <string name="blur_mode_immersive">沉浸模式 (局部模糊，推荐)</string>
     <string name="blur_mode_enhanced">增强模式 (提升模糊，偏iOS风)</string>
     <string name="mark_as_safe">标记为非 NSFW</string>
-    <string name="remove_safe_mark">移除非 NSFW 标记</string>
+    <string name="mark_as_nsfw">标记为 NSFW</string>
 </resources>

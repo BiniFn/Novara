@@ -26,6 +26,7 @@ import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -311,16 +312,16 @@ class DetailsViewModel @Inject constructor(
 	fun toggleMarkSafe() {
 		launchJob(Dispatchers.Default) {
 			val manga = mangaDetails.value?.toContent() ?: return@launchJob
-			val originalManga = remoteContent.value
 			val override = dataRepository.getOverride(manga.id) ?: org.skepsun.kototoro.core.ui.model.ContentOverride(null, null, null)
-			val isSafe = override.contentRating == org.skepsun.kototoro.parsers.model.ContentRating.SAFE
-			val newRating = if (isSafe) null else org.skepsun.kototoro.parsers.model.ContentRating.SAFE
 			
-			// Always pass a manga object containing the original content rating, so the DB correctly restores it if override is removed
-			val mangaToPass = originalManga ?: manga.copy(contentRating = if (isSafe) org.skepsun.kototoro.parsers.model.ContentRating.ADULT else manga.contentRating)
+			val isCurrentlyNsfw = manga.isNsfw()
+			val newRating = if (isCurrentlyNsfw) {
+				org.skepsun.kototoro.parsers.model.ContentRating.SAFE
+			} else {
+				org.skepsun.kototoro.parsers.model.ContentRating.ADULT
+			}
 			
-			dataRepository.setOverride(mangaToPass, override.copy(contentRating = newRating))
-			isMarkedSafe.value = !isSafe
+			dataRepository.setOverride(manga, override.copy(contentRating = newRating))
 			doLoad(false)
 		}
 	}

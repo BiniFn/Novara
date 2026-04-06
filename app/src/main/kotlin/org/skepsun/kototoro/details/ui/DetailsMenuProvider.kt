@@ -21,6 +21,7 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
+import org.skepsun.kototoro.core.model.isNsfw
 
 class DetailsMenuProvider(
 	private val activity: FragmentActivity,
@@ -54,10 +55,11 @@ class DetailsMenuProvider(
 		menu.findItem(R.id.action_stats).isVisible = viewModel.isStatsAvailable.value
 
 		val actionMarkSafe = menu.findItem(R.id.action_mark_safe)
-		if (viewModel.isMarkedSafe.value) {
-			actionMarkSafe.setTitle(R.string.remove_safe_mark)
-		} else {
+		val isNsfw = manga?.isNsfw() == true
+		if (isNsfw) {
 			actionMarkSafe.setTitle(R.string.mark_as_safe)
+		} else {
+			actionMarkSafe.setTitle(R.string.mark_as_nsfw)
 		}
 	}
 

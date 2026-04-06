@@ -137,7 +137,10 @@ class DiscoverViewModel @Inject constructor(
 		}
 
 		viewModelScope.launch {
-			appSettings.observe(AppSettings.KEY_LIST_MODE).drop(1).collect {
+			combine(
+				appSettings.observe(AppSettings.KEY_LIST_MODE),
+				appSettings.observe(AppSettings.KEY_SELECTED_GROUP_TAB)
+			) { _, _ -> }.drop(1).collect {
 				remapContentState()
 			}
 		}
@@ -146,6 +149,9 @@ class DiscoverViewModel @Inject constructor(
 	private suspend fun remapContentState() {
 		val service = activeService.value
 		val query = searchQuery.value.trim()
+		val currentTabId = appSettings.getSelectedGroupTab()
+		val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
+			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
 		
 		if (query.isNotBlank()) {
 			val models = _items.value.toDiscoverModels()
@@ -159,6 +165,10 @@ class DiscoverViewModel @Inject constructor(
 				_contentState.value = flat.ifEmpty { listOf(org.skepsun.kototoro.list.ui.model.EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
 			} else {
 				val rows = caps.discoveryCategories.mapNotNull { cat ->
+					if (currentTab != org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
+						val catType = getCategoryGroupTab(cat.id, service)
+						if (catType != null && catType != currentTab) return@mapNotNull null
+					}
 					val cached = cacheRepository.readCategoryCache(service, cat.id)
 					if (cached != null && cached.isNotEmpty()) {
 						DiscoverCarouselRow(category = cat, items = cached.toDiscoverModels())
@@ -166,8 +176,23 @@ class DiscoverViewModel @Inject constructor(
 				}
 				if (rows.isNotEmpty()) {
 					_contentState.value = rows
+				} else {
+					_contentState.value = listOf(org.skepsun.kototoro.list.ui.model.EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0))
 				}
 			}
+		}
+	}
+
+	private fun getCategoryGroupTab(categoryId: String, service: ScrobblerService): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab? {
+		val isVideo = categoryId.contains("anime") || categoryId.contains("movie") || categoryId.contains("ova") || categoryId.contains("tv") || categoryId.contains("calendar") || categoryId.contains("real") || (service == ScrobblerService.KITSU && !categoryId.contains("manga"))
+		val isNovel = categoryId.contains("novel") || categoryId.contains("book") || categoryId.contains("light_novel")
+		val isManga = categoryId.contains("manga") || categoryId.contains("doujin") || categoryId.contains("oneshots") || categoryId.contains("manhwa") || categoryId.contains("manhua") || categoryId.contains("mu_") || categoryId.contains("al_manga") || categoryId.contains("shiki_manga")
+		
+		return when {
+			isVideo -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video
+			isNovel -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel
+			isManga -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content
+			else -> null 
 		}
 	}
 
@@ -217,7 +242,15 @@ class DiscoverViewModel @Inject constructor(
 			}
 			
 			// Parallel fetch top 10 for every category (with retry)
-			val rows = caps.discoveryCategories.map { cat ->
+			val rows = caps.discoveryCategories.mapNotNull { cat ->
+				val currentTabId = appSettings.getSelectedGroupTab()
+				val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
+					?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+				if (currentTab != org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
+					val catType = getCategoryGroupTab(cat.id, service)
+					if (catType != null && catType != currentTab) return@mapNotNull null
+				}
+
 				viewModelScope.async(Dispatchers.IO) {
 					val cached = cacheRepository.readCategoryCache(service, cat.id)
 					if (cached != null && cached.isNotEmpty()) {
@@ -358,15 +391,15 @@ class DiscoverViewModel @Inject constructor(
 			Content(
 				id = item.remoteId,
 				title = item.title,
-				altTitle = item.subtitle ?: item.altTitle,
+				altTitles = setOfNotNull((item.subtitle ?: item.altTitle)),
 				url = item.url ?: "",
 				publicUrl = item.url ?: "",
 				rating = item.score ?: 0f,
-				isNsfw = false,
+				contentRating = null,
 				coverUrl = item.coverUrl,
 				tags = emptySet(),
 				state = org.skepsun.kototoro.parsers.model.ContentState.ONGOING,
-				author = null,
+				authors = emptySet(),
 				source = ContentSource("TRACKING_${item.service.name}"),
 			)
 		}

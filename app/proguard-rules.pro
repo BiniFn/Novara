@@ -244,6 +244,17 @@
     public protected *;
 }
 
+# Ksoup (com.fleeksoft.ksoup) - used by IReader extensions at runtime.
+# The host app bundles ksoup via io.github.ireaderorg:source-api, but R8 may strip
+# methods that the host doesn't directly reference. Extensions call these methods
+# via the shared ClassLoader, so all members must be preserved.
+-keep class com.fleeksoft.ksoup.** { *; }
+-keep interface com.fleeksoft.ksoup.** { *; }
+-keepclassmembers class com.fleeksoft.ksoup.** {
+    public <init>(...);
+    public protected *;
+}
+
 # Ktor is used heavily by IReader extensions
 -keep class io.ktor.** { *; }
 -keep interface io.ktor.** { *; }
