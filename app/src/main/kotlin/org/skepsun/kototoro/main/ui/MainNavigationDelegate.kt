@@ -307,7 +307,7 @@ class MainNavigationDelegate(
 			setNavbarIsExpanded(false)
 		}
 		navBar.labelVisibilityMode = if (value) {
-			NavigationBarView.LABEL_VISIBILITY_LABELED
+			NavigationBarView.LABEL_VISIBILITY_SELECTED
 		} else {
 			NavigationBarView.LABEL_VISIBILITY_UNLABELED
 		}
