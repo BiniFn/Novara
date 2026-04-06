@@ -2,7 +2,7 @@
 
 ![App Icon](metadata/en-US/icon.png)
 
-![version](https://img.shields.io/badge/version-0.6.2-blue)
+![version](https://img.shields.io/badge/version-0.8.3-blue)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/E2GsMeq2Vh)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://kototoro-app.github.io/Kototoro/)
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://kototoro-app.github.io/Kototoro/getting-started)
@@ -110,9 +110,10 @@ limitations under the License.
 - [Kazumi](https://github.com/Predidit/Kazumi)
 - [Light Novel Yuedu Source](https://github.com/ZWolken/Light-Novel-Yuedu-Source)
 - [legado-with-MD3](https://github.com/HapeLee/legado-with-MD3)
+- [RealCUGAN-ncnn-Android](https://github.com/omeshi1/RealCUGAN-ncnn-Android)
 
 ## Contact
 
 - Discord: [Join Server](https://discord.gg/E2GsMeq2Vh)
 - GitHub Issues: [Issue Tracker](https://github.com/Kototoro-app/Kototoro/issues)
-- Email: chuxiongsun@gmail.com
+
