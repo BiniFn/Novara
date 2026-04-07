@@ -69,11 +69,77 @@
         app:cardBackgroundColor="?colorSurfaceContainer"
         app:layout_insetEdge="bottom">
 
-        <org.skepsun.kototoro.reader.ui.ReaderActionsView
-            android:id="@+id/actionsView"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="?actionBarSize" />
+            android:orientation="vertical">
+
+            <!-- TTS 悬浮控制条 (内嵌于下边栏顶部) -->
+            <LinearLayout
+                android:id="@+id/tts_control_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:paddingHorizontal="16dp"
+                android:visibility="gone">
+                
+                <ImageButton
+                    android:id="@+id/btn_tts_prev"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_prev"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="上一段" />
+                    
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+                    
+                <ImageButton
+                    android:id="@+id/btn_tts_play_pause"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:src="@drawable/ic_play"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="播放/暂停" />
+                    
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+                    
+                <ImageButton
+                    android:id="@+id/btn_tts_next"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_next"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="下一段" />
+                    
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+                    
+                <ImageButton
+                    android:id="@+id/btn_tts_close"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_tts_close"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="停止朗读" />
+            </LinearLayout>
+
+            <org.skepsun.kototoro.reader.ui.ReaderActionsView
+                android:id="@+id/actionsView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="?actionBarSize" />
+                
+        </LinearLayout>
 
     </com.google.android.material.dockedtoolbar.DockedToolbarLayout>
 

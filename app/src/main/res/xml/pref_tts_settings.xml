@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:title="TTS Settings">
+
+    <PreferenceCategory android:title="General">
+        <SwitchPreferenceCompat
+            android:key="tts_enabled"
+            android:title="Enable TTS System"
+            android:defaultValue="true" />
+            
+        <ListPreference
+            android:key="tts_engine_type"
+            android:title="TTS Engine Type"
+            android:summary="%s"
+            android:defaultValue="SYSTEM" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="System TTS Configuration"
+        android:key="tts_system_category"
+        app:dependency="tts_enabled">
+        
+        <ListPreference
+            android:key="tts_system_voice"
+            android:title="System Voice"
+            android:defaultValue="default" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Legado Network TTS Configuration"
+        android:key="tts_legado_category"
+        app:dependency="tts_enabled">
+        
+        <ListPreference
+            android:key="tts_legado_voice"
+            android:title="Active Legado Source"
+            android:defaultValue="" />
+        
+        <Preference
+            android:key="tts_import_legado_clipboard"
+            android:title="Import from Clipboard"
+            android:summary="Import a Legado TTS HTTP JSON config from your clipboard" />
+            
+        <Preference
+            android:key="tts_import_legado_url"
+            android:title="Import from URL"
+            android:summary="Import Legado configurations from a remote JSON list" />
+            
+        <Preference
+            android:key="tts_manage_legado"
+            android:title="Manage Imported Sources"
+            android:summary="View and delete imported Legado network sources" />
+            
+    </PreferenceCategory>
+
+</PreferenceScreen>

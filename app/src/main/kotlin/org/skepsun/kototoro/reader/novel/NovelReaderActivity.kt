@@ -108,6 +108,60 @@ class NovelReaderActivity :
     override val readerMode: ReaderMode?
         get() = ReaderMode.STANDARD
 
+    private var ttsService: org.skepsun.kototoro.reader.novel.tts.TtsService? = null
+    private var isTtsBound = false
+
+    private val ttsConnection = object : android.content.ServiceConnection {
+        override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+            val binder = service as org.skepsun.kototoro.reader.novel.tts.TtsService.TtsBinder
+            ttsService = binder.getService()
+            isTtsBound = true
+            
+            lifecycleScope.launch {
+                ttsService?.getState()?.collect { state ->
+                    // Update TTS bar playback icon based on state
+                    val playPauseIcon = if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
+                        R.drawable.ic_pause
+                    } else {
+                        R.drawable.ic_play
+                    }
+                    viewBinding.btnTtsPlayPause.setImageResource(playPauseIcon)
+                    
+                    if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
+                        // TODO string sync highlighting
+                    }
+                }
+            }
+            
+            lifecycleScope.launch {
+                ttsService?.getPlayingTokenIndex()?.collectLatest { index ->
+                    val range = index?.let { ttsService?.getToken(it)?.range }
+                    viewBinding.readerView.setHighlightRange(range)
+                    
+                    // (Optional) Here we could implement auto-scroll logic if the range falls outside the viewport
+                }
+            }
+        }
+        override fun onServiceDisconnected(name: android.content.ComponentName?) {
+            isTtsBound = false
+            ttsService = null
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val intent = Intent(this, org.skepsun.kototoro.reader.novel.tts.TtsService::class.java)
+        bindService(intent, ttsConnection, android.content.Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isTtsBound) {
+            unbindService(ttsConnection)
+            isTtsBound = false
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(ActivityNovelReaderV2Binding.inflate(layoutInflater))
@@ -204,6 +258,7 @@ class NovelReaderActivity :
 
         viewBinding.actionsView.listener = this
         setupImageHeaders()
+        setupTtsControls()
 
         // 设置章节列表按钮点击事件
         viewBinding.actionsView.findViewById<View>(R.id.button_pages_thumbs)?.setOnClickListener {
@@ -216,6 +271,11 @@ class NovelReaderActivity :
             val displayTotal = viewBinding.readerView.getDisplayPageCount()
             updateProgress(displayPage, displayTotal)
             updateReadingStatus(displayPage, displayTotal)
+            
+            // Sync TTS on page flip if currently playing
+            if (viewBinding.ttsControlBar.isVisible && ttsService?.getState()?.value == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
+                startTtsFromCurrentPage()
+            }
         }
         
         // 使用手势区域处理
@@ -538,6 +598,60 @@ class NovelReaderActivity :
                 viewBinding.toastView.showTemporary(getString(R.string.novel_bookmark_failed, e.message ?: ""), 2000L)
             }
         }
+    }
+
+    private fun setupTtsControls() {
+        viewBinding.btnTtsClose.setOnClickListener {
+            onTtsStopClicked()
+            viewBinding.ttsControlBar.visibility = View.GONE
+        }
+        viewBinding.btnTtsPlayPause.setOnClickListener {
+            onTtsPlayPauseClicked()
+        }
+        viewBinding.btnTtsPrev.setOnClickListener {
+            ttsService?.seekPrev()
+        }
+        viewBinding.btnTtsNext.setOnClickListener {
+            ttsService?.seekNext()
+        }
+    }
+
+    override fun onTtsClick() {
+        viewBinding.ttsControlBar.visibility = View.VISIBLE
+        val state = ttsService?.getState()?.value
+        if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE) {
+            onTtsPlayPauseClicked()
+        }
+    }
+
+    private fun startTtsFromCurrentPage() {
+        if (ttsService == null) return
+        val text = viewBinding.readerView.getCurrentPageText()
+        if (text.isBlank()) return
+        val tokens = org.skepsun.kototoro.reader.novel.tts.Tokenizer.tokenize(text)
+        
+        runCatching {
+            ttsService?.startTts(tokens, 0)
+        }.onFailure { 
+            android.util.Log.e("NovelReaderActivity", "TTS Failed", it)
+        }
+    }
+
+    private fun onTtsPlayPauseClicked() {
+        if (ttsService == null) return
+        val state = ttsService?.getState()?.value
+        
+        if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
+            ttsService?.pause()
+        } else if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PAUSED) {
+            ttsService?.resume()
+        } else {
+            startTtsFromCurrentPage()
+        }
+    }
+
+    private fun onTtsStopClicked() {
+        ttsService?.stopTts()
     }
 
     override fun onSavePageClick() {}

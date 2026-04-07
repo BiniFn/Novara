@@ -57,6 +57,19 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="ai_section_tts"
+        android:title="Voice &amp; Subtitle (TTS)">
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_play"
+            android:key="ai_tts"
+            android:fragment="org.skepsun.kototoro.settings.TtsSettingsFragment"
+            android:summary="Configure TTS Engines, Voice, and Web Sources"
+            android:title="TTS Settings" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="ai_section_video"
         android:title="@string/ai_section_video">
 

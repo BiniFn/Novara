@@ -74,6 +74,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchReadingStatusTransparent.setOnCheckedChangeListener(this)
         binding.switchParagraphIndent.setOnCheckedChangeListener(this)
         binding.buttonBookmark.setOnClickListener(this)
+        binding.buttonTts.setOnClickListener(this)
         binding.buttonReset.setOnClickListener(this)
         binding.buttonClose.setOnClickListener(this)
         
@@ -144,6 +145,10 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
                 callback?.onBookmarkClick()
                 dismiss()
             }
+            org.skepsun.kototoro.R.id.buttonTts -> {
+                callback?.onTtsClick()
+                dismiss()
+            }
             org.skepsun.kototoro.R.id.buttonReset -> resetSettings()
             org.skepsun.kototoro.R.id.buttonClose -> dismiss()
         }
@@ -199,6 +204,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
     interface Callback {
         fun onSettingsChanged(settings: NovelReaderSettings)
         fun onBookmarkClick()
+        fun onTtsClick()
     }
 
     companion object {

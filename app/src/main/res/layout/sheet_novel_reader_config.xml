@@ -258,14 +258,23 @@
             android:orientation="horizontal"
             android:layout_marginTop="24dp">
 
-            <!-- 左侧：书签按钮 -->
+            <!-- 左侧：书签与朗读按钮 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonBookmark"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/bookmark_add"
-                app:icon="@drawable/ic_bookmark" />
+                app:icon="@drawable/ic_bookmark"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonTts"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TTS"
+                app:icon="@drawable/ic_play" />
 
             <!-- 中间：空白占位 -->
             <Space

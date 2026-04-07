@@ -105,6 +105,7 @@ class LocalContentParser(private val uri: Uri) {
 						}
 					}
 					val updatedContent = epubContent.copy(
+						id = rootFile.absolutePath.longHashCode(),
 						chapters = if (withDetails) updatedChapters else null,
 						coverUrl = extractedCoverUrl ?: ""
 					)
@@ -279,6 +280,31 @@ class LocalContentParser(private val uri: Uri) {
 					chapters = null,
 					coverUrl = extractedCoverUrl ?: ""
 				)
+			}
+		}
+
+		if (rootFile.isDirectory) {
+			val epubFiles = rootFile.listFiles { f -> f.isFile && f.name.endsWith(".epub", ignoreCase = true) }
+			if (!epubFiles.isNullOrEmpty()) {
+				val epubFile = epubFiles.first()
+				val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
+				val content = parser.parseContent()
+				if (content != null) {
+					var extractedCoverUrl: String? = null
+					runCatching {
+						val tempParser = LocalContentParser(epubFile)
+						okio.FileSystem.SYSTEM.openZip(epubFile.absolutePath.toPath()).use { zipFs ->
+							extractedCoverUrl = with(tempParser) {
+								zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+							}
+						}
+					}
+					return content.copy(
+						id = rootFile.absolutePath.longHashCode(),
+						chapters = null,
+						coverUrl = extractedCoverUrl ?: ""
+					)
+				}
 			}
 		}
 

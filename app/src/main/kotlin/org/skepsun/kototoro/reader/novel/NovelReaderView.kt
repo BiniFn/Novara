@@ -96,6 +96,22 @@ class NovelReaderView @JvmOverloads constructor(
     private var chapterPath: String? = null  // 当前章节路径，用于解析相对图片路径
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     var imageHeadersProvider: ((String) -> Map<String, String>?)? = null
+
+    // TTS Highlight
+    private var highlightRange: IntRange? = null
+    private val highlightPaint by lazy {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            val typedValue = android.util.TypedValue()
+            context.theme.resolveAttribute(android.R.attr.colorAccent, typedValue, true)
+            val colorAccent = if (typedValue.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT &&
+                typedValue.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT) {
+                typedValue.data
+            } else {
+                androidx.core.content.ContextCompat.getColor(context, typedValue.resourceId)
+            }
+            color = Color.argb(80, Color.red(colorAccent), Color.green(colorAccent), Color.blue(colorAccent))
+        }
+    }
     
     @Inject
     lateinit var imageLoader: ImageLoader
@@ -264,13 +280,25 @@ class NovelReaderView @JvmOverloads constructor(
             drawPage(canvas, page, 0f, width.toFloat())
         }
     }
-
     private fun drawPage(canvas: Canvas, page: PageInfo, left: Float, right: Float) {
         canvas.save()
         // 考虑 View 的 padding（用于避开状态栏等系统 UI）和设置的边距
         val x = left + paddingLeft + settings.marginHorizontal
         val y = paddingTop + settings.marginVertical.toFloat() + headerHeight
         canvas.translate(x, y)
+        
+        // 绘制高亮背景
+        highlightRange?.let { range ->
+            val intersectStart = max(page.startOffset, range.first)
+            val intersectEnd = min(page.endOffset, range.last + 1)
+            if (intersectStart < intersectEnd && page.layout != null) {
+                val path = android.graphics.Path()
+                val localStart = intersectStart - page.startOffset
+                val localEnd = intersectEnd - page.startOffset
+                page.layout.getSelectionPath(localStart, localEnd, path)
+                canvas.drawPath(path, highlightPaint)
+            }
+        }
         
         // 绘制文本
         page.layout?.draw(canvas)
@@ -435,6 +463,16 @@ class NovelReaderView @JvmOverloads constructor(
         if (headerHeight != height) {
             headerHeight = height
             repaginate()
+        }
+    }
+
+    /**
+     * 设置此时此刻的 TTS 高亮游标
+     */
+    fun setHighlightRange(range: IntRange?) {
+        if (highlightRange != range) {
+            highlightRange = range
+            invalidate()
         }
     }
 

@@ -6,5 +6,6 @@ enum class CacheDir(val dir: String) {
 	FAVICONS("favicons"),
 	PAGES("pages"),
 	NOVELS("novels"),
-	VIDEO("video");
+	VIDEO("video"),
+    TtsAudio("tts_audio");
 }

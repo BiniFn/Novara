@@ -10,6 +10,7 @@
 	<uses-permission
 		android:name="android.permission.FOREGROUND_SERVICE"
 		tools:ignore="ForegroundServicesPolicy" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 	<uses-permission android:name="android.permission.WAKE_LOCK" />
 	<uses-permission android:name="android.permission.VIBRATE" />
 	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -379,6 +380,11 @@
 			android:name="androidx.work.impl.foreground.SystemForegroundService"
 			android:foregroundServiceType="dataSync"
 			tools:node="merge" />
+        <service
+            android:name="org.skepsun.kototoro.reader.novel.tts.TtsService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false"
+            android:label="TTS 引擎" />
 		<service
 			android:name="org.skepsun.kototoro.local.ui.LocalChaptersRemoveService"
 			android:foregroundServiceType="dataSync"
