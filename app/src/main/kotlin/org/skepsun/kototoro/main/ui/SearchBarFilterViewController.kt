@@ -44,9 +44,7 @@ class SearchBarFilterViewController(
 		fun onFilterIconClicked(anchor: View): Boolean = false
 	}
 
-	private var checkManga: ImageView? = null
-	private var checkNovel: ImageView? = null
-	private var checkVideo: ImageView? = null
+	private var checkContentType: ImageView? = null
 	private var checkTag: ImageView? = null
 	private var customView: View? = null
 
@@ -59,18 +57,16 @@ class SearchBarFilterViewController(
 		item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
 		customView = LayoutInflater.from((callback as Fragment).requireContext())
-			.inflate(R.layout.layout_searchbar_filters_2x2, null, false)
+			.inflate(R.layout.layout_searchbar_filters, null, false)
 		
 		item.actionView = customView
 
-		checkManga = customView?.findViewById(R.id.filter_content_manga)
-		checkNovel = customView?.findViewById(R.id.filter_content_novel)
-		checkVideo = customView?.findViewById(R.id.filter_content_video)
+		checkContentType = customView?.findViewById(R.id.filter_content_type)
 		checkTag = customView?.findViewById(R.id.filter_source_tag)
 
-		checkManga?.setOnClickListener { toggleContentType(BrowseGroupTab.Content) }
-		checkNovel?.setOnClickListener { toggleContentType(BrowseGroupTab.Novel) }
-		checkVideo?.setOnClickListener { toggleContentType(BrowseGroupTab.Video) }
+		checkContentType?.setOnClickListener {
+			showContentTypePopup()
+		}
 		checkTag?.setOnClickListener {
 			if (!callback.onFilterIconClicked(checkTag!!)) {
 				showSourceTagPopup()
@@ -86,17 +82,46 @@ class SearchBarFilterViewController(
 	fun destroy() {
 		// Android automatically removes action views when menu is destroyed/cleared.
 		customView = null
-		checkManga = null
-		checkNovel = null
-		checkVideo = null
+		checkContentType = null
 		checkTag = null
 	}
 
-	private fun toggleContentType(tab: BrowseGroupTab) {
+	private fun showContentTypePopup() {
+		val checkContentTypeView = checkContentType ?: return
+		val popup = PopupMenu(checkContentTypeView.context, checkContentTypeView, android.view.Gravity.END)
+		val tabs = BrowseGroupTab.getAllTabs()
 		val current = callback.getSelectedContentType()
-		callback.onContentTypeSelected(if (current == tab) BrowseGroupTab.All else tab)
-		updateIcons()
+
+		tabs.forEachIndexed { index, tab ->
+			popup.menu.add(0, index, index, tab.titleRes).apply {
+				setIcon(tab.iconRes)
+				isCheckable = true
+				isChecked = current == tab
+				isEnabled = callback.isContentTypeEnabled(tab)
+			}
+		}
+
+		// Show icons in popup
+		try {
+			val field = popup.javaClass.getDeclaredField("mPopup")
+			field.isAccessible = true
+			val menuPopupHelper = field.get(popup)
+			menuPopupHelper.javaClass.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
+				.invoke(menuPopupHelper, true)
+		} catch (_: Exception) {
+		}
+
+		popup.setOnMenuItemClickListener { item ->
+			tabs.getOrNull(item.itemId)?.let { tab ->
+				callback.onContentTypeSelected(tab)
+				updateIcons()
+			}
+			true
+		}
+
+		popup.show()
 	}
+
 
 	private fun showSourceTagPopup() {
 		val checkTagView = checkTag ?: return
@@ -153,9 +178,7 @@ class SearchBarFilterViewController(
 		val showContent = callback.isContentTypeFilterVisible()
 		val showSource = callback.isSourceTagFilterVisible()
 
-		checkManga?.isVisible = showContent
-		checkNovel?.isVisible = showContent
-		checkVideo?.isVisible = showContent
+		checkContentType?.isVisible = showContent
 		checkTag?.isVisible = showSource
 	}
 
@@ -163,11 +186,18 @@ class SearchBarFilterViewController(
 		val selectedTab = callback.getSelectedContentType()
 		val selectedTags = callback.getSelectedSourceTags()
 
-		checkManga?.let { tintItem(it, selectedTab == BrowseGroupTab.Content, callback.isContentTypeEnabled(BrowseGroupTab.Content)) }
-		checkNovel?.let { tintItem(it, selectedTab == BrowseGroupTab.Novel, callback.isContentTypeEnabled(BrowseGroupTab.Novel)) }
-		checkVideo?.let { tintItem(it, selectedTab == BrowseGroupTab.Video, callback.isContentTypeEnabled(BrowseGroupTab.Video)) }
+		checkContentType?.let {
+			it.setImageResource(selectedTab.iconRes)
+			it.contentDescription = it.context.getString(selectedTab.titleRes)
+			val isSelected = selectedTab != BrowseGroupTab.All
+			tintItem(it, isSelected, callback.isContentTypeEnabled(selectedTab))
+		}
 		
-		val iconRes = callback.getSourceTagIconRes()
+		val iconRes = if (selectedTags.size == 1) {
+			selectedTags.first().iconRes
+		} else {
+			callback.getSourceTagIconRes()
+		}
 		checkTag?.setImageResource(iconRes)
 		checkTag?.let { tintItem(it, selectedTags.isNotEmpty(), true) }
 	}

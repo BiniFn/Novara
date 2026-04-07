@@ -302,7 +302,7 @@ private class AnonymousContentSource(override val name: String) : ContentSource 
 		name.startsWith("JSON_LEGADO_M_") -> ContentType.MANGA
 		name.startsWith("JSON_LEGADO_") -> ContentType.NOVEL
 		name.startsWith("MIHON_") -> ContentType.MANGA
-		name.startsWith("IREADER_") -> ContentType.MANGA
+		name.startsWith("IREADER_") -> ContentType.NOVEL
 		else -> ContentType.OTHER
 	}
 

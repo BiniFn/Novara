@@ -66,6 +66,7 @@ class MainNavigationDelegate(
 
 	val primaryFragment: Fragment?
 		get() = fragmentManager.findFragmentByTag(TAG_PRIMARY)
+			?: fragmentManager.fragments.lastOrNull { it.isVisible && it.id == R.id.container }
 
 	init {
 		navBar.setOnItemSelectedListener(this)
@@ -115,20 +116,43 @@ class MainNavigationDelegate(
 			createMenu(settings.mainNavItems, navBar.menu)
 		}
 		observeSettings(lifecycleOwner)
-		val fragment = primaryFragment
-		if (fragment != null) {
-			onFragmentChanged(fragment, fromUser = false)
-			val itemId = getItemId(fragment)
-			if (navBar.selectedItemId != itemId) {
-				navBar.selectedItemId = itemId
+
+		if (savedInstanceState != null) {
+			// After config change: FragmentManager restores all fragments as visible.
+			// We need to hide all except the currently selected one.
+			val selectedItemId = navBar.selectedItemId
+			val selectedFragClass = itemIdToFragmentClass(selectedItemId)
+			val selectedTag = selectedFragClass?.name
+			val transaction = fragmentManager.beginTransaction()
+			var found: Fragment? = null
+			for (f in fragmentManager.fragments) {
+				if (f.id == R.id.container) {
+					if (f.tag == selectedTag) {
+						transaction.show(f)
+						found = f
+					} else {
+						transaction.hide(f)
+					}
+				}
+			}
+			transaction.commitNowAllowingStateLoss()
+			if (found != null) {
+				onFragmentChanged(found, fromUser = false)
+			} else {
+				onNavigationItemSelected(selectedItemId)
 			}
 		} else {
-			val itemId = if (savedInstanceState == null) {
-				firstItem()?.itemId ?: navBar.selectedItemId
+			val fragment = primaryFragment
+			if (fragment != null) {
+				onFragmentChanged(fragment, fromUser = false)
+				val itemId = getItemId(fragment)
+				if (navBar.selectedItemId != itemId) {
+					navBar.selectedItemId = itemId
+				}
 			} else {
-				navBar.selectedItemId
+				val itemId = firstItem()?.itemId ?: navBar.selectedItemId
+				onNavigationItemSelected(itemId)
 			}
-			onNavigationItemSelected(itemId)
 		}
 	}
 
@@ -220,44 +244,61 @@ class MainNavigationDelegate(
 		else -> 0
 	}
 
+	private fun itemIdToFragmentClass(@IdRes itemId: Int): Class<out Fragment>? = when (itemId) {
+		R.id.nav_home -> HomeFragment::class.java
+		R.id.nav_history -> HistoryListFragment::class.java
+		R.id.nav_favorites -> FavouritesContainerFragment::class.java
+		R.id.nav_explore -> ExploreFragment::class.java
+		R.id.nav_discover -> DiscoverFragment::class.java
+		R.id.nav_feed -> FeedFragment::class.java
+		R.id.nav_local -> LocalListFragment::class.java
+		R.id.nav_suggestions -> SuggestionsFragment::class.java
+		R.id.nav_bookmarks -> AllBookmarksFragment::class.java
+		R.id.nav_updated -> UpdatesFragment::class.java
+		else -> null
+	}
+
 	private fun setPrimaryFragment(fragmentClass: Class<out Fragment>, newItemId: Int? = null): Boolean {
 		if (fragmentManager.isStateSaved || fragmentClass.isInstance(primaryFragment)) {
 			return false
 		}
-		val fragment = instantiateFragment(fragmentClass)
-		val args = buildBundle(1) {
-			putBoolean(AppRouter.KEY_IS_BOTTOMTAB, true)
-		}
-		
+		val tag = fragmentClass.name
 		val currentFrag = primaryFragment
-		if (currentFrag != null && newItemId != null) {
-			val oldItemId = getItemId(currentFrag)
-			val oldIndex = getMenuIndex(oldItemId)
-			val newIndex = getMenuIndex(newItemId)
-			val forward = newIndex >= oldIndex
-			
-			fragment.enterTransition = com.google.android.material.transition.MaterialSharedAxis(com.google.android.material.transition.MaterialSharedAxis.X, forward)
-			currentFrag.exitTransition = com.google.android.material.transition.MaterialSharedAxis(com.google.android.material.transition.MaterialSharedAxis.X, forward)
-		} else {
-			fragment.enterTransition = com.google.android.material.transition.MaterialFadeThrough()
-			currentFrag?.exitTransition = com.google.android.material.transition.MaterialFadeThrough()
-		}
-		
-		fragmentManager.beginTransaction()
+		val existingFrag = fragmentManager.findFragmentByTag(tag)
+
+		val transaction = fragmentManager.beginTransaction()
 			.setReorderingAllowed(true)
-			.replace(R.id.container, fragmentClass, args, TAG_PRIMARY)
-			.runOnCommit { onFragmentChanged(fragment, fromUser = true) }
+
+		// Hide the current fragment (don't remove it)
+		if (currentFrag != null) {
+			currentFrag.exitTransition = MaterialFadeThrough().apply { duration = 150 }
+			transaction.hide(currentFrag)
+		}
+
+		val targetFrag: Fragment
+		if (existingFrag != null) {
+			// Fragment already cached — just show it
+			existingFrag.enterTransition = MaterialFadeThrough().apply { duration = 150 }
+			transaction.show(existingFrag)
+			targetFrag = existingFrag
+		} else {
+			// First visit — create, add and tag it
+			val fragment = instantiateFragment(fragmentClass)
+			fragment.arguments = buildBundle(1) {
+				putBoolean(AppRouter.KEY_IS_BOTTOMTAB, true)
+			}
+			fragment.enterTransition = MaterialFadeThrough().apply { duration = 150 }
+			transaction.add(R.id.container, fragment, tag)
+			targetFrag = fragment
+		}
+
+		transaction
+			.runOnCommit { onFragmentChanged(targetFrag, fromUser = true) }
 			.commit()
 		return true
 	}
 
-	private fun getMenuIndex(itemId: Int): Int {
-		val menu = navBar.menu
-		for (i in 0 until menu.size) {
-			if (menu.getItem(i).itemId == itemId) return i
-		}
-		return -1
-	}
+
 
 	private fun onNavigationItemReselected() {
 		val recyclerView = (primaryFragment as? RecyclerViewOwner)?.recyclerView ?: return
