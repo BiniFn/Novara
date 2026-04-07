@@ -47,11 +47,23 @@ class TtsManager(
     private var prefetchJob: Job? = null
     private var playbackJob: Job? = null
 
-    // For caching hash purposes (mocking settings for MVP)
-    private val engineId = "system_tts"
-    private val voiceId = "default"
-    private val speed = 1.0f
-    private val pitch = 1.0f
+    // For caching hash purposes (read from preferences)
+    private val engineId: String
+    private val voiceId: String
+    private val speed: Float
+    private val pitch: Float
+
+    init {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        engineId = prefs.getString("tts_engine_type", "SYSTEM") ?: "SYSTEM"
+        voiceId = if (engineId == "LEGADO") {
+            prefs.getString("tts_legado_voice", "default") ?: "default"
+        } else {
+            prefs.getString("tts_system_voice", "default") ?: "default"
+        }
+        speed = 1.0f // TODO: read from settings when implemented
+        pitch = 1.0f // TODO: read from settings when implemented
+    }
 
     companion object {
         private const val TAG = "TtsManager"
@@ -145,6 +157,8 @@ class TtsManager(
     fun getToken(index: Int): Token? {
         return tokens.getOrNull(index)
     }
+
+    fun getTokens(): List<Token> = tokens
 
     fun stop() {
         Log.d(TAG, "stop requested")

@@ -31,13 +31,7 @@ class TtsService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         
-        val ttsEngine = org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(
-            android.speech.tts.TextToSpeech(this) { _ -> },
-            this
-        )
-        val cache = org.skepsun.kototoro.reader.novel.tts.TtsCache(this)
-        val player = org.skepsun.kototoro.reader.novel.tts.player.ExoPlayerController(this)
-        ttsManager = TtsManager(this, ttsEngine, cache, player)
+        ttsManager = createTtsManager()
         
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -96,6 +90,68 @@ class TtsService : LifecycleService() {
     fun getPlayingTokenIndex() = ttsManager.currentPlayingTokenIndex
     
     fun getToken(index: Int) = ttsManager.getToken(index)
+    
+    fun getTokens(): List<Token> = ttsManager.getTokens()
+    
+    fun reloadEngine() {
+        val wasPlaying = ttsManager.state.value == TtsState.PLAYING
+        val currentIndex = ttsManager.currentPlayingTokenIndex.value ?: 0
+        val tokens = ttsManager.getTokens()
+        
+        ttsManager.release()
+        ttsManager = createTtsManager()
+        
+        // Ensure ExoPlayer is fully re-initialized before attempting to start playback again
+        if (wasPlaying && tokens.isNotEmpty()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (::ttsManager.isInitialized) {
+                    startTts(tokens, currentIndex)
+                }
+            }, 300)
+        }
+    }
+    
+    private fun createTtsManager(): TtsManager {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+        val engineType = prefs.getString("tts_engine_type", "SYSTEM")
+        
+        val engine: org.skepsun.kototoro.reader.novel.tts.engine.TTSEngine = if (engineType == "LEGADO") {
+            val currentJson = prefs.getString("legado_tts_configs", "[]") ?: "[]"
+            val voiceUrl = prefs.getString("tts_legado_voice", "")
+            
+            val type = object : com.google.gson.reflect.TypeToken<List<org.skepsun.kototoro.reader.novel.tts.model.TtsHttpConfig>>() {}.type
+            val configs: List<org.skepsun.kototoro.reader.novel.tts.model.TtsHttpConfig> = try {
+                com.google.gson.Gson().fromJson(currentJson, type) ?: emptyList()
+            } catch (e: Exception) { emptyList() }
+            
+            val matchingConfig = configs.find { it.url == voiceUrl } ?: configs.firstOrNull()
+            
+            if (matchingConfig != null) {
+                val okHttpClient = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                org.skepsun.kototoro.reader.novel.tts.engine.HttpTTSEngine(okHttpClient, matchingConfig, this)
+            } else {
+                // Fallback to System TTS if no Legado config found
+                org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(
+                    android.speech.tts.TextToSpeech(this) { _ -> },
+                    this
+                )
+            }
+        } else {
+            val systemVoice = prefs.getString("tts_system_voice", "default") ?: "default"
+            val systemTts = android.speech.tts.TextToSpeech(this) { _ -> }
+            org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(systemTts, this).apply {
+                systemTts.setOnUtteranceProgressListener(null) // Reset first
+                // Use a handler to set voice once initialized, handled internally by engine
+            }
+        }
+        
+        val cache = org.skepsun.kototoro.reader.novel.tts.TtsCache(this)
+        val player = org.skepsun.kototoro.reader.novel.tts.player.ExoPlayerController(this)
+        return TtsManager(this, engine, cache, player)
+    }
 
     private fun buildNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
         .setContentTitle("Kototoro ")

@@ -614,6 +614,90 @@ class NovelReaderActivity :
         viewBinding.btnTtsNext.setOnClickListener {
             ttsService?.seekNext()
         }
+        viewBinding.btnTtsVoice.setOnClickListener {
+            showVoiceSelectionDialog()
+        }
+    }
+
+    private fun showVoiceSelectionDialog() {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+        val isSystem = prefs.getString("tts_engine_type", "SYSTEM") == "SYSTEM"
+        
+        if (isSystem) {
+            val localTts = android.speech.tts.TextToSpeech(this) { status ->
+                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                    val voices = try { this@NovelReaderActivity.getSystemService(android.speech.tts.TextToSpeech::class.java)?.voices?.toList() ?: emptyList() } catch (e: Exception) { emptyList() }
+                    
+                    runOnUiThread {
+                        if (voices.isNotEmpty()) {
+                            val sortedVoices = voices.sortedBy { it.locale.displayName }
+                            val entries = sortedVoices.map { "${it.locale.displayName} (${it.name})" }.toTypedArray()
+                            val values = sortedVoices.map { it.name }.toTypedArray()
+                            
+                            val currentVoice = prefs.getString("tts_system_voice", "default")
+                            val checkedItem = values.indexOf(currentVoice).takeIf { it >= 0 } ?: 0
+                            
+                            com.google.android.material.dialog.MaterialAlertDialogBuilder(this@NovelReaderActivity)
+                                .setTitle("选择系统音色")
+                                .setSingleChoiceItems(entries, checkedItem) { dialog, which ->
+                                    prefs.edit().putString("tts_system_voice", values[which]).apply()
+                                    dialog.dismiss()
+                                    ttsService?.reloadEngine()
+                                }
+                                .show()
+                        } else {
+                        	// Try fallback to just languages if voices are hidden (OEM restrictions)
+                        	val locales = try { android.speech.tts.TextToSpeech(this@NovelReaderActivity){} .availableLanguages?.toList()?.sortedBy { it.displayName } } catch (e:Exception) { null } ?: emptyList()
+                        	if (locales.isNotEmpty()) {
+                                    val entries = locales.map { it.displayName }.toTypedArray()
+                                    val values = locales.map { it.toLanguageTag() }.toTypedArray()
+                                    val currentVoice = prefs.getString("tts_system_voice", "default")
+                                    val checkedItem = values.indexOf(currentVoice).takeIf { it >= 0 } ?: 0
+                                    
+                                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this@NovelReaderActivity)
+                                        .setTitle("选择系统语言（OEM）")
+                                        .setSingleChoiceItems(entries, checkedItem) { dialog, which ->
+                                            prefs.edit().putString("tts_system_voice", values[which]).apply()
+                                            dialog.dismiss()
+                                            ttsService?.reloadEngine()
+                                        }
+                                        .show()
+                        	} else {
+                                viewBinding.toastView.showTemporary("未检测到可用的系统音色", 2000L)
+                        	}
+                        }
+                    }
+                }
+            }
+        } else {
+            val currentJson = prefs.getString("legado_tts_configs", "[]") ?: "[]"
+            val type = object : com.google.gson.reflect.TypeToken<List<org.skepsun.kototoro.reader.novel.tts.model.TtsHttpConfig>>() {}.type
+            val configs: List<org.skepsun.kototoro.reader.novel.tts.model.TtsHttpConfig> = try {
+                com.google.gson.Gson().fromJson(currentJson, type) ?: emptyList()
+            } catch (e: Exception) { emptyList() }
+            
+            if (configs.isNotEmpty()) {
+                val names = configs.map { it.name }.toTypedArray()
+                val values = configs.map { it.url }.toTypedArray()
+                
+                val currentVoice = prefs.getString("tts_legado_voice", "")
+                val checkedItem = values.indexOf(currentVoice).takeIf { it >= 0 } ?: 0
+                
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle("选择网络音色")
+                    .setSingleChoiceItems(names, checkedItem) { dialog, which ->
+                        prefs.edit().putString("tts_legado_voice", values[which]).apply()
+                        dialog.dismiss()
+                        ttsService?.reloadEngine()
+                    }
+                    .setNeutralButton("管理配置") { _, _ ->
+                        startActivity(android.content.Intent(this@NovelReaderActivity, org.skepsun.kototoro.settings.SettingsActivity::class.java))
+                    }
+                    .show()
+            } else {
+                viewBinding.toastView.showTemporary("尚未导入任何网络音源配置，请前往设置导入", 2500L)
+            }
+        }
     }
 
     override fun onTtsClick() {

@@ -72,6 +72,29 @@ class SystemTTSEngine(
                     putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
                 }
 
+                val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                val voiceId = prefs.getString("tts_system_voice", "default")
+                if (voiceId != null && voiceId != "default") {
+                    try {
+                        val voices = tts.voices
+                        if (voices != null) {
+                            val targetVoice = voices.firstOrNull { it.name == voiceId }
+                            if (targetVoice != null) {
+                                tts.voice = targetVoice
+                            }
+                        } else {
+                            // Fallback for OEM TTS (like OnePlus) where getVoices is empty but language is supported
+                            val languageTag = voiceId
+                            val locale = java.util.Locale.forLanguageTag(languageTag)
+                            if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
+                                tts.language = locale
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("SystemTTSEngine", "Failed to set voice or language", e)
+                    }
+                }
+
                 val result = tts.synthesizeToFile(
                     token.text,
                     params,

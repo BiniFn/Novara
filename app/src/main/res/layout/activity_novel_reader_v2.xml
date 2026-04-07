@@ -125,6 +125,19 @@
                     android:layout_weight="1" />
                     
                 <ImageButton
+                    android:id="@+id/btn_tts_voice"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_voice_input"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="切换音色" />
+                    
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+                    
+                <ImageButton
                     android:id="@+id/btn_tts_close"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
