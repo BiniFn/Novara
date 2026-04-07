@@ -14,6 +14,11 @@
             android:title="TTS Engine Type"
             android:summary="%s"
             android:defaultValue="SYSTEM" />
+            
+        <Preference
+            android:key="tts_test_btn"
+            android:title="TTS Test / 测试音色"
+            android:summary="Play a short test phrase using the currently selected engine and voice" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="System TTS Configuration"

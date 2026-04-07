@@ -11,6 +11,10 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.reader.novel.tts.model.Token
@@ -23,6 +27,10 @@ class TtsService : LifecycleService() {
     lateinit var ttsManager: TtsManager
 
     private val binder = TtsBinder()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private val _serviceState = kotlinx.coroutines.flow.MutableStateFlow(org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE)
+    private var stateCollectionJob: kotlinx.coroutines.Job? = null
 
     inner class TtsBinder : Binder() {
         fun getService(): TtsService = this@TtsService
@@ -32,12 +40,20 @@ class TtsService : LifecycleService() {
         super.onCreate()
         
         ttsManager = createTtsManager()
+        observeManagerState()
         
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, buildNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else {
             startForeground(NOTIFICATION_ID, buildNotification())
+        }
+    }
+
+    private fun observeManagerState() {
+        stateCollectionJob?.cancel()
+        stateCollectionJob = serviceScope.launch {
+            ttsManager.state.collect { _serviceState.value = it }
         }
     }
 
@@ -85,7 +101,7 @@ class TtsService : LifecycleService() {
         stopSelf()
     }
 
-    fun getState(): StateFlow<TtsState> = ttsManager.state
+    fun getState(): StateFlow<TtsState> = _serviceState
     
     fun getPlayingTokenIndex() = ttsManager.currentPlayingTokenIndex
     
@@ -100,6 +116,7 @@ class TtsService : LifecycleService() {
         
         ttsManager.release()
         ttsManager = createTtsManager()
+        observeManagerState()
         
         // Ensure ExoPlayer is fully re-initialized before attempting to start playback again
         if (wasPlaying && tokens.isNotEmpty()) {
@@ -134,18 +151,11 @@ class TtsService : LifecycleService() {
                 org.skepsun.kototoro.reader.novel.tts.engine.HttpTTSEngine(okHttpClient, matchingConfig, this)
             } else {
                 // Fallback to System TTS if no Legado config found
-                org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(
-                    android.speech.tts.TextToSpeech(this) { _ -> },
-                    this
-                )
+                org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(this)
             }
         } else {
             val systemVoice = prefs.getString("tts_system_voice", "default") ?: "default"
-            val systemTts = android.speech.tts.TextToSpeech(this) { _ -> }
-            org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(systemTts, this).apply {
-                systemTts.setOnUtteranceProgressListener(null) // Reset first
-                // Use a handler to set voice once initialized, handled internally by engine
-            }
+            org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine(this)
         }
         
         val cache = org.skepsun.kototoro.reader.novel.tts.TtsCache(this)

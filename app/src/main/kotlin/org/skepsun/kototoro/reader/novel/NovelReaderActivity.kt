@@ -99,6 +99,7 @@ class NovelReaderActivity :
     private var isUiVisible: Boolean = false
     private var currentPageIndex: Int = 0
     private var desiredProgressRatio: Float? = null
+    private var pendingTtsAutoStart: Boolean = false
     
     // Continuous Scroll mode properties
     private var continuousAdapter: NovelContinuousAdapter? = null
@@ -130,6 +131,11 @@ class NovelReaderActivity :
                     if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
                         // TODO string sync highlighting
                     }
+                    
+                    // 当当前页朗读完成时，自动翻页并继续朗读
+                    if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.COMPLETED) {
+                        handleTtsPageCompleted()
+                    }
                 }
             }
             
@@ -156,6 +162,9 @@ class NovelReaderActivity :
 
     override fun onStop() {
         super.onStop()
+        if (isFinishing) {
+            ttsService?.stopTts()
+        }
         if (isTtsBound) {
             unbindService(ttsConnection)
             isTtsBound = false
@@ -604,6 +613,10 @@ class NovelReaderActivity :
         viewBinding.btnTtsClose.setOnClickListener {
             onTtsStopClicked()
             viewBinding.ttsControlBar.visibility = View.GONE
+            // 如果 UI 已隐藏，关闭 TTS 后也隐藏底部工具栏
+            if (!isUiVisible) {
+                viewBinding.toolbarDocked.isVisible = false
+            }
         }
         viewBinding.btnTtsPlayPause.setOnClickListener {
             onTtsPlayPauseClicked()
@@ -624,9 +637,10 @@ class NovelReaderActivity :
         val isSystem = prefs.getString("tts_engine_type", "SYSTEM") == "SYSTEM"
         
         if (isSystem) {
-            val localTts = android.speech.tts.TextToSpeech(this) { status ->
+            var localTts: android.speech.tts.TextToSpeech? = null
+            localTts = android.speech.tts.TextToSpeech(this) { status ->
                 if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                    val voices = try { this@NovelReaderActivity.getSystemService(android.speech.tts.TextToSpeech::class.java)?.voices?.toList() ?: emptyList() } catch (e: Exception) { emptyList() }
+                    val voices = try { localTts?.voices?.toList() ?: emptyList() } catch (e: Exception) { emptyList() }
                     
                     runOnUiThread {
                         if (voices.isNotEmpty()) {
@@ -644,11 +658,11 @@ class NovelReaderActivity :
                                     dialog.dismiss()
                                     ttsService?.reloadEngine()
                                 }
+                                .setOnDismissListener { localTts?.shutdown() }
                                 .show()
                         } else {
-                        	// Try fallback to just languages if voices are hidden (OEM restrictions)
-                        	val locales = try { android.speech.tts.TextToSpeech(this@NovelReaderActivity){} .availableLanguages?.toList()?.sortedBy { it.displayName } } catch (e:Exception) { null } ?: emptyList()
-                        	if (locales.isNotEmpty()) {
+                            val locales = try { localTts?.availableLanguages?.toList()?.sortedBy { it.displayName } } catch (e:Exception) { null } ?: emptyList()
+                            if (locales.isNotEmpty()) {
                                     val entries = locales.map { it.displayName }.toTypedArray()
                                     val values = locales.map { it.toLanguageTag() }.toTypedArray()
                                     val currentVoice = prefs.getString("tts_system_voice", "default")
@@ -661,12 +675,16 @@ class NovelReaderActivity :
                                             dialog.dismiss()
                                             ttsService?.reloadEngine()
                                         }
+                                        .setOnDismissListener { localTts?.shutdown() }
                                         .show()
-                        	} else {
+                            } else {
                                 viewBinding.toastView.showTemporary("未检测到可用的系统音色", 2000L)
-                        	}
+                                localTts?.shutdown()
+                            }
                         }
                     }
+                } else {
+                    localTts?.shutdown()
                 }
             }
         } else {
@@ -702,6 +720,12 @@ class NovelReaderActivity :
 
     override fun onTtsClick() {
         viewBinding.ttsControlBar.visibility = View.VISIBLE
+        // 确保底部工具栏可见，以显示 TTS 控制条
+        viewBinding.toolbarDocked.isVisible = true
+        // 如果 UI 已隐藏，只显示 TTS 控制条，隐藏其他操作按钮
+        if (!isUiVisible) {
+            viewBinding.actionsView.isVisible = false
+        }
         val state = ttsService?.getState()?.value
         if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE) {
             onTtsPlayPauseClicked()
@@ -715,6 +739,8 @@ class NovelReaderActivity :
         val tokens = org.skepsun.kototoro.reader.novel.tts.Tokenizer.tokenize(text)
         
         runCatching {
+            val intent = android.content.Intent(this, org.skepsun.kototoro.reader.novel.tts.TtsService::class.java)
+            androidx.core.content.ContextCompat.startForegroundService(this, intent)
             ttsService?.startTts(tokens, 0)
         }.onFailure { 
             android.util.Log.e("NovelReaderActivity", "TTS Failed", it)
@@ -728,6 +754,8 @@ class NovelReaderActivity :
         if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
             ttsService?.pause()
         } else if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PAUSED) {
+            val intent = android.content.Intent(this, org.skepsun.kototoro.reader.novel.tts.TtsService::class.java)
+            androidx.core.content.ContextCompat.startForegroundService(this, intent)
             ttsService?.resume()
         } else {
             startTtsFromCurrentPage()
@@ -736,6 +764,41 @@ class NovelReaderActivity :
 
     private fun onTtsStopClicked() {
         ttsService?.stopTts()
+    }
+
+    /**
+     * 当前页朗读完成后自动翻页并继续朗读
+     */
+    private fun handleTtsPageCompleted() {
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+        if (isScrollMode) {
+            // 滚动模式暂不支持自动翻页朗读
+            return
+        }
+        
+        // 尝试翻到下一页
+        val hasNextPage = viewBinding.readerView.nextPage()
+        if (hasNextPage) {
+            // 翻页后延迟一小段时间等待页面渲染完成，然后开始朗读新页面
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (viewBinding.ttsControlBar.visibility == android.view.View.VISIBLE) {
+                    startTtsFromCurrentPage()
+                }
+            }, 300)
+        } else {
+            // 当前页是本章最后一页，尝试切换到下一章
+            val targetIndex = currentChapterIndex + 1
+            if (targetIndex in chapters.indices) {
+                currentChapterIndex = targetIndex
+                currentPageIndex = 0
+                // 设置标志，在章节加载完成后自动开始朗读
+                pendingTtsAutoStart = true
+                loadChapter(currentChapterIndex)
+            } else {
+                // 已经是最后一章最后一页
+                ttsService?.stopTts()
+            }
+        }
     }
 
     override fun onSavePageClick() {}
@@ -1450,6 +1513,15 @@ class NovelReaderActivity :
                             2000L,
                         )
                     }
+                    
+                    if (pendingTtsAutoStart) {
+                        pendingTtsAutoStart = false
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            if (viewBinding.ttsControlBar.visibility == android.view.View.VISIBLE) {
+                                startTtsFromCurrentPage()
+                            }
+                        }, 500)
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Failed to render EPUB chapter", e)
@@ -1601,6 +1673,15 @@ class NovelReaderActivity :
                                     chapter.title ?: getString(R.string.unnamed_chapter),
                                     2000L,
                                 )
+                            }
+                            
+                            if (pendingTtsAutoStart) {
+                                pendingTtsAutoStart = false
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    if (viewBinding.ttsControlBar.visibility == android.view.View.VISIBLE) {
+                                        startTtsFromCurrentPage()
+                                    }
+                                }, 500)
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("NovelReaderActivity", "Failed to set content", e)
@@ -1938,18 +2019,30 @@ class NovelReaderActivity :
 
     private fun setUiVisible(visible: Boolean) {
         if (viewBinding.appbarTop.isVisible != visible) {
+            val isTtsBarActive = viewBinding.ttsControlBar.visibility == View.VISIBLE
+            
             if (isAnimationsEnabled) {
                 val transition = TransitionSet()
                     .setOrdering(TransitionSet.ORDERING_TOGETHER)
                     .addTransition(Slide(Gravity.TOP).addTarget(viewBinding.appbarTop))
-                    .addTransition(Slide(Gravity.BOTTOM).addTarget(viewBinding.toolbarDocked))
                     .addTransition(Fade().addTarget(viewBinding.infoBar))
+                // 只有在 TTS 未激活时，底部工具栏才参与滑动动画
+                if (!isTtsBarActive) {
+                    transition.addTransition(Slide(Gravity.BOTTOM).addTarget(viewBinding.toolbarDocked))
+                }
                 TransitionManager.beginDelayedTransition(viewBinding.root, transition)
             }
             
             isUiVisible = visible
             viewBinding.appbarTop.isVisible = visible
-            viewBinding.toolbarDocked.isVisible = visible
+            
+            if (isTtsBarActive) {
+                // TTS 控制条激活时，底部工具栏保持可见，但隐藏/显示操作按钮
+                viewBinding.toolbarDocked.isVisible = true
+                viewBinding.actionsView.isVisible = visible
+            } else {
+                viewBinding.toolbarDocked.isVisible = visible
+            }
             
             // 只有在工具栏隐藏、全屏模式且开启了阅读状态显示时，才显示 infoBar
             viewBinding.infoBar.isGone = visible || !readerSettings.showReadingStatus

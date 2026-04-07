@@ -27,6 +27,12 @@ import com.google.gson.reflect.TypeToken
 import java.util.Locale
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import android.media.MediaPlayer
+import javax.inject.Inject
+import org.skepsun.kototoro.reader.novel.tts.engine.SystemTTSEngine
+import org.skepsun.kototoro.reader.novel.tts.engine.HttpTTSEngine
+import org.skepsun.kototoro.reader.novel.tts.model.Token
+import org.skepsun.kototoro.reader.novel.tts.model.TokenType
 
 @AndroidEntryPoint
 class TtsSettingsFragment : 
@@ -100,6 +106,10 @@ class TtsSettingsFragment :
         updateLegadoVoiceList()
         
         // Setup click listeners
+        findPreference<Preference>("tts_test_btn")?.setOnPreferenceClickListener {
+            testTtsVoice()
+            true
+        }
         findPreference<Preference>("tts_import_legado_clipboard")?.setOnPreferenceClickListener {
             importFromClipboard()
             true
@@ -111,6 +121,73 @@ class TtsSettingsFragment :
         findPreference<Preference>("tts_manage_legado")?.setOnPreferenceClickListener {
             manageLegadoSources()
             true
+        }
+    }
+
+    private var testMediaPlayer: MediaPlayer? = null
+
+    private fun testTtsVoice() {
+        Toast.makeText(requireContext(), "正在生成测试语音...", Toast.LENGTH_SHORT).show()
+        findPreference<Preference>("tts_test_btn")?.isEnabled = false
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val prefs = preferenceManager.sharedPreferences ?: return@launch
+                val engineId = prefs.getString("tts_engine_type", "SYSTEM") ?: "SYSTEM"
+                
+                val engine = if (engineId == "LEGADO") {
+                    val url = prefs.getString("tts_legado_voice", "") ?: ""
+                    val currentJson = prefs.getString("legado_tts_configs", "[]") ?: "[]"
+                    val type = object : TypeToken<List<TtsHttpConfig>>() {}.type
+                    val configs: List<TtsHttpConfig> = try {
+                        Gson().fromJson(currentJson, type)
+                    } catch (e: Exception) { emptyList() }
+                    
+                    val config = configs.find { it.url == url }
+                        ?: throw Exception("未选择可用的网络请求源")
+                        
+                    val okHttpClient = OkHttpClient.Builder()
+                        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                        
+                    HttpTTSEngine(okHttpClient, config, requireContext())
+                } else {
+                    SystemTTSEngine(requireContext())
+                }
+                
+                val testText = "这到底是一段用来检测声音的测试语音，如果你能听到这段话，说明发音引擎工作正常。"
+                val testToken = Token(
+                    id = System.currentTimeMillis(),
+                    text = testText,
+                    type = TokenType.NARRATION,
+                    range = testText.indices
+                )
+                
+                val result = engine.synthesize(testToken)
+                
+                withContext(Dispatchers.Main) {
+                    engine.release()
+                    
+                    val audioData = result.getOrNull()
+                    if (audioData != null) {
+                        testMediaPlayer?.release()
+                        testMediaPlayer = MediaPlayer.create(requireContext(), audioData.uri)
+                        testMediaPlayer?.setOnCompletionListener {
+                            it.release()
+                            findPreference<Preference>("tts_test_btn")?.isEnabled = true
+                        }
+                        testMediaPlayer?.start()
+                    } else {
+                        throw Exception(result.exceptionOrNull()?.message ?: "合成失败")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    findPreference<Preference>("tts_test_btn")?.isEnabled = true
+                }
+            }
         }
     }
 
@@ -167,6 +244,8 @@ class TtsSettingsFragment :
     override fun onDestroyView() {
         preferenceManager.sharedPreferences?.unregisterOnSharedPreferenceChangeListener(this)
         localTts?.shutdown()
+        testMediaPlayer?.release()
+        testMediaPlayer = null
         super.onDestroyView()
     }
 

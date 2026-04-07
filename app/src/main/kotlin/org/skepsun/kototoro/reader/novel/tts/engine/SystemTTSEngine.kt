@@ -18,13 +18,35 @@ import java.nio.ByteOrder
 import java.util.UUID
 
 class SystemTTSEngine(
-    private val tts: TextToSpeech,
     private val context: Context
 ) : TTSEngine {
 
     private val mutex = Mutex() // 防止并发冲突的绝对屏障
+    private val initDeferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
+    
+    // 延迟初始化的TTS实例
+    private val tts: TextToSpeech by lazy {
+        TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                initDeferred.complete(true)
+            } else {
+                initDeferred.complete(false)
+            }
+        }.apply {
+            setOnUtteranceProgressListener(null) // Reset first
+        }
+    }
 
     override suspend fun synthesize(token: Token): Result<AudioData> {
+        // Ensure TTS is requested to initialize
+        val myTts = tts
+        
+        // Wait for initialization to complete
+        val isInitialized = initDeferred.await()
+        if (!isInitialized) {
+            return Result.failure(Exception("System TTS Engine failed to initialize."))
+        }
+
         return mutex.withLock {
             if (token.type == TokenType.PAUSE) {
                 // 生成静音文件并直接返回
@@ -68,12 +90,16 @@ class SystemTTSEngine(
 
                 tts.setOnUtteranceProgressListener(listener)
 
-                val params = Bundle().apply {
-                    putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
-                }
-
                 val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
                 val voiceId = prefs.getString("tts_system_voice", "default")
+
+                val params = Bundle().apply {
+                    putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+                    if (voiceId != null && voiceId != "default") {
+                        putString("voiceName", voiceId)
+                    }
+                }
+
                 if (voiceId != null && voiceId != "default") {
                     try {
                         val voices = tts.voices
@@ -157,5 +183,11 @@ class SystemTTSEngine(
         }
 
         return AudioData(file.toUri(), durationMs)
+    }
+
+    override fun release() {
+        if (initDeferred.isCompleted && initDeferred.getCompleted()) {
+            tts.shutdown()
+        }
     }
 }

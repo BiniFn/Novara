@@ -90,10 +90,11 @@ class HttpTTSEngine(
     }
 
     private fun buildRequest(token: Token): Request {
-        val builder = Request.Builder().url(config.url)
+        val parsedUrl = applyTemplate(config.url, token)
+        val builder = Request.Builder().url(parsedUrl)
 
         config.headers.forEach { (k, v) ->
-            builder.addHeader(k, v)
+            builder.addHeader(k, applyTemplate(v, token))
         }
 
         if (config.method.equals("POST", ignoreCase = true)) {

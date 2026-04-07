@@ -22,6 +22,7 @@ enum class TtsState {
     PLAYING,
     PAUSED,
     SEEKING,
+    COMPLETED,
     ERROR
 }
 
@@ -91,6 +92,7 @@ class TtsManager(
 
         startPrefetch(session, startIndex)
         startPlayback(session)
+        watchPlaybackCompletion()
     }
 
     private fun startPrefetch(session: TtsSession, startIndex: Int) {
@@ -123,6 +125,20 @@ class TtsManager(
             playerController.play(audioQueue.consumeAsFlow())
             _state.value = TtsState.PLAYING
             Log.d(TAG, "Playback flow consumption started.")
+        }
+    }
+
+    private var completionWatchJob: Job? = null
+    
+    private fun watchPlaybackCompletion() {
+        completionWatchJob?.cancel()
+        completionWatchJob = scope.launch {
+            playerController.playbackCompleted.collect { completed ->
+                if (completed && _state.value == TtsState.PLAYING) {
+                    Log.d(TAG, "Playback completed for current page")
+                    _state.value = TtsState.COMPLETED
+                }
+            }
         }
     }
 
@@ -173,6 +189,7 @@ class TtsManager(
         currentSession = null
         prefetchJob?.cancel()
         playbackJob?.cancel()
+        completionWatchJob?.cancel()
         audioQueue.close()
         audioQueue.cancel()
         playerController.stop()
@@ -182,5 +199,6 @@ class TtsManager(
         Log.d(TAG, "release requested")
         shutdownCurrentSession()
         playerController.release()
+        engine.release()
     }
 }

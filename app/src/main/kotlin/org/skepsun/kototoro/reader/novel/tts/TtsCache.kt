@@ -23,6 +23,10 @@ class TtsCache(context: Context) {
         minSize = 10L * 1024 * 1024 // 最少保留 10MB
     )
 
+    companion object {
+        const val CACHE_VERSION = 2
+    }
+
     fun buildCacheKey(
         token: Token,
         engineId: String,
@@ -30,7 +34,7 @@ class TtsCache(context: Context) {
         speed: Float,
         pitch: Float
     ): String {
-        val raw = "${token.text}|$engineId|$voiceId|$speed|$pitch"
+        val raw = "${token.text}|$engineId|$voiceId|$speed|$pitch|v$CACHE_VERSION"
         val md = MessageDigest.getInstance("MD5")
         val bytes = md.digest(raw.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
