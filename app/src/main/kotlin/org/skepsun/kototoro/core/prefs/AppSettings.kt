@@ -1762,6 +1762,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		// values
 		private const val READER_CROP_PAGED = 1
 		private const val READER_CROP_WEBTOON = 2
+		
+		const val KEY_FILTER_PILL_DEFAULT = "filter_pill_default"
+		const val KEY_FILTER_PILL_LEFT = "filter_pill_left"
+		const val KEY_FILTER_PILL_RIGHT = "filter_pill_right"
 	}
 
 	// ==================== Video Intro/Outro Skip ====================
@@ -1789,4 +1793,27 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	fun clearOutroStartMs(mangaId: Long) {
 		skipPrefs.edit { remove("outro_start_$mangaId") }
 	}
+
+	// ==================== Filter Pill Settings ====================
+
+	var filterPillDefaultType: org.skepsun.kototoro.parsers.model.ContentType
+		get() {
+			val name = prefs.getString(KEY_FILTER_PILL_DEFAULT, org.skepsun.kototoro.parsers.model.ContentType.MANGA.name) ?: org.skepsun.kototoro.parsers.model.ContentType.MANGA.name
+			return try { enumValueOf(name) } catch (e: Exception) { org.skepsun.kototoro.parsers.model.ContentType.MANGA }
+		}
+		set(value) = prefs.edit { putString(KEY_FILTER_PILL_DEFAULT, value.name) }
+
+	var filterPillSwipeLeftType: org.skepsun.kototoro.parsers.model.ContentType
+		get() {
+			val name = prefs.getString(KEY_FILTER_PILL_LEFT, org.skepsun.kototoro.parsers.model.ContentType.VIDEO.name) ?: org.skepsun.kototoro.parsers.model.ContentType.VIDEO.name
+			return try { enumValueOf(name) } catch (e: Exception) { org.skepsun.kototoro.parsers.model.ContentType.VIDEO }
+		}
+		set(value) = prefs.edit { putString(KEY_FILTER_PILL_LEFT, value.name) }
+
+	var filterPillSwipeRightType: org.skepsun.kototoro.parsers.model.ContentType
+		get() {
+			val name = prefs.getString(KEY_FILTER_PILL_RIGHT, org.skepsun.kototoro.parsers.model.ContentType.NOVEL.name) ?: org.skepsun.kototoro.parsers.model.ContentType.NOVEL.name
+			return try { enumValueOf(name) } catch (e: Exception) { org.skepsun.kototoro.parsers.model.ContentType.NOVEL }
+		}
+		set(value) = prefs.edit { putString(KEY_FILTER_PILL_RIGHT, value.name) }
 }

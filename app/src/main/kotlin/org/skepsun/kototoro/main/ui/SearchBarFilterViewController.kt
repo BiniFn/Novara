@@ -18,6 +18,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.core.ui.widgets.SwipeFilterPillView
+import org.skepsun.kototoro.parsers.model.ContentType
 
 /**
  * MenuProvider that adds a 2x2 grid of filter icons to the SearchBar toolbar.
@@ -44,7 +46,7 @@ class SearchBarFilterViewController(
 		fun onFilterIconClicked(anchor: View): Boolean = false
 	}
 
-	private var checkContentType: ImageView? = null
+	private var checkContentType: SwipeFilterPillView? = null
 	private var checkTag: ImageView? = null
 	private var customView: View? = null
 
@@ -64,9 +66,30 @@ class SearchBarFilterViewController(
 		checkContentType = customView?.findViewById(R.id.filter_content_type)
 		checkTag = customView?.findViewById(R.id.filter_source_tag)
 
-		checkContentType?.setOnClickListener {
-			showContentTypePopup()
+		checkContentType?.apply {
+			val appSettings = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(context.applicationContext).settings
+			defaultType = appSettings.filterPillDefaultType
+			swipeLeftType = appSettings.filterPillSwipeLeftType
+			swipeRightType = appSettings.filterPillSwipeRightType
+			
+			val current = callback.getSelectedContentType()
+			setCurrentType(when (current) {
+				BrowseGroupTab.Novel -> ContentType.NOVEL
+				BrowseGroupTab.Video -> ContentType.VIDEO
+				else -> ContentType.MANGA
+			})
+			
+			onFilterSelectedListener = { type ->
+				val tab = when (type) {
+					ContentType.NOVEL -> BrowseGroupTab.Novel
+					ContentType.VIDEO -> BrowseGroupTab.Video
+					else -> BrowseGroupTab.Content
+				}
+				callback.onContentTypeSelected(tab)
+				updateIcons()
+			}
 		}
+
 		checkTag?.setOnClickListener {
 			if (!callback.onFilterIconClicked(checkTag!!)) {
 				showSourceTagPopup()
@@ -187,10 +210,12 @@ class SearchBarFilterViewController(
 		val selectedTags = callback.getSelectedSourceTags()
 
 		checkContentType?.let {
-			it.setImageResource(selectedTab.iconRes)
-			it.contentDescription = it.context.getString(selectedTab.titleRes)
-			val isSelected = selectedTab != BrowseGroupTab.All
-			tintItem(it, isSelected, callback.isContentTypeEnabled(selectedTab))
+			it.setCurrentType(when (selectedTab) {
+				BrowseGroupTab.Novel -> ContentType.NOVEL
+				BrowseGroupTab.Video -> ContentType.VIDEO
+				else -> ContentType.MANGA
+			})
+			it.isEnabled = callback.isContentTypeEnabled(selectedTab)
 		}
 		
 		val iconRes = if (selectedTags.size == 1) {
