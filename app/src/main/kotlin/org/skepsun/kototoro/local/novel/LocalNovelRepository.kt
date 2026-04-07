@@ -64,6 +64,26 @@ class LocalNovelRepository @Inject constructor(
 
 
 	override suspend fun getDetails(manga: Content): Content {
+		// Fast path: use manga.url if it points to a local file
+		if (manga.url.startsWith("file://") || manga.url.startsWith("zip://") || manga.url.startsWith("cbz://")) {
+			val uri = runCatching { android.net.Uri.parse(manga.url) }.getOrNull()
+			var filePath = uri?.path
+			if (uri?.scheme == "zip" || uri?.scheme == "cbz") {
+				// URI for zip looks like zip:///path/to/file.cbz
+				filePath = uri.path
+			}
+			val file = filePath?.let { File(it) }
+			if (file != null && file.exists()) {
+				val parsed = parseIndex(file)
+				if (parsed != null && parsed.first.id == manga.id) {
+					return parsed.first
+				}
+				if (parsed != null) {
+					return parsed.first
+				}
+			}
+		}
+
 		// Try to find by filename pattern first (for multi-CBZ format)
 		val dirByName = findNovelDirs().firstOrNull { it.name.startsWith(manga.id.toString()) }
 		if (dirByName != null) {
@@ -126,79 +146,26 @@ class LocalNovelRepository @Inject constructor(
 
 	@WorkerThread
 	internal fun parseIndex(dir: File): Pair<Content, List<ContentChapter>>? {
-		// Handle single CBZ files
-		if (dir.isFile && (dir.extension.equals("cbz", ignoreCase = true) || dir.extension.equals("zip", ignoreCase = true))) {
-			return runCatching {
-				val parser = org.skepsun.kototoro.local.data.input.LocalContentParser(dir)
-				val localContent = runBlocking { parser.getContent(withDetails = true) }
-				val transformedChapters = localContent.manga.chapters?.map { chapter ->
-					chapter.copy(source = source)
-				}
-				val transformedContent = localContent.manga.copy(
-					chapters = transformedChapters,
-					source = source
-				)
-				transformedContent to (transformedChapters ?: emptyList())
-			}.getOrNull()
-		}
-
-		if (dir.isDirectory && !File(dir, "index.json").exists()) {
-			return runCatching {
-				val parser = org.skepsun.kototoro.local.data.input.LocalContentParser(dir)
-				val localContent = runBlocking { parser.getContent(withDetails = true) }
-				val transformedChapters = localContent.manga.chapters?.map { chapter ->
-					chapter.copy(source = source)
-				}
-				val transformedContent = localContent.manga.copy(
-					chapters = transformedChapters,
-					source = source,
-				)
-				transformedContent to (transformedChapters ?: emptyList())
-			}.getOrNull()
-		}
-		
-		// Handle multi-CBZ format (directory-based)
-		val indexFile = File(dir, "index.json")
-		val index = org.skepsun.kototoro.local.data.ContentIndex.read(indexFile) ?: return null
-		val mangaInfo = index.getContentInfo() ?: return null
-		
-		val transformedChapters = mangaInfo.chapters?.map { chapter ->
-			val fileName = index.getChapterFileName(chapter.id)
-			if (fileName != null) {
-				val localFile = File(dir, fileName)
-				// Check if file actually exists
-				if (localFile.exists()) {
-					// File exists - use local source
-					val url = if (fileName.endsWith(".cbz", ignoreCase = true) || fileName.endsWith(".zip", ignoreCase = true)) {
-						"zip://${localFile.absolutePath}"
-					} else {
-						localFile.toUri().toString()
-					}
-					chapter.copy(
-						url = url,
-						source = source  // LocalNovelSource
-					)
+		return runCatching {
+			val parser = org.skepsun.kototoro.local.data.input.LocalContentParser(dir)
+			val localContent = runBlocking { parser.getContent(withDetails = true) }
+			
+			// Map chapters to ensure they have the correct local source when applicable
+			val transformedChapters = localContent.manga.chapters?.map { chapter ->
+				if (chapter.source != null && !chapter.source!!.name.startsWith("LOCAL", ignoreCase = true)) {
+					chapter
 				} else {
-					// File doesn't exist - keep original URL and source for online reading
-					Log.d("LocalNovelRepository", "Chapter ${chapter.title} not downloaded, will use online source")
-					chapter  // Keep original chapter with remote URL and source
+					chapter.copy(source = source)
 				}
-			} else {
-				// No file mapping - keep original for online reading
-				Log.d("LocalNovelRepository", "Chapter ${chapter.title} has no file mapping, will use online source")
-				chapter  // Keep original chapter
 			}
-		}
-		
-		val transformedContent = mangaInfo.copy(
-			id = mangaInfo.id,
-			title = mangaInfo.title,
-			chapters = transformedChapters,
-			url = dir.toUri().toString(),
-			source = if (mangaInfo.source != org.skepsun.kototoro.core.model.UnknownContentSource && 
-						!mangaInfo.source.name.startsWith("LOCAL")) mangaInfo.source else source
-		)
-		
-		return transformedContent to (transformedChapters ?: emptyList())
+			
+			val transformedContent = localContent.manga.copy(
+				chapters = transformedChapters,
+				source = source
+			)
+			transformedContent to (transformedChapters ?: emptyList())
+		}.onFailure {
+			it.printStackTrace()
+		}.getOrNull()
 	}
 }
