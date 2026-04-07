@@ -6,22 +6,21 @@ import okhttp3.Response
 import okio.IOException
 import org.skepsun.kototoro.core.exceptions.WrapperIOException
 import org.skepsun.kototoro.core.network.CommonHeaders.CONTENT_ENCODING
-import org.skepsun.kototoro.parsers.network.GZipOptions
 
 class GZipInterceptor : Interceptor {
+
 	override fun intercept(chain: Interceptor.Chain): Response = try {
 		val request = chain.request()
-		val skipGZip = request.tag(GZipOptions::class.java)?.skip == true
-		val body = request.body
-		// 只对有请求体的请求添加 Content-Encoding，GET 请求没有请求体不应该添加
-		val hasBody = body != null && body.contentLength() != 0L
-		if (request.body is MultipartBody || request.header(CONTENT_ENCODING) != null || skipGZip || !hasBody) {
+		// Only add Content-Encoding: gzip for bodyless requests (e.g. GET).
+		// For requests with a body (POST/PUT), the body is NOT actually compressed,
+		// so adding this header causes servers that respect it (e.g. kagane) to
+		// fail with "corrupt gzip stream" when they try to decompress.
+		if (request.body != null || request.body is MultipartBody) {
 			chain.proceed(request)
 		} else {
 			val newRequest = request.newBuilder()
-				.addHeader(CONTENT_ENCODING, "gzip")
-				.build()
-			chain.proceed(newRequest)
+			newRequest.addHeader(CONTENT_ENCODING, "gzip")
+			chain.proceed(newRequest.build())
 		}
 	} catch (e: IOException) {
 		throw e
