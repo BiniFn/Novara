@@ -264,6 +264,9 @@
 }
 -dontwarn io.ktor.**
 
+# TTS Models (TtsHttpConfig serialized with Gson for Legado JSON payload)
+-keep class org.skepsun.kototoro.reader.novel.tts.model.** { *; }
+
 # JAR Extension Parser APIs (Kototoro / Kotatsu)
 # Required because JarExtensionLoader resolves classes via string reflection against the parent ClassLoader.
 -keep class org.skepsun.kototoro.parsers.** { *; }
