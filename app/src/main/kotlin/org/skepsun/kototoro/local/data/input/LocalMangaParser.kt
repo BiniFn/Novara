@@ -59,21 +59,75 @@ class LocalContentParser(private val uri: Uri) {
 
 	private val rootFile: File = File(uri.schemeSpecificPart)
 
-	suspend fun getContent(withDetails: Boolean): LocalContent = runInterruptible(Dispatchers.IO) {
-		(uri.resolveFsAndPath()).use { (fileSystem, rootPath) ->
-			val index = ContentIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
-			val mangaInfo = index?.getContentInfo()
-			if (mangaInfo != null) {
-				val coverEntry: Path? = index.getCoverEntry()?.let { rootPath / it }?.takeIf {
-					fileSystem.exists(it)
+	suspend fun getContent(withDetails: Boolean): LocalContent {
+		if (rootFile.isFile && rootFile.name.endsWith(".epub", ignoreCase = true)) {
+			val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(rootFile)
+			val content = parser.parseContent()
+			if (content != null) {
+				val updatedChapters = content.chapters?.map {
+					val index = it.url.substringAfterLast("chapter/").toIntOrNull() ?: 0
+					it.copy(url = "localepub://${rootFile.absolutePath}#chapter/$index")
 				}
+				
+				var extractedCoverUrl: String? = null
+				runCatching {
+					okio.FileSystem.SYSTEM.openZip(rootFile.absolutePath.toPath()).use { zipFs ->
+						extractedCoverUrl = zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+					}
+				}
+				val updatedContent = content.copy(
+					chapters = if (withDetails) updatedChapters else null,
+					coverUrl = extractedCoverUrl ?: ""
+				)
+				return LocalContent(updatedContent, rootFile)
+			}
+		}
+
+		// If the folder contains EPUB files, delegate to LocalEpubParser for proper parsing
+		if (rootFile.isDirectory) {
+			val epubFiles = rootFile.listFiles { f -> f.isFile && f.name.endsWith(".epub", ignoreCase = true) }
+			if (!epubFiles.isNullOrEmpty()) {
+				val epubFile = epubFiles.first()
+				val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
+				val epubContent = parser.parseContent()
+				if (epubContent != null) {
+					val updatedChapters = epubContent.chapters?.map {
+						val idx = it.url.substringAfterLast("chapter/").toIntOrNull() ?: 0
+						it.copy(url = "localepub://${epubFile.absolutePath}#chapter/$idx")
+					}
+					var extractedCoverUrl: String? = null
+					runCatching {
+						val tempParser = LocalContentParser(epubFile)
+						okio.FileSystem.SYSTEM.openZip(epubFile.absolutePath.toPath()).use { zipFs ->
+							extractedCoverUrl = with(tempParser) {
+								zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+							}
+						}
+					}
+					val updatedContent = epubContent.copy(
+						chapters = if (withDetails) updatedChapters else null,
+						coverUrl = extractedCoverUrl ?: ""
+					)
+					return LocalContent(updatedContent, rootFile)
+				}
+			}
+		}
+
+		return kotlinx.coroutines.runInterruptible(kotlinx.coroutines.Dispatchers.IO) {
+			(uri.resolveFsAndPath()).use { (fileSystem, rootPath) ->
+				val index = org.skepsun.kototoro.local.data.ContentIndex.read(fileSystem, rootPath / org.skepsun.kototoro.local.data.output.LocalContentOutput.ENTRY_NAME_INDEX)
+				val mangaInfo = index?.getContentInfo()
+				if (mangaInfo != null) {
+					val coverEntry: okio.Path? = index.getCoverEntry()?.let { rootPath / it }?.takeIf {
+						fileSystem.exists(it)
+					}
 					// 获取隐藏的章节ID列表
 					val hiddenChapterIds = index.getHiddenChapterIds()
 					
 					val resolvedLocalSource = when (mangaInfo.source?.contentType) {
-						ContentType.NOVEL, ContentType.HENTAI_NOVEL -> LocalNovelSource
-						ContentType.VIDEO, ContentType.HENTAI_VIDEO -> LocalVideoSource
-						else -> LocalMangaSource
+						org.skepsun.kototoro.parsers.model.ContentType.NOVEL, org.skepsun.kototoro.parsers.model.ContentType.HENTAI_NOVEL -> org.skepsun.kototoro.core.model.LocalNovelSource
+						org.skepsun.kototoro.parsers.model.ContentType.VIDEO, org.skepsun.kototoro.parsers.model.ContentType.HENTAI_VIDEO -> org.skepsun.kototoro.core.model.LocalVideoSource
+						else -> org.skepsun.kototoro.core.model.LocalMangaSource
 					}
 
 					mangaInfo.copy(
@@ -114,7 +168,7 @@ class LocalContentParser(private val uri: Uri) {
 				)
 			} else {
 				val title = rootFile.name.fileNameToTitle()
-				var inferedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
+				var inferedSource: org.skepsun.kototoro.parsers.model.ContentSource = org.skepsun.kototoro.core.model.LocalMangaSource
 				val flatFiles = fileSystem.listRecursively(rootPath).toList()
 				if (flatFiles.any {
 						it.name.endsWith(".mp4", true) ||
@@ -123,41 +177,41 @@ class LocalContentParser(private val uri: Uri) {
 							it.name.endsWith(".webm", true) ||
 							it.name.endsWith(".avi", true) ||
 							it.name.endsWith(".m3u8", true)
-					}) inferedSource = LocalVideoSource
-				else if (flatFiles.any { it.name.endsWith(".epub", true) || it.name.endsWith(".txt", true) }) inferedSource = LocalNovelSource
+					}) inferedSource = org.skepsun.kototoro.core.model.LocalVideoSource
+				else if (flatFiles.any { it.name.endsWith(".epub", true) || it.name.endsWith(".txt", true) }) inferedSource = org.skepsun.kototoro.core.model.LocalNovelSource
 
 				var detectedChapters: List<Pair<ContentChapter, String>>? = null
-				val shouldGenerateIndex = rootFile.isDirectory && rootFile.canWrite() && fileSystem == FileSystem.SYSTEM
+				val shouldGenerateIndex = rootFile.isDirectory && rootFile.canWrite() && fileSystem == okio.FileSystem.SYSTEM
 				if (withDetails || shouldGenerateIndex) {
-					var detectedSource: org.skepsun.kototoro.parsers.model.ContentSource = LocalMangaSource
+					var detectedSource: org.skepsun.kototoro.parsers.model.ContentSource = org.skepsun.kototoro.core.model.LocalMangaSource
 					val chapters = fileSystem.listRecursively(rootPath)
 						.mapNotNullTo(HashSet()) { path ->
 							when {
 								!fileSystem.isRegularFile(path) -> null
 								path.isImage() -> path.parent
-								hasZipExtension(path.name) -> path
+								org.skepsun.kototoro.local.data.hasZipExtension(path.name) -> path
 								path.name.endsWith(".mp4", true) ||
 									path.name.endsWith(".mkv", true) ||
 									path.name.endsWith(".ts", true) ||
 									path.name.endsWith(".webm", true) ||
 									path.name.endsWith(".avi", true) ||
 									path.name.endsWith(".m3u8", true) -> {
-									detectedSource = LocalVideoSource
+									detectedSource = org.skepsun.kototoro.core.model.LocalVideoSource
 									path
 								}
 								path.name.endsWith(".epub", true) || path.name.endsWith(".txt", true) -> {
-									detectedSource = LocalNovelSource
+									detectedSource = org.skepsun.kototoro.core.model.LocalNovelSource
 									path
 								}
 								else -> null
 							}
-						}.sortedWith(compareBy(AlphanumComparator()) { x -> x.toString() })
+						}.sortedWith(compareBy(org.skepsun.kototoro.core.util.AlphanumComparator()) { x -> x.toString() })
 					detectedChapters = chapters.mapIndexed { i, p ->
 						val s = if (p.root == rootPath.root) {
 							p.relativeTo(rootPath).toString()
 						} else {
 							p
-						}.toString().removePrefix(Path.DIRECTORY_SEPARATOR)
+						}.toString().removePrefix(okio.Path.DIRECTORY_SEPARATOR)
 						val chapter = ContentChapter(
 							id = "$i$s".longHashCode(),
 							title = p.userFriendlyName().takeIf { it.isNotBlank() } ?: "1",
@@ -193,26 +247,46 @@ class LocalContentParser(private val uri: Uri) {
 
 				if (shouldGenerateIndex && detectedChapters != null) {
 					runCatchingCancellable {
-						val newIndex = ContentIndex(null)
+						val newIndex = org.skepsun.kototoro.local.data.ContentIndex(null)
 						newIndex.setContentInfo(content.copy(chapters = null))
 						detectedChapters.forEachIndexed { idx, pair ->
 							newIndex.addChapter(IndexedValue(idx, pair.first), pair.second)
 						}
-						File(rootFile, ENTRY_NAME_INDEX).writeText(newIndex.toString())
+						java.io.File(rootFile, org.skepsun.kototoro.local.data.output.LocalContentOutput.ENTRY_NAME_INDEX).writeText(newIndex.toString())
 					}.onFailure {
 						it.printStackTraceDebug()
 					}
 				}
 
 				content
-			}.let { LocalContent(it, rootFile) }
+			}.let { org.skepsun.kototoro.local.domain.model.LocalContent(it, rootFile) }
+			}
 		}
 	}
 
-	suspend fun getContentInfo(): Content? = runInterruptible(Dispatchers.IO) {
-		uri.resolveFsAndPath().use { (fileSystem, rootPath) ->
-			val index = ContentIndex.read(fileSystem, rootPath / ENTRY_NAME_INDEX)
-			index?.getContentInfo()
+	suspend fun getContentInfo(): Content? {
+		if (rootFile.isFile && rootFile.name.endsWith(".epub", ignoreCase = true)) {
+			val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(rootFile)
+			val content = parser.parseContent()
+			if (content != null) {
+				var extractedCoverUrl: String? = null
+				runCatching {
+					okio.FileSystem.SYSTEM.openZip(rootFile.absolutePath.toPath()).use { zipFs ->
+						extractedCoverUrl = zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+					}
+				}
+				return content.copy(
+					chapters = null,
+					coverUrl = extractedCoverUrl ?: ""
+				)
+			}
+		}
+
+		return kotlinx.coroutines.runInterruptible(kotlinx.coroutines.Dispatchers.IO) {
+			uri.resolveFsAndPath().use { (fileSystem, rootPath) ->
+				val index = org.skepsun.kototoro.local.data.ContentIndex.read(fileSystem, rootPath / org.skepsun.kototoro.local.data.output.LocalContentOutput.ENTRY_NAME_INDEX)
+				index?.getContentInfo()
+			}
 		}
 	}
 

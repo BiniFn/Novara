@@ -130,6 +130,7 @@ class BangumiRepository @Inject constructor(
 				altName = json.getString("name"),
 				cover = json.getJSONObject("images").getString("medium"),
 				url = "https://bangumi.tv/subject/${json.getLong("id")}",
+				mediaType = json.optString("platform").takeIf { it.isNotBlank() },
 				isBestMatch = false
 			)
 		}
@@ -171,6 +172,7 @@ class BangumiRepository @Inject constructor(
 			val name = titleWrapper?.text().orEmpty()
 			val altName = el.selectFirst("small.grey")?.text() ?: name
 			val coverUrl = el.selectFirst("a.subjectCover img.cover")?.attr("src") ?: ""
+			val platformBadge = el.selectFirst("span.ico_subject_type")?.attr("title")?.takeIf { it.isNotBlank() }
 			var cleanCover = coverUrl.replace("/s/", "/l/").replace("/m/", "/l/") // Get large cover instead of small
 			if (cleanCover.startsWith("//")) {
 				cleanCover = "https:$cleanCover"
@@ -182,6 +184,7 @@ class BangumiRepository @Inject constructor(
 				altName = altName,
 				cover = if (cleanCover.startsWith("//")) "https:$cleanCover" else cleanCover,
 				url = "https://bangumi.tv/subject/$id",
+				mediaType = platformBadge,
 				isBestMatch = false
 			)
 		}
@@ -494,6 +497,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			.url("${API_URL}v0/subjects/$id")
 			.get()
 		val json = okHttp.newCall(request.build()).await().parseJson()
+		val platformType = json.optString("platform").takeIf { it.isNotBlank() }
 		return BangumiApiSubjectPayload(
 			name = json.getStringOrNull("name_cn").orEmpty().ifBlank { json.getStringOrNull("name").orEmpty() },
 			cover = json.optJSONObject("images")?.getStringOrNull("large")
@@ -502,7 +506,13 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 				?: "",
 			summary = json.getStringOrNull("summary").orEmpty(),
 			tags = json.optJSONArray("tags").toBangumiTags(),
-			infoboxProperties = json.optJSONArray("infobox").toBangumiInfoboxProperties(),
+			infoboxProperties = json.optJSONArray("infobox").toBangumiInfoboxProperties().let { list ->
+				if (platformType != null && list.none { it.first == "类型" || it.first == "Platform" }) {
+					listOf("类型" to platformType) + list
+				} else {
+					list
+				}
+			},
 		)
 	}
 

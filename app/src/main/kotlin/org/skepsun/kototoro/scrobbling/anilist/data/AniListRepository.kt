@@ -122,6 +122,8 @@ class AniListRepository @Inject constructor(
 			Page(page: $page, perPage: ${MANGA_PAGE_SIZE}) {
 				media(type: $mediaType, sort: SEARCH_MATCH, search: ${JSONObject.quote(query)}) {
 					id
+					type
+					format
 					title {
 						userPreferred
 						native
@@ -315,6 +317,7 @@ class AniListRepository @Inject constructor(
 					altName = subtitleParts.joinToString(" · ").ifBlank { title.getStringOrNull("native") },
 					cover = json.getJSONObject("coverImage").getStringOrNull("large"),
 					url = json.getString("siteUrl"),
+					mediaType = format?.replace("_", " "),
 					isBestMatch = false,
 				),
 			)
@@ -413,12 +416,14 @@ class AniListRepository @Inject constructor(
 
 	private fun ScrobblerContent(json: JSONObject, sourceTitle: String): ScrobblerContent {
 		val title = json.getJSONObject("title")
+		val format = json.optString("format", "").ifBlank { json.optString("type", "") }.ifBlank { null }
 		return ScrobblerContent(
 			id = json.getLong("id"),
 			name = title.getString("userPreferred"),
 			altName = title.getStringOrNull("native"),
 			cover = json.getJSONObject("coverImage").getString("medium"),
 			url = json.getString("siteUrl"),
+			mediaType = format?.replace("_", " "),
 			isBestMatch = sourceTitle.let {
 				title.keys().forEach { key ->
 					if (title.getStringOrNull(key)?.equals(it, ignoreCase = true) == true) {

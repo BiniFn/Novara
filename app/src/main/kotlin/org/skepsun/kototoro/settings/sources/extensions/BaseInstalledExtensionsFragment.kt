@@ -19,6 +19,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.core.nav.router
 
 abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstalledExtensionsBinding>()
 	where VM : ViewModel, VM : InstalledExtensionsScreenModel {
@@ -53,7 +54,24 @@ abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstal
 
 	override fun onViewBindingCreated(binding: FragmentInstalledExtensionsBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		adapter = InstalledExtensionsAdapter()
+		adapter = InstalledExtensionsAdapter { item ->
+			val sources = viewModel.getSourcesForPackage(item.pkgName)
+			if (sources.isEmpty()) return@InstalledExtensionsAdapter
+			if (sources.size == 1) {
+				router.openList(sources.first(), null, null)
+			} else {
+				val displayNames = sources.map { 
+					val lang = org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName(it.locale)
+					if (lang.isNotEmpty()) lang else it.locale.uppercase()
+				}.toTypedArray()
+				com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+					.setTitle(item.appName)
+					.setItems(displayNames) { _, which ->
+						router.openList(sources[which], null, null)
+					}
+					.show()
+			}
+		}
 
 		with(binding) {
 			textEmptyTitle.setText(emptyTitleRes)

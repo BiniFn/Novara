@@ -137,6 +137,10 @@ class SourcesManageFragment :
 		viewModel.setEnabled(item.source, isEnabled)
 	}
 
+	override fun onItemClick(item: SourceConfigItem.SourceItem) {
+		router.openList(item.source, null, null)
+	}
+
 	override fun onCloseTip(tip: SourceConfigItem.Tip) {
 		viewModel.onTipClosed(tip)
 	}

@@ -35,11 +35,13 @@ fun sourceConfigItemDelegate2(
 			R.id.imageView_add -> listener.onItemEnabledChanged(item, true)
 			R.id.imageView_remove -> listener.onItemEnabledChanged(item, false)
 			R.id.imageView_menu -> showSourceMenu(v, item, listener)
+			else -> listener.onItemClick(item)
 		}
 	}
 	binding.imageViewRemove.setOnClickListener(eventListener)
 	binding.imageViewAdd.setOnClickListener(eventListener)
 	binding.imageViewMenu.setOnClickListener(eventListener)
+	binding.root.setOnClickListener(eventListener)
 
 	bind {
 		binding.textViewTitle.text = item.source.getTitle(context)

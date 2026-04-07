@@ -128,6 +128,7 @@ class MangaUpdatesRepository(
 					altName = null,
 					cover = record.optJSONObject("image")?.optJSONObject("url")?.getStringOrNull("original"),
 					url = record.getString("url"),
+					mediaType = record.optString("type").takeIf { it.isNotBlank() },
 					isBestMatch = record.getString("title").equals(query, ignoreCase = true)
 				)
 			)
@@ -179,6 +180,7 @@ class MangaUpdatesRepository(
 					altName = subtitle,
 					cover = record.optJSONObject("image")?.optJSONObject("url")?.getStringOrNull("original"),
 					url = record.getString("url"),
+					mediaType = record.optString("type").takeIf { it.isNotBlank() },
 					isBestMatch = false,
 				)
 			)

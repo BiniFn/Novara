@@ -98,11 +98,10 @@ class CheckNewChaptersUseCase @Inject constructor(
 	}
 
 	private suspend fun getFullContent(manga: Content): Content = when {
-		manga.isLocal -> fetchDetails(
-			requireNotNull(localContentRepository.getRemoteContent(manga)) {
-				"Local manga is not supported"
-			},
-		)
+		manga.isLocal -> {
+			val remote = localContentRepository.getRemoteContent(manga)
+			if (remote != null) fetchDetails(remote) else manga
+		}
 
 		manga.chapters.isNullOrEmpty() -> fetchDetails(manga)
 		else -> manga

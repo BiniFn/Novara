@@ -596,6 +596,20 @@ class VideoLocalCacheProxy @Inject constructor(
         private var writePos = offset
         private var totalWritten = 0L
         private var closed = false
+        private var raf: java.io.RandomAccessFile? = null
+
+        init {
+            synchronized(lock) {
+                cacheFile.parentFile?.let { parent ->
+                    if (!parent.exists()) parent.mkdirs()
+                }
+                if (!cacheFile.exists()) cacheFile.createNewFile()
+                runCatching {
+                    raf = java.io.RandomAccessFile(cacheFile, "rw")
+                    raf?.seek(writePos)
+                }
+            }
+        }
 
         override fun read(): Int {
             val value = `in`.read()
@@ -615,13 +629,8 @@ class VideoLocalCacheProxy @Inject constructor(
 
         private fun writeBytes(buffer: ByteArray, off: Int, count: Int) {
             synchronized(lock) {
-                cacheFile.parentFile?.let { parent ->
-                    if (!parent.exists()) parent.mkdirs()
-                }
-                if (!cacheFile.exists()) cacheFile.createNewFile()
-                java.io.RandomAccessFile(cacheFile, "rw").use { raf ->
-                    raf.seek(writePos)
-                    raf.write(buffer, off, count)
+                runCatching {
+                    raf?.write(buffer, off, count)
                 }
             }
             writePos += count
@@ -631,6 +640,10 @@ class VideoLocalCacheProxy @Inject constructor(
         override fun close() {
             if (closed) return
             closed = true
+            synchronized(lock) {
+                runCatching { raf?.close() }
+                raf = null
+            }
             runCatching { super.close() }
             onClosed(totalWritten)
         }

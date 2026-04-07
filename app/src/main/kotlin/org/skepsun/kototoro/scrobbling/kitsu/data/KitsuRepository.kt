@@ -109,6 +109,7 @@ class KitsuRepository(
 				altName = titles.drop(1).joinToString(),
 				cover = attrs.getJSONObject("posterImage").getStringOrNull("small").orEmpty(),
 				url = "$BASE_WEB_URL/$type/${attrs.getString("slug")}",
+				mediaType = attrs.optString("subtype").takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() },
 				isBestMatch = titles.any {
 					it.equals(query, ignoreCase = true)
 				}
@@ -170,6 +171,7 @@ class KitsuRepository(
 				altName = titles.drop(1).joinToString(),
 				cover = posterImage?.getStringOrNull("small") ?: posterImage?.getStringOrNull("medium").orEmpty(),
 				url = "$BASE_WEB_URL/$mediaType/$slug",
+				mediaType = attrs.optString("subtype").takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() },
 			)
 		}
 	}

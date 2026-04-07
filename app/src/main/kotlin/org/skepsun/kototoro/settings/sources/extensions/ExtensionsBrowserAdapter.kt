@@ -20,6 +20,7 @@ class ExtensionsBrowserAdapter(
 	private val onPrimaryAction: (ExtensionsBrowserListItem.Entry) -> Unit,
 	private val onRemove: (ExtensionsBrowserListItem.Entry) -> Unit,
 	private val onCancelInstall: (ExtensionsBrowserListItem.Entry) -> Unit,
+	private val onRootClick: ((ExtensionsBrowserListItem.Entry) -> Unit)? = null,
 ) : ListAdapter<ExtensionsBrowserListItem, RecyclerView.ViewHolder>(DIFF_CALLBACK) {
 
 	override fun getItemViewType(position: Int): Int = when (getItem(position)) {
@@ -44,6 +45,7 @@ class ExtensionsBrowserAdapter(
 				onPrimaryAction,
 				onRemove,
 				onCancelInstall,
+				onRootClick,
 			)
 		}
 	}
@@ -93,9 +95,15 @@ class ExtensionsBrowserAdapter(
 		private val onPrimaryAction: (ExtensionsBrowserListItem.Entry) -> Unit,
 		private val onRemove: (ExtensionsBrowserListItem.Entry) -> Unit,
 		private val onCancelInstall: (ExtensionsBrowserListItem.Entry) -> Unit,
+		private val onRootClick: ((ExtensionsBrowserListItem.Entry) -> Unit)?,
 	) : RecyclerView.ViewHolder(binding.root) {
 
 		fun bind(item: ExtensionsBrowserListItem.Entry) = with(binding) {
+			root.setOnClickListener {
+				if (item.state == ExtensionsBrowserEntryState.INSTALLED) {
+					onRootClick?.invoke(item)
+				}
+			}
 			textName.text = item.name
 			textLanguage.text = when {
 				item.language.isBlank() -> root.context.getString(R.string.multi_language_short)

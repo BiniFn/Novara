@@ -92,7 +92,7 @@ class LocalEpubParser(private val cbzFile: File) {
                     volume = 0,
                     // URL格式：file:///path/to/file.cbz#chapter/0
                     url = "file://${cbzFile.absolutePath}#chapter/${epubChapter.index}",
-                    scanlator = author,
+                    scanlator = title,
                     uploadDate = cbzFile.lastModified(),
                     branch = null,
                     source = org.skepsun.kototoro.core.model.LocalNovelSource,

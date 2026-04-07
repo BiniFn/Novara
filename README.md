@@ -13,12 +13,12 @@
 Kototoro is proudly built with the assistance of AI large language models. However, while modern AI is fantastic at generating boilerplate and scaffolding (the "0 to 1"), the reality of shipping a production-ready reader dealing with complex video buffering, OCR pipelines, JNI, and memory leaks is a purely human endeavor.
 
 The past 6 months of development have been dedicated to relentless debugging, performance tuning, and architectural refactoring to make Kototoro the robust platform it is today. To anyone (especially @hxncvxz) who dismisses this intensive engineering effort as mere "vibecoding": you are warmly invited to fix the next core memory leak or Vulkan synchronization bug yourself. 😉
-
+<!-- 
 <div align="center">
     <img src="./metadata/en-US/images/Screenshot_20260405_115114_com_discord_MainActivi.jpg" alt="Discord chat log: vibecoder accusation" width="300"/>
     <br/>
     <em>公道自在人心</em>
-</div>
+</div> -->
 
 Kototoro is an open-source Android app that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 

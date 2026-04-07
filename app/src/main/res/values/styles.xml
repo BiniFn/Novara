@@ -381,9 +381,9 @@
 
 	<!-- Compact action button for SearchBar filter icons -->
 	<style name="Widget.Kototoro.ActionButton.Compact" parent="Widget.AppCompat.ActionButton">
-		<item name="android:minWidth">32dp</item>
-		<item name="android:paddingStart">6dp</item>
-		<item name="android:paddingEnd">6dp</item>
+		<item name="android:minWidth">36dp</item>
+		<item name="android:paddingStart">2dp</item>
+		<item name="android:paddingEnd">2dp</item>
 	</style>
 
 </resources>

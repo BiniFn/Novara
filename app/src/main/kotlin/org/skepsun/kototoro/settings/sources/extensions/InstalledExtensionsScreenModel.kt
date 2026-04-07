@@ -9,4 +9,6 @@ interface InstalledExtensionsScreenModel {
 	val sourceCount: StateFlow<Int>
 
 	fun refresh()
+
+	fun getSourcesForPackage(pkgName: String): List<org.skepsun.kototoro.parsers.model.ContentSource>
 }

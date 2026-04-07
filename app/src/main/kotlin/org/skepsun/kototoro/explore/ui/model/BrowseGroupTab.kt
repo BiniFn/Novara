@@ -17,7 +17,7 @@ sealed class BrowseGroupTab(
 	/**
 	 * Show all sources without filtering
 	 */
-	object All : BrowseGroupTab(R.string.all, R.drawable.ic_explore_normal, "all")
+	object All : BrowseGroupTab(R.string.all, R.drawable.ic_filter_content_type, "all")
 	
 	/**
 	 * Show only manga sources

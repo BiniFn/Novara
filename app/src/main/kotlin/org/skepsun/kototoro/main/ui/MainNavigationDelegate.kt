@@ -15,6 +15,7 @@ import androidx.core.view.size
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.navigation.NavigationBarView
@@ -129,9 +130,11 @@ class MainNavigationDelegate(
 				if (f.id == R.id.container) {
 					if (f.tag == selectedTag) {
 						transaction.show(f)
+						transaction.setMaxLifecycle(f, Lifecycle.State.RESUMED)
 						found = f
 					} else {
 						transaction.hide(f)
+						transaction.setMaxLifecycle(f, Lifecycle.State.STARTED)
 					}
 				}
 			}
@@ -223,7 +226,7 @@ class MainNavigationDelegate(
 			R.id.nav_updated -> UpdatesFragment::class.java
 			else -> return false
 		}
-		if (!setPrimaryFragment(newFragment, itemId)) {
+		if (!setPrimaryFragment(newFragment)) {
 			// probably already selected
 			onNavigationItemReselected()
 		}
@@ -258,7 +261,7 @@ class MainNavigationDelegate(
 		else -> null
 	}
 
-	private fun setPrimaryFragment(fragmentClass: Class<out Fragment>, newItemId: Int? = null): Boolean {
+	private fun setPrimaryFragment(fragmentClass: Class<out Fragment>): Boolean {
 		if (fragmentManager.isStateSaved || fragmentClass.isInstance(primaryFragment)) {
 			return false
 		}
@@ -269,17 +272,18 @@ class MainNavigationDelegate(
 		val transaction = fragmentManager.beginTransaction()
 			.setReorderingAllowed(true)
 
-		// Hide the current fragment (don't remove it)
+		// Hide current fragment and demote to STARTED so its MenuProviders
+		// (registered with RESUMED lifecycle) are deactivated immediately
 		if (currentFrag != null) {
-			currentFrag.exitTransition = MaterialFadeThrough().apply { duration = 150 }
 			transaction.hide(currentFrag)
+			transaction.setMaxLifecycle(currentFrag, Lifecycle.State.STARTED)
 		}
 
 		val targetFrag: Fragment
 		if (existingFrag != null) {
 			// Fragment already cached — just show it
-			existingFrag.enterTransition = MaterialFadeThrough().apply { duration = 150 }
 			transaction.show(existingFrag)
+			transaction.setMaxLifecycle(existingFrag, Lifecycle.State.RESUMED)
 			targetFrag = existingFrag
 		} else {
 			// First visit — create, add and tag it
@@ -287,7 +291,6 @@ class MainNavigationDelegate(
 			fragment.arguments = buildBundle(1) {
 				putBoolean(AppRouter.KEY_IS_BOTTOMTAB, true)
 			}
-			fragment.enterTransition = MaterialFadeThrough().apply { duration = 150 }
 			transaction.add(R.id.container, fragment, tag)
 			targetFrag = fragment
 		}
@@ -348,7 +351,7 @@ class MainNavigationDelegate(
 			setNavbarIsExpanded(false)
 		}
 		navBar.labelVisibilityMode = if (value) {
-			NavigationBarView.LABEL_VISIBILITY_SELECTED
+			NavigationBarView.LABEL_VISIBILITY_LABELED
 		} else {
 			NavigationBarView.LABEL_VISIBILITY_UNLABELED
 		}

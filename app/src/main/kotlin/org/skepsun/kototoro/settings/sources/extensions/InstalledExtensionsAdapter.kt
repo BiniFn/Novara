@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.databinding.ItemInstalledExtensionBinding
 
-class InstalledExtensionsAdapter :
+class InstalledExtensionsAdapter(private val onItemClick: (InstalledExtensionItem) -> Unit) :
 	ListAdapter<InstalledExtensionItem, InstalledExtensionsAdapter.ViewHolder>(DIFF_CALLBACK) {
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -18,7 +18,7 @@ class InstalledExtensionsAdapter :
 			parent,
 			false,
 		)
-		return ViewHolder(binding)
+		return ViewHolder(binding, onItemClick)
 	}
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
@@ -27,9 +27,11 @@ class InstalledExtensionsAdapter :
 
 	class ViewHolder(
 		private val binding: ItemInstalledExtensionBinding,
+		private val onItemClick: (InstalledExtensionItem) -> Unit,
 	) : RecyclerView.ViewHolder(binding.root) {
 
 		fun bind(item: InstalledExtensionItem) {
+			binding.root.setOnClickListener { onItemClick(item) }
 			val context = binding.root.context
 			binding.textName.text = item.appName
 			binding.textPackage.text = item.pkgName

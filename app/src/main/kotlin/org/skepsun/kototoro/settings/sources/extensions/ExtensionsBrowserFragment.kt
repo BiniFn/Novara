@@ -38,6 +38,7 @@ import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.settings.SettingsActivity
 import java.util.Locale
+import org.skepsun.kototoro.core.nav.router
 
 @AndroidEntryPoint
 class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBinding>() {
@@ -94,6 +95,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			viewModel::onPrimaryAction,
 			viewModel::uninstall,
 			viewModel::cancelInstall,
+			::onExtensionClick,
 		)
 		with(binding) {
 			recyclerView.layoutManager = createLayoutManager()
@@ -221,6 +223,25 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			args = Bundle(1).apply { putString(ARG_EXTENSION_TYPE, viewModel.type.name) },
 			isFromRoot = false,
 		)
+	}
+
+	private fun onExtensionClick(item: ExtensionsBrowserListItem.Entry) {
+		val sources = viewModel.getSourcesForPackage(item.pkgName)
+		if (sources.isEmpty()) return
+		if (sources.size == 1) {
+			router.openList(sources.first(), null, null)
+		} else {
+			val displayNames = sources.map { 
+				val lang = org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName(it.locale)
+				if (lang.isNotEmpty()) lang else it.locale.uppercase()
+			}.toTypedArray()
+			com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+				.setTitle(item.name)
+				.setItems(displayNames) { _, which ->
+					router.openList(sources[which], null, null)
+				}
+				.show()
+		}
 	}
 
 	private fun updateEmptyState(binding: FragmentInstalledExtensionsBinding, isEmpty: Boolean) {

@@ -165,9 +165,8 @@ class DiscoverViewModel @Inject constructor(
 				_contentState.value = flat.ifEmpty { listOf(org.skepsun.kototoro.list.ui.model.EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
 			} else {
 				val rows = caps.discoveryCategories.mapNotNull { cat ->
-					if (currentTab != org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
-						val catType = getCategoryGroupTab(cat.id, service)
-						if (catType != null && catType != currentTab) return@mapNotNull null
+					if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
+						return@mapNotNull null
 					}
 					val cached = cacheRepository.readCategoryCache(service, cat.id)
 					if (cached != null && cached.isNotEmpty()) {
@@ -183,16 +182,27 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
-	private fun getCategoryGroupTab(categoryId: String, service: ScrobblerService): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab? {
-		val isVideo = categoryId.contains("anime") || categoryId.contains("movie") || categoryId.contains("ova") || categoryId.contains("tv") || categoryId.contains("calendar") || categoryId.contains("real") || (service == ScrobblerService.KITSU && !categoryId.contains("manga"))
-		val isNovel = categoryId.contains("novel") || categoryId.contains("book") || categoryId.contains("light_novel")
-		val isManga = categoryId.contains("manga") || categoryId.contains("doujin") || categoryId.contains("oneshots") || categoryId.contains("manhwa") || categoryId.contains("manhua") || categoryId.contains("mu_") || categoryId.contains("al_manga") || categoryId.contains("shiki_manga")
-		
-		return when {
-			isVideo -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video
-			isNovel -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel
-			isManga -> org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content
-			else -> null 
+	private fun isCategoryVisibleInTab(categoryId: String, service: ScrobblerService, currentTab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab): Boolean {
+		if (currentTab == org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) return true
+
+		val isVideo = categoryId.contains("anime") || categoryId.contains("movie") || categoryId.contains("ova") || 
+			categoryId.contains("tv") || categoryId.contains("calendar") || categoryId.contains("real") || 
+			categoryId.contains("seasonal") || (service == ScrobblerService.KITSU && !categoryId.contains("manga"))
+			
+		val isNovel = categoryId.contains("novel") || categoryId.contains("light_novel") || 
+			(service == ScrobblerService.BANGUMI && categoryId == "book")
+			
+		val isManga = categoryId.contains("manga") || categoryId.contains("doujin") || 
+			categoryId.contains("oneshots") || categoryId.contains("manhwa") || 
+			categoryId.contains("manhua") || categoryId.contains("mu_") || 
+			categoryId.contains("al_manga") || categoryId.contains("shiki_manga") || 
+			(service == ScrobblerService.BANGUMI && categoryId == "book")
+
+		return when (currentTab) {
+			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video -> isVideo
+			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel -> isNovel
+			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content -> isManga
+			else -> true
 		}
 	}
 
@@ -246,9 +256,8 @@ class DiscoverViewModel @Inject constructor(
 				val currentTabId = appSettings.getSelectedGroupTab()
 				val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
 					?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
-				if (currentTab != org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
-					val catType = getCategoryGroupTab(cat.id, service)
-					if (catType != null && catType != currentTab) return@mapNotNull null
+				if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
+					return@mapNotNull null
 				}
 
 				viewModelScope.async(Dispatchers.IO) {

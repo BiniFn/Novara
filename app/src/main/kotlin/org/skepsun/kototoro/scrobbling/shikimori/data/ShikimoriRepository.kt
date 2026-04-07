@@ -487,6 +487,7 @@ class ShikimoriRepository @Inject constructor(
 				altName = json.getStringOrNull("russian"),
 				cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
 				url = json.getString("url").toAbsoluteUrl(DOMAIN),
+				mediaType = json.optString("kind", "").ifBlank { null }?.replace("_", " "),
 			)
 		}
 	}
@@ -511,6 +512,7 @@ class ShikimoriRepository @Inject constructor(
 		altName = json.getStringOrNull("russian"),
 		cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
 		url = json.getString("url").toAbsoluteUrl(DOMAIN),
+		mediaType = json.optString("kind", "").ifBlank { null }?.replace("_", " "),
 		isBestMatch = sourceTitle.equals(json.getString("name"), ignoreCase = true)
 			|| json.getStringOrNull("russian")?.equals(sourceTitle, ignoreCase = true) == true
 	)

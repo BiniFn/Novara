@@ -161,8 +161,8 @@ class LocalMangaRepository @Inject constructor(
 		android.util.Log.d("LocalMangaRepository", "getPages: chapter.url=${chapter.url}, title=${chapter.title}")
 		
 		// NEW ARCHITECTURE: EPUB chapters use epub:// protocol
-		if (chapter.url.startsWith("epub://")) {
-			android.util.Log.d("LocalMangaRepository", "EPUB chapter detected (new architecture)")
+		if (chapter.url.startsWith("epub://") || chapter.url.startsWith("localepub://")) {
+			android.util.Log.d("LocalMangaRepository", "EPUB chapter detected (new architecture / localepub)")
 			// Return a special page that will be handled by NovelContentLoader
 			return listOf(
 				ContentPage(

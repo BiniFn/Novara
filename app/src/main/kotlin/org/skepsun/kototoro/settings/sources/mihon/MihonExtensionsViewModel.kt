@@ -41,6 +41,10 @@ class MihonExtensionsViewModel @Inject constructor(
         runtime.initialize()
     }
 
+    override fun getSourcesForPackage(pkgName: String): List<org.skepsun.kototoro.parsers.model.ContentSource> {
+        return extensionManager.getMihonMangaSources().filter { it.pkgName == pkgName }
+    }
+
     override fun refresh() {
         runtime.refresh()
     }

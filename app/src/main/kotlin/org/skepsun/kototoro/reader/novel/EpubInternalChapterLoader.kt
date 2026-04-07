@@ -154,9 +154,10 @@ class EpubInternalChapterLoader(
         }
         
         // Strategy 2: Extract file path from URL
-        if (chapter.url.startsWith("file://")) {
+        if (chapter.url.startsWith("file://") || chapter.url.startsWith("localepub://")) {
             val filePath = chapter.url.substringBefore("#chapter/")
                 .removePrefix("file://")
+                .removePrefix("localepub://")
             val file = File(filePath)
             if (file.exists()) {
                 return file

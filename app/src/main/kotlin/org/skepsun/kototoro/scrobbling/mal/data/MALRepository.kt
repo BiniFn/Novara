@@ -210,6 +210,7 @@ class MALRepository @Inject constructor(
 				altName = null,
 				cover = node.optJSONObject("main_picture")?.getStringOrNull("large"),
 				url = "$BASE_WEB_URL/$mediaType/${node.getLong("id")}",
+				mediaType = mediaType,
 			)
 		}
 	}
