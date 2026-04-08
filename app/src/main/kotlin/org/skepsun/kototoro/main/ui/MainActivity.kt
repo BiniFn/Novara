@@ -67,6 +67,7 @@ import org.skepsun.kototoro.explore.ui.ExploreFragment
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
 import org.skepsun.kototoro.tracker.ui.feed.FeedFragment
 import org.skepsun.kototoro.history.ui.HistoryListFragment
+import org.skepsun.kototoro.home.ui.HomeFragment
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
@@ -384,15 +385,27 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	}
 
 	private fun adjustAppbar(topFragment: Fragment) {
-		if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
+		if (topFragment is HomeFragment || topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
 			viewBinding.appbar.fitsSystemWindows = true
 		} else {
 			viewBinding.appbar.fitsSystemWindows = false
 		}
 
-		if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
+		if (topFragment is HomeFragment) {
+			// HomeFragment uses a NestedScrollView whose content scrolls behind the
+			// transparent AppBarLayout.  Give the AppBar a solid surface colour so the
+			// pinned SearchBar area is opaque – matching all other pages.
+			fadingAppbarMediator.unbind()
+			val surfaceColor = com.google.android.material.color.MaterialColors.getColor(
+				viewBinding.appbar,
+				com.google.android.material.R.attr.colorSurface,
+			)
+			viewBinding.appbar.setBackgroundColor(surfaceColor)
+		} else if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
+			viewBinding.appbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
 			fadingAppbarMediator.bind()
 		} else {
+			viewBinding.appbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
 			fadingAppbarMediator.unbind()
 		}
 	}
