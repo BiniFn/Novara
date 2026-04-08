@@ -61,7 +61,14 @@ class Prefetcher(
                         semaphore.release()
                     }
                 }
-                jobs.send(deferred)
+                // Session may have been cancelled while we were synthesizing;
+                // channel would be closed, so bail out gracefully.
+                try {
+                    jobs.send(deferred)
+                } catch (e: kotlinx.coroutines.channels.ClosedSendChannelException) {
+                    Log.d(TAG, "Jobs channel closed, stopping prefetch at index $i")
+                    return@launch
+                }
             }
             jobs.close()
         }
@@ -69,8 +76,14 @@ class Prefetcher(
         for (deferred in jobs) {
             val result = deferred.await()
             if (result != null) {
-                send(result)
+                try {
+                    send(result)
+                } catch (e: kotlinx.coroutines.channels.ClosedSendChannelException) {
+                    Log.d(TAG, "Output channel closed, stopping emission")
+                    break
+                }
             }
         }
     }
 }
+

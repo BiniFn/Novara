@@ -88,6 +88,10 @@ class TtsManager(
         // Create a new channel for the new session
         audioQueue = Channel(capacity = 10)
         
+        // Reset playback completion flag to prevent stale completion signals
+        // from the previous session triggering handleTtsPageCompleted() re-entrantly
+        playerController.resetCompletion()
+        
         Log.d(TAG, "Created new TtsSession with id: ${session.id}")
 
         startPrefetch(session, startIndex)
@@ -134,7 +138,10 @@ class TtsManager(
         completionWatchJob?.cancel()
         completionWatchJob = scope.launch {
             playerController.playbackCompleted.collect { completed ->
-                if (completed && _state.value == TtsState.PLAYING) {
+                // Only transition to COMPLETED if we are actually PLAYING.
+                // Ignore stale completion signals during BUFFERING/IDLE/COMPLETED
+                // to prevent re-entrant handleTtsPageCompleted() loops.
+                if (completed && _state.value == TtsState.PLAYING && currentSession != null) {
                     Log.d(TAG, "Playback completed for current page")
                     _state.value = TtsState.COMPLETED
                 }
@@ -190,8 +197,9 @@ class TtsManager(
         prefetchJob?.cancel()
         playbackJob?.cancel()
         completionWatchJob?.cancel()
-        audioQueue.close()
-        audioQueue.cancel()
+        // Only close the channel — calling cancel() after close() throws
+        // CancellationException that propagates to the consumer coroutine
+        runCatching { audioQueue.close() }
         playerController.stop()
     }
     

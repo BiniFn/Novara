@@ -671,6 +671,17 @@ class NovelReaderView @JvmOverloads constructor(
     }
 
     /**
+     * 获取当前页面在章节中的绝对起始下标
+     */
+    fun getCurrentPageStartOffset(): Int {
+        if (pages.isEmpty() || currentPageIndex !in pages.indices) {
+            return 0
+        }
+        val page = pages[currentPageIndex]
+        return page.startOffset
+    }
+
+    /**
      * 重新分页
      */
     private fun repaginate() {

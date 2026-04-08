@@ -96,6 +96,11 @@ class ExoPlayerController(context: Context) {
     fun stop() {
         player.stop()
         player.clearMediaItems()
+        _playbackCompleted.value = false
+    }
+    
+    fun resetCompletion() {
+        _playbackCompleted.value = false
     }
     
     fun pause() {
