@@ -80,7 +80,7 @@ class IReaderMangaRepository(
         try {
             val mangaInfo = MangaInfo(key = manga.url, title = manga.title, cover = manga.coverUrl.orEmpty())
             val details = ireaderSource.getMangaDetails(mangaInfo, emptyList())
-            val chapters = ireaderSource.getChapterList(mangaInfo, emptyList())
+            val chapters = fetchChapters(mangaInfo)
             android.util.Log.d("IReaderRepo", "getDetails: title=${details.title} chapters=${chapters.size}")
             details.toContent(originalManga = manga).copy(
                 chapters = chapters.mapIndexed { index, ch -> ch.toContentChapter(index, originalUrl = manga.url) },
@@ -141,6 +141,43 @@ class IReaderMangaRepository(
     }
 
     override suspend fun getRelatedContentImpl(seed: Content): List<Content> = emptyList()
+
+    private suspend fun fetchChapters(mangaInfo: MangaInfo): List<ChapterInfo> {
+        val reportedPageCount = runCatching { ireaderSource.getChapterPageCount(mangaInfo) }
+            .getOrElse {
+                android.util.Log.w("IReaderRepo", "fetchChapters: getChapterPageCount failed", it)
+                1
+            }
+            .coerceAtLeast(1)
+        val supportsPagination = runCatching { ireaderSource.supportsPaginatedChapters() }
+            .getOrDefault(false)
+        if (!supportsPagination && reportedPageCount <= 1) {
+            return ireaderSource.getChapterList(mangaInfo, emptyList())
+        }
+
+        return runCatching {
+            val chaptersByKey = LinkedHashMap<String, ChapterInfo>()
+            val firstPage = ireaderSource.getChapterListPaged(mangaInfo, 1, emptyList())
+            firstPage.chapters.forEach { chapter -> chaptersByKey.putIfAbsent(chapter.key, chapter) }
+            val totalPages = maxOf(firstPage.totalPages, reportedPageCount, 1)
+            android.util.Log.d(
+                "IReaderRepo",
+                "fetchChapters: supportsPagination=$supportsPagination reportedPages=$reportedPageCount resolvedPages=$totalPages firstPage=${firstPage.chapters.size}",
+            )
+            for (page in 2..totalPages) {
+                val pageInfo = ireaderSource.getChapterListPaged(mangaInfo, page, emptyList())
+                android.util.Log.d(
+                    "IReaderRepo",
+                    "fetchChapters: page=$page/${totalPages} chapters=${pageInfo.chapters.size}",
+                )
+                pageInfo.chapters.forEach { chapter -> chaptersByKey.putIfAbsent(chapter.key, chapter) }
+            }
+            chaptersByKey.values.toList()
+        }.getOrElse { error ->
+            android.util.Log.w("IReaderRepo", "fetchChapters: paginated load failed, falling back to first page API", error)
+            ireaderSource.getChapterList(mangaInfo, emptyList())
+        }
+    }
 
     // --- Model Mapping ---
 
