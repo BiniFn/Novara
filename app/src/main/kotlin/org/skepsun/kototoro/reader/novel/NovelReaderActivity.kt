@@ -100,6 +100,7 @@ class NovelReaderActivity :
     private var currentPageIndex: Int = 0
     private var desiredProgressRatio: Float? = null
     private var pendingTtsAutoStart: Boolean = false
+    private var isHandlingTtsCompletion: Boolean = false  // Guard against re-entrant handleTtsPageCompleted
     
     // Continuous Scroll mode properties
     private var continuousAdapter: NovelContinuousAdapter? = null
@@ -111,6 +112,7 @@ class NovelReaderActivity :
 
     private var ttsService: org.skepsun.kototoro.reader.novel.tts.TtsService? = null
     private var isTtsBound = false
+    private var ttsScrollModeChapterIndex: Int = -1
 
     private val ttsConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
@@ -130,11 +132,25 @@ class NovelReaderActivity :
                     
                     if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.PLAYING) {
                         // TODO string sync highlighting
+                    } else if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE) {
+                        viewBinding.readerView.setHighlightRange(null)
+                        val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                        val firstVisible = layoutManager?.findFirstVisibleItemPosition() ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+                        val lastVisible = layoutManager?.findLastVisibleItemPosition() ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+                        if (firstVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION && lastVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                            for (i in firstVisible..lastVisible) {
+                                val view = layoutManager?.findViewByPosition(i) as? org.skepsun.kototoro.reader.novel.NovelChapterView
+                                view?.setHighlightRange(null)
+                            }
+                        }
                     }
                     
                     // 当当前页朗读完成时，自动翻页并继续朗读
                     if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.COMPLETED) {
-                        handleTtsPageCompleted()
+                        // Guard: skip if we're already handling a completion event
+                        if (!isHandlingTtsCompletion) {
+                            handleTtsPageCompleted()
+                        }
                     }
                 }
             }
@@ -144,7 +160,47 @@ class NovelReaderActivity :
                     val range = index?.let { ttsService?.getToken(it)?.range }
                     viewBinding.readerView.setHighlightRange(range)
                     
-                    // (Optional) Here we could implement auto-scroll logic if the range falls outside the viewport
+                    val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+                    if (isScrollMode && range != null) {
+                        val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                        val firstVisible = layoutManager?.findFirstVisibleItemPosition() ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+                        val lastVisible = layoutManager?.findLastVisibleItemPosition() ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+                        
+                        var viewForScroll: View? = null
+                        var textForScroll: String? = null
+                        
+                        if (firstVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION && lastVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                            for (i in firstVisible..lastVisible) {
+                                val item = continuousAdapter?.getItems()?.getOrNull(i)
+                                val view = layoutManager?.findViewByPosition(i) as? org.skepsun.kototoro.reader.novel.NovelChapterView
+                                
+                                if (item?.chapterIndex == ttsScrollModeChapterIndex) {
+                                    view?.setHighlightRange(range)
+                                    viewForScroll = view
+                                    textForScroll = item.content
+                                } else {
+                                    view?.setHighlightRange(null)
+                                }
+                            }
+                        }
+                        
+                        if (viewForScroll != null && textForScroll != null && textForScroll.isNotEmpty()) {
+                            // Target Token Y layout bounds extraction mapping flawlessly eliminating ratio approximation drifts.
+                            val targetOffset = (viewForScroll as org.skepsun.kototoro.reader.novel.NovelChapterView).getLineTopForOffset(range.first).toInt()
+                            val currentOffset = -viewForScroll.top
+                            
+                            val screenHeight = viewBinding.continuousScrollView.height
+                            val preferredZoneTop = currentOffset + (screenHeight * 0.1f)
+                            val preferredZoneBottom = currentOffset + (screenHeight * 0.85f)
+                            
+                            // Auto-scroll smoothly if current spoken text goes out of the preferred reading zone
+                            if (targetOffset > preferredZoneBottom || targetOffset < preferredZoneTop) {
+                                val newDesiredTopOffset = targetOffset - (screenHeight * 0.15f).toInt()
+                                val diff = newDesiredTopOffset - currentOffset
+                                viewBinding.continuousScrollView.smoothScrollBy(0, diff)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -734,16 +790,70 @@ class NovelReaderActivity :
 
     private fun startTtsFromCurrentPage() {
         if (ttsService == null) return
-        val text = viewBinding.readerView.getCurrentPageText()
-        if (text.isBlank()) return
-        val tokens = org.skepsun.kototoro.reader.novel.tts.Tokenizer.tokenize(text)
         
-        runCatching {
+        var startIndex = 0
+        
+        // Safety: Extract text based on current reading mode
+        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+        val text = if (!isScrollMode) {
+            viewBinding.readerView.getCurrentPageText()
+        } else {
+            val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+            val firstVisible = layoutManager?.findFirstVisibleItemPosition() ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+            if (firstVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                val item = continuousAdapter?.getItems()?.getOrNull(firstVisible)
+                ttsScrollModeChapterIndex = item?.chapterIndex ?: -1
+                
+                val view = layoutManager?.findViewByPosition(firstVisible) as? org.skepsun.kototoro.reader.novel.NovelChapterView
+                val processed = view?.processedText ?: ""
+                
+                if (processed.isNotEmpty()) processed else item?.content ?: ""
+            } else ""
+        }
+        
+        if (text.isBlank()) return
+        var tokens = org.skepsun.kototoro.reader.novel.tts.Tokenizer.tokenize(text)
+        if (tokens.isEmpty()) return
+        
+        // Paged Mode relative token calibration
+        if (!isScrollMode) {
+            val pageStart = viewBinding.readerView.getCurrentPageStartOffset()
+            if (pageStart > 0) {
+                tokens = tokens.map { 
+                    it.copy(range = IntRange(it.range.first + pageStart, it.range.last + pageStart))
+                }
+            }
+        }
+        
+        // Calculate offset for scroll mode
+        if (isScrollMode) {
+            val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+            val firstVisible = layoutManager?.findFirstVisibleItemPosition() ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+            if (firstVisible != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                val view = layoutManager?.findViewByPosition(firstVisible)
+                if (view != null && view.height > 0) {
+                    // Offset corresponds to the physical pixel depth inside the full ChapterView.
+                    // By pushing this 30% screen down, we target what the user is actually looking at in the center.
+                    val offset = -view.top.toFloat() + (viewBinding.continuousScrollView.height * 0.3f)
+                    val targetChar = (view as org.skepsun.kototoro.reader.novel.NovelChapterView).getOffsetForVertical(offset)
+                    
+                    val idx = tokens.indexOfFirst { it.range.first >= targetChar }
+                    if (idx != -1) {
+                        startIndex = idx
+                    }
+                }
+            }
+        }
+        
+        try {
             val intent = android.content.Intent(this, org.skepsun.kototoro.reader.novel.tts.TtsService::class.java)
             androidx.core.content.ContextCompat.startForegroundService(this, intent)
-            ttsService?.startTts(tokens, 0)
-        }.onFailure { 
-            android.util.Log.e("NovelReaderActivity", "TTS Failed", it)
+            ttsService?.startTts(tokens, startIndex)
+        } catch (e: Exception) {
+            // On Android 12+, ForegroundServiceStartNotAllowedException can be thrown.
+            // Also catches SecurityException and IllegalStateException.
+            android.util.Log.e("NovelReaderActivity", "Failed to start TTS foreground service", e)
+            viewBinding.toastView.showTemporary("TTS启动失败: ${e.message}", 2000L)
         }
     }
 
@@ -770,33 +880,46 @@ class NovelReaderActivity :
      * 当前页朗读完成后自动翻页并继续朗读
      */
     private fun handleTtsPageCompleted() {
-        val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
-        if (isScrollMode) {
-            // 滚动模式暂不支持自动翻页朗读
-            return
-        }
+        // Re-entrant guard: if already handling a completion, skip
+        if (isHandlingTtsCompletion) return
+        isHandlingTtsCompletion = true
         
-        // 尝试翻到下一页
-        val hasNextPage = viewBinding.readerView.nextPage()
-        if (hasNextPage) {
-            // 翻页后延迟一小段时间等待页面渲染完成，然后开始朗读新页面
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                if (viewBinding.ttsControlBar.visibility == android.view.View.VISIBLE) {
-                    startTtsFromCurrentPage()
-                }
-            }, 300)
-        } else {
-            // 当前页是本章最后一页，尝试切换到下一章
-            val targetIndex = currentChapterIndex + 1
-            if (targetIndex in chapters.indices) {
-                currentChapterIndex = targetIndex
-                currentPageIndex = 0
-                // 设置标志，在章节加载完成后自动开始朗读
-                pendingTtsAutoStart = true
-                loadChapter(currentChapterIndex)
+        try {
+            val isScrollMode = readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL
+            if (isScrollMode) {
+                // 滚动模式暂不支持自动翻页朗读
+                return
+            }
+            
+            // 尝试翻到下一页
+            val hasNextPage = viewBinding.readerView.nextPage()
+            if (hasNextPage) {
+                // 翻页后延迟一小段时间等待页面渲染完成，然后开始朗读新页面
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    isHandlingTtsCompletion = false
+                    if (viewBinding.ttsControlBar.visibility == android.view.View.VISIBLE) {
+                        startTtsFromCurrentPage()
+                    }
+                }, 300)
+                return  // Don't reset flag yet — the delayed callback will
             } else {
-                // 已经是最后一章最后一页
-                ttsService?.stopTts()
+                // 当前页是本章最后一页，尝试切换到下一章
+                val targetIndex = currentChapterIndex + 1
+                if (targetIndex in chapters.indices) {
+                    currentChapterIndex = targetIndex
+                    currentPageIndex = 0
+                    // 设置标志，在章节加载完成后自动开始朗读
+                    pendingTtsAutoStart = true
+                    loadChapter(currentChapterIndex)
+                } else {
+                    // 已经是最后一章最后一页
+                    ttsService?.stopTts()
+                }
+            }
+        } finally {
+            // Reset guard unless we returned early for the delayed handler
+            if (isHandlingTtsCompletion) {
+                isHandlingTtsCompletion = false
             }
         }
     }
@@ -904,7 +1027,7 @@ class NovelReaderActivity :
             if (targetIndex >= 0) {
                 currentChapterIndex = targetIndex
                 // Restore page position/ratio from history if available
-                desiredProgressRatio = history?.percent?.takeIf { it > 0f }
+                desiredProgressRatio = history?.scroll?.takeIf { it > 0 }?.let { it / 10000f }
                 currentPageIndex = history?.page ?: state?.page ?: 0
                 android.util.Log.d("NovelReaderActivity", "✅ Restored to chapter index $targetIndex (ID: ${chapters[targetIndex].id}), page $currentPageIndex")
                 android.util.Log.d("NovelReaderActivity", "   Chapter title: ${chapters[targetIndex].title}")
@@ -1626,8 +1749,29 @@ class NovelReaderActivity :
                                         val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
                                         val firstView = layoutManager?.findViewByPosition(0)
                                         if (firstView != null) {
-                                            val targetOffset = (firstView.height * initialRatio).toInt()
-                                            layoutManager.scrollToPositionWithOffset(0, -targetOffset)
+                                            val applyScroll = { staticView: android.view.View ->
+                                                val chapterView = staticView as? org.skepsun.kototoro.reader.novel.NovelChapterView
+                                                if (chapterView != null) {
+                                                    val targetChar = (chapterView.processedText.length * initialRatio).toInt()
+                                                    val targetOffset = chapterView.getLineTopForOffset(targetChar).toInt()
+                                                    layoutManager.scrollToPositionWithOffset(0, -targetOffset)
+                                                }
+                                            }
+                                            
+                                            if (firstView.height > 0) {
+                                                applyScroll(firstView)
+                                            }
+                                            firstView.addOnLayoutChangeListener(object : android.view.View.OnLayoutChangeListener {
+                                                override fun onLayoutChange(
+                                                    v: android.view.View?, left: Int, top: Int, right: Int, bottom: Int,
+                                                    oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+                                                ) {
+                                                    v?.removeOnLayoutChangeListener(this)
+                                                    if (v != null && v.height > 0) {
+                                                        applyScroll(v)
+                                                    }
+                                                }
+                                            })
                                         }
                                     }
                                 } else {
@@ -2029,6 +2173,8 @@ class NovelReaderActivity :
                 // 只有在 TTS 未激活时，底部工具栏才参与滑动动画
                 if (!isTtsBarActive) {
                     transition.addTransition(Slide(Gravity.BOTTOM).addTarget(viewBinding.toolbarDocked))
+                } else {
+                    transition.addTransition(Fade().addTarget(viewBinding.actionsView))
                 }
                 TransitionManager.beginDelayedTransition(viewBinding.root, transition)
             }
@@ -2305,7 +2451,7 @@ class NovelReaderActivity :
                 val readerState = org.skepsun.kototoro.reader.ui.ReaderState(
                     chapterId = chapter.id,
                     page = page,
-                    scroll = 0
+                    scroll = (chapterProgress * 10000).toInt()
                 )
                 
                 // 异步更新历史记录
@@ -2327,11 +2473,12 @@ class NovelReaderActivity :
             val layoutManager = viewBinding.continuousScrollView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return 0f
             val firstVisible = layoutManager.findFirstVisibleItemPosition()
             if (firstVisible == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return 0f
-            val firstView = layoutManager.findViewByPosition(firstVisible) ?: return 0f
-            val totalHeight = firstView.height
-            if (totalHeight <= 0) return 0f
-            val topOffset = -firstView.top
-            return (topOffset.toFloat() / totalHeight).coerceIn(0f, 1f)
+            val firstView = layoutManager.findViewByPosition(firstVisible) as? org.skepsun.kototoro.reader.novel.NovelChapterView ?: return 0f
+            val textLen = firstView.processedText.length
+            if (textLen <= 0) return 0f
+            val topOffset = -firstView.top.toFloat()
+            val charPos = firstView.getOffsetForVertical(topOffset)
+            return (charPos.toFloat() / textLen).coerceIn(0f, 1f)
         }
 
         val totalChars = viewBinding.readerView.getChapterLength()

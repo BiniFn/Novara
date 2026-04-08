@@ -60,8 +60,18 @@ class NovelChapterView @JvmOverloads constructor(
         private set
     
     private var displayLayout: StaticLayout? = null
+    var processedText: String = ""
+        private set
     var paginatedTotalLength: Int = 0
         private set
+    
+    private var highlightRange: IntRange? = null
+    private val highlightPaint by lazy {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x4000BFFF // 半透明高亮色
+            style = Paint.Style.FILL
+        }
+    }
     private var imageSpans: List<ChapterImageSpan> = emptyList()
 
     private var epubFile: File? = null
@@ -98,6 +108,35 @@ class NovelChapterView @JvmOverloads constructor(
         displayLayout = null
         requestLayout()
         invalidate()
+    }
+
+    fun setHighlightRange(range: IntRange?) {
+        if (highlightRange != range) {
+            highlightRange = range
+            invalidate()
+        }
+    }
+
+    fun getLineTopForOffset(charOffset: Int): Float {
+        val layout = displayLayout ?: return 0f
+        return try {
+            val line = layout.getLineForOffset(charOffset)
+            layout.getLineTop(line).toFloat() + paddingTop + settings.marginVertical
+        } catch (e: Exception) {
+            0f
+        }
+    }
+
+    fun getOffsetForVertical(y: Float): Int {
+        val layout = displayLayout ?: return 0
+        return try {
+            val adjustedY = y - paddingTop - settings.marginVertical
+            val clampedY = adjustedY.coerceIn(0f, layout.height.toFloat())
+            val line = layout.getLineForVertical(clampedY.toInt())
+            layout.getOffsetForHorizontal(line, 0f)
+        } catch (e: Exception) {
+            0
+        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -187,6 +226,7 @@ class NovelChapterView @JvmOverloads constructor(
         }
 
         imageSpans = tempImageSpans
+        this.processedText = processedText
         displayLayout = createStaticLayout(processedText, pageWidth)
     }
 
@@ -280,6 +320,16 @@ class NovelChapterView @JvmOverloads constructor(
         val x = paddingLeft + settings.marginHorizontal.toFloat()
         val y = paddingTop + settings.marginVertical.toFloat()
         canvas.translate(x, y)
+        
+        highlightRange?.let { range ->
+            val intersectStart = kotlin.math.max(0, range.first)
+            val intersectEnd = kotlin.math.min(processedText.length, range.last + 1)
+            if (intersectStart < intersectEnd) {
+                val path = android.graphics.Path()
+                layout.getSelectionPath(intersectStart, intersectEnd, path)
+                canvas.drawPath(path, highlightPaint)
+            }
+        }
         
         layout.draw(canvas)
 
