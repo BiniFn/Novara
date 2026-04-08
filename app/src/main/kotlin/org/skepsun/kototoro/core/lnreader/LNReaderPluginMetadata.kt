@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.lnreader
 
 import kotlinx.serialization.Serializable
+import java.net.URI
 
 /**
  * Metadata extracted from a LNReader JS plugin.
@@ -15,6 +16,10 @@ data class LNReaderPluginMetadata(
 	val lang: String = "en",
 	val icon: String = ""
 ) {
+	fun sanitized(): LNReaderPluginMetadata {
+		return copy(name = sanitizeDisplayName(name, site, id))
+	}
+
 	companion object {
 		/**
 		 * Extract metadata from JS source code without executing it.
@@ -70,7 +75,44 @@ data class LNReaderPluginMetadata(
 				"""(?s)iconUrl\s*[:=]\s*['"`]([^'"`]+)['"`]""".toRegex()
 			).firstNotNullOfOrNull { it.find(jsCode)?.groupValues?.get(1) } ?: ""
 
-			return LNReaderPluginMetadata(id, name, site, version, lang, icon)
+				return LNReaderPluginMetadata(id, name, site, version, lang, icon).sanitized()
+			}
+
+		private fun sanitizeDisplayName(candidate: String, site: String, fallbackId: String): String {
+			val trimmed = candidate.trim()
+			if (trimmed.isBlank() || trimmed.matches(Regex("""^\([A-Za-z]{2,6}\)$"""))) {
+				return fallbackDisplayName(site, fallbackId)
+			}
+			return trimmed
+		}
+
+		private fun fallbackDisplayName(site: String, fallbackId: String): String {
+			val hostLabel = runCatching {
+				URI(site)
+					.host
+					?.removePrefix("www.")
+					?.split('.')
+					?.filter { it.isNotBlank() }
+					?.let { parts ->
+						when {
+							parts.size >= 2 -> parts[parts.size - 2]
+							parts.isNotEmpty() -> parts.first()
+							else -> null
+						}
+					}
+			}.getOrNull()
+			val base = hostLabel?.takeIf { it.isNotBlank() } ?: fallbackId
+			return base
+				.replace(Regex("""[._-]+"""), " ")
+				.trim()
+				.split(' ')
+				.filter { it.isNotBlank() }
+				.joinToString(" ") { part ->
+					part.replaceFirstChar { ch ->
+						if (ch.isLowerCase()) ch.titlecase() else ch.toString()
+					}
+				}
+				.ifBlank { fallbackId }
 		}
 	}
 }

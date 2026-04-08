@@ -35,7 +35,7 @@ class SourcesListProducer @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	private val repository: ContentSourcesRepository,
 	private val settings: AppSettings,
-) : InvalidationTracker.Observer(TABLE_SOURCES) {
+) : InvalidationTracker.Observer(TABLE_SOURCES, org.skepsun.kototoro.core.db.TABLE_JSON_SOURCES) {
 
 	private val scope = lifecycle.lifecycleScope
 	private var query: String = ""

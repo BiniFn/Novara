@@ -116,7 +116,7 @@ class ContentSourcesRepository @Inject constructor(
 				
 				external.forEach { if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it) }
 				jsonSources.forEach { 
-					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it) 
+					if (it.name !in existingNames) list.add(it) 
 				}
 				mihonSources.forEach {
 					if ((settings.isAllSourcesEnabled || it.name !in disabledNames) && it.name !in existingNames) list.add(it)
@@ -417,10 +417,13 @@ class ContentSourcesRepository @Inject constructor(
 			org.skepsun.kototoro.core.jsonsource.SourceType.MIHON in sourceTypes
 		
 		if (shouldIncludeMihon) {
-			val mihonSources = getEnabledMihonSources().filter { source ->
-				query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true)
+			val allMihon = mihonExtensionManager.getMihonMangaSources()
+			val enabledNames = if (!settings.isAllSourcesEnabled) dao.findAllEnabledNames() else allMihon.map { it.name }
+			val filteredMihon = allMihon.filter { source ->
+				val isMatch = if (isDisabledOnly) source.name !in enabledNames else source.name in enabledNames
+				isMatch && (query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
 			}
-			result.addAll(mihonSources)
+			result.addAll(filteredMihon)
 		}
 
 		// Add Aniyomi sources if requested
@@ -428,10 +431,35 @@ class ContentSourcesRepository @Inject constructor(
 			org.skepsun.kototoro.core.jsonsource.SourceType.ANIYOMI in sourceTypes
 		
 		if (shouldIncludeAniyomi) {
-			val aniyomiSources = getEnabledAniyomiSources().filter { source ->
-				query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true)
+			val allAniyomi = aniyomiExtensionManager.installedExtensions.value.flatMap { ext ->
+				ext.catalogueSources.map { catalogueSource ->
+					org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource(
+						animeCatalogueSource = catalogueSource,
+						pkgName = ext.pkgName,
+						isNsfw = ext.isNsfw
+					)
+				}
 			}
-			result.addAll(aniyomiSources)
+			val enabledNames = if (!settings.isAllSourcesEnabled) dao.findAllEnabledNames() else allAniyomi.map { it.name }
+			val filteredAniyomi = allAniyomi.filter { source ->
+				val isMatch = if (isDisabledOnly) source.name !in enabledNames else source.name in enabledNames
+				isMatch && (query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
+			}
+			result.addAll(filteredAniyomi)
+		}
+
+		// Add IReader sources if requested
+		val shouldIncludeIReader = sourceTypes == null || 
+			org.skepsun.kototoro.core.jsonsource.SourceType.IREADER in sourceTypes
+		
+		if (shouldIncludeIReader) {
+			val allIReader = ireaderExtensionManager.getIReaderMangaSources()
+			val enabledNames = if (!settings.isAllSourcesEnabled) dao.findAllEnabledNames() else allIReader.map { it.name }
+			val filteredIReader = allIReader.filter { source ->
+				val isMatch = if (isDisabledOnly) source.name !in enabledNames else source.name in enabledNames
+				isMatch && (query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
+			}
+			result.addAll(filteredIReader)
 		}
 		
 		return result
@@ -605,7 +633,7 @@ class ContentSourcesRepository @Inject constructor(
 			
 			val existingNames = sources.mapToSet { it.mangaSource.name }
 			jsonSources.forEach { jsonSource ->
-				if (jsonSource.name !in existingNames && jsonSource.name !in disabledNames) {
+				if (jsonSource.name !in existingNames) {
 					list.add(ContentSourceInfo(jsonSource, isEnabled = jsonSource.isEnabled, isPinned = jsonSource.isPinned))
 				}
 			}
@@ -770,36 +798,17 @@ class ContentSourcesRepository @Inject constructor(
 	}
 
 	suspend fun setSourcesEnabledExclusive(sources: Set<ContentSource>) {
-		val currentEnabled = getEnabledSources()
 		db.withTransaction {
 			assimilateNewSources()
 			for (s in allContentSources) {
 				dao.setEnabled(s.name, s in sources)
-			}
-			for (s in currentEnabled) {
-				if (s !in allContentSources && s !in sources) {
-					dao.setEnabled(s.name, false)
-				}
-			}
-			for (s in sources) {
-				if (s !in allContentSources) {
-					dao.setEnabled(s.name, true)
-				}
 			}
 		}
 	}
 
 	suspend fun disableAllSources() {
 		val currentEnabled = getEnabledSources()
-		db.withTransaction {
-			assimilateNewSources()
-			dao.disableAllSources()
-			for (s in currentEnabled) {
-				if (s !in allContentSources) {
-					dao.setEnabled(s.name, false)
-				}
-			}
-		}
+		setSourcesEnabledImpl(currentEnabled, false)
 	}
 
 	suspend fun setPositions(sources: List<ContentSource>) {
@@ -875,13 +884,25 @@ class ContentSourcesRepository @Inject constructor(
 	}
 
 	private suspend fun setSourcesEnabledImpl(sources: Collection<ContentSource>, isEnabled: Boolean) {
-		if (sources.size == 1) { // fast path
-			dao.setEnabled(sources.first().name, isEnabled)
-			return
+		val nativeSources = mutableListOf<String>()
+		val jsonSources = mutableListOf<String>()
+		for (source in sources) {
+			if (source.name.startsWith("JSON_")) {
+				jsonSources.add(source.name)
+			} else {
+				nativeSources.add(source.name)
+			}
 		}
-		db.withTransaction {
-			for (source in sources) {
-				dao.setEnabled(source.name, isEnabled)
+
+		if (jsonSources.isNotEmpty()) {
+			jsonSourceManager.toggleSourcesBatch(jsonSources, isEnabled)
+		}
+
+		if (nativeSources.isNotEmpty()) {
+			db.withTransaction {
+				for (name in nativeSources) {
+					dao.setEnabled(name, isEnabled)
+				}
 			}
 		}
 	}
@@ -896,13 +917,25 @@ class ContentSourcesRepository @Inject constructor(
 	}
 
 	private suspend fun setSourcesPinnedImpl(sources: Collection<ContentSource>, isPinned: Boolean) {
-		if (sources.size == 1) { // fast path
-			dao.setPinned(sources.first().name, isPinned)
-			return
+		val nativeSources = mutableListOf<String>()
+		val jsonSources = mutableListOf<String>()
+		for (source in sources) {
+			if (source.name.startsWith("JSON_")) {
+				jsonSources.add(source.name)
+			} else {
+				nativeSources.add(source.name)
+			}
 		}
-		db.withTransaction {
-			for (source in sources) {
-				dao.setPinned(source.name, isPinned)
+
+		if (jsonSources.isNotEmpty()) {
+			jsonSourceManager.setSourcesPinnedBatch(jsonSources, isPinned)
+		}
+
+		if (nativeSources.isNotEmpty()) {
+			db.withTransaction {
+				for (name in nativeSources) {
+					dao.setPinned(name, isPinned)
+				}
 			}
 		}
 	}
@@ -1100,7 +1133,7 @@ class ContentSourcesRepository @Inject constructor(
 		if (startsWith("JSON_")) {
 			// This is a bit expensive but necessary for pinning/top sources to work correctly
 			val jsonSources = kotlinx.coroutines.runBlocking { 
-				jsonSourceManager.observeEnabledJsonSources().first().map {
+				jsonSourceManager.observeAllJsonSources().first().map {
 					org.skepsun.kototoro.core.jsonsource.JsonContentSource(it)
 				}
 			}

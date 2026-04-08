@@ -110,6 +110,18 @@ interface JsonSourceDao {
 	suspend fun setEnabledBatch(ids: List<String>, enabled: Boolean, timestamp: Long)
 
 	/**
+	 * Update pinned status
+	 */
+	@Query("UPDATE json_sources SET is_pinned = :isPinned, updated_at = :timestamp WHERE id = :id")
+	suspend fun setPinned(id: String, isPinned: Boolean, timestamp: Long)
+	
+	/**
+	 * Batch update pinned status
+	 */
+	@Query("UPDATE json_sources SET is_pinned = :isPinned, updated_at = :timestamp WHERE id IN (:ids)")
+	suspend fun setPinnedBatch(ids: List<String>, isPinned: Boolean, timestamp: Long)
+
+	/**
 	 * Update last used timestamp
 	 * Indexed update on primary key
 	 */

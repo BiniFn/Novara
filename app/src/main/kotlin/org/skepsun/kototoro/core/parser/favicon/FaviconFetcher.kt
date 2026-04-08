@@ -23,6 +23,8 @@ import coil3.toBitmap
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import okio.FileSystem
 import okio.IOException
 import okio.Path.Companion.toOkioPath
@@ -60,10 +62,27 @@ class FaviconFetcher(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val localStorageCache: LocalStorageCache,
 	private val repoRepository: ExternalExtensionRepoRepository,
+	private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
-		val mangaSource = org.skepsun.kototoro.core.model.ContentSource(uri.schemeSpecificPart)
+		val sourceId = uri.schemeSpecificPart.let {
+			if (it.startsWith("JSON_") && it.endsWith("_json")) {
+				it.removeSuffix("_json")
+			} else {
+				it
+			}
+		}
+		val mangaSource = if (sourceId.startsWith("JSON_")) {
+			val jsonSources = runBlocking {
+				jsonSourceManager.observeAllJsonSources().first().map {
+					org.skepsun.kototoro.core.jsonsource.JsonContentSource(it)
+				}
+			}
+			jsonSources.find { it.name == sourceId } ?: org.skepsun.kototoro.core.model.ContentSource(sourceId)
+		} else {
+			org.skepsun.kototoro.core.model.ContentSource(sourceId)
+		}
 
 		return when (val repo = mangaRepositoryFactory.create(mangaSource)) {
 			is ParserContentRepository -> fetchParserFavicon(repo)
@@ -373,6 +392,7 @@ class FaviconFetcher(
 		private val mangaRepositoryFactory: ContentRepository.Factory,
 		@FaviconCache private val faviconCache: LocalStorageCache,
 		private val repoRepository: ExternalExtensionRepoRepository,
+		private val jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager,
 	) : Fetcher.Factory<CoilUri> {
 
 		override fun create(
@@ -380,7 +400,7 @@ class FaviconFetcher(
 			options: Options,
 			imageLoader: ImageLoader
 		): Fetcher? = if (data.scheme == URI_SCHEME_FAVICON) {
-			FaviconFetcher(data.toAndroidUri(), options, imageLoader, mangaRepositoryFactory, faviconCache, repoRepository)
+			FaviconFetcher(data.toAndroidUri(), options, imageLoader, mangaRepositoryFactory, faviconCache, repoRepository, jsonSourceManager)
 		} else {
 			null
 		}

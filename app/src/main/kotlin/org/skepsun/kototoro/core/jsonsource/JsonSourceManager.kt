@@ -10,6 +10,7 @@ import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.js.JSSourceParser
+import org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.javascript.JavaScriptEnginePool
@@ -199,6 +200,27 @@ class JsonSourceManager @Inject constructor(
 		} catch (e: Exception) {
 			JsonSourceLogger.logDatabaseError("batch toggle sources", e)
 			throw JsonSourceError.DatabaseError("batch toggle sources", e)
+		}
+	}
+
+	suspend fun setSourcePinned(sourceId: String, isPinned: Boolean) {
+		try {
+			val timestamp = System.currentTimeMillis()
+			jsonSourceDao.setPinned(sourceId, isPinned, timestamp)
+			invalidateCache(sourceId)
+			JsonSourceLogger.logStateChange(sourceId, isPinned)
+		} catch (e: Exception) {
+			JsonSourceLogger.logDatabaseError("set source pinned", e)
+		}
+	}
+
+	suspend fun setSourcesPinnedBatch(sourceIds: List<String>, isPinned: Boolean) {
+		try {
+			val timestamp = System.currentTimeMillis()
+			jsonSourceDao.setPinnedBatch(sourceIds, isPinned, timestamp)
+			sourceIds.forEach { invalidateCache(it) }
+		} catch (e: Exception) {
+			JsonSourceLogger.logDatabaseError("batch set sources pinned", e)
 		}
 	}
 
@@ -446,11 +468,18 @@ class JsonSourceManager @Inject constructor(
 	 * Extracts metadata using regex (no JS engine needed for import),
 	 * stores the full JS bundle in the config field.
 	 */
-	suspend fun importLNReaderPlugin(jsContent: String): Result<Int> {
+	suspend fun importLNReaderPlugin(
+		jsContent: String,
+		metadataOverride: LNReaderPluginMetadata? = null,
+	): Result<Int> {
 		return try {
 			val fallbackId = "lnreader_${System.currentTimeMillis()}"
-			val meta = org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata.extractFromCode(jsContent, fallbackId)
+			val extractedMeta = LNReaderPluginMetadata.extractFromCode(jsContent, fallbackId)
 				?: return Result.failure(IllegalArgumentException("Cannot extract plugin metadata from JS code"))
+			val meta = metadataOverride
+				?.mergeMissing(extractedMeta)
+				?.sanitized()
+				?: extractedMeta
 			
 			val sourceId = generateSourceId(meta.site.ifBlank { meta.id }, JsonSourceType.LNREADER)
 			
@@ -475,6 +504,17 @@ class JsonSourceManager @Inject constructor(
 			JsonSourceLogger.logError("Failed to import LNReader plugin", e)
 			Result.failure(e)
 		}
+	}
+
+	private fun LNReaderPluginMetadata.mergeMissing(fallback: LNReaderPluginMetadata): LNReaderPluginMetadata {
+		return LNReaderPluginMetadata(
+			id = id.ifBlank { fallback.id },
+			name = name.ifBlank { fallback.name },
+			site = site.ifBlank { fallback.site },
+			version = version.ifBlank { fallback.version },
+			lang = lang.ifBlank { fallback.lang },
+			icon = icon.ifBlank { fallback.icon },
+		)
 	}
 	
 	/**

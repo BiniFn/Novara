@@ -82,15 +82,25 @@ class LNReaderRepository(
 
 				val jsContent = response.body?.string()
 					?: return@withContext Result.failure(RuntimeException("Empty JS bundle"))
-				response.close()
+					response.close()
 
-				Log.d(TAG, "Downloaded plugin ${plugin.id} (${jsContent.length} bytes)")
-				jsonSourceManager.importLNReaderPlugin(jsContent)
-			} catch (e: Exception) {
-				Log.e(TAG, "Failed to install plugin ${plugin.id}", e)
-				Result.failure(e)
+					Log.d(TAG, "Downloaded plugin ${plugin.id} (${jsContent.length} bytes)")
+					jsonSourceManager.importLNReaderPlugin(
+						jsContent = jsContent,
+						metadataOverride = LNReaderPluginMetadata(
+							id = plugin.id,
+							name = plugin.name,
+							site = plugin.site,
+							version = plugin.version,
+							lang = plugin.lang,
+							icon = plugin.iconUrl,
+						),
+					)
+				} catch (e: Exception) {
+					Log.e(TAG, "Failed to install plugin ${plugin.id}", e)
+					Result.failure(e)
+				}
 			}
-		}
 
 	private fun parsePluginIndex(json: String): List<LNReaderPluginInfo> {
 		val array = JSONArray(json)

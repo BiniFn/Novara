@@ -62,7 +62,7 @@ class SourcesCatalogViewModel @Inject constructor(
 	val content: StateFlow<List<ListModel>> = combine(
 		searchQuery,
 		appliedFilter,
-		db.invalidationTrackerFlow(TABLE_SOURCES),
+		db.invalidationTrackerFlow(TABLE_SOURCES, org.skepsun.kototoro.core.db.TABLE_JSON_SOURCES),
 	) { q, f, _ ->
 		buildSourcesList(f, q)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
@@ -110,7 +110,7 @@ class SourcesCatalogViewModel @Inject constructor(
 	}
 
 	private suspend fun buildSourcesList(filter: SourcesCatalogFilter, query: String?): List<SourceCatalogItem> {
-		val allSources = repository.queryParserSources(
+		val allSources = repository.queryAllSources(
 			isDisabledOnly = true,
 			isNewOnly = filter.isNewOnly,
 			excludeBroken = !settings.isShowBrokenSources,
