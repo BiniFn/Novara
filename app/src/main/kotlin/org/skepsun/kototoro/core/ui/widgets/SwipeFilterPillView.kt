@@ -14,6 +14,8 @@ import android.view.ViewConfiguration
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.view.ViewGroup
+import androidx.appcompat.widget.Toolbar
 import androidx.annotation.DrawableRes
 import androidx.core.animation.doOnEnd
 import org.skepsun.kototoro.R
@@ -76,6 +78,7 @@ class SwipeFilterPillView @JvmOverloads constructor(
     private var isDragging = false
     
     private var selectedIndex = 1 
+    private val modifiedParents = ArrayDeque<ClipState>()
     
     init {
         setWillNotDraw(false)
@@ -221,12 +224,41 @@ class SwipeFilterPillView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        // Recursively disable clipping on parents so the left icon does not get cut off by the Toolbar
-        var parentView = parent as? android.view.ViewGroup
+        applyParentClippingOverrides()
+    }
+
+    override fun onDetachedFromWindow() {
+        restoreParentClippingOverrides()
+        super.onDetachedFromWindow()
+    }
+
+    private fun applyParentClippingOverrides() {
+        restoreParentClippingOverrides()
+        // Only relax clipping up to the Toolbar. Touching AppBarLayout/CoordinatorLayout
+        // changes collapsing behavior and can leave visual gaps during fast scroll.
+        var parentView = parent as? ViewGroup
         while (parentView != null) {
+            modifiedParents.addLast(
+                ClipState(
+                    view = parentView,
+                    clipChildren = parentView.clipChildren,
+                    clipToPadding = parentView.clipToPadding,
+                ),
+            )
             parentView.clipChildren = false
             parentView.clipToPadding = false
-            parentView = parentView.parent as? android.view.ViewGroup
+            if (parentView is Toolbar) {
+                break
+            }
+            parentView = parentView.parent as? ViewGroup
+        }
+    }
+
+    private fun restoreParentClippingOverrides() {
+        while (modifiedParents.isNotEmpty()) {
+            val state = modifiedParents.removeLast()
+            state.view.clipChildren = state.clipChildren
+            state.view.clipToPadding = state.clipToPadding
         }
     }
 
@@ -274,4 +306,10 @@ class SwipeFilterPillView @JvmOverloads constructor(
             start()
         }
     }
+
+    private data class ClipState(
+        val view: ViewGroup,
+        val clipChildren: Boolean,
+        val clipToPadding: Boolean,
+    )
 }
