@@ -64,6 +64,7 @@ export default defineConfig({
         items: [
           { text: "Development", link: "/development" },
           { text: "Contributing", link: "/contributing" },
+          { text: "Issue Submission Guide", link: "/issue-submission-guide" },
         ],
       },
       {
