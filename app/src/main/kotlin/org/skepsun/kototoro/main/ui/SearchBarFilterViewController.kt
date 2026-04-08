@@ -76,14 +76,18 @@ class SearchBarFilterViewController(
 			setCurrentType(when (current) {
 				BrowseGroupTab.Novel -> ContentType.NOVEL
 				BrowseGroupTab.Video -> ContentType.VIDEO
-				else -> ContentType.MANGA
+				BrowseGroupTab.Content -> ContentType.MANGA
+				BrowseGroupTab.All -> null
+				else -> null
 			})
 			
 			onFilterSelectedListener = { type ->
 				val tab = when (type) {
 					ContentType.NOVEL -> BrowseGroupTab.Novel
 					ContentType.VIDEO -> BrowseGroupTab.Video
-					else -> BrowseGroupTab.Content
+					ContentType.MANGA -> BrowseGroupTab.Content
+					null -> BrowseGroupTab.All
+					else -> BrowseGroupTab.All
 				}
 				callback.onContentTypeSelected(tab)
 				updateIcons()
@@ -213,7 +217,9 @@ class SearchBarFilterViewController(
 			it.setCurrentType(when (selectedTab) {
 				BrowseGroupTab.Novel -> ContentType.NOVEL
 				BrowseGroupTab.Video -> ContentType.VIDEO
-				else -> ContentType.MANGA
+				BrowseGroupTab.Content -> ContentType.MANGA
+				BrowseGroupTab.All -> null
+				else -> null
 			})
 			it.isEnabled = callback.isContentTypeEnabled(selectedTab)
 		}

@@ -102,14 +102,26 @@ class SwipeFilterPillView @JvmOverloads constructor(
     }
 
     private fun updateIcons() {
+        val isCollapsed = !isExpanded && expansionProgress == 0f
+        val centerIconRes = if (isCollapsed) {
+            getIconForType(currentType)
+        } else {
+            getIconForType(defaultType)
+        }
+
         iconLeft.setImageResource(getIconForType(swipeLeftType))
-        iconCenter.setImageResource(getIconForType(currentType))
+        iconCenter.setImageResource(centerIconRes)
         iconRight.setImageResource(getIconForType(swipeRightType))
         
-        // Tint icons
-        iconLeft.setColorFilter(if (selectedIndex == 0) highlightIconTint else iconTint)
-        iconCenter.setColorFilter(if (selectedIndex == 1) highlightIconTint else iconTint)
-        iconRight.setColorFilter(if (selectedIndex == 2) highlightIconTint else iconTint)
+        if (isCollapsed) {
+            iconCenter.setColorFilter(if (currentType != null) highlightIconTint else iconTint)
+            iconLeft.setColorFilter(iconTint)
+            iconRight.setColorFilter(iconTint)
+        } else {
+            iconLeft.setColorFilter(if (selectedIndex == 0) highlightIconTint else iconTint)
+            iconCenter.setColorFilter(if (selectedIndex == 1) highlightIconTint else iconTint)
+            iconRight.setColorFilter(if (selectedIndex == 2) highlightIconTint else iconTint)
+        }
     }
 
     @DrawableRes
@@ -144,6 +156,8 @@ class SwipeFilterPillView @JvmOverloads constructor(
         
         rect.set(-expansionOffset, 0f, size + expansionOffset, height.toFloat())
         val radius = height / 2f
+        
+        paint.alpha = (255 * expansionProgress).toInt()
         canvas.drawRoundRect(rect, radius, radius, paint)
         
         if (expansionProgress > 0f) {
@@ -151,7 +165,6 @@ class SwipeFilterPillView @JvmOverloads constructor(
             val centerOffset = (selectedIndex - 1) * size
             val highlightRadius = height / 2f
             highlightRect.set(centerOffset, 0f, centerOffset + size, height.toFloat())
-            // Only draw highlight if the pill is fully or almost fully expanded
             highlightPaint.alpha = (255 * expansionProgress).toInt()
             canvas.drawRoundRect(highlightRect, highlightRadius, highlightRadius, highlightPaint)
         }
