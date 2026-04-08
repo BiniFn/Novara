@@ -100,7 +100,7 @@ class ExtensionsBrowserAdapter(
 
 		fun bind(item: ExtensionsBrowserListItem.Entry) = with(binding) {
 			root.setOnClickListener {
-				if (item.state == ExtensionsBrowserEntryState.INSTALLED) {
+				if (item.state == ExtensionsBrowserEntryState.INSTALLED || item.state == ExtensionsBrowserEntryState.UNTRUSTED) {
 					onRootClick?.invoke(item)
 				}
 			}
@@ -111,7 +111,7 @@ class ExtensionsBrowserAdapter(
 			}
 			textPackage.text = item.pkgName
 			textVersion.text = item.versionName
-			if (item.state == ExtensionsBrowserEntryState.INSTALLED) {
+			if (item.state == ExtensionsBrowserEntryState.INSTALLED || item.state == ExtensionsBrowserEntryState.UNTRUSTED) {
 				val icon = runCatching { root.context.packageManager.getApplicationIcon(item.pkgName) }.getOrNull()
 				if (icon != null) {
 					imageIcon.disposeImage()
@@ -126,7 +126,7 @@ class ExtensionsBrowserAdapter(
 					imageIcon.setImageAsync(item.extension.iconUrl)
 				}
 			}
-			textRepo.text = if (item.state == ExtensionsBrowserEntryState.INSTALLED) {
+			textRepo.text = if (item.state == ExtensionsBrowserEntryState.INSTALLED || item.state == ExtensionsBrowserEntryState.UNTRUSTED) {
 				root.context.getString(R.string.installed_repo_label)
 			} else {
 				item.repoLabel
@@ -135,7 +135,7 @@ class ExtensionsBrowserAdapter(
 			textSources.text = item.sourceNames.joinToString(", ")
 			badgeNsfw.isVisible = item.isNsfw
 			textInstalledVersion.text = item.installedVersionName?.let { root.context.getString(R.string.installed_version_pattern, it) }
-			textInstalledVersion.isVisible = item.installedVersionName != null && item.state != ExtensionsBrowserEntryState.INSTALLED
+			textInstalledVersion.isVisible = item.installedVersionName != null && item.state != ExtensionsBrowserEntryState.INSTALLED && item.state != ExtensionsBrowserEntryState.UNTRUSTED
 			buttonPrimary.text = when (item.state) {
 				ExtensionsBrowserEntryState.AVAILABLE -> root.context.getString(R.string.install_extension)
 				ExtensionsBrowserEntryState.UPDATE_AVAILABLE -> root.context.getString(R.string.update_extension)
