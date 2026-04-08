@@ -1,13 +1,21 @@
 package org.skepsun.kototoro.video.ui
 
+import android.graphics.Typeface
 import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.flow.launchIn
@@ -19,6 +27,7 @@ import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.databinding.SheetVideoSettingsBinding
 import org.skepsun.kototoro.reader.ui.ScreenOrientationHelper
+import org.skepsun.kototoro.video.player.MpvConfigManager
 
 /**
  * 瑙嗛鈥滄洿澶氳缃€濆簳閮?Sheet銆?
@@ -67,6 +76,9 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
                 org.skepsun.kototoro.video.ui.VideoSuperResolutionSheet().show(fm, tag)
             }
             dismiss()
+        }
+        binding.buttonMpvConf.setOnClickListener {
+            showMpvConfigDialog()
         }
         binding.buttonScreenshot.setOnClickListener {
             (activity as? VideoPlayerActivity)?.takeScreenshot()
@@ -244,6 +256,10 @@ class VideoSettingsSheet : BaseAdaptiveSheet<SheetVideoSettingsBinding>() {
             else -> R.string.video_aspect_ratio_fit
         }
         binding.buttonAspectRatio.text = getString(R.string.video_aspect_ratio) + " - " + getString(aspectRatioRes)
+    }
+
+    private fun showMpvConfigDialog() {
+        MpvConfigManager.showMpvConfigDialog(requireContext(), viewBinding?.root)
     }
 
     private fun showSpeedDialog(

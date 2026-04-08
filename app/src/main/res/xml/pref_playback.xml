@@ -22,6 +22,12 @@
 		android:title="@string/video_background"
 		app:useSimpleSummaryProvider="true" />
 
+	<Preference
+		android:key="video_mpv_conf_trigger"
+		android:title="@string/video_mpv_conf"
+		android:summary="@string/video_mpv_conf_hint"
+		app:allowDividerAbove="true" />
+
 	<PreferenceScreen
 		android:key="playback_ai_video_settings_entry"
 		android:fragment="org.skepsun.kototoro.settings.AISettingsFragment"

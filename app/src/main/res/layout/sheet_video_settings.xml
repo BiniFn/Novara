@@ -92,6 +92,13 @@
                 app:drawableStartCompat="@drawable/ic_auto_fix" />
 
             <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
+                android:id="@+id/button_mpv_conf"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/video_mpv_conf"
+                app:drawableStartCompat="@drawable/ic_settings" />
+
+            <org.skepsun.kototoro.core.ui.widgets.ListItemTextView
                 android:id="@+id/button_screenshot"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

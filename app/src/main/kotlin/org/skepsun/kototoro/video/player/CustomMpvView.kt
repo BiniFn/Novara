@@ -12,6 +12,8 @@ class CustomMpvView(context: Context, attrs: AttributeSet) : BaseMPVView(context
 		mpv.setOptionString("ao", "audiotrack,opensles")
 		mpv.setOptionString("gpu-context", "android")
 		mpv.setOptionString("keep-open", "yes")
+		mpv.setOptionString("config", "yes")
+		mpv.setOptionString("config-dir", context.filesDir.path)
 
 		// 关键比例参数，避免旋转/PiP 后出现裁切或偏移
 		mpv.setOptionString("keepaspect", "yes")

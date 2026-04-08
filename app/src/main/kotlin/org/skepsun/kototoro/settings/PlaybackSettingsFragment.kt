@@ -54,4 +54,12 @@ class PlaybackSettingsFragment : BasePreferenceFragment(R.string.playback_settin
 			}
 		}
 	}
+
+	override fun onPreferenceTreeClick(preference: Preference): Boolean {
+		if (preference.key == "video_mpv_conf_trigger") {
+			org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(requireContext(), view)
+			return true
+		}
+		return super.onPreferenceTreeClick(preference)
+	}
 }

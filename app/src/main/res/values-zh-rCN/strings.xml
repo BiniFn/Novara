@@ -1887,4 +1887,5 @@
     <string name="blur_mode_enhanced">增强模式 (提升模糊，偏iOS风)</string>
     <string name="mark_as_safe">标记为非 NSFW</string>
     <string name="mark_as_nsfw">标记为 NSFW</string>
+    <string name="video_mpv_conf_guide"><![CDATA[<b>常用配置:</b><br/>• <tt>deband=yes</tt> (减少色带)<br/>• <tt>interpolation=yes</tt> (平滑播放)<br/>• <tt>hwdec=mediacodec</tt> (硬件解码)<br/><br/><a href="https://mpv.io/manual/master/#options">查看详细的 MPV 配置手册</a>]]></string>
 </resources>

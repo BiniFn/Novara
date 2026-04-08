@@ -289,6 +289,11 @@
     <string name="video_super_resolution_advanced">Advanced</string>
     <string name="video_super_resolution_advanced_settings">Advanced settings</string>
     <string name="video_super_resolution_advanced_shader">Advanced shader</string>
+    <string name="video_mpv_conf">Edit mpv.conf</string>
+    <string name="video_mpv_conf_hint">One option per line. Changes apply the next time the video player starts.</string>
+    <string name="video_mpv_conf_guide"><![CDATA[<b>Common options:</b><br/>• <tt>deband=yes</tt> (Reduce banding artifacts)<br/>• <tt>interpolation=yes</tt> (Smooth playback)<br/>• <tt>hwdec=mediacodec</tt> (Hardware decoding)<br/><br/><a href="https://mpv.io/manual/master/#options">View detailed MPV documentation</a>]]></string>
+    <string name="video_mpv_conf_saved">mpv.conf saved. Reopen the player to apply changes.</string>
+    <string name="video_mpv_conf_reset">mpv.conf reset. Reopen the player to apply changes.</string>
     <string name="video_super_resolution_mode_a">Mode A</string>
     <string name="video_super_resolution_mode_a_desc">Pros: Reduces compression artifacts, rebuilds lines, reduces blur, reduces noise.\nCons: May amplify ringing, banding, and blur textures.</string>
     <string name="video_super_resolution_mode_b">Mode B</string>
