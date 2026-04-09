@@ -19,7 +19,8 @@ import org.skepsun.kototoro.core.model.isLocal
  * as opposed to still being a remote URL in index.json metadata.
  */
 private fun String.isLocalChapterUrl(): Boolean =
-	startsWith("file:") || startsWith("zip:") || startsWith("epub://")
+	startsWith("file:") || startsWith("zip:") || startsWith("file+zip:") || 
+	startsWith("content:") || startsWith("epub:") || startsWith("localepub:")
 
 /**
  * Represents a group of chapters for UI display
