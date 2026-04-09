@@ -16,6 +16,7 @@ data class ContentDetailedListModel(
 	val isFavorite: Boolean,
 	val isSaved: Boolean,
 	val tags: List<ChipsView.ChipModel>,
+	override val isPinned: Boolean = false,
 ) : ContentListModel() {
 
 	override fun getChangePayload(previousState: ListModel): Any? = when {

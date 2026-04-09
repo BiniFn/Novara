@@ -13,6 +13,7 @@ data class ContentGridModel(
 	val progress: ReadingProgress?,
 	val isFavorite: Boolean,
 	val isSaved: Boolean,
+	override val isPinned: Boolean = false,
 ) : ContentListModel() {
 
 	override fun getChangePayload(previousState: ListModel): Any? = when {

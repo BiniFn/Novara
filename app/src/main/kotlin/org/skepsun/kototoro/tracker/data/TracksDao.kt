@@ -51,7 +51,7 @@ abstract class TracksDao : MangaQueryBuilder.ConditionCallback {
 			.where("chapters_new > 0")
 			.filters(filterOptions)
 			.limit(limit)
-			.orderBy("last_chapter_date DESC")
+			.orderBy("IFNULL((SELECT MAX(pinned) FROM favourites WHERE favourites.manga_id = tracks.manga_id AND deleted_at = 0), 0) DESC, last_chapter_date DESC")
 			.build(),
 	)
 

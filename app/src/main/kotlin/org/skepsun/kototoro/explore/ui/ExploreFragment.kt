@@ -116,7 +116,13 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 
 	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value ?: emptySet()
 
-	override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
+	override fun getSourceTagEntries(): List<SourceTag> {
+		return if (viewBinding?.viewPager?.currentItem == 0) {
+			listOf(SourceTag.PINNED) + SourceTag.quickFilterEntries
+		} else {
+			SourceTag.quickFilterEntries
+		}
+	}
 
 	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
 

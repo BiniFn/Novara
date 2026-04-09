@@ -286,6 +286,8 @@ class ExploreViewModel @Inject constructor(
 			
 			val originMatches = if (sourceTags.isEmpty()) {
 				true
+			} else if (sourceTags.contains(SourceTag.PINNED)) {
+				sourceInfo.isPinned
 			} else {
 				sourceTags.any { it.matches(contentGroup, originGroup) }
 			}

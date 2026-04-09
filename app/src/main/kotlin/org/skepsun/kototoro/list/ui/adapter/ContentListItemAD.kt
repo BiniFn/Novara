@@ -9,6 +9,8 @@ import org.skepsun.kototoro.core.util.ext.textAndVisible
 import org.skepsun.kototoro.databinding.ItemContentListBinding
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import androidx.core.content.ContextCompat
+import org.skepsun.kototoro.core.util.ext.drawableStart
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 
 fun mangaListItemAD(
@@ -18,10 +20,12 @@ fun mangaListItemAD(
 ) {
 
 	AdapterDelegateClickListenerAdapter(this, clickListener).attach(itemView)
+	val iconPinned = ContextCompat.getDrawable(context, org.skepsun.kototoro.R.drawable.ic_pin_small)
 
 	bind {
 		itemView.setTooltipCompat(item.getSummary(context))
 		binding.textViewTitle.text = item.title
+		binding.textViewTitle.drawableStart = if (item.isPinned) iconPinned else null
 		binding.textViewSubtitle.textAndVisible = item.subtitle
 		binding.imageViewCover.setImageAsync(item.coverUrl, item.manga)
 		binding.badge.number = item.counter

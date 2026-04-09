@@ -36,7 +36,7 @@ class SearchBarFilterViewController(
 		fun onSourceTagSelected(tag: SourceTag?)
 		fun getSelectedContentType(): BrowseGroupTab
 		fun getSelectedSourceTags(): Set<SourceTag>
-		fun getSourceTagEntries(): List<SourceTag> = SourceTag.entries.toList()
+		fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 		fun isContentTypeFilterVisible(): Boolean = true
 		fun isSourceTagFilterVisible(): Boolean = true
 		fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean = true
@@ -211,7 +211,8 @@ class SearchBarFilterViewController(
 
 	fun updateIcons() {
 		val selectedTab = callback.getSelectedContentType()
-		val selectedTags = callback.getSelectedSourceTags()
+		val selectedTagsRaw = callback.getSelectedSourceTags()
+		val validSelectedTags = selectedTagsRaw.intersect(callback.getSourceTagEntries().toSet())
 
 		checkContentType?.let {
 			it.setCurrentType(when (selectedTab) {
@@ -224,13 +225,13 @@ class SearchBarFilterViewController(
 			it.isEnabled = callback.isContentTypeEnabled(selectedTab)
 		}
 		
-		val iconRes = if (selectedTags.size == 1) {
-			selectedTags.first().iconRes
+		val iconRes = if (validSelectedTags.size == 1) {
+			validSelectedTags.first().iconRes
 		} else {
 			callback.getSourceTagIconRes()
 		}
 		checkTag?.setImageResource(iconRes)
-		checkTag?.let { tintItem(it, selectedTags.isNotEmpty(), true) }
+		checkTag?.let { tintItem(it, validSelectedTags.isNotEmpty(), true) }
 	}
 
 	private fun tintItem(icon: ImageView, isSelected: Boolean, isEnabled: Boolean) {

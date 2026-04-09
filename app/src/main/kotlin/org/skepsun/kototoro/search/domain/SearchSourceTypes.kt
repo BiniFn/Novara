@@ -45,6 +45,7 @@ fun sourceTypesFromTags(tags: Set<SourceTag>): Set<SourceType> {
 			SourceTag.TVBOX -> result.add(SourceType.JSON_TVBOX)
 			SourceTag.IREADER -> result.add(SourceType.IREADER)
 			SourceTag.LNREADER -> result.add(SourceType.JSON_LNREADER)
+			SourceTag.PINNED -> result.addAll(ALL_SOURCE_TYPES)
 		}
 	}
 	return if (result.isEmpty()) ALL_SOURCE_TYPES else result

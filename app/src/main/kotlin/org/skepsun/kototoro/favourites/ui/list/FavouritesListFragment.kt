@@ -8,7 +8,9 @@ import android.view.View
 import androidx.appcompat.view.ActionMode
 import androidx.appcompat.widget.PopupMenu
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -63,6 +65,20 @@ class FavouritesListFragment : ContentListFragment(), PopupMenu.OnMenuItemClickL
 		return super.onCreateActionMode(controller, menuInflater, menu)
 	}
 
+	override fun onPrepareActionMode(
+		controller: ListSelectionController,
+		mode: ActionMode?,
+		menu: Menu
+	): Boolean {
+		val selectedIds = selectedItemsIds
+		viewLifecycleOwner.lifecycleScope.launch {
+			val isPinned = viewModel.isPinned(selectedIds)
+			menu.findItem(R.id.action_pin)?.isVisible = !isPinned
+			menu.findItem(R.id.action_unpin)?.isVisible = isPinned
+		}
+		return super.onPrepareActionMode(controller, mode, menu)
+	}
+
 	override fun onActionItemClicked(controller: ListSelectionController, mode: ActionMode?, item: MenuItem): Boolean {
 		return when (item.itemId) {
 			R.id.action_remove -> {
@@ -81,6 +97,18 @@ class FavouritesListFragment : ContentListFragment(), PopupMenu.OnMenuItemClickL
 						viewModel.markAsRead(itemsSnapshot)
 						mode?.finish()
 					}.show()
+				true
+			}
+
+			R.id.action_pin -> {
+				viewModel.setPinned(selectedItemsIds, true)
+				mode?.finish()
+				true
+			}
+
+			R.id.action_unpin -> {
+				viewModel.setPinned(selectedItemsIds, false)
+				mode?.finish()
 				true
 			}
 

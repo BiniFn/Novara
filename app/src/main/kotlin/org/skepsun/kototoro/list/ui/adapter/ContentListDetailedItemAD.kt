@@ -10,6 +10,9 @@ import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 
+import androidx.core.content.ContextCompat
+import org.skepsun.kototoro.core.util.ext.drawableStart
+
 fun mangaListDetailedItemAD(
 	clickListener: ContentDetailsClickListener,
 ) = adapterDelegateViewBinding<ContentDetailedListModel, ListModel, ItemContentListDetailsBinding>(
@@ -18,9 +21,11 @@ fun mangaListDetailedItemAD(
 
 	AdapterDelegateClickListenerAdapter(this, clickListener)
 		.attach(itemView)
+	val iconPinned = ContextCompat.getDrawable(context, org.skepsun.kototoro.R.drawable.ic_pin_small)
 
 	bind { payloads ->
 		binding.textViewTitle.text = item.title
+		binding.textViewTitle.drawableStart = if (item.isPinned) iconPinned else null
 		binding.textViewAuthor.textAndVisible = item.manga.authors.joinToString(", ")
 		binding.progressView.setProgress(
 			value = item.progress,

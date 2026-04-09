@@ -16,6 +16,18 @@
 		app:showAsAction="ifRoom|withText" />
 
 	<item
+		android:id="@+id/action_pin"
+		android:icon="@drawable/ic_pin"
+		android:title="@string/pin"
+		app:showAsAction="always" />
+
+	<item
+		android:id="@+id/action_unpin"
+		android:icon="@drawable/ic_unpin"
+		android:title="@string/unpin"
+		app:showAsAction="always" />
+
+	<item
 		android:id="@+id/action_save"
 		android:icon="@drawable/ic_save"
 		android:title="@string/save"

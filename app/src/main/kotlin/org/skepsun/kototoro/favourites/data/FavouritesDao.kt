@@ -200,6 +200,12 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	@Query("DELETE FROM favourites WHERE deleted_at != 0 AND deleted_at < :maxDeletionTime")
 	abstract suspend fun gc(maxDeletionTime: Long)
 
+	@Query("UPDATE favourites SET pinned = :isPinned WHERE manga_id IN (:mangaIds)")
+	abstract suspend fun setPinned(mangaIds: List<Long>, isPinned: Boolean)
+
+	@Query("SELECT MAX(pinned) FROM favourites WHERE manga_id IN (:mangaIds)")
+	abstract suspend fun isPinned(mangaIds: List<Long>): Boolean?
+
 	/** TOOLS **/
 
 	@Upsert
@@ -243,20 +249,23 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	@Query("UPDATE favourites SET updated_at = :updatedAt WHERE category_id = :categoryId AND deleted_at = 0")
 	protected abstract suspend fun setUpdatedAtAll(categoryId: Long, updatedAt: Long)
 
-	private fun getOrderBy(sortOrder: ListSortOrder) = when (sortOrder) {
-		ListSortOrder.RATING -> "manga.rating DESC"
-		ListSortOrder.NEWEST -> "favourites.created_at DESC"
-		ListSortOrder.OLDEST -> "favourites.created_at ASC"
-		ListSortOrder.ALPHABETIC -> "manga.title ASC"
-		ListSortOrder.ALPHABETIC_REVERSE -> "manga.title DESC"
-		ListSortOrder.NEW_CHAPTERS -> "IFNULL((SELECT chapters_new FROM tracks WHERE tracks.manga_id = manga.manga_id), 0) DESC"
-		ListSortOrder.PROGRESS -> "IFNULL((SELECT percent FROM history WHERE history.manga_id = manga.manga_id), 0) DESC"
-		ListSortOrder.UNREAD -> "IFNULL((SELECT percent FROM history WHERE history.manga_id = manga.manga_id), 0) ASC"
-		ListSortOrder.LAST_READ -> "IFNULL((SELECT updated_at FROM history WHERE history.manga_id = manga.manga_id), 0) DESC"
-		ListSortOrder.LONG_AGO_READ -> "IFNULL((SELECT updated_at FROM history WHERE history.manga_id = manga.manga_id), 0) ASC"
-		ListSortOrder.UPDATED -> "IFNULL((SELECT last_chapter_date FROM tracks WHERE tracks.manga_id = manga.manga_id), 0) DESC"
-
-		else -> throw IllegalArgumentException("Sort order $sortOrder is not supported")
+	private fun getOrderBy(sortOrder: ListSortOrder): String {
+		val suffix = when (sortOrder) {
+			ListSortOrder.RATING -> "manga.rating DESC"
+			ListSortOrder.NEWEST -> "favourites.created_at DESC"
+			ListSortOrder.OLDEST -> "favourites.created_at ASC"
+			ListSortOrder.ALPHABETIC -> "manga.title ASC"
+			ListSortOrder.ALPHABETIC_REVERSE -> "manga.title DESC"
+			ListSortOrder.NEW_CHAPTERS -> "IFNULL((SELECT chapters_new FROM tracks WHERE tracks.manga_id = manga.manga_id), 0) DESC"
+			ListSortOrder.PROGRESS -> "IFNULL((SELECT percent FROM history WHERE history.manga_id = manga.manga_id), 0) DESC"
+			ListSortOrder.UNREAD -> "IFNULL((SELECT percent FROM history WHERE history.manga_id = manga.manga_id), 0) ASC"
+			ListSortOrder.LAST_READ -> "IFNULL((SELECT updated_at FROM history WHERE history.manga_id = manga.manga_id), 0) DESC"
+			ListSortOrder.LONG_AGO_READ -> "IFNULL((SELECT updated_at FROM history WHERE history.manga_id = manga.manga_id), 0) ASC"
+			ListSortOrder.UPDATED -> "IFNULL((SELECT last_chapter_date FROM tracks WHERE tracks.manga_id = manga.manga_id), 0) DESC"
+	
+			else -> throw IllegalArgumentException("Sort order $sortOrder is not supported")
+		}
+		return "favourites.pinned DESC, $suffix"
 	}
 
 	override fun getCondition(option: ListFilterOption): String? = when (option) {

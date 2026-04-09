@@ -159,6 +159,17 @@ class FavouritesListViewModel @Inject constructor(
 		}
 	}
 
+	suspend fun isPinned(ids: Set<Long>): Boolean {
+		return repository.isPinned(ids)
+	}
+
+	fun setPinned(ids: Set<Long>, isPinned: Boolean) {
+		launchJob(Dispatchers.Default) {
+			repository.setPinned(ids, isPinned)
+			onRefresh()
+		}
+	}
+
 	fun setSortOrder(order: ListSortOrder) {
 		if (categoryId == NO_ID) {
 			return

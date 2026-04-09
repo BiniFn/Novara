@@ -263,6 +263,18 @@ class FavouritesRepository @Inject constructor(
 		}
 	}
 
+	suspend fun setPinned(mangaIds: Collection<Long>, isPinned: Boolean) {
+		if (mangaIds.isEmpty()) return
+		db.withTransaction {
+			db.getFavouritesDao().setPinned(mangaIds.toList(), isPinned)
+		}
+	}
+
+	suspend fun isPinned(mangaIds: Collection<Long>): Boolean {
+		if (mangaIds.isEmpty()) return false
+		return db.getFavouritesDao().isPinned(mangaIds.toList()) ?: false
+	}
+
 	suspend fun removeFromFavourites(ids: Collection<Long>): ReversibleHandle {
 		db.withTransaction {
 			for (id in ids) {

@@ -23,7 +23,7 @@ abstract class TrackLogsDao : MangaQueryBuilder.ConditionCallback {
 		MangaQueryBuilder("track_logs", this)
 			.filters(filterOptions)
 			.limit(limit)
-			.orderBy("created_at DESC")
+			.orderBy("IFNULL((SELECT MAX(pinned) FROM favourites WHERE favourites.manga_id = track_logs.manga_id AND deleted_at = 0), 0) DESC, created_at DESC")
 			.build(),
 	)
 

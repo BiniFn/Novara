@@ -26,7 +26,8 @@ enum class SourceTag(
 
     TVBOX(R.string.source_type_tvbox, R.drawable.ic_source_tvbox, "tvbox"),
     IREADER(R.string.source_type_ireader, R.drawable.ic_source_ireader, "ireader"),
-    LNREADER(R.string.source_type_lnreader, R.drawable.ic_source_lnreader, "lnreader");
+    LNREADER(R.string.source_type_lnreader, R.drawable.ic_source_lnreader, "lnreader"),
+    PINNED(R.string.source_pinned, R.drawable.ic_pin, "pinned");
 
     /**
      * Whether this tag matches the given content and origin group.
@@ -39,6 +40,7 @@ enum class SourceTag(
         TVBOX -> originGroup == OriginGroup.TVBOX_JSON
         IREADER -> originGroup == OriginGroup.IREADER
         LNREADER -> originGroup == OriginGroup.LNREADER_JSON
+        PINNED -> true
     }
 
     /**
@@ -52,6 +54,7 @@ enum class SourceTag(
         TVBOX -> tab == BrowseGroupTab.Video || tab == BrowseGroupTab.All
         IREADER -> tab == BrowseGroupTab.Content || tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
         LNREADER -> tab == BrowseGroupTab.Novel || tab == BrowseGroupTab.All
+        PINNED -> true
     }
 
     companion object {
@@ -66,7 +69,7 @@ enum class SourceTag(
         )
 
         fun sanitizeQuickFilterSelection(tags: Set<SourceTag>): Set<SourceTag> =
-            tags.filterTo(linkedSetOf()) { it in quickFilterEntries }
+            tags.filterTo(linkedSetOf()) { it in quickFilterEntries || it == PINNED }
 
         fun fromIds(ids: Collection<String>): Set<SourceTag> =
             ids.mapNotNull { id ->

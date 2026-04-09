@@ -13,6 +13,9 @@ import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.ItemSizeResolver
 
+import androidx.core.content.ContextCompat
+import org.skepsun.kototoro.core.util.ext.drawableStart
+
 fun mangaGridItemAD(
 	sizeResolver: ItemSizeResolver,
 	clickListener: OnListItemClickListener<ContentListModel>,
@@ -22,10 +25,12 @@ fun mangaGridItemAD(
 
 	AdapterDelegateClickListenerAdapter(this, clickListener).attach(itemView)
 	sizeResolver.attachToView(itemView, binding.textViewTitle, binding.progressView)
+	val iconPinned = ContextCompat.getDrawable(context, org.skepsun.kototoro.R.drawable.ic_pin_small)
 
 	bind { payloads ->
 		itemView.setTooltipCompat(item.getSummary(context))
 		binding.textViewTitle.text = item.title
+		binding.textViewTitle.drawableStart = if (item.isPinned) iconPinned else null
 		binding.progressView.setProgress(item.progress, PAYLOAD_PROGRESS_CHANGED in payloads)
 		with(binding.iconsView) {
 			clearIcons()

@@ -16,6 +16,7 @@ sealed class ContentListModel : ListModel {
 	abstract val override: ContentOverride?
 	abstract val manga: Content
 	abstract val counter: Int
+	open val isPinned: Boolean = false
 
 	val id: Long
 		get() = manga.id

@@ -103,6 +103,7 @@ class ContentListMapper @Inject constructor(
 		override = override,
 		subtitle = manga.tags.joinToString(", ") { it.title },
 		counter = getCounter(manga.id, options),
+		isPinned = isPinned(manga.id, options),
 	)
 
 	private suspend fun toDetailedListModel(
@@ -118,6 +119,7 @@ class ContentListMapper @Inject constructor(
 		isFavorite = isFavorite(manga.id, options),
 		isSaved = isSaved(manga.id, options),
 		tags = mapTags(manga.tags),
+		isPinned = isPinned(manga.id, options),
 	)
 
 	private suspend fun toGridModel(
@@ -131,6 +133,7 @@ class ContentListMapper @Inject constructor(
 		progress = getProgress(manga.id, options),
 		isFavorite = isFavorite(manga.id, options),
 		isSaved = isSaved(manga.id, options),
+		isPinned = isPinned(manga.id, options),
 	)
 
 	private suspend fun toListModelImpl(
@@ -162,6 +165,10 @@ class ContentListMapper @Inject constructor(
 
 	private suspend fun isFavorite(mangaId: Long, @Options options: Int): Boolean {
 		return options.isBadgeEnabled(FAVORITE) && favouritesRepository.isFavorite(mangaId)
+	}
+
+	private suspend fun isPinned(mangaId: Long, @Options options: Int): Boolean {
+		return favouritesRepository.isPinned(listOf(mangaId))
 	}
 
 	private suspend fun isSaved(mangaId: Long, @Options options: Int): Boolean {
