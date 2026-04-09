@@ -123,10 +123,25 @@ class DetailsLoadUseCase @Inject constructor(
 		override: ContentOverride?,
 		force: Boolean
 	) = coroutineScope {
+		val localContent = localContentRepository.findSavedContent(manga, withDetails = true)
+		val skipNetworkLoad = !force && networkState.isOfflineOrRestricted()
+
+		if (skipNetworkLoad && localContent != null) {
+			emit(
+				ContentDetails(
+					manga = manga,
+					localContent = localContent,
+					override = override,
+					description = localContent.manga.description?.parseAsHtml(withImages = true),
+					isLoaded = true,
+				),
+			)
+			return@coroutineScope
+		}
+
 		val remoteDeferred = async {
 			getDetails(manga, force)
 		}
-		val localContent = localContentRepository.findSavedContent(manga, withDetails = true)
 		if (localContent != null) {
 			emit(
 				ContentDetails(
