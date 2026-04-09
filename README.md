@@ -3,7 +3,7 @@
 ![App Icon](metadata/en-US/icon.png)
 
 ![version](https://img.shields.io/badge/version-0.8.3-blue)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/E2GsMeq2Vh)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/xBXvPz7tr7)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://kototoro-app.github.io/Kototoro/)
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://kototoro-app.github.io/Kototoro/getting-started)
 [![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://kototoro-app.github.io/Kototoro/automatic-translation)
@@ -114,6 +114,6 @@ limitations under the License.
 
 ## Contact
 
-- Discord: [Join Server](https://discord.gg/E2GsMeq2Vh)
+- Discord: [Join Server](https://discord.gg/xBXvPz7tr7)
 - GitHub Issues: [Issue Tracker](https://github.com/Kototoro-app/Kototoro/issues)
 

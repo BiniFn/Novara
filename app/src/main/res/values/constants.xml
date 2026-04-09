@@ -5,7 +5,7 @@
 	<string name="url_telegram" translatable="false">tg://resolve?domain=kototoroapp</string>
 	<string name="url_weblate" translatable="false">https://hosted.weblate.org/engage/kototoro</string>
 	<string name="url_user_manual" translatable="false">https://kototoro-app.github.io/Kototoro</string>
-	<string name="url_discord" translatable="false">https://discord.gg/E2GsMeq2Vh</string>
+	<string name="url_discord" translatable="false">https://discord.gg/xBXvPz7tr7</string>
 	<string name="url_error_report" translatable="false">https://bugs.kototoro.app/report</string>
 	<string name="account_type_sync" translatable="false">org.kototoro.sync</string>
     <string name="github_updates_repo" translatable="false">Kototoro-app/Kototoro</string>
