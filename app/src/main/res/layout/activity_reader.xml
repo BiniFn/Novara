@@ -80,8 +80,7 @@
 		android:layout_margin="@dimen/screen_padding"
 		android:background="@drawable/bg_card"
 		android:elevation="@dimen/m3_card_elevated_elevation"
-		android:visibility="gone"
-		app:layout_dodgeInsetEdges="bottom" />
+		android:visibility="gone" />
 
 	<com.google.android.material.appbar.AppBarLayout
 		android:id="@+id/appbar_top"

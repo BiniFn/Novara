@@ -54,6 +54,8 @@ class ScrollTimerControlView @JvmOverloads constructor(
 		binding.sliderTimer.setLabelFormatter(this)
 		binding.buttonClose.setOnClickListener(this)
 		binding.buttonFab.isGone = resources.getBoolean(R.bool.is_tablet)
+		binding.buttonPauseOnUi.setOnClickListener(this)
+		binding.buttonPlayPause.setOnClickListener(this)
 		setPadding(0, 0, 0, context.resources.getDimensionPixelOffset(R.dimen.margin_normal))
 	}
 
@@ -63,6 +65,13 @@ class ScrollTimerControlView @JvmOverloads constructor(
 			binding.switchScrollTimer.setOnCheckedChangeListener(null)
 			binding.switchScrollTimer.isChecked = it
 			binding.switchScrollTimer.setOnCheckedChangeListener(this)
+		}
+		timer.isManuallyPaused.observe(lifecycleOwner) { isPaused ->
+			if (isPaused) {
+				binding.buttonPlayPause.setImageResource(R.drawable.ic_play)
+			} else {
+				binding.buttonPlayPause.setImageResource(R.drawable.ic_pause)
+			}
 		}
 		settings.observeAsStateFlow(
 			scope = lifecycleOwner.lifecycleScope + Dispatchers.Default,
@@ -83,6 +92,13 @@ class ScrollTimerControlView @JvmOverloads constructor(
 		).observe(lifecycleOwner) {
 			binding.buttonFab.isChecked = it
 		}
+		settings.observeAsStateFlow(
+			scope = lifecycleOwner.lifecycleScope + Dispatchers.Default,
+			key = AppSettings.KEY_READER_AUTOSCROLL_PAUSE_ON_UI,
+			valueProducer = { isReaderAutoscrollPauseOnUi },
+		).observe(lifecycleOwner) {
+			binding.buttonPauseOnUi.isChecked = it
+		}
 		updateDescription()
 	}
 
@@ -94,7 +110,9 @@ class ScrollTimerControlView @JvmOverloads constructor(
 	override fun onClick(v: View) {
 		when (v.id) {
 			R.id.button_close -> hide()
+			R.id.button_play_pause -> scrollTimer?.let { it.setManuallyPaused(!it.isManuallyPaused.value) }
 			R.id.button_fab -> settings.isReaderAutoscrollFabVisible = !settings.isReaderAutoscrollFabVisible
+			R.id.button_pause_on_ui -> settings.isReaderAutoscrollPauseOnUi = !settings.isReaderAutoscrollPauseOnUi
 		}
 	}
 

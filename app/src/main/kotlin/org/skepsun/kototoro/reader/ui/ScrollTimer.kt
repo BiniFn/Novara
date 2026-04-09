@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
@@ -45,6 +46,8 @@ class ScrollTimer @AssistedInject constructor(
 	private var resumeAt = 0L
 	private var isTouchDown = MutableStateFlow(false)
 	private val isRunning = MutableStateFlow(false)
+	private val _isManuallyPaused = MutableStateFlow(false)
+	val isManuallyPaused: StateFlow<Boolean> get() = _isManuallyPaused
 	private val scrollDelta = resources.resolveDp(1)
 
 	val isActive: StateFlow<Boolean>
@@ -59,9 +62,14 @@ class ScrollTimer @AssistedInject constructor(
 			}.launchIn(coroutineScope)
 	}
 
+	fun setManuallyPaused(paused: Boolean) {
+		_isManuallyPaused.value = paused
+	}
+
 	fun setActive(value: Boolean) {
 		if (isRunning.value != value) {
 			isRunning.value = value
+			if (!value) _isManuallyPaused.value = false
 			restartJob()
 		}
 	}
@@ -136,7 +144,7 @@ class ScrollTimer @AssistedInject constructor(
 	}
 
 	private fun isPaused(): Boolean {
-		return isTouchDown.value || resumeAt > SystemClock.elapsedRealtime()
+		return isTouchDown.value || resumeAt > SystemClock.elapsedRealtime() || _isManuallyPaused.value
 	}
 
 	private suspend fun delayUntilResumed() {
@@ -147,7 +155,9 @@ class ScrollTimer @AssistedInject constructor(
 			} else {
 				yield()
 			}
-			isTouchDown.first { !it }
+			combine(isTouchDown, _isManuallyPaused) { touch, manualBtn ->
+				touch || manualBtn
+			}.first { !it }
 		}
 	}
 

@@ -1057,6 +1057,7 @@
     <string name="rpc_skip_nsfw_summary">阅读成人内容时不在 Discord 上显示阅读状态</string>
     <string name="invalid_token">非法Token：%s</string>
     <string name="show_floating_control_button">显示浮动控制按钮</string>
+    <string name="reader_autoscroll_pause_on_tap">点击屏幕时中断并弹出控制面板</string>
     <string name="unavailable">不可用</string>
     <string name="no_chapters_in_manga">没有找到此漫画的任何章节</string>
     <string name="chapters_load_failed">加载章节列表失败</string>

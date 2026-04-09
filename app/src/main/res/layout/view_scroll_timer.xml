@@ -19,8 +19,20 @@
 		android:paddingHorizontal="@dimen/margin_normal"
 		android:text="@string/automatic_scroll"
 		android:textAppearance="?textAppearanceTitleMedium"
-		app:layout_constraintEnd_toStartOf="@id/button_close"
+		app:layout_constraintEnd_toStartOf="@id/button_play_pause"
 		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent" />
+
+	<ImageButton
+		android:id="@+id/button_play_pause"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:background="?selectableItemBackgroundBorderless"
+		android:contentDescription="@string/play"
+		android:minWidth="?minTouchTargetSize"
+		android:minHeight="?minTouchTargetSize"
+		android:src="@drawable/ic_pause"
+		app:layout_constraintEnd_toStartOf="@id/button_close"
 		app:layout_constraintTop_toTopOf="parent" />
 
 	<ImageButton
@@ -101,5 +113,22 @@
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintStart_toStartOf="parent"
 		app:layout_constraintTop_toBottomOf="@id/textView_description" />
+
+	<CheckedTextView
+		android:id="@+id/button_pause_on_ui"
+		android:layout_width="0dp"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="@dimen/margin_small"
+		android:background="?selectableItemBackground"
+		android:drawableEnd="?android:listChoiceIndicatorMultiple"
+		android:gravity="center_vertical"
+		android:paddingHorizontal="@dimen/margin_normal"
+		android:paddingVertical="4dp"
+		android:singleLine="true"
+		android:text="@string/reader_autoscroll_pause_on_tap"
+		android:textAppearance="?attr/textAppearanceTitleSmall"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toBottomOf="@id/button_fab" />
 
 </merge>

@@ -548,6 +548,17 @@ class ReaderActivity :
     }
 
     override fun toggleUiVisibility() {
+        if (viewBinding.timerControl.isVisible) {
+            viewBinding.timerControl.hide()
+            return
+        }
+        if (!viewBinding.appbarTop.isVisible) {
+            if (scrollTimer.isActive.value && settings.isReaderAutoscrollPauseOnUi && !scrollTimer.isManuallyPaused.value) {
+                scrollTimer.setManuallyPaused(true)
+                viewBinding.timerControl.show()
+                return
+            }
+        }
         setUiIsVisible(!viewBinding.appbarTop.isVisible)
     }
 

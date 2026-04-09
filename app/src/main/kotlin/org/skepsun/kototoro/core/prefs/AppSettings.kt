@@ -252,6 +252,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			?: setOf(org.skepsun.kototoro.core.lnreader.LNReaderRepository.OFFICIAL_REPO_URL)
 		set(value) = prefs.edit { putStringSet(KEY_LNREADER_REPOS, value) }
 
+	var isReaderAutoscrollPauseOnUi: Boolean
+		get() = prefs.getBoolean(KEY_READER_AUTOSCROLL_PAUSE_ON_UI, true)
+		set(value) = prefs.edit { putBoolean(KEY_READER_AUTOSCROLL_PAUSE_ON_UI, value) }
+
 	var isReaderDoubleOnLandscape: Boolean
 		get() = prefs.getBoolean(KEY_READER_DOUBLE_PAGES, false)
 		set(value) = prefs.edit { putBoolean(KEY_READER_DOUBLE_PAGES, value) }
@@ -1644,6 +1648,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SSL_BYPASS = "ssl_bypass"
 		const val KEY_READER_AUTOSCROLL_SPEED = "as_speed"
 		const val KEY_READER_AUTOSCROLL_FAB = "as_fab"
+		const val KEY_READER_AUTOSCROLL_PAUSE_ON_UI = "as_pause_ui"
 		const val KEY_MIRROR_SWITCHING = "mirror_switching"
 		const val KEY_PROXY = "proxy"
 		const val KEY_PROXY_TYPE = "proxy_type_2"
