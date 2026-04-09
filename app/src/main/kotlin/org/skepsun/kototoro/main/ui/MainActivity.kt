@@ -254,6 +254,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 			rightMargin = if (isNavFloating) barsInsets.right + navMargin else 0
 			this.bottomMargin = bottomMargin
 		}
+
+		viewBinding.root.findViewById<View>(R.id.frostedNavWrapper)?.let { wrapper ->
+			val frostedBottomPadding = (24 * resources.displayMetrics.density).toInt() + barsInsets.bottom
+			wrapper.setPadding(barsInsets.left, 0, barsInsets.right, frostedBottomPadding)
+		}
 		
 		viewBinding.bottomNav?.let { bottomNav ->
 			val bg = bottomNav.background

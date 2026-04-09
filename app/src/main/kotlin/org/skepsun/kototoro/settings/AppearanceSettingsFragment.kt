@@ -119,6 +119,7 @@ class AppearanceSettingsFragment :
             AppSettings.KEY_THEME_AMOLED,
             AppSettings.KEY_LOADING_CIRCLE_STYLE,
             AppSettings.KEY_BLUR_MODE,
+            AppSettings.KEY_USE_FROSTED_NAVBAR,
                 -> {
                 postRestart()
             }

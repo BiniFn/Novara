@@ -171,8 +171,10 @@ class DetailsActivity :
 			window.enterTransition = slide
 			window.returnTransition = slide
 			
-			window.sharedElementEnterTransition?.duration = 350L
-			window.sharedElementReturnTransition?.duration = 350L
+			val sharedTransition = android.transition.TransitionInflater.from(this).inflateTransition(android.R.transition.move)
+			sharedTransition.duration = 350L
+			window.sharedElementEnterTransition = sharedTransition
+			window.sharedElementReturnTransition = sharedTransition
 		}
 		
 		setContentView(ActivityDetailsBinding.inflate(layoutInflater))
