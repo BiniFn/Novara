@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.core.nav
+import org.skepsun.kototoro.core.util.ext.findActivity
 
 import android.app.ActivityOptions
 import android.os.Bundle
@@ -38,4 +39,12 @@ fun scaleUpActivityOptionsOf(view: View): Bundle? {
 		/* width = */ view.width,
 		/* height = */ view.height,
 	).toBundle()
+}
+
+fun sceneTransitionOptionsOf(view: View): Bundle? {
+	if (!view.context.isAnimationsEnabled || !view.isOnScreen() || view.transitionName.isNullOrEmpty()) {
+		return scaleUpActivityOptionsOf(view)
+	}
+	val activity = view.context.findActivity() ?: return scaleUpActivityOptionsOf(view)
+	return androidx.core.app.ActivityOptionsCompat.makeSceneTransitionAnimation(activity, view, view.transitionName).toBundle()
 }

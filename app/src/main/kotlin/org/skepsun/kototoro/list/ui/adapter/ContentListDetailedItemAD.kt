@@ -55,6 +55,7 @@ fun mangaListDetailedItemAD(
 		
 		binding.tagsLayout.isVisible = binding.iconsView.isVisible || binding.sourceInfoLayout.isVisible
 
+		androidx.core.view.ViewCompat.setTransitionName(binding.imageViewCover, "cover_${item.manga.source.name}_${item.manga.url}")
 		binding.imageViewCover.setImageAsync(item.coverUrl, item.manga)
 		binding.textViewTags.text = item.tags.joinToString(separator = ", ") { it.title ?: "" }
 		binding.badge.number = item.counter

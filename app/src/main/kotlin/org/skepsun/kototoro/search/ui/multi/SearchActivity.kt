@@ -151,7 +151,8 @@ class SearchActivity :
 				setResult(RESULT_OK, Intent().putExtra(AppRouter.KEY_MANGA, ParcelableContent(manga)))
 				finish()
 			} else {
-				router.openDetails(manga)
+				val coverView = view.findViewById<View>(R.id.imageView_cover);
+                                router.openDetails(manga, coverView)
 			}
 		}
 	}

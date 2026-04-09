@@ -17,7 +17,7 @@ data class HomeCoverItem(
 )
 
 class HomeCoverAdapter(
-	private val onContentClick: (Content) -> Unit,
+	private val onContentClick: (Content, android.view.View) -> Unit,
 ) : ListAdapter<HomeCoverItem, HomeCoverAdapter.ViewHolder>(DiffCallback()) {
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -37,15 +37,19 @@ class HomeCoverAdapter(
 		private val binding: ItemHomeCoverBinding,
 	) : RecyclerView.ViewHolder(binding.root) {
 
-		fun bind(
+	fun bind(
 			item: HomeCoverItem,
-			onContentClick: (Content) -> Unit,
+			onContentClick: (Content, android.view.View) -> Unit,
 		) {
 			val content = item.content
 			val isEnabled = content != null
 			binding.root.isEnabled = isEnabled
 			binding.root.alpha = if (isEnabled) 1f else 0.35f
 			binding.root.contentDescription = content?.title ?: binding.root.context.getString(R.string.history_is_empty)
+			
+			if (content != null) {
+				androidx.core.view.ViewCompat.setTransitionName(binding.imageViewCover, "cover_${content.source.name}_${content.url}")
+			}
 			binding.imageViewCover.setImageAsync(
 				content?.coverUrl,
 				content,
@@ -67,7 +71,7 @@ class HomeCoverAdapter(
 			}
 
 			binding.root.setOnClickListener {
-				content?.let(onContentClick)
+				content?.let { onContentClick(it, binding.imageViewCover) }
 			}
 		}
 	}

@@ -33,9 +33,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
 
 	private val viewModel by viewModels<HomeViewModel>()
-	private val recentCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
-	private val updateCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
-	private val recommendationCoverAdapter by lazy { HomeCoverAdapter { router.openDetails(it) } }
+	private val recentCoverAdapter by lazy { HomeCoverAdapter { manga, view -> router.openDetails(manga, view) } }
+	private val updateCoverAdapter by lazy { HomeCoverAdapter { manga, view -> router.openDetails(manga, view) } }
+	private val recommendationCoverAdapter by lazy { HomeCoverAdapter { manga, view -> router.openDetails(manga, view) } }
 	private var homeScrollAnchorY = 0
 	private var isHomeChromeHidden = false
 	private var filterMenuProvider: SearchBarFilterViewController? = null

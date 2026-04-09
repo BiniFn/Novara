@@ -172,8 +172,11 @@ class AppRouter private constructor(
 
     fun openSearch(source: ContentSource, query: String) = openList(source, ContentListFilter(query = query), null)
 
-    fun openDetails(manga: Content) {
-        startActivity(detailsIntent(contextOrNull() ?: return, manga))
+    fun openDetails(manga: Content, anchor: View? = null) {
+        startActivity(
+            detailsIntent(contextOrNull() ?: return, manga),
+            anchor?.let { sceneTransitionOptionsOf(it) }
+        )
     }
 
     fun openDetails(mangaId: Long) {

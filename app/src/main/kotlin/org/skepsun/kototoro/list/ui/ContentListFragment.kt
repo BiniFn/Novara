@@ -287,7 +287,8 @@ abstract class ContentListFragment :
 		if (selectionController?.onItemClick(item.id) != true) {
 			val manga = item.toContentWithOverride()
 			if ((activity as? ContentListActivity)?.showPreview(manga) != true) {
-				router.openDetails(manga)
+				val coverView = view.findViewById<View>(R.id.imageView_cover);
+                                router.openDetails(manga, coverView)
 			}
 		}
 	}

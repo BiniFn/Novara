@@ -163,6 +163,15 @@ class DetailsActivity :
 		super.onCreate(savedInstanceState)
 		setContentView(ActivityDetailsBinding.inflate(layoutInflater))
 		infoBinding = LayoutDetailsTableBinding.bind(viewBinding.root)
+
+		if (settings.isSharedElementTransitionsEnabled) {
+			val manga = viewModel.getContentOrNull()
+			if (manga != null) {
+				androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
+				supportPostponeEnterTransition()
+			}
+		}
+
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 		supportActionBar?.setDisplayShowTitleEnabled(false)
 		// Make toolbar and appbar immersive/transparent
@@ -207,6 +216,16 @@ class DetailsActivity :
 		}
 
 		val appRouter = router
+		
+		viewBinding.imageViewCover.addImageRequestListener(object : coil3.request.ImageRequest.Listener {
+			override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
+				supportStartPostponedEnterTransition()
+			}
+			override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
+				supportStartPostponedEnterTransition()
+			}
+		})
+
 		viewModel.mangaDetails.filterNotNull().observe(this, ::onContentUpdated)
 		viewModel.coverUrl.observe(this, ::loadCover)
 		viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
@@ -438,7 +457,8 @@ class DetailsActivity :
 				mangaGridItemAD(
 					sizeResolver = StaticItemSizeResolver(resources.getDimensionPixelSize(R.dimen.smaller_grid_width)),
 				) { item, view ->
-					router.openDetails(item.toContentWithOverride())
+					val coverView = view.findViewById<View>(R.id.imageView_cover)
+					router.openDetails(item.toContentWithOverride(), coverView)
 				},
 			).also { rv.adapter = it }
 		adapter.items = related

@@ -88,7 +88,8 @@ class FeedFragment :
 		val sizeResolver = StaticItemSizeResolver(resources.getDimensionPixelSize(R.dimen.smaller_grid_width))
 		val feedAdapter = FeedAdapter(this, sizeResolver) { item, v ->
 			viewModel.onItemClick(item)
-			router.openDetails(item.toContentWithOverride())
+			val coverView = view?.findViewById<View>(R.id.imageView_cover);
+			router.openDetails(item.toContentWithOverride(), coverView)
 		}
 		with(binding.recyclerView) {
 			val paddingVertical = resources.getDimensionPixelSize(R.dimen.list_spacing_normal)
@@ -226,7 +227,8 @@ class FeedFragment :
 	}
 
 	override fun onItemClick(item: ContentListModel, view: View) {
-		router.openDetails(item.toContentWithOverride())
+		val coverView = view?.findViewById<View>(R.id.imageView_cover);
+			router.openDetails(item.toContentWithOverride(), coverView)
 	}
 
 	override fun onReadClick(manga: Content, view: View) = Unit

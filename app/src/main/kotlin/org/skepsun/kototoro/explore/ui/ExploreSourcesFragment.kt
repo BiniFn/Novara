@@ -72,7 +72,8 @@ class ExploreSourcesFragment :
 	override fun onViewBindingCreated(binding: FragmentExploreSourcesBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		exploreAdapter = ExploreAdapter(this, this) { manga, view ->
-			router.openDetails(manga)
+			val coverView = view?.findViewById<View>(R.id.imageView_cover);
+                        router.openDetails(manga, coverView)
 		}
 		sourceSelectionController = ListSelectionController(
 			appCompatDelegate = checkNotNull(findAppCompatDelegate()),
@@ -262,7 +263,8 @@ class ExploreSourcesFragment :
 	}
 
 	private fun onOpenContent(manga: Content) {
-		router.openDetails(manga)
+		val coverView = view?.findViewById<View>(R.id.imageView_cover);
+                        router.openDetails(manga, coverView)
 	}
 
 	private fun onGridModeChanged(isGrid: Boolean) {

@@ -689,7 +689,15 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	var isShowSourceOnCards: Boolean
 		get() = prefs.getBoolean(KEY_SHOW_SOURCE_ON_CARDS, false)
-		set(value) = prefs.edit { putBoolean(KEY_SHOW_SOURCE_ON_CARDS, value) }
+		set(value) {
+			prefs.edit { putBoolean(KEY_SHOW_SOURCE_ON_CARDS, value) }
+		}
+
+	var isSharedElementTransitionsEnabled: Boolean
+		get() = prefs.getBoolean(KEY_SHARED_ELEMENT_TRANSITIONS, false)
+		set(value) {
+			prefs.edit { putBoolean(KEY_SHARED_ELEMENT_TRANSITIONS, value) }
+		}
 
 	var sourcesVersion: Int
 		get() = prefs.getInt(KEY_SOURCES_VERSION, 0)
@@ -1648,6 +1656,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_LNREADER_REPOS = "lnreader_repository_urls"
 		const val KEY_SOURCES_GRID = "sources_grid"
 		const val KEY_SHOW_SOURCE_ON_CARDS = "show_source_on_cards"
+		const val KEY_SHARED_ELEMENT_TRANSITIONS = "shared_element_transitions"
 		const val KEY_UPDATES_UNSTABLE = "updates_unstable"
 		const val KEY_TIPS_CLOSED = "tips_closed"
 		const val KEY_SSL_BYPASS = "ssl_bypass"

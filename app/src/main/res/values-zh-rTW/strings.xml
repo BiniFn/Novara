@@ -717,4 +717,6 @@
     <string name="discover_manage_binding">管理綁定</string>
     <string name="discover_local_linked">已連結本地作品</string>
     <string name="discover_local_unlinked">尚未連結本地作品</string>
+    <string name="shared_element_transitions">平滑封面過渡動畫</string>
+    <string name="shared_element_transitions_summary">在從列表點擊作品卡片進入詳情頁時啟用無縫縮放過渡特效（Hero動畫）。由於加載機制，可能會導致詳情頁面有極其微弱的延遲出現。</string>
 </resources>

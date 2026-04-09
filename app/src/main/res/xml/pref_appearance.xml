@@ -141,6 +141,12 @@
 
         <SwitchPreferenceCompat
             android:defaultValue="false"
+            android:key="shared_element_transitions"
+            android:summary="@string/shared_element_transitions_summary"
+            android:title="@string/shared_element_transitions" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
             android:key="search_filter_hidden"
             android:summary="@string/hide_search_filter_summary"
             android:title="@string/hide_search_filter" />
