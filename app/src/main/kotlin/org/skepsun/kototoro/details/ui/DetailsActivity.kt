@@ -161,6 +161,16 @@ class DetailsActivity :
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		
+		if (settings.isSharedElementTransitionsEnabled) {
+			window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
+			val slide = android.transition.Slide(android.view.Gravity.END)
+			slide.excludeTarget(android.R.id.statusBarBackground, true)
+			slide.excludeTarget(android.R.id.navigationBarBackground, true)
+			window.enterTransition = slide
+			window.returnTransition = slide
+		}
+		
 		setContentView(ActivityDetailsBinding.inflate(layoutInflater))
 		infoBinding = LayoutDetailsTableBinding.bind(viewBinding.root)
 
