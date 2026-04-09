@@ -233,6 +233,7 @@ class ContentIndex(source: String?) {
 			chapters.remove(idStr) != null
 		} else {
 			jo.remove(KEY_FILE)
+			jo.remove(KEY_ENTRIES)
 			true
 		}
 	}

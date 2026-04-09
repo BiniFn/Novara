@@ -131,6 +131,13 @@ class LocalContentParser(private val uri: Uri) {
 						else -> org.skepsun.kototoro.core.model.LocalMangaSource
 					}
 
+					val zipEntriesCache = lazy {
+						fileSystem.listRecursively(rootPath)
+							.filter { fileSystem.isRegularFile(it) }
+							.map { it.name.substringBefore('.') }
+							.toList()
+					}
+
 					mangaInfo.copy(
 					chapters = if (withDetails) {
 						mangaInfo.chapters?.mapNotNull { c ->
@@ -146,11 +153,16 @@ class LocalContentParser(private val uri: Uri) {
 								c.copy(
 									url = uri.child(path, resolve = false).toString()
 								)
-							} else if (fileName == null && index.hasChapterEntries(c.id)) {
+							} else if (fileName == null) {
 								// 单个CBZ漫画场景，章节没有独立文件夹，但通过 entries 记录了页面
-								c.copy(
-									url = uri.child("".toPath(), resolve = false).toString()
-								)
+								val pattern = index.getChapterNamesPattern(c)
+								if (zipEntriesCache.value.any { it.matches(pattern) }) {
+									c.copy(
+										url = uri.child("".toPath(), resolve = false).toString()
+									)
+								} else {
+									c
+								}
 							} else {
 								// 未下载的在线章节（保留原始 URL 和 Source）
 								c
@@ -165,10 +177,15 @@ class LocalContentParser(private val uri: Uri) {
 								c.copy(
 									url = uri.child(path, resolve = false).toString()
 								)
-							} else if (fileName == null && index.hasChapterEntries(c.id)) {
-								c.copy(
-									url = uri.child("".toPath(), resolve = false).toString()
-								)
+							} else if (fileName == null) {
+								val pattern = index.getChapterNamesPattern(c)
+								if (zipEntriesCache.value.any { it.matches(pattern) }) {
+									c.copy(
+										url = uri.child("".toPath(), resolve = false).toString()
+									)
+								} else {
+									c
+								}
 							} else {
 								// 如果不需要详情，通常是列表页，保留原始章节以显示进度条等
 								c

@@ -132,9 +132,11 @@ class LocalContentZipOutput(
 					ZipFile(subject.rootFile).use { zip ->
 						val index = ContentIndex(zip.readText(zip.getEntry(ENTRY_NAME_INDEX)))
 						idsToRemove.forEach { id -> index.removeChapter(id) }
-						val patterns = requireNotNull(index.getContentInfo()?.chapters).map {
-							index.getChapterNamesPattern(it)
-						}
+						val patterns = requireNotNull(index.getContentInfo()?.chapters)
+							.filter { it.id !in idsToRemove }
+							.map {
+								index.getChapterNamesPattern(it)
+							}
 						val coverEntryName = index.getCoverEntry()
 						for (entry in zip.entries()) {
 							when {
