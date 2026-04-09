@@ -18,6 +18,12 @@
 
     <SwitchPreferenceCompat
         android:defaultValue="false"
+        android:key="use_frosted_navbar"
+        android:summary="@string/frosted_navbar_summary"
+        android:title="@string/frosted_navbar_title" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
         android:key="amoled_theme"
         android:summary="@string/black_dark_theme_summary"
         android:title="@string/black_dark_theme" />

@@ -129,6 +129,23 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 			settings = settings,
 		)
 		navigationDelegate.addOnFragmentChangedListener(this)
+
+		if (settings.isFrostedNavEnabled && viewBinding.navRail == null) {
+			viewBinding.bottomNav?.isVisible = false
+			val frostedWrapper = viewBinding.root.findViewById<android.widget.FrameLayout>(R.id.frostedNavWrapper)
+			val frostedNav = viewBinding.root.findViewById<org.skepsun.kototoro.core.ui.widgets.FrostedBottomNavigationView>(R.id.frostedBottomNav)
+			frostedWrapper?.isVisible = true
+			frostedNav?.setItems(settings.mainNavItems)
+			frostedNav?.setOnItemSelectedListener { navItem ->
+				viewBinding.bottomNav?.selectedItemId = navItem.id
+			}
+			navigationDelegate.addOnFragmentChangedListener { fragment, fromUser ->
+				viewBinding.bottomNav?.selectedItemId?.let { frostedNav?.setSelectedItemId(it) }
+			}
+			// initial sync
+			viewBinding.bottomNav?.selectedItemId?.let { frostedNav?.setSelectedItemId(it) }
+		}
+
 		navigationDelegate.onCreate(this, savedInstanceState)
 		viewBinding.textViewTitle?.let { tv ->
 			navigationDelegate.observeTitle().observe(this) { tv.text = it }

@@ -165,10 +165,14 @@ class DetailsActivity :
 		if (settings.isSharedElementTransitionsEnabled) {
 			window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
 			val slide = android.transition.Slide(android.view.Gravity.END)
+			slide.duration = 350L
 			slide.excludeTarget(android.R.id.statusBarBackground, true)
 			slide.excludeTarget(android.R.id.navigationBarBackground, true)
 			window.enterTransition = slide
 			window.returnTransition = slide
+			
+			window.sharedElementEnterTransition?.duration = 350L
+			window.sharedElementReturnTransition?.duration = 350L
 		}
 		
 		setContentView(ActivityDetailsBinding.inflate(layoutInflater))
