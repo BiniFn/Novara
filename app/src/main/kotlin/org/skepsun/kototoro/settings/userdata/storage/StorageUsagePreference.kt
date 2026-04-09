@@ -34,19 +34,19 @@ class StorageUsagePreference @JvmOverloads constructor(
 		val binding = PreferenceMemoryUsageBinding.bind(holder.itemView)
 		val storageSegment = SegmentedBarView.Segment(
 			usage?.savedContent?.percent ?: 0f,
-			KototoroColors.segmentColorRandom(context, Color.BLUE),
+			KototoroColors.segmentColorRandom(context, 210), // Blue-ish
 		)
 		val pagesSegment = SegmentedBarView.Segment(
 			usage?.pagesCache?.percent ?: 0f,
-			KototoroColors.segmentColorRandom(context, Color.GREEN),
+			KototoroColors.segmentColorRandom(context, 120), // Green
 		)
 		val aiModelsSegment = SegmentedBarView.Segment(
 			usage?.aiModels?.percent ?: 0f,
-			KototoroColors.segmentColorRandom(context, Color.MAGENTA),
+			KototoroColors.segmentColorRandom(context, 300), // Magenta/Purple
 		)
 		val otherSegment = SegmentedBarView.Segment(
 			usage?.otherCache?.percent ?: 0f,
-			KototoroColors.segmentColorRandom(context, Color.GRAY),
+			KototoroColors.segmentColorRandom(context, 30), // Orange/Brown 
 		)
 
 		with(binding) {
