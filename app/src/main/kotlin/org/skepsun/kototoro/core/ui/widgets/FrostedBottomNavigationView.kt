@@ -77,11 +77,11 @@ class FrostedBottomNavigationView @JvmOverloads constructor(
 				layoutParams.width = if (isSelected) expandedWidth else baseWidth
 				item.layoutParams = layoutParams
 				
-				item.setBackgroundColor(if (isSelected) activeBgColor else inactiveBgColor)
-				// Re-apply rounded corners to the background since setBackgroundColor removes the drawable shape
-				// Actually, instead of setBackgroundColor, let's use a GradientDrawable or just a standard color inside a rounded container.
-				// Since setBackgroundColor destroys the corners, we should animate a Color on a ShapeDrawable OR handle it properly.
-				// Wait! We can use a GradientDrawable programmatically!
+				applyColorToItem(
+					item,
+					if (isSelected) activeBgColor else inactiveBgColor,
+					if (isSelected) activeColor else inactiveColor
+				)
 			}
 		}
 	}
