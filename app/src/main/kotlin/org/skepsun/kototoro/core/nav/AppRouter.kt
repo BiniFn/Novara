@@ -175,7 +175,7 @@ class AppRouter private constructor(
     fun openDetails(manga: Content, anchor: View? = null) {
         startActivity(
             detailsIntent(contextOrNull() ?: return, manga),
-            anchor?.let { sceneTransitionOptionsOf(it) }
+            if (settings.isSharedElementTransitionsEnabled) anchor?.let { sceneTransitionOptionsOf(it) } else null
         )
     }
 
