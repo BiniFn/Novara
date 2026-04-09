@@ -164,8 +164,12 @@ class DetailsActivity :
 		
 		if (settings.isSharedElementTransitionsEnabled) {
 			window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
+			
+			val interpolator = androidx.interpolator.view.animation.FastOutSlowInInterpolator()
+			
 			val slide = android.transition.Slide(android.view.Gravity.END)
 			slide.duration = 350L
+			slide.interpolator = interpolator
 			slide.excludeTarget(android.R.id.statusBarBackground, true)
 			slide.excludeTarget(android.R.id.navigationBarBackground, true)
 			window.enterTransition = slide
@@ -173,8 +177,12 @@ class DetailsActivity :
 			
 			val sharedTransition = android.transition.TransitionInflater.from(this).inflateTransition(android.R.transition.move)
 			sharedTransition.duration = 350L
+			sharedTransition.interpolator = interpolator
 			window.sharedElementEnterTransition = sharedTransition
 			window.sharedElementReturnTransition = sharedTransition
+			
+			window.allowEnterTransitionOverlap = true
+			window.allowReturnTransitionOverlap = true
 		}
 		
 		setContentView(ActivityDetailsBinding.inflate(layoutInflater))
