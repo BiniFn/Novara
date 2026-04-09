@@ -107,10 +107,12 @@ open class BaseApp : App(), Configuration.Provider {
 		} catch (e: Throwable) {
 			e.printStackTrace()
 		}
-		try {
-			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(this)
-		} catch (e: Throwable) {
-			e.printStackTrace()
+		processLifecycleScope.launch(Dispatchers.IO) {
+			try {
+				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(this@BaseApp)
+			} catch (e: Throwable) {
+				e.printStackTrace()
+			}
 		}
 	}
 
