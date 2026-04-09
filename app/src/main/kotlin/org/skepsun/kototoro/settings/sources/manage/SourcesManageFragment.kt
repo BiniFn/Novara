@@ -13,6 +13,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
@@ -57,6 +58,7 @@ class SourcesManageFragment :
 	private var reorderHelper: ItemTouchHelper? = null
 	private var sourcesAdapter: SourceConfigAdapter? = null
 	private val viewModel by viewModels<SourcesManageViewModel>()
+	private var updateSnackbar: Snackbar? = null
 
 	override val recyclerView: RecyclerView?
 		get() = viewBinding?.recyclerView
@@ -84,6 +86,32 @@ class SourcesManageFragment :
 			viewLifecycleOwner,
 			ReversibleActionObserver(binding.recyclerView),
 		)
+		
+		viewModel.jarUpdatesAvailable.observe(viewLifecycleOwner) { updates ->
+			if (updates.isNotEmpty()) {
+				if (updateSnackbar == null) {
+					updateSnackbar = Snackbar.make(
+						binding.root,
+						getString(R.string.jar_plugins_updates_available) + " (${updates.size})",
+						Snackbar.LENGTH_INDEFINITE
+					).setAction(R.string.jar_plugins_update_all) {
+						viewModel.updateAllJars()
+					}
+				}
+				updateSnackbar?.show()
+			} else {
+				updateSnackbar?.dismiss()
+				updateSnackbar = null
+			}
+		}
+
+		viewModel.isUpdatingJars.observe(viewLifecycleOwner) { isUpdating ->
+			if (isUpdating && updateSnackbar != null) {
+				updateSnackbar?.setText(R.string.jar_plugins_updating)
+				updateSnackbar?.setAction(null, null)
+			}
+		}
+
 		addMenuProvider(SourcesMenuProvider())
 	}
 

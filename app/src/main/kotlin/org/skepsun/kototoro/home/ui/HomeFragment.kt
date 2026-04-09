@@ -18,6 +18,8 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
@@ -137,6 +139,13 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 				textView.alpha = if (item != null) 1f else 0.6f
 			}
 		}
+
+		settings.observeAsFlow(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }
+			.observe(viewLifecycleOwner) {
+				recentCoverAdapter.notifyDataSetChanged()
+				updateCoverAdapter.notifyDataSetChanged()
+				recommendationCoverAdapter.notifyDataSetChanged()
+			}
 	}
 
 	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {

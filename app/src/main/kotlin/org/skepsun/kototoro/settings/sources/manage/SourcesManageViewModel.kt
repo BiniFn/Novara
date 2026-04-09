@@ -16,23 +16,76 @@ import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.parsers.model.ContentSource
 // Removed import org.skepsun.kototoro.parsers.util.move
 import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
+import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import javax.inject.Inject
 
 @HiltViewModel
 class SourcesManageViewModel @Inject constructor(
+	@ApplicationContext private val appContext: Context,
 	private val database: MangaDatabase,
 	private val settings: AppSettings,
 	private val repository: ContentSourcesRepository,
 	private val listProducer: SourcesListProducer,
+	private val repoRepository: ExternalExtensionRepoRepository,
+	private val installService: ExtensionInstallService,
 ) : BaseViewModel() {
 
 	val content = listProducer.list
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	private var commitJob: Job? = null
 
+	private val _jarUpdatesAvailable = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
+	val jarUpdatesAvailable = _jarUpdatesAvailable.asStateFlow()
+
+	private val _isUpdatingJars = MutableStateFlow(false)
+	val isUpdatingJars = _isUpdatingJars.asStateFlow()
+
 	init {
 		launchJob(Dispatchers.Default) {
 			database.invalidationTracker.addObserver(listProducer)
+		}
+		checkForJarUpdates()
+	}
+
+	fun checkForJarUpdates() {
+		launchJob(Dispatchers.IO) {
+			try {
+				val available = repoRepository.getCatalogExtensions(ExternalExtensionType.JAR)
+				val jarVersions = appContext.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+				val newUpdates = available.filter { extension ->
+					extension.versionCode > jarVersions.getLong(extension.pkgName, -1L)
+				}
+				_jarUpdatesAvailable.value = newUpdates
+			} catch (e: Exception) {
+				// Silently fail, to not spam users if offline
+			}
+		}
+	}
+
+	fun updateAllJars() {
+		val updates = _jarUpdatesAvailable.value
+		if (updates.isEmpty() || _isUpdatingJars.value) return
+
+		_isUpdatingJars.value = true
+		launchJob(Dispatchers.IO) {
+			try {
+				updates.forEach { extension ->
+					installService.createInstallIntent(extension)
+				}
+			} catch (e: Exception) {
+				// Ignore errors per plugin, allow continuation
+			} finally {
+				_jarUpdatesAvailable.value = emptyList()
+				_isUpdatingJars.value = false
+				checkForJarUpdates() // Refresh if any failed
+			}
 		}
 	}
 

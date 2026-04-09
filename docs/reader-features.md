@@ -60,6 +60,13 @@ Kototoro uses WebDAV for multi-device backup and synchronization. This is intend
 
 Read more: [WebDAV Sync](./webdav-sync.md)
 
+### Immersive Interface
+
+Kototoro aims to present an extremely modern and premium user experience:
+
+- **Shared Element Transitions (Hero Animations):** A smooth morphing effect when transitioning from browse lists (Home, Explore, Search) directly into the details cover. Configurable under `Settings -> Appearance`.
+- **Dynamic Content:** Automatic palette generation for backgrounds and panoramic header blurring based on cover images.
+
 ### Broad Source Integration
 
 Kototoro supports several source ecosystems:

@@ -2151,4 +2151,7 @@
     <string name="mark_as_nsfw">Mark as NSFW</string>
     <string name="shared_element_transitions">Smooth cover transitions</string>
     <string name="shared_element_transitions_summary">Enables fluid \"Hero\" animation when navigating from content lists to the details page, morphing the list cover image into the detail cover image.</string>
+    <string name="jar_plugins_updates_available">JAR Plugins have updates available!</string>
+    <string name="jar_plugins_update_all">Update All</string>
+    <string name="jar_plugins_updating">Updating JAR Plugins...</string>
 </resources>

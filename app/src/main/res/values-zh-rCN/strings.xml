@@ -1893,4 +1893,7 @@
     <string name="video_mpv_conf_guide"><![CDATA[<b>常用配置:</b><br/>• <tt>deband=yes</tt> (减少色带)<br/>• <tt>interpolation=yes</tt> (平滑播放)<br/>• <tt>hwdec=mediacodec</tt> (硬件解码)<br/><br/><a href="https://mpv.io/manual/master/#options">查看详细的 MPV 配置手册</a>]]></string>
     <string name="shared_element_transitions">平滑封面过渡动画</string>
     <string name="shared_element_transitions_summary">在从列表点击作品卡片进入详情页时启用无缝缩放过渡特效（Hero动画）。由于加载机制，可能会导致详情页面有极其微弱的延迟出现。</string>
+    <string name="jar_plugins_updates_available">JAR 插件有可用更新！</string>
+    <string name="jar_plugins_update_all">全部更新</string>
+    <string name="jar_plugins_updating">正在更新 JAR 插件...</string>
 </resources>
