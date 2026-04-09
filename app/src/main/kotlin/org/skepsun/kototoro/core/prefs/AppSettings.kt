@@ -687,6 +687,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_SOURCES_GRID, true)
 		set(value) = prefs.edit { putBoolean(KEY_SOURCES_GRID, value) }
 
+	var isShowSourceOnCards: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_SOURCE_ON_CARDS, false)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_SOURCE_ON_CARDS, value) }
+
 	var sourcesVersion: Int
 		get() = prefs.getInt(KEY_SOURCES_VERSION, 0)
 		set(value) = prefs.edit { putInt(KEY_SOURCES_VERSION, value) }
@@ -1643,6 +1647,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
 		const val KEY_LNREADER_REPOS = "lnreader_repository_urls"
 		const val KEY_SOURCES_GRID = "sources_grid"
+		const val KEY_SHOW_SOURCE_ON_CARDS = "show_source_on_cards"
 		const val KEY_UPDATES_UNSTABLE = "updates_unstable"
 		const val KEY_TIPS_CLOSED = "tips_closed"
 		const val KEY_SSL_BYPASS = "ssl_bypass"

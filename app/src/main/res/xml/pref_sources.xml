@@ -10,6 +10,11 @@
         app:useSimpleSummaryProvider="true" />
 
     <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="show_source_on_cards"
+        android:title="@string/show_source_on_cards" />
+
+    <SwitchPreferenceCompat
         android:defaultValue="true"
         android:key="sources_grid"
         android:title="@string/show_in_grid_view" />

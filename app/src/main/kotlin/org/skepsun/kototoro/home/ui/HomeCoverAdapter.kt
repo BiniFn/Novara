@@ -9,6 +9,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.databinding.ItemHomeCoverBinding
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.core.model.getLocale
+import androidx.core.view.isVisible
 
 data class HomeCoverItem(
 	val content: Content? = null,
@@ -49,6 +51,21 @@ class HomeCoverAdapter(
 				content,
 			)
 			binding.textViewTitle.text = content?.title ?: ""
+
+			val context = binding.root.context
+			val prefs = context.getSharedPreferences("${context.packageName}_preferences", android.content.Context.MODE_PRIVATE)
+			val showSourceInfo = prefs.getBoolean("show_source_on_cards", false)
+			if (showSourceInfo && content != null) {
+				val locale = content.source.getLocale()
+				val langText = locale?.language?.uppercase()?.takeIf { it.isNotBlank() }
+				binding.textViewSourceLang.text = langText
+				binding.textViewSourceLang.isVisible = langText != null
+				binding.imageViewSourceIcon.setImageAsync(content.source)
+				binding.sourceInfoLayout.isVisible = true
+			} else {
+				binding.sourceInfoLayout.isVisible = false
+			}
+
 			binding.root.setOnClickListener {
 				content?.let(onContentClick)
 			}

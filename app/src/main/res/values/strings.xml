@@ -611,6 +611,7 @@
     <string name="theme_name_dynamic">Dynamic</string>
     <string name="theme_name_expressive">Expressive (Test)</string>
     <string name="color_theme">Color scheme</string>
+    <string name="show_source_on_cards">Show source icon &amp; language on cards</string>
     <string name="show_in_grid_view">Show in grid view</string>
     <string name="theme_name_miku">Miku</string>
     <string name="theme_name_asuka">Asuka</string>

@@ -12,6 +12,7 @@ import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 
 import androidx.core.content.ContextCompat
 import org.skepsun.kototoro.core.util.ext.drawableStart
+import org.skepsun.kototoro.core.model.getLocale
 
 fun mangaListDetailedItemAD(
 	clickListener: ContentDetailsClickListener,
@@ -37,6 +38,23 @@ fun mangaListDetailedItemAD(
 			if (item.isFavorite) addIcon(R.drawable.ic_heart_outline)
 			isVisible = iconsCount > 0
 		}
+		
+		val prefs = context.getSharedPreferences("${context.packageName}_preferences", android.content.Context.MODE_PRIVATE)
+		val showSourceInfo = prefs.getBoolean("show_source_on_cards", false)
+		
+		if (showSourceInfo) {
+			val locale = item.manga.source.getLocale()
+			val langText = locale?.language?.uppercase()?.takeIf { it.isNotBlank() }
+			binding.textViewSourceLang.text = langText
+			binding.textViewSourceLang.isVisible = langText != null
+			binding.imageViewSourceIcon.setImageAsync(item.manga.source)
+			binding.sourceInfoLayout.isVisible = true
+		} else {
+			binding.sourceInfoLayout.isVisible = false
+		}
+		
+		binding.tagsLayout.isVisible = binding.iconsView.isVisible || binding.sourceInfoLayout.isVisible
+
 		binding.imageViewCover.setImageAsync(item.coverUrl, item.manga)
 		binding.textViewTags.text = item.tags.joinToString(separator = ", ") { it.title ?: "" }
 		binding.badge.number = item.counter
