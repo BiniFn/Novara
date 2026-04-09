@@ -169,9 +169,12 @@ class ContentIndex(source: String?) {
 			jo.put(KEY_FILE, filename)
 			putImagesInternal(jo, remoteImages)
 			chapters.put(chapterIdStr, jo)
-		} else if (!filename.isNullOrBlank()) {
+		} else {
 			val jo = chapters.getJSONObject(chapterIdStr)
-			if (jo.optString(KEY_FILE).isNullOrBlank()) {
+			if (!jo.has(KEY_ENTRIES)) {
+				jo.put(KEY_ENTRIES, "%08d_%04d\\d{4}".format(chapter.value.branch.hashCode(), chapter.index + 1))
+			}
+			if (!filename.isNullOrBlank() && jo.optString(KEY_FILE).isNullOrBlank()) {
 				jo.put(KEY_FILE, filename)
 			}
 			if (!jo.has(KEY_ORDER)) {
@@ -239,18 +242,22 @@ class ContentIndex(source: String?) {
 	}
 
 	fun hasChapterEntries(chapterId: Long): Boolean {
-		return json.optJSONObject(KEY_CHAPTERS)?.optJSONObject(chapterId.toString())?.has(KEY_ENTRIES) == true
+		val jo = json.optJSONObject(KEY_CHAPTERS)?.optJSONObject(chapterId.toString()) ?: return false
+		return jo.has(KEY_ENTRIES) || jo.has(KEY_ORDER)
 	}
 
 	fun setCoverEntry(name: String) {
 		json.put(KEY_COVER_ENTRY, name)
 	}
 
-	fun getChapterNamesPattern(chapter: ContentChapter) = Regex(
-		json.getJSONObject(KEY_CHAPTERS)
-			.getJSONObject(chapter.id.toString())
-			.getString(KEY_ENTRIES),
-	)
+	fun getChapterNamesPattern(chapter: ContentChapter): Regex {
+		val jo = json.getJSONObject(KEY_CHAPTERS).getJSONObject(chapter.id.toString())
+		val entries = jo.optString(KEY_ENTRIES).ifBlank {
+			val order = jo.optInt(KEY_ORDER, 1)
+			"%08d_%04d\\d{4}".format(chapter.branch.hashCode(), order)
+		}
+		return Regex(entries)
+	}
 
 	fun sortChaptersByName() {
 		val jo = json.getJSONObject(KEY_CHAPTERS)
