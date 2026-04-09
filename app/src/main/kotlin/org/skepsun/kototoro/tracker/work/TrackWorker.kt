@@ -92,9 +92,9 @@ class TrackWorker @AssistedInject constructor(
 
 	override suspend fun doWork(): Result {
 		notificationHelper.updateChannels()
-		val isForeground = trySetForeground()
+		trySetForeground()
 		return try {
-			doWorkImpl(isFullRun = isForeground && TAG_ONESHOT in tags)
+			doWorkImpl(isFullRun = TAG_ONESHOT in tags)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Throwable) {
@@ -316,9 +316,8 @@ class TrackWorker @AssistedInject constructor(
 			val request = OneTimeWorkRequestBuilder<TrackWorker>()
 				.setConstraints(constraints)
 				.addTag(TAG_ONESHOT)
-				.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
 				.build()
-			workManager.enqueue(request)
+			workManager.enqueueUniqueWork(TAG_ONESHOT, androidx.work.ExistingWorkPolicy.REPLACE, request)
 		}
 
 		fun observeIsRunning(): Flow<Boolean> {
