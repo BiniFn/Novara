@@ -238,6 +238,10 @@ class ContentIndex(source: String?) {
 		return json.optJSONObject(KEY_CHAPTERS)?.optJSONObject(chapterId.toString())?.getStringOrNull(KEY_FILE)
 	}
 
+	fun hasChapterEntries(chapterId: Long): Boolean {
+		return json.optJSONObject(KEY_CHAPTERS)?.optJSONObject(chapterId.toString())?.has(KEY_ENTRIES) == true
+	}
+
 	fun setCoverEntry(name: String) {
 		json.put(KEY_COVER_ENTRY, name)
 	}
