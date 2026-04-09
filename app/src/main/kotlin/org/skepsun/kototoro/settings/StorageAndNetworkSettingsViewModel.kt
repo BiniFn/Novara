@@ -28,12 +28,17 @@ class StorageAndNetworkSettingsViewModel @Inject constructor(
         val pagesCacheSize = storageManager.computeCacheSize(CacheDir.PAGES)
         val otherCacheSize = storageManager.computeCacheSize() - pagesCacheSize
         val storageSize = storageManager.computeStorageSize()
+        val aiModelsSize = storageManager.computeAiModelsSize()
         val availableSpace = storageManager.computeAvailableSize()
-        val totalBytes = pagesCacheSize + otherCacheSize + storageSize + availableSpace
+        val totalBytes = pagesCacheSize + otherCacheSize + storageSize + aiModelsSize + availableSpace
         return StorageUsage(
             savedContent = StorageUsage.Item(
                 bytes = storageSize,
                 percent = (storageSize.toDouble() / totalBytes).toFloat(),
+            ),
+            aiModels = StorageUsage.Item(
+                bytes = aiModelsSize,
+                percent = (aiModelsSize.toDouble() / totalBytes).toFloat(),
             ),
             pagesCache = StorageUsage.Item(
                 bytes = pagesCacheSize,

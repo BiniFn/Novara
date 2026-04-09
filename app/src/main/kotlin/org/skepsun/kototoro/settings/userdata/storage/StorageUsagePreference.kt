@@ -40,19 +40,25 @@ class StorageUsagePreference @JvmOverloads constructor(
 			usage?.pagesCache?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, Color.GREEN),
 		)
+		val aiModelsSegment = SegmentedBarView.Segment(
+			usage?.aiModels?.percent ?: 0f,
+			KototoroColors.segmentColorRandom(context, Color.MAGENTA),
+		)
 		val otherSegment = SegmentedBarView.Segment(
 			usage?.otherCache?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, Color.GRAY),
 		)
 
 		with(binding) {
-			bar.animateSegments(listOf(storageSegment, pagesSegment, otherSegment).filter { it.percent > 0f })
+			bar.animateSegments(listOf(storageSegment, aiModelsSegment, pagesSegment, otherSegment).filter { it.percent > 0f })
 			labelStorage.text = formatLabel(usage?.savedContent, R.string.saved_manga)
+			labelAiModels.text = formatLabel(usage?.aiModels, R.string.ai_local_models)
 			labelPagesCache.text = formatLabel(usage?.pagesCache, R.string.pages_cache)
 			labelOtherCache.text = formatLabel(usage?.otherCache, R.string.other_cache)
 			labelAvailable.text = formatLabel(usage?.available, R.string.available, R.string.available)
 
 			TextViewCompat.setCompoundDrawableTintList(labelStorage, ColorStateList.valueOf(storageSegment.color))
+			TextViewCompat.setCompoundDrawableTintList(labelAiModels, ColorStateList.valueOf(aiModelsSegment.color))
 			TextViewCompat.setCompoundDrawableTintList(labelPagesCache, ColorStateList.valueOf(pagesSegment.color))
 			TextViewCompat.setCompoundDrawableTintList(labelOtherCache, ColorStateList.valueOf(otherSegment.color))
 		}

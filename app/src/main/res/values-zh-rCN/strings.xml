@@ -335,6 +335,7 @@
     <string name="exit_confirmation_summary">按两次返回键退出应用</string>
     <string name="exit_confirmation">退出确认</string>
     <string name="saved_manga">已保存内容</string>
+    <string name="ai_local_models">AI 模型</string>
     <string name="pages_cache">页面缓存</string>
     <string name="other_cache">其他缓存</string>
     <string name="storage_usage">存储占用</string>

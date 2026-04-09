@@ -65,7 +65,22 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun computeStorageSize() = withContext(Dispatchers.IO) {
-		getConfiguredStorageDirs().sumOf { it.computeSize() }
+		getAllReadableDirs().toSet().sumOf { it.computeSize() }
+	}
+
+	suspend fun computeAiModelsSize() = withContext(Dispatchers.IO) {
+		var total = 0L
+		val externalModels = File(context.getExternalFilesDir(null), "models")
+		val internalModels = File(context.filesDir, "models")
+		val mlKitDir = File(context.filesDir.parentFile, "no_backup/com.google.mlkit.translate.models")
+		
+		val dirs = setOf(externalModels, internalModels, mlKitDir)
+		for (dir in dirs) {
+			if (dir.exists()) {
+				total += dir.computeSize()
+			}
+		}
+		total
 	}
 
 	suspend fun computeAvailableSize() = runInterruptible(Dispatchers.IO) {

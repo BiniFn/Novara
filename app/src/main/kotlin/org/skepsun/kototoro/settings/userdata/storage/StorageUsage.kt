@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings.userdata.storage
 
 data class StorageUsage(
 	val savedContent: Item,
+	val aiModels: Item,
 	val pagesCache: Item,
 	val otherCache: Item,
 	val available: Item,
