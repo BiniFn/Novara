@@ -43,7 +43,7 @@
 			android:orientation="horizontal"
 			android:padding="4dp"
 			app:layout_constraintStart_toStartOf="@id/imageView_cover"
-			app:layout_constraintTop_toTopOf="@id/imageView_cover">
+			app:layout_constraintBottom_toBottomOf="@id/imageView_cover">
 
 			<org.skepsun.kototoro.core.ui.widgets.IconsView
 				android:id="@+id/iconsView"
