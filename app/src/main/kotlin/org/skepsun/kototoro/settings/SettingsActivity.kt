@@ -31,7 +31,7 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.ext.textAndVisible
 import org.skepsun.kototoro.databinding.ActivitySettingsBinding
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+
 import org.skepsun.kototoro.settings.about.AboutSettingsFragment
 import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.settings.search.SettingsItem
@@ -48,7 +48,7 @@ import org.skepsun.kototoro.core.util.FoldableUtils
 class SettingsActivity :
 	BaseActivity<ActivitySettingsBinding>(),
 	PreferenceFragmentCompat.OnPreferenceStartFragmentCallback,
-	AppBarOwner {
+
 
 	override val appBar: AppBarLayout
 		get() = viewBinding.appbar

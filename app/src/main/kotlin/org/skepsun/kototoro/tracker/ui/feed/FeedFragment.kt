@@ -37,7 +37,6 @@ import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.size.StaticItemSizeResolver
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.tracker.ui.feed.adapter.FeedAdapter
@@ -74,10 +73,8 @@ class FeedFragment :
 	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 
-		// Set up SearchBar filter icons
-		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
-			appBar.findViewById<View>(R.id.search_bar)
-		} ?: activity?.findViewById(R.id.search_bar)
+		// SearchBar filter icons are now purely composed outside the fragments.
+		val searchBar: android.view.View? = null
 
 		if (searchBar != null) {
 			filterMenuProvider = SearchBarFilterViewController(this)
@@ -117,32 +114,10 @@ class FeedFragment :
 			filterMenuProvider?.updateIcons()
 		}
 
-		// Register for appbar offset changes
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.addOnOffsetChangedListener(this)
-
-		// Remove snap flag for linear scroll
-		appBar?.children?.forEach { child ->
-			val lp = child.layoutParams as? AppBarLayout.LayoutParams
-			if (lp != null && (lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP != 0)) {
-				lp.scrollFlags = lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP.inv()
-				child.layoutParams = lp
-			}
-		}
 	}
 
 	override fun onDestroyView() {
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.removeOnOffsetChangedListener(this)
-
-		// Restore snap flag
-		appBar?.children?.forEach { child ->
-			val lp = child.layoutParams as? AppBarLayout.LayoutParams
-			if (lp != null && (child.id == R.id.search_bar || child.id == R.id.insetsHolder)) {
-				lp.scrollFlags = lp.scrollFlags or AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
-				child.layoutParams = lp
-			}
-		}
+				
 		filterMenuProvider = null
 		super.onDestroyView()
 	}

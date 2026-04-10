@@ -48,7 +48,6 @@ import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import com.google.android.material.appbar.AppBarLayout
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 
 @AndroidEntryPoint
 class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBinding>(),
@@ -110,10 +109,8 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 			}
 		}
 
-		// Set up SearchBar filter icons
-		val searchBar = (activity as? AppBarOwner)?.appBar?.let { appBar ->
-			appBar.findViewById<View>(R.id.search_bar)
-		} ?: activity?.findViewById(R.id.search_bar)
+		// SearchBar filter icons are now Compose based
+		val searchBar: android.view.View? = null
 
 		if (searchBar != null) {
 			filterMenuProvider = SearchBarFilterViewController(this)
@@ -131,33 +128,7 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		viewModel.selectedSourceTags.observe(viewLifecycleOwner) { _ ->
 			filterMenuProvider?.updateIcons()
 		}
-
-		// Register for appbar offset changes
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.addOnOffsetChangedListener(this)
-
-		// Remove snap flag for linear scroll
-		appBar?.children?.forEach { child ->
-			val lp = child.layoutParams as? AppBarLayout.LayoutParams
-			if (lp != null && (lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP != 0)) {
-				lp.scrollFlags = lp.scrollFlags and AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP.inv()
-				child.layoutParams = lp
-			}
-		}
 	}
-
-	override fun onDestroyView() {
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.removeOnOffsetChangedListener(this)
-
-		// Restore snap flag
-		appBar?.children?.forEach { child ->
-			val lp = child.layoutParams as? AppBarLayout.LayoutParams
-			if (lp != null && (child.id == R.id.search_bar || child.id == R.id.insetsHolder)) {
-				lp.scrollFlags = lp.scrollFlags or AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
-				child.layoutParams = lp
-			}
-		}
 
 		filterMenuProvider = null
 		actionModeDelegate.removeListener(this)

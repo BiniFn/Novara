@@ -16,7 +16,6 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -117,15 +116,13 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 		if (isHomeChromeHidden) return
 		val bottomNav = (activity as? BottomNavOwner)?.bottomNav
 		if (bottomNav?.isPinned == true) return
-		(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
-		bottomNav?.hide()
+				bottomNav?.hide()
 		isHomeChromeHidden = true
 	}
 
 	private fun showHomeChrome() {
 		if (!isHomeChromeHidden) return
-		(activity as? AppBarOwner)?.appBar?.setExpanded(true, true)
-		(activity as? BottomNavOwner)?.bottomNav?.show()
+				(activity as? BottomNavOwner)?.bottomNav?.show()
 		isHomeChromeHidden = false
 	}
 	

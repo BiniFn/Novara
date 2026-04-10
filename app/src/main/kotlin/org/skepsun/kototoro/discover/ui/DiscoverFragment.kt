@@ -46,7 +46,6 @@ import org.skepsun.kototoro.databinding.FragmentListBinding
 import org.skepsun.kototoro.discover.ui.model.DiscoverItem
 import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 @AndroidEntryPoint

@@ -12,18 +12,14 @@ import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.consumeSystemBarsInsets
 import org.skepsun.kototoro.databinding.ActivityContainerBinding
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.SnackbarOwner
 
 @AndroidEntryPoint
 abstract class FragmentContainerActivity(private val fragmentClass: Class<out Fragment>) :
 	BaseActivity<ActivityContainerBinding>(),
-	AppBarOwner,
 	SnackbarOwner {
 
-	override val appBar: AppBarLayout
-		get() = viewBinding.appbar
-
+	
 	override val snackbarHost: CoordinatorLayout
 		get() = viewBinding.root
 

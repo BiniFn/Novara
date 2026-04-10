@@ -35,7 +35,6 @@ import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.databinding.FragmentSettingsSourcesBinding
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.settings.SettingsActivity
 import org.skepsun.kototoro.settings.sources.SourceSettingsFragment
 import org.skepsun.kototoro.settings.sources.adapter.SourceConfigAdapter
@@ -224,8 +223,7 @@ class SourcesManageFragment :
 		}
 
 		override fun onMenuItemActionExpand(item: MenuItem): Boolean {
-			(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
-			return true
+						return true
 		}
 
 		override fun onMenuItemActionCollapse(item: MenuItem): Boolean {

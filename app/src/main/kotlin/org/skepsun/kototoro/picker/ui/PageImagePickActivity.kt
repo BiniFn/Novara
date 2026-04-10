@@ -22,7 +22,6 @@ import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.ActivityPickerBinding
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.SnackbarOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.picker.ui.manga.ContentPickerFragment
@@ -34,15 +33,12 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class PageImagePickActivity : BaseActivity<ActivityPickerBinding>(),
-	AppBarOwner,
 	SnackbarOwner {
 
 	@Inject
 	lateinit var pageSaveHelperFactory: PageSaveHelper.Factory
 
-	override val appBar: AppBarLayout
-		get() = viewBinding.appbar
-
+	
 	override val snackbarHost: CoordinatorLayout
 		get() = viewBinding.root
 

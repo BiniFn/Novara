@@ -37,7 +37,6 @@ import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import javax.inject.Inject
@@ -158,8 +157,7 @@ class AllBookmarksFragment :
 	override fun onEmptyActionClick() = Unit
 
 	override fun onFastScrollStart(fastScroller: FastScroller) {
-		(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
-	}
+			}
 
 	override fun onFastScrollStop(fastScroller: FastScroller) = Unit
 

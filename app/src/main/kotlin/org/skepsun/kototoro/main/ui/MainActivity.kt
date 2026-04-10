@@ -71,7 +71,6 @@ import org.skepsun.kototoro.history.ui.HistoryListFragment
 import org.skepsun.kototoro.home.ui.HomeFragment
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.compose.KototoroApp
 import org.skepsun.kototoro.main.ui.compose.ComposeAppNavBarDelegator
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
@@ -87,12 +86,11 @@ import javax.inject.Inject
 import com.google.android.material.R as materialR
 
 @AndroidEntryPoint
-class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
+class MainActivity : BaseActivity<ActivityMainBinding>(),
 	View.OnClickListener,
 	SearchSuggestionItemCallback.SuggestionItemListener,
 	MainNavigationDelegate.OnFragmentChangedListener,
-	View.OnLayoutChangeListener,
-	SearchView.TransitionListener {
+	View.OnLayoutChangeListener {
 
 	@Inject
 	lateinit var settings: AppSettings
@@ -106,17 +104,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		if (result != null) {
 			viewBinding.searchView.setText(result)
 		}
-	}
 	private lateinit var navigationDelegate: MainNavigationDelegate
-	private lateinit var fadingAppbarMediator: FadingAppbarMediator
 	private var isFoldUnfolded = false
     private val navStateFlow = MutableStateFlow(BottomNavState())
     private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
-
-	override val appBar: AppBarLayout
-		get() = viewBinding.appbar
-
-	override fun onCreate(savedInstanceState: Bundle?) {
 		if (!setContentViewWebViewSafe { org.skepsun.kototoro.databinding.ActivityMainBinding.inflate(layoutInflater) }) {
 			return
 		}
@@ -133,11 +124,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		}
         
 		setSupportActionBar(viewBinding.searchBar)
-
-		viewBinding.fab?.setOnClickListener(this)
-		// viewBinding.navRail?.headerView?.findViewById<View>(R.id.railFab)?.setOnClickListener(this) // Removed rail
-		fadingAppbarMediator =
-			FadingAppbarMediator(viewBinding.appbar, viewBinding.layoutSearch ?: viewBinding.searchBar)
 
 		navigationDelegate = MainNavigationDelegate(
 			navBar = composeNavBarDelegator,
@@ -157,11 +143,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		onBackPressedDispatcher.addCallback(exitCallback)
 		onBackPressedDispatcher.addCallback(navigationDelegate)
 
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !resources.getBoolean(R.bool.is_predictive_back_enabled)) {
-			val legacySearchCallback = SearchViewLegacyBackCallback(viewBinding.searchView)
-			viewBinding.searchView.addTransitionListener(legacySearchCallback)
-			onBackPressedDispatcher.addCallback(legacySearchCallback)
-		}
+		onBackPressedDispatcher.addCallback(navigationDelegate)
 
 		if (savedInstanceState == null) {
 			onFirstStart()
@@ -176,11 +158,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		viewModel.appUpdate.observe(this, MenuInvalidator(this))
 		viewModel.onFirstStart.observeEvent(this) { router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
-		searchSuggestionViewModel.isIncognitoModeEnabled.observe(this, this::onIncognitoModeChanged)
-		viewBinding.searchView.addTransitionListener(this)
-		viewBinding.searchView.addTransitionListener(exitCallback)
-		initSearch()
-		
 		androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(viewBinding.container) { v, insets ->
 			val isPinned = settings.isNavBarPinned
 			val consumeBottom = isPinned && !isNavFloating
@@ -194,7 +171,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 
 	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
 		super.onRestoreInstanceState(savedInstanceState)
-		adjustSearchUI(viewBinding.searchView.isShowing)
 		navigationDelegate.syncSelectedItem()
 	}
 
@@ -203,11 +179,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 	}
 
 	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {
-		adjustFabVisibility(topFragment = fragment)
-		adjustAppbar(topFragment = fragment)
 		if (fromUser) {
 			actionModeDelegate.finishActionMode()
-			viewBinding.appbar.setExpanded(true)
 		}
 	}
 
@@ -218,9 +191,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 	}
 
 	override fun onClick(v: View) {
-		when (v.id) {
-			R.id.fab, R.id.railFab -> viewModel.openLastReader()
-		}
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -281,35 +251,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		}
 	}
 
-	override fun onStateChanged(
-		searchView: SearchView,
-		previousState: SearchView.TransitionState,
-		newState: SearchView.TransitionState,
-	) {
-		val wasOpened = previousState >= SearchView.TransitionState.SHOWING
-		val isOpened = newState >= SearchView.TransitionState.SHOWING
-		if (isOpened != wasOpened) {
-			adjustSearchUI(isOpened)
-		}
-	}
-
-	override fun onRemoveQuery(query: String) {
-		searchSuggestionViewModel.deleteQuery(query)
-	}
-
 	override fun onSupportActionModeStarted(mode: ActionMode) {
 		super.onSupportActionModeStarted(mode)
-		adjustFabVisibility()
-		// composeNavBarDelegator handles hide via state if needed
-		(viewBinding.layoutSearch ?: viewBinding.searchBar).isInvisible = true
 		updateContainerBottomMargin()
 	}
 
 	override fun onSupportActionModeFinished(mode: ActionMode) {
 		super.onSupportActionModeFinished(mode)
-		adjustFabVisibility()
-		// composeNavBarDelegator handles show via state
-		(viewBinding.layoutSearch ?: viewBinding.searchBar).isInvisible = false
 		updateContainerBottomMargin()
 	}
 
@@ -334,12 +282,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 	}
 
 	private fun onLoadingStateChanged(isLoading: Boolean) {
-		val fab = viewBinding.fab ?: return
-		fab.isEnabled = !isLoading
 	}
 
 	private fun onResumeEnabledChanged(isEnabled: Boolean) {
-		adjustFabVisibility(isResumeEnabled = isEnabled)
 	}
 
 	private fun onFirstStart() = try {
@@ -363,63 +308,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		e.printStackTraceDebug()
 	}
 
-	private fun adjustAppbar(topFragment: Fragment) {
-		if (topFragment is HomeFragment || topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
-			viewBinding.appbar.fitsSystemWindows = true
-		} else {
-			viewBinding.appbar.fitsSystemWindows = false
-		}
-
-		if (topFragment is HomeFragment) {
-			// HomeFragment uses a NestedScrollView whose content scrolls behind the
-			// transparent AppBarLayout.  Give the AppBar a solid surface colour so the
-			// pinned SearchBar area is opaque – matching all other pages.
-			fadingAppbarMediator.unbind()
-			val surfaceColor = com.google.android.material.color.MaterialColors.getColor(
-				viewBinding.appbar,
-				com.google.android.material.R.attr.colorSurface,
-			)
-			viewBinding.appbar.setBackgroundColor(surfaceColor)
-		} else if (topFragment is FavouritesContainerFragment || topFragment is ExploreFragment || topFragment is FeedFragment) {
-			viewBinding.appbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-			fadingAppbarMediator.bind()
-		} else {
-			viewBinding.appbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-			fadingAppbarMediator.unbind()
-		}
-	}
-
-	private fun adjustFabVisibility(
-		isResumeEnabled: Boolean = viewModel.isResumeEnabled.value,
-		topFragment: Fragment? = navigationDelegate.primaryFragment,
-		isSearchOpened: Boolean = viewBinding.searchView.isShowing,
-	) {
-		navigationDelegate.navRailHeader?.railFab?.isVisible = isResumeEnabled
-		val fab = viewBinding.fab ?: return
-		if (isResumeEnabled && !actionModeDelegate.isActionModeStarted && !isSearchOpened && topFragment is HistoryListFragment) {
-			if (!fab.isVisible) {
-				fab.show()
-			}
-		} else {
-			if (fab.isVisible) {
-				fab.hide()
-			}
-		}
-	}
-
-	private fun adjustSearchUI(isOpened: Boolean) {
-		val appBarScrollFlags = if (isOpened) {
-			SCROLL_FLAG_NO_SCROLL
-		} else {
-			SCROLL_FLAG_SCROLL or SCROLL_FLAG_ENTER_ALWAYS or SCROLL_FLAG_SNAP
-		}
-		viewBinding.insetsHolder.updateLayoutParams<AppBarLayout.LayoutParams> {
-			scrollFlags = appBarScrollFlags
-		}
-		adjustFabVisibility(isSearchOpened = isOpened)
-		updateContainerBottomMargin()
-	}
-
 	private fun requestNotificationsPermission() {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(
 				this,
@@ -434,62 +322,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		}
 	}
 
-	private fun handleSearchSuggestionsInsets(insets: WindowInsetsCompat) {
-		val typeMask = WindowInsetsCompat.Type.ime() or WindowInsetsCompat.Type.systemBars()
-		val barsInsets = insets.getInsets(typeMask)
-		viewBinding.recyclerViewSearch.setPadding(barsInsets.left, 0, barsInsets.right, barsInsets.bottom)
-	}
-
-	private fun initSearch() {
-		val listener = SearchSuggestionListenerImpl(router, viewBinding.searchView, searchSuggestionViewModel)
-		val adapter = SearchSuggestionAdapter(listener)
-		viewBinding.searchView.toolbar.addMenuProvider(
-			SearchSuggestionMenuProvider(this, voiceInputLauncher, searchSuggestionViewModel),
-		)
-		viewBinding.searchView.editText.addTextChangedListener(listener)
-		viewBinding.recyclerViewSearch.adapter = adapter
-		viewBinding.searchView.editText.setOnEditorActionListener(listener)
-
-		viewBinding.searchView.observeState()
-			.map { it >= SearchView.TransitionState.SHOWING }
-			.distinctUntilChanged()
-			.flatMapLatest { isShowing ->
-				if (isShowing) {
-					searchSuggestionViewModel.suggestion
-				} else {
-					emptyFlow()
-				}
-			}.observe(this, adapter)
-		searchSuggestionViewModel.onError.observeEvent(
-			this,
-			SnackbarErrorObserver(viewBinding.recyclerViewSearch, null),
-		)
-		ItemTouchHelper(SearchSuggestionItemCallback(this))
-			.attachToRecyclerView(viewBinding.recyclerViewSearch)
-	}
-
 	private fun setNavbarPinned(isPinned: Boolean) {
-		for (view in viewBinding.appbar.children) {
-			val lp = view.layoutParams as? AppBarLayout.LayoutParams ?: continue
-			val scrollFlags = if (isPinned) {
-				lp.scrollFlags and SCROLL_FLAG_SCROLL.inv()
-			} else {
-				lp.scrollFlags or SCROLL_FLAG_SCROLL
-			}
-			if (scrollFlags != lp.scrollFlags) {
-				lp.scrollFlags = scrollFlags
-				view.layoutParams = lp
-			}
-		}
-		
-		val params = viewBinding.composeBottomNav?.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
-		val behavior = params?.behavior as? org.skepsun.kototoro.core.ui.widgets.HideBottomNavigationOnScrollBehavior
-		if (behavior != null) {
-			behavior.isPinned = isPinned
-		}
-		
+		navStateFlow.value = navStateFlow.value.copy(isPinned = isPinned)
 		updateContainerBottomMargin()
-		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
 	}
 
 	private var isNavFloating = false
@@ -549,11 +384,4 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 		}
 	}
 
-	private fun SearchView.observeState() = callbackFlow {
-		val listener = SearchView.TransitionListener { _, _, state ->
-			trySendBlocking(state)
-		}
-		addTransitionListener(listener)
-		awaitClose { removeTransitionListener(listener) }
-	}
 }

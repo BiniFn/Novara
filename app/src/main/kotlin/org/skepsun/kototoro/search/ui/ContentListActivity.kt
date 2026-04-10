@@ -48,7 +48,6 @@ import org.skepsun.kototoro.filter.ui.FilterHeaderFragment
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
 import org.skepsun.kototoro.list.ui.preview.PreviewFragment
 import org.skepsun.kototoro.local.ui.LocalListFragment
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentListFilter
@@ -61,8 +60,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class ContentListActivity :
-    BaseActivity<ActivityContentListBinding>(),
-    AppBarOwner, View.OnClickListener,
+    BaseActivity<ActivityContentListBinding>(), View.OnClickListener,
     FilterCoordinator.Owner,
     AppBarLayout.OnOffsetChangedListener {
 
@@ -71,9 +69,7 @@ class ContentListActivity :
     @Inject
     lateinit var mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory
 
-	override val appBar: AppBarLayout
-		get() = viewBinding.appbar
-
+	
 	override val filterCoordinator: FilterCoordinator
 		get() = checkNotNull(findFilterOwner()) {
 			"Cannot find FilterCoordinator.Owner fragment in ${supportFragmentManager.fragments}"

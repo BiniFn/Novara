@@ -45,7 +45,6 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.parsers.model.Content
@@ -117,8 +116,7 @@ class ExploreSourcesFragment :
 	}
 
 	override fun onDestroyView() {
-		val appBar = (activity as? AppBarOwner)?.appBar
-
+		
 		super.onDestroyView()
 		sourceSelectionController = null
 		exploreAdapter = null

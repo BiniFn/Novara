@@ -59,7 +59,6 @@ import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.list.domain.QuickFilterListener
 import org.skepsun.kototoro.list.ui.adapter.ListItemType
 import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
@@ -173,13 +172,7 @@ abstract class ContentListFragment :
 		// Determine if we have a SearchBar available (main activity) and we're not a child
 		// of a container fragment that already adds its own SearchBarFilterViewController
 		val isInsideContainer = parentFragment != null
-		val filterAnchorView = if (!isInsideContainer) {
-			(activity as? AppBarOwner)?.appBar?.let { appBar ->
-				appBar.findViewById<View>(R.id.search_bar) ?: appBar.findViewById<View>(R.id.toolbar)
-			} ?: activity?.findViewById<View>(R.id.search_bar) ?: activity?.findViewById<View>(R.id.toolbar)
-		} else {
-			null
-		}
+		val filterAnchorView: android.view.View? = null
 
 		if (filterAnchorView != null) {
 			// Mode A: Use Toolbar/SearchBar filter icons
@@ -201,7 +194,7 @@ abstract class ContentListFragment :
 			}
 			updateFilterScrollViewVisibility(binding)
 		} else {
-			// Mode C: Inside a container (e.g. FavouritesContainerFragment) �?no filters here
+			// Mode C: Inside a container (e.g. FavouritesContainerFragment) ?no filters here
 			binding.filterScrollView.visibility = View.GONE
 		}
 
@@ -229,9 +222,7 @@ abstract class ContentListFragment :
 		observeFoldableState()
 
 		// Register for appbar offset changes for filter bar positioning
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.addOnOffsetChangedListener(this)
-	}
+					}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val typeMask = WindowInsetsCompat.Type.systemBars()
@@ -268,9 +259,7 @@ abstract class ContentListFragment :
 	}
 
 	override fun onDestroyView() {
-		val appBar = (activity as? AppBarOwner)?.appBar
-		appBar?.removeOnOffsetChangedListener(this)
-
+				
 		filterMenuProvider = null
 		listAdapter = null
 		paginationListener = null
@@ -489,8 +478,7 @@ abstract class ContentListFragment :
 	}
 
 	override fun onFastScrollStart(fastScroller: FastScroller) {
-		(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
-		requireViewBinding().swipeRefreshLayout.isEnabled = false
+				requireViewBinding().swipeRefreshLayout.isEnabled = false
 	}
 
 	override fun onFastScrollStop(fastScroller: FastScroller) {
@@ -543,7 +531,7 @@ abstract class ContentListFragment :
 	}
 
 	private fun adjustLayoutForFoldableState() {
-		// 始终使用用户持久化的网格大小进行布局调整，避免被折叠状态覆�?
+		// 始终使用用户持久化的网格大小进行布局调整，避免被折叠状态覆?
 		val rv = viewBinding?.recyclerView ?: return
 		val persistedScale = settings.gridSize / 100f
 		spanResolver?.setGridSize(persistedScale, rv)

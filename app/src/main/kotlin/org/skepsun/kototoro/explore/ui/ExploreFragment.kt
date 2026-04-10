@@ -21,7 +21,6 @@ import androidx.fragment.app.viewModels
 import androidx.viewpager2.widget.ViewPager2
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import javax.inject.Inject
