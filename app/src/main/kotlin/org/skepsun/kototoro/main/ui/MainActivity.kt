@@ -8,8 +8,9 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import androidx.activity.viewModels
-import androidx.appcompat.view.ActionMode
 import androidx.core.app.ActivityCompat
+import androidx.appcompat.view.ActionMode
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
@@ -71,7 +72,10 @@ import org.skepsun.kototoro.home.ui.HomeFragment
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
-import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
+import org.skepsun.kototoro.main.ui.compose.KototoroApp
+import org.skepsun.kototoro.main.ui.compose.ComposeAppNavBarDelegator
+import org.skepsun.kototoro.core.ui.widgets.BottomNavState
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionItemCallback
@@ -83,7 +87,7 @@ import javax.inject.Inject
 import com.google.android.material.R as materialR
 
 @AndroidEntryPoint
-class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNavOwner,
+class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner,
 	View.OnClickListener,
 	SearchSuggestionItemCallback.SuggestionItemListener,
 	MainNavigationDelegate.OnFragmentChangedListener,
@@ -106,25 +110,37 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	private lateinit var navigationDelegate: MainNavigationDelegate
 	private lateinit var fadingAppbarMediator: FadingAppbarMediator
 	private var isFoldUnfolded = false
+    private val navStateFlow = MutableStateFlow(BottomNavState())
+    private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
 
 	override val appBar: AppBarLayout
 		get() = viewBinding.appbar
 
-	override val bottomNav: SlidingBottomNavigationView?
-		get() = viewBinding.bottomNav
-
 	override fun onCreate(savedInstanceState: Bundle?) {
+		if (!setContentViewWebViewSafe { org.skepsun.kototoro.databinding.ActivityMainBinding.inflate(layoutInflater) }) {
+			return
+		}
+		
+        composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
 		super.onCreate(savedInstanceState)
-		setContentView(ActivityMainBinding.inflate(layoutInflater))
+		
+		viewBinding.composeBottomNav?.setContent {
+			KototoroApp(
+				navStateFlow = navStateFlow,
+				onNavItemSelected = composeNavBarDelegator::handleItemSelected,
+				onNavItemReselected = composeNavBarDelegator::handleItemSelected
+			)
+		}
+        
 		setSupportActionBar(viewBinding.searchBar)
 
 		viewBinding.fab?.setOnClickListener(this)
-		viewBinding.navRail?.headerView?.findViewById<View>(R.id.railFab)?.setOnClickListener(this)
+		// viewBinding.navRail?.headerView?.findViewById<View>(R.id.railFab)?.setOnClickListener(this) // Removed rail
 		fadingAppbarMediator =
 			FadingAppbarMediator(viewBinding.appbar, viewBinding.layoutSearch ?: viewBinding.searchBar)
 
 		navigationDelegate = MainNavigationDelegate(
-			navBar = checkNotNull(bottomNav ?: viewBinding.navRail),
+			navBar = composeNavBarDelegator,
 			fragmentManager = supportFragmentManager,
 			settings = settings,
 		)
@@ -160,17 +176,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		viewModel.appUpdate.observe(this, MenuInvalidator(this))
 		viewModel.onFirstStart.observeEvent(this) { router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
-		viewModel.isNavFloating.observe(this, ::setNavFloating)
-		viewModel.navHeight.observe(this, ::setNavHeight)
 		searchSuggestionViewModel.isIncognitoModeEnabled.observe(this, this::onIncognitoModeChanged)
-		viewBinding.bottomNav?.addOnLayoutChangeListener(this)
 		viewBinding.searchView.addTransitionListener(this)
 		viewBinding.searchView.addTransitionListener(exitCallback)
 		initSearch()
 		
 		androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(viewBinding.container) { v, insets ->
-			val bottomNav = bottomNav
-			val isPinned = bottomNav != null && bottomNav.isPinned && bottomNav.isShownOrShowing
+			val isPinned = settings.isNavBarPinned
 			val consumeBottom = isPinned && !isNavFloating
 			val newInsets = insets.consume(v, WindowInsetsCompat.Type.systemBars(), bottom = consumeBottom)
 			androidx.core.view.ViewCompat.onApplyWindowInsets(v, newInsets)
@@ -214,65 +226,31 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val typeMask = WindowInsetsCompat.Type.systemBars()
 		val barsInsets = insets.getInsets(typeMask)
+		val isNavFloating = settings.isNavFloating
 		val searchBarDefaultMargin = resources.getDimensionPixelOffset(materialR.dimen.m3_searchbar_margin_horizontal)
 		viewBinding.searchBar.updateLayoutParams<MarginLayoutParams> {
 			marginEnd = searchBarDefaultMargin + barsInsets.end(v)
-			marginStart = if (viewBinding.navRail != null) {
-				searchBarDefaultMargin
-			} else {
-				searchBarDefaultMargin + barsInsets.start(v)
-			}
+			marginStart = searchBarDefaultMargin + barsInsets.start(v)
 		}
 		val navMargin = if (isNavFloating) (16 * resources.displayMetrics.density).toInt() else 0
 		val bottomPadding = if (isNavFloating) 0 else barsInsets.bottom
 		val bottomMargin = if (isNavFloating) barsInsets.bottom + navMargin else 0
 
-		viewBinding.bottomNav?.updatePadding(
-			left = if (isNavFloating) 0 else barsInsets.left,
-			right = if (isNavFloating) 0 else barsInsets.right,
-			bottom = bottomPadding,
-		)
-		
-		viewBinding.bottomNav?.updateLayoutParams<MarginLayoutParams> {
-			leftMargin = if (isNavFloating) barsInsets.left + navMargin else 0
-			rightMargin = if (isNavFloating) barsInsets.right + navMargin else 0
-			this.bottomMargin = bottomMargin
-		}
-
-		viewBinding.bottomNav?.let { bottomNav ->
-			val bg = bottomNav.background
-			if (bg is com.google.android.material.shape.MaterialShapeDrawable) {
-				val radius = if (isNavFloating) 24 * resources.displayMetrics.density else 0f
-				bg.shapeAppearanceModel = bg.shapeAppearanceModel.toBuilder()
-					.setAllCornerSizes(radius)
-					.build()
-				bottomNav.clipToOutline = isNavFloating
-			}
-
-			val appSettings = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(applicationContext).settings
-			val blurMode = appSettings.blurMode
-			if (bg is com.google.android.material.shape.MaterialShapeDrawable) {
-				val baseColor = com.google.android.material.color.MaterialColors.getColor(bottomNav, com.google.android.material.R.attr.colorSurfaceContainer)
-				if (isNavFloating && blurMode != org.skepsun.kototoro.core.prefs.AppSettings.BlurMode.STANDARD) {
-					val alphaVal = if (blurMode == org.skepsun.kototoro.core.prefs.AppSettings.BlurMode.ENHANCED) 180 else 220
-					bg.fillColor = android.content.res.ColorStateList.valueOf(androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, alphaVal))
-				} else {
-					bg.fillColor = android.content.res.ColorStateList.valueOf(baseColor)
-				}
-			}
-		}
-
-		viewBinding.navRail?.updateLayoutParams<MarginLayoutParams> {
-			marginStart = barsInsets.start(v)
-			topMargin = barsInsets.top
-			this.bottomMargin = barsInsets.bottom
-		}
 		viewBinding.container.clipChildren = false
 		viewBinding.container.clipToPadding = false
 		updateContainerBottomMargin()
-		val consumedInsets = insets.consume(v, typeMask, start = viewBinding.navRail != null)
-		val finalInsets = if (isNavFloating && viewBinding.bottomNav?.isPinned == true) {
-			val bNavHeight = viewBinding.bottomNav?.height ?: 0
+		val consumedInsets = insets.consume(v, typeMask, start = false)
+		val finalInsets = if (isNavFloating && settings.isNavBarPinned) {
+			val floating = settings.isNavFloating
+			val labeled = settings.isNavLabelsVisible
+			val heightDp = if (floating) {
+				settings.navFloatingHeight
+			} else if (!labeled) {
+				56
+			} else {
+				settings.navHeight
+			}
+			val bNavHeight = if (heightDp > 0) (heightDp * resources.displayMetrics.density).toInt() else (56 * resources.displayMetrics.density).toInt()
 			// Use measured height or default 56dp roughly if not laid out yet
 			val h = if (bNavHeight > 0) bNavHeight else (56 * resources.displayMetrics.density).toInt()
 			val totalBottom = barsInsets.bottom + navMargin + h
@@ -322,7 +300,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	override fun onSupportActionModeStarted(mode: ActionMode) {
 		super.onSupportActionModeStarted(mode)
 		adjustFabVisibility()
-		bottomNav?.hide()
+		// composeNavBarDelegator handles hide via state if needed
 		(viewBinding.layoutSearch ?: viewBinding.searchBar).isInvisible = true
 		updateContainerBottomMargin()
 	}
@@ -330,13 +308,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	override fun onSupportActionModeFinished(mode: ActionMode) {
 		super.onSupportActionModeFinished(mode)
 		adjustFabVisibility()
-		bottomNav?.show()
+		// composeNavBarDelegator handles show via state
 		(viewBinding.layoutSearch ?: viewBinding.searchBar).isInvisible = false
 		updateContainerBottomMargin()
 	}
 
 	private fun onOpenReader(manga: Content) {
-		val fab = viewBinding.fab ?: viewBinding.navRail?.headerView
+		val fab = viewBinding.fab
 		router.openReader(manga, fab)
 	}
 
@@ -356,7 +334,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	}
 
 	private fun onLoadingStateChanged(isLoading: Boolean) {
-		val fab = viewBinding.fab ?: viewBinding.navRail?.headerView ?: return
+		val fab = viewBinding.fab ?: return
 		fab.isEnabled = !isLoading
 	}
 
@@ -439,7 +417,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 			scrollFlags = appBarScrollFlags
 		}
 		adjustFabVisibility(isSearchOpened = isOpened)
-		bottomNav?.showOrHide(!isOpened)
 		updateContainerBottomMargin()
 	}
 
@@ -492,8 +469,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	}
 
 	private fun setNavbarPinned(isPinned: Boolean) {
-		val bottomNavBar = viewBinding.bottomNav
-		bottomNavBar?.isPinned = isPinned
 		for (view in viewBinding.appbar.children) {
 			val lp = view.layoutParams as? AppBarLayout.LayoutParams ?: continue
 			val scrollFlags = if (isPinned) {
@@ -506,22 +481,25 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 				view.layoutParams = lp
 			}
 		}
+		
+		val params = viewBinding.composeBottomNav?.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
+		val behavior = params?.behavior as? org.skepsun.kototoro.core.ui.widgets.HideBottomNavigationOnScrollBehavior
+		if (behavior != null) {
+			behavior.isPinned = isPinned
+		}
+		
 		updateContainerBottomMargin()
 		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
 	}
 
 	private var isNavFloating = false
 
-	private fun setNavFloating(isFloating: Boolean) {
-		isNavFloating = isFloating
-		val bottomNavBar = viewBinding.bottomNav ?: return
-		val radius = if (isFloating) 24 * resources.displayMetrics.density else 0f
-		val background = bottomNavBar.background
-		if (background is com.google.android.material.shape.MaterialShapeDrawable) {
-			background.shapeAppearanceModel = background.shapeAppearanceModel.toBuilder()
-				.setAllCornerSizes(radius)
-				.build()
-		}
+	private fun setNavFloating(isFloating: Boolean) {}
+
+	private fun setNavHeight(heightDp: Int) {}
+
+	private fun updateContainerBottomMargin() {
+		val isPinned = settings.isNavBarPinned
 		val floating = settings.isNavFloating
 		val labeled = settings.isNavLabelsVisible
 		val heightDp = if (floating) {
@@ -531,33 +509,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		} else {
 			settings.navHeight
 		}
-		setNavHeight(heightDp)
-		
-		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
-	}
-
-	private fun setNavHeight(heightDp: Int) {
-		val bottomNavBar = viewBinding.bottomNav ?: return
-		val px = (heightDp * resources.displayMetrics.density).toInt()
-		bottomNavBar.minimumHeight = px
-		
-		val padding = (12 * resources.displayMetrics.density).toInt()
-		bottomNavBar.itemActiveIndicatorHeight = if (isNavFloating) px - padding else (32 * resources.displayMetrics.density).toInt()
-		
-		// In SlidingBottomNavigationView, the minimumHeight forces the view to take that height,
-		// and the icons will naturally remain centered.
-		androidx.core.view.ViewCompat.requestApplyInsets(viewBinding.root)
-	}
-
-	private fun updateContainerBottomMargin() {
-		val bottomNavBar = viewBinding.bottomNav ?: return
-		val newMargin = if (bottomNavBar.isPinned && bottomNavBar.isShownOrShowing && !isNavFloating) bottomNavBar.height else 0
+		val px = if (heightDp > 0) (heightDp * resources.displayMetrics.density).toInt() else (56 * resources.displayMetrics.density).toInt()
+		val newMargin = if (isPinned && !floating) px else 0
 		with(viewBinding.container) {
 			val params = layoutParams as MarginLayoutParams
 			if (params.bottomMargin != newMargin) {
 				params.bottomMargin = newMargin
 				layoutParams = params
-				androidx.core.view.ViewCompat.requestApplyInsets(this)
 			}
 		}
 	}
@@ -584,17 +542,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 	private fun adjustLayoutForFoldableState() {
 		val shouldUseLandscapeLayout = FoldableUtils.shouldUseLandscapeLayout(this, isFoldUnfolded)
 		val hasNavRail = viewBinding.navRail != null
-
-		// 仅根据布局需要切换导航栏，不改变屏幕方向
-		if (shouldUseLandscapeLayout && hasNavRail) {
-			// 展开或横屏且存在侧栏视图时，显示侧栏，隐藏底部栏
-			viewBinding.navRail?.isVisible = true
-			viewBinding.bottomNav?.isVisible = false
-		} else {
-			// 其他情况显示底部栏；如果存在侧栏视图则隐藏
-			viewBinding.navRail?.isVisible = false
-			viewBinding.bottomNav?.isVisible = true
-		}
 
 		// 通知当前Fragment布局状态变化
 		navigationDelegate.primaryFragment?.let { fragment ->

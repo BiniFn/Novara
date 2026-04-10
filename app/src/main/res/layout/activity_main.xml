@@ -63,28 +63,26 @@
 
 	</com.google.android.material.search.SearchView>
 
+	<androidx.compose.ui.platform.ComposeView
+		android:id="@+id/compose_bottom_nav"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_gravity="bottom"
+		app:layout_behavior="org.skepsun.kototoro.core.ui.widgets.HideBottomNavigationOnScrollBehavior"
+		android:elevation="8dp" />
+
 	<com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 		android:id="@+id/fab"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
 		android:layout_marginHorizontal="16dp"
+		android:layout_marginBottom="90dp"
 		android:text="@string/_continue"
 		android:visibility="gone"
 		app:icon="@drawable/ic_read"
-		app:layout_anchor="@id/bottomNav"
-		app:layout_anchorGravity="top|end"
+		android:layout_gravity="bottom|end"
 		app:layout_behavior="org.skepsun.kototoro.main.ui.MainActionButtonBehavior"
-		app:layout_dodgeInsetEdges="bottom"
-		app:layout_insetEdge="bottom"
 		tools:ignore="InconsistentLayout"
 		tools:visibility="visible" />
-
-	<org.skepsun.kototoro.core.ui.widgets.SlidingBottomNavigationView
-		android:id="@+id/bottomNav"
-		android:layout_width="match_parent"
-		android:layout_height="wrap_content"
-		android:layout_gravity="bottom"
-		android:fitsSystemWindows="false" />
-
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

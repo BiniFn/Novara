@@ -53,7 +53,7 @@ import com.google.android.material.R as materialR
 private const val TAG_PRIMARY = "primary"
 
 class MainNavigationDelegate(
-	private val navBar: NavigationBarView,
+	private val navBar: AppNavBarDelegator,
 	private val fragmentManager: FragmentManager,
 	private val settings: AppSettings,
 ) : OnBackPressedCallback(false),
@@ -61,7 +61,7 @@ class MainNavigationDelegate(
 	NavigationBarView.OnItemReselectedListener, View.OnClickListener {
 
 	private val listeners = LinkedList<OnFragmentChangedListener>()
-	val navRailHeader = (navBar as? NavigationRailView)?.headerView?.let {
+	val navRailHeader = (navBar.asView() as? NavigationRailView)?.headerView?.let {
 		NavigationRailFabBinding.bind(it)
 	}
 
@@ -76,7 +76,7 @@ class MainNavigationDelegate(
 			root.updateLayoutParams<FrameLayout.LayoutParams> {
 				gravity = Gravity.TOP or Gravity.CENTER
 			}
-			val horizontalPadding = (navBar as NavigationRailView).itemActiveIndicatorMarginHorizontal
+			val horizontalPadding = (navBar.asView() as NavigationRailView).itemActiveIndicatorMarginHorizontal
 			root.setPadding(horizontalPadding, 0, horizontalPadding, 0)
 			buttonExpand.setOnClickListener(this@MainNavigationDelegate)
 			buttonExpand.setContentDescriptionAndTooltip(R.string.expand)
@@ -101,20 +101,21 @@ class MainNavigationDelegate(
 	override fun onClick(v: View) {
 		when (v.id) {
 			R.id.button_expand -> {
-				if (navBar is NavigationRailView) {
-					setNavbarIsExpanded(!navBar.isExpanded)
+				val navView = navBar.asView()
+				if (navView is NavigationRailView) {
+					setNavbarIsExpanded(!navView.isExpanded)
 				}
 			}
 		}
 	}
 
 	override fun handleOnBackPressed() {
-		navBar.selectedItemId = firstItem()?.itemId ?: return
+		navBar.selectedItemId = navBar.getFirstVisibleItemId() ?: return
 	}
 
 	fun onCreate(lifecycleOwner: LifecycleOwner, savedInstanceState: Bundle?) {
-		if (navBar.menu.isEmpty()) {
-			createMenu(settings.mainNavItems, navBar.menu)
+		if (navBar.isMenuEmpty()) {
+			navBar.setupMenu(settings.mainNavItems)
 		}
 		observeSettings(lifecycleOwner)
 
@@ -153,7 +154,7 @@ class MainNavigationDelegate(
 					navBar.selectedItemId = itemId
 				}
 			} else {
-				val itemId = firstItem()?.itemId ?: navBar.selectedItemId
+				val itemId = navBar.getFirstVisibleItemId() ?: navBar.selectedItemId
 				onNavigationItemSelected(itemId)
 			}
 		}
@@ -166,7 +167,7 @@ class MainNavigationDelegate(
 		addOnFragmentChangedListener(listener)
 		awaitClose { removeOnFragmentChangedListener(listener) }
 	}.map {
-		navBar.menu.findItem(it)?.title
+		navBar.getItemTitle(it)?.toString()
 	}
 
 	fun setCounter(item: NavItem, counter: Int) {
@@ -184,23 +185,21 @@ class MainNavigationDelegate(
 
 	private fun setCounter(@IdRes id: Int, counter: Int) {
 		if (counter == 0) {
-			navBar.getBadge(id)?.isVisible = false
+			navBar.setBadgeVisible(id, false)
 		} else {
-			val badge = navBar.getOrCreateBadge(id)
 			if (counter < 0) {
-				badge.clearNumber()
+				navBar.clearBadge(id)
 			} else {
-				badge.number = counter
+				navBar.setBadgeNumber(id, counter)
 			}
-			badge.isVisible = true
+			navBar.setBadgeVisible(id, true)
 		}
 	}
 
 	fun setItemVisibility(@IdRes itemId: Int, isVisible: Boolean) {
-		val item = navBar.menu.findItem(itemId) ?: return
-		item.isVisible = isVisible
-		if (item.isChecked && !isVisible) {
-			navBar.selectedItemId = firstItem()?.itemId ?: return
+		navBar.setItemVisibility(itemId, isVisible)
+		if (navBar.isItemChecked(itemId) && !isVisible) {
+			navBar.selectedItemId = navBar.getFirstVisibleItemId() ?: return
 		}
 	}
 
@@ -309,22 +308,12 @@ class MainNavigationDelegate(
 	}
 
 	private fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {
-		isEnabled = getItemId(fragment) != firstItem()?.itemId
+		isEnabled = getItemId(fragment) != navBar.getFirstVisibleItemId()
 		listeners.forEach { it.onFragmentChanged(fragment, fromUser) }
 	}
 
-	private fun createMenu(items: List<NavItem>, menu: Menu) {
-		for (item in items) {
-			menu.add(Menu.NONE, item.id, Menu.NONE, item.title)
-				.setIcon(item.icon)
-			if (menu.size >= navBar.maxItemCount) {
-				break
-			}
-		}
-	}
-
 	private fun instantiateFragment(fragmentClass: Class<out Fragment>): Fragment {
-		val classLoader = navBar.context.classLoader
+		val classLoader = navBar.asView()?.context?.classLoader ?: fragmentManager.fragments.firstOrNull()?.requireContext()?.classLoader ?: javaClass.classLoader!!
 		return fragmentManager.fragmentFactory.instantiate(classLoader, fragmentClass.name)
 	}
 
@@ -335,14 +324,6 @@ class MainNavigationDelegate(
 				setItemVisibility(R.id.nav_feed, settings.isTrackerEnabled)
 				setNavbarIsLabeled(settings.isNavLabelsVisible)
 			}.launchIn(lifecycleOwner.lifecycleScope)
-	}
-
-	private fun firstItem(): MenuItem? {
-		val menu = navBar.menu
-		for (item in menu) {
-			if (item.isVisible) return item
-		}
-		return null
 	}
 
 	private fun setNavbarIsLabeled(value: Boolean) {
@@ -358,11 +339,12 @@ class MainNavigationDelegate(
 	}
 
 	private fun setNavbarIsExpanded(value: Boolean) {
-		if (navBar !is NavigationRailView) {
+		val navView = navBar.asView()
+		if (navView !is NavigationRailView) {
 			return
 		}
 		if (value) {
-			navBar.expand()
+			navView.expand()
 			navRailHeader?.run {
 				root.updateLayoutParams<FrameLayout.LayoutParams> {
 					gravity = Gravity.TOP or Gravity.START
@@ -370,11 +352,11 @@ class MainNavigationDelegate(
 				railFab.extend()
 				buttonExpand.setImageResource(R.drawable.ic_drawer_menu_open)
 				buttonExpand.setContentDescriptionAndTooltip(R.string.collapse)
-				val horizontalPadding = navBar.itemActiveIndicatorExpandedMarginHorizontal
+				val horizontalPadding = navView.itemActiveIndicatorExpandedMarginHorizontal
 				root.setPadding(horizontalPadding, 0, horizontalPadding, 0)
 			}
 		} else {
-			navBar.collapse()
+			navView.collapse()
 			navRailHeader?.run {
 				root.updateLayoutParams<FrameLayout.LayoutParams> {
 					gravity = Gravity.TOP or Gravity.CENTER
@@ -382,7 +364,7 @@ class MainNavigationDelegate(
 				railFab.shrink()
 				buttonExpand.setImageResource(R.drawable.ic_drawer_menu)
 				buttonExpand.setContentDescriptionAndTooltip(R.string.expand)
-				val horizontalPadding = navBar.itemActiveIndicatorMarginHorizontal
+				val horizontalPadding = navView.itemActiveIndicatorMarginHorizontal
 				root.setPadding(horizontalPadding, 0, horizontalPadding, 0)
 			}
 		}

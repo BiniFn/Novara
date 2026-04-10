@@ -1,0 +1,151 @@
+package org.skepsun.kototoro.core.ui.widgets
+
+import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.RenderEffect
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.StateFlow
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
+import dagger.hilt.android.EntryPointAccessors
+
+@Composable
+fun KototoroBottomNav(
+    state: StateFlow<BottomNavState>,
+    onItemSelected: (Int) -> Unit,
+    onItemReselected: (Int) -> Unit
+) {
+    val navState by state.collectAsState()
+    val context = LocalContext.current
+    val appSettings = remember {
+        EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(context.applicationContext).settings
+    }
+    
+    val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
+    val blurMode by appSettings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }
+    val isLabelsVisible by appSettings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }
+
+    val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
+
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainer
+    
+    // Compute alpha based on user preference
+    val targetAlpha = when (blurMode) {
+        AppSettings.BlurMode.ENHANCED -> 0.75f
+        AppSettings.BlurMode.STANDARD -> 1.0f
+        else -> 0.90f
+    }
+    val bgColor = surfaceColor.copy(alpha = targetAlpha)
+
+    val navBarModifier = if (isFloating) {
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .shadow(12.dp, RoundedCornerShape(32.dp))
+            .clip(RoundedCornerShape(32.dp))
+    } else {
+        Modifier.fillMaxWidth()
+    }
+
+    Box(modifier = navBarModifier) {
+        NavigationBar(
+            containerColor = bgColor,
+            tonalElevation = if (isFloating) 0.dp else 3.dp,
+            modifier = Modifier.fillMaxWidth(),
+            windowInsets = if (isFloating) WindowInsets(0) else NavigationBarDefaults.windowInsets 
+        ) {
+            activeItems.forEach { item ->
+                val isSelected = navState.selectedItemId == item.id
+                val badge = navState.badges[item.id]
+                
+                NavigationBarItem(
+                    selected = isSelected,
+                    onClick = {
+                        if (isSelected) onItemReselected(item.id) else onItemSelected(item.id)
+                    },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (badge?.isVisible == true) {
+                                    if (badge.number > 0) {
+                                        Badge { Text(badge.number.toString()) }
+                                    } else {
+                                        Badge()
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                painter = getPremiumPainter(item.id, isSelected),
+                                contentDescription = stringResource(item.title)
+                            )
+                        }
+                    },
+                    label = if (isLabelsVisible) {
+                        { Text(stringResource(item.title)) }
+                    } else null,
+                    alwaysShowLabel = isLabelsVisible,
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun getPremiumPainter(itemId: Int, isSelected: Boolean): Painter {
+    val resId = when (itemId) {
+        R.id.nav_home -> R.drawable.ic_home
+        R.id.nav_history -> R.drawable.ic_history
+        R.id.nav_favorites -> if (isSelected) R.drawable.ic_heart else R.drawable.ic_heart_outline
+        R.id.nav_explore -> if (isSelected) R.drawable.ic_explore_checked else R.drawable.ic_explore_normal
+        R.id.nav_discover -> if (isSelected) R.drawable.ic_bangumi else R.drawable.ic_bangumi_outline
+        R.id.nav_suggestions -> if (isSelected) R.drawable.ic_suggestion_checked else R.drawable.ic_suggestion
+        R.id.nav_feed -> R.drawable.ic_feed
+        R.id.nav_updated -> if (isSelected) R.drawable.ic_updated_checked else R.drawable.ic_updated
+        R.id.nav_bookmarks -> if (isSelected) R.drawable.ic_bookmark_checked else R.drawable.ic_bookmark
+        R.id.nav_local -> if (isSelected) R.drawable.ic_storage_checked else R.drawable.ic_storage
+        else -> R.drawable.ic_home // fallback
+    }
+    return painterResource(id = resId)
+}
+
+@Composable
+private fun <T> AppSettings.observeAsState(
+    key: String,
+    selector: AppSettings.() -> T
+): State<T> {
+    val state = remember { mutableStateOf(selector()) }
+    DisposableEffect(key) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == key) {
+                state.value = selector()
+            }
+        }
+        this@observeAsState.subscribe(listener)
+        onDispose {
+            this@observeAsState.unsubscribe(listener)
+        }
+    }
+    return state
+}
