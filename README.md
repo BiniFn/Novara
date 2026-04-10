@@ -2,41 +2,36 @@
 
 ![App Icon](metadata/en-US/icon.png)
 
-![version](https://img.shields.io/badge/version-0.8.7-blue)
+![version](https://img.shields.io/badge/version-0.8.8-blue)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/xBXvPz7tr7)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://kototoro-app.github.io/Kototoro/)
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://kototoro-app.github.io/Kototoro/getting-started)
 [![Translation Docs](https://img.shields.io/badge/docs-auto--translation-blue)](https://kototoro-app.github.io/Kototoro/automatic-translation)
 
-<!-- ## Development Philosophy
-
-Kototoro is proudly built with the assistance of AI large language models. However, while modern AI is fantastic at generating boilerplate and scaffolding (the "0 to 1"), the reality of shipping a production-ready reader dealing with complex video buffering, OCR pipelines, JNI, and memory leaks is a purely human endeavor.
-
-The past 6 months of development have been dedicated to relentless debugging, performance tuning, and architectural refactoring to make Kototoro the robust platform it is today. To anyone (especially @hxncvxz) who dismisses this intensive engineering effort as mere "vibecoding": you are warmly invited to fix the next core memory leak or Vulkan synchronization bug yourself. 😉
-<!-- 
-<div align="center">
-    <img src="./metadata/en-US/images/Screenshot_20260405_115114_com_discord_MainActivi.jpg" alt="Discord chat log: vibecoder accusation" width="300"/>
-    <br/>
-    <em>公道自在人心</em>
-</div> --> -->
-
 Kototoro is an open-source Android app that brings manga, novels, and video into one reader. It combines broad source compatibility with local OCR + translation, video super-resolution, and WebDAV-based multi-device sync.
 
-## Why Kototoro
+> **中文简介**：Kototoro 是一款开源的 Android 应用程序，将漫画、小说和视频整合到了一个阅读器中。它结合了极好的图源兼容性、本地 OCR + 机器翻译、视频超分辨率加载以及基于 WebDAV 的多设备同步功能。
 
-- One app for manga, novels, and video
-- Local automatic OCR + translation directly inside the reader
-- Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
-- Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
-- Broad source support: external dynamic parsers, Mihon, Aniyomi, IReader, Legado, TVBox
+## Why Kototoro / 核心特性
+
+- One app for manga, novels, and video 
+  *(一个应用搞定漫画、小说和视频)*
+- Local automatic OCR + translation directly inside the reader 
+  *(阅读器内直接集成强大的本地自动 OCR + 机器翻译)*
+- Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection 
+  *(视频超分加载、DLNA 投屏播放、外挂字幕与音轨选择)*
+- Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates 
+  *(支持 Bangumi 等多平台进度追踪)*
+- Broad source support: external dynamic parsers, Mihon, Aniyomi, IReader, Legado, TVBox 
+  *(广泛的图源/插件支持：包含 Mihon、阅读、TVBox 等集成)*
 - Dynamic zero-overhead UI plugins via external classloaders
 - Fast pure-Kotlin OTA delta updates
 - Site favorites import and synchronization for supported services
 
-## Start Here
+## Start Here / 开始使用
 
-- Download the latest APK from [Releases](https://github.com/Kototoro-app/Kototoro/releases)
-- Complete the in-app **Setup wizard** right after installation to configure GitHub mirrors, download core source plugins, and set up your content types.
+- Download the latest APK from [Releases](https://github.com/Kototoro-app/Kototoro/releases) *(下载最新版本)*
+- Complete the in-app **Setup wizard** right after installation to configure GitHub mirrors, download core source plugins, and set up your content types. *(安装后请直接完成向导设置)*
 - Read the [Documentation Website](https://kototoro-app.github.io/Kototoro/)
 - Follow [Getting Started](https://kototoro-app.github.io/Kototoro/getting-started) for detailed wizard instructions and next steps
 - Learn the core product surface in [Reader Features](https://kototoro-app.github.io/Kototoro/reader-features)
@@ -67,7 +62,7 @@ Kototoro supports several important external source ecosystems. These repositori
 
 For setup details, see [Source Integrations](https://kototoro-app.github.io/Kototoro/source-integrations).
 
-## Screenshots
+## Screenshots / 界面截图
 
 <div align="center">
     <img src="./metadata/en-US/images/tabletScreenshots/1.jpg" alt="All sources" width="260"/>
@@ -112,8 +107,8 @@ limitations under the License.
 - [legado-with-MD3](https://github.com/HapeLee/legado-with-MD3)
 - [RealCUGAN-ncnn-Android](https://github.com/omeshi1/RealCUGAN-ncnn-Android)
 
-## Contact
+## Contact / 联系方式
 
 - Discord: [Join Server](https://discord.gg/xBXvPz7tr7)
+- QQ Group: 560955275
 - GitHub Issues: [Issue Tracker](https://github.com/Kototoro-app/Kototoro/issues)
-
