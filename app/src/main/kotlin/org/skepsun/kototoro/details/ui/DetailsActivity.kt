@@ -167,13 +167,19 @@ class DetailsActivity :
 			
 			val interpolator = androidx.interpolator.view.animation.FastOutSlowInInterpolator()
 			
-			val slide = android.transition.Slide(android.view.Gravity.END)
-			slide.duration = 350L
-			slide.interpolator = interpolator
-			slide.excludeTarget(android.R.id.statusBarBackground, true)
-			slide.excludeTarget(android.R.id.navigationBarBackground, true)
-			window.enterTransition = slide
-			window.returnTransition = slide
+			val slideEnter = android.transition.Slide(android.view.Gravity.END)
+			slideEnter.duration = 350L
+			slideEnter.interpolator = interpolator
+			slideEnter.excludeTarget(android.R.id.statusBarBackground, true)
+			slideEnter.excludeTarget(android.R.id.navigationBarBackground, true)
+			window.enterTransition = slideEnter
+
+			val slideReturn = android.transition.Slide(android.view.Gravity.END)
+			slideReturn.duration = 275L
+			slideReturn.interpolator = interpolator
+			slideReturn.excludeTarget(android.R.id.statusBarBackground, true)
+			slideReturn.excludeTarget(android.R.id.navigationBarBackground, true)
+			window.returnTransition = slideReturn
 			
 			val sharedTransition = android.transition.TransitionInflater.from(this).inflateTransition(android.R.transition.move)
 			sharedTransition.duration = 350L

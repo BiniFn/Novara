@@ -130,9 +130,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isQuickFilterEnabled: Boolean
 		get() = prefs.getBoolean(KEY_QUICK_FILTER, true)
 
-	val isFrostedNavEnabled: Boolean
-		get() = prefs.getBoolean(KEY_USE_FROSTED_NAVBAR, false)
-
 	var isSearchBarFilterHidden: Boolean
 		get() = prefs.getBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, false)
 		set(value) = prefs.edit { putBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, value) }
@@ -1417,7 +1414,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	companion object {
 
-		const val KEY_USE_FROSTED_NAVBAR = "use_frosted_navbar"
+
 		const val KEY_SEARCH_BAR_FILTER_HIDDEN = "search_filter_hidden"
 		const val KEY_SOURCES_GROUPED_BY_LANGUAGE = "sources_grouped_by_language"
 

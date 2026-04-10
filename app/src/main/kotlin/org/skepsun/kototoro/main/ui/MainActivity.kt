@@ -130,22 +130,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 		)
 		navigationDelegate.addOnFragmentChangedListener(this)
 
-		if (settings.isFrostedNavEnabled && viewBinding.navRail == null) {
-			viewBinding.bottomNav?.isVisible = false
-			val frostedWrapper = viewBinding.root.findViewById<android.widget.FrameLayout>(R.id.frostedNavWrapper)
-			val frostedNav = viewBinding.root.findViewById<org.skepsun.kototoro.core.ui.widgets.FrostedBottomNavigationView>(R.id.frostedBottomNav)
-			frostedWrapper?.isVisible = true
-			frostedNav?.setItems(settings.mainNavItems)
-			frostedNav?.setOnItemSelectedListener { navItem ->
-				viewBinding.bottomNav?.selectedItemId = navItem.id
-			}
-			navigationDelegate.addOnFragmentChangedListener { fragment, fromUser ->
-				viewBinding.bottomNav?.selectedItemId?.let { frostedNav?.setSelectedItemId(it) }
-			}
-			// initial sync
-			viewBinding.bottomNav?.selectedItemId?.let { frostedNav?.setSelectedItemId(it) }
-		}
-
 		navigationDelegate.onCreate(this, savedInstanceState)
 		viewBinding.textViewTitle?.let { tv ->
 			navigationDelegate.observeTitle().observe(this) { tv.text = it }
@@ -255,11 +239,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 			this.bottomMargin = bottomMargin
 		}
 
-		viewBinding.root.findViewById<View>(R.id.frostedNavWrapper)?.let { wrapper ->
-			val frostedBottomPadding = (24 * resources.displayMetrics.density).toInt() + barsInsets.bottom
-			wrapper.setPadding(barsInsets.left, 0, barsInsets.right, frostedBottomPadding)
-		}
-		
 		viewBinding.bottomNav?.let { bottomNav ->
 			val bg = bottomNav.background
 			if (bg is com.google.android.material.shape.MaterialShapeDrawable) {
