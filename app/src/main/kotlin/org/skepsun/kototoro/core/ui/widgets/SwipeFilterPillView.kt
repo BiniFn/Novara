@@ -14,6 +14,7 @@ import android.view.ViewConfiguration
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.Toolbar
 import androidx.annotation.DrawableRes
@@ -202,7 +203,7 @@ class SwipeFilterPillView @JvmOverloads constructor(
                         selectedIndex = newIndex
                         performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         updateIconOpacities()
-                        invalidate()
+                        invalidateWithParents()
                     }
                 }
             }
@@ -224,7 +225,6 @@ class SwipeFilterPillView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        applyParentClippingOverrides()
     }
 
     override fun onDetachedFromWindow() {
@@ -265,6 +265,7 @@ class SwipeFilterPillView @JvmOverloads constructor(
     private fun expandPill() {
         if (isExpanded) return
         isExpanded = true
+        applyParentClippingOverrides()
         animateExpansion(1f)
     }
 
@@ -274,6 +275,7 @@ class SwipeFilterPillView @JvmOverloads constructor(
         animateExpansion(0f) {
             updateIcons()
             updateIconOpacities()
+            restoreParentClippingOverrides()
         }
     }
 
@@ -292,6 +294,16 @@ class SwipeFilterPillView @JvmOverloads constructor(
 
     private val locationOnScreen = IntArray(2)
 
+    private fun invalidateWithParents() {
+        invalidate()
+        var p = parent as? View
+        while (p != null) {
+            p.invalidate()
+            if (p is Toolbar) break
+            p = p.parent as? View
+        }
+    }
+
     private fun animateExpansion(target: Float, onEnd: (() -> Unit)? = null) {
         ValueAnimator.ofFloat(expansionProgress, target).apply {
             duration = 250
@@ -300,7 +312,7 @@ class SwipeFilterPillView @JvmOverloads constructor(
                 expansionProgress = it.animatedValue as Float
                 elevation = 16f * expansionProgress
                 updateIconOpacities()
-                invalidate()
+                invalidateWithParents()
             }
             if (onEnd != null) doOnEnd { onEnd() }
             start()
