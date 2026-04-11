@@ -23,7 +23,7 @@ import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.showOrHide
-import org.skepsun.kototoro.databinding.FragmentPagesBinding
+import org.skepsun.kototoro.databinding.FragmentPagePickerBinding
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnailAdapter
 import org.skepsun.kototoro.list.ui.GridSpanResolver
@@ -36,7 +36,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class PagePickerFragment :
-	BaseFragment<FragmentPagesBinding>(),
+	BaseFragment<FragmentPagePickerBinding>(),
 	OnListItemClickListener<PageThumbnail> {
 
 	@Inject
@@ -50,11 +50,11 @@ class PagePickerFragment :
 
 	private val spanSizeLookup = SpanSizeLookup()
 
-	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentPagesBinding {
-		return FragmentPagesBinding.inflate(inflater, container, false)
+	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentPagePickerBinding {
+		return FragmentPagePickerBinding.inflate(inflater, container, false)
 	}
 
-	override fun onViewBindingCreated(binding: FragmentPagesBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: FragmentPagePickerBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		spanResolver = GridSpanResolver(binding.root.resources)
 		thumbnailsAdapter = PageThumbnailAdapter(
@@ -76,8 +76,8 @@ class PagePickerFragment :
 		viewModel.thumbnails.observe(viewLifecycleOwner, ::onThumbnailsChanged)
 		viewModel.isNoChapters.observe(viewLifecycleOwner, ::onNoChaptersChanged)
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))
-		viewModel.isLoading.observe(viewLifecycleOwner) { binding.progressBar.showOrHide(it) }
-		viewModel.isLoadingDown.observe(viewLifecycleOwner) { binding.progressBarBottom.showOrHide(it) }
+		viewModel.isLoading.observe(viewLifecycleOwner) { binding.progressBar.isVisible = it }
+		viewModel.isLoadingDown.observe(viewLifecycleOwner) { binding.progressBarBottom.isVisible = it }
 		viewModel.manga.observe(viewLifecycleOwner, Lifecycle.State.RESUMED) {
 			activity?.title = it?.toContent()?.title.ifNullOrEmpty { getString(R.string.pick_manga_page) }
 		}

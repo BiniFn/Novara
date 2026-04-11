@@ -66,7 +66,7 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 	override fun onViewBindingCreated(binding: FragmentTrackingSiteDetailsBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		(activity as? androidx.appcompat.app.AppCompatActivity)?.supportActionBar?.hide()
-		(activity as? org.skepsun.kototoro.core.ui.FragmentContainerActivity)?.appBar?.visibility = View.GONE
+		(activity as? org.skepsun.kototoro.core.ui.FragmentContainerActivity)?.findViewById<View>(R.id.appbar)?.visibility = View.GONE
 
 		binding.appbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
 		binding.appbar.outlineProvider = null
@@ -215,7 +215,7 @@ class TrackingSiteDetailsFragment : BaseFragment<FragmentTrackingSiteDetailsBind
 		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 		val binding = requireViewBinding()
 		
-		val hostAppbarPadding = (activity as? org.skepsun.kototoro.core.ui.FragmentContainerActivity)?.appBar?.paddingTop ?: 0
+		val hostAppbarPadding = (activity as? org.skepsun.kototoro.core.ui.FragmentContainerActivity)?.findViewById<View>(R.id.appbar)?.paddingTop ?: 0
 		val trueTopInset = if (systemBars.top > 0) systemBars.top else hostAppbarPadding
 
 		binding.swipeRefreshLayout.updatePadding(

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.drop
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.ui.list.ListSelectionController
+
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.getCauseUrl
@@ -22,7 +22,7 @@ import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.withArgs
-import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.list.ui.ContentListFragment
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -36,14 +36,14 @@ class RemoteListFragment : ContentListFragment(), FilterCoordinator.Owner, View.
     override val filterCoordinator: FilterCoordinator
         get() = viewModel.filterCoordinator
 
-    override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+    override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
         super.onViewBindingCreated(binding, savedInstanceState)
         addMenuProvider(RemoteListMenuProvider())
         addMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
         viewModel.isRandomLoading.observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
         viewModel.onOpenContent.observeEvent(viewLifecycleOwner) { router.openDetails(it) }
         viewModel.onSourceBroken.observeEvent(viewLifecycleOwner) { showSourceBrokenWarning() }
-        // 确保进入 JS 源时标题使用解析后的 displayName，而不是 JSON_JS_* 占位
+        // 确保进入 JS 源时标题使用解析后的 displayName，而不�?JSON_JS_* 占位
         activity?.title = viewModel.source.getTitle(requireContext())
         filterCoordinator.observe().distinctUntilChangedBy { it.listFilter.isEmpty() }
             .drop(1)
@@ -59,14 +59,7 @@ class RemoteListFragment : ContentListFragment(), FilterCoordinator.Owner, View.
     override fun isContentTypeFilterVisible(): Boolean = false
     override fun isSourceTagFilterVisible(): Boolean = false
 
-    override fun onCreateActionMode(
-        controller: ListSelectionController,
-        menuInflater: MenuInflater,
-        menu: Menu
-    ): Boolean {
-        menuInflater.inflate(R.menu.mode_remote, menu)
-        return super.onCreateActionMode(controller, menuInflater, menu)
-    }
+
 
     override fun onFilterClick(view: View?) {
         router.showFilterSheet()
@@ -103,14 +96,14 @@ class RemoteListFragment : ContentListFragment(), FilterCoordinator.Owner, View.
                 title = viewModel.source.getTitle(requireContext()),
             )
         } else {
-            Snackbar.make(requireViewBinding().recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT)
+            Snackbar.make(requireViewBinding().root, R.string.operation_not_supported, Snackbar.LENGTH_SHORT)
                 .show()
         }
     }
 
     private fun showSourceBrokenWarning() {
         val snackbar = Snackbar.make(
-            viewBinding?.recyclerView ?: return,
+            viewBinding?.root ?: return,
             R.string.source_broken_warning,
             Snackbar.LENGTH_INDEFINITE,
         )

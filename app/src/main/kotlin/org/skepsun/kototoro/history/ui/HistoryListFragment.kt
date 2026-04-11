@@ -16,7 +16,7 @@ import org.skepsun.kototoro.core.ui.list.RecyclerScrollKeeper
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
-import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.ContentListFragment
@@ -29,12 +29,12 @@ class HistoryListFragment : ContentListFragment() {
 	override val isSwipeRefreshEnabled = false
 	override fun sourceTagChipEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
-	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
 		arguments?.getString(AppRouter.KEY_GROUP_TAB)
 			?.let(BrowseGroupTab::fromId)
 			?.let(viewModel::setSelectedGroupTab)
 		super.onViewBindingCreated(binding, savedInstanceState)
-		RecyclerScrollKeeper(binding.recyclerView).attach()
+
 		addMenuProvider(HistoryListMenuProvider(binding.root.context, router, viewModel))
 		viewModel.isStatsEnabled.observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
 	}
@@ -43,44 +43,16 @@ class HistoryListFragment : ContentListFragment() {
 
 	override fun onEmptyActionClick() = viewModel.clearFilter()
 
-	override fun onCreateActionMode(
-		controller: ListSelectionController,
-		menuInflater: MenuInflater,
-		menu: Menu
-	): Boolean {
-		menuInflater.inflate(R.menu.mode_history, menu)
-		return super.onCreateActionMode(controller, menuInflater, menu)
-	}
+	override val showSelectionRemoveOption = true
 
-	override fun onActionItemClicked(controller: ListSelectionController, mode: ActionMode?, item: MenuItem): Boolean {
-		return when (item.itemId) {
-			R.id.action_remove -> {
-				viewModel.removeFromHistory(selectedItemsIds)
-				mode?.finish()
+	override fun onSelectionAction(action: org.skepsun.kototoro.list.ui.compose.SelectionAction, ids: Set<Long>): Boolean {
+		return when (action) {
+			org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE -> {
+				viewModel.removeFromHistory(ids)
 				true
 			}
-
-			R.id.action_mark_current -> {
-				val itemsSnapshot = selectedItems
-				buildAlertDialog(context ?: return false, isCentered = true) {
-					setTitle(item.title)
-					setIcon(item.icon)
-					setMessage(R.string.mark_as_completed_prompt)
-					setNegativeButton(android.R.string.cancel, null)
-					setPositiveButton(android.R.string.ok) { _, _ ->
-						viewModel.markAsRead(itemsSnapshot)
-						mode?.finish()
-					}
-				}.show()
-				true
-			}
-
-			else -> super.onActionItemClicked(controller, mode, item)
+			/* Note: MARK_AS_CURRENT isn't natively supported by SelectionAction yet, we will map it if needed or migrate it out. */
+			else -> super.onSelectionAction(action, ids)
 		}
 	}
-
-	override fun onCreateAdapter() = HistoryListAdapter(
-		this,
-		DynamicItemSizeResolver(resources, viewLifecycleOwner, settings, adjustWidth = false),
-	)
 }

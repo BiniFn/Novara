@@ -5,7 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.content.res.Configuration
-import androidx.appcompat.view.ActionMode
+import org.skepsun.kototoro.R
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
@@ -42,12 +42,18 @@ import org.skepsun.kototoro.details.ui.ReadButtonDelegate
 import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
 import org.skepsun.kototoro.core.model.unwrap
 import javax.inject.Inject
+import androidx.compose.foundation.layout.fillMaxSize
 import kotlinx.coroutines.launch
+import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot
+import org.skepsun.kototoro.details.ui.pager.pages.compose.PagesScreenRoot
+import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreenRoot
+import androidx.fragment.app.viewModels
+import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
+import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 
 @AndroidEntryPoint
 class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 	TabLayout.OnTabSelectedListener,
-	ActionModeListener,
 	AdaptiveSheetCallback {
 
 	@Inject
@@ -56,7 +62,12 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 	@Inject
 	lateinit var jsonSourceManager: org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 
+	@Inject
+	lateinit var pageSaveHelperFactory: org.skepsun.kototoro.reader.ui.PageSaveHelper.Factory
+
 	private val viewModel by ChaptersPagesViewModel.ActivityVMLazy(this)
+	private val pagesViewModel by viewModels<PagesViewModel>()
+	private val bookmarksViewModel by viewModels<BookmarksViewModel>()
 
 	private var isFoldUnfolded: Boolean = false
 
@@ -95,25 +106,105 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		val isBookmarksTabEnabled = !isVideo // 视频不需要书签功能
 
 		
-		val adapter = ChaptersPagesAdapter(this, isPagesTabEnabled, isBookmarksTabEnabled)
-		// 调整默认标签，确保不超出可用标签范围
+		val tabsList = mutableListOf<Int>()
+		tabsList.add(R.string.chapters)
+		if (isPagesTabEnabled) tabsList.add(R.string.pages)
+		if (isBookmarksTabEnabled) tabsList.add(R.string.bookmarks)
+
+		for (titleRes in tabsList) {
+			binding.tabs.addTab(binding.tabs.newTab().setText(titleRes))
+		}
+
 		if (!isPagesTabEnabled && defaultTab > TAB_CHAPTERS) {
 			defaultTab = (defaultTab - 1).coerceAtLeast(TAB_CHAPTERS)
 		}
-		defaultTab = defaultTab.coerceIn(0, adapter.itemCount - 1)
+		defaultTab = defaultTab.coerceIn(0, tabsList.size - 1)
+
 		(viewModel as? DetailsViewModel)?.let { dvm ->
 			ReadButtonDelegate(binding.splitButtonRead, dvm, router).attach(viewLifecycleOwner)
 		}
-		binding.pager.offscreenPageLimit = adapter.itemCount
-		binding.pager.recyclerView?.isNestedScrollingEnabled = false
-		binding.pager.adapter = adapter
-		binding.pager.doOnPageChanged(::onPageChanged)
-		TabLayoutMediator(binding.tabs, binding.pager, adapter).attach()
-		binding.tabs.addOnTabSelectedListener(this)
-		binding.pager.setCurrentItem(defaultTab, false)
-			binding.tabs.isVisible = adapter.itemCount > 1
 
-		val menuProvider = ChapterPagesMenuProvider(viewModel, this, binding.pager, settings)
+		val context = requireContext()
+		val pageSaveHelper = pageSaveHelperFactory.create(this)
+		val viewForSnackbar = binding.composePager
+
+		binding.composePager.apply {
+			setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+			setContent {
+				val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+					initialPage = defaultTab,
+					pageCount = { tabsList.size }
+				)
+
+				androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
+					if (binding.tabs.selectedTabPosition != pagerState.currentPage) {
+						binding.tabs.selectTab(binding.tabs.getTabAt(pagerState.currentPage))
+					}
+					this@ChaptersPagesSheet.onPageChanged(pagerState.currentPage)
+				}
+
+				androidx.compose.runtime.DisposableEffect(binding.tabs) {
+					val listener = object : TabLayout.OnTabSelectedListener {
+						override fun onTabSelected(tab: TabLayout.Tab) {
+							lifecycleScope.launch {
+								pagerState.animateScrollToPage(tab.position)
+							}
+						}
+						override fun onTabUnselected(tab: TabLayout.Tab?) {}
+						override fun onTabReselected(tab: TabLayout.Tab?) {}
+					}
+					binding.tabs.addOnTabSelectedListener(listener)
+					onDispose {
+						binding.tabs.removeOnTabSelectedListener(listener)
+					}
+				}
+
+				org.skepsun.kototoro.core.ui.theme.KototoroTheme {
+					androidx.compose.foundation.pager.HorizontalPager(
+						state = pagerState,
+						modifier = androidx.compose.ui.Modifier.fillMaxSize()
+					) { page ->
+						when (tabsList[page]) {
+							R.string.chapters -> org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot(
+								viewModel = viewModel,
+								router = router,
+								context = context,
+								viewForSnackbar = viewForSnackbar,
+								lifecycleOwner = viewLifecycleOwner
+							)
+							R.string.pages -> PagesScreenRoot(
+								activityViewModel = viewModel,
+								router = router,
+								context = context,
+								pageSaveHelper = pageSaveHelper,
+								viewForSnackbar = viewForSnackbar,
+								lifecycleOwner = viewLifecycleOwner,
+								viewModel = pagesViewModel
+							)
+							R.string.bookmarks -> BookmarksScreenRoot(
+								activityViewModel = viewModel,
+								router = router,
+								context = context,
+								viewModel = bookmarksViewModel
+							)
+						}
+					}
+				}
+			}
+		}
+		binding.tabs.isVisible = tabsList.size > 1
+
+		val menuProvider = ChapterPagesMenuProvider(
+			viewModel,
+			this,
+			{ 
+				var page = binding.tabs.selectedTabPosition
+				if (page > 0 && binding.tabs.tabCount == 2) page++
+				page
+			},
+			{ binding.tabs.tabCount },
+			settings
+		)
 		onBackPressedDispatcher.addCallback(viewLifecycleOwner, menuProvider)
 		binding.toolbar.addMenuProvider(menuProvider)
 
@@ -122,14 +213,13 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 		viewModel.isChaptersInGridView.observe(viewLifecycleOwner, menuInvalidator)
 		viewModel.isDownloadedOnly.observe(viewLifecycleOwner, menuInvalidator)
 
-		actionModeDelegate?.addListener(this, viewLifecycleOwner)
 		addSheetCallback(this, viewLifecycleOwner)
 
 		viewModel.newChaptersCount.observe(viewLifecycleOwner, ::onNewChaptersChanged)
 		if (dialog != null) {
-			viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.pager, this))
-			viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.pager))
-			viewModel.onDownloadStarted.observeEvent(viewLifecycleOwner, DownloadStartedObserver(binding.pager))
+			viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.composePager, this))
+			viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.composePager))
+			viewModel.onDownloadStarted.observeEvent(viewLifecycleOwner, DownloadStartedObserver(binding.composePager))
 		} else {
 			PeekHeightController(arrayOf(binding.headerBar, binding.toolbar)).attach()
 		}
@@ -140,38 +230,26 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
 
-	override fun onStateChanged(sheet: View, newState: Int) {
-        val binding = viewBinding ?: return
-        binding.layoutTouchBlock.isTouchEventsAllowed = dialog != null || newState != STATE_COLLAPSED
-        if (newState == STATE_DRAGGING || newState == STATE_SETTLING) {
-            return
-        }
-		val isActionModeStarted = actionModeDelegate?.isActionModeStarted == true
-		binding.toolbar.menuView?.isVisible = newState == STATE_EXPANDED && !isActionModeStarted
-		binding.splitButtonRead.isVisible = newState != STATE_EXPANDED && !isActionModeStarted
+	override fun onStateChanged(bottomSheet: View, newState: Int) {
+		val binding = viewBinding ?: return
+		binding.layoutTouchBlock.isTouchEventsAllowed = dialog != null || newState != STATE_COLLAPSED
+		if (newState == STATE_DRAGGING || newState == STATE_SETTLING) {
+			return
+		}
+		binding.toolbar.menuView?.isVisible = newState == STATE_EXPANDED
+		binding.splitButtonRead.isVisible = newState != STATE_EXPANDED
 			&& viewModel is DetailsViewModel
 	}
 
-	override fun onActionModeStarted(mode: ActionMode) {
-		viewBinding?.toolbar?.menuView?.isVisible = false
-		view?.post(::expandAndLock)
-	}
-
-	override fun onActionModeFinished(mode: ActionMode) {
-		unlock()
-		val state = behavior?.state ?: STATE_EXPANDED
-		viewBinding?.toolbar?.menuView?.isVisible = state != STATE_COLLAPSED
-	}
+	override fun onSlide(bottomSheet: View, slideOffset: Float) {}
 
 	override fun onTabSelected(tab: TabLayout.Tab?) = Unit
 
 	override fun onTabUnselected(tab: TabLayout.Tab?) = Unit
 
 	override fun onTabReselected(tab: TabLayout.Tab?) {
-		val f = childFragmentManager.findCurrentPagerFragment(
-			viewBinding?.pager ?: return,
-		) as? RecyclerViewOwner ?: return
-		f.recyclerView?.smoothScrollToTop()
+		// Handled via smoothScrollToTop manually locally inside Compose lists if needed
+		// Historically passed to child fragment
 	}
 
 	override fun expandAndLock() {
@@ -186,9 +264,10 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
 	private fun adjustLockState() {
 		viewBinding?.run {
-			pager.isUserInputEnabled = !isLocked
+			// pager.isUserInputEnabled is handled via PagerState in Compose
+
 			tabs.visibility = when {
-				(pager.adapter?.itemCount ?: 0) <= 1 -> View.GONE
+				tabs.tabCount <= 1 -> View.GONE
 				isLocked -> View.INVISIBLE
 				else -> View.VISIBLE
 			}

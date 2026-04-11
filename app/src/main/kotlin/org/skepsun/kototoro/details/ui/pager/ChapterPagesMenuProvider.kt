@@ -6,7 +6,6 @@ import android.view.MenuItem
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.MenuProvider
-import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.slider.LabelFormatter
 import com.google.android.material.slider.Slider
 import com.google.android.material.slider.TickVisibilityMode
@@ -23,7 +22,8 @@ import java.lang.ref.WeakReference
 class ChapterPagesMenuProvider(
 	private val viewModel: ChaptersPagesViewModel,
 	private val sheet: BaseAdaptiveSheet<*>,
-	private val pager: ViewPager2,
+	private val getCurrentTab: () -> Int,
+	private val getTabCount: () -> Int,
 	private val settings: AppSettings,
 ) : OnBackPressedCallback(false), MenuProvider, SearchView.OnQueryTextListener, MenuItem.OnActionExpandListener,
 	Slider.OnChangeListener {
@@ -125,13 +125,5 @@ class ChapterPagesMenuProvider(
 		setLabelFormatter(IntPercentLabelFormatter(context))
 		setValueRounded(settings.gridSizePages.toFloat())
 		addOnChangeListener(this@ChapterPagesMenuProvider)
-	}
-
-	private fun getCurrentTab(): Int {
-		var page = pager.currentItem
-		if (page > 0 && pager.adapter?.itemCount == 2) { // no Pages page
-			page++ // shift
-		}
-		return page
 	}
 }

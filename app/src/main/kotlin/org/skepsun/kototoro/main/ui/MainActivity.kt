@@ -7,40 +7,26 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.core.app.ActivityCompat
 import androidx.appcompat.view.ActionMode
-import androidx.compose.ui.platform.ComposeView
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.MenuProvider
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.children
-import androidx.core.view.inputmethod.EditorInfoCompat
-import androidx.core.view.isInvisible
-import androidx.core.view.isVisible
-import androidx.core.view.updateLayoutParams
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.withResumed
-import androidx.recyclerview.widget.ItemTouchHelper
-import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS
-import com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_NO_SCROLL
-import com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL
-import com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
-import com.google.android.material.search.SearchView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.channels.trySendBlocking
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
@@ -52,43 +38,30 @@ import org.skepsun.kototoro.core.os.VoiceInputContract
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseActivity
-import org.skepsun.kototoro.core.ui.util.FadingAppbarMediator
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
-import org.skepsun.kototoro.core.ui.widgets.SlidingBottomNavigationView
+import org.skepsun.kototoro.core.ui.widgets.BottomNavState
+import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.util.ext.consume
-import org.skepsun.kototoro.core.util.ext.end
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
-import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.core.util.ext.start
-import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.databinding.ActivityMainBinding
 import org.skepsun.kototoro.details.service.ContentPrefetchService
-import org.skepsun.kototoro.explore.ui.ExploreFragment
-import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
-import org.skepsun.kototoro.tracker.ui.feed.FeedFragment
-import org.skepsun.kototoro.history.ui.HistoryListFragment
-import org.skepsun.kototoro.home.ui.HomeFragment
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
-import org.skepsun.kototoro.main.ui.compose.KototoroApp
 import org.skepsun.kototoro.main.ui.compose.ComposeAppNavBarDelegator
-import org.skepsun.kototoro.core.ui.widgets.BottomNavState
-import kotlinx.coroutines.flow.MutableStateFlow
+import org.skepsun.kototoro.main.ui.compose.KototoroApp
+import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
-import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionItemCallback
-import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionListenerImpl
-import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionMenuProvider
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionViewModel
-import org.skepsun.kototoro.search.ui.suggestion.adapter.SearchSuggestionAdapter
 import javax.inject.Inject
-import com.google.android.material.R as materialR
 
 @AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>(),
 	View.OnClickListener,
-	SearchSuggestionItemCallback.SuggestionItemListener,
 	MainNavigationDelegate.OnFragmentChangedListener,
 	View.OnLayoutChangeListener {
 
@@ -101,29 +74,129 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private val viewModel by viewModels<MainViewModel>()
 	private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
 	private val voiceInputLauncher = registerForActivityResult(VoiceInputContract()) { result ->
-		if (result != null) {
-			viewBinding.searchView.setText(result)
-		}
+		// TODO: Pass voice input result to Compose SearchBar state
+	}
+
 	private lateinit var navigationDelegate: MainNavigationDelegate
 	private var isFoldUnfolded = false
-    private val navStateFlow = MutableStateFlow(BottomNavState())
-    private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
+	private val navStateFlow = MutableStateFlow(BottomNavState())
+	private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
+
+	private var topBarHeightPx = 0
+	private var bottomNavHeightPx = 0
+	
+	private var topBarOffset by mutableStateOf(0f)
+	private var bottomNavOffset by mutableStateOf(0f)
+
+	private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
+	private var activeFilterContentType by mutableStateOf<ContentType?>(null)
+	private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
+
+	fun setActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
+		currentFilterCallback = callback
+		refreshFilters()
+	}
+
+	fun clearActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
+		if (currentFilterCallback == callback) {
+			currentFilterCallback = null
+		}
+	}
+
+	fun refreshFilters() {
+		val callback = currentFilterCallback ?: return
+		val selectedTab = callback.getSelectedContentType()
+		activeFilterContentType = when (selectedTab) {
+			BrowseGroupTab.Novel -> ContentType.NOVEL
+			BrowseGroupTab.Video -> ContentType.VIDEO
+			BrowseGroupTab.Content -> ContentType.MANGA
+			else -> null
+		}
+		activeFilterSourceTags = callback.getSelectedSourceTags()
+	}
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
 		if (!setContentViewWebViewSafe { org.skepsun.kototoro.databinding.ActivityMainBinding.inflate(layoutInflater) }) {
 			return
 		}
 		
-        composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
-		super.onCreate(savedInstanceState)
-		
-		viewBinding.composeBottomNav?.setContent {
+		val bridgeLayout = viewBinding.root as? org.skepsun.kototoro.core.ui.widgets.NestedScrollBridgingFrameLayout
+		bridgeLayout?.onNestedScrollDeltaY = { dy ->
+			val isPinned = settings.isNavBarPinned
+			if (!isPinned) {
+				topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
+				bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
+			} else {
+				topBarOffset = 0f
+				bottomNavOffset = 0f
+			}
+		}
+
+		composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
+		viewBinding.composeRoot?.setContent {
+			val suggestions by searchSuggestionViewModel.suggestion.collectAsState(initial = emptyList())
 			KototoroApp(
 				navStateFlow = navStateFlow,
 				onNavItemSelected = composeNavBarDelegator::handleItemSelected,
-				onNavItemReselected = composeNavBarDelegator::handleItemSelected
+				onNavItemReselected = composeNavBarDelegator::handleItemSelected,
+				suggestions = suggestions,
+				onQueryChanged = searchSuggestionViewModel::onQueryChanged,
+				onSearch = { query ->
+					searchSuggestionViewModel.saveQuery(query)
+					router.openSearch(query)
+				},
+				onSuggestionClick = { item ->
+					// Handle suggestion click by type
+				},
+				onDeleteQuery = searchSuggestionViewModel::deleteQuery,
+				onVoiceInput = {
+					try {
+						voiceInputLauncher.launch(null)
+					} catch (e: Exception) {
+						android.widget.Toast.makeText(this@MainActivity, R.string.voice_search, android.widget.Toast.LENGTH_SHORT).show()
+						e.printStackTrace()
+					}
+				},
+				onMoreClick = { anchorView ->
+					if (anchorView != null) {
+						showOverflowMenu(anchorView)
+					} else {
+						showOverflowMenu(viewBinding.composeRoot ?: viewBinding.container)
+					}
+				},
+				onTopBarHeightChanged = { height ->
+					if (topBarHeightPx != height) {
+						topBarHeightPx = height
+						updateContainerPadding()
+					}
+				},
+				onBottomNavHeightChanged = { height ->
+					if (bottomNavHeightPx != height) {
+						bottomNavHeightPx = height
+						updateContainerPadding()
+					}
+				},
+				selectedContentType = activeFilterContentType,
+				onContentTypeSelected = { type ->
+					activeFilterContentType = type
+					val tab = when (type) {
+						ContentType.NOVEL -> BrowseGroupTab.Novel
+						ContentType.VIDEO -> BrowseGroupTab.Video
+						ContentType.MANGA -> BrowseGroupTab.Content
+						else -> BrowseGroupTab.All
+					}
+					currentFilterCallback?.onContentTypeSelected(tab)
+				},
+				selectedSourceTags = activeFilterSourceTags,
+				onSourceTagSelected = { tag ->
+					activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
+					currentFilterCallback?.onSourceTagSelected(tag)
+				},
+				topBarOffset = topBarOffset,
+				bottomNavOffset = bottomNavOffset,
 			)
 		}
-        
-		setSupportActionBar(viewBinding.searchBar)
 
 		navigationDelegate = MainNavigationDelegate(
 			navBar = composeNavBarDelegator,
@@ -133,9 +206,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		navigationDelegate.addOnFragmentChangedListener(this)
 
 		navigationDelegate.onCreate(this, savedInstanceState)
-		viewBinding.textViewTitle?.let { tv ->
-			navigationDelegate.observeTitle().observe(this) { tv.text = it }
-		}
 
 		addMenuProvider(MainMenuProvider(router, viewModel))
 
@@ -158,11 +228,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		viewModel.appUpdate.observe(this, MenuInvalidator(this))
 		viewModel.onFirstStart.observeEvent(this) { router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
-		androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(viewBinding.container) { v, insets ->
+		ViewCompat.setOnApplyWindowInsetsListener(viewBinding.container) { v, insets ->
 			val isPinned = settings.isNavBarPinned
 			val consumeBottom = isPinned && !isNavFloating
 			val newInsets = insets.consume(v, WindowInsetsCompat.Type.systemBars(), bottom = consumeBottom)
-			androidx.core.view.ViewCompat.onApplyWindowInsets(v, newInsets)
+			ViewCompat.onApplyWindowInsets(v, newInsets)
 		}
 
 		// 观察折叠屏状态变化
@@ -182,6 +252,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		if (fromUser) {
 			actionModeDelegate.finishActionMode()
 		}
+		// Active fragment changed, check if it has a filter menu
+		if (fragment is SearchBarFilterViewController.Callback) {
+			setActiveFilterCallback(fragment)
+		}
 	}
 
 	override fun addMenuProvider(provider: MenuProvider, owner: LifecycleOwner, state: Lifecycle.State) {
@@ -197,11 +271,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		val typeMask = WindowInsetsCompat.Type.systemBars()
 		val barsInsets = insets.getInsets(typeMask)
 		val isNavFloating = settings.isNavFloating
-		val searchBarDefaultMargin = resources.getDimensionPixelOffset(materialR.dimen.m3_searchbar_margin_horizontal)
-		viewBinding.searchBar.updateLayoutParams<MarginLayoutParams> {
-			marginEnd = searchBarDefaultMargin + barsInsets.end(v)
-			marginStart = searchBarDefaultMargin + barsInsets.start(v)
-		}
 		val navMargin = if (isNavFloating) (16 * resources.displayMetrics.density).toInt() else 0
 		val bottomPadding = if (isNavFloating) 0 else barsInsets.bottom
 		val bottomMargin = if (isNavFloating) barsInsets.bottom + navMargin else 0
@@ -230,9 +299,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		} else {
 			consumedInsets
 		}
-		return finalInsets.also {
-			handleSearchSuggestionsInsets(it)
-		}
+		return finalInsets
 	}
 
 	override fun onLayoutChange(
@@ -262,8 +329,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	private fun onOpenReader(manga: Content) {
-		val fab = viewBinding.fab
-		router.openReader(manga, fab)
+		router.openReader(manga, null)
 	}
 
 	private fun onFeedCounterChanged(counter: Int) {
@@ -271,13 +337,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	private fun onIncognitoModeChanged(isIncognito: Boolean) {
-		var options = viewBinding.searchView.getEditText().imeOptions
-		options = if (isIncognito) {
-			options or EditorInfoCompat.IME_FLAG_NO_PERSONALIZED_LEARNING
-		} else {
-			options and EditorInfoCompat.IME_FLAG_NO_PERSONALIZED_LEARNING.inv()
-		}
-		viewBinding.searchView.getEditText().imeOptions = options
 		invalidateOptionsMenu()
 	}
 
@@ -305,7 +364,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			}
 		}
 	} catch (e: IllegalStateException) {
-		e.printStackTraceDebug()
+		e.printStackTrace()
 	}
 
 	private fun requestNotificationsPermission() {
@@ -323,7 +382,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	private fun setNavbarPinned(isPinned: Boolean) {
-		navStateFlow.value = navStateFlow.value.copy(isPinned = isPinned)
 		updateContainerBottomMargin()
 	}
 
@@ -333,26 +391,65 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	private fun setNavHeight(heightDp: Int) {}
 
+	/**
+	 * Apply top/bottom padding to the FragmentContainerView based on measured
+	 * Compose overlay heights (TopBar + BottomNav).
+	 */
+	private fun updateContainerPadding() {
+		viewBinding.container.setPadding(
+			viewBinding.container.paddingLeft,
+			topBarHeightPx,
+			viewBinding.container.paddingRight,
+			bottomNavHeightPx,
+		)
+	}
+
 	private fun updateContainerBottomMargin() {
-		val isPinned = settings.isNavBarPinned
-		val floating = settings.isNavFloating
-		val labeled = settings.isNavLabelsVisible
-		val heightDp = if (floating) {
-			settings.navFloatingHeight
-		} else if (!labeled) {
-			56
+		// Now handled by updateContainerPadding via Compose height callbacks
+		updateContainerPadding()
+	}
+
+	private fun showOverflowMenu(anchorView: android.view.View?) {
+		val anchor = anchorView ?: viewBinding.composeRoot ?: viewBinding.container
+		val popup = androidx.appcompat.widget.PopupMenu(this, anchor, android.view.Gravity.END or android.view.Gravity.TOP)
+		popup.menuInflater.inflate(R.menu.opt_main, popup.menu)
+		// Update menu state
+		popup.menu.findItem(R.id.action_incognito)?.isChecked = viewModel.isIncognitoModeEnabled.value
+		popup.menu.findItem(R.id.action_app_update)?.isVisible = viewModel.appUpdate.value != null
+		
+		val displayItem = popup.menu.findItem(R.id.action_display_mode)
+		displayItem?.title = if (settings.listMode == org.skepsun.kototoro.core.prefs.ListMode.LIST || settings.listMode == org.skepsun.kototoro.core.prefs.ListMode.DETAILED_LIST) {
+			getString(R.string.show_in_grid_view)
 		} else {
-			settings.navHeight
+			getString(R.string.list_mode)
 		}
-		val px = if (heightDp > 0) (heightDp * resources.displayMetrics.density).toInt() else (56 * resources.displayMetrics.density).toInt()
-		val newMargin = if (isPinned && !floating) px else 0
-		with(viewBinding.container) {
-			val params = layoutParams as MarginLayoutParams
-			if (params.bottomMargin != newMargin) {
-				params.bottomMargin = newMargin
-				layoutParams = params
+
+		popup.setOnMenuItemClickListener { menuItem ->
+			when (menuItem.itemId) {
+				R.id.action_settings -> {
+					router.openSettings()
+					true
+				}
+				R.id.action_display_mode -> {
+					settings.listMode = if (settings.listMode == org.skepsun.kototoro.core.prefs.ListMode.GRID) {
+						org.skepsun.kototoro.core.prefs.ListMode.LIST
+					} else {
+						org.skepsun.kototoro.core.prefs.ListMode.GRID
+					}
+					true
+				}
+				R.id.action_incognito -> {
+					viewModel.setIncognitoMode(!menuItem.isChecked)
+					true
+				}
+				R.id.action_app_update -> {
+					router.openAppUpdate()
+					true
+				}
+				else -> false
 			}
 		}
+		popup.show()
 	}
 
 	/**

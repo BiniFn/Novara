@@ -13,6 +13,12 @@
 		app:showAsAction="ifRoom" />
 
 	<item
+		android:id="@+id/action_display_mode"
+		android:orderInCategory="50"
+		android:title="@string/list_options"
+		app:showAsAction="never" />
+
+	<item
 		android:id="@+id/action_incognito"
 		android:checkable="true"
 		android:orderInCategory="90"

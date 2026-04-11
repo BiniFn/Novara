@@ -20,6 +20,8 @@ class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 
 	private val _nestedScrollDeltaY = MutableStateFlow(0f)
 	val nestedScrollDeltaY = _nestedScrollDeltaY.asStateFlow()
+	
+	var onNestedScrollDeltaY: ((Float) -> Unit)? = null
 
 	override fun onStartNestedScroll(child: View, target: View, axes: Int, type: Int): Boolean {
 		return (axes and ViewCompat.SCROLL_AXIS_VERTICAL) != 0
@@ -44,6 +46,7 @@ class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 		consumed: IntArray
 	) {
 		_nestedScrollDeltaY.value = dyConsumed.toFloat()
+		onNestedScrollDeltaY?.invoke(dyConsumed.toFloat())
 	}
 
 	override fun onNestedScroll(
@@ -59,5 +62,6 @@ class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 
 	override fun onNestedPreScroll(target: View, dx: Int, dy: Int, consumed: IntArray, type: Int) {
 		_nestedScrollDeltaY.value = dy.toFloat()
+		onNestedScrollDeltaY?.invoke(dy.toFloat())
 	}
 }

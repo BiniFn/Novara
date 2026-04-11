@@ -2,46 +2,42 @@ package org.skepsun.kototoro.list.ui
 
 import android.content.res.ColorStateList
 import android.os.Build
-import androidx.annotation.CallSuper
-import androidx.appcompat.view.ActionMode
-import androidx.collection.ArraySet
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.children
-import androidx.core.view.updateLayoutParams
-import androidx.core.view.updatePadding
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import coil3.ImageLoader
-import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
-import com.google.android.material.color.MaterialColors
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
+import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.os.Bundle
+import androidx.annotation.CallSuper
+import androidx.appcompat.view.ActionMode
+import androidx.collection.ArraySet
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.recyclerview.widget.RecyclerView
+import coil3.ImageLoader
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.chip.Chip
+import com.google.android.material.color.MaterialColors
+import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.alternatives.ui.AutoFixService
-import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
-import org.skepsun.kototoro.core.ui.list.FitHeightGridLayoutManager
-import org.skepsun.kototoro.core.ui.list.FitHeightLinearLayoutManager
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
-import org.skepsun.kototoro.core.ui.list.PaginationScrollListener
 import org.skepsun.kototoro.core.ui.list.fastscroll.FastScroller
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
@@ -49,25 +45,19 @@ import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.consumeAll
-import org.skepsun.kototoro.core.util.ext.findAppCompatDelegate
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
-import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
-import org.skepsun.kototoro.core.util.FoldableUtils
-import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.list.domain.QuickFilterListener
-import org.skepsun.kototoro.list.ui.adapter.ListItemType
-import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
 import org.skepsun.kototoro.list.ui.adapter.ContentListListener
-import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
-import org.skepsun.kototoro.list.ui.model.ListHeader
-import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
+import org.skepsun.kototoro.list.ui.compose.SelectionAction
 import org.skepsun.kototoro.list.ui.model.ContentListModel
-import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.search.ui.ContentListActivity
@@ -75,13 +65,9 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 abstract class ContentListFragment :
-	BaseFragment<FragmentListBinding>(),
-	PaginationScrollListener.Callback,
-	ContentListListener,
+	BaseFragment<FragmentContentListBinding>(),
+	ContentListListener, // Kept to avoid breaking subclasses immediately
 	RecyclerViewOwner,
-	SwipeRefreshLayout.OnRefreshListener,
-	ListSelectionController.Callback,
-	FastScroller.FastScrollListener,
 	AppBarLayout.OnOffsetChangedListener,
 	SearchBarFilterViewController.Callback {
 
@@ -91,97 +77,115 @@ abstract class ContentListFragment :
 	@Inject
 	lateinit var settings: AppSettings
 
-	private var listAdapter: ContentListAdapter? = null
-	private var paginationListener: PaginationScrollListener? = null
-	private var selectionController: ListSelectionController? = null
-	private var spanResolver: GridSpanResolver? = null
-	private val spanSizeLookup = SpanSizeLookup()
+	// Kept for signature compatibility
 	open val isSwipeRefreshEnabled = true
+	protected open val showSelectionRemoveOption = false
 
-	private var isFoldUnfolded = false
 	private var filterMenuProvider: SearchBarFilterViewController? = null
 
-	// Track chip IDs for filter groups
 	private val categoryChipIds = mutableMapOf<Long, Int>()
 	private val contentTypeChipIds = mutableMapOf<BrowseGroupTab, Int>()
 	private val sourceTagChipIds = mutableMapOf<SourceTag, Int>()
 
 	protected abstract val viewModel: ContentListViewModel
 
+	// Our new Compose layer state
+	protected var composeSelectionIds by mutableStateOf<Set<Long>>(emptySet())
+
 	protected val selectedItemsIds: Set<Long>
-		get() = selectionController?.snapshot().orEmpty()
+		get() = composeSelectionIds
 
 	protected val selectedItems: Set<Content>
-		get() = collectSelectedItems()
+		get() {
+			val items = viewModel.content.value
+			val result = ArraySet<Content>(composeSelectionIds.size)
+			for (item in items) {
+				if (item is ContentListModel && item.id in composeSelectionIds) {
+					result.add(item.manga)
+				}
+			}
+			return result
+		}
 
 	override val recyclerView: RecyclerView?
-		get() = viewBinding?.recyclerView
+		get() = null // We don't have a RecyclerView anymore!
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
 		container: ViewGroup?,
-	) = FragmentListBinding.inflate(inflater, container, false)
+	) = FragmentContentListBinding.inflate(inflater, container, false)
 
 	protected open fun sourceTagChipEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
-		override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
-			super.onViewBindingCreated(binding, savedInstanceState)
-			listAdapter = onCreateAdapter()
-			spanResolver = GridSpanResolver(binding.root.resources)
-			// 预先应用持久化的网格大小，确保重新进入页面后立即按用户选择的大小布局
-			spanResolver?.setGridSize(settings.gridSize / 100f, binding.recyclerView)
-			selectionController = ListSelectionController(
-				appCompatDelegate = checkNotNull(findAppCompatDelegate()),
-				decoration = ContentSelectionDecoration(binding.root.context),
-				registryOwner = this,
-				callback = this,
-			)
-		paginationListener = PaginationScrollListener(4, this)
-		with(binding.recyclerView) {
-			setHasFixedSize(true)
-			adapter = listAdapter
-			checkNotNull(selectionController).attachToRecyclerView(this)
-			addItemDecoration(TypedListSpacingDecoration(context, false))
-			addOnScrollListener(checkNotNull(paginationListener))
-			fastScroller.setFastScrollListener(this@ContentListFragment)
+	override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
+		super.onViewBindingCreated(binding, savedInstanceState)
+
+		binding.composeView.apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+			setContent {
+				val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
+				val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = ListMode.GRID)
+				val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
+				val isRefreshing by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+				
+				KototoroContentListScreen(
+					items = items,
+					listMode = listMode,
+					isRefreshing = isRefreshing,
+					showRemoveOption = showSelectionRemoveOption,
+					onRefresh = { viewModel.onRefresh() },
+					onLoadMore = { onScrolledToEnd() },
+					gridScale = gridScale,
+					selectedItemsIds = composeSelectionIds,
+					onItemClick = { item ->
+						if (composeSelectionIds.isNotEmpty()) {
+							composeSelectionIds = if (item.id in composeSelectionIds) composeSelectionIds - item.id else composeSelectionIds + item.id
+						} else {
+							val manga = item.toContentWithOverride()
+							if ((activity as? ContentListActivity)?.showPreview(manga) != true) {
+								router.openDetails(manga, null)
+							}
+						}
+					},
+					onItemLongClick = { item ->
+						if (composeSelectionIds.isEmpty()) {
+							composeSelectionIds = setOf(item.id)
+						} else {
+							composeSelectionIds = if (item.id in composeSelectionIds) composeSelectionIds - item.id else composeSelectionIds + item.id
+						}
+					},
+					onClearSelection = { composeSelectionIds = emptySet() },
+					onSelectionAction = { action ->
+						if (!onSelectionAction(action, composeSelectionIds)) {
+							handleSelectionAction(action, composeSelectionIds)
+						}
+						composeSelectionIds = emptySet()
+					}
+				)
+			}
 		}
-		with(binding.swipeRefreshLayout) {
-			setOnRefreshListener(this@ContentListFragment)
-			isEnabled = isSwipeRefreshEnabled
-			clipChildren = false
-			clipToPadding = false
-		}
+
 		addMenuProvider(ContentListMenuProvider(this))
 
-		viewModel.listMode.observe(viewLifecycleOwner, ::onListModeChanged)
-		viewModel.gridScale.observe(viewLifecycleOwner, ::onGridScaleChanged)
-		viewModel.isLoading.observe(viewLifecycleOwner, ::onLoadingStateChanged)
-		viewModel.content.observe(viewLifecycleOwner, ::onListChanged)
-		// Pass exceptionResolver and onResolved callback so CF errors can be resolved and retried
 		viewModel.onError.observeEvent(
 			viewLifecycleOwner, 
 			SnackbarErrorObserver(
-				host = binding.recyclerView, 
+				host = binding.root, 
 				fragment = this,
 				resolver = exceptionResolver,
 				onResolved = { resolved -> if (resolved) viewModel.onRetry() }
 			)
 		)
-		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.recyclerView))
+		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.root))
 
-		// Determine if we have a SearchBar available (main activity) and we're not a child
-		// of a container fragment that already adds its own SearchBarFilterViewController
 		val isInsideContainer = parentFragment != null
 		val filterAnchorView: android.view.View? = null
 
 		if (filterAnchorView != null) {
-			// Mode A: Use Toolbar/SearchBar filter icons
 			filterMenuProvider = SearchBarFilterViewController(this)
 			filterMenuProvider?.attachTo(this)
-			
 			binding.filterScrollView.visibility = View.GONE
 		} else if (!isInsideContainer) {
-			// Mode B: Inline chip groups (standalone activity without SearchBar/Toolbar)
 			if (isContentTypeFilterVisible()) {
 				rebuildContentTypeChips(binding)
 			} else {
@@ -194,7 +198,6 @@ abstract class ContentListFragment :
 			}
 			updateFilterScrollViewVisibility(binding)
 		} else {
-			// Mode C: Inside a container (e.g. FavouritesContainerFragment) ?no filters here
 			binding.filterScrollView.visibility = View.GONE
 		}
 
@@ -218,28 +221,52 @@ abstract class ContentListFragment :
 		viewModel.currentCategoryIds.observe(viewLifecycleOwner) { ids ->
 			updateCategoryChipsSelection(binding, ids)
 		}
+	}
 
-		observeFoldableState()
+	protected open fun onSelectionAction(action: SelectionAction, ids: Set<Long>): Boolean {
+		return false
+	}
 
-		// Register for appbar offset changes for filter bar positioning
+	private fun handleSelectionAction(action: SelectionAction, ids: Set<Long>) {
+		when (action) {
+			SelectionAction.SELECT_ALL -> {
+				val allIds = viewModel.content.value.mapNotNull { (it as? ContentListModel)?.id }.toSet()
+				composeSelectionIds = allIds
+			}
+			SelectionAction.SHARE -> {
+				ShareHelper(requireContext()).shareContentLinks(selectedItems)
+			}
+			SelectionAction.FAVOURITE -> {
+				router.showFavoriteDialog(selectedItems)
+			}
+			SelectionAction.SAVE -> {
+				router.showDownloadDialog(selectedItems, viewBinding?.root)
+			}
+			SelectionAction.EDIT_OVERRIDE -> {
+				router.openContentOverrideConfig(selectedItems.singleOrNull() ?: return)
+			}
+			SelectionAction.FIX -> {
+				buildAlertDialog(context ?: return, isCentered = true) {
+					setTitle(R.string.fix)
+					setMessage(R.string.manga_fix_prompt)
+					setNegativeButton(android.R.string.cancel, null)
+					setPositiveButton(R.string.fix) { _, _ ->
+						AutoFixService.start(context, ids)
 					}
+				}.show()
+			}
+			SelectionAction.REMOVE -> Unit
+		}
+	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val typeMask = WindowInsetsCompat.Type.systemBars()
 		val barsInsets = insets.getInsets(typeMask)
 		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
 
-		// Apply side padding to tags container so they aren't cut off by notches/rounded corners
 		viewBinding?.filterChipsContainer?.updatePadding(
 			left = barsInsets.left + basePadding,
 			right = barsInsets.right + basePadding,
-		)
-
-		viewBinding?.recyclerView?.setPadding(
-			left = barsInsets.left + basePadding,
-			top = basePadding,
-			right = barsInsets.right + basePadding,
-			bottom = barsInsets.bottom + basePadding,
 		)
 		return insets.consumeAll(typeMask)
 	}
@@ -247,11 +274,8 @@ abstract class ContentListFragment :
 	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
 		val binding = viewBinding ?: return
 		val appBar = appBarLayout ?: return
-
 		val insets = ViewCompat.getRootWindowInsets(binding.root)?.getInsets(WindowInsetsCompat.Type.statusBars())
 		val statusBarHeight = insets?.top ?: 0
-
-		// Pin tags exactly to the status bar once the appbar scrolls past it.
 		val topPadding = Math.max(0, statusBarHeight - appBar.bottom)
 		if (binding.filterScrollView.paddingTop != topPadding) {
 			binding.filterScrollView.updatePadding(top = topPadding)
@@ -259,285 +283,32 @@ abstract class ContentListFragment :
 	}
 
 	override fun onDestroyView() {
-				
 		filterMenuProvider = null
-		listAdapter = null
-		paginationListener = null
-		selectionController = null
-		spanResolver = null
-		spanSizeLookup.invalidateCache()
 		categoryChipIds.clear()
 		contentTypeChipIds.clear()
 		sourceTagChipIds.clear()
 		super.onDestroyView()
 	}
 
-	override fun onItemClick(item: ContentListModel, view: View) {
-		if (selectionController?.onItemClick(item.id) != true) {
-			val manga = item.toContentWithOverride()
-			if ((activity as? ContentListActivity)?.showPreview(manga) != true) {
-				val coverView = view.findViewById<View>(R.id.imageView_cover);
-                                router.openDetails(manga, coverView)
-			}
-		}
-	}
-
-	override fun onItemLongClick(item: ContentListModel, view: View): Boolean {
-		return selectionController?.onItemLongClick(view, item.id) == true
-	}
-
-	override fun onItemContextClick(item: ContentListModel, view: View): Boolean {
-		return selectionController?.onItemContextClick(view, item.id) == true
-	}
-
-	override fun onReadClick(manga: Content, view: View) {
-		if (selectionController?.onItemClick(manga.id) != true) {
-			router.openReader(manga)
-		}
-	}
-
-	override fun onTagClick(manga: Content, tag: ContentTag, view: View) {
-		if (selectionController?.onItemClick(manga.id) != true) {
-			router.showTagDialog(tag)
-		}
-	}
-
-	override fun onFilterClick(view: View?) {
-		// Toggle filter bar visibility or scroll to top
-		val isVisible = viewModel.isFilterBarVisible.value
-		// If we want to toggle via a button, we could do it here. 
-		// Or if this is called when clicking a filter icon.
-		// For now, let's just scroll to top to show filters if they are hidden by scroll
-		if (isVisible) {
-			viewBinding?.recyclerView?.smoothScrollToPosition(0)
-		}
-	}
-
-	override fun onListHeaderClick(item: ListHeader, view: View) {
-		// Default implementation: do nothing
-	}
-
+	// Legacy callbacks mappings to avoid breaking subclasses immediately
+	open fun onScrolledToEnd() = Unit
+	override fun onItemClick(item: ContentListModel, view: View) = Unit
+	override fun onItemLongClick(item: ContentListModel, view: View): Boolean = false
+	override fun onItemContextClick(item: ContentListModel, view: View): Boolean = false
+	override fun onReadClick(manga: Content, view: View) = Unit
+	override fun onTagClick(manga: Content, tag: ContentTag, view: View) = Unit
+	override fun onFilterClick(view: View?) = Unit
+	override fun onListHeaderClick(item: ListHeader, view: View) = Unit
 	@CallSuper
-	override fun onRefresh() {
-		requireViewBinding().swipeRefreshLayout.isRefreshing = true
-		viewModel.onRefresh()
-	}
-
-	private suspend fun onListChanged(list: List<ListModel>) {
-		listAdapter?.emit(list)
-		spanSizeLookup.invalidateCache()
-		viewBinding?.recyclerView?.let {
-			paginationListener?.postInvalidate(it)
-		}
-	}
-
-	private fun resolveException(e: Throwable) {
-		if (ExceptionResolver.canResolve(e)) {
-			viewLifecycleScope.launch {
-				if (exceptionResolver.resolve(e)) {
-					viewModel.onRetry()
-				}
-			}
-		} else {
-			viewModel.onRetry()
-		}
-	}
-
-	@CallSuper
-	protected open fun onLoadingStateChanged(isLoading: Boolean) {
-		requireViewBinding().swipeRefreshLayout.isEnabled = requireViewBinding().swipeRefreshLayout.isRefreshing ||
-			isSwipeRefreshEnabled && !isLoading
-		if (!isLoading) {
-			requireViewBinding().swipeRefreshLayout.isRefreshing = false
-		}
-	}
-
-	protected open fun onCreateAdapter(): ContentListAdapter {
-		return ContentListAdapter(
-			listener = this,
-			sizeResolver = DynamicItemSizeResolver(resources, viewLifecycleOwner, settings, adjustWidth = false),
-		)
-	}
-
-	override fun onFilterOptionClick(option: ListFilterOption) {
-		selectionController?.clear()
-		(viewModel as? QuickFilterListener)?.toggleFilterOption(option)
-	}
-
+	open fun onRefresh() = Unit
+	open fun onLoadingStateChanged(isLoading: Boolean) = Unit
+	override fun onFilterOptionClick(option: ListFilterOption) = Unit
 	override fun onEmptyActionClick() = Unit
-
 	override fun onPrimaryButtonClick(tipView: TipView) = Unit
-
 	override fun onSecondaryButtonClick(tipView: TipView) = Unit
+	override fun onRetryClick(error: Throwable) = Unit
 
-	override fun onRetryClick(error: Throwable) {
-		resolveException(error)
-	}
-
-	private fun onGridScaleChanged(scale: Float) {
-		spanSizeLookup.invalidateCache()
-		spanResolver?.setGridSize(scale, requireViewBinding().recyclerView)
-	}
-
-	private fun onListModeChanged(mode: ListMode) {
-		spanSizeLookup.invalidateCache()
-		with(requireViewBinding().recyclerView) {
-			removeOnLayoutChangeListener(spanResolver)
-			when (mode) {
-				ListMode.LIST -> {
-					layoutManager = FitHeightLinearLayoutManager(context)
-				}
-
-				ListMode.DETAILED_LIST -> {
-					layoutManager = FitHeightLinearLayoutManager(context)
-				}
-
-				ListMode.GRID -> {
-					layoutManager = FitHeightGridLayoutManager(context, checkNotNull(spanResolver).spanCount).also {
-						it.spanSizeLookup = spanSizeLookup
-					}
-					addOnLayoutChangeListener(spanResolver)
-				}
-			}
-		}
-	}
-
-	@CallSuper
-	override fun onPrepareActionMode(controller: ListSelectionController, mode: ActionMode?, menu: Menu): Boolean {
-		val hasNoLocal = selectedItems.none { it.isLocal }
-		val isSingleSelection = controller.count == 1
-		menu.findItem(R.id.action_save)?.isVisible = hasNoLocal
-		menu.findItem(R.id.action_fix)?.isVisible = hasNoLocal
-		menu.findItem(R.id.action_edit_override)?.isVisible = isSingleSelection
-		return super.onPrepareActionMode(controller, mode, menu)
-	}
-
-	override fun onCreateActionMode(
-		controller: ListSelectionController,
-		menuInflater: MenuInflater,
-		menu: Menu
-	): Boolean {
-		return menu.hasVisibleItems()
-	}
-
-	override fun onActionItemClicked(controller: ListSelectionController, mode: ActionMode?, item: MenuItem): Boolean {
-		return when (item.itemId) {
-			R.id.action_select_all -> {
-				val ids = listAdapter?.items?.mapNotNull {
-					(it as? ContentListModel)?.id
-				} ?: return false
-				selectionController?.addAll(ids)
-				true
-			}
-
-			R.id.action_share -> {
-				ShareHelper(requireContext()).shareContentLinks(selectedItems)
-				mode?.finish()
-				true
-			}
-
-			R.id.action_favourite -> {
-				router.showFavoriteDialog(selectedItems)
-				mode?.finish()
-				true
-			}
-
-			R.id.action_save -> {
-				router.showDownloadDialog(selectedItems, viewBinding?.recyclerView)
-				mode?.finish()
-				true
-			}
-
-			R.id.action_edit_override -> {
-				router.openContentOverrideConfig(selectedItems.singleOrNull() ?: return false)
-				mode?.finish()
-				true
-			}
-
-			R.id.action_fix -> {
-				val itemsSnapshot = selectedItemsIds
-				buildAlertDialog(context ?: return false, isCentered = true) {
-					setTitle(item.title)
-					setIcon(item.icon)
-					setMessage(R.string.manga_fix_prompt)
-					setNegativeButton(android.R.string.cancel, null)
-					setPositiveButton(R.string.fix) { _, _ ->
-						AutoFixService.start(context, itemsSnapshot)
-						mode?.finish()
-					}
-				}.show()
-				true
-			}
-
-			else -> false
-		}
-	}
-
-	override fun onSelectionChanged(controller: ListSelectionController, count: Int) {
-		viewBinding?.recyclerView?.invalidateItemDecorations()
-	}
-
-	override fun onFastScrollStart(fastScroller: FastScroller) {
-				requireViewBinding().swipeRefreshLayout.isEnabled = false
-	}
-
-	override fun onFastScrollStop(fastScroller: FastScroller) {
-		requireViewBinding().swipeRefreshLayout.isEnabled = isSwipeRefreshEnabled
-	}
-
-	private fun collectSelectedItems(): Set<Content> {
-		val checkedIds = selectionController?.peekCheckedIds() ?: return emptySet()
-		val items = listAdapter?.items ?: return emptySet()
-		val result = ArraySet<Content>(checkedIds.size)
-		for (item in items) {
-			if (item is ContentListModel && item.id in checkedIds) {
-				result.add(item.manga)
-			}
-		}
-		return result
-	}
-
-	private inner class SpanSizeLookup : GridLayoutManager.SpanSizeLookup() {
-
-		init {
-			isSpanIndexCacheEnabled = true
-			isSpanGroupIndexCacheEnabled = true
-		}
-
-		override fun getSpanSize(position: Int): Int {
-			val total = (viewBinding?.recyclerView?.layoutManager as? GridLayoutManager)?.spanCount ?: return 1
-			return when (listAdapter?.getItemViewType(position)) {
-				ListItemType.MANGA_GRID.ordinal -> 1
-				else -> total
-			}
-		}
-
-		fun invalidateCache() {
-			invalidateSpanGroupIndexCache()
-			invalidateSpanIndexCache()
-		}
-	}
-
-	private fun observeFoldableState() {
-		val activity = requireActivity()
-		val foldableState = FoldableUtils.observeFoldableState(activity, viewLifecycleOwner)
-		
-		viewLifecycleScope.launch {
-			foldableState.collect { isUnfolded ->
-				isFoldUnfolded = isUnfolded
-				adjustLayoutForFoldableState()
-			}
-		}
-	}
-
-	private fun adjustLayoutForFoldableState() {
-		// 始终使用用户持久化的网格大小进行布局调整，避免被折叠状态覆?
-		val rv = viewBinding?.recyclerView ?: return
-		val persistedScale = settings.gridSize / 100f
-		spanResolver?.setGridSize(persistedScale, rv)
-		viewBinding?.root?.requestLayout()
-	}
-
+	// --- Custom filter chip builders ---
 	// === SearchBarFilterViewController.Callback implementation ===
 
 	override fun onContentTypeSelected(tab: BrowseGroupTab) {
@@ -550,13 +321,9 @@ abstract class ContentListFragment :
 	}
 
 	override fun getSelectedContentType(): BrowseGroupTab = viewModel.currentGroupTab.value
-
 	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value
-
 	override fun getSourceTagEntries(): List<SourceTag> = sourceTagChipEntries()
-
 	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
-
 	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
@@ -568,7 +335,7 @@ abstract class ContentListFragment :
 		return viewModel.currentGroupTab.value.supportsSourceTag(tag)
 	}
 
-	private fun rebuildCategoryChips(binding: FragmentListBinding, categories: List<FavouriteCategory>) {
+	private fun rebuildCategoryChips(binding: FragmentContentListBinding, categories: List<FavouriteCategory>) {
 		val chipGroup = binding.chipGroupCategory
 		chipGroup.removeAllViews()
 		categoryChipIds.clear()
@@ -613,20 +380,17 @@ abstract class ContentListFragment :
 		}
 	}
 
-	private fun updateCategoryChipsSelection(binding: FragmentListBinding, ids: Set<Long>) {
+	private fun updateCategoryChipsSelection(binding: FragmentContentListBinding, ids: Set<Long>) {
 		categoryChipIds.forEach { (categoryId, id) ->
 			binding.chipGroupCategory.findViewById<Chip>(id)?.isChecked = (categoryId in ids)
 		}
 	}
 
-	private fun updateFilterScrollViewVisibility(binding: FragmentListBinding) {
+	private fun updateFilterScrollViewVisibility(binding: FragmentContentListBinding) {
 		val hasContent = binding.chipGroupContentType.visibility == View.VISIBLE ||
 				binding.chipGroupSourceTag.visibility == View.VISIBLE ||
 				binding.chipGroupCategory.visibility == View.VISIBLE
 		
-		// In Mode A or Mode C, filterMenuProvider is NOT null, or we intentionally hide the scroll view.
-		// However, in Mode B, we show the scroll view if there is ANY content.
-		// Wait, if filterMenuProvider is not null (Mode A), we only show filterScrollView if category chips are visible!
 		if (filterMenuProvider != null) {
 			binding.filterScrollView.visibility = if (binding.chipGroupCategory.visibility == View.VISIBLE) View.VISIBLE else View.GONE
 		} else if (parentFragment == null) {
@@ -634,9 +398,7 @@ abstract class ContentListFragment :
 		}
 	}
 
-	// === Inline chip groups for fallback mode (standalone activities) ===
-
-	private fun rebuildContentTypeChips(binding: FragmentListBinding) {
+	private fun rebuildContentTypeChips(binding: FragmentContentListBinding) {
 		val group = binding.chipGroupContentType
 		group.removeAllViews()
 		contentTypeChipIds.clear()
@@ -656,7 +418,7 @@ abstract class ContentListFragment :
 		group.visibility = View.VISIBLE
 	}
 
-	private fun rebuildSourceTagChips(binding: FragmentListBinding) {
+	private fun rebuildSourceTagChips(binding: FragmentContentListBinding) {
 		val group = binding.chipGroupSourceTag
 		group.removeAllViews()
 		sourceTagChipIds.clear()
@@ -677,19 +439,19 @@ abstract class ContentListFragment :
 		group.visibility = if (tags.isNotEmpty()) View.VISIBLE else View.GONE
 	}
 
-	private fun updateContentTypeChipsSelection(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+	private fun updateContentTypeChipsSelection(binding: FragmentContentListBinding, selectedTab: BrowseGroupTab) {
 		contentTypeChipIds.forEach { (tab, viewId) ->
 			binding.chipGroupContentType.findViewById<Chip>(viewId)?.isChecked = (tab == selectedTab)
 		}
 	}
 
-	private fun updateSourceTagChipsSelection(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
+	private fun updateSourceTagChipsSelection(binding: FragmentContentListBinding, selectedTags: Set<SourceTag>) {
 		sourceTagChipIds.forEach { (tag, viewId) ->
 			binding.chipGroupSourceTag.findViewById<Chip>(viewId)?.isChecked = (tag in selectedTags)
 		}
 	}
 
-	private fun updateContentTypeChipsEnabled(binding: FragmentListBinding, selectedTags: Set<SourceTag>) {
+	private fun updateContentTypeChipsEnabled(binding: FragmentContentListBinding, selectedTags: Set<SourceTag>) {
 		contentTypeChipIds.forEach { (tab, viewId) ->
 			val chip = binding.chipGroupContentType.findViewById<Chip>(viewId) ?: return@forEach
 			chip.isEnabled = selectedTags.isEmpty() || selectedTags.any { it.supportsContentTab(tab) }
@@ -697,7 +459,7 @@ abstract class ContentListFragment :
 		}
 	}
 
-	private fun updateSourceTagChipsEnabled(binding: FragmentListBinding, selectedTab: BrowseGroupTab) {
+	private fun updateSourceTagChipsEnabled(binding: FragmentContentListBinding, selectedTab: BrowseGroupTab) {
 		sourceTagChipIds.forEach { (tag, viewId) ->
 			val chip = binding.chipGroupSourceTag.findViewById<Chip>(viewId) ?: return@forEach
 			chip.isEnabled = selectedTab.supportsSourceTag(tag)
@@ -775,4 +537,3 @@ abstract class ContentListFragment :
 		}
 	}
 }
-

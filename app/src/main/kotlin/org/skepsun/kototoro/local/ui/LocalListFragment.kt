@@ -8,7 +8,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.view.ActionMode
+
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
@@ -17,13 +17,13 @@ import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.ui.list.ListSelectionController
+
 import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.tryLaunch
-import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.list.ui.ContentListFragment
 import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
@@ -61,8 +61,10 @@ class LocalListFragment : ContentListFragment(), FilterCoordinator.Owner {
 
 	override val filterCoordinator: FilterCoordinator
 		get() = viewModel.filterCoordinator
+		
+	override val showSelectionRemoveOption = true
 
-	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		addMenuProvider(LocalListMenuProvider(this, this::onEmptyActionClick))
 		addMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
@@ -89,44 +91,29 @@ class LocalListFragment : ContentListFragment(), FilterCoordinator.Owner {
 
 	override fun onScrolledToEnd() = viewModel.loadNextPage()
 
-	override fun onCreateActionMode(
-		controller: ListSelectionController,
-		menuInflater: MenuInflater,
-		menu: Menu,
-	): Boolean {
-		menuInflater.inflate(R.menu.mode_local, menu)
-		return super.onCreateActionMode(controller, menuInflater, menu)
-	}
-
-	override fun onActionItemClicked(
-		controller: ListSelectionController,
-		mode: ActionMode?,
-		item: MenuItem,
-	): Boolean {
-		return when (item.itemId) {
-			R.id.action_remove -> {
-				showDeletionConfirm(selectedItemsIds, mode)
+	override fun onSelectionAction(action: org.skepsun.kototoro.list.ui.compose.SelectionAction, ids: Set<Long>): Boolean {
+		return when (action) {
+			org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE -> {
+				showDeletionConfirm(ids)
 				true
 			}
 
-			R.id.action_share -> {
+			org.skepsun.kototoro.list.ui.compose.SelectionAction.SHARE -> {
 				val files = selectedItems.map { it.url.toUri().toFile() }
 				ShareHelper(requireContext()).shareCbz(files)
-				mode?.finish()
 				true
 			}
 
-			else -> super.onActionItemClicked(controller, mode, item)
+			else -> super.onSelectionAction(action, ids)
 		}
 	}
 
-	private fun showDeletionConfirm(ids: Set<Long>, mode: ActionMode?) {
+	private fun showDeletionConfirm(ids: Set<Long>) {
 		MaterialAlertDialogBuilder(context ?: return)
 			.setTitle(R.string.delete_manga)
 			.setMessage(getString(R.string.text_delete_local_manga_batch))
 			.setPositiveButton(R.string.delete) { _, _ ->
 				viewModel.delete(ids)
-				mode?.finish()
 			}
 			.setNegativeButton(android.R.string.cancel, null)
 			.show()
@@ -134,7 +121,7 @@ class LocalListFragment : ContentListFragment(), FilterCoordinator.Owner {
 
 	private fun onItemRemoved() {
 		Snackbar.make(
-			requireViewBinding().recyclerView,
+			requireViewBinding().root,
 			R.string.removal_completed,
 			Snackbar.LENGTH_SHORT,
 		).show()

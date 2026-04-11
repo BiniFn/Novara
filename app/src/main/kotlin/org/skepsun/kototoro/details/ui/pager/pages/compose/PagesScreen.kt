@@ -1,0 +1,198 @@
+package org.skepsun.kototoro.details.ui.pager.pages.compose
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun PageThumbnailCard(
+	thumbnail: PageThumbnail,
+	isSelected: Boolean,
+	onClick: () -> Unit,
+	onLongClick: () -> Unit,
+	modifier: Modifier = Modifier
+) {
+	Card(
+		modifier = modifier
+			.fillMaxWidth()
+			.aspectRatio(0.7f)
+			.combinedClickable(
+				onClick = onClick,
+				onLongClick = onLongClick
+			),
+		shape = RoundedCornerShape(8.dp),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.surfaceVariant
+		),
+		border = if (isSelected) BorderStroke(4.dp, MaterialTheme.colorScheme.primary) else null
+	) {
+		Box(modifier = Modifier.fillMaxSize()) {
+			val model = thumbnail.page.preview ?: thumbnail.page.url
+			if (model != null) {
+				AsyncImage(
+					model = model,
+					contentDescription = "Page Thumbnail",
+					contentScale = ContentScale.Crop,
+					modifier = Modifier.fillMaxSize()
+				)
+			}
+
+			// Page number badge
+			Surface(
+				modifier = Modifier
+					.align(Alignment.BottomEnd)
+					.padding(6.dp),
+				shape = RoundedCornerShape(4.dp),
+				color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+			) {
+				Text(
+					text = "${thumbnail.number}",
+					style = MaterialTheme.typography.labelSmall,
+					modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+				)
+			}
+
+			if (thumbnail.isCurrent) {
+				Surface(
+					modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
+					shape = RoundedCornerShape(4.dp),
+					color = MaterialTheme.colorScheme.primaryContainer
+				) {
+					Icon(
+						painter = painterResource(id = R.drawable.ic_current_chapter),
+						contentDescription = "Current Page",
+						tint = MaterialTheme.colorScheme.onPrimaryContainer,
+						modifier = Modifier.size(16.dp).padding(2.dp)
+					)
+				}
+			}
+
+			// Selection overlay
+			if (isSelected) {
+				Surface(
+					modifier = Modifier.fillMaxSize(),
+					color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+				) {
+					Icon(
+						imageVector = Icons.Default.CheckCircle,
+						contentDescription = "Selected",
+						tint = MaterialTheme.colorScheme.primaryContainer,
+						modifier = Modifier
+							.align(Alignment.Center)
+							.size(48.dp)
+					)
+				}
+			}
+		}
+	}
+}
+
+@Composable
+fun PagesScreen(
+	items: List<org.skepsun.kototoro.list.ui.model.ListModel>,
+	gridSpanCount: Int,
+	selectedItemIds: Set<Long>,
+	emptyMessageResId: Int?,
+	isLoading: Boolean,
+	onItemClick: (PageThumbnail) -> Unit,
+	onItemLongClick: (PageThumbnail) -> Unit,
+	onSelectionActionClick: (Int) -> Unit,
+	onClearSelection: () -> Unit
+) {
+	Box(modifier = Modifier.fillMaxSize()) {
+		if (isLoading) {
+			CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+		} else if (items.isEmpty()) {
+			// Optional empty state
+		} else {
+			val listState = rememberLazyGridState()
+			val thumbnails = items.filterIsInstance<PageThumbnail>()
+
+			// Auto-scroll to current page when loaded
+			LaunchedEffect(thumbnails) {
+				val currentIndex = thumbnails.indexOfFirst { it.isCurrent }
+				if (currentIndex >= 0 && listState.firstVisibleItemIndex == 0) {
+					listState.animateScrollToItem(currentIndex)
+				}
+			}
+
+			LazyVerticalGrid(
+				state = listState,
+				columns = GridCells.Adaptive(minSize = 120.dp),
+				contentPadding = PaddingValues(16.dp),
+				horizontalArrangement = Arrangement.spacedBy(8.dp),
+				verticalArrangement = Arrangement.spacedBy(8.dp),
+				modifier = Modifier.fillMaxSize()
+			) {
+				items(thumbnails, key = { it.page.id }) { thumbnail ->
+					PageThumbnailCard(
+						thumbnail = thumbnail,
+						isSelected = selectedItemIds.contains(thumbnail.page.id),
+						onClick = { onItemClick(thumbnail) },
+						onLongClick = { onItemLongClick(thumbnail) }
+					)
+				}
+			}
+		}
+
+		// Floating Action Bar for Selection
+		androidx.compose.animation.AnimatedVisibility(
+			visible = selectedItemIds.isNotEmpty(),
+			enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
+			exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
+			modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
+		) {
+			Surface(
+				shape = RoundedCornerShape(16.dp),
+				color = MaterialTheme.colorScheme.inverseSurface,
+				contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+				modifier = Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.safeDrawing)
+			) {
+				Row(
+					modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+					verticalAlignment = Alignment.CenterVertically,
+					horizontalArrangement = Arrangement.SpaceBetween
+				) {
+					Row(verticalAlignment = Alignment.CenterVertically) {
+						IconButton(onClick = onClearSelection) {
+							Icon(imageVector = Icons.Default.Close, contentDescription = "Clear")
+						}
+						Text(
+							text = "${selectedItemIds.size}",
+							style = MaterialTheme.typography.titleMedium,
+							modifier = Modifier.padding(start = 8.dp)
+						)
+					}
+					Row {
+						IconButton(onClick = { onSelectionActionClick(R.id.action_save) }) {
+							Icon(painter = painterResource(id = R.drawable.ic_save_ok), contentDescription = "Save Page")
+						}
+					}
+				}
+			}
+		}
+	}
+}

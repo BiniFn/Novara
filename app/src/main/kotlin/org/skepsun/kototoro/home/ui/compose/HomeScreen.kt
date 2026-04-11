@@ -54,6 +54,8 @@ fun HomeScreen(
     isRandomLoading: Boolean
 ) {
     val scrollState = rememberScrollState()
+    val listModeState by appSettings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }
+    val isListMode = listModeState == org.skepsun.kototoro.core.prefs.ListMode.LIST || listModeState == org.skepsun.kototoro.core.prefs.ListMode.DETAILED_LIST
     
     // We can handle chrome collapsing by passing scroll listener values to the parent,
     // but for now we'll just allow regular scrolling.
@@ -71,48 +73,89 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(4.dp),
-            shape = RoundedCornerShape(12.dp) // standard Material 3 shape
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                // History
-                SectionHeader(
-                    title = stringResource(R.string.recent_history),
-                    count = state.recentHistoryCount,
-                    onMoreClick = onViewAllRecentClick
-                )
-                ContentLazyRow(
-                    items = state.recentHistoryItems.map { it.content },
-                    appSettings = appSettings,
-                    onContentClick = onContentClick
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Updates
-                SectionHeader(
-                    title = stringResource(R.string.home_recent_updates),
-                    count = state.unreadUpdatesCount,
-                    onMoreClick = onViewAllUpdatesClick
-                )
-                ContentLazyRow(
-                    items = state.recentUpdates.map { it.content },
-                    appSettings = appSettings,
-                    onContentClick = onContentClick
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Recommendations
-                SectionHeader(
-                    title = stringResource(R.string.suggestions),
-                    count = state.recommendationsCount,
-                    onMoreClick = onViewAllRecommendationsClick
-                )
-                ContentLazyRow(
-                    items = state.recommendations.map { it.content },
-                    appSettings = appSettings,
-                    onContentClick = onContentClick
-                )
+            if (isListMode) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        SectionHeader(
+                            title = stringResource(R.string.recent_history),
+                            count = state.recentHistoryCount,
+                            onMoreClick = onViewAllRecentClick
+                        )
+                        ContentLazyRow(
+                            items = state.recentHistoryItems.map { it.content },
+                            appSettings = appSettings,
+                            onContentClick = onContentClick
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        SectionHeader(
+                            title = stringResource(R.string.home_recent_updates),
+                            count = state.unreadUpdatesCount,
+                            onMoreClick = onViewAllUpdatesClick
+                        )
+                        ContentLazyRow(
+                            items = state.recentUpdates.map { it.content },
+                            appSettings = appSettings,
+                            onContentClick = onContentClick
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        SectionHeader(
+                            title = stringResource(R.string.suggestions),
+                            count = state.recommendationsCount,
+                            onMoreClick = onViewAllRecommendationsClick
+                        )
+                        ContentLazyRow(
+                            items = state.recommendations.map { it.content },
+                            appSettings = appSettings,
+                            onContentClick = onContentClick
+                        )
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                    // History
+                    SectionHeader(
+                        title = stringResource(R.string.recent_history),
+                        count = state.recentHistoryCount,
+                        onMoreClick = onViewAllRecentClick
+                    )
+                    ContentLazyRow(
+                        items = state.recentHistoryItems.map { it.content },
+                        appSettings = appSettings,
+                        onContentClick = onContentClick
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Updates
+                    SectionHeader(
+                        title = stringResource(R.string.home_recent_updates),
+                        count = state.unreadUpdatesCount,
+                        onMoreClick = onViewAllUpdatesClick
+                    )
+                    ContentLazyRow(
+                        items = state.recentUpdates.map { it.content },
+                        appSettings = appSettings,
+                        onContentClick = onContentClick
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Recommendations
+                    SectionHeader(
+                        title = stringResource(R.string.suggestions),
+                        count = state.recommendationsCount,
+                        onMoreClick = onViewAllRecommendationsClick
+                    )
+                    ContentLazyRow(
+                        items = state.recommendations.map { it.content },
+                        appSettings = appSettings,
+                        onContentClick = onContentClick
+                    )
+                }
             }
         }
         
@@ -452,4 +495,24 @@ private fun ContentCoverItem(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+private fun <T> AppSettings.observeAsState(
+    key: String,
+    selector: AppSettings.() -> T
+): State<T> {
+    val state = remember { mutableStateOf(selector()) }
+    DisposableEffect(key) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == key) {
+                state.value = selector()
+            }
+        }
+        this@observeAsState.subscribe(listener)
+        onDispose {
+            this@observeAsState.unsubscribe(listener)
+        }
+    }
+    return state
 }

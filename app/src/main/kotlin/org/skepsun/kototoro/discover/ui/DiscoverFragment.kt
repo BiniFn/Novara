@@ -2,236 +2,81 @@ package org.skepsun.kototoro.discover.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuInflater
 import android.view.MenuItem
-import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.SearchView
-import androidx.core.text.BidiFormatter
-import androidx.core.text.TextDirectionHeuristicsCompat
-import androidx.core.view.MenuProvider
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.viewModels
-import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.color.MaterialColors
 import dagger.hilt.android.AndroidEntryPoint
-import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.ui.list.FitHeightGridLayoutManager
-import org.skepsun.kototoro.core.ui.list.FitHeightLinearLayoutManager
-import org.skepsun.kototoro.list.domain.ListFilterOption
-import org.skepsun.kototoro.list.ui.GridSpanResolver
-import org.skepsun.kototoro.list.ui.adapter.ContentListAdapter
-import org.skepsun.kototoro.list.ui.adapter.ContentListListener
-import org.skepsun.kototoro.list.ui.model.ContentListModel
-import org.skepsun.kototoro.list.ui.model.ListHeader
-import org.skepsun.kototoro.list.ui.size.DynamicItemSizeResolver
-import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.parsers.model.ContentTag
-import org.skepsun.kototoro.core.ui.widgets.TipView
-import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.util.ext.addMenuProvider
-import org.skepsun.kototoro.core.util.ext.consume
-import org.skepsun.kototoro.core.ui.list.PaginationScrollListener
-import org.skepsun.kototoro.core.util.ext.observe
-import org.skepsun.kototoro.databinding.FragmentListBinding
-import org.skepsun.kototoro.discover.ui.model.DiscoverItem
-import org.skepsun.kototoro.list.ui.adapter.ListStateHolderListener
-import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
+import org.skepsun.kototoro.databinding.FragmentContentListBinding
+import org.skepsun.kototoro.discover.ui.compose.DiscoverScreen
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class DiscoverFragment :
-	BaseFragment<FragmentListBinding>(),
-	RecyclerViewOwner,
-	SwipeRefreshLayout.OnRefreshListener,
-	ListStateHolderListener,
+	BaseFragment<FragmentContentListBinding>(),
 	MenuItem.OnActionExpandListener,
-	androidx.appcompat.widget.SearchView.OnQueryTextListener,
-	android.content.SharedPreferences.OnSharedPreferenceChangeListener {
+	SearchView.OnQueryTextListener {
 
 	private val viewModel by viewModels<DiscoverViewModel>()
-	private var paginationListener: PaginationScrollListener? = null
-	private var spanResolver: GridSpanResolver? = null
 	
-	@javax.inject.Inject
+	@Inject
 	lateinit var settings: AppSettings
 
-	override val recyclerView: RecyclerView?
-		get() = viewBinding?.recyclerView
-
-	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentListBinding {
-		return FragmentListBinding.inflate(inflater, container, false)
+	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentContentListBinding {
+		return FragmentContentListBinding.inflate(inflater, container, false)
 	}
 
-	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		binding.chipGroupCategory.visibility = View.GONE
 
-		spanResolver = GridSpanResolver(binding.root.resources)
-		spanResolver?.setGridSize(settings.gridSize / 100f, binding.recyclerView)
-
-		val listListener = object : ContentListListener {
-			override fun onItemClick(item: ContentListModel, view: View) {
-				val serviceName = item.manga.source.name.removePrefix("TRACKING_")
-				val trackingService = viewModel.availableServices.value.find { it.name == serviceName } ?: return
-				if (viewModel.supportsDetails(trackingService)) {
-					router.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
-				} else {
-					val url = item.manga.url ?: item.manga.publicUrl
-					if (!url.isNullOrBlank()) {
-						router.openExternalBrowser(url)
-					}
-				}
-			}
-			override fun onItemLongClick(item: ContentListModel, view: View) = false
-			override fun onItemContextClick(item: ContentListModel, view: View) = false
-			override fun onEmptyActionClick() = this@DiscoverFragment.onEmptyActionClick()
-			override fun onRetryClick(error: Throwable) = this@DiscoverFragment.onRetryClick(error)
-			override fun onListHeaderClick(item: ListHeader, view: View) {}
-			override fun onPrimaryButtonClick(tipView: TipView) {}
-			override fun onSecondaryButtonClick(tipView: TipView) {}
-			override fun onFilterOptionClick(option: ListFilterOption) {}
-			override fun onFilterClick(view: View?) {}
-			override fun onReadClick(manga: Content, view: View) {}
-			override fun onTagClick(manga: Content, tag: ContentTag, view: View) {}
-		}
-
-		val adapter = ContentListAdapter(
-			listener = listListener,
-			sizeResolver = DynamicItemSizeResolver(resources, viewLifecycleOwner, settings, adjustWidth = false),
-		)
-
-		binding.recyclerView.addItemDecoration(org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration(requireContext(), false))
-
-		applyListMode(settings.listMode, binding.recyclerView)
-
-		paginationListener = PaginationScrollListener(4, object : PaginationScrollListener.Callback {
-			override fun onScrolledToEnd() {
-				viewModel.loadNextPage()
-			}
-		})
-
-		val carouselAdapter = DiscoverCarouselAdapter(
-			contentListener = listListener,
-			viewLifecycleOwner = viewLifecycleOwner,
-			settings = settings,
-			onMoreClick = { category ->
-				val service = viewModel.activeService.value
-				router.openTrackingDiscoveryCategory(service, category.id, category.nameResId)
-			}
-		)
-
-		viewModel.content.observe(viewLifecycleOwner) { items -> 
-			val isLoadingOnly = items.size == 1 && items.first() is org.skepsun.kototoro.list.ui.model.LoadingState
-			val isCarousel = items.firstOrNull() is org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow || (items.firstOrNull() is org.skepsun.kototoro.list.ui.model.EmptyState && viewModel.query.value.isBlank())
-			
-			val progressBar = binding.root.findViewById<View>(R.id.progressBar)
-			
-			if (isLoadingOnly) {
-				// Show centered standalone progress bar
-				progressBar?.isVisible = true
-				binding.recyclerView.isVisible = false
-			} else {
-				progressBar?.isVisible = false
-				binding.recyclerView.isVisible = true
+		binding.composeView.apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+			setContent {
+				val items by viewModel.content.collectAsState(initial = emptyList())
+				val isLoading by viewModel.isLoading.collectAsState(initial = false)
+				val query by viewModel.query.collectAsState(initial = "")
 				
-				val currentAdapter = binding.recyclerView.adapter
-				if (isCarousel) {
-					if (currentAdapter != carouselAdapter) {
-						binding.recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(binding.recyclerView.context)
-						binding.recyclerView.adapter = carouselAdapter
-						paginationListener?.let { binding.recyclerView.removeOnScrollListener(it) }
+				val isLoadingOnly = items.size == 1 && items.first() is org.skepsun.kototoro.list.ui.model.LoadingState
+				val isCarousel = items.firstOrNull() is org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow || (items.firstOrNull() is org.skepsun.kototoro.list.ui.model.EmptyState && query.isBlank())
+				
+				DiscoverScreen(
+					items = items,
+					isRefreshing = isLoading && !isLoadingOnly,
+					isCarousel = isCarousel,
+					isLoadingOnly = isLoadingOnly,
+					gridSpanCount = (settings.gridSize / 100f * 3).toInt().coerceAtLeast(1),
+					onRefresh = { viewModel.refresh() },
+					onLoadMore = { viewModel.loadNextPage() },
+					onItemClick = { item ->
+						val serviceName = item.manga.source.name.removePrefix("TRACKING_")
+						val trackingService = viewModel.availableServices.value.find { it.name == serviceName } ?: return@DiscoverScreen
+						if (viewModel.supportsDetails(trackingService)) {
+							router.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
+						} else {
+							val url = item.manga.url ?: item.manga.publicUrl
+							if (!url.isNullOrBlank()) {
+								router.openExternalBrowser(url)
+							}
+						}
+					},
+					onCategoryMoreClick = { category ->
+						val service = viewModel.activeService.value
+						router.openTrackingDiscoveryCategory(service, category.id, category.nameResId)
 					}
-					carouselAdapter.submitList(items.filterIsInstance<org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow>())
-				} else {
-					if (currentAdapter != adapter) {
-						applyListMode(settings.listMode, binding.recyclerView)
-						binding.recyclerView.adapter = adapter
-						paginationListener?.let { binding.recyclerView.addOnScrollListener(it) }
-					}
-					adapter.emit(items)
-				}
+				)
 			}
 		}
 
-		viewModel.isLoading.observe(viewLifecycleOwner) {
-			binding.swipeRefreshLayout.isRefreshing = it
-		}
-		viewModel.availableServices.observe(viewLifecycleOwner) {
-			// Service selection now handled via SearchBar service menu provider
-		}
-		viewModel.activeService.observe(viewLifecycleOwner) {
-			// Service selection now handled via SearchBar service menu provider
-		}
-
-		// Add the service menu provider to the SearchBar
-		
 		addMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
-
-		settings.subscribe(this)
 	}
-
-	override fun onDestroyView() {
-		settings.unsubscribe(this)
-		super.onDestroyView()
-	}
-
-	override fun onSharedPreferenceChanged(sharedPreferences: android.content.SharedPreferences?, key: String?) {
-		val recyclerView = requireViewBinding().recyclerView
-		val isCarousel = recyclerView.adapter is DiscoverCarouselAdapter
-
-		if (key == AppSettings.KEY_LIST_MODE) {
-			if (!isCarousel) {
-				applyListMode(settings.listMode, recyclerView)
-			}
-		} else if (key == AppSettings.KEY_GRID_SIZE) {
-			if (!isCarousel) {
-				spanResolver?.setGridSize(settings.gridSize / 100f, recyclerView)
-			}
-		}
-	}
-
-	private fun applyListMode(mode: ListMode, recyclerView: RecyclerView) {
-		recyclerView.removeOnLayoutChangeListener(spanResolver)
-		when (mode) {
-			ListMode.LIST, ListMode.DETAILED_LIST -> {
-				recyclerView.layoutManager = FitHeightLinearLayoutManager(recyclerView.context)
-			}
-			ListMode.GRID -> {
-				recyclerView.layoutManager = FitHeightGridLayoutManager(recyclerView.context, checkNotNull(spanResolver).spanCount)
-				recyclerView.addOnLayoutChangeListener(spanResolver)
-			}
-		}
-	}
-
-	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-		requireViewBinding().recyclerView.updatePadding(
-			left = systemBars.left,
-			right = systemBars.right,
-			bottom = systemBars.bottom,
-		)
-		return insets.consume(view, WindowInsetsCompat.Type.systemBars(), start = true, end = true, bottom = true)
-	}
-
-	override fun onRefresh() {
-		viewModel.refresh()
-	}
-
-	override fun onRetryClick(error: Throwable) {
-		viewModel.refresh()
-	}
-
-	override fun onEmptyActionClick() = Unit
 
 	override fun onMenuItemActionExpand(item: MenuItem): Boolean = true
 
@@ -244,19 +89,26 @@ class DiscoverFragment :
 
 	override fun onQueryTextSubmit(query: String?): Boolean {
 		val value = query?.trim().orEmpty()
-		if (value.isEmpty()) {
-			return false
-		}
+		if (value.isEmpty()) return false
 		viewModel.submitQuery(value)
 		return true
 	}
 
 	override fun onQueryTextChange(newText: String?): Boolean = false
 
-	
+	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+		requireViewBinding().composeView.setPadding(
+			systemBars.left,
+			0,
+			systemBars.right,
+			systemBars.bottom,
+		)
+		return insets
+	}
 
-	fun showServicePopup(anchor: View) {
-		val popup = PopupMenu(anchor.context, anchor, android.view.Gravity.END)
+	fun showServicePopup(anchor: android.view.View) {
+		val popup = androidx.appcompat.widget.PopupMenu(anchor.context, anchor, android.view.Gravity.END)
 		val services = viewModel.availableServices.value
 		val activeService = viewModel.activeService.value
 
@@ -269,7 +121,6 @@ class DiscoverFragment :
 			}
 		}
 
-		// Show icons in popup
 		try {
 			val field = popup.javaClass.getDeclaredField("mPopup")
 			field.isAccessible = true
@@ -287,8 +138,8 @@ class DiscoverFragment :
 		popup.show()
 	}
 
-	private fun ScrobblerService.getPopupTitle(anchorView: View): CharSequence {
+	private fun ScrobblerService.getPopupTitle(anchorView: android.view.View): CharSequence {
 		val title = anchorView.context.getString(titleResId)
-		return BidiFormatter.getInstance().unicodeWrap(title, TextDirectionHeuristicsCompat.LTR)
+		return androidx.core.text.BidiFormatter.getInstance().unicodeWrap(title, androidx.core.text.TextDirectionHeuristicsCompat.LTR)
 	}
 }

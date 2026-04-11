@@ -47,11 +47,7 @@ import org.skepsun.kototoro.core.util.FoldableUtils
 @AndroidEntryPoint
 class SettingsActivity :
 	BaseActivity<ActivitySettingsBinding>(),
-	PreferenceFragmentCompat.OnPreferenceStartFragmentCallback,
-
-
-	override val appBar: AppBarLayout
-		get() = viewBinding.appbar
+	PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
 
 	private val isMasterDetails
 		get() = viewBinding.containerMaster != null

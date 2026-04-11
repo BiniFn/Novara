@@ -81,8 +81,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/pager"
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/compose_pager"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
     </org.skepsun.kototoro.core.ui.widgets.TouchBlockLayout>

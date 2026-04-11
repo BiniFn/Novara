@@ -55,18 +55,23 @@ fun KototoroBottomNav(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 16.dp)
-            .shadow(12.dp, RoundedCornerShape(32.dp))
             .clip(RoundedCornerShape(32.dp))
     } else {
         Modifier.fillMaxWidth()
     }
 
-    Box(modifier = navBarModifier) {
+    Surface(
+        modifier = navBarModifier,
+        color = bgColor,
+        tonalElevation = if (isFloating) 0.dp else 3.dp,
+        shadowElevation = if (isFloating) 12.dp else 0.dp,
+        shape = if (isFloating) RoundedCornerShape(32.dp) else androidx.compose.ui.graphics.RectangleShape
+    ) {
         NavigationBar(
-            containerColor = bgColor,
-            tonalElevation = if (isFloating) 0.dp else 3.dp,
+            containerColor = Color.Transparent,
+            tonalElevation = 0.dp,
             modifier = Modifier.fillMaxWidth(),
-            windowInsets = if (isFloating) WindowInsets(0) else NavigationBarDefaults.windowInsets 
+            windowInsets = WindowInsets(0) // Safe on transparent Surface
         ) {
             activeItems.forEach { item ->
                 val isSelected = navState.selectedItemId == item.id

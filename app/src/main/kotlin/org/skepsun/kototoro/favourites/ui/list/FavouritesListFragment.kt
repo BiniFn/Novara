@@ -17,7 +17,7 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.util.ext.sortedByOrdinal
 import org.skepsun.kototoro.core.util.ext.withArgs
-import org.skepsun.kototoro.databinding.FragmentListBinding
+import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.list.ui.ContentListFragment
 
@@ -31,9 +31,8 @@ class FavouritesListFragment : ContentListFragment(), PopupMenu.OnMenuItemClickL
 	val categoryId
 		get() = viewModel.categoryId
 
-	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
+	override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		binding.recyclerView.isVP2BugWorkaroundEnabled = true
 	}
 
 	override fun onScrolledToEnd() = viewModel.requestMoreItems()
@@ -56,63 +55,16 @@ class FavouritesListFragment : ContentListFragment(), PopupMenu.OnMenuItemClickL
 		return true
 	}
 
-	override fun onCreateActionMode(
-		controller: ListSelectionController,
-		menuInflater: MenuInflater,
-		menu: Menu
-	): Boolean {
-		menuInflater.inflate(R.menu.mode_favourites, menu)
-		return super.onCreateActionMode(controller, menuInflater, menu)
-	}
 
-	override fun onPrepareActionMode(
-		controller: ListSelectionController,
-		mode: ActionMode?,
-		menu: Menu
-	): Boolean {
-		val selectedIds = selectedItemsIds
-		viewLifecycleOwner.lifecycleScope.launch {
-			val isPinned = viewModel.isPinned(selectedIds)
-			menu.findItem(R.id.action_pin)?.isVisible = !isPinned
-			menu.findItem(R.id.action_unpin)?.isVisible = isPinned
-		}
-		return super.onPrepareActionMode(controller, mode, menu)
-	}
+	override val showSelectionRemoveOption = true
 
-	override fun onActionItemClicked(controller: ListSelectionController, mode: ActionMode?, item: MenuItem): Boolean {
-		return when (item.itemId) {
-			R.id.action_remove -> {
-				viewModel.removeFromFavourites(selectedItemsIds)
-				mode?.finish()
+	override fun onSelectionAction(action: org.skepsun.kototoro.list.ui.compose.SelectionAction, ids: Set<Long>): Boolean {
+		return when (action) {
+			org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE -> {
+				viewModel.removeFromFavourites(ids)
 				true
 			}
-
-			R.id.action_mark_current -> {
-				val itemsSnapshot = selectedItems
-				MaterialAlertDialogBuilder(context ?: return false)
-					.setTitle(item.title)
-					.setMessage(R.string.mark_as_completed_prompt)
-					.setNegativeButton(android.R.string.cancel, null)
-					.setPositiveButton(android.R.string.ok) { _, _ ->
-						viewModel.markAsRead(itemsSnapshot)
-						mode?.finish()
-					}.show()
-				true
-			}
-
-			R.id.action_pin -> {
-				viewModel.setPinned(selectedItemsIds, true)
-				mode?.finish()
-				true
-			}
-
-			R.id.action_unpin -> {
-				viewModel.setPinned(selectedItemsIds, false)
-				mode?.finish()
-				true
-			}
-
-			else -> super.onActionItemClicked(controller, mode, item)
+			else -> super.onSelectionAction(action, ids)
 		}
 	}
 
