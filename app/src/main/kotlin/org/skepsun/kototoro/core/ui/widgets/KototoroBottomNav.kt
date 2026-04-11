@@ -51,27 +51,27 @@ fun KototoroBottomNav(
     }
     val bgColor = surfaceColor.copy(alpha = targetAlpha)
 
-    val navBarModifier = if (isFloating) {
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp)
-            .clip(RoundedCornerShape(32.dp))
-    } else {
-        Modifier.fillMaxWidth()
-    }
+    val horizontalPadding by androidx.compose.animation.core.animateDpAsState(if (isFloating) 24.dp else 0.dp)
+    val verticalPadding by androidx.compose.animation.core.animateDpAsState(if (isFloating) 16.dp else 0.dp)
+    val shapeRadius by androidx.compose.animation.core.animateDpAsState(if (isFloating) 32.dp else 0.dp)
+
+    val navBarModifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = horizontalPadding, vertical = verticalPadding)
+        .navigationBarsPadding()
 
     Surface(
         modifier = navBarModifier,
         color = bgColor,
         tonalElevation = if (isFloating) 0.dp else 3.dp,
-        shadowElevation = if (isFloating) 12.dp else 0.dp,
-        shape = if (isFloating) RoundedCornerShape(32.dp) else androidx.compose.ui.graphics.RectangleShape
+        shadowElevation = 0.dp,
+        shape = RoundedCornerShape(shapeRadius)
     ) {
         NavigationBar(
             containerColor = Color.Transparent,
             tonalElevation = 0.dp,
             modifier = Modifier.fillMaxWidth(),
-            windowInsets = WindowInsets(0) // Safe on transparent Surface
+            windowInsets = WindowInsets(0)
         ) {
             activeItems.forEach { item ->
                 val isSelected = navState.selectedItemId == item.id

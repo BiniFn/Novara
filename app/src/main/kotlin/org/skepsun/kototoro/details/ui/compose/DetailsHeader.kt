@@ -97,21 +97,21 @@ fun DetailsHeader(
 			modifier = Modifier.fillMaxWidth(),
 			shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
 			colors = CardDefaults.cardColors(
-				containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+				containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
 			)
 		) {
-			Row(
+			Column(
 				modifier = Modifier
 					.fillMaxWidth()
 					.padding(16.dp),
-				horizontalArrangement = Arrangement.SpaceEvenly
+				verticalArrangement = Arrangement.spacedBy(8.dp)
 			) {
 				if (content != null) {
-					StatItem("Source", content.source.name)
-					StatItem("Author", content.authors.firstOrNull() ?: "-")
-					StatItem("State", content.state?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Unknown")
-					StatItem("Chapters", mangaDetails.allChapters.size.toString())
-					StatItem("Progress", "0%") // Dummy progress until wired
+					VerticalStatItem("来源", content.source.name)
+					VerticalStatItem("作者", content.authors.firstOrNull() ?: "-")
+					VerticalStatItem("翻译", "🇨🇳 中文") // Dummy translation logic
+					val chapterCount = mangaDetails.allChapters.size
+					VerticalStatItem("章节", "$chapterCount 个章节")
 				}
 			}
 		}
@@ -121,20 +121,23 @@ fun DetailsHeader(
 		// 3. Tags / Genres
 		content?.tags?.let { tags ->
 			if (tags.isNotEmpty()) {
-				Row(
-					modifier = Modifier
-						.fillMaxWidth()
-						.horizontalScroll(rememberScrollState()),
-					horizontalArrangement = Arrangement.spacedBy(8.dp)
+				@OptIn(ExperimentalLayoutApi::class)
+				FlowRow(
+					modifier = Modifier.fillMaxWidth(),
+					horizontalArrangement = Arrangement.spacedBy(8.dp),
+					verticalArrangement = Arrangement.spacedBy(4.dp)
 				) {
 					tags.forEach { tag ->
 						SuggestionChip(
 							onClick = { },
 							label = { Text(tag.title) },
 							colors = SuggestionChipDefaults.suggestionChipColors(
-								containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+								containerColor = androidx.compose.ui.graphics.Color.Transparent
 							),
-							border = null
+							border = SuggestionChipDefaults.suggestionChipBorder(
+								enabled = true,
+								borderColor = MaterialTheme.colorScheme.outline
+							)
 						)
 					}
 				}
@@ -165,17 +168,21 @@ fun DetailsHeader(
 }
 
 @Composable
-private fun StatItem(label: String, value: String) {
-	Column(horizontalAlignment = Alignment.CenterHorizontally) {
-		Text(
-			text = value,
-			style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-			color = MaterialTheme.colorScheme.onSurface
-		)
+private fun VerticalStatItem(label: String, value: String) {
+	Row(
+		modifier = Modifier.fillMaxWidth(),
+		verticalAlignment = Alignment.CenterVertically
+	) {
 		Text(
 			text = label,
-			style = MaterialTheme.typography.labelMedium,
-			color = MaterialTheme.colorScheme.onSurfaceVariant
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			modifier = Modifier.width(60.dp)
+		)
+		Text(
+			text = value,
+			style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+			color = MaterialTheme.colorScheme.onSurface
 		)
 	}
 }

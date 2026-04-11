@@ -396,11 +396,12 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	 * Compose overlay heights (TopBar + BottomNav).
 	 */
 	private fun updateContainerPadding() {
+		val bottomPadding = if (settings.isNavFloating) 0 else bottomNavHeightPx
 		viewBinding.container.setPadding(
 			viewBinding.container.paddingLeft,
 			topBarHeightPx,
 			viewBinding.container.paddingRight,
-			bottomNavHeightPx,
+			bottomPadding,
 		)
 	}
 

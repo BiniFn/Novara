@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -62,9 +64,9 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .nestedScroll(rememberNestedScrollInteropConnection())
             .verticalScroll(scrollState)
             .padding(horizontal = 2.dp, vertical = 4.dp)
-            .padding(bottom = 24.dp)
     ) {
         // Since we migrated from GridLayout, we can just use columns and rows
         
@@ -341,6 +343,9 @@ fun HomeScreen(
                 }
             }
         }
+        
+        Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.systemBars))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

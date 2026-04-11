@@ -88,9 +88,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 			right = systemBars.right,
 			bottom = 0,
 		)
-		requireViewBinding().composeView.updatePadding(
-			bottom = systemBars.bottom + resources.getDimensionPixelOffset(R.dimen.list_spacing_normal),
-		)
 		return insets
 	}
 

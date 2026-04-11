@@ -9,6 +9,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -108,52 +111,121 @@ fun DetailsScreen(
 			)
 		}
 
-		BottomSheetScaffold(
-			scaffoldState = scaffoldState,
-			containerColor = Color.Transparent, // Let panorama bleed through
-			modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-			sheetPeekHeight = 400.dp,
-			sheetContent = {
-				ChaptersPagesTabsContent(
-					viewModel = viewModel,
-					pagesViewModel = pagesViewModel,
-					bookmarksViewModel = bookmarksViewModel,
-					settings = settings,
-					pageSaveHelper = pageSaveHelper
-				)
-			},
-			topBar = {
-				TopAppBar(
-					title = { },
-					navigationIcon = {
-						IconButton(onClick = onBackClick) {
-							Icon(
-								imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-								contentDescription = "Back"
-							)
-						}
-					},
-					colors = TopAppBarDefaults.topAppBarColors(
-						containerColor = Color.Transparent
-					)
-				)
-			},
-			content = { paddingValues ->
-				val scrollState = rememberScrollState()
-				Column(
-					modifier = Modifier
-						.fillMaxSize()
-						.padding(paddingValues)
-						.verticalScroll(scrollState)
-						.padding(bottom = 350.dp) // Padding for sheet overlap
-				) {
-					DetailsHeader(
-						mangaDetails = mangaDetails,
-						onCoverBoundsSync = onCoverBoundsSync
-					)
-				}
+		Scaffold(
+			containerColor = Color.Transparent,
+			bottomBar = {
+				DetailsBottomBar()
 			}
-		)
+		) { innerPadding ->
+			BottomSheetScaffold(
+				scaffoldState = scaffoldState,
+				containerColor = Color.Transparent, // Let panorama bleed through
+				modifier = Modifier
+					.padding(innerPadding)
+					.nestedScroll(scrollBehavior.nestedScrollConnection),
+				sheetPeekHeight = 56.dp,
+				sheetContent = {
+					ChaptersPagesTabsContent(
+						viewModel = viewModel,
+						pagesViewModel = pagesViewModel,
+						bookmarksViewModel = bookmarksViewModel,
+						settings = settings,
+						pageSaveHelper = pageSaveHelper
+					)
+				},
+				topBar = {
+					TopAppBar(
+						title = { },
+						navigationIcon = {
+							IconButton(onClick = onBackClick) {
+								Icon(
+									imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+									contentDescription = "Back"
+								)
+							}
+						},
+						actions = {
+							IconButton(onClick = {}) {
+								Icon(
+									imageVector = androidx.compose.material.icons.Icons.Default.Share,
+									contentDescription = "Share"
+								)
+							}
+							IconButton(onClick = {}) {
+								Icon(
+									painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_download),
+									contentDescription = "Download"
+								)
+							}
+							IconButton(onClick = {}) {
+								Icon(
+									imageVector = androidx.compose.material.icons.Icons.Default.MoreVert,
+									contentDescription = "More"
+								)
+							}
+						},
+						colors = TopAppBarDefaults.topAppBarColors(
+							containerColor = Color.Transparent
+						)
+					)
+				},
+				content = { paddingValues ->
+					val scrollState = rememberScrollState()
+					Column(
+						modifier = Modifier
+							.fillMaxSize()
+							.verticalScroll(scrollState)
+					) {
+						Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding()))
+						DetailsHeader(
+							mangaDetails = mangaDetails,
+							onCoverBoundsSync = onCoverBoundsSync
+						)
+						Spacer(modifier = Modifier.height(paddingValues.calculateBottomPadding() + 80.dp))
+					}
+				}
+			)
+		}
+	}
+}
+
+@Composable
+private fun DetailsBottomBar() {
+	BottomAppBar(
+		containerColor = MaterialTheme.colorScheme.surfaceVariant,
+		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+	) {
+		IconButton(onClick = { /* TODO */ }) {
+			Icon(
+				painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_list),
+				contentDescription = "List View"
+			)
+		}
+		IconButton(onClick = { /* TODO */ }) {
+			Icon(
+				painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_grid),
+				contentDescription = "Grid View"
+			)
+		}
+		IconButton(onClick = { /* TODO */ }) {
+			Icon(
+				painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_bookmark),
+				contentDescription = "Bookmarks"
+			)
+		}
+		Spacer(modifier = Modifier.weight(1f))
+		Button(
+			onClick = { /* TODO */ },
+			modifier = Modifier.height(48.dp),
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+		) {
+			Text(text = "阅读", modifier = Modifier.padding(horizontal = 16.dp))
+			Icon(
+				imageVector = androidx.compose.material.icons.Icons.Default.KeyboardArrowDown,
+				contentDescription = "Options",
+				modifier = Modifier.padding(start = 8.dp)
+			)
+		}
 	}
 }
 
