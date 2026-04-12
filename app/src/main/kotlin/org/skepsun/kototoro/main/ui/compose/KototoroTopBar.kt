@@ -63,6 +63,7 @@ fun KototoroTopBar(
     onContentTypeSelected: (ContentType?) -> Unit = {},
     selectedSourceTags: Set<SourceTag> = emptySet(),
     onSourceTagSelected: (SourceTag?) -> Unit = {},
+    isSearchBarFilterHidden: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -122,7 +123,7 @@ fun KototoroTopBar(
                                     )
                                 }
                             }
-                            if (!expanded) {
+                            if (!expanded && !isSearchBarFilterHidden) {
                                 // Content type filter (swipeable pill)
                                 SwipeableFilterChip(
                                     selectedType = selectedContentType,

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
 	xmlns:tools="http://schemas.android.com/tools"
@@ -8,21 +8,45 @@
 	android:layout_height="match_parent"
 	tools:context=".details.ui.DetailsActivity">
 
-	<androidx.compose.ui.platform.ComposeView
-		android:id="@+id/compose_view"
+	<androidx.constraintlayout.widget.ConstraintLayout
 		android:layout_width="match_parent"
-		android:layout_height="match_parent" />
+		android:layout_height="match_parent">
 
-	<org.skepsun.kototoro.image.ui.CoverImageView
-		android:id="@+id/imageView_cover"
-		android:layout_width="0dp"
-		android:layout_height="0dp"
-		android:background="?colorSecondaryContainer"
-		android:clipToOutline="true"
-		android:scaleType="centerCrop"
-		app:allowRgb565="false"
-		app:useExistingDrawable="true"
-		tools:background="@tools:sample/backgrounds/scenic[5]"
-		tools:ignore="ContentDescription,UnusedAttribute" />
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/compose_view"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+		<org.skepsun.kototoro.image.ui.CoverImageView
+			android:id="@+id/imageView_cover"
+			android:layout_width="0dp"
+			android:layout_height="0dp"
+			android:background="?colorSecondaryContainer"
+			android:clipToOutline="true"
+			android:scaleType="centerCrop"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toTopOf="parent"
+			app:allowRgb565="false"
+			app:useExistingDrawable="true"
+			tools:background="@tools:sample/backgrounds/scenic[5]"
+			tools:ignore="ContentDescription,UnusedAttribute" />
+
+	</androidx.constraintlayout.widget.ConstraintLayout>
+
+	<androidx.fragment.app.FragmentContainerView
+		android:id="@+id/container_bottom_sheet"
+		android:name="org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet"
+		style="@style/Widget.Material3.BottomSheet"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:elevation="6dp"
+		android:nestedScrollingEnabled="false"
+		android:outlineProvider="background"
+		app:behavior_fitToContents="false"
+		app:behavior_hideable="false"
+		app:behavior_peekHeight="@dimen/details_bs_peek_height"
+		app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+		app:paddingBottomSystemWindowInsets="false"
+		tools:layout="@layout/sheet_chapters_pages" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

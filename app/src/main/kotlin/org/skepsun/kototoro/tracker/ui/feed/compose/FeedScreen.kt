@@ -2,7 +2,10 @@ package org.skepsun.kototoro.tracker.ui.feed.compose
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -25,6 +28,7 @@ import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
+	contentPadding: PaddingValues = PaddingValues(0.dp),
 	items: List<ListModel>,
 	isRefreshing: Boolean,
 	onRefresh: () -> Unit,
@@ -59,7 +63,10 @@ fun FeedScreen(
 	) {
 		LazyColumn(
 			state = listState,
-			contentPadding = PaddingValues(vertical = 8.dp),
+			contentPadding = PaddingValues(
+				top = contentPadding.calculateTopPadding() + 8.dp,
+				bottom = contentPadding.calculateBottomPadding()
+			),
 			modifier = Modifier.fillMaxSize()
 		) {
 			items(

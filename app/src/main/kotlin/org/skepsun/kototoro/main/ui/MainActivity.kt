@@ -6,7 +6,6 @@ import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup.MarginLayoutParams
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.view.ActionMode
@@ -58,6 +57,10 @@ import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionViewModel
 import javax.inject.Inject
+import androidx.fragment.app.FragmentContainerView
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 
 @AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>(),
@@ -85,12 +88,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private var topBarHeightPx = 0
 	private var bottomNavHeightPx = 0
 	
-	private var topBarOffset by mutableStateOf(0f)
-	private var bottomNavOffset by mutableStateOf(0f)
+	private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
 
 	private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
 	private var activeFilterContentType by mutableStateOf<ContentType?>(null)
 	private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
+	
+	private lateinit var container: FragmentContainerView
 
 	fun setActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
 		currentFilterCallback = callback
@@ -117,30 +121,68 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		if (!setContentViewWebViewSafe { org.skepsun.kototoro.databinding.ActivityMainBinding.inflate(layoutInflater) }) {
-			return
+		
+		composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
+		
+		viewModel.isResumeEnabled.observe(this) { isEnabled ->
+			isResumeEnabledState = isEnabled
 		}
 		
-		val bridgeLayout = viewBinding.root as? org.skepsun.kototoro.core.ui.widgets.NestedScrollBridgingFrameLayout
-		bridgeLayout?.onNestedScrollDeltaY = { dy ->
-			val isPinned = settings.isNavBarPinned
-			if (!isPinned) {
-				topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
-				bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
-			} else {
-				topBarOffset = 0f
-				bottomNavOffset = 0f
-			}
+		if (!setContentViewWebViewSafe { ActivityMainBinding.inflate(layoutInflater) }) {
+			return
 		}
 
-		composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
-		viewBinding.composeRoot?.setContent {
+		viewBinding.composeRoot.setContent {
 			val suggestions by searchSuggestionViewModel.suggestion.collectAsState(initial = emptyList())
+
 			KototoroApp(
-				navStateFlow = navStateFlow,
-				onNavItemSelected = composeNavBarDelegator::handleItemSelected,
-				onNavItemReselected = composeNavBarDelegator::handleItemSelected,
-				suggestions = suggestions,
+					appSettings = settings,
+					navStateFlow = navStateFlow,
+					isResumeEnabled = isResumeEnabledState,
+					onResumeClick = viewModel::openLastReader,
+					onNavItemSelected = composeNavBarDelegator::handleItemSelected,
+					onNavItemReselected = composeNavBarDelegator::handleItemSelected,
+					onContainerReady = { fragmentContainer ->
+						if (!::container.isInitialized) {
+							container = fragmentContainer
+							
+							// Initialize NavigationDelegate when container is physically mounted
+							navigationDelegate = MainNavigationDelegate(
+								navBar = composeNavBarDelegator,
+								fragmentManager = supportFragmentManager,
+								settings = settings,
+							)
+							navigationDelegate.addOnFragmentChangedListener(this@MainActivity)
+							navigationDelegate.onCreate(this@MainActivity, savedInstanceState)
+							
+							addMenuProvider(MainMenuProvider(router, viewModel))
+							
+							val exitCallback = ExitCallback(this@MainActivity, container)
+							onBackPressedDispatcher.addCallback(exitCallback)
+							onBackPressedDispatcher.addCallback(navigationDelegate)
+							
+							
+							if (savedInstanceState == null) {
+								onFirstStart()
+							}
+                            
+                            viewModel.onOpenReader.observeEvent(this@MainActivity, this@MainActivity::onOpenReader)
+                            viewModel.onError.observeEvent(this@MainActivity, org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(container, null))
+                            viewModel.isLoading.observe(this@MainActivity, this@MainActivity::onLoadingStateChanged)
+                            viewModel.isResumeEnabled.observe(this@MainActivity, this@MainActivity::onResumeEnabledChanged)
+                            viewModel.feedCounter.observe(this@MainActivity, ::onFeedCounterChanged)
+                            viewModel.appUpdate.observe(this@MainActivity, org.skepsun.kototoro.core.ui.util.MenuInvalidator(this@MainActivity))
+                            
+                            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(container) { v, insets ->
+                                val sysInsets = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                                
+                                // Return the insets so container natively dispatches them unmodified to children
+                                // Children will rely on MainViewModel for their topBar and bottomNav physical heights
+                                insets
+                            }
+						}
+					},
+					suggestions = suggestions,
 				onQueryChanged = searchSuggestionViewModel::onQueryChanged,
 				onSearch = { query ->
 					searchSuggestionViewModel.saveQuery(query)
@@ -162,19 +204,19 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					if (anchorView != null) {
 						showOverflowMenu(anchorView)
 					} else {
-						showOverflowMenu(viewBinding.composeRoot ?: viewBinding.container)
+						showOverflowMenu(viewBinding.composeRoot)
 					}
 				},
 				onTopBarHeightChanged = { height ->
 					if (topBarHeightPx != height) {
 						topBarHeightPx = height
-						updateContainerPadding()
+						viewModel.setTopBarHeightPx(height)
 					}
 				},
 				onBottomNavHeightChanged = { height ->
 					if (bottomNavHeightPx != height) {
 						bottomNavHeightPx = height
-						updateContainerPadding()
+						viewModel.setBottomNavHeightPx(height)
 					}
 				},
 				selectedContentType = activeFilterContentType,
@@ -192,49 +234,12 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 				onSourceTagSelected = { tag ->
 					activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
 					currentFilterCallback?.onSourceTagSelected(tag)
-				},
-				topBarOffset = topBarOffset,
-				bottomNavOffset = bottomNavOffset,
+				}
 			)
 		}
-
-		navigationDelegate = MainNavigationDelegate(
-			navBar = composeNavBarDelegator,
-			fragmentManager = supportFragmentManager,
-			settings = settings,
-		)
-		navigationDelegate.addOnFragmentChangedListener(this)
-
-		navigationDelegate.onCreate(this, savedInstanceState)
-
-		addMenuProvider(MainMenuProvider(router, viewModel))
-
-		val exitCallback = ExitCallback(this, viewBinding.container)
-		onBackPressedDispatcher.addCallback(exitCallback)
-		onBackPressedDispatcher.addCallback(navigationDelegate)
-
-		onBackPressedDispatcher.addCallback(navigationDelegate)
-
-		if (savedInstanceState == null) {
-			onFirstStart()
-			// 首次创建 Activity 时启动 WebDAV 自动同步监听（避免重复添加观察者）
-		}
-
-		viewModel.onOpenReader.observeEvent(this, this::onOpenReader)
-		viewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.container, null))
-		viewModel.isLoading.observe(this, this::onLoadingStateChanged)
-		viewModel.isResumeEnabled.observe(this, this::onResumeEnabledChanged)
-		viewModel.feedCounter.observe(this, ::onFeedCounterChanged)
-		viewModel.appUpdate.observe(this, MenuInvalidator(this))
 		viewModel.onFirstStart.observeEvent(this) { router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
-		ViewCompat.setOnApplyWindowInsetsListener(viewBinding.container) { v, insets ->
-			val isPinned = settings.isNavBarPinned
-			val consumeBottom = isPinned && !isNavFloating
-			val newInsets = insets.consume(v, WindowInsetsCompat.Type.systemBars(), bottom = consumeBottom)
-			ViewCompat.onApplyWindowInsets(v, newInsets)
-		}
-
+		
 		// 观察折叠屏状态变化
 		observeFoldableState()
 	}
@@ -273,10 +278,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		val isNavFloating = settings.isNavFloating
 		val navMargin = if (isNavFloating) (16 * resources.displayMetrics.density).toInt() else 0
 		val bottomPadding = if (isNavFloating) 0 else barsInsets.bottom
-		val bottomMargin = if (isNavFloating) barsInsets.bottom + navMargin else 0
 
-		viewBinding.container.clipChildren = false
-		viewBinding.container.clipToPadding = false
+		container.clipChildren = false
+		container.clipToPadding = false
 		updateContainerBottomMargin()
 		val consumedInsets = insets.consume(v, typeMask, start = false)
 		val finalInsets = if (isNavFloating && settings.isNavBarPinned) {
@@ -290,7 +294,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 				settings.navHeight
 			}
 			val bNavHeight = if (heightDp > 0) (heightDp * resources.displayMetrics.density).toInt() else (56 * resources.displayMetrics.density).toInt()
-			// Use measured height or default 56dp roughly if not laid out yet
+			
 			val h = if (bNavHeight > 0) bNavHeight else (56 * resources.displayMetrics.density).toInt()
 			val totalBottom = barsInsets.bottom + navMargin + h
 			androidx.core.view.WindowInsetsCompat.Builder(consumedInsets)
@@ -344,10 +348,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	private fun onResumeEnabledChanged(isEnabled: Boolean) {
+		isResumeEnabledState = isEnabled
 	}
 
 	private fun onFirstStart() = try {
-		lifecycleScope.launch(Dispatchers.Main) { // not a default `Main.immediate` dispatcher
+		lifecycleScope.launch(Dispatchers.Main) { 
 			withContext(Dispatchers.Default) {
 				LocalStorageCleanupWorker.enqueue(applicationContext)
 			}
@@ -356,8 +361,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
 					backupStartupCoordinator.startOnFirstLaunch(lifecycleScope)
-				// 延迟启动 WebDavAutoRestoreService 以避免系统级 DiskWriteViolation
-				// 并且仅在 WebDAV 自动恢复开关开启且配置完整时启动
+				
 				if (settings.isAdBlockEnabled) {
 					startService(Intent(this@MainActivity, AdListUpdateService::class.java))
 				}
@@ -391,39 +395,25 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	private fun setNavHeight(heightDp: Int) {}
 
-	/**
-	 * Apply top/bottom padding to the FragmentContainerView based on measured
-	 * Compose overlay heights (TopBar + BottomNav).
-	 */
 	private fun updateContainerPadding() {
-		val bottomPadding = if (settings.isNavFloating) 0 else bottomNavHeightPx
-		viewBinding.container.setPadding(
-			viewBinding.container.paddingLeft,
-			topBarHeightPx,
-			viewBinding.container.paddingRight,
-			bottomPadding,
-		)
+		if (!::container.isInitialized) return
+		container.requestApplyInsets()
 	}
 
 	private fun updateContainerBottomMargin() {
-		// Now handled by updateContainerPadding via Compose height callbacks
 		updateContainerPadding()
 	}
 
 	private fun showOverflowMenu(anchorView: android.view.View?) {
-		val anchor = anchorView ?: viewBinding.composeRoot ?: viewBinding.container
+		val anchor = anchorView ?: viewBinding.composeRoot
 		val popup = androidx.appcompat.widget.PopupMenu(this, anchor, android.view.Gravity.END or android.view.Gravity.TOP)
 		popup.menuInflater.inflate(R.menu.opt_main, popup.menu)
-		// Update menu state
+		
 		popup.menu.findItem(R.id.action_incognito)?.isChecked = viewModel.isIncognitoModeEnabled.value
 		popup.menu.findItem(R.id.action_app_update)?.isVisible = viewModel.appUpdate.value != null
 		
 		val displayItem = popup.menu.findItem(R.id.action_display_mode)
-		displayItem?.title = if (settings.listMode == org.skepsun.kototoro.core.prefs.ListMode.LIST || settings.listMode == org.skepsun.kototoro.core.prefs.ListMode.DETAILED_LIST) {
-			getString(R.string.show_in_grid_view)
-		} else {
-			getString(R.string.list_mode)
-		}
+		displayItem?.title = getString(R.string.list_options)
 
 		popup.setOnMenuItemClickListener { menuItem ->
 			when (menuItem.itemId) {
@@ -432,11 +422,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					true
 				}
 				R.id.action_display_mode -> {
-					settings.listMode = if (settings.listMode == org.skepsun.kototoro.core.prefs.ListMode.GRID) {
-						org.skepsun.kototoro.core.prefs.ListMode.LIST
-					} else {
-						org.skepsun.kototoro.core.prefs.ListMode.GRID
-					}
+					router.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.General)
 					true
 				}
 				R.id.action_incognito -> {
@@ -453,9 +439,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		popup.show()
 	}
 
-	/**
-	 * 观察折叠屏状态变化并调整布局
-	 */
 	private fun observeFoldableState() {
 		val foldableState = FoldableUtils.observeFoldableState(this, this)
 		
@@ -469,17 +452,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		}
 	}
 
-	/**
-	 * 根据折叠屏状态调整布局
-	 */
 	private fun adjustLayoutForFoldableState() {
 		val shouldUseLandscapeLayout = FoldableUtils.shouldUseLandscapeLayout(this, isFoldUnfolded)
-		val hasNavRail = viewBinding.navRail != null
 
-		// 通知当前Fragment布局状态变化
 		navigationDelegate.primaryFragment?.let { fragment ->
 			onFragmentChanged(fragment, false)
 		}
 	}
-
 }

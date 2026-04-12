@@ -7,8 +7,8 @@ import android.widget.FrameLayout
 import androidx.core.view.NestedScrollingParent3
 import androidx.core.view.NestedScrollingParentHelper
 import androidx.core.view.ViewCompat
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 	context: Context,
@@ -18,8 +18,8 @@ class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 
 	private val parentHelper = NestedScrollingParentHelper(this)
 
-	private val _nestedScrollDeltaY = MutableStateFlow(0f)
-	val nestedScrollDeltaY = _nestedScrollDeltaY.asStateFlow()
+	private val _nestedScrollDeltaY = MutableSharedFlow<Float>(extraBufferCapacity = 64)
+	val nestedScrollDeltaY = _nestedScrollDeltaY.asSharedFlow()
 	
 	var onNestedScrollDeltaY: ((Float) -> Unit)? = null
 
@@ -45,7 +45,7 @@ class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 		type: Int,
 		consumed: IntArray
 	) {
-		_nestedScrollDeltaY.value = dyConsumed.toFloat()
+		_nestedScrollDeltaY.tryEmit(dyConsumed.toFloat())
 		onNestedScrollDeltaY?.invoke(dyConsumed.toFloat())
 	}
 
@@ -61,7 +61,6 @@ class NestedScrollBridgingFrameLayout @JvmOverloads constructor(
 	}
 
 	override fun onNestedPreScroll(target: View, dx: Int, dy: Int, consumed: IntArray, type: Int) {
-		_nestedScrollDeltaY.value = dy.toFloat()
-		onNestedScrollDeltaY?.invoke(dy.toFloat())
+		// Handled in onNestedScroll to avoid doubling delta
 	}
 }

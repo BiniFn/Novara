@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
@@ -25,6 +27,8 @@ import androidx.compose.runtime.getValue
 
 @AndroidEntryPoint
 class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewController.Callback {
+	private val mainViewModel: org.skepsun.kototoro.main.ui.MainViewModel by activityViewModels()
+
 
 	@javax.inject.Inject
 	lateinit var settings: AppSettings
@@ -78,17 +82,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 				)
 			}
 		}
-	}
-
-	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-		requireViewBinding().root.clipToPadding = false
-		requireViewBinding().root.updatePadding(
-			left = systemBars.left,
-			right = systemBars.right,
-			bottom = 0,
-		)
-		return insets
 	}
 
 	private fun syncSelectedTab(tab: HomeContentTab?) {
@@ -159,5 +152,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 
 	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
 		return getSelectedContentType().supportsSourceTag(tag)
+	}
+
+	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		requireViewBinding().root.clipToPadding = false
+		return insets
 	}
 }

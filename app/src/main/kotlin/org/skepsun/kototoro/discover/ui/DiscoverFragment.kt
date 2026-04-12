@@ -9,6 +9,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
+import androidx.compose.runtime.collectAsState
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -24,6 +26,8 @@ class DiscoverFragment :
 	BaseFragment<FragmentContentListBinding>(),
 	MenuItem.OnActionExpandListener,
 	SearchView.OnQueryTextListener {
+	private val mainViewModel: org.skepsun.kototoro.main.ui.MainViewModel by activityViewModels()
+
 
 	private val viewModel by viewModels<DiscoverViewModel>()
 	
@@ -96,16 +100,7 @@ class DiscoverFragment :
 
 	override fun onQueryTextChange(newText: String?): Boolean = false
 
-	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
-		val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-		requireViewBinding().composeView.setPadding(
-			systemBars.left,
-			0,
-			systemBars.right,
-			systemBars.bottom,
-		)
-		return insets
-	}
+
 
 	fun showServicePopup(anchor: android.view.View) {
 		val popup = androidx.appcompat.widget.PopupMenu(anchor.context, anchor, android.view.Gravity.END)
@@ -141,5 +136,10 @@ class DiscoverFragment :
 	private fun ScrobblerService.getPopupTitle(anchorView: android.view.View): CharSequence {
 		val title = anchorView.context.getString(titleResId)
 		return androidx.core.text.BidiFormatter.getInstance().unicodeWrap(title, androidx.core.text.TextDirectionHeuristicsCompat.LTR)
+	}
+
+	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		requireViewBinding().root.clipToPadding = false
+		return insets
 	}
 }

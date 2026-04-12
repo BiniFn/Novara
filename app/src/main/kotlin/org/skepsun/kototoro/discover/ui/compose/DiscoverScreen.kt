@@ -2,7 +2,10 @@ package org.skepsun.kototoro.discover.ui.compose
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -32,6 +35,7 @@ import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
+	contentPadding: PaddingValues = PaddingValues(0.dp),
 	items: List<ListModel>,
 	isRefreshing: Boolean,
 	isCarousel: Boolean,
@@ -59,7 +63,10 @@ fun DiscoverScreen(
 			val listState = rememberLazyListState()
 			LazyColumn(
 				state = listState,
-				contentPadding = PaddingValues(vertical = 8.dp),
+				contentPadding = PaddingValues(
+					top = contentPadding.calculateTopPadding() + 8.dp,
+					bottom = contentPadding.calculateBottomPadding() + 8.dp
+				),
 				modifier = Modifier.fillMaxSize()
 			) {
 				items(
@@ -95,7 +102,12 @@ fun DiscoverScreen(
 			LazyVerticalGrid(
 				columns = GridCells.Fixed(gridSpanCount),
 				state = gridState,
-				contentPadding = PaddingValues(16.dp),
+				contentPadding = PaddingValues(
+					start = 16.dp,
+					end = 16.dp,
+					top = contentPadding.calculateTopPadding() + 16.dp,
+					bottom = contentPadding.calculateBottomPadding() + 16.dp
+				),
 				modifier = Modifier.fillMaxSize()
 			) {
 				// Only render content list models in search grid mode

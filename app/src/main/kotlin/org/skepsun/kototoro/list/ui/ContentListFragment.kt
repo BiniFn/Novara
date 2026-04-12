@@ -12,6 +12,8 @@ import android.view.ViewGroup
 import androidx.annotation.CallSuper
 import androidx.appcompat.view.ActionMode
 import androidx.collection.ArraySet
+import androidx.fragment.app.activityViewModels
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -70,6 +72,8 @@ abstract class ContentListFragment :
 	RecyclerViewOwner,
 	AppBarLayout.OnOffsetChangedListener,
 	SearchBarFilterViewController.Callback {
+	private val mainViewModel: org.skepsun.kototoro.main.ui.MainViewModel by activityViewModels()
+
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -257,18 +261,6 @@ abstract class ContentListFragment :
 			}
 			SelectionAction.REMOVE -> Unit
 		}
-	}
-
-	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val typeMask = WindowInsetsCompat.Type.systemBars()
-		val barsInsets = insets.getInsets(typeMask)
-		val basePadding = v.resources.getDimensionPixelOffset(R.dimen.list_spacing_normal)
-
-		viewBinding?.filterChipsContainer?.updatePadding(
-			left = barsInsets.left + basePadding,
-			right = barsInsets.right + basePadding,
-		)
-		return insets.consumeAll(typeMask)
 	}
 
 	override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
@@ -535,5 +527,10 @@ abstract class ContentListFragment :
 			chipBackgroundColor = colors.bg
 			setTextColor(colors.text)
 		}
+	}
+
+	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		requireViewBinding().root.clipToPadding = false
+		return insets
 	}
 }

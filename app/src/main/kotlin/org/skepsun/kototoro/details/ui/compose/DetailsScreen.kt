@@ -27,6 +27,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
@@ -57,14 +58,6 @@ fun DetailsScreen(
 	onCoverBoundsSync: (Rect) -> Unit,
 	onActionClick: (DetailsAction) -> Unit = {}
 ) {
-	val bottomSheetState = rememberStandardBottomSheetState(
-		initialValue = SheetValue.PartiallyExpanded,
-		skipHiddenState = true
-	)
-	val scaffoldState = rememberBottomSheetScaffoldState(
-		bottomSheetState = bottomSheetState
-	)
-	
 	val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
 	val mangaDetails by viewModel.mangaDetails.collectAsState()
@@ -80,6 +73,10 @@ fun DetailsScreen(
 
 	val context = LocalContext.current
 	
+	val panoramaBlur by settings.observeAsState(org.skepsun.kototoro.core.prefs.AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
+	val panoramaExtraHeight by settings.observeAsState(org.skepsun.kototoro.core.prefs.AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
+	val panoramaBottomAlpha by settings.observeAsState(org.skepsun.kototoro.core.prefs.AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) { panoramaBottomGradientAlpha }
+
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (settings.isPanoramaCoverEnabled) {
 			val request = remember(mangaDetails) {
@@ -94,18 +91,20 @@ fun DetailsScreen(
 				contentScale = ContentScale.Crop,
 				modifier = Modifier
 					.fillMaxWidth()
-					.height(400.dp)
-					.blur(radius = 24.dp)
+					.height(350.dp + (panoramaExtraHeight ?: 50).dp)
+					.blur(radius = (((panoramaBlur ?: 35) / 100f) * 20f).dp)
 					.alpha(0.6f)
 			)
-			// Optional: scrim gradient to fade it out gracefully into surface color
 			Box(
 				modifier = Modifier
 					.fillMaxWidth()
-					.height(400.dp)
+					.height(350.dp + (panoramaExtraHeight ?: 50).dp)
 					.background(
 						Brush.verticalGradient(
-							colors = listOf(Color.Transparent, MaterialTheme.colorScheme.surface)
+							colors = listOf(
+								Color.Transparent, 
+								MaterialTheme.colorScheme.surface.copy(alpha = ((panoramaBottomAlpha ?: 100) / 100f).coerceIn(0f, 1f))
+							)
 						)
 					)
 			)
@@ -114,100 +113,82 @@ fun DetailsScreen(
 		Scaffold(
 			containerColor = Color.Transparent,
 			bottomBar = {
-				DetailsBottomBar()
+				DetailsBottomBar(onActionClick = onActionClick)
+			},
+			topBar = {
+				TopAppBar(
+					title = { },
+					navigationIcon = {
+						IconButton(onClick = onBackClick) {
+							Icon(
+								imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+								contentDescription = "Back"
+							)
+						}
+					},
+					actions = {
+						IconButton(onClick = { onActionClick(org.skepsun.kototoro.details.ui.compose.DetailsAction.Share) }) {
+							Icon(
+								imageVector = androidx.compose.material.icons.Icons.Default.Share,
+								contentDescription = "Share"
+							)
+						}
+						IconButton(onClick = { onActionClick(org.skepsun.kototoro.details.ui.compose.DetailsAction.Download) }) {
+							Icon(
+								painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_download),
+								contentDescription = "Download"
+							)
+						}
+						IconButton(onClick = { onActionClick(org.skepsun.kototoro.details.ui.compose.DetailsAction.More) }) {
+							Icon(
+								imageVector = androidx.compose.material.icons.Icons.Default.MoreVert,
+								contentDescription = "More"
+							)
+						}
+					},
+					colors = TopAppBarDefaults.topAppBarColors(
+						containerColor = Color.Transparent
+					)
+				)
 			}
-		) { innerPadding ->
-			BottomSheetScaffold(
-				scaffoldState = scaffoldState,
-				containerColor = Color.Transparent, // Let panorama bleed through
+		) { paddingValues ->
+			val scrollState = rememberScrollState()
+			Column(
 				modifier = Modifier
-					.padding(innerPadding)
-					.nestedScroll(scrollBehavior.nestedScrollConnection),
-				sheetPeekHeight = 56.dp,
-				sheetContent = {
-					ChaptersPagesTabsContent(
-						viewModel = viewModel,
-						pagesViewModel = pagesViewModel,
-						bookmarksViewModel = bookmarksViewModel,
-						settings = settings,
-						pageSaveHelper = pageSaveHelper
-					)
-				},
-				topBar = {
-					TopAppBar(
-						title = { },
-						navigationIcon = {
-							IconButton(onClick = onBackClick) {
-								Icon(
-									imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-									contentDescription = "Back"
-								)
-							}
-						},
-						actions = {
-							IconButton(onClick = {}) {
-								Icon(
-									imageVector = androidx.compose.material.icons.Icons.Default.Share,
-									contentDescription = "Share"
-								)
-							}
-							IconButton(onClick = {}) {
-								Icon(
-									painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_download),
-									contentDescription = "Download"
-								)
-							}
-							IconButton(onClick = {}) {
-								Icon(
-									imageVector = androidx.compose.material.icons.Icons.Default.MoreVert,
-									contentDescription = "More"
-								)
-							}
-						},
-						colors = TopAppBarDefaults.topAppBarColors(
-							containerColor = Color.Transparent
-						)
-					)
-				},
-				content = { paddingValues ->
-					val scrollState = rememberScrollState()
-					Column(
-						modifier = Modifier
-							.fillMaxSize()
-							.verticalScroll(scrollState)
-					) {
-						Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding()))
-						DetailsHeader(
-							mangaDetails = mangaDetails,
-							onCoverBoundsSync = onCoverBoundsSync
-						)
-						Spacer(modifier = Modifier.height(paddingValues.calculateBottomPadding() + 80.dp))
-					}
-				}
-			)
+					.fillMaxSize()
+					.padding(paddingValues)
+					.verticalScroll(scrollState)
+			) {
+				Spacer(modifier = Modifier.height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding()))
+				DetailsHeader(
+					mangaDetails = mangaDetails,
+					onCoverBoundsSync = onCoverBoundsSync
+				)
+				Spacer(modifier = Modifier.height(160.dp + 80.dp))
+			}
 		}
 	}
 }
 
 @Composable
-private fun DetailsBottomBar() {
+private fun DetailsBottomBar(onActionClick: (DetailsAction) -> Unit) {
 	BottomAppBar(
 		containerColor = MaterialTheme.colorScheme.surfaceVariant,
 		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 	) {
-		IconButton(onClick = { /* TODO */ }) {
+		IconButton(onClick = { onActionClick(DetailsAction.ToggleList) }) {
 			Icon(
 				painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_list),
 				contentDescription = "List View"
 			)
 		}
-		IconButton(onClick = { /* TODO */ }) {
+		IconButton(onClick = { onActionClick(DetailsAction.ToggleGrid) }) {
 			Icon(
 				painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_grid),
 				contentDescription = "Grid View"
 			)
 		}
-		IconButton(onClick = { /* TODO */ }) {
+		IconButton(onClick = { onActionClick(DetailsAction.ToggleBookmarkView) }) {
 			Icon(
 				painter = androidx.compose.ui.res.painterResource(org.skepsun.kototoro.R.drawable.ic_bookmark),
 				contentDescription = "Bookmarks"
@@ -215,7 +196,7 @@ private fun DetailsBottomBar() {
 		}
 		Spacer(modifier = Modifier.weight(1f))
 		Button(
-			onClick = { /* TODO */ },
+			onClick = { onActionClick(DetailsAction.Resume) },
 			modifier = Modifier.height(48.dp),
 			shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
 		) {
@@ -232,4 +213,11 @@ private fun DetailsBottomBar() {
 sealed interface DetailsAction {
 	data class OpenSource(val source: org.skepsun.kototoro.parsers.model.ContentSource) : DetailsAction
 	data class TagClick(val tag: org.skepsun.kototoro.parsers.model.ContentTag) : DetailsAction
+	data object Share : DetailsAction
+	data object Download : DetailsAction
+	data object More : DetailsAction
+	data object Resume : DetailsAction
+	data object ToggleList : DetailsAction
+	data object ToggleGrid : DetailsAction
+	data object ToggleBookmarkView : DetailsAction
 }

@@ -38,6 +38,8 @@ fun KototoroBottomNav(
     val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
     val blurMode by appSettings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }
     val isLabelsVisible by appSettings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }
+    val navHeight by appSettings.observeAsState(AppSettings.KEY_NAV_HEIGHT) { navHeight }
+    val navFloatingHeight by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING_HEIGHT) { navFloatingHeight }
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
 
@@ -60,6 +62,10 @@ fun KototoroBottomNav(
         .padding(horizontal = horizontalPadding, vertical = verticalPadding)
         .navigationBarsPadding()
 
+    val currentExplicitHeight by androidx.compose.animation.core.animateDpAsState(
+        if (isFloating) navFloatingHeight.dp else navHeight.dp
+    )
+
     Surface(
         modifier = navBarModifier,
         color = bgColor,
@@ -70,7 +76,7 @@ fun KototoroBottomNav(
         NavigationBar(
             containerColor = Color.Transparent,
             tonalElevation = 0.dp,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(currentExplicitHeight),
             windowInsets = WindowInsets(0)
         ) {
             activeItems.forEach { item ->

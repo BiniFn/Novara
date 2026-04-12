@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
+import androidx.compose.runtime.collectAsState
 import coil3.ImageLoader
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
@@ -28,6 +30,8 @@ import kotlinx.coroutines.flow.drop
 
 @AndroidEntryPoint
 class FeedFragment : BaseFragment<FragmentContentListBinding>() {
+	private val mainViewModel: org.skepsun.kototoro.main.ui.MainViewModel by activityViewModels()
+
 
 	@Inject
 	lateinit var coil: ImageLoader
@@ -82,13 +86,8 @@ class FeedFragment : BaseFragment<FragmentContentListBinding>() {
 		// Used to control refresh state, now mapped into Compose
 	}
 
-	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val barsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-		viewBinding?.composeView?.updatePadding(
-			left = barsInsets.left,
-			right = barsInsets.right,
-			bottom = barsInsets.bottom,
-		)
+	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		requireViewBinding().root.clipToPadding = false
 		return insets
 	}
 }

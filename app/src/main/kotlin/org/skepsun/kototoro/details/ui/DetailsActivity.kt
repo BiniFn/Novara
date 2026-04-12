@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
@@ -31,6 +32,8 @@ import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.parsers.model.ContentRating
 import javax.inject.Inject
 import androidx.compose.ui.geometry.Rect
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import org.skepsun.kototoro.core.ui.sheet.BottomSheetCollapseCallback
 
 @AndroidEntryPoint
 class DetailsActivity :
@@ -50,7 +53,7 @@ class DetailsActivity :
 	private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
 
 	override val bottomSheet: View?
-		get() = null
+		get() = viewBinding.containerBottomSheet
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -87,6 +90,11 @@ class DetailsActivity :
 		
 		setContentView(ActivityDetailsBinding.inflate(layoutInflater))
 
+		viewBinding.containerBottomSheet?.let { sheet ->
+			onBackPressedDispatcher.addCallback(BottomSheetCollapseCallback(sheet))
+			// BottomSheetBehavior.from(sheet) can be used to add callbacks etc if needed later!
+		}
+
 		if (settings.isSharedElementTransitionsEnabled) {
 			val manga = viewModel.getContentOrNull()
 			if (manga != null) {
@@ -111,7 +119,50 @@ class DetailsActivity :
 						syncCoverBounds(rect)
 					},
 					onActionClick = { action ->
-						// TODO: Handle routing!
+                        when (action) {
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.Resume -> {
+                                val content = viewModel.mangaDetails.value?.toContent()
+                                if (content != null) {
+                                    val intent = org.skepsun.kototoro.core.nav.ReaderIntent.Builder(this@DetailsActivity)
+                                        .manga(content)
+                                        .build()
+                                    this@DetailsActivity.router.openReader(intent)
+                                }
+                            }
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.Download -> {
+                                // TODO: Map to actual download logic
+                            }
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.Share -> {
+                                // TODO: Map to actual share logic
+                            }
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.OpenSource -> {
+                                // TODO: Handle source routing
+                            }
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.ToggleList -> {
+                                viewBinding.containerBottomSheet?.let { sheet ->
+                                    val behavior = BottomSheetBehavior.from(sheet)
+                                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                                    val fragment = supportFragmentManager.findFragmentById(R.id.container_bottom_sheet) as? org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
+                                    fragment?.selectTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
+                                } ?: run {
+                                    this@DetailsActivity.router.showChapterPagesSheet(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
+                                }
+                            }
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.ToggleGrid -> {
+                                viewBinding.containerBottomSheet?.let { sheet ->
+                                    val behavior = BottomSheetBehavior.from(sheet)
+                                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                                    val fragment = supportFragmentManager.findFragmentById(R.id.container_bottom_sheet) as? org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
+                                    fragment?.selectTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
+                                } ?: run {
+                                    this@DetailsActivity.router.showChapterPagesSheet(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
+                                }
+                            }
+                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.ToggleBookmarkView -> {
+                                this@DetailsActivity.router.showChapterPagesSheet(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_BOOKMARKS)
+                            }
+                            else -> {}
+                        }
 					}
 				)
 			}

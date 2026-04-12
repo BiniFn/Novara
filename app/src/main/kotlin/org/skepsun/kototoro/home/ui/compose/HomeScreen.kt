@@ -31,10 +31,12 @@ import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.home.ui.HomeSourceOrigin
 import org.skepsun.kototoro.home.ui.HomeSummaryState
+import androidx.compose.foundation.layout.PaddingValues
 import org.skepsun.kototoro.parsers.model.Content
 
 @Composable
 fun HomeScreen(
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     state: HomeSummaryState,
     appSettings: AppSettings,
     onContentClick: (Content) -> Unit,
@@ -66,7 +68,12 @@ fun HomeScreen(
             .fillMaxSize()
             .nestedScroll(rememberNestedScrollInteropConnection())
             .verticalScroll(scrollState)
-            .padding(horizontal = 2.dp, vertical = 4.dp)
+            .padding(
+                start = WindowInsets.systemBars.asPaddingValues().calculateLeftPadding(androidx.compose.ui.platform.LocalLayoutDirection.current) + 2.dp,
+                end = WindowInsets.systemBars.asPaddingValues().calculateRightPadding(androidx.compose.ui.platform.LocalLayoutDirection.current) + 2.dp,
+                top = contentPadding.calculateTopPadding(),
+                bottom = contentPadding.calculateBottomPadding()
+            )
     ) {
         // Since we migrated from GridLayout, we can just use columns and rows
         
@@ -78,43 +85,43 @@ fun HomeScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isListMode) {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        SectionHeader(
-                            title = stringResource(R.string.recent_history),
-                            count = state.recentHistoryCount,
-                            onMoreClick = onViewAllRecentClick
-                        )
-                        ContentLazyRow(
-                            items = state.recentHistoryItems.map { it.content },
-                            appSettings = appSettings,
-                            onContentClick = onContentClick
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        SectionHeader(
-                            title = stringResource(R.string.home_recent_updates),
-                            count = state.unreadUpdatesCount,
-                            onMoreClick = onViewAllUpdatesClick
-                        )
-                        ContentLazyRow(
-                            items = state.recentUpdates.map { it.content },
-                            appSettings = appSettings,
-                            onContentClick = onContentClick
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        SectionHeader(
-                            title = stringResource(R.string.suggestions),
-                            count = state.recommendationsCount,
-                            onMoreClick = onViewAllRecommendationsClick
-                        )
-                        ContentLazyRow(
-                            items = state.recommendations.map { it.content },
-                            appSettings = appSettings,
-                            onContentClick = onContentClick
-                        )
-                    }
+                Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                    SectionHeader(
+                        title = stringResource(R.string.recent_history),
+                        count = state.recentHistoryCount,
+                        onMoreClick = onViewAllRecentClick
+                    )
+                    ContentColumn(
+                        items = state.recentHistoryItems.map { it.content },
+                        appSettings = appSettings,
+                        onContentClick = onContentClick
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    SectionHeader(
+                        title = stringResource(R.string.home_recent_updates),
+                        count = state.unreadUpdatesCount,
+                        onMoreClick = onViewAllUpdatesClick
+                    )
+                    ContentColumn(
+                        items = state.recentUpdates.map { it.content },
+                        appSettings = appSettings,
+                        onContentClick = onContentClick
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    SectionHeader(
+                        title = stringResource(R.string.suggestions),
+                        count = state.recommendationsCount,
+                        onMoreClick = onViewAllRecommendationsClick
+                    )
+                    ContentColumn(
+                        items = state.recommendations.map { it.content },
+                        appSettings = appSettings,
+                        onContentClick = onContentClick
+                    )
                 }
             } else {
                 Column(modifier = Modifier.padding(vertical = 16.dp)) {
@@ -344,8 +351,7 @@ fun HomeScreen(
             }
         }
         
-        Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.systemBars))
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding()))
     }
 }
 
@@ -430,6 +436,85 @@ private fun ContentLazyRow(
                 showSourceInfo = showSourceInfo,
                 onClick = { onContentClick(content) }
             )
+        }
+    }
+}
+
+@Composable
+private fun ContentColumn(
+    items: List<Content>,
+    appSettings: AppSettings,
+    onContentClick: (Content) -> Unit
+) {
+    val showSourceInfo = remember { appSettings.isShowSourceOnCards }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items.forEach { content ->
+            ContentListItem(
+                content = content,
+                showSourceInfo = showSourceInfo,
+                onClick = { onContentClick(content) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContentListItem(
+    content: Content,
+    showSourceInfo: Boolean,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val imageRequest = remember(content.coverUrl) {
+        ImageRequest.Builder(context)
+            .data(content.coverUrl)
+            .crossfade(true)
+            .apply { mangaExtra(content) }
+            .build()
+    }
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = imageRequest,
+            contentDescription = content.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .width(56.dp)
+                .height(80.dp)
+                .clip(RoundedCornerShape(8.dp))
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = content.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (showSourceInfo) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = content.source.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
