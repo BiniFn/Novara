@@ -63,9 +63,12 @@ class IReaderMangaRepository(
                 }
                 
                 if (titleFilterIndex != -1) {
-                    filters[titleFilterIndex] = ireader.core.source.model.Filter.Title(query)
+                    val filter = filters[titleFilterIndex] as ireader.core.source.model.Filter.Title
+                    filter.value = query
                 } else {
-                    filters.add(0, ireader.core.source.model.Filter.Title(query))
+                    val newFilter = ireader.core.source.model.Filter.Title()
+                    newFilter.value = query
+                    filters.add(0, newFilter)
                 }
                 
                 catalog.getMangaList(
