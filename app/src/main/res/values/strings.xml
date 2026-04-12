@@ -1036,6 +1036,8 @@
     <string name="reader_translation_api_provider_openrouter">OpenRouter OpenAI compat (openai/gpt-4o-mini)</string>
     <string name="reader_translation_api_model">Online translation model</string>
     <string name="reader_translation_api_model_summary">Model name for OpenAI-compatible chat/completions, e.g. gpt-4o-mini</string>
+    <string name="reader_translation_api_custom_headers">Custom Headers (JSON)</string>
+    <string name="reader_translation_api_custom_headers_summary">Add custom HTTP headers in JSON format (e.g. {\"Model\": \"gpt-4\"})</string>
     <string name="reader_translation_api_models_fetch">Fetch available models</string>
     <string name="reader_translation_api_models_fetch_summary">Request /models from current endpoint and pick one model id</string>
     <string name="reader_translation_api_models_pick_title">Pick a model</string>

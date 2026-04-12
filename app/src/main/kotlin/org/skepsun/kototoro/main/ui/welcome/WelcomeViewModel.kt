@@ -82,7 +82,7 @@ class WelcomeViewModel @Inject constructor(
 	fun refreshState() {
 		updateJob?.cancel()
 		updateJob = launchJob(Dispatchers.Default) {
-			val allSourcesSnapshot = repository.allContentSources
+			val allSourcesSnapshot = repository.queryAllSources()
 			val localesGroupsSnapshot = allSourcesSnapshot.groupBy { it.getLocale() ?: Locale.ROOT }
 
 			// Map adult content types to their base types for display
@@ -245,9 +245,22 @@ class WelcomeViewModel @Inject constructor(
 				else -> listOf(type)
 			}
 		}
-		val enabledSources = repository.allContentSources
+		val enabledSources = repository.queryAllSources()
 			.filterTo(HashSet()) { x ->
-				x.getContentType() in expandedTypes && (x.getLocale()?.language ?: "") in languages
+				val localeLang = x.getLocale()?.language ?: ""
+				val mappedLang = if (x is org.skepsun.kototoro.ireader.model.IReaderMangaSource) {
+					org.skepsun.kototoro.core.model.mapIReaderLangToLocale(x.language) ?: x.language.lowercase()
+				} else if (x is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
+					x.language.lowercase()
+				} else {
+					localeLang
+				}
+				val langMatches = if (mappedLang == "all" || mappedLang == "") {
+					"" in languages
+				} else {
+					languages.any { it.isNotEmpty() && (mappedLang == it || mappedLang.startsWith("$it-") || it.startsWith("$mappedLang-")) }
+				}
+				x.getContentType() in expandedTypes && langMatches
 			}
 		repository.setSourcesEnabledExclusive(enabledSources)
 		settings.contentLanguages = languages

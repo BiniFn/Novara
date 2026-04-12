@@ -67,22 +67,12 @@
         app:allowDividerAbove="true" />
 
     <SwitchPreferenceCompat
-        android:defaultValue="true"
-        android:key="enable_kotatsu_sources"
-        android:summary="@string/enable_kotatsu_sources_summary"
-        android:title="@string/enable_kotatsu_sources" />
-
-    <SwitchPreferenceCompat
         android:defaultValue="false"
         android:key="show_broken_sources"
         android:summary="@string/show_broken_sources_summary"
         android:title="@string/show_broken_sources" />
 
-    <SwitchPreferenceCompat
-        android:defaultValue="false"
-        android:key="extensions_filter_lang"
-        android:summary="@string/filter_extensions_by_language_summary"
-        android:title="@string/filter_extensions_by_language" />
+
 
     <PreferenceCategory android:title="@string/adult_content_filtering">
 

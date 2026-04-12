@@ -707,17 +707,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_SOURCES_ENABLED_ALL, false)
 		set(value) = prefs.edit { putBoolean(KEY_SOURCES_ENABLED_ALL, value) }
 
-	var isExtensionsFilterLangEnabled: Boolean
-		get() = prefs.getBoolean(KEY_EXTENSIONS_FILTER_LANG, false)
-		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_FILTER_LANG, value) }
+
 
 	var isExtensionsGridMode: Boolean
 		get() = prefs.getBoolean(KEY_EXTENSIONS_GRID, false)
 		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_GRID, value) }
-
-	var isKotatsuSourcesEnabled: Boolean
-		get() = prefs.getBoolean(KEY_ENABLE_KOTATSU_SOURCES, true)
-		set(value) = prefs.edit { putBoolean(KEY_ENABLE_KOTATSU_SOURCES, value) }
 
 	var isShowBrokenSources: Boolean
 		get() = prefs.getBoolean(KEY_SHOW_BROKEN_SOURCES, false)
@@ -770,6 +764,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationApiProviderPreset: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM") ?: "CUSTOM"
 
+	val readerTranslationApiCustomHeaders: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_API_CUSTOM_HEADERS, "") ?: ""
+
 	val readerE2eApiEndpoint: String
 		get() = prefs.getString(KEY_READER_E2E_API_ENDPOINT, "") ?: ""
 
@@ -781,6 +778,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerE2eApiProviderPreset: String
 		get() = prefs.getString(KEY_READER_E2E_API_PROVIDER_PRESET, "GEMINI") ?: "GEMINI"
+
+	val readerE2eApiCustomHeaders: String
+		get() = prefs.getString(KEY_READER_E2E_API_CUSTOM_HEADERS, "") ?: ""
 
 	val readerE2eApiConcurrency: Int
 		get() = prefs.getString(KEY_READER_E2E_API_CONCURRENCY, "3")?.toIntOrNull() ?: 3
@@ -1506,12 +1506,14 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_API_KEY = "reader_translation_api_key"
 		const val KEY_READER_TRANSLATION_API_MODEL = "reader_translation_api_model"
 		const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
+		const val KEY_READER_TRANSLATION_API_CUSTOM_HEADERS = "reader_translation_api_custom_headers"
 		const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
 
 		const val KEY_READER_E2E_API_ENDPOINT = "reader_e2e_api_endpoint"
 		const val KEY_READER_E2E_API_KEY = "reader_e2e_api_key"
 		const val KEY_READER_E2E_API_MODEL = "reader_e2e_api_model"
 		const val KEY_READER_E2E_API_PROVIDER_PRESET = "reader_e2e_api_provider_preset"
+		const val KEY_READER_E2E_API_CUSTOM_HEADERS = "reader_e2e_api_custom_headers"
 		const val KEY_READER_E2E_API_FETCH_MODELS = "reader_e2e_api_fetch_models"
 		const val KEY_READER_E2E_API_CONCURRENCY = "reader_e2e_api_concurrency"
 		const val KEY_READER_TRANSLATION_OCR_PIPELINE_STRATEGY = "reader_translation_ocr_pipeline_strategy"
@@ -1707,9 +1709,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SEARCH_SUGGESTION_TYPES = "search_suggest_types"
 		const val KEY_SOURCES_VERSION = "sources_version"
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
-		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
 		const val KEY_EXTENSIONS_GRID = "extensions_grid"
-		const val KEY_ENABLE_KOTATSU_SOURCES = "enable_kotatsu_sources"
 		const val KEY_SHOW_BROKEN_SOURCES = "show_broken_sources"
 		const val KEY_EXTENSIONS = "extensions"
 		const val KEY_JSON_SOURCES = "json_sources"

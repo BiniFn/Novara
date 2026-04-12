@@ -135,6 +135,18 @@ internal class GeminiEndToEndTranslator(
 				if (isOpenAiFormat) {
 					header("Authorization", "Bearer $apiKey")
 				}
+				val customHeaders = settings.readerE2eApiCustomHeaders.trim()
+				if (customHeaders.isNotBlank() && customHeaders.startsWith("{")) {
+					runCatching {
+						val json = JSONObject(customHeaders)
+						for (key in json.keys()) {
+							val value = json.optString(key)
+							if (value.isNotBlank()) {
+								header(key, value)
+							}
+						}
+					}
+				}
 			}
 			.build()
 

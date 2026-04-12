@@ -13,6 +13,7 @@ import kotlinx.coroutines.runInterruptible
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -266,11 +267,26 @@ class LocalMangaRepository @Inject constructor(
 	override suspend fun getRelated(seed: Content): List<Content> = emptyList()
 
 	suspend fun getOutputDir(manga: Content, fallback: File?): File? {
-		val defaultDir = fallback?.takeIfWriteable() ?: storageManager.getDefaultWriteableDir()
+		val isVideo = manga.source?.getContentType() == ContentType.VIDEO
+		val isNovel = manga.source?.getContentType() == ContentType.NOVEL
+
+		val defaultDir = fallback?.takeIfWriteable() ?: when {
+			isVideo -> storageManager.getVideoRoot()?.takeIfWriteable()
+			isNovel -> storageManager.getDefaultNovelWriteableDir()
+			else -> storageManager.getDefaultWriteableDir()
+		}
+		
 		if (defaultDir != null && LocalContentOutput.get(defaultDir, manga) != null) {
 			return defaultDir
 		}
-		return storageManager.getWriteableDirs()
+		
+		val writeableDirs = when {
+			isVideo -> storageManager.getVideoWriteableDirs()
+			isNovel -> storageManager.getNovelWriteableDirs()
+			else -> storageManager.getWriteableDirs()
+		}
+		
+		return writeableDirs
 			.firstOrNull {
 				LocalContentOutput.get(it, manga) != null
 			} ?: defaultDir

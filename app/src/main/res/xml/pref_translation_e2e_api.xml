@@ -44,6 +44,14 @@
         app:useSimpleSummaryProvider="true" />
 
     <EditTextPreference
+        android:defaultValue=""
+        android:key="reader_e2e_api_custom_headers"
+        android:singleLine="true"
+        android:summary="@string/reader_translation_api_custom_headers_summary"
+        android:title="@string/reader_translation_api_custom_headers"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
         android:defaultValue="3"
         android:inputType="number"
         android:key="reader_e2e_api_concurrency"

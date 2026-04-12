@@ -263,6 +263,7 @@ internal class ReaderTranslationCoordinator(
 				requestBuilder.header("Authorization", "Bearer $apiKey")
 				requestBuilder.header("X-API-Key", apiKey)
 			}
+			applyCustomHeaders(requestBuilder)
 			val response = okHttpClient.newCall(requestBuilder.build()).await()
 			response.use { resp ->
 				val rawBody = resp.body.readJsonTextUtf8()
@@ -327,6 +328,7 @@ internal class ReaderTranslationCoordinator(
 				requestBuilder.header("Authorization", "Bearer $apiKey")
 				requestBuilder.header("X-API-Key", apiKey)
 			}
+			applyCustomHeaders(requestBuilder)
 			val response = okHttpClient.newCall(requestBuilder.build()).await()
 			response.use { resp ->
 				val rawBody = resp.body.readJsonTextUtf8()
@@ -463,6 +465,7 @@ internal class ReaderTranslationCoordinator(
 			requestBuilder.header("Authorization", "Bearer $key")
 			requestBuilder.header("X-API-Key", key)
 		}
+		applyCustomHeaders(requestBuilder)
 		val request = requestBuilder.build()
 		val response = okHttpClient.newCall(request).await()
 		response.use { resp ->
@@ -785,6 +788,20 @@ internal class ReaderTranslationCoordinator(
 				it.isBlank() || it == "..." || it == "…"
 			}
 			.orEmpty()
+	}
+
+	private fun applyCustomHeaders(requestBuilder: Request.Builder) {
+		val customHeaders = settings.readerTranslationApiCustomHeaders.trim()
+		if (customHeaders.isBlank() || !customHeaders.startsWith("{")) return
+		kotlin.runCatching {
+			val json = JSONObject(customHeaders)
+			for (key in json.keys()) {
+				val value = json.optString(key)
+				if (value.isNotBlank()) {
+					requestBuilder.header(key, value)
+				}
+			}
+		}
 	}
 
 	private fun shouldSuppressRenderedBubble(

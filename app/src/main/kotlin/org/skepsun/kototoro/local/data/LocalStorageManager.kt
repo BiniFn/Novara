@@ -131,6 +131,11 @@ class LocalStorageManager @Inject constructor(
 		getFallbackNovelStorageDir()?.takeIfWriteable()
 	}
 
+	suspend fun getVideoWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
+		getAvailableVideoStorageDirs()
+			.filter { it.isWriteable() }
+	}
+
 	suspend fun getApplicationStorageDirs(): Set<File> = runInterruptible(Dispatchers.IO) {
 		getAvailableStorageDirs()
 	}
