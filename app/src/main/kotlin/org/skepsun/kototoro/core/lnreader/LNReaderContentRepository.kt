@@ -51,6 +51,7 @@ class LNReaderContentRepository(
 	override var defaultSortOrder: SortOrder = SortOrder.POPULARITY
 	
 	override val filterCapabilities: ContentListFilterCapabilities = ContentListFilterCapabilities(
+		isSearchSupported = true,
 		isMultipleTagsSupported = true,
 	)
 	
