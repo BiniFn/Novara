@@ -31,7 +31,8 @@ class AlternativesUseCase @Inject constructor(
 		val sources = getSources(manga.source, throughDisabledSources).let { list ->
 			if (pinnedOnly) {
 				val pinned = sourcesRepository.getPinnedSources()
-				list.filter { it in pinned }
+				val pinnedNames = pinned.map { it.name }.toSet()
+				list.filter { it.name in pinnedNames }
 			} else list
 		}
 		if (sources.isEmpty()) {

@@ -47,14 +47,13 @@ class AppUpdateViewModel @Inject constructor(
 	fun startDownload() {
 		launchLoadingJob(Dispatchers.Default) {
 			val version = nextVersion.requireValue()
-			val isPatch = version.patchUrl != null
-			val url = (version.patchUrl ?: version.apkUrl).toUri()
-			val title = if (isPatch) "$appName v${version.name} (Delta)" else "$appName v${version.name}"
+			val url = version.apkUrl.toUri()
+			val title = "$appName v${version.name}"
 			val request = DownloadManager.Request(url)
 				.setTitle(title)
 				.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, url.lastPathSegment)
 				.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-				.setMimeType(if (isPatch) "application/octet-stream" else "application/vnd.android.package-archive")
+				.setMimeType("application/vnd.android.package-archive")
 			val downloadId = downloadManager.enqueue(request)
 			observeDownload(downloadId)
 		}
@@ -67,35 +66,8 @@ class AppUpdateViewModel @Inject constructor(
 				return@launchLoadingJob
 			}
 			val uri = downloadManager.getUriForDownloadedFile(downloadId) ?: return@launchLoadingJob
-			val mimeType = downloadManager.getMimeTypeForDownloadedFile(downloadId)
 			
-			val installUri = if (mimeType == "application/octet-stream" || uri.path?.endsWith(".patch") == true) {
-				// Incremental update patch downloaded. We need to merge it with the base APK.
-				val patchFile = java.io.File(context.cacheDir, "update.patch")
-				context.contentResolver.openInputStream(uri)?.use { input ->
-					patchFile.outputStream().use { output ->
-						input.copyTo(output)
-					}
-				}
-				val oldApk = java.io.File(context.applicationInfo.sourceDir)
-				val newApk = java.io.File(context.cacheDir, "update_merged.apk")
-				newApk.delete()
-				
-				updateMessage.value = context.getString(R.string.assembling_apk)
-				org.skepsun.kototoro.core.os.PatchUtils.patch(oldApk, patchFile, newApk)
-				updateMessage.value = null
-				
-				// Optional cleanup of the downloaded patch
-				runCatching { patchFile.delete() }
-				
-				androidx.core.content.FileProvider.getUriForFile(
-					context,
-					"${org.skepsun.kototoro.BuildConfig.APPLICATION_ID}.files",
-					newApk,
-				)
-			} else {
-				uri
-			}
+			val installUri = uri
 
 			@Suppress("DEPRECATION")
 			val installerIntent = Intent(Intent.ACTION_INSTALL_PACKAGE)

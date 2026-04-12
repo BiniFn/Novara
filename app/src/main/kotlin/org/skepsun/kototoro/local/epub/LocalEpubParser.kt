@@ -19,7 +19,7 @@ import java.util.zip.ZipFile
  * 2. 解析EPUB并提取章节
  * 3. 生成Content对象供应用使用
  */
-class LocalEpubParser(private val cbzFile: File) {
+class LocalEpubParser(private val cbzFile: File, private val cache: EpubContentCache = EpubContentCache.getInstance()) {
 
     /**
      * 检查CBZ文件是否包含EPUB
@@ -65,7 +65,7 @@ class LocalEpubParser(private val cbzFile: File) {
             android.util.Log.d("LocalEpubParser", "File exists: ${cbzFile.exists()}, size: ${cbzFile.length()} bytes")
             
             // 使用EpubReader解析EPUB
-            val epubReader = EpubReaderImpl()
+            val epubReader = EpubReaderImpl(cache)
             val epubContent = epubReader.readEpub(cbzFile)
             
             if (epubContent == null) {
@@ -139,7 +139,7 @@ class LocalEpubParser(private val cbzFile: File) {
      */
     suspend fun getChapterContent(chapterIndex: Int): String? = withContext(Dispatchers.IO) {
         try {
-            val epubReader = EpubReaderImpl()
+            val epubReader = EpubReaderImpl(cache)
             val epubContent = epubReader.readEpub(cbzFile) ?: return@withContext null
             
             epubContent.chapters.getOrNull(chapterIndex)?.content

@@ -462,6 +462,13 @@ class ContentSourcesRepository @Inject constructor(
 			result.addAll(filteredIReader)
 		}
 		
+		if (locale != null) {
+			result.retainAll { it.getLocale()?.language == locale }
+		}
+		if (types.isNotEmpty()) {
+			result.retainAll { it.getContentType() in types }
+		}
+		
 		return result
 	}
 	

@@ -67,7 +67,7 @@ class MainNavigationDelegate(
 
 	val primaryFragment: Fragment?
 		get() = fragmentManager.findFragmentByTag(TAG_PRIMARY)
-			?: fragmentManager.fragments.lastOrNull { it.isVisible && it.id == R.id.container }
+			?: fragmentManager.fragments.lastOrNull { !it.isHidden && it.id == R.id.container }
 
 	init {
 		navBar.setOnItemSelectedListener(this)
@@ -119,9 +119,18 @@ class MainNavigationDelegate(
 		observeSettings(lifecycleOwner)
 
 		if (savedInstanceState != null) {
-			// After config change: FragmentManager restores all fragments as visible.
-			// We need to hide all except the currently selected one.
-			val selectedItemId = navBar.selectedItemId
+			// FragmentManager restores fragments with their hidden state preserved.
+			// The bottom nav might lose its selectedItemId if the menu was created dynamically.
+			val restoredActiveFrag = fragmentManager.fragments.lastOrNull { 
+				it.id == R.id.container && !it.isHidden 
+			}
+			val selectedItemId = restoredActiveFrag?.let { getItemId(it) } ?: navBar.selectedItemId
+			if (navBar.selectedItemId != selectedItemId) {
+				navBar.setOnItemSelectedListener(null)
+				navBar.selectedItemId = selectedItemId
+				navBar.setOnItemSelectedListener(this)
+			}
+			
 			val selectedFragClass = itemIdToFragmentClass(selectedItemId)
 			val selectedTag = selectedFragClass?.name
 			val transaction = fragmentManager.beginTransaction()

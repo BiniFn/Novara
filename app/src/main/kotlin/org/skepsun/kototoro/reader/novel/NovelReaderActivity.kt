@@ -1404,16 +1404,7 @@ class NovelReaderActivity :
                 // 新架构：使用EpubInternalChapterLoader
                 android.util.Log.d("NovelReaderActivity", "Using EpubInternalChapterLoader for new architecture")
                 
-                val epubFileManager = org.skepsun.kototoro.local.epub.EpubFileManagerImpl()
-                val database = org.skepsun.kototoro.core.db.MangaDatabase(this)
-                val epubChapterMappingDao = database.getEpubChapterMappingDao()
-                val epubInternalChapterLoader = org.skepsun.kototoro.reader.novel.EpubInternalChapterLoader(
-                    context = this,
-                    epubFileManager = epubFileManager,
-                    epubChapterMappingDao = epubChapterMappingDao
-                )
-                
-                    val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
+                val result = this.epubInternalChapterLoader.loadEpubInternalChapter(chapter)
                     
                     if (result.isSuccess) {
                         val loadResult = result.getOrNull()

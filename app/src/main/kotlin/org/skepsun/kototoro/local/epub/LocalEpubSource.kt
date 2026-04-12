@@ -28,6 +28,7 @@ class LocalEpubSource @Inject constructor(
     @ApplicationContext private val context: Context,
     private val epubStorageManager: EpubStorageManager,
     private val mangaDatabase: org.skepsun.kototoro.core.db.MangaDatabase,
+    private val epubContentCache: EpubContentCache,
 ) : ContentSource {
 
     override val name: String = "Local EPUB"
@@ -68,7 +69,7 @@ class LocalEpubSource @Inject constructor(
             val epubFile = epubFiles.first()
             android.util.Log.d("LocalEpubSource", "No mappings found, parsing EPUB file: ${epubFile.name}")
             
-            val parser = LocalEpubParser(epubFile)
+            val parser = LocalEpubParser(epubFile, epubContentCache)
             val epubContent = parser.parseContent()
                 ?: throw IllegalStateException("Failed to parse EPUB file: ${epubFile.absolutePath}")
             
@@ -134,7 +135,7 @@ class LocalEpubSource @Inject constructor(
         android.util.Log.d("LocalEpubSource", "Loading EPUB from: ${epubFile.absolutePath} (preserving source)")
         
         // 解析EPUB文件
-        val parser = LocalEpubParser(epubFile)
+        val parser = LocalEpubParser(epubFile, epubContentCache)
         val epubContent = parser.parseContent()
             ?: throw IllegalStateException("Failed to parse EPUB file: ${epubFile.absolutePath}")
         

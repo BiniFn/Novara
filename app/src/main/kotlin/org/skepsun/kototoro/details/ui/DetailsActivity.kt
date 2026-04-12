@@ -199,6 +199,8 @@ class DetailsActivity :
 			if (manga != null) {
 				androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
 				supportPostponeEnterTransition()
+				// Fallback to prevent indefinite hang on broken content or failed image loads
+				window.decorView.postDelayed({ supportStartPostponedEnterTransition() }, 350)
 			}
 		}
 

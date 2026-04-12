@@ -34,6 +34,7 @@ class NovelContentLoader @Inject constructor(
     @NovelCache private val cache: LocalStorageCache,
     private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
     private val mangaDatabase: MangaDatabase,
+    private val epubContentCache: org.skepsun.kototoro.local.epub.EpubContentCache,
 ) {
 
     /**
@@ -75,7 +76,7 @@ class NovelContentLoader @Inject constructor(
             if (chapter.url.startsWith("localepub://")) {
                 val filePath = chapter.url.substringAfter("localepub://").substringBefore("#")
                 val chapterIndex = chapter.url.substringAfter("#chapter/").toIntOrNull() ?: 0
-                val epubParser = org.skepsun.kototoro.local.epub.LocalEpubParser(java.io.File(filePath))
+                val epubParser = org.skepsun.kototoro.local.epub.LocalEpubParser(java.io.File(filePath), epubContentCache)
                 val rawContent = epubParser.getChapterContent(chapterIndex) ?: "加载本地小说失败: 内容为空"
                 send(htmlToPlainText(rawContent))
                 return@withContext
@@ -213,7 +214,7 @@ class NovelContentLoader @Inject constructor(
             android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Loading Local EPUB chapter: ${chapter.url}")
             val filePath = chapter.url.substringAfter("localepub://").substringBefore("#")
             val chapterIndex = chapter.url.substringAfter("#chapter/").toIntOrNull() ?: 0
-            val epubParser = org.skepsun.kototoro.local.epub.LocalEpubParser(java.io.File(filePath))
+            val epubParser = org.skepsun.kototoro.local.epub.LocalEpubParser(java.io.File(filePath), epubContentCache)
             val rawContent = epubParser.getChapterContent(chapterIndex) ?: "加载本地小说失败: 内容为空"
             return htmlToPlainText(rawContent)
         }
@@ -592,7 +593,7 @@ class NovelContentLoader @Inject constructor(
             }
             
             // Load chapter content using EpubReaderImpl
-            val reader = org.skepsun.kototoro.local.epub.EpubReaderImpl()
+            val reader = org.skepsun.kototoro.local.epub.EpubReaderImpl(epubContentCache)
             val epubContent = reader.readEpub(epubFile)
                 ?: throw IllegalStateException("Failed to parse EPUB file")
             
