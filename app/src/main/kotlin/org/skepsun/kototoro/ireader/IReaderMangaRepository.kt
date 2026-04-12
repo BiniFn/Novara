@@ -35,7 +35,7 @@ class IReaderMangaRepository(
 
     override val filterCapabilities: ContentListFilterCapabilities
         get() = ContentListFilterCapabilities(
-            isSearchSupported = catalogSource?.supportsSearch() ?: false,
+            isSearchSupported = catalogSource != null,
             isMultipleTagsSupported = false,
             isSearchWithFiltersSupported = false,
         )
