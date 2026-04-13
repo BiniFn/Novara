@@ -114,9 +114,9 @@ class AppearanceSettingsFragment :
         findPreference<ListPreference>(AppSettings.KEY_HIDDEN_CONTENT_TYPE)?.apply {
             val tabs = BrowseGroupTab.getAllTabs()
             entries = tabs.map { context.getString(it.titleRes) }.toTypedArray()
-            entryValues = tabs.map { it.name }.toTypedArray()
+            entryValues = tabs.map { it.id }.toTypedArray()
             if (value == null && tabs.isNotEmpty()) {
-                value = tabs[0].name
+                value = tabs[0].id
             }
         }
         

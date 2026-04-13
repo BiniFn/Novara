@@ -13,7 +13,7 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
-import org.skepsun.kototoro.parsers.model.MangaParserSource
+import org.skepsun.kototoro.core.model.getLocale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,7 +30,7 @@ class SourcePresetEditViewModel @Inject constructor(
 	val preset = MutableStateFlow<SourcePreset?>(null)
 
 	val allLocales: Set<String> = sourcesRepository.allContentSources
-		.mapNotNullTo(LinkedHashSet()) { org.skepsun.kototoro.core.model.getLocale(it)?.language.takeIf { l -> !l.isNullOrEmpty() } }
+		.mapNotNullTo(LinkedHashSet()) { it.getLocale()?.language?.takeIf { l -> l.isNotEmpty() } }
 
 	init {
 		launchLoadingJob(Dispatchers.Default) {
@@ -59,7 +59,7 @@ class SourcePresetEditViewModel @Inject constructor(
 		if (languages.isEmpty()) return emptySet()
 		val skipNsfw = settings.isNsfwContentDisabled
 		return sourcesRepository.allContentSources
-			.filter { org.skepsun.kototoro.core.model.getLocale(it)?.language in languages && (!skipNsfw || !it.isNsfw()) }
+			.filter { it.getLocale()?.language in languages && (!skipNsfw || !it.isNsfw()) }
 			.mapTo(HashSet()) { it.name }
 	}
 

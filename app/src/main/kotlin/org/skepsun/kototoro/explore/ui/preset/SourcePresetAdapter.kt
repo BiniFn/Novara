@@ -52,7 +52,7 @@ class SourcePresetAdapter(
 			val context = binding.root.context
 			val langNames = item.languages.map { it.toLocale().getDisplayName(context) }
 			val count = sourceCounter(item)
-			val countText = context.resources.getQuantityString(R.plurals.sources_count, count, count)
+			val countText = context.resources.getQuantityString(R.plurals.source_count, count, count)
 			val subtitle = if (langNames.isNotEmpty()) {
 				"${langNames.joinToString()} — $countText"
 			} else {

@@ -17,6 +17,9 @@ import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.ui.widgets.SwipeFilterPillView
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -212,30 +215,27 @@ class SearchBarFilterViewController(
 		val popup = PopupMenu(anchor.context, anchor, android.view.Gravity.END)
 		
 		val context = anchor.context.applicationContext
-		val appSettings = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(context).settings
-		val db = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(context).db
-		val presetDao = db.getSourcePresetsDao()
+		val baseAppEntryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.BaseApp.BaseAppEntryPoint>(context)
+		val appSettings = baseAppEntryPoint.settings()
+		val presetDao = baseAppEntryPoint.database().get().getSourcePresetsDao()
 		
 		// Use coroutine to load presets and show popup
-		org.skepsun.kototoro.core.util.ext.processLifecycleScope.kotlinx.coroutines.launch {
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(Dispatchers.IO) {
 			val presets = presetDao.findAll()
-			org.skepsun.kototoro.core.util.ext.runOnMainThread {
+			withContext(Dispatchers.Main) {
 				// Manage presets option
-				popup.menu.add(0, -2, 0, R.string.manage_preset_sources).apply {
-					setIcon(R.drawable.ic_settings)
-				}
+				val manageItem = popup.menu.add(0, -2, 0, R.string.manage_preset_sources)
+				manageItem.setIcon(R.drawable.ic_settings)
 				
 				// All / Default option
-				popup.menu.add(0, -1, 1, R.string.all).apply {
-					isCheckable = true
-					isChecked = appSettings.activeSourcePresetId == -1L
-				}
+				val allItem = popup.menu.add(0, -1, 1, R.string.all)
+				allItem.isCheckable = true
+				allItem.isChecked = appSettings.activeSourcePresetId == -1L
 
 				presets.forEachIndexed { index, preset ->
-					popup.menu.add(0, index, index + 2, preset.title).apply {
-						isCheckable = true
-						isChecked = appSettings.activeSourcePresetId == preset.presetId
-					}
+					val presetItem = popup.menu.add(0, index, index + 2, preset.title)
+					presetItem.isCheckable = true
+					presetItem.isChecked = appSettings.activeSourcePresetId == preset.presetId
 				}
 
 				// Force icons
