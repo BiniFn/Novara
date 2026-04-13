@@ -38,7 +38,7 @@ import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.ui.list.PaginationScrollListener
 import org.skepsun.kototoro.core.util.ext.observe
@@ -176,7 +176,7 @@ class DiscoverFragment :
 
 		// Add the service menu provider to the SearchBar
 		
-		addMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
+		addSupportMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
 
 		settings.subscribe(this)
 	}

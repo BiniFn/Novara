@@ -20,7 +20,7 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.util.ShareHelper
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.databinding.FragmentListBinding
@@ -64,8 +64,8 @@ class LocalListFragment : ContentListFragment(), FilterCoordinator.Owner {
 
 	override fun onViewBindingCreated(binding: FragmentListBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		addMenuProvider(LocalListMenuProvider(this, this::onEmptyActionClick))
-		addMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
+		addSupportMenuProvider(LocalListMenuProvider(this, this::onEmptyActionClick))
+		addSupportMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
 		viewModel.onContentRemoved.observeEvent(viewLifecycleOwner) { onItemRemoved() }
 	}
 

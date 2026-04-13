@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.text.InputType
@@ -20,7 +21,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.lnreader.LNReaderRepository
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.dialog.setEditText
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
@@ -49,14 +50,14 @@ class LNReaderRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBin
 			swipeRefresh.isEnabled = false // No refresh needed for LNReader repos
 		}
 		observeViewModel(binding)
-		addMenuProvider(RepositoriesMenuProvider())
+		addSupportMenuProvider(RepositoriesMenuProvider())
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle("LNReader Repositories")
+		setSupportTitle("LNReader Repositories")
 	}
 
 	override fun onDestroyView() {

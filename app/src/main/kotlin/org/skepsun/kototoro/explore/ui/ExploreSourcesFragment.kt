@@ -32,7 +32,7 @@ import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.util.SpanSizeResolver
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.findAppCompatDelegate
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
@@ -90,7 +90,7 @@ class ExploreSourcesFragment :
 		}
 		// Setup menu with quick access actions
 		val menuProvider = ExploreMenuProvider(router)
-		addMenuProvider(menuProvider)
+		addSupportMenuProvider(menuProvider)
 		
 		viewModel.content.observe(viewLifecycleOwner, checkNotNull(exploreAdapter))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))

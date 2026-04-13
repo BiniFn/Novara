@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.manage
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -24,7 +25,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
 import org.skepsun.kototoro.core.util.ext.container
 import org.skepsun.kototoro.core.util.ext.end
@@ -112,7 +113,7 @@ class SourcesManageFragment :
 			}
 		}
 
-		addMenuProvider(SourcesMenuProvider())
+		addSupportMenuProvider(SourcesMenuProvider())
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -130,7 +131,7 @@ class SourcesManageFragment :
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.manage_sources)
+		setSupportTitle(R.string.manage_sources)
 	}
 
 	override fun onDestroyView() {

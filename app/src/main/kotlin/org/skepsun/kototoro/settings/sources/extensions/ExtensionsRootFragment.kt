@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.extensions
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -40,7 +41,7 @@ class ExtensionsRootFragment : BaseFragment<FragmentExtensionsRootBinding>() {
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.extensions)
+		setSupportTitle(R.string.extensions)
 	}
 }
 

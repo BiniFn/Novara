@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.about.changelog
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -51,7 +52,7 @@ class ChangelogFragment : BaseFragment<FragmentChangelogBinding>() {
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.changelog)
+		setSupportTitle(R.string.changelog)
 	}
 
 	override fun onApplyWindowInsets(

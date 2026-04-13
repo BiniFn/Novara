@@ -47,7 +47,7 @@ import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.util.ShareHelper
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.findAppCompatDelegate
 import org.skepsun.kototoro.core.util.ext.observe
@@ -152,7 +152,7 @@ abstract class ContentListFragment :
 			clipChildren = false
 			clipToPadding = false
 		}
-		addMenuProvider(ContentListMenuProvider(this))
+		addSupportMenuProvider(ContentListMenuProvider(this))
 
 		viewModel.listMode.observe(viewLifecycleOwner, ::onListModeChanged)
 		viewModel.gridScale.observe(viewLifecycleOwner, ::onGridScaleChanged)

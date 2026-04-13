@@ -24,7 +24,7 @@ import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.widgets.TipView
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentListBinding
@@ -102,7 +102,7 @@ class FeedFragment :
 			RecyclerScrollKeeper(this).attach()
 		}
 		binding.swipeRefreshLayout.setOnRefreshListener(this)
-		addMenuProvider(FeedMenuProvider(binding.recyclerView, viewModel))
+		addSupportMenuProvider(FeedMenuProvider(binding.recyclerView, viewModel))
 
 		viewModel.isHeaderEnabled.drop(1).observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
 		viewModel.content.observe(viewLifecycleOwner, feedAdapter)

@@ -15,7 +15,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.google.android.material.color.MaterialColors
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.ui.widgets.SwipeFilterPillView
@@ -51,7 +51,7 @@ class SearchBarFilterViewController(
 	private var customView: View? = null
 
 	fun attachTo(fragment: Fragment) {
-		fragment.addMenuProvider(this)
+		fragment.addSupportMenuProvider(this)
 	}
 
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {

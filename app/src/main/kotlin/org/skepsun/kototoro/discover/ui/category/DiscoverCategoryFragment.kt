@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.discover.ui.category
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -65,7 +66,7 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 		val categoryId = arguments?.getString(KEY_KIND) ?: return
 		val titleResId = arguments?.getInt(KEY_TITLE) ?: return
 
-		activity?.setTitle(titleResId)
+		setSupportTitle(titleResId)
 
 		spanResolver = GridSpanResolver(binding.root.resources)
 		spanResolver?.setGridSize(settings.gridSize / 100f, binding.recyclerView)

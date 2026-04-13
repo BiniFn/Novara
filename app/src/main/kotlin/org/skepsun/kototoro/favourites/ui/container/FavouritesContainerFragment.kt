@@ -29,7 +29,7 @@ import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.util.ActionModeListener
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.findCurrentPagerFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
@@ -89,7 +89,7 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 		actionModeDelegate.addListener(this)
 		viewModel.categories.observe(viewLifecycleOwner, pagerAdapter)
 		viewModel.isEmpty.observe(viewLifecycleOwner, ::onEmptyStateChanged)
-		addMenuProvider(FavouritesContainerMenuProvider(router, { showImportDialog() }, { showSyncDialog() }))
+		addSupportMenuProvider(FavouritesContainerMenuProvider(router, { showImportDialog() }, { showSyncDialog() }))
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.pager))
 		viewLifecycleOwner.lifecycleScope.launch {
 			viewModel.importMessages.collect { event ->

@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.picker.ui.manga
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.view.View
 import androidx.fragment.app.viewModels
@@ -23,7 +24,7 @@ class ContentPickerFragment : ContentListFragment() {
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.pick_manga_page)
+		setSupportTitle(R.string.pick_manga_page)
 	}
 
 	override fun onItemLongClick(item: ContentListModel, view: View): Boolean = false

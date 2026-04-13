@@ -133,6 +133,7 @@
 	<item
 		android:id="@+id/action_switch_tvbox_repository"
 		android:title="@string/tvbox_repository_switch"
+		android:visible="false"
 		app:showAsAction="never" />
 
 </menu>

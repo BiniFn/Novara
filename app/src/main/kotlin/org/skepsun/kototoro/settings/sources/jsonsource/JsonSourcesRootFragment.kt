@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -39,7 +40,7 @@ class JsonSourcesRootFragment : BaseFragment<FragmentJsonSourcesRootBinding>() {
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.json_sources_directory)
+		setSupportTitle(R.string.json_sources_directory)
 	}
 }
 

@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.nav
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.content.DialogInterface
 import android.os.Bundle
@@ -81,7 +82,7 @@ class NavConfigFragment : BaseFragment<FragmentSettingsSourcesBinding>(), Recycl
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.main_screen_sections)
+		setSupportTitle(R.string.main_screen_sections)
 	}
 
 	override fun onDestroyView() {

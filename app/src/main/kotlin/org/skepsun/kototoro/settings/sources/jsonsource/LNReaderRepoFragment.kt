@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -35,7 +36,7 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuProvider
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.settings.SettingsActivity
 
 @AndroidEntryPoint
@@ -110,12 +111,14 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 			viewModel.loadPlugins()
 		}
 
-		addMenuProvider(LNReaderMenuProvider())
+		addSupportMenuProvider(LNReaderMenuProvider())
 	}
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(R.string.lnreader_plugins)
+		if (parentFragment == null) {
+			setSupportTitle(R.string.lnreader_plugins)
+		}
 	}
 
 	private fun openLanguageFilterDialog() {
