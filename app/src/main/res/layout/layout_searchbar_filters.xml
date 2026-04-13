@@ -7,6 +7,18 @@
     android:clipToPadding="false"
     android:clipChildren="false">
 
+    <!-- Language Preset (Global) -->
+    <ImageView
+        android:id="@+id/filter_language_preset"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/show_language_preset_filter"
+        android:padding="6dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_language" />
+
     <!-- Content Type (All/Manga/Novel/Video) using Swipe Pill -->
     <org.skepsun.kototoro.core.ui.widgets.SwipeFilterPillView
         android:id="@+id/filter_content_type"

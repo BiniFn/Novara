@@ -130,9 +130,33 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isQuickFilterEnabled: Boolean
 		get() = prefs.getBoolean(KEY_QUICK_FILTER, true)
 
-	var isSearchBarFilterHidden: Boolean
-		get() = prefs.getBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, false)
-		set(value) = prefs.edit { putBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, value) }
+	var isShowLanguagePresetFilter: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_LANGUAGE_PRESET_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_LANGUAGE_PRESET_FILTER, value) }
+
+	var hiddenLanguagePreset: String?
+		get() = prefs.getString(KEY_HIDDEN_LANGUAGE_PRESET, null)
+		set(value) = prefs.edit { putString(KEY_HIDDEN_LANGUAGE_PRESET, value) }
+
+	var isShowContentTypeFilter: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_CONTENT_TYPE_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_CONTENT_TYPE_FILTER, value) }
+
+	var hiddenContentType: String?
+		get() = prefs.getString(KEY_HIDDEN_CONTENT_TYPE, null)
+		set(value) = prefs.edit { putString(KEY_HIDDEN_CONTENT_TYPE, value) }
+
+	var isShowSourceTagFilter: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_SOURCE_TAG_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_SOURCE_TAG_FILTER, value) }
+
+	var hiddenSourceTag: String?
+		get() = prefs.getString(KEY_HIDDEN_SOURCE_TAG, null)
+		set(value) = prefs.edit { putString(KEY_HIDDEN_SOURCE_TAG, value) }
+
+	var activeSourcePresetId: Long
+		get() = prefs.getLong(KEY_ACTIVE_SOURCE_PRESET_ID, -1L)
+		set(value) = prefs.edit { putLong(KEY_ACTIVE_SOURCE_PRESET_ID, value) }
 
 	val isDescriptionExpanded: Boolean
 		get() = !prefs.getBoolean(KEY_COLLAPSE_DESCRIPTION, true)
@@ -572,6 +596,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var loadingCircleStyle: LoadingCircleStyle
 		get() = LoadingCircleStyle.fromValue(prefs.getString(KEY_LOADING_CIRCLE_STYLE, LoadingCircleStyle.THICK_STRAIGHT.value))
 		set(value) = prefs.edit { putString(KEY_LOADING_CIRCLE_STYLE, value.value) }
+
+	val popupRadius: Int
+		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull() ?: -1
 
 	enum class BlurMode(val value: String) {
 		STANDARD("standard"),
@@ -1415,7 +1442,13 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	companion object {
 
 
-		const val KEY_SEARCH_BAR_FILTER_HIDDEN = "search_filter_hidden"
+		const val KEY_SHOW_LANGUAGE_PRESET_FILTER = "show_language_preset_filter"
+		const val KEY_HIDDEN_LANGUAGE_PRESET = "hidden_language_preset"
+		const val KEY_SHOW_CONTENT_TYPE_FILTER = "show_content_type_filter"
+		const val KEY_HIDDEN_CONTENT_TYPE = "hidden_content_type"
+		const val KEY_SHOW_SOURCE_TAG_FILTER = "show_source_tag_filter"
+		const val KEY_HIDDEN_SOURCE_TAG = "hidden_source_tag"
+		const val KEY_ACTIVE_SOURCE_PRESET_ID = "active_source_preset_id"
 		const val KEY_SOURCES_GROUPED_BY_LANGUAGE = "sources_grouped_by_language"
 
 		const val TRACK_HISTORY = "history"
@@ -1688,6 +1721,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_NAV_FLOATING_HEIGHT = "nav_floating_height"
 		const val KEY_READER_TOOLBAR_FLOATING = "reader_toolbar_floating"
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
+		const val KEY_POPUP_RADIUS = "popup_radius"
 		const val KEY_BLUR_MODE = "blur_mode"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"

@@ -1878,6 +1878,7 @@
     <string name="pref_reader_toolbar_floating">悬浮阅读器工具栏</string>
     <string name="pref_reader_toolbar_floating_summary">使阅读器底部工具栏悬浮在屏幕边缘上方</string>
     <string name="pref_loading_circle_style">加载圆圈样式</string>
+    <string name="pref_popup_radius">弹出菜单圆角</string>
     <string name="loading_circle_style_thick_straight">粗直线 (MD3 默认)</string>
     <string name="loading_circle_style_thick_wavy">粗波浪 (MD3 Expressive)</string>
     <string name="loading_circle_style_thin_straight">细直线 (系统经典)</string>

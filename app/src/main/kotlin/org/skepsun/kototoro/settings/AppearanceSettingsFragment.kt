@@ -12,6 +12,9 @@ import androidx.preference.ListPreference
 import androidx.preference.MultiSelectListPreference
 import androidx.preference.Preference
 import androidx.preference.TwoStatePreference
+import androidx.preference.SwitchPreferenceCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.os.AppShortcutManager
@@ -21,6 +24,9 @@ import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode
 import org.skepsun.kototoro.core.prefs.ScreenshotsPolicy
 import org.skepsun.kototoro.core.prefs.SearchSuggestionType
 import org.skepsun.kototoro.core.prefs.TriStateOption
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.core.ui.util.ActivityRecreationHandle
 import org.skepsun.kototoro.core.util.LocaleComparator
@@ -49,6 +55,9 @@ class AppearanceSettingsFragment :
 
     @Inject
     lateinit var appShortcutManager: AppShortcutManager
+
+    @Inject
+    lateinit var sourcePresetsRepository: SourcePresetsRepository
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         addPreferencesFromResource(R.xml.pref_appearance)
@@ -97,6 +106,64 @@ class AppearanceSettingsFragment :
             Preference.SummaryProvider<SliderPreference> { "${it.value}dp" }
         findPreference<SliderPreference>(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA)?.summaryProvider = PercentSummaryProvider()
         bindNavSummary()
+        
+        initSearchBarFilters()
+    }
+
+    private fun initSearchBarFilters() {
+        findPreference<ListPreference>(AppSettings.KEY_HIDDEN_CONTENT_TYPE)?.apply {
+            val tabs = BrowseGroupTab.getAllTabs()
+            entries = tabs.map { context.getString(it.titleRes) }.toTypedArray()
+            entryValues = tabs.map { it.name }.toTypedArray()
+            if (value == null && tabs.isNotEmpty()) {
+                value = tabs[0].name
+            }
+        }
+        
+        findPreference<ListPreference>(AppSettings.KEY_HIDDEN_SOURCE_TAG)?.apply {
+            val tags = SourceTag.quickFilterEntries
+            entries = arrayOf(context.getString(R.string.all)) + tags.map { context.getString(it.titleRes) }.toTypedArray()
+            entryValues = arrayOf("all") + tags.map { it.name }.toTypedArray()
+            if (value == null) {
+                value = "all"
+            }
+        }
+        
+        lifecycleScope.launch {
+            val presets = sourcePresetsRepository.getAll()
+            findPreference<ListPreference>(AppSettings.KEY_HIDDEN_LANGUAGE_PRESET)?.apply {
+                entries = arrayOf(context.getString(R.string.all)) + presets.map { it.title }.toTypedArray()
+                entryValues = arrayOf("all") + presets.map { it.id.toString() }.toTypedArray()
+                if (value == null) {
+                    value = "all"
+                }
+            }
+        }
+
+        // Show dialog automatically when switch is toggled off
+        val setupAutoPopup = { switchKey: String, listKey: String ->
+            findPreference<SwitchPreferenceCompat>(switchKey)?.setOnPreferenceChangeListener { _, newValue ->
+                val isChecked = newValue as Boolean
+                if (!isChecked) {
+                    val listPref = findPreference<ListPreference>(listKey)
+                    if (listPref != null && listPref.entries?.isNotEmpty() == true) {
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(listPref.title)
+                            .setSingleChoiceItems(listPref.entries, listPref.findIndexOfValue(listPref.value)) { dialog, which ->
+                                listPref.value = listPref.entryValues[which].toString()
+                                dialog.dismiss()
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                }
+                true
+            }
+        }
+
+        setupAutoPopup(AppSettings.KEY_SHOW_CONTENT_TYPE_FILTER, AppSettings.KEY_HIDDEN_CONTENT_TYPE)
+        setupAutoPopup(AppSettings.KEY_SHOW_SOURCE_TAG_FILTER, AppSettings.KEY_HIDDEN_SOURCE_TAG)
+        setupAutoPopup(AppSettings.KEY_SHOW_LANGUAGE_PRESET_FILTER, AppSettings.KEY_HIDDEN_LANGUAGE_PRESET)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

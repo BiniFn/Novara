@@ -150,6 +150,24 @@
 	<!-- Changes only for night -->
 	<style name="ThemeOverlay.Kototoro.Amoled" parent="" />
 
+	<style name="ThemeOverlay.Kototoro.PopupRadius.12" parent="">
+		<item name="popupMenuBackground">@drawable/bg_popup_12</item>
+		<item name="android:popupBackground">@drawable/bg_popup_12</item>
+	</style>
+	<style name="ThemeOverlay.Kototoro.PopupRadius.16" parent="">
+		<item name="popupMenuBackground">@drawable/bg_popup_16</item>
+		<item name="android:popupBackground">@drawable/bg_popup_16</item>
+	</style>
+	<style name="ThemeOverlay.Kototoro.PopupRadius.20" parent="">
+		<item name="popupMenuBackground">@drawable/bg_popup_20</item>
+		<item name="android:popupBackground">@drawable/bg_popup_20</item>
+	</style>
+	<style name="ThemeOverlay.Kototoro.PopupRadius.24" parent="">
+		<item name="popupMenuBackground">@drawable/bg_popup_24</item>
+		<item name="android:popupBackground">@drawable/bg_popup_24</item>
+	</style>
+
+
 	<!-- App Widgets -->
 
 	<style name="Theme.Kototoro.AppWidgetContainer" parent="@style/Theme.MaterialComponents.Light">

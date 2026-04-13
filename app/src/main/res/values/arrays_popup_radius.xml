@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string-array name="popup_radius">
+		<item>@string/system_default</item>
+		<item>12dp</item>
+		<item>16dp</item>
+		<item>20dp</item>
+		<item>24dp</item>
+	</string-array>
+	<string-array name="values_popup_radius">
+		<item>-1</item>
+		<item>12</item>
+		<item>16</item>
+		<item>20</item>
+		<item>24</item>
+	</string-array>
+</resources>

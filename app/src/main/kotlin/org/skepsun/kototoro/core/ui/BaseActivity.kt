@@ -70,6 +70,12 @@ abstract class BaseActivity<B : ViewBinding> :
 			org.skepsun.kototoro.core.prefs.AppSettings.LoadingCircleStyle.THIN_STRAIGHT -> setTheme(R.style.ThemeOverlay_Kototoro_Loading_ThinStraight)
 			org.skepsun.kototoro.core.prefs.AppSettings.LoadingCircleStyle.THIN_WAVY -> setTheme(R.style.ThemeOverlay_Kototoro_Loading_ThinWavy)
 		}
+		when(settings.popupRadius) {
+			12 -> setTheme(R.style.ThemeOverlay_Kototoro_PopupRadius_12)
+			16 -> setTheme(R.style.ThemeOverlay_Kototoro_PopupRadius_16)
+			20 -> setTheme(R.style.ThemeOverlay_Kototoro_PopupRadius_20)
+			24 -> setTheme(R.style.ThemeOverlay_Kototoro_PopupRadius_24)
+		}
 		putDataToExtras(intent)
 		exceptionResolver = entryPoint.exceptionResolverFactory.create(this)
 		enableEdgeToEdge()

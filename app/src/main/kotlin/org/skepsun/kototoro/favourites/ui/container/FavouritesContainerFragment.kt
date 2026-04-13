@@ -189,9 +189,10 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 
 	override fun getSourceTagEntries(): List<SourceTag> = viewModel.availableSourceTags.value.toList()
 
-	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
+	override fun isLanguagePresetFilterVisible(): Boolean = settings.isShowLanguagePresetFilter
+	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter && true
 
-	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
+	override fun isSourceTagFilterVisible(): Boolean = settings.isShowSourceTagFilter && true
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.selectedSourceTags.value

@@ -2139,6 +2139,7 @@
     <string name="pref_reader_toolbar_floating">Floating bottom toolbar</string>
     <string name="pref_reader_toolbar_floating_summary">Make the reader bottom toolbar float above the screen edge</string>
     <string name="pref_loading_circle_style">Loading circle style</string>
+    <string name="pref_popup_radius">Popup menu corner radius</string>
     <string name="loading_circle_style_thick_straight">Thick Straight</string>
     <string name="loading_circle_style_thick_wavy">Thick Wavy</string>
     <string name="loading_circle_style_thin_straight">Thin Straight</string>

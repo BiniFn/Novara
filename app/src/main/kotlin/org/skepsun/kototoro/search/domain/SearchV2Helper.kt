@@ -65,9 +65,14 @@ class SearchV2Helper @AssistedInject constructor(
 			}.onFailure { e ->
 				e.printStackTraceDebug()
 			}.getOrDefault(emptySet())
-			val tag = tags.find { x -> x.title.equals(query, ignoreCase = true) }
-			if (tag != null) {
-				ContentListFilter(tags = setOf(tag))
+			
+			val queryTagsStr = query.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+			val matchedTags = queryTagsStr.mapNotNull { tagQ -> 
+				tags.find { x -> x.title.equals(tagQ, ignoreCase = true) }
+			}.toSet()
+			
+			if (matchedTags.isNotEmpty()) {
+				ContentListFilter(tags = matchedTags)
 			} else {
 				null
 			}
@@ -104,7 +109,8 @@ class SearchV2Helper @AssistedInject constructor(
 			}
 
 			SearchKind.TAG -> sortByDescending { m ->
-				m.tags.any { tag -> tag.title.equals(query, ignoreCase = true) }
+				val queryTagsStr = query.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+				m.tags.count { tag -> queryTagsStr.any { q -> tag.title.equals(q, ignoreCase = true) } }
 			}
 		}
 	}

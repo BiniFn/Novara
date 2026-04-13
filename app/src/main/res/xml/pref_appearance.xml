@@ -34,6 +34,14 @@
         android:defaultValue="md3"
         app:useSimpleSummaryProvider="true" />
 
+    <ListPreference
+        android:defaultValue="-1"
+        android:entries="@array/popup_radius"
+        android:entryValues="@array/values_popup_radius"
+        android:key="popup_radius"
+        android:title="@string/pref_popup_radius"
+        app:useSimpleSummaryProvider="true" />
+
     <PreferenceCategory android:title="@string/manga_list">
 
         <ListPreference
@@ -145,11 +153,40 @@
             android:summary="@string/shared_element_transitions_summary"
             android:title="@string/shared_element_transitions" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="false"
-            android:key="search_filter_hidden"
-            android:summary="@string/hide_search_filter_summary"
-            android:title="@string/hide_search_filter" />
+        <PreferenceCategory android:title="@string/search_bar_filters">
+            <SwitchPreferenceCompat
+                android:defaultValue="true"
+                android:key="show_language_preset_filter"
+                android:disableDependentsState="true"
+                android:title="@string/show_language_preset_filter" />
+            <ListPreference
+                android:dependency="show_language_preset_filter"
+                android:key="hidden_language_preset"
+                android:title="@string/fixed_language_preset"
+                app:useSimpleSummaryProvider="true" />
+                
+            <SwitchPreferenceCompat
+                android:defaultValue="true"
+                android:key="show_content_type_filter"
+                android:disableDependentsState="true"
+                android:title="@string/show_content_type_filter" />
+            <ListPreference
+                android:dependency="show_content_type_filter"
+                android:key="hidden_content_type"
+                android:title="@string/fixed_content_type"
+                app:useSimpleSummaryProvider="true" />
+
+            <SwitchPreferenceCompat
+                android:defaultValue="true"
+                android:key="show_source_tag_filter"
+                android:disableDependentsState="true"
+                android:title="@string/show_source_tag_filter" />
+            <ListPreference
+                android:dependency="show_source_tag_filter"
+                android:key="hidden_source_tag"
+                android:title="@string/fixed_source_tag"
+                app:useSimpleSummaryProvider="true" />
+        </PreferenceCategory>
 
         <SwitchPreferenceCompat
             android:defaultValue="true"

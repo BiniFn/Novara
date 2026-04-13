@@ -276,6 +276,13 @@
 			android:label="@string/downloads"
 			android:launchMode="singleTop" />
 		<activity android:name="org.skepsun.kototoro.image.ui.ImageActivity" />
+		<activity
+			android:name="org.skepsun.kototoro.explore.ui.preset.SourcePresetListActivity"
+			android:label="@string/source_presets" />
+		<activity
+			android:name="org.skepsun.kototoro.explore.ui.preset.SourcePresetEditActivity"
+			android:label="@string/edit_preset"
+			android:windowSoftInputMode="adjustResize" />
 		<activity android:name="org.skepsun.kototoro.favourites.ui.categories.edit.FavouritesCategoryEditActivity" />
 		<activity
 			android:name="org.skepsun.kototoro.settings.override.OverrideConfigActivity"

@@ -39,15 +39,18 @@ class SearchBarFilterViewController(
 		fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 		fun isContentTypeFilterVisible(): Boolean = true
 		fun isSourceTagFilterVisible(): Boolean = true
+		fun isLanguagePresetFilterVisible(): Boolean = true
 		fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean = true
 		fun isSourceTagEnabled(tag: SourceTag): Boolean = true
 		fun getSourceTagIconRes(): Int = R.drawable.ic_filter_menu
 		/** Return true to consume the click and prevent default popup */
 		fun onFilterIconClicked(anchor: View): Boolean = false
+		fun onLanguagePresetClicked(anchor: View) {}
 	}
 
 	private var checkContentType: SwipeFilterPillView? = null
 	private var checkTag: ImageView? = null
+	private var checkLanguagePreset: ImageView? = null
 	private var customView: View? = null
 
 	fun attachTo(fragment: Fragment) {
@@ -65,6 +68,7 @@ class SearchBarFilterViewController(
 
 		checkContentType = customView?.findViewById(R.id.filter_content_type)
 		checkTag = customView?.findViewById(R.id.filter_source_tag)
+		checkLanguagePreset = customView?.findViewById(R.id.filter_language_preset)
 
 		checkContentType?.apply {
 			val appSettings = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(context.applicationContext).settings
@@ -100,6 +104,12 @@ class SearchBarFilterViewController(
 			}
 		}
 
+		checkLanguagePreset?.setOnClickListener {
+			if (!callback.onFilterIconClicked(checkLanguagePreset!!)) {
+				showLanguagePresetPopup()
+			}
+		}
+
 		updateVisibility()
 		updateIcons()
 	}
@@ -111,6 +121,7 @@ class SearchBarFilterViewController(
 		customView = null
 		checkContentType = null
 		checkTag = null
+		checkLanguagePreset = null
 	}
 
 	private fun showContentTypePopup() {
@@ -196,6 +207,62 @@ class SearchBarFilterViewController(
 		popup.show()
 	}
 
+	private fun showLanguagePresetPopup() {
+		val anchor = checkLanguagePreset ?: return
+		val popup = PopupMenu(anchor.context, anchor, android.view.Gravity.END)
+		
+		val context = anchor.context.applicationContext
+		val appSettings = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(context).settings
+		val db = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.ui.BaseActivityEntryPoint>(context).db
+		val presetDao = db.getSourcePresetsDao()
+		
+		// Use coroutine to load presets and show popup
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.kotlinx.coroutines.launch {
+			val presets = presetDao.findAll()
+			org.skepsun.kototoro.core.util.ext.runOnMainThread {
+				// Manage presets option
+				popup.menu.add(0, -2, 0, R.string.manage_preset_sources).apply {
+					setIcon(R.drawable.ic_settings)
+				}
+				
+				// All / Default option
+				popup.menu.add(0, -1, 1, R.string.all).apply {
+					isCheckable = true
+					isChecked = appSettings.activeSourcePresetId == -1L
+				}
+
+				presets.forEachIndexed { index, preset ->
+					popup.menu.add(0, index, index + 2, preset.title).apply {
+						isCheckable = true
+						isChecked = appSettings.activeSourcePresetId == preset.presetId
+					}
+				}
+
+				// Force icons
+				try {
+					val field = popup.javaClass.getDeclaredField("mPopup")
+					field.isAccessible = true
+					val menuPopupHelper = field.get(popup)
+					menuPopupHelper.javaClass.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
+						.invoke(menuPopupHelper, true)
+				} catch (_: Exception) {}
+
+				popup.setOnMenuItemClickListener { item ->
+					if (item.itemId == -2) {
+						anchor.context.startActivity(android.content.Intent(anchor.context, org.skepsun.kototoro.explore.ui.preset.SourcePresetListActivity::class.java))
+					} else {
+						val presetId = if (item.itemId == -1) -1L else presets[item.itemId].presetId
+						appSettings.activeSourcePresetId = presetId
+						// Let observers handle UI updates
+					}
+					true
+				}
+
+				popup.show()
+			}
+		}
+	}
+
 	private fun SourceTag.getPopupTitle(anchorView: View): CharSequence {
 		val title = anchorView.context.getString(titleRes)
 		return BidiFormatter.getInstance().unicodeWrap(title, TextDirectionHeuristicsCompat.LTR)
@@ -204,9 +271,11 @@ class SearchBarFilterViewController(
 	fun updateVisibility() {
 		val showContent = callback.isContentTypeFilterVisible()
 		val showSource = callback.isSourceTagFilterVisible()
+		val showPreset = callback.isLanguagePresetFilterVisible()
 
 		checkContentType?.isVisible = showContent
 		checkTag?.isVisible = showSource
+		checkLanguagePreset?.isVisible = showPreset
 	}
 
 	fun updateIcons() {
@@ -232,6 +301,7 @@ class SearchBarFilterViewController(
 		}
 		checkTag?.setImageResource(iconRes)
 		checkTag?.let { tintItem(it, validSelectedTags.isNotEmpty(), true) }
+		checkLanguagePreset?.let { tintItem(it, false, true) }
 	}
 
 	private fun tintItem(icon: ImageView, isSelected: Boolean, isEnabled: Boolean) {
