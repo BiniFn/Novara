@@ -115,6 +115,33 @@ class SearchBarFilterViewController(
 
 		updateVisibility()
 		updateIcons()
+		applyHiddenDefaults()
+	}
+
+	private fun applyHiddenDefaults() {
+		val checkContentTypeView = checkContentType ?: return
+		val context = checkContentTypeView.context.applicationContext
+		val baseAppEntryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.BaseApp.BaseAppEntryPoint>(context)
+		val appSettings = baseAppEntryPoint.settings()
+
+		if (!appSettings.isShowContentTypeFilter) {
+			val hiddenType = appSettings.hiddenContentType ?: "all"
+			callback.onContentTypeSelected(BrowseGroupTab.fromId(hiddenType))
+		}
+		if (!appSettings.isShowSourceTagFilter) {
+			val hiddenTag = appSettings.hiddenSourceTag ?: "all"
+			if (hiddenTag == "all") {
+				callback.onSourceTagSelected(null)
+			} else {
+				val tag = SourceTag.quickFilterEntries.find { it.name == hiddenTag }
+				if (tag != null) callback.onSourceTagSelected(tag)
+			}
+		}
+		if (!appSettings.isShowLanguagePresetFilter) {
+			val hiddenPreset = appSettings.hiddenLanguagePreset ?: "all"
+			val presetId = if (hiddenPreset == "all") -1L else hiddenPreset.toLongOrNull() ?: -1L
+			appSettings.activeSourcePresetId = presetId
+		}
 	}
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean = false
@@ -272,10 +299,14 @@ class SearchBarFilterViewController(
 		val showContent = callback.isContentTypeFilterVisible()
 		val showSource = callback.isSourceTagFilterVisible()
 		val showPreset = callback.isLanguagePresetFilterVisible()
+		
+		val context = checkContentType?.context?.applicationContext ?: return
+		val baseAppEntryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication<org.skepsun.kototoro.core.BaseApp.BaseAppEntryPoint>(context)
+		val appSettings = baseAppEntryPoint.settings()
 
-		checkContentType?.isVisible = showContent
-		checkTag?.isVisible = showSource
-		checkLanguagePreset?.isVisible = showPreset
+		checkContentType?.isVisible = showContent && appSettings.isShowContentTypeFilter
+		checkTag?.isVisible = showSource && appSettings.isShowSourceTagFilter
+		checkLanguagePreset?.isVisible = showPreset && appSettings.isShowLanguagePresetFilter
 	}
 
 	fun updateIcons() {

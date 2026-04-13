@@ -140,6 +140,7 @@ class HomeViewModel @Inject constructor(
 	private val repository: BackupRepository,
 	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
+	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
 	@ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -152,6 +153,11 @@ class HomeViewModel @Inject constructor(
 		}
 	}
 	private val selectedSourceTagsFlow = globalFavoritesState.selectedSourceTags
+	private val activePresetFlow = settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+		.flatMapLatest { id ->
+			if (id == -1L) flowOf(null)
+			else sourcePresetsRepository.observe(id)
+		}
 	private val lastHistoryContentFlow = historyRepository.observeLast()
 	private val resumeStateFlow = lastHistoryContentFlow
 		.flatMapLatest { content ->
@@ -208,7 +214,7 @@ class HomeViewModel @Inject constructor(
 
 	val summaryState = combine(
 		selectedTabFlow,
-		selectedSourceTagsFlow,
+		combine(selectedSourceTagsFlow, activePresetFlow, ::Pair),
 		combine(
 			combine(
 				resumeStateFlow,
@@ -251,22 +257,47 @@ class HomeViewModel @Inject constructor(
 		) { tracker, suggestion, history ->
 			Triple(tracker, suggestion, history)
 		},
-	) { selectedTab, selectedSourceTags, left, right, nsfwFlags ->
+	) { selectedTab, tagsAndPreset, left, right, nsfwFlags ->
+		val selectedSourceTags = tagsAndPreset.first
+		val preset = tagsAndPreset.second
 		val isTrackerNsfwDisabled = nsfwFlags.first
 		val isSuggestionNsfwDisabled = nsfwFlags.second
 		val isHistoryNsfwDisabled = nsfwFlags.third
 
 		val resumeState = left.first.filtered(selectedTab).filteredNsfw(isHistoryNsfwDisabled)
 		val allHistory = if (isHistoryNsfwDisabled) left.second.filterNot { it.isNsfw() } else left.second
-		val recentHistory = allHistory.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
+		val recentHistory = allHistory.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager, preset)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
 		val unreadUpdatesCount = left.fifth
 		val allUpdates = if (isTrackerNsfwDisabled) left.sixth.filterNot { it.manga.isNsfw() } else left.sixth
-		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
+		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager, preset)
 		val allRecommendations = if (isSuggestionNsfwDisabled) left.seventh.filterNot { it.isNsfw() } else left.seventh
-		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager)
-		val actualHistoryCount = if (selectedTab == null) allHistory.size else allHistory.count { it.contentTab() == selectedTab }
+		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager, preset)
+
+		val actualHistoryCount = allHistory.count { item ->
+			val source = item.source
+			if (preset != null && source.name !in preset.sources) return@count false
+			if (selectedTab != null && item.contentTab() != selectedTab) return@count false
+			if (selectedSourceTags.isNotEmpty()) {
+				val contentGroup = sourceGroupManager.getContentGroup(source)
+				val originGroup = sourceGroupManager.getOriginGroup(source)
+				if (!selectedSourceTags.any { it.matches(contentGroup, originGroup) }) return@count false
+			}
+			true
+		}
+
+		val actualRecommendationsCount = allRecommendations.count { item ->
+			val source = item.source
+			if (preset != null && source.name !in preset.sources) return@count false
+			if (selectedTab != null && item.contentTab() != selectedTab) return@count false
+			if (selectedSourceTags.isNotEmpty()) {
+				val contentGroup = sourceGroupManager.getContentGroup(source)
+				val originGroup = sourceGroupManager.getOriginGroup(source)
+				if (!selectedSourceTags.any { it.matches(contentGroup, originGroup) }) return@count false
+			}
+			true
+		}
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
 		val preferredTrackingSite = right.third
@@ -281,7 +312,7 @@ class HomeViewModel @Inject constructor(
 			favoriteCategoriesCount = favoriteCategoriesCount,
 			unreadUpdatesCount = unreadUpdatesCount,
 			recentUpdates = recentUpdates.take(HOME_COVER_PREVIEW_LIMIT).map { it.toHomeUpdateItem() },
-			recommendationsCount = recommendations.size,
+			recommendationsCount = actualRecommendationsCount,
 			recommendations = recommendations.take(HOME_COVER_PREVIEW_LIMIT).map { HomeRecommendationItem(it) },
 			enabledSourcesCount = enabledSourcesCount,
 			sourceBreakdown = sourceBreakdown,
@@ -449,10 +480,13 @@ private fun Content.contentTab(): HomeContentTab? = source.getContentType().toHo
 private fun List<Content>.groupByTabThenSelect(
 	tab: HomeContentTab?,
 	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
-	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 ): List<Content> {
-	val filtered = if (sourceTags.isEmpty()) this else filter { item ->
+	val filtered = if (sourceTags.isEmpty() && preset == null) this else filter { item ->
 		val source = item.source
+		if (preset != null && source.name !in preset.sources) return@filter false
+		if (sourceTags.isEmpty()) return@filter true
 		val contentGroup = sourceGroupManager.getContentGroup(source)
 		val originGroup = sourceGroupManager.getOriginGroup(source)
 		sourceTags.any { it.matches(contentGroup, originGroup) }
@@ -485,10 +519,13 @@ private fun List<Content>.groupByTabThenSelect(
 private fun List<ContentTracking>.groupTrackingsByTabThenSelect(
 	tab: HomeContentTab?,
 	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
-	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 ): List<ContentTracking> {
-	val filtered = if (sourceTags.isEmpty()) this else filter { item ->
+	val filtered = if (sourceTags.isEmpty() && preset == null) this else filter { item ->
 		val source = item.manga.source
+		if (preset != null && source.name !in preset.sources) return@filter false
+		if (sourceTags.isEmpty()) return@filter true
 		val contentGroup = sourceGroupManager.getContentGroup(source)
 		val originGroup = sourceGroupManager.getOriginGroup(source)
 		sourceTags.any { it.matches(contentGroup, originGroup) }

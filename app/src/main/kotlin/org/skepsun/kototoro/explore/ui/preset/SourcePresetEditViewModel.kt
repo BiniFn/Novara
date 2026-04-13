@@ -29,11 +29,16 @@ class SourcePresetEditViewModel @Inject constructor(
 	val onSaved = MutableEventFlow<Unit>()
 	val preset = MutableStateFlow<SourcePreset?>(null)
 
-	val allLocales: Set<String> = sourcesRepository.allContentSources
-		.mapNotNullTo(LinkedHashSet()) { it.getLocale()?.language?.takeIf { l -> l.isNotEmpty() } }
+	val allLocales = MutableStateFlow<Set<String>>(emptySet())
+	private val allSourcesCache = mutableListOf<org.skepsun.kototoro.parsers.model.ContentSource>()
 
 	init {
 		launchLoadingJob(Dispatchers.Default) {
+			val sources = sourcesRepository.getAllAvailableSourcesUnfiltered()
+			allSourcesCache.addAll(sources)
+			
+			allLocales.value = sources.mapNotNullTo(LinkedHashSet()) { it.getLocale()?.language?.takeIf { l -> l.isNotEmpty() } }
+
 			preset.value = if (presetId != NO_ID) {
 				presetsRepository.getById(presetId)
 			} else {
@@ -45,11 +50,12 @@ class SourcePresetEditViewModel @Inject constructor(
 	fun save(title: String, selectedLanguages: Set<String>) {
 		launchLoadingJob(Dispatchers.Default) {
 			check(title.isNotEmpty())
+			val initialSources = getSourcesForLanguages(selectedLanguages)
 			if (presetId == NO_ID) {
-				val initialSources = getSourcesForLanguages(selectedLanguages)
 				presetsRepository.createPreset(title, selectedLanguages, initialSources)
 			} else {
 				presetsRepository.updatePreset(presetId, title, selectedLanguages)
+				presetsRepository.updatePresetSources(presetId, initialSources)
 			}
 			onSaved.call(Unit)
 		}
@@ -58,7 +64,7 @@ class SourcePresetEditViewModel @Inject constructor(
 	private fun getSourcesForLanguages(languages: Set<String>): Set<String> {
 		if (languages.isEmpty()) return emptySet()
 		val skipNsfw = settings.isNsfwContentDisabled
-		return sourcesRepository.allContentSources
+		return allSourcesCache
 			.filter { it.getLocale()?.language in languages && (!skipNsfw || !it.isNsfw()) }
 			.mapTo(HashSet()) { it.name }
 	}

@@ -96,6 +96,18 @@ class ContentSourcesRepository @Inject constructor(
 			return set
 		}
 
+	suspend fun getAllAvailableSourcesUnfiltered(): List<ContentSource> {
+		assimilateNewSources()
+		return buildList {
+			addAll(allContentSources)
+			addAll(getExternalSources())
+			addAll(getEnabledJsonSources())
+			addAll(getEnabledMihonSources())
+			addAll(getEnabledAniyomiSources())
+			addAll(getEnabledIReaderSources())
+		}
+	}
+
 	suspend fun getEnabledSources(): List<ContentSource> {
 		assimilateNewSources()
 		val order = settings.sourcesSortOrder
@@ -130,15 +142,6 @@ class ContentSourcesRepository @Inject constructor(
 				
 				if (!settings.isShowBrokenSources) {
 					list.retainAll { !it.isBroken }
-				}
-				
-				val activePresetId = settings.activeSourcePresetId
-				if (activePresetId != -1L) {
-					val preset = db.getSourcePresetsDao().find(activePresetId)
-					if (preset != null) {
-						val activeSources = if (preset.sources.isEmpty()) emptySet() else preset.sources.split(",").toSet()
-						list.retainAll { it.name in activeSources }
-					}
 				}
 				
 				list
@@ -621,19 +624,6 @@ class ContentSourcesRepository @Inject constructor(
 				if (ireaderSource.name !in existingNames && ireaderSource.name !in disabledNames) {
 					list.add(ContentSourceInfo(ireaderSource, isEnabled = true, isPinned = false))
 				}
-			}
-			list
-		}
-		.combine(
-			settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
-				.flatMapLatest { id ->
-					if (id == -1L) kotlinx.coroutines.flow.flowOf(null)
-					else db.getSourcePresetsDao().observe(id)
-				}
-		) { list, preset ->
-			if (preset != null) {
-				val activeSources = if (preset.sources.isEmpty()) emptySet() else preset.sources.split(",").toSet()
-				list.retainAll { it.mangaSource.name in activeSources }
 			}
 			list
 		}

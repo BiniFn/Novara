@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -64,6 +66,7 @@ class HistoryListViewModel @Inject constructor(
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 	mangaDataRepository: ContentDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
+	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener by quickFilter {
 
 	override val isFilterBarVisible = MutableStateFlow(true)
@@ -115,6 +118,11 @@ class HistoryListViewModel @Inject constructor(
 		settings.observeAsFlow(AppSettings.KEY_INCOGNITO_MODE) { isIncognitoModeEnabled },
 		this.currentGroupTab,
 		this.currentSourceTags,
+		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+			.flatMapLatest { id ->
+				if (id == -1L) flowOf(null)
+				else sourcePresetsRepository.observe(id)
+			}
 	) { values: Array<Any?> ->
 		val filters = values[0] as Set<ListFilterOption>
 		val list = values[1] as List<ContentWithHistory>
@@ -123,10 +131,11 @@ class HistoryListViewModel @Inject constructor(
 		val incognito = values[4] as Boolean
 		val groupTab = values[5] as BrowseGroupTab
 		val sourceTags = values[6] as Set<SourceTag>
-		mapList(list, grouped, mode, filters, incognito, groupTab, sourceTags)
-	}.distinctUntilChanged().onEach {
+		val preset = values[7] as? org.skepsun.kototoro.explore.data.SourcePreset
+		mapList(list, grouped, mode, filters, incognito, groupTab, sourceTags, preset)
+	}.onEach {
 		isPaginationReady.set(true)
-	}.catch { e ->
+	}.distinctUntilChanged().catch { e ->
 		emit(listOf(e.toErrorState(canRetry = false)))
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
@@ -193,9 +202,14 @@ class HistoryListViewModel @Inject constructor(
 		isIncognito: Boolean,
 		groupTab: BrowseGroupTab,
 		sourceTags: Set<SourceTag>,
+		preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 	): List<ListModel> {
 		val filteredList = list.filter { (manga, _) ->
 			val source = manga.source
+			if (preset != null && source.name !in preset.sources) {
+				return@filter false
+			}
+
 			val contentGroup = sourceGroupManager.getContentGroup(source)
 			val originGroup = sourceGroupManager.getOriginGroup(source)
 

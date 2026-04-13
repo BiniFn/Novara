@@ -40,7 +40,7 @@ class SourcePresetEditActivity :
 		viewBinding.editName.addTextChangedListener(this)
 		afterTextChanged(viewBinding.editName.text)
 
-		initLanguageChips()
+		viewModel.allLocales.observe(this, ::initLanguageChips)
 
 		viewModel.onSaved.observeEvent(this) { finishAfterTransition() }
 		viewModel.preset.observe(this, ::onPresetChanged)
@@ -75,10 +75,10 @@ class SourcePresetEditActivity :
 		viewBinding.buttonDone.isEnabled = !s.isNullOrBlank() && !viewModel.isLoading.value
 	}
 
-	private fun initLanguageChips() {
+	private fun initLanguageChips(locales: Set<String>) {
 		val chipGroup = viewBinding.chipGroupLanguages
 		chipGroup.removeAllViews()
-		val sortedLocales = viewModel.allLocales.sortedBy { it.toLocale().getDisplayName(this) }
+		val sortedLocales = locales.sortedBy { it.toLocale().getDisplayName(this) }
 		for (locale in sortedLocales) {
 			val chip = Chip(this).apply {
 				text = locale.toLocale().getDisplayName(this@SourcePresetEditActivity)
@@ -87,6 +87,9 @@ class SourcePresetEditActivity :
 			}
 			chipGroup.addView(chip)
 		}
+		
+		// Re-apply preset selection in case preset arrived before locales
+		viewModel.preset.value?.let { onPresetChanged(it) }
 	}
 
 	private fun onPresetChanged(preset: SourcePreset?) {
