@@ -288,36 +288,39 @@ internal class ReaderTranslationCoordinator(
 			)
 		}
 		return runCatching {
-			val requestBuilder = Request.Builder()
-				.url(endpoint)
-				.post(payload.toString().toRequestBody(jsonMediaType))
-				.header("Content-Type", "application/json")
-			if (apiKey.isNotBlank()) {
-				requestBuilder.header("Authorization", "Bearer $apiKey")
-				requestBuilder.header("X-API-Key", apiKey)
-			}
-			applyCustomHeaders(requestBuilder)
-			val response = okHttpClient.newCall(requestBuilder.build()).await()
-			response.use { resp ->
-				val rawBody = resp.body.readJsonTextUtf8()
-				if (!resp.isSuccessful) {
-					log { "openai batch request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return@use emptyMap()
+			withContext(Dispatchers.IO) {
+				val requestBuilder = Request.Builder()
+					.url(endpoint)
+					.post(payload.toString().toRequestBody(jsonMediaType))
+					.header("Content-Type", "application/json")
+				if (apiKey.isNotBlank()) {
+					requestBuilder.header("Authorization", "Bearer $apiKey")
+					requestBuilder.header("X-API-Key", apiKey)
 				}
-				if (rawBody.isBlank()) return@use emptyMap()
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use emptyMap()
-				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return@use emptyMap()
-				log { "openai batch raw reply=${oneLine(content, 400)}" }
-				val parsed = parseBatchTranslationJson(content, texts.size)
-				if (parsed.isEmpty()) return@use emptyMap()
-				LinkedHashMap<String, String>(texts.size).apply {
-					texts.forEachIndexed { index, text ->
-						put(text, sanitizeTranslation(parsed[index + 1].orEmpty()))
+				applyCustomHeaders(requestBuilder)
+				val response = okHttpClient.newCall(requestBuilder.build()).await()
+				response.use { resp ->
+					val rawBody = resp.body.readJsonTextUtf8()
+					if (!resp.isSuccessful) {
+						log { "openai batch request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
+						return@use emptyMap()
+					}
+					if (rawBody.isBlank()) return@use emptyMap()
+					val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use emptyMap()
+					val content = extractOpenAiMessageContent(json).orEmpty()
+					if (content.isBlank()) return@use emptyMap()
+					log { "openai batch raw reply=${oneLine(content, 400)}" }
+					val parsed = parseBatchTranslationJson(content, texts.size)
+					if (parsed.isEmpty()) return@use emptyMap()
+					LinkedHashMap<String, String>(texts.size).apply {
+						texts.forEachIndexed { index, text ->
+							put(text, sanitizeTranslation(parsed[index + 1].orEmpty()))
+						}
 					}
 				}
 			}
 		}.onFailure {
+			if (it is kotlinx.coroutines.CancellationException) throw it
 			log { "openai batch request failed size=${texts.size} err=${it.message.orEmpty()}" }
 		}.getOrDefault(emptyMap())
 	}
@@ -353,30 +356,33 @@ internal class ReaderTranslationCoordinator(
 		}
 
 		return runCatching {
-			val requestBuilder = Request.Builder()
-				.url(endpoint)
-				.post(payload.toString().toRequestBody(jsonMediaType))
-				.header("Content-Type", "application/json")
-			if (apiKey.isNotBlank()) {
-				requestBuilder.header("Authorization", "Bearer $apiKey")
-				requestBuilder.header("X-API-Key", apiKey)
-			}
-			applyCustomHeaders(requestBuilder)
-			val response = okHttpClient.newCall(requestBuilder.build()).await()
-			response.use { resp ->
-				val rawBody = resp.body.readJsonTextUtf8()
-				if (!resp.isSuccessful) {
-					log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return@use ""
+			withContext(Dispatchers.IO) {
+				val requestBuilder = Request.Builder()
+					.url(endpoint)
+					.post(payload.toString().toRequestBody(jsonMediaType))
+					.header("Content-Type", "application/json")
+				if (apiKey.isNotBlank()) {
+					requestBuilder.header("Authorization", "Bearer $apiKey")
+					requestBuilder.header("X-API-Key", apiKey)
 				}
-				if (rawBody.isBlank()) return@use ""
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use ""
-				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return@use ""
-				log { "openai raw reply=${oneLine(content, 400)}" }
-				sanitizeTranslation(content)
+				applyCustomHeaders(requestBuilder)
+				val response = okHttpClient.newCall(requestBuilder.build()).await()
+				response.use { resp ->
+					val rawBody = resp.body.readJsonTextUtf8()
+					if (!resp.isSuccessful) {
+						log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
+						return@use ""
+					}
+					if (rawBody.isBlank()) return@use ""
+					val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use ""
+					val content = extractOpenAiMessageContent(json).orEmpty()
+					if (content.isBlank()) return@use ""
+					log { "openai raw reply=${oneLine(content, 400)}" }
+					sanitizeTranslation(content)
+				}
 			}
 		}.onFailure {
+			if (it is kotlinx.coroutines.CancellationException) throw it
 			log { "openai single request failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
 		}.getOrDefault("")
 	}
