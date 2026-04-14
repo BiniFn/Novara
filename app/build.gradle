@@ -300,6 +300,7 @@ configurations.all {
 	implementation libs.mlkit.text.recognition.japanese
 	implementation libs.mlkit.text.recognition.chinese
 	implementation libs.mlkit.translate
+	implementation libs.mlkit.language.id
 	implementation libs.onnxruntime.android
 	implementation libs.djl.tokenizers
 	implementation files('libs/tokenizer-native-0.33.0.aar')

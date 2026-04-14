@@ -285,6 +285,16 @@
                 android:text="@string/novel_translation_bilingual" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
+        <!-- 清除翻译缓存按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonClearTranslationCache"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/clear_translation_cache"
+            app:icon="@drawable/ic_delete" />
+
         <!-- 按钮 -->
         <LinearLayout
             android:layout_width="match_parent"

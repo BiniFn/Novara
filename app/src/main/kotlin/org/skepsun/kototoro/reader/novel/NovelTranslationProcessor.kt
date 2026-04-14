@@ -52,6 +52,13 @@ class NovelTranslationProcessor @Inject constructor(
     }
 
     /**
+     * 清除翻译缓存。
+     */
+    fun clearCache() {
+        textCache.clear()
+    }
+
+    /**
      * 翻译一章内容，返回进度 Flow。
      * 每完成一批段落翻译，emit 一次 NovelChapterTranslation（isComplete=false）。
      * 全部完成后 emit 最终结果（isComplete=true）。
@@ -63,25 +70,34 @@ class NovelTranslationProcessor @Inject constructor(
         targetLang: String,
         displayMode: NovelTranslationDisplayMode,
     ): Flow<NovelChapterTranslation> = flow {
+        Log.d(LOG_TAG, "translateChapterFlow start: chapter=$chapterIndex, contentLength=${content.length}, source=$sourceLang, target=$targetLang")
         val paragraphs = NovelParagraphSplitter.split(content)
+        Log.d(LOG_TAG, "Split into ${paragraphs.size} paragraphs")
         if (paragraphs.isEmpty()) return@flow
 
         val textParagraphs = paragraphs.filter {
             it.type == NovelParagraphType.TEXT && it.originalText.isNotBlank()
         }
+        Log.d(LOG_TAG, "Filtered to ${textParagraphs.size} text paragraphs")
 
         val accumulated = mutableMapOf<Int, String>()
 
         // 按批次翻译，每批最多 MAX_BATCH_SIZE 个段落
         val batches = textParagraphs.chunked(MAX_BATCH_SIZE)
+        Log.d(LOG_TAG, "Split into ${batches.size} batches")
         for (batch in batches) {
             val texts = batch.map { it.originalText }
+            Log.d(LOG_TAG, "Translating batch: ${texts.size} texts")
             val results = runCatching {
                 translationCoordinator.translateBlocksCached(texts, sourceLang, targetLang)
             }.onFailure {
-                it.printStackTraceDebug()
-                Log.e(LOG_TAG, "translateChapterFlow batch failed: ${it.message}")
+                // 只记录非取消异常
+                if (it !is kotlinx.coroutines.CancellationException) {
+                    it.printStackTraceDebug()
+                    Log.e(LOG_TAG, "translateChapterFlow batch failed: ${it.message}")
+                }
             }.getOrDefault(emptyMap())
+            Log.d(LOG_TAG, "Batch translation complete: ${results.size} results")
 
             for (para in batch) {
                 val translated = results[para.originalText].orEmpty()
@@ -89,6 +105,7 @@ class NovelTranslationProcessor @Inject constructor(
                     accumulated[para.index] = translated
                 }
             }
+            Log.d(LOG_TAG, "Accumulated translations: ${accumulated.size}")
 
             emit(
                 NovelChapterTranslation(

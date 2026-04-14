@@ -643,6 +643,7 @@ class NovelReaderActivity :
     private fun startTranslation() {
         translationJob?.cancel()
         val content = getCurrentChapterContent()
+        android.util.Log.d("NovelReaderActivity", "startTranslation: content length=${content?.length ?: 0}")
         if (content.isNullOrBlank()) {
             viewBinding.toastView.showTemporary("暂无章节内容可翻译", 2000L)
             return
@@ -650,8 +651,10 @@ class NovelReaderActivity :
 
         // 检查是否有可用的翻译配置
         val mode = settings.readerTranslationMode
-        val hasOnnx = settings.readerTranslationOnnxModelId.isNotBlank()
+        val onnxModelId = settings.readerTranslationOnnxModelId
+        val hasOnnx = onnxModelId.isNotBlank()
         val hasApi = settings.readerTranslationApiEndpoint.isNotBlank()
+        android.util.Log.d("NovelReaderActivity", "Translation config: mode=$mode, onnxModelId='$onnxModelId', hasOnnx=$hasOnnx, hasApi=$hasApi")
         if (!hasOnnx && !hasApi && mode.name != "LOCAL_ONLY") {
             viewBinding.toastView.showTemporary(
                 "请先在「设置 → AI翻译」中配置翻译引擎（API 或 ONNX 本地模型）",
@@ -666,6 +669,7 @@ class NovelReaderActivity :
         val targetLang = settings.readerTranslationTargetLanguage
         val displayMode = readerSettings.translationDisplayMode
         val chapterIndex = currentChapterIndex
+        android.util.Log.d("NovelReaderActivity", "Starting translation: chapter=$chapterIndex, source=$sourceLang, target=$targetLang, mode=$displayMode")
 
         translationJob = lifecycleScope.launch {
             try {
@@ -676,6 +680,7 @@ class NovelReaderActivity :
                     targetLang = targetLang,
                     displayMode = displayMode,
                 ).collect { translation ->
+                    android.util.Log.d("NovelReaderActivity", "Translation progress: complete=${translation.isComplete}, translations=${translation.translations.size}")
                     chapterTranslations.put(translation.chapterIndex, translation)
                     applyTranslationToViews(translation)
                     if (translation.isComplete) {
@@ -690,6 +695,10 @@ class NovelReaderActivity :
                         }
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // 翻译任务被取消（切换章节、关闭翻译、退出阅读器等），这是正常行为
+                android.util.Log.d("NovelReaderActivity", "Translation cancelled")
+                throw e  // 重新抛出 CancellationException 以正确传播取消信号
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Translation failed", e)
                 viewBinding.toastView.showTemporary("翻译失败: ${e.message}", 2000L)
@@ -906,6 +915,11 @@ class NovelReaderActivity :
         if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE) {
             onTtsPlayPauseClicked()
         }
+    }
+
+    override fun onClearTranslationCacheClick() {
+        translationProcessor.clearCache()
+        viewBinding.toastView.showTemporary("翻译缓存已清除", 1500L)
     }
 
     private fun startTtsFromCurrentPage() {

@@ -1,12 +1,15 @@
 package org.skepsun.kototoro.reader.translate.domain
 
+import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import eu.kanade.tachiyomi.network.await
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
@@ -72,26 +75,35 @@ internal class ReaderTranslationCoordinator(
 
 		val mode = settings.readerTranslationMode
 		val onnxModelId = settings.readerTranslationOnnxModelId.trim()
+		android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: mode=$mode, onnxModelId='$onnxModelId', misses.size=${misses.size}")
 		if (mode != ReaderTranslationMode.API_ONLY && onnxModelId.isNotBlank()) {
 			val needOnnx = misses.filter { translated[it].isNullOrBlank() }
+			android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: calling ONNX for ${needOnnx.size} texts")
 			if (needOnnx.isNotEmpty()) {
 				val onnxMap = runCatching {
 					onnxTranslationEngine.translateBatch(needOnnx, sourceLang, targetLang, onnxModelId)
 				}.onFailure {
 					it.printStackTraceDebug()
 					log { "translate onnx failed: ${it.message.orEmpty()}" }
+					android.util.Log.e("ReaderTranslationCoordinator", "translateBlocksCached: ONNX failed: ${it.message}", it)
 				}.getOrDefault(emptyMap())
+				android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: ONNX returned ${onnxMap.size} results")
 				for (text in needOnnx) {
 					val onnxText = onnxMap[text]?.trim().orEmpty()
+					android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: ONNX result for '${text.take(50)}...': '${onnxText.take(50)}...' (length=${onnxText.length})")
 					if (onnxText.isNotBlank()) {
 						val sanitized = sanitizeTranslation(onnxText)
 						if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
 							translated[text] = sanitized
 							textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
 							log { "translate onnx hit src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+							android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: ONNX accepted")
 						} else {
 							log { "translate onnx rejected src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+							android.util.Log.w("ReaderTranslationCoordinator", "translateBlocksCached: ONNX rejected by isAcceptableTranslation")
 						}
+					} else {
+						android.util.Log.w("ReaderTranslationCoordinator", "translateBlocksCached: ONNX returned blank")
 					}
 				}
 			}
@@ -99,40 +111,46 @@ internal class ReaderTranslationCoordinator(
 
 		if (mode != ReaderTranslationMode.API_ONLY) {
 			val needLocal = misses.filter { translated[it].isNullOrBlank() }
-			log { "translate local requested size=${needLocal.size}" }
-			var localResults = runCatching {
-				translateLocalBatch(needLocal, sourceLang, targetLang)
-			}.onFailure {
-				it.printStackTraceDebug()
-				log { "translate local batch failed: ${it.message.orEmpty()}" }
-			}.getOrDefault(emptyMap())
-			if (needLocal.isNotEmpty() && localResults.values.none { it.isNotBlank() }) {
-				log { "translate local batch empty, fallback to per-item translation" }
-				localResults = coroutineScope {
-					needLocal.map { text ->
-						async {
-							val local = runCatching {
-								translateLocal(text, sourceLang, targetLang)
-							}.onFailure {
-								log { "translate local fallback failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
-							}.getOrDefault("").trim()
-							text to local
-						}
-					}.awaitAll().toMap()
-				}
-			}
-			for ((text, local) in localResults) {
-				val raw = local.trim()
-				if (raw.isNotBlank()) {
-					val sanitized = sanitizeTranslation(raw)
-					if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
-						translated[text] = sanitized
-						textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
-						log { "translate local hit src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
-					} else {
-						log { "translate local rejected src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+			if (needLocal.isNotEmpty()) {  // 只有还有未翻译的文本时才用 ML Kit
+				log { "translate local requested size=${needLocal.size}" }
+				var localResults = runCatching {
+					log { "translate local batch calling translateLocalBatch..." }
+					translateLocalBatch(needLocal, sourceLang, targetLang)
+				}.onFailure {
+					it.printStackTraceDebug()
+					log { "translate local batch failed: ${it.message.orEmpty()}" }
+				}.getOrDefault(emptyMap())
+				log { "translate local batch returned ${localResults.size} results" }
+				if (needLocal.isNotEmpty() && localResults.values.none { it.isNotBlank() }) {
+					log { "translate local batch empty, fallback to per-item translation" }
+					localResults = coroutineScope {
+						needLocal.map { text ->
+							async {
+								val local = runCatching {
+									translateLocal(text, sourceLang, targetLang)
+								}.onFailure {
+									log { "translate local fallback failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
+								}.getOrDefault("").trim()
+								text to local
+							}
+						}.awaitAll().toMap()
 					}
 				}
+				for ((text, local) in localResults) {
+					val raw = local.trim()
+					if (raw.isNotBlank()) {
+						val sanitized = sanitizeTranslation(raw)
+						if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
+							translated[text] = sanitized
+							textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
+							log { "translate local hit src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+						} else {
+							log { "translate local rejected src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+						}
+					}
+				}
+			} else {
+				log { "translate local skipped, all texts already translated by ONNX" }
 			}
 		}
 
@@ -349,10 +367,17 @@ internal class ReaderTranslationCoordinator(
 	}
 
 	private suspend fun translateLocal(text: String, sourceLang: String, targetLang: String): String {
-		val source = resolveMlKitLanguage(sourceLang)
+		// 如果源语言是 auto，先检测
+		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
+			detectLanguage(text) ?: sourceLang
+		} else {
+			sourceLang
+		}
+
+		val source = resolveMlKitLanguage(resolvedSourceLang)
 		val target = resolveMlKitLanguage(targetLang)
 		if (source == null || target == null) {
-			log { "translate local skip unsupported source=$sourceLang target=$targetLang" }
+			log { "translate local skip unsupported source=$resolvedSourceLang target=$targetLang" }
 			return ""  // 返回空字符串，不返回原文
 		}
 		val options = TranslatorOptions.Builder()
@@ -373,36 +398,103 @@ internal class ReaderTranslationCoordinator(
 		sourceLang: String,
 		targetLang: String,
 	): Map<String, String> {
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch entered: texts.size=${texts.size}, source=$sourceLang, target=$targetLang")
 		if (texts.isEmpty()) return emptyMap()
-		val source = resolveMlKitLanguage(sourceLang)
+
+		// 如果源语言是 auto，先检测第一段文本的语言
+		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch detecting language...")
+			val sampleText = texts.firstOrNull { it.length > 20 } ?: texts.firstOrNull() ?: ""
+			if (sampleText.isNotBlank()) {
+				detectLanguage(sampleText) ?: sourceLang
+			} else {
+				sourceLang
+			}
+		} else {
+			sourceLang
+		}
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch resolved source language: $resolvedSourceLang")
+
+		val source = resolveMlKitLanguage(resolvedSourceLang)
 		val target = resolveMlKitLanguage(targetLang)
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch ML Kit languages: source=$source, target=$target")
 		if (source == null || target == null) {
-			log { "translate local batch skip unsupported source=$sourceLang target=$targetLang size=${texts.size}" }
+			log { "translate local batch skip unsupported source=$resolvedSourceLang target=$targetLang size=${texts.size}" }
+			android.util.Log.w("ReaderTranslationCoordinator", "translateLocalBatch unsupported languages, returning empty")
 			return texts.associateWith { "" }
 		}
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch creating translator...")
 		val options = TranslatorOptions.Builder()
 			.setSourceLanguage(source)
 			.setTargetLanguage(target)
 			.build()
 		val translator = Translation.getClient(options)
 		return try {
-			log { "translate local batch start size=${texts.size} source=$sourceLang target=$targetLang" }
-			translator.downloadModelIfNeeded().awaitCancellable()
+			log { "translate local batch start size=${texts.size} source=$resolvedSourceLang target=$targetLang" }
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch checking if model is downloaded...")
+
+			// 先检查模型是否已下载
+			val modelManager = com.google.mlkit.common.model.RemoteModelManager.getInstance()
+			val translationModel = com.google.mlkit.nl.translate.TranslateRemoteModel.Builder(target).build()
+			val isModelDownloaded = try {
+				modelManager.isModelDownloaded(translationModel).awaitCancellable()
+			} catch (e: Exception) {
+				android.util.Log.e("ReaderTranslationCoordinator", "Failed to check model status: ${e.message}")
+				false
+			}
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch model downloaded: $isModelDownloaded")
+
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch downloading model if needed...")
+			val downloadTask = translator.downloadModelIfNeeded()
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch download task created, isComplete=${downloadTask.isComplete}, isCanceled=${downloadTask.isCanceled}")
+			downloadTask.awaitCancellable()
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch model ready, starting translation...")
+
 			val results = LinkedHashMap<String, String>(texts.size)
-			for (text in texts) {
+			for ((index, text) in texts.withIndex()) {
 				val out = runCatching {
-					withTimeout(15_000) {
-						translator.translate(text).awaitCancellable()
-					}
+					translator.translate(text).awaitCancellable()
 				}.onFailure {
 					log { "translate local item failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
+					android.util.Log.e("ReaderTranslationCoordinator", "translateLocalBatch item $index failed: ${it.message}")
 				}.getOrDefault("").trim()
 				results[text] = out
+				if (index == 0) {
+					android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch first item done, result length=${out.length}")
+				}
 			}
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch done translated=${results.count { it.value.isNotBlank() }}/${texts.size}")
 			log { "translate local batch done translated=${results.count { it.value.isNotBlank() }}/${texts.size}" }
 			results
+		} catch (e: Exception) {
+			android.util.Log.e("ReaderTranslationCoordinator", "translateLocalBatch failed: ${e.javaClass.simpleName}: ${e.message}", e)
+			throw e
 		} finally {
 			translator.close()
+		}
+	}
+
+	/**
+	 * 使用 ML Kit Language Identification 检测文本语言
+	 * 返回 BCP-47 语言标签（如 "en", "zh", "ja"），失败返回 null
+	 */
+	private suspend fun detectLanguage(text: String): String? {
+		if (text.isBlank()) return null
+		val languageIdentifier = LanguageIdentification.getClient()
+		return try {
+			val result = languageIdentifier.identifyLanguage(text).awaitCancellable()
+			if (result == "und") {
+				log { "language detection undetermined for text=${oneLine(text, 100)}" }
+				null
+			} else {
+				log { "language detected: $result for text=${oneLine(text, 100)}" }
+				result
+			}
+		} catch (e: Exception) {
+			log { "language detection failed: ${e.message.orEmpty()}" }
+			null
+		} finally {
+			languageIdentifier.close()
 		}
 	}
 

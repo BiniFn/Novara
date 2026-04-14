@@ -72,8 +72,8 @@ ucrop = "2.2.8"
 mpvAndroidLib = "0.1.12"
 nanohttpd = "2.3.1"
 mlkitText = "16.0.1"
-mlkitTranslate = "17.0.3"
-mlkitLanguageId = "17.0.6"
+mlkitTranslate = "17.0.2"
+mlkitLanguageId = "17.0.5"
 paddleocr4android = "v1.2.9"
 onnxruntime = "1.24.3"
 djlTokenizers = "0.33.0"
@@ -178,6 +178,7 @@ mlkit-text-recognition-japanese = { module = "com.google.mlkit:text-recognition-
 mlkit-text-recognition-chinese = { module = "com.google.mlkit:text-recognition-chinese", version.ref = "mlkitText" }
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }
 mlkit-translate = { module = "com.google.mlkit:translate", version.ref = "mlkitTranslate" }
+mlkit-language-id = { module = "com.google.mlkit:language-id", version.ref = "mlkitLanguageId" }
 paddleocr4android = { module = "com.github.equationl.paddleocr4android:paddleocr4android", version.ref = "paddleocr4android" }
 onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
 djl-tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "djlTokenizers" }

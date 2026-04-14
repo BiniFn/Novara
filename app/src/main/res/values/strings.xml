@@ -427,6 +427,7 @@
     <string name="novel_translation_display_mode">Translation Display Mode</string>
     <string name="novel_translation_only">Translation Only</string>
     <string name="novel_translation_bilingual">Bilingual</string>
+    <string name="clear_translation_cache">Clear Translation Cache</string>
     <string name="novel_translate">Translate</string>
     <string name="novel_reset">Reset</string>
     <string name="novel_chapters_count">%1$d Chapters</string>

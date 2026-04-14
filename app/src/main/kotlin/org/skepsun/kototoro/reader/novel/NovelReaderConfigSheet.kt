@@ -86,6 +86,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.buttonTts.setOnClickListener(this)
         binding.buttonReset.setOnClickListener(this)
         binding.buttonClose.setOnClickListener(this)
+        binding.buttonClearTranslationCache.setOnClickListener(this)
         
         binding.toggleGroupReadingMode.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
@@ -172,6 +173,9 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
                 callback?.onTtsClick()
                 dismiss()
             }
+            org.skepsun.kototoro.R.id.buttonClearTranslationCache -> {
+                callback?.onClearTranslationCacheClick()
+            }
             org.skepsun.kototoro.R.id.buttonReset -> resetSettings()
             org.skepsun.kototoro.R.id.buttonClose -> dismiss()
         }
@@ -228,6 +232,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         fun onSettingsChanged(settings: NovelReaderSettings)
         fun onBookmarkClick()
         fun onTtsClick()
+        fun onClearTranslationCacheClick()
     }
 
     companion object {
