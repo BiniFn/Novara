@@ -73,6 +73,18 @@ internal class ReaderTranslationCoordinator(
 		}
 		if (misses.isEmpty()) return translated
 
+		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
+			val sampleText = misses.filter { it.isNotBlank() }.joinToString("\n").take(500)
+			if (sampleText.isNotBlank()) {
+				detectLanguage(sampleText) ?: "en"
+			} else {
+				"en"
+			}
+		} else {
+			sourceLang
+		}
+		android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: resolved source language to $resolvedSourceLang")
+
 		val mode = settings.readerTranslationMode
 		val onnxModelId = settings.readerTranslationOnnxModelId.trim()
 		android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: mode=$mode, onnxModelId='$onnxModelId', misses.size=${misses.size}")
@@ -81,8 +93,9 @@ internal class ReaderTranslationCoordinator(
 			android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: calling ONNX for ${needOnnx.size} texts")
 			if (needOnnx.isNotEmpty()) {
 				val onnxMap = runCatching {
-					onnxTranslationEngine.translateBatch(needOnnx, sourceLang, targetLang, onnxModelId)
+					onnxTranslationEngine.translateBatch(needOnnx, resolvedSourceLang, targetLang, onnxModelId)
 				}.onFailure {
+					if (it is kotlinx.coroutines.CancellationException) throw it
 					it.printStackTraceDebug()
 					log { "translate onnx failed: ${it.message.orEmpty()}" }
 					android.util.Log.e("ReaderTranslationCoordinator", "translateBlocksCached: ONNX failed: ${it.message}", it)
@@ -115,8 +128,9 @@ internal class ReaderTranslationCoordinator(
 				log { "translate local requested size=${needLocal.size}" }
 				var localResults = runCatching {
 					log { "translate local batch calling translateLocalBatch..." }
-					translateLocalBatch(needLocal, sourceLang, targetLang)
+					translateLocalBatch(needLocal, resolvedSourceLang, targetLang)
 				}.onFailure {
+					if (it is kotlinx.coroutines.CancellationException) throw it
 					it.printStackTraceDebug()
 					log { "translate local batch failed: ${it.message.orEmpty()}" }
 				}.getOrDefault(emptyMap())
@@ -127,8 +141,9 @@ internal class ReaderTranslationCoordinator(
 						needLocal.map { text ->
 							async {
 								val local = runCatching {
-									translateLocal(text, sourceLang, targetLang)
+									translateLocal(text, resolvedSourceLang, targetLang)
 								}.onFailure {
+									if (it is kotlinx.coroutines.CancellationException) throw it
 									log { "translate local fallback failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
 								}.getOrDefault("").trim()
 								text to local
@@ -165,7 +180,7 @@ internal class ReaderTranslationCoordinator(
 		if (mode != ReaderTranslationMode.LOCAL_ONLY) {
 			val needApi = misses.filter { translated[it].isNullOrBlank() }
 			if (needApi.isNotEmpty()) {
-				val apiMap = translateBatchByApi(needApi, sourceLang, targetLang)
+				val apiMap = translateBatchByApi(needApi, resolvedSourceLang, targetLang)
 				for (text in needApi) {
 					val apiText = apiMap[text]?.trim().orEmpty()
 					if (apiText.isNotBlank()) {
@@ -369,7 +384,7 @@ internal class ReaderTranslationCoordinator(
 	private suspend fun translateLocal(text: String, sourceLang: String, targetLang: String): String {
 		// 如果源语言是 auto，先检测
 		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
-			detectLanguage(text) ?: sourceLang
+			detectLanguage(text) ?: "en"
 		} else {
 			sourceLang
 		}
@@ -386,8 +401,12 @@ internal class ReaderTranslationCoordinator(
 			.build()
 		val translator = Translation.getClient(options)
 		return try {
-			translator.downloadModelIfNeeded().awaitCancellable()
-			translator.translate(text).awaitCancellable()
+			withTimeout(60_000) {
+				translator.downloadModelIfNeeded().awaitCancellable()
+			}
+			withTimeout(15_000) {
+				translator.translate(text).awaitCancellable()
+			}
 		} finally {
 			translator.close()
 		}
@@ -404,11 +423,11 @@ internal class ReaderTranslationCoordinator(
 		// 如果源语言是 auto，先检测第一段文本的语言
 		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
 			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch detecting language...")
-			val sampleText = texts.firstOrNull { it.length > 20 } ?: texts.firstOrNull() ?: ""
+			val sampleText = texts.filter { it.isNotBlank() }.joinToString("\n").take(500)
 			if (sampleText.isNotBlank()) {
-				detectLanguage(sampleText) ?: sourceLang
+				detectLanguage(sampleText) ?: "en"
 			} else {
-				sourceLang
+				"en"
 			}
 		} else {
 			sourceLang
@@ -431,30 +450,22 @@ internal class ReaderTranslationCoordinator(
 		val translator = Translation.getClient(options)
 		return try {
 			log { "translate local batch start size=${texts.size} source=$resolvedSourceLang target=$targetLang" }
-			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch checking if model is downloaded...")
-
-			// 先检查模型是否已下载
-			val modelManager = com.google.mlkit.common.model.RemoteModelManager.getInstance()
-			val translationModel = com.google.mlkit.nl.translate.TranslateRemoteModel.Builder(target).build()
-			val isModelDownloaded = try {
-				modelManager.isModelDownloaded(translationModel).awaitCancellable()
-			} catch (e: Exception) {
-				android.util.Log.e("ReaderTranslationCoordinator", "Failed to check model status: ${e.message}")
-				false
-			}
-			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch model downloaded: $isModelDownloaded")
 
 			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch downloading model if needed...")
 			val downloadTask = translator.downloadModelIfNeeded()
-			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch download task created, isComplete=${downloadTask.isComplete}, isCanceled=${downloadTask.isCanceled}")
-			downloadTask.awaitCancellable()
+			withTimeout(60_000) {
+				downloadTask.awaitCancellable()
+			}
 			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch model ready, starting translation...")
 
 			val results = LinkedHashMap<String, String>(texts.size)
 			for ((index, text) in texts.withIndex()) {
 				val out = runCatching {
-					translator.translate(text).awaitCancellable()
+					withTimeout(15_000) {
+						translator.translate(text).awaitCancellable()
+					}
 				}.onFailure {
+					if (it is kotlinx.coroutines.CancellationException) throw it
 					log { "translate local item failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
 					android.util.Log.e("ReaderTranslationCoordinator", "translateLocalBatch item $index failed: ${it.message}")
 				}.getOrDefault("").trim()
@@ -482,7 +493,9 @@ internal class ReaderTranslationCoordinator(
 		if (text.isBlank()) return null
 		val languageIdentifier = LanguageIdentification.getClient()
 		return try {
-			val result = languageIdentifier.identifyLanguage(text).awaitCancellable()
+			val result = withTimeout(15_000) {
+				languageIdentifier.identifyLanguage(text).awaitCancellable()
+			}
 			if (result == "und") {
 				log { "language detection undetermined for text=${oneLine(text, 100)}" }
 				null
