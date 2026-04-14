@@ -59,6 +59,18 @@ class KotoNetworkHelper(
         builder.followSslRedirects(baseClient.followSslRedirects)
         builder.retryOnConnectionFailure(baseClient.retryOnConnectionFailure)
         
+        // Wrap exceptions thrown by subsequent interceptors (especially from extensions)
+        builder.addInterceptor { chain ->
+            try {
+                chain.proceed(chain.request())
+            } catch (e: Throwable) {
+                // OkHttp Dispatcher will crash the app if intercepted throws unchecked exception instead of IOException.
+                // Extensions (like Baozi) might throw plain Exceptions for errors like "Socket closed".
+                if (e is java.io.IOException) throw e
+                throw java.io.IOException(e.message, e)
+            }
+        }
+        
         // Copy interceptors but exclude GZipInterceptor
         baseClient.interceptors.forEach { interceptor ->
             if (interceptor.javaClass.simpleName != "GZipInterceptor") {

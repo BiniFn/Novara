@@ -648,8 +648,8 @@ class AppRouter private constructor(
         }.showDistinct()
     }
 
-    fun showDirectorySelectDialog() {
-        ContentDirectorySelectDialog().showDistinct()
+    fun showDirectorySelectDialog(contentType: String = ContentDirectorySelectDialog.CONTENT_TYPE_MANGA) {
+        ContentDirectorySelectDialog.newInstance(contentType).showDistinct()
     }
 
     fun showFavoriteDialog(manga: Content) = showFavoriteDialog(setOf(manga))

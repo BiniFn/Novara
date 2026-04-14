@@ -567,7 +567,7 @@ abstract class ContentListFragment :
 
 	override fun getSourceTagEntries(): List<SourceTag> = sourceTagChipEntries()
 
-	override fun isLanguagePresetFilterVisible(): Boolean = settings.isShowLanguagePresetFilter
+	override fun isLanguagePresetFilterVisible(): Boolean = false
 	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter
 
 	override fun isSourceTagFilterVisible(): Boolean = settings.isShowSourceTagFilter

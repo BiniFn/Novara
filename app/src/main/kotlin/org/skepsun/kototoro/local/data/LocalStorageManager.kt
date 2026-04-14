@@ -127,8 +127,8 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun getDefaultNovelWriteableDir(): File? = runInterruptible(Dispatchers.IO) {
-		// Currently no setting for novel storage, use internal root as priority or first external
-		getFallbackNovelStorageDir()?.takeIfWriteable()
+		val preferredDir = settings.novelStorageDir?.takeIfWriteable()
+		preferredDir ?: getFallbackNovelStorageDir()?.takeIfWriteable()
 	}
 
 	suspend fun getVideoWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
@@ -230,8 +230,15 @@ class LocalStorageManager @Inject constructor(
 	/**
 	 * 返回视频下载根目录（files/video）
 	 */
+	suspend fun getDefaultVideoWriteableDir(): File? = runInterruptible(Dispatchers.IO) {
+		val preferredDir = settings.videoStorageDir?.takeIfWriteable()
+		preferredDir ?: getFallbackVideoStorageDir()?.takeIfWriteable()
+	}
+
 	@WorkerThread
 	fun getVideoRoot(): File? {
+		val preferredDir = settings.videoStorageDir
+		if (preferredDir != null && preferredDir.isWriteable()) return preferredDir
 		return context.getExternalFilesDir(DIR_NAME_VIDEO) ?: File(context.filesDir, DIR_NAME_VIDEO).takeIf {
 			it.exists() || it.mkdirs()
 		}
@@ -247,6 +254,13 @@ class LocalStorageManager @Inject constructor(
 	@WorkerThread
 	private fun getFallbackStorageDir(): File? {
 		return context.getExternalFilesDir(DIR_NAME) ?: File(context.filesDir, DIR_NAME).takeIf {
+			it.exists() || it.mkdirs()
+		}
+	}
+
+	@WorkerThread
+	private fun getFallbackVideoStorageDir(): File? {
+		return context.getExternalFilesDir(DIR_NAME_VIDEO) ?: File(context.filesDir, DIR_NAME_VIDEO).takeIf {
 			it.exists() || it.mkdirs()
 		}
 	}

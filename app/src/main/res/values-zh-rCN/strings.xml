@@ -139,7 +139,9 @@
     <string name="manga_shelf">收藏</string>
     <string name="recent_manga">最近</string>
     <string name="pages_animation">翻页动画</string>
-    <string name="manga_save_location">作品下载目录</string>
+    <string name="manga_save_location">漫画下载目录</string>
+    <string name="novel_save_location">小说下载目录</string>
+    <string name="video_save_location">视频下载目录</string>
     <string name="not_available">不可用</string>
     <string name="cannot_find_available_storage">没有多余的存储空间</string>
     <string name="other_storage">其他存储</string>

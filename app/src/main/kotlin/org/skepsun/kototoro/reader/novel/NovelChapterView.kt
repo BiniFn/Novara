@@ -178,15 +178,20 @@ class NovelChapterView @JvmOverloads constructor(
         if (hasImages) {
             val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
             val imageWidth = pageWidth.toFloat()
-            val imageHeight = imageWidth * 0.75f
+            val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
             val paraSpacingPx = settings.paragraphSpacing * resources.displayMetrics.density
             val extraSpacerLines = if (paraSpacingPx > 0) max(1, kotlin.math.ceil(paraSpacingPx / lineHeight).toInt()) else 0
-            val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
-            val spacer = "\n".repeat(spacerLines)
             
             var newText = processedText
             for (i in imagePaths.indices) {
                 val placeholder = "[IMAGE_PLACEHOLDER_$i]"
+                val imagePath = imagePaths[i]
+                val ratio = loadedImageAspectRatios[imagePath] ?: 1.414f // Default to A4 ratio
+                var imageHeight = imageWidth * ratio
+                if (imageHeight > maxScreenHeight) imageHeight = maxScreenHeight
+                
+                val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
+                val spacer = "\n".repeat(spacerLines)
                 newText = newText.replace(placeholder, "\n$placeholder\n$spacer\n")
             }
             processedText = newText
@@ -215,7 +220,11 @@ class NovelChapterView @JvmOverloads constructor(
                     }
                     
                     val imageWidth = pageWidth.toFloat()
-                    val imageHeight = imageWidth * 0.75f 
+                    val ratio = loadedImageAspectRatios[imagePath] ?: 1.414f
+                    val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
+                    var imageHeight = imageWidth * ratio
+                    if (imageHeight > maxScreenHeight) imageHeight = maxScreenHeight
+                    
                     tempImageSpans.add(ChapterImageSpan(imagePath, yPosition, imageWidth, imageHeight))
                 }
             }
@@ -373,7 +382,20 @@ class NovelChapterView @JvmOverloads constructor(
                     if (bitmap != null) {
                         imageCache.put(cacheKey, bitmap)
                         loadingImages.remove(cacheKey)
-                        invalidate()
+                        var actualRatio = bitmap.height.toFloat() / bitmap.width.toFloat()
+                        val currentRatio = loadedImageAspectRatios[imagePath] ?: 1.414f
+                        val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
+                        val viewWidth = width.toFloat().takeIf { it > 0f } ?: (resources.displayMetrics.widthPixels.toFloat())
+                        val maxRatio = maxScreenHeight / viewWidth
+                        if (actualRatio > maxRatio) actualRatio = maxRatio
+                        
+                        if (kotlin.math.abs(actualRatio - currentRatio) > 0.05f) {
+                            loadedImageAspectRatios[imagePath] = actualRatio
+                            displayLayout = null
+                            requestLayout()
+                        } else {
+                            invalidate()
+                        }
                     } else {
                         loadingImages.remove(cacheKey)
                         failedImages.add(cacheKey)
@@ -410,6 +432,10 @@ class NovelChapterView @JvmOverloads constructor(
             is SuccessResult -> result.image.toBitmap(width = result.image.width, height = result.image.height)
             is ErrorResult -> throw result.throwable
         }
+    }
+
+    companion object {
+        private val loadedImageAspectRatios = mutableMapOf<String, Float>()
     }
 }
 

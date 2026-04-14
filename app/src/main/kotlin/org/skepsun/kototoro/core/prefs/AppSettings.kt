@@ -944,6 +944,30 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			}
 		}
 
+	var novelStorageDir: File?
+		get() = prefs.getString(KEY_LOCAL_NOVEL_STORAGE, null)?.let {
+			File(it)
+		}?.takeIf { it.exists() }
+		set(value) = prefs.edit {
+			if (value == null) {
+				remove(KEY_LOCAL_NOVEL_STORAGE)
+			} else {
+				putString(KEY_LOCAL_NOVEL_STORAGE, value.path)
+			}
+		}
+
+	var videoStorageDir: File?
+		get() = prefs.getString(KEY_LOCAL_VIDEO_STORAGE, null)?.let {
+			File(it)
+		}?.takeIf { it.exists() }
+		set(value) = prefs.edit {
+			if (value == null) {
+				remove(KEY_LOCAL_VIDEO_STORAGE)
+			} else {
+				putString(KEY_LOCAL_VIDEO_STORAGE, value.path)
+			}
+		}
+
 	var allowDownloadOnMeteredNetwork: TriStateOption
 		get() = prefs.getEnumValue(KEY_DOWNLOADS_METERED_NETWORK, TriStateOption.ASK)
 		set(value) = prefs.edit { putEnumValue(KEY_DOWNLOADS_METERED_NETWORK, value) }
@@ -1476,6 +1500,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_GRID_SIZE_PAGES = "grid_size_pages"
 		const val KEY_REMOTE_SOURCES = "remote_sources"
 		const val KEY_LOCAL_STORAGE = "local_storage"
+		const val KEY_LOCAL_NOVEL_STORAGE = "local_novel_storage"
+		const val KEY_LOCAL_VIDEO_STORAGE = "local_video_storage"
 		const val KEY_READER_DOUBLE_PAGES = "reader_double_pages"
 		const val KEY_READER_DOUBLE_PAGES_SENSITIVITY = "reader_double_pages_sensitivity_2"
 		const val KEY_READER_DOUBLE_FOLDABLE = "reader_double_foldable"

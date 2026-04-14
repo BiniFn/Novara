@@ -116,7 +116,9 @@
     <string name="manga_shelf">Shelf</string>
     <string name="recent_manga">Recent</string>
     <string name="pages_animation">Page animation</string>
-    <string name="manga_save_location">Downloads folder</string>
+    <string name="manga_save_location">Manga downloads folder</string>
+    <string name="novel_save_location">Novel downloads folder</string>
+    <string name="video_save_location">Video downloads folder</string>
     <string name="not_available">Not available</string>
     <string name="cannot_find_available_storage">No available storage</string>
     <string name="other_storage">Other storage</string>
