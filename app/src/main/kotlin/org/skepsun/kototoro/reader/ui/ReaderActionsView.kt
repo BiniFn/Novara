@@ -98,6 +98,7 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.buttonPagesThumbs.initAction()
 		binding.buttonTimer.initAction()
 		binding.buttonBookmark.initAction()
+		binding.buttonTranslate.initAction()
 		binding.slider.setLabelFormatter(PageLabelFormatter())
 		binding.slider.addOnChangeListener(this)
 		binding.slider.addOnSliderTouchListener(this)
@@ -130,6 +131,7 @@ class ReaderActionsView @JvmOverloads constructor(
 			R.id.button_screen_rotation -> listener?.toggleScreenOrientation()
 			R.id.button_options -> listener?.openMenu()
 			R.id.button_bookmark -> listener?.onBookmarkClick()
+			R.id.button_translate -> listener?.onTranslateClick()
 		}
 	}
 
@@ -198,6 +200,35 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.buttonTimer.setIconResource(
 			if (isActive) R.drawable.ic_timer_run else R.drawable.ic_timer,
 		)
+	}
+
+	/**
+	 * 显示/隐藏翻译按钮（仅在小说阅读器中显示）
+	 */
+	fun setTranslateButtonVisible(visible: Boolean) {
+		binding.buttonTranslate.isVisible = visible
+		// 按钮在 FrameLayout 容器内，adjustLayoutParams() 仅在 init 时执行一次
+		// 此处手动同步父容器可见性，避免父容器仍处于 GONE 状态
+		(binding.buttonTranslate.parent as? android.view.View)?.isVisible = visible
+	}
+
+	/**
+	 * 更新翻译按钮的激活状态（翻译中时高亮显示）
+	 */
+	fun setTranslateActive(isActive: Boolean) {
+		binding.buttonTranslate.isSelected = isActive
+		// 激活时改变图标色调以提示用户
+		val colorAttrRes = if (isActive) {
+			androidx.appcompat.R.attr.colorPrimary
+		} else {
+			android.R.attr.colorControlNormal
+		}
+		val color = com.google.android.material.color.MaterialColors.getColor(
+			this,
+			colorAttrRes,
+			android.graphics.Color.GRAY,
+		)
+		binding.buttonTranslate.iconTint = android.content.res.ColorStateList.valueOf(color)
 	}
 
 	private fun updateControlsVisibility() {

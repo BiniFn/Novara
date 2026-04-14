@@ -21,6 +21,8 @@ data class NovelReaderSettings(
     val showReadingStatus: Boolean = true,  // 显示阅读状态（之前是 showFooter）
     val isReadingStatusTransparent: Boolean = false, // 透明阅读状态栏
     val enableParagraphIndent: Boolean = true, // 段首缩进两个全角空格
+    val isTranslationEnabled: Boolean = false,
+    val translationDisplayMode: NovelTranslationDisplayMode = NovelTranslationDisplayMode.TRANSLATION_ONLY,
 ) {
 
     fun save(context: Context) {
@@ -37,6 +39,8 @@ data class NovelReaderSettings(
             putBoolean(KEY_SHOW_READING_STATUS, showReadingStatus)
             putBoolean(KEY_READING_STATUS_TRANSPARENT, isReadingStatusTransparent)
             putBoolean(KEY_PARAGRAPH_INDENT, enableParagraphIndent)
+            putBoolean(KEY_TRANSLATION_ENABLED, isTranslationEnabled)
+            putString(KEY_TRANSLATION_DISPLAY_MODE, translationDisplayMode.name)
         }
     }
 
@@ -54,6 +58,8 @@ data class NovelReaderSettings(
         private const val KEY_SHOW_READING_STATUS = "show_reading_status"
         private const val KEY_READING_STATUS_TRANSPARENT = "reading_status_transparent"
         private const val KEY_PARAGRAPH_INDENT = "paragraph_indent"
+        private const val KEY_TRANSLATION_ENABLED = "translation_enabled"
+        private const val KEY_TRANSLATION_DISPLAY_MODE = "translation_display_mode"
 
         fun load(context: Context): NovelReaderSettings {
             val prefs = getPrefs(context)
@@ -74,6 +80,13 @@ data class NovelReaderSettings(
                 showReadingStatus = prefs.getBoolean(KEY_SHOW_READING_STATUS, true),
                 isReadingStatusTransparent = prefs.getBoolean(KEY_READING_STATUS_TRANSPARENT, false),
                 enableParagraphIndent = prefs.getBoolean(KEY_PARAGRAPH_INDENT, true),
+                isTranslationEnabled = prefs.getBoolean(KEY_TRANSLATION_ENABLED, false),
+                translationDisplayMode = runCatching {
+                    NovelTranslationDisplayMode.valueOf(
+                        prefs.getString(KEY_TRANSLATION_DISPLAY_MODE, null)
+                            ?: NovelTranslationDisplayMode.TRANSLATION_ONLY.name
+                    )
+                }.getOrDefault(NovelTranslationDisplayMode.TRANSLATION_ONLY),
             )
         }
 

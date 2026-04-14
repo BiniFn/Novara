@@ -353,7 +353,7 @@ internal class ReaderTranslationCoordinator(
 		val target = resolveMlKitLanguage(targetLang)
 		if (source == null || target == null) {
 			log { "translate local skip unsupported source=$sourceLang target=$targetLang" }
-			return text
+			return ""  // 返回空字符串，不返回原文
 		}
 		val options = TranslatorOptions.Builder()
 			.setSourceLanguage(source)

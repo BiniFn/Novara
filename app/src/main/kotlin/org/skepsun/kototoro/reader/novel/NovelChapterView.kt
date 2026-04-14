@@ -3,12 +3,16 @@ package org.skepsun.kototoro.reader.novel
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.text.Layout
+import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.util.AttributeSet
 import android.view.View
 import androidx.collection.LruCache
@@ -58,6 +62,7 @@ class NovelChapterView @JvmOverloads constructor(
     private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
     var chapterContent: String = ""
         private set
+    private var activeTranslation: NovelChapterTranslation? = null
     
     private var displayLayout: StaticLayout? = null
     var processedText: String = ""
@@ -98,6 +103,18 @@ class NovelChapterView @JvmOverloads constructor(
         this.displayLayout = null
         loadingImages.clear()
         failedImages.clear()
+        requestLayout()
+        invalidate()
+    }
+
+    /**
+     * 更新翻译结果，触发重新排版和渲染。
+     * 传入 null 则清除翻译，恢复显示原文。
+     */
+    fun setTranslation(translation: NovelChapterTranslation?) {
+        if (activeTranslation == translation) return
+        activeTranslation = translation
+        displayLayout = null
         requestLayout()
         invalidate()
     }
@@ -171,7 +188,9 @@ class NovelChapterView @JvmOverloads constructor(
     }
 
     private fun buildLayout(pageWidth: Int) {
-        var (processedText, imagePaths) = parseImages(chapterContent)
+        // 如果有激活的翻译，先对内容进行段落级替换/拼接
+        val contentForLayout = applyTranslationToContent(chapterContent, activeTranslation)
+        var (processedText, imagePaths) = parseImages(contentForLayout)
         val hasImages = imagePaths.isNotEmpty()
         val tempImageSpans = mutableListOf<ChapterImageSpan>()
         
@@ -236,10 +255,105 @@ class NovelChapterView @JvmOverloads constructor(
 
         imageSpans = tempImageSpans
         this.processedText = processedText
-        displayLayout = createStaticLayout(processedText, pageWidth)
+        val layoutText: CharSequence = applyBilingualSpannable(processedText, activeTranslation)
+        displayLayout = createStaticLayout(layoutText, pageWidth)
     }
 
-    private fun createStaticLayout(text: String, width: Int): StaticLayout {
+    /**
+     * 根据翻译结果，将章节内容转换为展示用文本。
+     *
+     * - TRANSLATION_ONLY：每个 TEXT 段落替换为译文（IMAGE 段落原样保留）
+     * - BILINGUAL：每个 TEXT 段落变为 [原文(灰色小字)]\n[译文(正常样式)]
+     * - translation 为 null：直接返回原始内容
+     */
+    private fun applyTranslationToContent(
+        content: String,
+        translation: NovelChapterTranslation?,
+    ): String {
+        if (translation == null || translation.translations.isEmpty()) return content
+        val paragraphs = translation.paragraphs
+        if (paragraphs.isEmpty()) return content
+
+        val sb = StringBuilder()
+        for ((i, para) in paragraphs.withIndex()) {
+            if (i > 0) sb.append("\n\n")
+            if (para.type == NovelParagraphType.IMAGE) {
+                sb.append(para.originalText)
+                continue
+            }
+            val translated = translation.translations[para.index]
+            if (translated.isNullOrBlank()) {
+                sb.append(para.originalText)
+                continue
+            }
+            when (translation.displayMode) {
+                NovelTranslationDisplayMode.TRANSLATION_ONLY -> sb.append(translated)
+                NovelTranslationDisplayMode.BILINGUAL -> {
+                    sb.append(para.originalText)
+                    sb.append("\n")
+                    sb.append(translated)
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * 仅用于双语模式：在已拼接好的 processedText 上查找原文段落，
+     * 将原文部分设置为灰色小字 Span，译文部分保持默认样式。
+     * 其他模式直接返回原字符串。
+     */
+    private fun applyBilingualSpannable(
+        processedText: String,
+        translation: NovelChapterTranslation?,
+    ): CharSequence {
+        if (translation == null ||
+            translation.displayMode != NovelTranslationDisplayMode.BILINGUAL ||
+            translation.translations.isEmpty()
+        ) {
+            return processedText
+        }
+
+        val ssb = SpannableStringBuilder(processedText)
+        val grayColor = android.graphics.Color.GRAY
+        val smallSize = 0.8f
+
+        for (para in translation.paragraphs) {
+            if (para.type != NovelParagraphType.TEXT) continue
+            val translated = translation.translations[para.index] ?: continue
+            if (translated.isBlank()) continue
+
+            // 在 processedText 中定位原文段落（按照 applyTranslationToContent 拼出的顺序）
+            val originalInText = para.originalText
+            var searchFrom = 0
+            while (searchFrom < ssb.length) {
+                val idx = ssb.indexOf(originalInText, searchFrom)
+                if (idx < 0) break
+                // 原文结束后紧跟 \n + 译文
+                val expectedAfter = idx + originalInText.length
+                if (expectedAfter < ssb.length && ssb[expectedAfter] == '\n') {
+                    // 对原文部分加灰色 + 缩小 Span
+                    ssb.setSpan(
+                        ForegroundColorSpan(grayColor),
+                        idx,
+                        expectedAfter,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    ssb.setSpan(
+                        RelativeSizeSpan(smallSize),
+                        idx,
+                        expectedAfter,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                }
+                searchFrom = expectedAfter + 1
+                break
+            }
+        }
+        return ssb
+    }
+
+    private fun createStaticLayout(text: CharSequence, width: Int): StaticLayout {
         return try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 StaticLayout.Builder.obtain(text, 0, text.length, textPaint, width)

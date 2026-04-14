@@ -60,6 +60,15 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
         binding.toggleGroupReadingMode.check(if (settings.readingMode == ReadingMode.SCROLL) org.skepsun.kototoro.R.id.btnModeScroll else org.skepsun.kototoro.R.id.btnModePaged)
 
+        // 初始化翻译展示模式控件
+        binding.toggleGroupTranslationMode.check(
+            if (settings.translationDisplayMode == NovelTranslationDisplayMode.BILINGUAL) {
+                org.skepsun.kototoro.R.id.btnTranslationBilingual
+            } else {
+                org.skepsun.kototoro.R.id.btnTranslationOnly
+            }
+        )
+
         // 初始化值显示
         updateValueDisplays()
 
@@ -82,6 +91,20 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
             if (isChecked) {
                 settings = settings.copy(
                     readingMode = if (checkedId == org.skepsun.kototoro.R.id.btnModeScroll) ReadingMode.SCROLL else ReadingMode.PAGED
+                )
+                applySettings()
+            }
+        }
+
+        // 翻译展示模式切换监听
+        binding.toggleGroupTranslationMode.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                settings = settings.copy(
+                    translationDisplayMode = if (checkedId == org.skepsun.kototoro.R.id.btnTranslationBilingual) {
+                        NovelTranslationDisplayMode.BILINGUAL
+                    } else {
+                        NovelTranslationDisplayMode.TRANSLATION_ONLY
+                    }
                 )
                 applySettings()
             }

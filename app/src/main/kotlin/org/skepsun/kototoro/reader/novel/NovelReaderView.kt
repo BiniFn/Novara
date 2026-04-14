@@ -8,8 +8,11 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.text.Layout
+import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -73,7 +76,9 @@ class NovelReaderView @JvmOverloads constructor(
     }
 
     private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
-    private var chapterContent: String = ""
+    var chapterContent: String = ""
+        private set
+    private var activeTranslation: NovelChapterTranslation? = null
     private var pages: List<PageInfo> = emptyList()
     private var currentPageIndex: Int = 0
 	private var isDualPage: Boolean = false
@@ -428,6 +433,15 @@ class NovelReaderView @JvmOverloads constructor(
     }
 
     /**
+     * 更新翻译结果，触发重新分页和渲染。
+     * 传入 null 则清除翻译，恢复显示原文。
+     */
+    fun setTranslation(translation: NovelChapterTranslation?) {
+        activeTranslation = translation
+        repaginate()
+    }
+
+    /**
      * 更新设置
      */
     fun updateSettings(newSettings: NovelReaderSettings) {
@@ -728,8 +742,25 @@ class NovelReaderView @JvmOverloads constructor(
         }
 
         android.util.Log.d("NovelReaderView", "Repaginating with dimensions: ${pageWidth}x${pageHeight} (padding: ${paddingTop}, ${paddingBottom})")
-        
-        pages = paginateText(chapterContent, pageWidth, pageHeight)
+
+        // 使用翻译后内容（如果有）进行分页，否则使用原始内容
+        val contentForPagination = applyTranslationToContent(chapterContent, activeTranslation)
+        pages = paginateText(contentForPagination, pageWidth, pageHeight)
+
+        // BILINGUAL 模式：用 SpannableStringBuilder 重建每页 layout，使原文呈灰色小字
+        if (activeTranslation != null &&
+            activeTranslation!!.displayMode == NovelTranslationDisplayMode.BILINGUAL &&
+            activeTranslation!!.translations.isNotEmpty()
+        ) {
+            pages = pages.map { page ->
+                val spannable = applyBilingualSpannable(page.text, activeTranslation!!)
+                if (spannable !== page.text) {
+                    page.copy(layout = createLayout(spannable, pageWidth))
+                } else {
+                    page
+                }
+            }
+        }
         
         // 处理待设置的页码/偏移
         val targetCharOffset = when {
@@ -882,6 +913,88 @@ class NovelReaderView @JvmOverloads constructor(
         return sb.toString()
     }
     
+    /**
+     * 根据翻译结果，将章节内容转换为展示用文本。
+     * 与 NovelChapterView 中的同名方法保持逻辑一致。
+     */
+    private fun applyTranslationToContent(
+        content: String,
+        translation: NovelChapterTranslation?,
+    ): String {
+        if (translation == null || translation.translations.isEmpty()) return content
+        val paragraphs = translation.paragraphs
+        if (paragraphs.isEmpty()) return content
+
+        val sb = StringBuilder()
+        for ((i, para) in paragraphs.withIndex()) {
+            if (i > 0) sb.append("\n\n")
+            if (para.type == NovelParagraphType.IMAGE) {
+                sb.append(para.originalText)
+                continue
+            }
+            val translated = translation.translations[para.index]
+            if (translated.isNullOrBlank()) {
+                sb.append(para.originalText)
+                continue
+            }
+            when (translation.displayMode) {
+                NovelTranslationDisplayMode.TRANSLATION_ONLY -> sb.append(translated)
+                NovelTranslationDisplayMode.BILINGUAL -> {
+                    sb.append(para.originalText)
+                    sb.append("\n")
+                    sb.append(translated)
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * 双语模式：在已拼接好的页面文本上，对原文部分叠加灰色 + 小字 Span。
+     * 通过定位每个原文段落在页面文本中的位置来施加 Span。
+     * TRANSLATION_ONLY 或无翻译时直接返回原字符串（引用不变）。
+     */
+    private fun applyBilingualSpannable(
+        pageText: String,
+        translation: NovelChapterTranslation,
+    ): CharSequence {
+        if (translation.translations.isEmpty()) return pageText
+        val grayColor = android.graphics.Color.GRAY
+        val smallSize = 0.8f
+        val ssb = SpannableStringBuilder(pageText)
+        var modified = false
+
+        for (para in translation.paragraphs) {
+            if (para.type != NovelParagraphType.TEXT) continue
+            val translated = translation.translations[para.index] ?: continue
+            if (translated.isBlank()) continue
+
+            val orig = para.originalText
+            var searchFrom = 0
+            while (searchFrom < ssb.length) {
+                val idx = ssb.indexOf(orig, searchFrom)
+                if (idx < 0) break
+                val afterOrig = idx + orig.length
+                if (afterOrig < ssb.length && ssb[afterOrig] == '\n') {
+                    ssb.setSpan(
+                        ForegroundColorSpan(grayColor),
+                        idx, afterOrig,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    ssb.setSpan(
+                        RelativeSizeSpan(smallSize),
+                        idx, afterOrig,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    modified = true
+                }
+                searchFrom = afterOrig + 1
+                break
+            }
+        }
+        return if (modified) ssb else pageText
+    }
+
     /**
      * 文本分页算法 - 基于逐行精确测量，确保不漏字
      * 支持图片：解析图片占位符，计算图片位置和大小
@@ -1074,7 +1187,7 @@ class NovelReaderView @JvmOverloads constructor(
         }
     }
 
-    private fun createLayout(text: String, width: Int): StaticLayout {
+    private fun createLayout(text: CharSequence, width: Int): StaticLayout {
         return try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 StaticLayout.Builder.obtain(text, 0, text.length, textPaint, width)

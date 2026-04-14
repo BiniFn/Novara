@@ -424,6 +424,10 @@
     <string name="novel_fullscreen_mode">Fullscreen Mode (Hide Status Bar)</string>
     <string name="novel_show_reading_status">Show Reading Status</string>
     <string name="novel_transparent_status_bar">Transparent Status Bar</string>
+    <string name="novel_translation_display_mode">Translation Display Mode</string>
+    <string name="novel_translation_only">Translation Only</string>
+    <string name="novel_translation_bilingual">Bilingual</string>
+    <string name="novel_translate">Translate</string>
     <string name="novel_reset">Reset</string>
     <string name="novel_chapters_count">%1$d Chapters</string>
     <string name="novel_last_chapter">Already at the last chapter</string>

@@ -251,6 +251,40 @@
             android:text="@string/novel_transparent_status_bar"
             android:layout_marginTop="8dp" />
 
+        <!-- 翻译展示模式 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/novel_translation_display_mode"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggleGroupTranslationMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            app:singleSelection="true"
+            app:selectionRequired="true">
+
+            <Button
+                style="?attr/materialButtonOutlinedStyle"
+                android:id="@+id/btnTranslationOnly"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/novel_translation_only" />
+
+            <Button
+                style="?attr/materialButtonOutlinedStyle"
+                android:id="@+id/btnTranslationBilingual"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/novel_translation_bilingual" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
         <!-- 按钮 -->
         <LinearLayout
             android:layout_width="match_parent"
