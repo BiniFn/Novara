@@ -43,8 +43,12 @@
     <string name="discover">Discover</string>
     <string name="search_content">Search content</string>
     <string name="manga_downloading_">Downloading…</string>
+    <string name="translating_">Translating…</string>
+    <string name="super_resolution_processing_">Upscaling…</string>
     <string name="processing_">Processing…</string>
     <string name="download_complete">Downloaded</string>
+    <string name="translation_prepared">Translation prepared</string>
+    <string name="super_resolution_prepared">Super resolution prepared</string>
     <string name="downloads">Downloads</string>
     <string name="by_name">Name</string>
     <string name="popular">Popular</string>
@@ -100,6 +104,8 @@
     <string name="enabled_d_of_d" tools:ignore="PluralsCandidate">%1$d of %2$d on</string>
     <string name="new_chapters">New chapters</string>
     <string name="download">Download</string>
+    <string name="prepare_translation">Prepare translation</string>
+    <string name="prepare_super_resolution">Prepare super resolution</string>
     <string name="notifications_settings">Notifications settings</string>
     <string name="notification_sound">Notification sound</string>
     <string name="light_indicator">LED indicator</string>
@@ -468,6 +474,9 @@
     <string name="chapters_empty">No chapters in this manga</string>
     <string name="percent_string_pattern" translatable="false">%1$s%%</string>
     <string name="appearance">Appearance</string>
+    <string name="tablet_ui_mode">Tablet layout detection</string>
+    <string name="tablet_ui_mode_relaxed">Relaxed (wide portrait counts)</string>
+    <string name="tablet_ui_mode_strict">Strict (original Kotatsu)</string>
     <string name="suggestions_updating">Suggestions updating</string>
     <string name="suggestions_excluded_genres">Exclude genres</string>
     <string name="suggestions_excluded_genres_summary">Specify genres that you do not want to see in the suggestions</string>

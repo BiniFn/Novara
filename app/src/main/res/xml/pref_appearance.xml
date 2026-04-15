@@ -22,6 +22,12 @@
         android:summary="@string/black_dark_theme_summary"
         android:title="@string/black_dark_theme" />
 
+    <ListPreference
+        android:defaultValue="RELAXED"
+        android:key="tablet_ui_mode"
+        android:title="@string/tablet_ui_mode"
+        app:useSimpleSummaryProvider="true" />
+
     <org.skepsun.kototoro.settings.utils.ActivityListPreference
         android:key="app_locale"
         android:title="@string/language" />

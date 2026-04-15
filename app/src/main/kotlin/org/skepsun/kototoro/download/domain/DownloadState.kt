@@ -3,12 +3,15 @@ package org.skepsun.kototoro.download.domain
 import androidx.work.Data
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.download.ui.worker.DownloadTaskKind
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.util.find
 import java.time.Instant
 
 data class DownloadState(
 	val manga: Content,
 	val isIndeterminate: Boolean,
+	val taskKind: DownloadTaskKind = DownloadTaskKind.DOWNLOAD,
 	val isPaused: Boolean = false,
 	val isStopped: Boolean = false,
 	val error: Throwable? = null,
@@ -22,6 +25,7 @@ data class DownloadState(
 	val localContent: LocalContent? = null,
 	val downloadedChapters: Int = 0,
 	val timestamp: Long = System.currentTimeMillis(),
+	val isCompleted: Boolean = false,
 ) {
 
 	val max: Int = totalChapters * totalPages
@@ -31,13 +35,14 @@ data class DownloadState(
 	val percent: Float = if (max > 0) progress.toFloat() / max else PROGRESS_NONE
 
 	val isFinalState: Boolean
-		get() = localContent != null || (error != null && !isPaused)
+		get() = isCompleted || localContent != null || (error != null && !isPaused)
 
 	val isParticularProgress: Boolean
-		get() = localContent == null && error == null && !isPaused && !isStopped && max > 0 && !isIndeterminate
+		get() = !isCompleted && localContent == null && error == null && !isPaused && !isStopped && max > 0 && !isIndeterminate
 
 	fun toWorkData() = Data.Builder()
 		.putLong(DATA_MANGA_ID, manga.id)
+		.putString(DATA_TASK_KIND, taskKind.name)
 		.putInt(DATA_MAX, max)
 		.putInt(DATA_PROGRESS, progress)
 		.putLong(DATA_ETA, eta)
@@ -47,11 +52,13 @@ data class DownloadState(
 		.putInt(DATA_CHAPTERS, downloadedChapters)
 		.putBoolean(DATA_INDETERMINATE, isIndeterminate)
 		.putBoolean(DATA_PAUSED, isPaused)
+		.putBoolean(DATA_COMPLETED, isCompleted)
 		.build()
 
 	companion object {
 
 		private const val DATA_MANGA_ID = "manga_id"
+		private const val DATA_TASK_KIND = "task_kind"
 		private const val DATA_MAX = "max"
 		private const val DATA_PROGRESS = "progress"
 		private const val DATA_CHAPTERS = "chapter_cnt"
@@ -61,12 +68,15 @@ data class DownloadState(
 		private const val DATA_ERROR = "error"
 		private const val DATA_INDETERMINATE = "indeterminate"
 		private const val DATA_PAUSED = "paused"
+		private const val DATA_COMPLETED = "completed"
 
 		fun getContentId(data: Data): Long = data.getLong(DATA_MANGA_ID, 0L)
 
 		fun isIndeterminate(data: Data): Boolean = data.getBoolean(DATA_INDETERMINATE, false)
 
 		fun isPaused(data: Data): Boolean = data.getBoolean(DATA_PAUSED, false)
+
+		fun isCompleted(data: Data): Boolean = data.getBoolean(DATA_COMPLETED, false)
 
 		fun getMax(data: Data): Int = data.getInt(DATA_MAX, 0)
 
@@ -81,5 +91,8 @@ data class DownloadState(
 		fun getTimestamp(data: Data): Instant = Instant.ofEpochMilli(data.getLong(DATA_TIMESTAMP, 0L))
 
 		fun getDownloadedChapters(data: Data): Int = data.getInt(DATA_CHAPTERS, 0)
+
+		fun getTaskKind(data: Data): DownloadTaskKind =
+			data.getString(DATA_TASK_KIND)?.let { DownloadTaskKind.entries.find(it) } ?: DownloadTaskKind.DOWNLOAD
 	}
 }

@@ -19,7 +19,6 @@ import androidx.collection.LruCache
 import androidx.collection.LongSparseArray
 import androidx.core.net.toFile
 import androidx.core.net.toUri
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import eu.kanade.tachiyomi.network.await
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -63,12 +62,13 @@ import kotlinx.coroutines.withContext
 import okio.source
 import java.security.MessageDigest
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-@ActivityRetainedScoped
+@Singleton
 class ReaderPageTranslationProcessor @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	private val settings: AppSettings,
@@ -261,8 +261,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return renderedSourceMap[renderedUri.toString()]?.toUri()
 	}
 
-	suspend fun process(page: ContentPage, sourceUri: Uri): Uri {
-		val enabled = settings.isReaderTranslationEnabled
+	suspend fun process(page: ContentPage, sourceUri: Uri, forceEnabled: Boolean = false): Uri {
+		val enabled = forceEnabled || settings.isReaderTranslationEnabled
 		val showTranslated = settings.isReaderTranslationShowTranslated
 		Log.d(LOG_TAG, "process debug: page=${page.id} enabled=$enabled showTranslated=$showTranslated")
 		if (!enabled) {

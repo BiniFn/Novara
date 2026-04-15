@@ -68,6 +68,7 @@ import org.skepsun.kototoro.discover.ui.details.TrackingSiteDetailsActivity
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogFragment
 import org.skepsun.kototoro.download.ui.list.DownloadsActivity
 import org.skepsun.kototoro.favourites.ui.FavouritesActivity
+import org.skepsun.kototoro.favourites.ui.FavouritesContainerActivity
 import org.skepsun.kototoro.favourites.ui.categories.FavouriteCategoriesActivity
 import org.skepsun.kototoro.favourites.ui.categories.edit.FavouritesCategoryEditActivity
 import org.skepsun.kototoro.favourites.ui.categories.select.FavoriteDialog
@@ -513,6 +514,8 @@ class AppRouter private constructor(
     }
 
     fun openFavorites() = startActivity(FavouritesActivity::class.java)
+
+    fun openFavoritesContainer() = startActivity(FavouritesContainerActivity::class.java)
 
     fun openFavorites(category: FavouriteCategory) {
         startActivity(

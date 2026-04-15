@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
@@ -22,6 +23,7 @@ import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
@@ -59,7 +61,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 			buttonViewAllUpdates.setOnClickListener { router.openMangaUpdates(currentBrowseGroupTab()) }
 			buttonViewAllRecommendations.setOnClickListener { router.openSuggestions(currentBrowseGroupTab()) }
 			buttonSourceSettings.setOnClickListener { router.openSourcesSettings() }
-			buttonLibraryOpen.setOnClickListener { router.openFavorites() }
+			buttonLibraryOpen.setOnClickListener { openFavoritesEntry() }
 			buttonBookmarks.setOnClickListener { router.openBookmarks() }
 			buttonLocal.setOnClickListener { router.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) }
 			buttonDownloads.setOnClickListener { router.openDownloads() }
@@ -198,6 +200,15 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 			HomeSourceOrigin.EXTERNAL -> getString(R.string.external_source)
 			HomeSourceOrigin.IREADER -> getString(R.string.source_type_ireader)
 		}
+	}
+
+	private fun openFavoritesEntry() {
+		val mainActivity = activity as? MainActivity
+		val hasFavoritesNav = settings.mainNavItems.contains(NavItem.FAVORITES)
+		if (mainActivity != null && hasFavoritesNav && mainActivity.selectMainNavigationItem(R.id.nav_favorites)) {
+			return
+		}
+		router.openFavoritesContainer()
 	}
 
 	private fun setupHomeScrollChrome(scrollView: NestedScrollView) {

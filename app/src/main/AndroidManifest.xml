@@ -190,6 +190,9 @@
 			android:name="org.skepsun.kototoro.favourites.ui.FavouritesActivity"
 			android:label="@string/favourites" />
 		<activity
+			android:name="org.skepsun.kototoro.favourites.ui.FavouritesContainerActivity"
+			android:label="@string/favourites" />
+		<activity
 			android:name="org.skepsun.kototoro.bookmarks.ui.AllBookmarksActivity"
 			android:label="@string/bookmarks" />
 		<activity

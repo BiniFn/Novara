@@ -10,6 +10,7 @@ import androidx.work.WorkInfo
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.download.ui.list.chapters.DownloadChapter
+import org.skepsun.kototoro.download.ui.worker.DownloadTaskKind
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.parsers.model.Content
@@ -22,6 +23,7 @@ data class DownloadItemModel(
 	val workState: WorkInfo.State,
 	val isIndeterminate: Boolean,
 	val isPaused: Boolean,
+	val taskKind: DownloadTaskKind,
 	val manga: Content?,
 	val error: String?,
 	val max: Int,

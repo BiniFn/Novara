@@ -22,6 +22,18 @@
 		app:showAsAction="ifRoom|withText" />
 
 	<item
+		android:id="@+id/action_prepare_translation"
+		android:icon="@drawable/ic_translate"
+		android:title="@string/prepare_translation"
+		app:showAsAction="ifRoom|withText" />
+
+	<item
+		android:id="@+id/action_prepare_super_resolution"
+		android:icon="@drawable/ic_auto_fix"
+		android:title="@string/prepare_super_resolution"
+		app:showAsAction="ifRoom|withText" />
+
+	<item
 		android:id="@+id/action_select_range"
 		android:icon="@drawable/ic_select_range"
 		android:title="@string/select_range"

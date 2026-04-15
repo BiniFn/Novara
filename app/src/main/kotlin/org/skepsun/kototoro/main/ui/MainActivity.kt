@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import androidx.activity.viewModels
+import androidx.annotation.IdRes
 import androidx.appcompat.view.ActionMode
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -188,6 +189,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), AppBarOwner, BottomNav
 
 	override fun onResume() {
 		super.onResume()
+	}
+
+	fun selectMainNavigationItem(@IdRes itemId: Int): Boolean {
+		return navigationDelegate.selectItem(itemId)
 	}
 
 	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {

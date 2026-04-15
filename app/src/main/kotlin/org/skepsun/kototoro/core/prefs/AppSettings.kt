@@ -77,6 +77,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isAmoledTheme: Boolean
 		get() = prefs.getBoolean(KEY_THEME_AMOLED, false)
 
+	val tabletUiMode: TabletUiMode
+		get() = prefs.getEnumValue(KEY_TABLET_UI_MODE, TabletUiMode.RELAXED)
+
 	var mainNavItems: List<NavItem>
 		get() {
 			val rawStr = prefs.getString(KEY_NAV_MAIN, null)
@@ -1492,6 +1495,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_THEME = "theme"
 		const val KEY_COLOR_THEME = "color_theme"
 		const val KEY_THEME_AMOLED = "amoled_theme"
+		const val KEY_TABLET_UI_MODE = "tablet_ui_mode"
 		const val KEY_OFFLINE_DISABLED = "no_offline"
 		const val KEY_PAGES_CACHE_CLEAR = "pages_cache_clear"
 		const val KEY_VIDEO_CACHE_CLEAR = "video_cache_clear"

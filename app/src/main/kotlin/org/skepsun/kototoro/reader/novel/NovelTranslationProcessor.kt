@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.reader.novel
 
 import android.util.Log
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,6 +13,7 @@ import org.skepsun.kototoro.reader.translate.domain.OnnxReaderTranslationEngine
 import org.skepsun.kototoro.reader.translate.domain.ReaderTranslationCoordinator
 import java.security.MessageDigest
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * 小说翻译总协调器。
@@ -24,7 +24,7 @@ import javax.inject.Inject
  * - 每批完成后通过 Flow emit 部分翻译结果，实现进度式渲染
  * - 复用 ReaderTranslationTextCache 避免重复翻译
  */
-@ActivityRetainedScoped
+@Singleton
 class NovelTranslationProcessor @Inject constructor(
     private val settings: AppSettings,
     private val textCache: ReaderTranslationTextCache,

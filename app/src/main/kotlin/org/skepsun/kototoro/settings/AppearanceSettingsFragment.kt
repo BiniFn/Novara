@@ -23,6 +23,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode
 import org.skepsun.kototoro.core.prefs.ScreenshotsPolicy
 import org.skepsun.kototoro.core.prefs.SearchSuggestionType
+import org.skepsun.kototoro.core.prefs.TabletUiMode
 import org.skepsun.kototoro.core.prefs.TriStateOption
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -69,6 +70,17 @@ class AppearanceSettingsFragment :
         findPreference<ListPreference>(AppSettings.KEY_PROGRESS_INDICATORS)?.run {
             entryValues = ProgressIndicatorMode.entries.names()
             setDefaultValueCompat(ProgressIndicatorMode.PERCENT_READ.name)
+        }
+        findPreference<ListPreference>(AppSettings.KEY_TABLET_UI_MODE)?.run {
+            entries = arrayOf(
+                getString(R.string.tablet_ui_mode_relaxed),
+                getString(R.string.tablet_ui_mode_strict),
+            )
+            entryValues = arrayOf(
+                TabletUiMode.RELAXED.name,
+                TabletUiMode.STRICT.name,
+            )
+            setDefaultValueCompat(TabletUiMode.RELAXED.name)
         }
         findPreference<ActivityListPreference>(AppSettings.KEY_APP_LOCALE)?.run {
             initLocalePicker(this)
