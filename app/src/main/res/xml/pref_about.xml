@@ -53,4 +53,11 @@
 		android:summary="@string/url_discord"
 		android:title="@string/about_discord" />
 
+	<Preference
+		android:key="crash_logs"
+		android:persistent="false"
+		android:summary="@string/crash_logs_summary"
+		android:title="@string/crash_logs"
+		app:allowDividerAbove="true" />
+
 </PreferenceScreen>

@@ -83,6 +83,11 @@ class AboutSettingsFragment : BasePreferenceFragment(R.string.about) {
 				true
 			}
 
+			"crash_logs" -> {
+				startActivity(org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity.newIntent(requireContext()))
+				true
+			}
+
 			else -> super.onPreferenceTreeClick(preference)
 		}
 	}

@@ -359,6 +359,14 @@
 			android:name="org.skepsun.kototoro.settings.about.AppUpdateActivity"
 			android:label="@string/app_update_available" />
 		<activity
+			android:name="org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity"
+			android:exported="false"
+			android:label="@string/crash_logs" />
+		<activity
+			android:name="org.skepsun.kototoro.settings.about.crashlog.CrashLogDetailActivity"
+			android:exported="false"
+			android:label="@string/crash_log_detail" />
+		<activity
 			android:name="org.skepsun.kototoro.tracker.ui.debug.TrackerDebugActivity"
 			android:label="@string/tracker_debug_info" />
 		<activity
