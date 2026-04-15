@@ -150,6 +150,8 @@ class ReaderControlDelegate(
 
 		fun onTranslateClick() = Unit  // 默认空实现，仅小说阅读器覆盖
 
+		fun onTranslateLongClick(): Boolean = false
+
 		fun isReaderResumed(): Boolean
 	}
 }

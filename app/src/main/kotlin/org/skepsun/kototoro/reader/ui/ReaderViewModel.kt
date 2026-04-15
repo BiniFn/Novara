@@ -125,6 +125,23 @@ class ReaderViewModel @Inject constructor(
         val failCode: String?,
     )
 
+    data class ChapterTranslationProgress(
+        val chapterId: Long,
+        val readyCount: Int,
+        val runningCount: Int,
+        val failedCount: Int,
+        val totalCount: Int,
+    ) {
+        val processedCount: Int
+            get() = readyCount + failedCount
+
+        val hasStarted: Boolean
+            get() = readyCount > 0 || runningCount > 0 || failedCount > 0
+
+        val isFinished: Boolean
+            get() = hasStarted && runningCount == 0 && processedCount >= totalCount
+    }
+
     private val intent = ContentIntent(savedStateHandle)
 
     private var loadingJob: Job? = null
@@ -144,6 +161,7 @@ class ReaderViewModel @Inject constructor(
     val uiState = MutableStateFlow<ReaderUiState?>(null)
     val targetPagePosition = MutableStateFlow<Int?>(null)
     val translationLayerState = MutableStateFlow(TranslationLayerState.IDLE)
+    val chapterTranslationProgress = MutableStateFlow<ChapterTranslationProgress?>(null)
     val translationTaskPanelVersion = MutableStateFlow(0L)
     private val translationStateByPageId = linkedMapOf<Long, TranslationLayerState>()
     private val translationStateUpdatedAtByPageId = linkedMapOf<Long, Long>()
@@ -374,7 +392,6 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun isTranslationBypassedForCurrentContent(): Boolean {
-        if (!settings.isReaderTranslationEnabled) return false
         val sourceLang = resolveCurrentTranslationSourceLanguage()
         if (sourceLang.isBlank()) return false
         val targetLang = settings.readerTranslationTargetLanguage
@@ -390,7 +407,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun shouldShowTranslationToggle(): Boolean {
-        return settings.isReaderTranslationEnabled && !isTranslationBypassedForCurrentContent()
+        return !isTranslationBypassedForCurrentContent()
     }
 
     private fun resolveCurrentTranslationSourceLanguage(): String {
@@ -762,6 +779,7 @@ class ReaderViewModel @Inject constructor(
                 translationStateByPageId[event.pageId] = event.state
                 translationStateUpdatedAtByPageId[event.pageId] = System.currentTimeMillis()
                 translationTaskPanelVersion.update { it + 1 }
+                updateCurrentChapterTranslationProgress()
                 val currentPageId = getCurrentPage()?.id
                 if (currentPageId == event.pageId) {
                     translationLayerState.value = event.state
@@ -780,6 +798,37 @@ class ReaderViewModel @Inject constructor(
 
     private fun updateTranslationStateForCurrentPage(pageId: Long) {
         translationLayerState.value = translationStateByPageId[pageId] ?: TranslationLayerState.IDLE
+    }
+
+    private fun updateCurrentChapterTranslationProgress() {
+        val chapterId = getCurrentState()?.chapterId ?: run {
+            chapterTranslationProgress.value = null
+            return
+        }
+        val pages = chaptersLoader.getPages(chapterId).orEmpty()
+        if (pages.isEmpty()) {
+            chapterTranslationProgress.value = null
+            return
+        }
+        var readyCount = 0
+        var runningCount = 0
+        var failedCount = 0
+        for (page in pages) {
+            when (translationStateByPageId[page.id] ?: TranslationLayerState.IDLE) {
+                TranslationLayerState.READY -> readyCount++
+                TranslationLayerState.GENERATING -> runningCount++
+                TranslationLayerState.FAILED -> failedCount++
+                TranslationLayerState.IDLE -> Unit
+            }
+        }
+        val progress = ChapterTranslationProgress(
+            chapterId = chapterId,
+            readyCount = readyCount,
+            runningCount = runningCount,
+            failedCount = failedCount,
+            totalCount = pages.size,
+        )
+        chapterTranslationProgress.value = progress.takeIf { it.hasStarted }
     }
 
     @WorkerThread
@@ -803,6 +852,7 @@ class ReaderViewModel @Inject constructor(
             statsCollector.onStateChanged(m.id, state)
             discordRpc.updateRpc(m.toContent(), newState)
         }
+        updateCurrentChapterTranslationProgress()
     }
 
     private fun computePercent(chapterId: Long, pageIndex: Int): Float {

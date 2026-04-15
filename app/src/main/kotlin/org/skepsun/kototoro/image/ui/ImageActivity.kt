@@ -10,6 +10,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
+import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.CircularProgressDrawable
 import coil3.ImageLoader
 import coil3.request.CachePolicy
@@ -44,6 +45,7 @@ import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.databinding.ActivityImageBinding
 import org.skepsun.kototoro.databinding.ItemErrorStateBinding
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 import androidx.appcompat.R as appcompatR
 
 @AndroidEntryPoint
@@ -57,6 +59,8 @@ class ImageActivity : BaseActivity<ActivityImageBinding>(),
 	private var errorBinding: ItemErrorStateBinding? = null
 	private val viewModel: ImageViewModel by viewModels()
 	private lateinit var menuMediator: PopupMenuMediator
+	private val inlineImagePath: String?
+		get() = intent.getStringExtra(AppRouter.KEY_IMAGE_PATH)
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -70,6 +74,7 @@ class ImageActivity : BaseActivity<ActivityImageBinding>(),
 			viewModel = viewModel,
 		)
 		menuMediator = PopupMenuMediator(menuProvider)
+		viewBinding.buttonMenu.isVisible = inlineImagePath == null
 		viewModel.isLoading.observe(this, ::onLoadingStateChanged)
 		viewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.root, null))
 		viewModel.onImageSaved.observeEvent(this, ::onImageSaved)
@@ -122,6 +127,10 @@ class ImageActivity : BaseActivity<ActivityImageBinding>(),
 	}
 
 	private fun loadImage() {
+		inlineImagePath?.let {
+			loadInlineImage(it)
+			return
+		}
 		ImageRequest.Builder(this)
 			.data(intent.data)
 			.memoryCacheKey(intent.getParcelableExtraCompat<CoilMemoryCacheKey>(AppRouter.KEY_PREVIEW)?.data)
@@ -131,6 +140,40 @@ class ImageActivity : BaseActivity<ActivityImageBinding>(),
 			.mangaSourceExtra(ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)))
 			.target(SsivTarget(viewBinding.ssiv))
 			.enqueueWith(coil)
+	}
+
+	private fun loadInlineImage(imagePath: String) {
+		viewBinding.progressBar.show()
+		(errorBinding?.root ?: viewBinding.stubError).isVisible = false
+		lifecycleScope.launch {
+			runCatching {
+				@Suppress("UNCHECKED_CAST")
+				val headers = intent.getSerializableExtra(AppRouter.KEY_IMAGE_HEADERS) as? HashMap<String, String>
+				NovelInlineImageLoader.loadBitmap(
+					context = this@ImageActivity,
+					imageLoader = coil,
+					imagePath = imagePath,
+					source = ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
+					epubFilePath = intent.getStringExtra(AppRouter.KEY_EPUB_FILE_PATH),
+					chapterPath = intent.getStringExtra(AppRouter.KEY_CHAPTER_PATH),
+					headers = headers.orEmpty(),
+				) ?: error("Image decode returned null")
+			}.onSuccess { bitmap ->
+				viewBinding.progressBar.hide()
+				viewBinding.ssiv.setImage(ImageSource.bitmap(bitmap))
+				(errorBinding?.root ?: viewBinding.stubError).isVisible = false
+			}.onFailure { error ->
+				viewBinding.progressBar.hide()
+				with(errorBinding ?: ItemErrorStateBinding.bind(viewBinding.stubError.inflate())) {
+					errorBinding = this
+					root.isVisible = true
+					textViewError.text = error.getDisplayMessage(resources)
+					textViewError.setCompoundDrawablesWithIntrinsicBounds(0, error.getDisplayIcon(), 0, 0)
+					buttonRetry.isVisible = true
+					buttonRetry.setOnClickListener(this@ImageActivity)
+				}
+			}
+		}
 	}
 
 	private fun onImageSaved(uri: Uri) {

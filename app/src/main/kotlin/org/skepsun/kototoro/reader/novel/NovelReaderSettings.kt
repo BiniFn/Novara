@@ -39,7 +39,7 @@ data class NovelReaderSettings(
             putBoolean(KEY_SHOW_READING_STATUS, showReadingStatus)
             putBoolean(KEY_READING_STATUS_TRANSPARENT, isReadingStatusTransparent)
             putBoolean(KEY_PARAGRAPH_INDENT, enableParagraphIndent)
-            putBoolean(KEY_TRANSLATION_ENABLED, isTranslationEnabled)
+            remove(KEY_TRANSLATION_ENABLED)
             putString(KEY_TRANSLATION_DISPLAY_MODE, translationDisplayMode.name)
         }
     }
@@ -80,7 +80,7 @@ data class NovelReaderSettings(
                 showReadingStatus = prefs.getBoolean(KEY_SHOW_READING_STATUS, true),
                 isReadingStatusTransparent = prefs.getBoolean(KEY_READING_STATUS_TRANSPARENT, false),
                 enableParagraphIndent = prefs.getBoolean(KEY_PARAGRAPH_INDENT, true),
-                isTranslationEnabled = prefs.getBoolean(KEY_TRANSLATION_ENABLED, false),
+                isTranslationEnabled = false,
                 translationDisplayMode = runCatching {
                     NovelTranslationDisplayMode.valueOf(
                         prefs.getString(KEY_TRANSLATION_DISPLAY_MODE, null)

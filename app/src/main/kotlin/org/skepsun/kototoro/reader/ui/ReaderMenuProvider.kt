@@ -5,11 +5,12 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.prefs.AppSettings
 
 class ReaderMenuProvider(
 	private val viewModel: ReaderViewModel,
-	private val settings: AppSettings,
+	private val isTranslationAvailable: () -> Boolean,
+	private val isTranslationSessionEnabled: () -> Boolean,
+	private val onOpenTranslationLog: () -> Unit,
 ) : MenuProvider {
 
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -17,7 +18,16 @@ class ReaderMenuProvider(
 	}
 
 	override fun onPrepareMenu(menu: Menu) {
-		menu.findItem(R.id.action_retranslate)?.isEnabled = settings.isReaderTranslationEnabled
+		val isTranslationVisible = isTranslationAvailable()
+		val isTranslationEnabled = isTranslationSessionEnabled()
+		menu.findItem(R.id.action_retranslate)?.apply {
+			isVisible = isTranslationVisible
+			isEnabled = isTranslationEnabled
+		}
+		menu.findItem(R.id.action_translation_log)?.apply {
+			isVisible = isTranslationVisible
+			isEnabled = isTranslationEnabled
+		}
 	}
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
@@ -28,8 +38,15 @@ class ReaderMenuProvider(
 			}
 
 			R.id.action_retranslate -> {
-				if (settings.isReaderTranslationEnabled) {
+				if (isTranslationSessionEnabled()) {
 					viewModel.retranslateCurrent()
+				}
+				true
+			}
+
+			R.id.action_translation_log -> {
+				if (isTranslationSessionEnabled()) {
+					onOpenTranslationLog()
 				}
 				true
 			}

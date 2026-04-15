@@ -155,7 +155,13 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putString(KEY_HIDDEN_SOURCE_TAG, value) }
 
 	var activeSourcePresetId: Long
-		get() = prefs.getLong(KEY_ACTIVE_SOURCE_PRESET_ID, -1L)
+		get() = try {
+			prefs.getLong(KEY_ACTIVE_SOURCE_PRESET_ID, -1L)
+		} catch (_: ClassCastException) {
+			// After backup restore, JSON may deserialize Long as Int
+			val intValue = prefs.getInt(KEY_ACTIVE_SOURCE_PRESET_ID, -1)
+			intValue.toLong().also { activeSourcePresetId = it }
+		}
 		set(value) = prefs.edit { putLong(KEY_ACTIVE_SOURCE_PRESET_ID, value) }
 
 	val isDescriptionExpanded: Boolean
@@ -1385,7 +1391,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		values.forEach { (key, value) ->
 			when (value) {
 				is Boolean -> putBoolean(key, value)
-				is Int -> putInt(key, value)
+				is Int -> putLong(key, value.toLong()) // JSON can't distinguish Int/Long; store as Long for safety
 				is Long -> putLong(key, value)
 				is Float -> putFloat(key, value)
 				is String -> putString(key, value)

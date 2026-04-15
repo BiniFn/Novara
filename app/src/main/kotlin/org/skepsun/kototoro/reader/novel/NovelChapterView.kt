@@ -14,8 +14,11 @@ import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.util.AttributeSet
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import androidx.collection.LruCache
+import androidx.core.view.GestureDetectorCompat
 import coil3.ImageLoader
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
@@ -83,6 +86,7 @@ class NovelChapterView @JvmOverloads constructor(
     private var chapterPath: String? = null
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     var imageHeadersProvider: ((String) -> Map<String, String>?)? = null
+    var onImageClickListener: ((NovelInlineImageRequest) -> Unit)? = null
     
     @Inject
     lateinit var imageLoader: ImageLoader
@@ -91,6 +95,23 @@ class NovelChapterView @JvmOverloads constructor(
     private val imageCache = LruCache<String, Bitmap>(20)
     private val loadingImages = mutableSetOf<String>()
     private val failedImages = mutableSetOf<String>()
+    private val gestureDetector: GestureDetectorCompat
+
+    init {
+        isClickable = true
+        isFocusable = true
+        gestureDetector = GestureDetectorCompat(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                findInlineImageAt(e.x, e.y)?.let { image ->
+                    onImageClickListener?.invoke(image)
+                    return true
+                }
+                return false
+            }
+        })
+    }
 
     fun setContent(
         content: String,
@@ -132,6 +153,11 @@ class NovelChapterView @JvmOverloads constructor(
             highlightRange = range
             invalidate()
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val handled = gestureDetector.onTouchEvent(event)
+        return handled || super.onTouchEvent(event)
     }
 
     fun getLineTopForOffset(charOffset: Int): Float {
@@ -190,24 +216,28 @@ class NovelChapterView @JvmOverloads constructor(
     private fun buildLayout(pageWidth: Int) {
         // 如果有激活的翻译，先对内容进行段落级替换/拼接
         val contentForLayout = applyTranslationToContent(chapterContent, activeTranslation)
-        var (processedText, imagePaths) = parseImages(contentForLayout)
-        val hasImages = imagePaths.isNotEmpty()
+        val parsedImages = parseNovelImages(contentForLayout)
+        var processedText = prepareContentText(parsedImages.text)
+        val blockImagePaths = parsedImages.blockImagePaths
+        val inlineImagePaths = parsedImages.inlineImagePaths
+        val hasImages = blockImagePaths.isNotEmpty()
         val tempImageSpans = mutableListOf<ChapterImageSpan>()
         
         if (hasImages) {
             val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
-            val imageWidth = pageWidth.toFloat()
             val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
             val paraSpacingPx = settings.paragraphSpacing * resources.displayMetrics.density
             val extraSpacerLines = if (paraSpacingPx > 0) max(1, kotlin.math.ceil(paraSpacingPx / lineHeight).toInt()) else 0
             
             var newText = processedText
-            for (i in imagePaths.indices) {
+            for (i in blockImagePaths.indices) {
                 val placeholder = "[IMAGE_PLACEHOLDER_$i]"
-                val imagePath = imagePaths[i]
-                val ratio = loadedImageAspectRatios[imagePath] ?: 1.414f // Default to A4 ratio
-                var imageHeight = imageWidth * ratio
-                if (imageHeight > maxScreenHeight) imageHeight = maxScreenHeight
+                val imagePath = blockImagePaths[i]
+                val imageHeight = getReservedNovelImageHeight(
+                    imagePath = imagePath,
+                    maxWidth = pageWidth.toFloat(),
+                    maxHeight = maxScreenHeight,
+                )
                 
                 val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
                 val spacer = "\n".repeat(spacerLines)
@@ -225,13 +255,18 @@ class NovelChapterView @JvmOverloads constructor(
             
             placeholderPattern.findAll(processedText).forEach { match ->
                 val imageIndex = match.groupValues[1].toInt()
-                if (imageIndex < imagePaths.size) {
-                    val imagePath = imagePaths[imageIndex]
+                if (imageIndex < blockImagePaths.size) {
+                    val imagePath = blockImagePaths[imageIndex]
                     val before = processedText.substring(lastIndex, match.range.first)
                     displayBuilder.append(before)
                     lastIndex = match.range.last + 1
 
-                    val tempLayout = createStaticLayout(displayBuilder.toString(), pageWidth)
+                    val tempLayout = createStaticLayout(
+                        applyInlineImageSpans(displayBuilder.toString(), inlineImagePaths) { path ->
+                            loadImage(path)
+                        },
+                        pageWidth,
+                    )
                     val yPosition = if (tempLayout.lineCount > 0) {
                         tempLayout.getLineBottom(tempLayout.lineCount - 1).toFloat()
                     } else {
@@ -239,10 +274,12 @@ class NovelChapterView @JvmOverloads constructor(
                     }
                     
                     val imageWidth = pageWidth.toFloat()
-                    val ratio = loadedImageAspectRatios[imagePath] ?: 1.414f
                     val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
-                    var imageHeight = imageWidth * ratio
-                    if (imageHeight > maxScreenHeight) imageHeight = maxScreenHeight
+                    val imageHeight = getReservedNovelImageHeight(
+                        imagePath = imagePath,
+                        maxWidth = imageWidth,
+                        maxHeight = maxScreenHeight,
+                    )
                     
                     tempImageSpans.add(ChapterImageSpan(imagePath, yPosition, imageWidth, imageHeight))
                 }
@@ -255,8 +292,19 @@ class NovelChapterView @JvmOverloads constructor(
 
         imageSpans = tempImageSpans
         this.processedText = processedText
-        val layoutText: CharSequence = applyBilingualSpannable(processedText, activeTranslation)
+        val layoutText = applyInlineImageSpans(
+            applyBilingualSpannable(processedText, activeTranslation),
+            inlineImagePaths,
+        ) { path ->
+            loadImage(path)
+        }
         displayLayout = createStaticLayout(layoutText, pageWidth)
+    }
+
+    private fun prepareContentText(text: String): String {
+        val normalized = text.replace(Regex("\\n{3,}"), "\n\n")
+        val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
+        return applyParagraphIndent(spacedText)
     }
 
     /**
@@ -380,38 +428,6 @@ class NovelChapterView @JvmOverloads constructor(
         }
     }
 
-    private fun parseImages(text: String): Pair<String, List<String>> {
-        val imagePaths = mutableListOf<String>()
-        val imagePattern = Regex("""📷\s*\[图片:\s*([^\]]+)\]""")
-        val htmlImagePattern = Regex("""<img[^>]+src=['"]([^'"]+)['"][^>]*>""", RegexOption.IGNORE_CASE)
-
-        var processedText = text
-        imagePattern.findAll(text).forEach { match ->
-            val imagePath = match.groupValues[1].trim()
-            imagePaths.add(imagePath)
-            processedText = processedText.replaceFirst(match.value, "[IMAGE_PLACEHOLDER_${imagePaths.size - 1}]")
-        }
-
-        processedText = processedText.replace(htmlImagePattern) { matchResult ->
-            val src = matchResult.groupValues.getOrNull(1)?.trim().orEmpty()
-            if (src.isNotEmpty()) {
-                imagePaths.add(src)
-                "[IMAGE_PLACEHOLDER_${imagePaths.size - 1}]"
-            } else ""
-        }
-
-        processedText = processedText
-            .replace(Regex("(?i)<br\\s*/?>"), "\n")
-            .replace(Regex("(?i)</p>"), "\n")
-            .replace(Regex("(?i)<p[^>]*>"), "")
-            .replace(Regex("<[^>]+>"), "")
-        
-        val normalized = processedText.replace(Regex("\\n{3,}"), "\n\n")
-        val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
-        val indented = applyParagraphIndent(spacedText)
-        return Pair(indented, imagePaths)
-    }
-
     private fun applyParagraphSpacing(text: String): String {
         val spacingDp = settings.paragraphSpacing
         if (spacingDp <= 0f) return text
@@ -460,13 +476,12 @@ class NovelChapterView @JvmOverloads constructor(
             val bitmap = loadImage(imageSpan.imagePath)
             if (bitmap != null) {
                 val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
-                val rawTargetHeight = imageSpan.width * bitmap.height / bitmap.width
-                val scale = if (rawTargetHeight > imageSpan.height) imageSpan.height / rawTargetHeight else 1f
-                val targetWidth = imageSpan.width * scale
-                val targetHeight = rawTargetHeight * scale
-                val leftPos = (imageSpan.width - targetWidth) / 2f
-                val topPos = imageSpan.yPosition + (imageSpan.height - targetHeight) / 2f
-                val dstRect = RectF(leftPos, topPos, leftPos + targetWidth, topPos + targetHeight)
+                val dstRect = getNovelImageDisplayRect(
+                    imagePath = imageSpan.imagePath,
+                    reservedWidth = imageSpan.width,
+                    reservedHeight = imageSpan.height,
+                    yPosition = imageSpan.yPosition,
+                )
                 canvas.drawBitmap(bitmap, srcRect, dstRect, imagePaint)
             } else {
                 val placeholderPaint = Paint().apply { color = 0xFFCCCCCC.toInt(); style = Paint.Style.FILL }
@@ -477,6 +492,39 @@ class NovelChapterView @JvmOverloads constructor(
             }
         }
         canvas.restore()
+    }
+
+    private fun findInlineImageAt(x: Float, y: Float): NovelInlineImageRequest? {
+        val localX = x - paddingLeft - settings.marginHorizontal
+        val localY = y - paddingTop - settings.marginVertical
+        if (localX < 0f || localY < 0f) {
+            return null
+        }
+        val inlineImagePath = displayLayout?.let { layout ->
+            findInlineImagePathAt(layout, localX, localY)
+        }
+        if (inlineImagePath != null) {
+            return NovelInlineImageRequest(
+                imagePath = inlineImagePath,
+                epubFilePath = epubFile?.absolutePath,
+                chapterPath = chapterPath,
+                headers = imageHeadersProvider?.invoke(inlineImagePath).orEmpty(),
+            )
+        }
+        val image = imageSpans.firstOrNull { span ->
+            getNovelImageDisplayRect(
+                imagePath = span.imagePath,
+                reservedWidth = span.width,
+                reservedHeight = span.height,
+                yPosition = span.yPosition,
+            ).contains(localX, localY)
+        } ?: return null
+        return NovelInlineImageRequest(
+            imagePath = image.imagePath,
+            epubFilePath = epubFile?.absolutePath,
+            chapterPath = chapterPath,
+            headers = imageHeadersProvider?.invoke(image.imagePath).orEmpty(),
+        )
     }
 
     private fun loadImage(imagePath: String): Bitmap? {
@@ -496,15 +544,10 @@ class NovelChapterView @JvmOverloads constructor(
                     if (bitmap != null) {
                         imageCache.put(cacheKey, bitmap)
                         loadingImages.remove(cacheKey)
-                        var actualRatio = bitmap.height.toFloat() / bitmap.width.toFloat()
-                        val currentRatio = loadedImageAspectRatios[imagePath] ?: 1.414f
-                        val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
-                        val viewWidth = width.toFloat().takeIf { it > 0f } ?: (resources.displayMetrics.widthPixels.toFloat())
-                        val maxRatio = maxScreenHeight / viewWidth
-                        if (actualRatio > maxRatio) actualRatio = maxRatio
-                        
-                        if (kotlin.math.abs(actualRatio - currentRatio) > 0.05f) {
-                            loadedImageAspectRatios[imagePath] = actualRatio
+                        val metrics = NovelImageMetrics(bitmap.width, bitmap.height)
+                        val previousMetrics = NovelImageMetricsCache.get(imagePath)
+                        NovelImageMetricsCache.put(imagePath, metrics)
+                        if (previousMetrics != metrics) {
                             displayLayout = null
                             requestLayout()
                         } else {
@@ -548,9 +591,6 @@ class NovelChapterView @JvmOverloads constructor(
         }
     }
 
-    companion object {
-        private val loadedImageAspectRatios = mutableMapOf<String, Float>()
-    }
 }
 
 /** 供图片渲染使用的简单数据类，移出 NovelReaderView 以复用 */

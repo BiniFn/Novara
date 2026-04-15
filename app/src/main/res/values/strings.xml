@@ -661,10 +661,15 @@
     <string name="import_file_description_novel">Select one or more .epub or .txt files. Each file is imported as one novel. EPUB chapters are recognized when reading; a .txt file is treated as a single chapter.</string>
     <string name="import_file_description_video">Select one or more video files (.mp4, .mkv, etc.). Each file is imported as a separate anime.</string>
     <string name="import_folder_single_description_manga">Select a folder containing one manga. Subdirectories will be treated as chapters.</string>
-    <string name="import_folder_single_description_novel">Select a folder containing novel files (.epub, .txt). Each file is a separate novel. EPUB chapters are recognized when reading; a .txt file is treated as a single chapter.</string>
+    <string name="import_folder_single_description_novel">Select a folder containing one novel. .txt files inside will be imported as chapters; each .epub file will be treated as a volume while preserving its internal chapters.</string>
     <string name="import_folder_single_description_video">Select a folder containing one anime series. Each video file inside is an episode.</string>
-    <string name="import_folder_multiple_description_manga">Select a folder containing multiple manga. Each subdirectory will be imported as a separate manga.</string>
-    <string name="import_folder_multiple_description_video">Select a folder containing multiple anime series. Each subdirectory is a separate series.</string>
+    <string name="import_folder_multiple_description_manga">Select a folder containing multiple manga. Each subdirectory and each top-level .cbz or .zip file will be imported as a separate manga.</string>
+    <string name="import_folder_multiple_description_video">Select a folder containing multiple anime series. Each subdirectory and each top-level video file will be imported as a separate series.</string>
+    <string name="folder_single_novel">Folder (single novel)</string>
+    <string name="folder_multiple_novel">Folder (multiple novels)</string>
+    <string name="folder_single_video">Folder (single series)</string>
+    <string name="folder_multiple_video">Folder (multiple series)</string>
+    <string name="import_folder_multiple_description_novel">Select a folder containing multiple novels. Each subdirectory and each top-level .epub or .txt file will be imported as a separate novel.</string>
     <string name="speed">Speed</string>
     <string name="show_on_shelf">Show on the Shelf</string>
     <string name="sync_auth_hint">You can sign in into an existing account or create a new one</string>
@@ -1015,6 +1020,7 @@
     <string name="ai_video_enhancement_summary_format">Current mode: %1$s\nShader: %2$s</string>
     <string name="ai_translation_summary_enabled">Enabled, %1$s\n%2$s -> %3$s</string>
     <string name="ai_translation_summary_disabled">Disabled, %1$s\n%2$s -> %3$s</string>
+    <string name="ai_translation_summary_configured">Configured, %1$s\n%2$s -> %3$s</string>
     <string name="reader_translation_section_general">General</string>
     <string name="reader_translation_settings_entry_summary">Configure text detection and recognition, local translation models, online translation services, and bubble detection</string>
     <string name="reader_translation_section_ocr">Text Detection and Recognition</string>
@@ -1074,11 +1080,18 @@
     <string name="reader_translation_retry_failed_pages">Retry failed pages</string>
     <string name="reader_translation_retry_failed_started">Retrying failed pages</string>
     <string name="reader_translation_retry_failed_none">No failed page to retry</string>
+    <string name="reader_translation_progress_started">Chapter translation started (%1$d/%2$d)</string>
+    <string name="reader_translation_progress_update">Chapter translation progress %1$d/%2$d</string>
+    <string name="reader_translation_progress_complete">Chapter translation complete (%1$d/%2$d)</string>
+    <string name="reader_translation_progress_complete_partial">Chapter translation complete (%1$d succeeded, %2$d failed)</string>
     <string name="reader_translation_retry_this_page">Retry this page</string>
     <string name="reader_translation_view_page_log">View page translation log</string>
     <string name="reader_translation_page_log_title">Page %1$d translation log</string>
     <string name="reader_translation_page_log_empty">No translation log for this page yet.</string>
     <string name="reader_translation_task_panel_title">Translation task panel</string>
+    <string name="novel_translation_progress_started">Novel translation started (%1$d/%2$d paragraphs)</string>
+    <string name="novel_translation_progress_update">Novel translation progress %1$d/%2$d paragraphs</string>
+    <string name="novel_translation_progress_complete">Novel translation complete (%1$d/%2$d paragraphs)</string>
     <string name="reader_translation_task_panel_empty">No page tasks in current chapter.</string>
     <string name="reader_translation_task_panel_empty_for_filter">No tasks for filter: %1$s</string>
     <string name="reader_translation_task_panel_summary">Pages: %1$d | Ready: %2$d | Running: %3$d | Failed: %4$d</string>
@@ -2165,4 +2178,20 @@
     <string name="jar_plugins_updates_available">JAR Plugins have updates available!</string>
     <string name="jar_plugins_update_all">Update All</string>
     <string name="jar_plugins_updating">Updating JAR Plugins...</string>
+    <!-- Crash log viewer (#132) -->
+    <string name="crash_logs">Crash logs</string>
+    <string name="crash_logs_summary">View and share crash reports without adb</string>
+    <string name="crash_log_detail">Crash log detail</string>
+    <string name="no_crash_logs">No crash logs recorded</string>
+    <string name="clear_crash_logs">Clear all crash logs</string>
+    <string name="clear_crash_logs_confirm">Delete all recorded crash logs?</string>
+    <string name="crash_logs_cleared">Crash logs cleared</string>
+    <string name="copy">Copy</string>
+    <!-- Title translation (#133) -->
+    <string name="translate_title">Translate title</string>
+    <string name="translating">Translating…</string>
+    <string name="translation_failed">Translation failed</string>
+    <string name="clear_translation">Clear translation</string>
+    <string name="details_show_original">Show original</string>
+    <string name="details_show_translation">Show translation</string>
 </resources>

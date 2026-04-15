@@ -135,6 +135,7 @@ class NovelReaderView @JvmOverloads constructor(
     var onTapListener: ((x: Float, y: Float) -> Unit)? = null
     var onTapAreaListener: ((area: org.skepsun.kototoro.reader.domain.TapGridArea) -> Unit)? = null
     var onChapterChangeRequestListener: ((delta: Int) -> Unit)? = null  // 请求切换章节的回调
+    var onImageClickListener: ((NovelInlineImageRequest) -> Unit)? = null
 
     init {
         // 确保 View 可以接收触摸事件
@@ -173,6 +174,10 @@ class NovelReaderView @JvmOverloads constructor(
             }
 
             override fun onSingleTapUp(e: MotionEvent): Boolean {
+                findInlineImageAt(e.x, e.y)?.let { image ->
+                    onImageClickListener?.invoke(image)
+                    return true
+                }
                 // 计算点击区域
                 val area = getTapArea(e.x, e.y)
                 onTapAreaListener?.invoke(area)
@@ -313,30 +318,13 @@ class NovelReaderView @JvmOverloads constructor(
             val bitmap = loadImage(imageSpan.imagePath)
             if (bitmap != null) {
                 val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
-                
-                // 修复布局重叠：计算缩放后的尺寸，且不能超过预留的高度
-                val rawTargetHeight = imageSpan.width * bitmap.height / bitmap.width
-                val scale = if (rawTargetHeight > imageSpan.height) {
-                    imageSpan.height / rawTargetHeight
-                } else {
-                    1f
-                }
-                
-                val targetWidth = imageSpan.width * scale
-                val targetHeight = rawTargetHeight * scale
-                
-                val leftPos = (imageSpan.width - targetWidth) / 2f
-                // 垂直居中绘制在预留空间内
-                val topPos = imageSpan.yPosition + (imageSpan.height - targetHeight) / 2f
-                
-                val dstRect = RectF(
-                    leftPos,
-                    topPos,
-                    leftPos + targetWidth,
-                    topPos + targetHeight
+                val dstRect = getNovelImageDisplayRect(
+                    imagePath = imageSpan.imagePath,
+                    reservedWidth = imageSpan.width,
+                    reservedHeight = imageSpan.height,
+                    yPosition = imageSpan.yPosition,
                 )
                 canvas.drawBitmap(bitmap, srcRect, dstRect, imagePaint)
-                // android.util.Log.d("NovelReaderView", "Drew image at y=$topPos, size=${targetWidth}x${targetHeight}, reserved height=${imageSpan.height}")
             } else {
                 // 绘制占位符（灰色矩形）
                 val placeholderPaint = Paint().apply {
@@ -747,21 +735,6 @@ class NovelReaderView @JvmOverloads constructor(
         val contentForPagination = applyTranslationToContent(chapterContent, activeTranslation)
         pages = paginateText(contentForPagination, pageWidth, pageHeight)
 
-        // BILINGUAL 模式：用 SpannableStringBuilder 重建每页 layout，使原文呈灰色小字
-        if (activeTranslation != null &&
-            activeTranslation!!.displayMode == NovelTranslationDisplayMode.BILINGUAL &&
-            activeTranslation!!.translations.isNotEmpty()
-        ) {
-            pages = pages.map { page ->
-                val spannable = applyBilingualSpannable(page.text, activeTranslation!!)
-                if (spannable !== page.text) {
-                    page.copy(layout = createLayout(spannable, pageWidth))
-                } else {
-                    page
-                }
-            }
-        }
-        
         // 处理待设置的页码/偏移
         val targetCharOffset = when {
             pendingTargetOffset != null -> pendingTargetOffset!!
@@ -829,55 +802,11 @@ class NovelReaderView @JvmOverloads constructor(
         notifyPageChanged()
     }
 
-    /**
-     * 解析文本中的图片占位符
-     * 格式：📷 [图片: filename.jpg]
-     * @return Pair<处理后的文本, 图片路径列表>
-     */
-    private fun parseImages(text: String): Pair<String, List<String>> {
-        val imagePaths = mutableListOf<String>()
-        val imagePattern = Regex("""📷\s*\[图片:\s*([^\]]+)\]""")
-        val htmlImagePattern = Regex("""<img[^>]+src=['"]([^'"]+)['"][^>]*>""", RegexOption.IGNORE_CASE)
-
-        var processedText = text
-        imagePattern.findAll(text).forEach { match ->
-            val imagePath = match.groupValues[1].trim()
-            imagePaths.add(imagePath)
-            
-            android.util.Log.d("NovelReaderView", "Found image placeholder: $imagePath")
-            
-            // 替换为占位符标记（用于后续定位）
-            processedText = processedText.replaceFirst(
-                match.value,
-                "[IMAGE_PLACEHOLDER_${imagePaths.size - 1}]"
-            )
-        }
-
-        // 同时支持直接的 <img> 标签（来自 HTML 内容的插图）
-        processedText = processedText.replace(htmlImagePattern) { matchResult ->
-            val src = matchResult.groupValues.getOrNull(1)?.trim().orEmpty()
-            if (src.isNotEmpty()) {
-                imagePaths.add(src)
-                "[IMAGE_PLACEHOLDER_${imagePaths.size - 1}]"
-            } else {
-                ""
-            }
-        }
-
-        // 将常见的换行标记转为实际换行，并移除其他HTML标签
-        processedText = processedText
-            .replace(Regex("(?i)<br\\s*/?>"), "\n")
-            .replace(Regex("(?i)</p>"), "\n")
-            .replace(Regex("(?i)<p[^>]*>"), "")
-            .replace(Regex("<[^>]+>"), "")
-        
-        android.util.Log.d("NovelReaderView", "Parsed ${imagePaths.size} images from text")
-
-        // 应用段落间距：若间距为 0，则保持原始换行；否则规范换行后再扩展空行
-        val normalized = processedText.replace(Regex("\\n{3,}"), "\n\n")
+    private fun prepareContentText(text: String): String {
+        val normalized = text.replace(Regex("\\n{3,}"), "\n\n")
         val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
         val indented = applyParagraphIndent(spacedText)
-        return Pair(indented, imagePaths)
+        return indented
     }
 
     private fun applyParagraphSpacing(text: String): String {
@@ -1006,25 +935,31 @@ class NovelReaderView @JvmOverloads constructor(
         
         android.util.Log.d("NovelReaderView", "Starting pagination: pageWidth=$pageWidth, pageHeight=$pageHeight, textLength=${text.length}")
         
-        // 解析图片
-        var (processedText, imagePaths) = parseImages(text)
-        val hasImages = imagePaths.isNotEmpty()
+        val parsedImages = parseNovelImages(text)
+        var processedText = prepareContentText(parsedImages.text)
+        val blockImagePaths = parsedImages.blockImagePaths
+        val inlineImagePaths = parsedImages.inlineImagePaths
+        val hasImages = blockImagePaths.isNotEmpty()
         
         if (hasImages) {
-            android.util.Log.d("NovelReaderView", "Found ${imagePaths.size} images in text")
+            android.util.Log.d("NovelReaderView", "Found ${blockImagePaths.size} block images and ${inlineImagePaths.size} inline images in text")
             // 为每个图片预留高度：使用固定行高的增加版
             val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
-            val imageWidth = pageWidth.toFloat()
-            val imageHeight = imageWidth * 0.75f
+            val maxImageHeight = resources.displayMetrics.heightPixels * 1.5f
             // 根据设置的间距，保证图片前后有足够的“行”作为间隔
             val paraSpacingPx = settings.paragraphSpacing * resources.displayMetrics.density
             val extraSpacerLines = if (paraSpacingPx > 0) kotlin.math.max(1, kotlin.math.ceil(paraSpacingPx / lineHeight).toInt()) else 0
-            val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
-            val spacer = "\n".repeat(spacerLines)
             
             var newText = processedText
-            for (i in imagePaths.indices) {
+            for (i in blockImagePaths.indices) {
                 val placeholder = "[IMAGE_PLACEHOLDER_$i]"
+                val imageHeight = getReservedNovelImageHeight(
+                    imagePath = blockImagePaths[i],
+                    maxWidth = pageWidth.toFloat(),
+                    maxHeight = maxImageHeight,
+                )
+                val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
+                val spacer = "\n".repeat(spacerLines)
                 // 占位符前后各一个换行，使其完全独立
                 newText = newText.replace(placeholder, "\n$placeholder\n$spacer\n")
             }
@@ -1036,7 +971,12 @@ class NovelReaderView @JvmOverloads constructor(
         
         // 首先为整个文本创建一个完整的布局
         val fullLayout = try {
-            createLayout(processedText, pageWidth)
+            createLayout(
+                applyInlineImageSpans(processedText, inlineImagePaths) { path ->
+                    loadImage(path)
+                },
+                pageWidth,
+            )
         } catch (e: Exception) {
             android.util.Log.e("NovelReaderView", "Failed to create full layout", e)
             return listOf(PageInfo("布局创建失败", null, 0, 0, emptyList()))
@@ -1047,6 +987,7 @@ class NovelReaderView @JvmOverloads constructor(
         
         var startLine = 0
         var pageCount = 0
+        val maxImageHeight = resources.displayMetrics.heightPixels * 1.5f
         
         while (startLine < totalLines) {
             var endLine = startLine
@@ -1080,8 +1021,21 @@ class NovelReaderView @JvmOverloads constructor(
                      
                      // 策略：如果当前页已经有了一定的高度（比如 > 20%），遇到图片标志时，
                      // 如果剩下的高度不足以容纳这张图片（预估高度），则换页。
-                     // 图片预估高度 ~ 0.75 * width (根据 parseImages 中的设定)
-                     val estimatedImageHeight = pageWidth * 0.75f
+                     val imageIndex = Regex("""\[IMAGE_PLACEHOLDER_(\d+)\]""")
+                         .find(lineText)
+                         ?.groupValues
+                         ?.getOrNull(1)
+                         ?.toIntOrNull()
+                     val estimatedImageHeight = imageIndex
+                         ?.takeIf { it in blockImagePaths.indices }
+                         ?.let {
+                             getReservedNovelImageHeight(
+                                 imagePath = blockImagePaths[it],
+                                 maxWidth = pageWidth.toFloat(),
+                                 maxHeight = maxImageHeight,
+                             )
+                         }
+                         ?: pageWidth * 0.75f
                      if (accumulatedHeight > 0 && accumulatedHeight + estimatedImageHeight > pageHeight) {
                          // 将图片推到下一页
                          break
@@ -1121,8 +1075,8 @@ class NovelReaderView @JvmOverloads constructor(
                 // 遍历页面文本中的占位符
                 placeholderPattern.findAll(pageText).forEach { match ->
                     val imageIndex = match.groupValues[1].toInt()
-                    if (imageIndex < imagePaths.size) {
-                        val imagePath = imagePaths[imageIndex]
+                    if (imageIndex < blockImagePaths.size) {
+                        val imagePath = blockImagePaths[imageIndex]
                         
                         // 1. 追加占位符前的文本
                         val before = pageText.substring(lastIndex, match.range.first)
@@ -1130,16 +1084,24 @@ class NovelReaderView @JvmOverloads constructor(
                         lastIndex = match.range.last + 1
 
                         // 创建临时布局来计算Y坐标（基于当前已写入的显示文本）
-                        val tempLayout = createLayout(displayBuilder.toString(), pageWidth)
+                        val tempLayout = createLayout(
+                            applyInlineImageSpans(displayBuilder.toString(), inlineImagePaths) { path ->
+                                loadImage(path)
+                            },
+                            pageWidth,
+                        )
                         val yPosition = if (tempLayout.lineCount > 0) {
                             tempLayout.getLineBottom(tempLayout.lineCount - 1).toFloat()
                         } else {
                             0f
                         }
                         
-                        // 计算图片尺寸（保持宽高比，宽度填满页面）
                         val imageWidth = pageWidth.toFloat()
-                        val imageHeight = imageWidth * 0.75f 
+                        val imageHeight = getReservedNovelImageHeight(
+                            imagePath = imagePath,
+                            maxWidth = imageWidth,
+                            maxHeight = maxImageHeight,
+                        )
                         
                         pageImages.add(
                             ImageSpan(
@@ -1161,7 +1123,20 @@ class NovelReaderView @JvmOverloads constructor(
             
             // 为这一页创建布局（使用移除占位符后的文本）
             try {
-                val pageLayout = createLayout(displayText, pageWidth)
+                val pageLayoutText = applyInlineImageSpans(
+                    if (activeTranslation != null &&
+                        activeTranslation!!.displayMode == NovelTranslationDisplayMode.BILINGUAL &&
+                        activeTranslation!!.translations.isNotEmpty()
+                    ) {
+                        applyBilingualSpannable(displayText, activeTranslation!!)
+                    } else {
+                        displayText
+                    },
+                    inlineImagePaths,
+                ) { path ->
+                    loadImage(path)
+                }
+                val pageLayout = createLayout(pageLayoutText, pageWidth)
                 result.add(PageInfo(displayText, pageLayout, startOffset, endOffset, pageImages))
                 pageCount++
             } catch (e: Exception) {
@@ -1179,7 +1154,10 @@ class NovelReaderView @JvmOverloads constructor(
             android.util.Log.w("NovelReaderView", "No pages created, using fallback")
             try {
                 val fallbackText = processedText.take(500)
-                listOf(PageInfo(fallbackText, createLayout(fallbackText, pageWidth), 0, fallbackText.length, emptyList()))
+                val fallbackLayoutText = applyInlineImageSpans(fallbackText, inlineImagePaths) { path ->
+                    loadImage(path)
+                }
+                listOf(PageInfo(fallbackText, createLayout(fallbackLayoutText, pageWidth), 0, fallbackText.length, emptyList()))
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderView", "Failed to create fallback page", e)
                 listOf(PageInfo("加载失败", null, 0, 0, emptyList()))
@@ -1226,6 +1204,63 @@ class NovelReaderView @JvmOverloads constructor(
         if (!suppressPageChangeNotification) {
             onPageChangeListener?.invoke(currentPageIndex, pages.size)
         }
+    }
+
+    private fun findInlineImageAt(x: Float, y: Float): NovelInlineImageRequest? {
+        if (pages.isEmpty() || settings.readingMode == ReadingMode.SCROLL) {
+            return null
+        }
+        val availableWidth = width - paddingLeft - paddingRight
+        val pageWidth = if (isDualPage) {
+            (availableWidth / 2f) - settings.marginHorizontal * 2f
+        } else {
+            availableWidth - settings.marginHorizontal * 2f
+        }
+        if (pageWidth <= 0f) {
+            return null
+        }
+        val pageTop = paddingTop + settings.marginVertical.toFloat() + headerHeight
+        val pageSlots = buildList {
+            add(currentPageIndex to 0f)
+            if (isDualPage && currentPageIndex < pages.lastIndex) {
+                add((currentPageIndex + 1) to width / 2f)
+            }
+        }
+        for ((index, left) in pageSlots) {
+            val page = pages.getOrNull(index) ?: continue
+            val pageLeft = left + paddingLeft + settings.marginHorizontal
+            val localX = x - pageLeft
+            val localY = y - pageTop
+            if (localX !in 0f..pageWidth || localY < 0f) {
+                continue
+            }
+            val inlineImagePath = page.layout?.let { layout ->
+                findInlineImagePathAt(layout, localX, localY)
+            }
+            if (inlineImagePath != null) {
+                return NovelInlineImageRequest(
+                    imagePath = inlineImagePath,
+                    epubFilePath = epubFile?.absolutePath,
+                    chapterPath = chapterPath,
+                    headers = imageHeadersProvider?.invoke(inlineImagePath).orEmpty(),
+                )
+            }
+            val image = page.images.firstOrNull { span ->
+                getNovelImageDisplayRect(
+                    imagePath = span.imagePath,
+                    reservedWidth = span.width,
+                    reservedHeight = span.height,
+                    yPosition = span.yPosition,
+                ).contains(localX, localY)
+            } ?: continue
+            return NovelInlineImageRequest(
+                imagePath = image.imagePath,
+                epubFilePath = epubFile?.absolutePath,
+                chapterPath = chapterPath,
+                headers = imageHeadersProvider?.invoke(image.imagePath).orEmpty(),
+            )
+        }
+        return null
     }
     
     /**
@@ -1362,7 +1397,14 @@ class NovelReaderView @JvmOverloads constructor(
                 if (bitmap != null) {
                     imageCache.put(cacheKey, bitmap)
                     loadingImages.remove(cacheKey)
-                    invalidate()
+                    val metrics = NovelImageMetrics(bitmap.width, bitmap.height)
+                    val previousMetrics = NovelImageMetricsCache.get(imagePath)
+                    NovelImageMetricsCache.put(imagePath, metrics)
+                    if (previousMetrics != metrics) {
+                        repaginate()
+                    } else {
+                        invalidate()
+                    }
                     android.util.Log.d("NovelReaderView", "Image loaded and cached via Coil: $imagePath")
                 } else {
                     loadingImages.remove(cacheKey)

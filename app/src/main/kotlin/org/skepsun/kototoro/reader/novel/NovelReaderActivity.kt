@@ -240,7 +240,7 @@ class NovelReaderActivity :
         super.onCreate(savedInstanceState)
         setContentView(ActivityNovelReaderV2Binding.inflate(layoutInflater))
 
-        readerSettings = NovelReaderSettings.load(this)
+        readerSettings = NovelReaderSettings.load(this).copy(isTranslationEnabled = false)
         
         // 只恢复UI状态，不恢复章节和页码（由loadChapters处理）
         savedInstanceState?.let {
@@ -306,6 +306,11 @@ class NovelReaderActivity :
                 }
             }
         }
+
+        // 进入当前小说时显式清空上一轮阅读会话中的翻译状态，
+        // 但不清理长期翻译缓存。
+        resetTranslationSession()
+
         repository = mangaRepositoryFactory.create(manga.source)
         if (local != null) {
             android.util.Log.d("NovelReaderActivity", "Using local manga for reading: ${manga.title}")
@@ -332,6 +337,7 @@ class NovelReaderActivity :
 
         viewBinding.actionsView.listener = this
         viewBinding.actionsView.setTranslateButtonVisible(true)
+        viewBinding.actionsView.setTranslateActive(false)
         setupImageHeaders()
         setupTtsControls()
 
@@ -357,6 +363,9 @@ class NovelReaderActivity :
         viewBinding.readerView.onTapAreaListener = { area ->
             handleTapGesture(area)
         }
+        viewBinding.readerView.onImageClickListener = { image ->
+            openInlineImage(image)
+        }
         
         // 章节切换请求处理
         viewBinding.readerView.onChapterChangeRequestListener = { delta ->
@@ -378,7 +387,9 @@ class NovelReaderActivity :
         viewBinding.readerView.updateSettings(readerSettings)
         
         // Initialize Continuous Scroll Adapter
-        continuousAdapter = NovelContinuousAdapter(readerSettings)
+        continuousAdapter = NovelContinuousAdapter(readerSettings) { image ->
+            openInlineImage(image)
+        }
         viewBinding.continuousScrollView.adapter = continuousAdapter
         viewBinding.continuousScrollView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
@@ -500,6 +511,29 @@ class NovelReaderActivity :
             } else {
                 null
             }
+        }
+    }
+
+    private fun openInlineImage(image: NovelInlineImageRequest) {
+        val router = AppRouter(this)
+        val canUseStandardViewer = image.epubFilePath.isNullOrBlank() &&
+            image.headers.isEmpty() &&
+            (
+                image.imagePath.startsWith("http://", ignoreCase = true) ||
+                    image.imagePath.startsWith("https://", ignoreCase = true) ||
+                    image.imagePath.startsWith("file://", ignoreCase = true) ||
+                    image.imagePath.startsWith("content://", ignoreCase = true)
+                )
+        if (canUseStandardViewer) {
+            router.openImage(image.imagePath, manga.source)
+        } else {
+            router.openNovelInlineImage(
+                imagePath = image.imagePath,
+                source = manga.source,
+                epubFilePath = image.epubFilePath,
+                chapterPath = image.chapterPath,
+                headers = image.headers,
+            )
         }
     }
 
@@ -663,15 +697,21 @@ class NovelReaderActivity :
             return
         }
 
-        viewBinding.toastView.showTemporary("翻译中…", 1500L)
-
         val sourceLang = settings.readerTranslationSourceLanguage
         val targetLang = settings.readerTranslationTargetLanguage
         val displayMode = readerSettings.translationDisplayMode
         val chapterIndex = currentChapterIndex
+        val totalParagraphs = NovelParagraphSplitter.split(content)
+            .count { it.type == NovelParagraphType.TEXT && it.originalText.isNotBlank() }
         android.util.Log.d("NovelReaderActivity", "Starting translation: chapter=$chapterIndex, source=$sourceLang, target=$targetLang, mode=$displayMode")
+        showNovelTranslationProgress(
+            translatedCount = 0,
+            totalCount = totalParagraphs,
+            isComplete = false,
+        )
 
         translationJob = lifecycleScope.launch {
+            var lastNotifiedCount = 0
             try {
                 translationProcessor.translateChapterFlow(
                     chapterIndex = chapterIndex,
@@ -683,16 +723,27 @@ class NovelReaderActivity :
                     android.util.Log.d("NovelReaderActivity", "Translation progress: complete=${translation.isComplete}, translations=${translation.translations.size}")
                     chapterTranslations.put(translation.chapterIndex, translation)
                     applyTranslationToViews(translation)
+                    val translatedCount = translation.translations.size
                     if (translation.isComplete) {
-                        val count = translation.translations.size
-                        if (count == 0) {
+                        if (translatedCount == 0) {
                             viewBinding.toastView.showTemporary(
                                 "未获得译文，请检查「设置 → AI翻译」中的引擎配置",
                                 3000L,
                             )
                         } else {
-                            viewBinding.toastView.showTemporary("翻译完成（$count 段）", 1500L)
+                            showNovelTranslationProgress(
+                                translatedCount = translatedCount,
+                                totalCount = totalParagraphs,
+                                isComplete = true,
+                            )
                         }
+                    } else if (translatedCount != lastNotifiedCount) {
+                        lastNotifiedCount = translatedCount
+                        showNovelTranslationProgress(
+                            translatedCount = translatedCount,
+                            totalCount = totalParagraphs,
+                            isComplete = false,
+                        )
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -706,6 +757,36 @@ class NovelReaderActivity :
         }
     }
 
+    private fun showNovelTranslationProgress(
+        translatedCount: Int,
+        totalCount: Int,
+        isComplete: Boolean,
+    ) {
+        if (totalCount <= 0) {
+            return
+        }
+        val message = when {
+            isComplete -> getString(
+                R.string.novel_translation_progress_complete,
+                translatedCount,
+                totalCount,
+            )
+
+            translatedCount == 0 -> getString(
+                R.string.novel_translation_progress_started,
+                translatedCount,
+                totalCount,
+            )
+
+            else -> getString(
+                R.string.novel_translation_progress_update,
+                translatedCount,
+                totalCount,
+            )
+        }
+        viewBinding.toastView.showTemporary(message, TRANSLATION_PROGRESS_TOAST_DURATION)
+    }
+
     private fun clearTranslation() {
         translationJob?.cancel()
         translationJob = null
@@ -713,6 +794,15 @@ class NovelReaderActivity :
         viewBinding.readerView.setTranslation(null)
         continuousAdapter?.clearTranslations()
         viewBinding.actionsView.setTranslateActive(false)
+    }
+
+    /**
+     * 进入一本新小说时，只重置当前阅读会话里的翻译状态，
+     * 不清理长期翻译缓存，避免跨书残留但保留复用能力。
+     */
+    private fun resetTranslationSession() {
+        readerSettings = readerSettings.copy(isTranslationEnabled = false)
+        clearTranslation()
     }
 
     private fun applyTranslationToViews(translation: NovelChapterTranslation) {
@@ -2432,6 +2522,7 @@ class NovelReaderActivity :
         private const val KEY_CHAPTER_INDEX = "chapter_index"
         private const val KEY_PAGE_INDEX = "page_index"
         private const val KEY_UI_VISIBLE = "ui_visible"
+        private const val TRANSLATION_PROGRESS_TOAST_DURATION = 1800L
     }
 
     /**

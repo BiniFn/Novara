@@ -136,13 +136,25 @@ class ReaderActionsView @JvmOverloads constructor(
 	}
 
 	override fun onLongClick(v: View): Boolean = when (v.id) {
-		R.id.button_bookmark -> AppRouter.from(this)
-			?.showChapterPagesSheet(ChaptersPagesSheet.TAB_BOOKMARKS)
+		R.id.button_bookmark -> {
+			AppRouter.from(this)?.showChapterPagesSheet(ChaptersPagesSheet.TAB_BOOKMARKS)
+			true
+		}
 
-		R.id.button_timer -> listener?.onScrollTimerClick(isLongClick = true)
-		R.id.button_options -> AppRouter.from(this)?.openReaderSettings()
-		else -> null
-	} != null
+		R.id.button_timer -> {
+			listener?.onScrollTimerClick(isLongClick = true)
+			true
+		}
+
+		R.id.button_translate -> listener?.onTranslateLongClick() == true
+
+		R.id.button_options -> {
+			AppRouter.from(this)?.openReaderSettings()
+			true
+		}
+
+		else -> false
+	}
 
 	override fun onValueChange(slider: Slider, value: Float, fromUser: Boolean) {
 		if (fromUser) {
@@ -229,6 +241,11 @@ class ReaderActionsView @JvmOverloads constructor(
 			android.graphics.Color.GRAY,
 		)
 		binding.buttonTranslate.iconTint = android.content.res.ColorStateList.valueOf(color)
+	}
+
+	fun setTranslateButtonContentDescription(text: CharSequence) {
+		binding.buttonTranslate.contentDescription = text
+		binding.buttonTranslate.setTooltipCompat(text)
 	}
 
 	private fun updateControlsVisibility() {

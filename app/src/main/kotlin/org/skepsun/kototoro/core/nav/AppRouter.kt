@@ -417,6 +417,27 @@ class AppRouter private constructor(
         )
     }
 
+    fun openNovelInlineImage(
+        imagePath: String,
+        source: ContentSource?,
+        epubFilePath: String?,
+        chapterPath: String?,
+        headers: Map<String, String>,
+        anchor: View? = null,
+    ) {
+        val intent = Intent(contextOrNull(), ImageActivity::class.java)
+            .putExtra(KEY_SOURCE, source?.name)
+            .putExtra(KEY_IMAGE_PATH, imagePath)
+            .putExtra(KEY_EPUB_FILE_PATH, epubFilePath)
+            .putExtra(KEY_CHAPTER_PATH, chapterPath)
+            .putExtra(KEY_IMAGE_HEADERS, HashMap(headers))
+        imagePath.toUriOrNull()?.let { intent.data = it }
+        startActivity(
+            intent,
+            anchor?.let { scaleUpActivityOptionsOf(it) },
+        )
+    }
+
     fun openVideo(
         url: String,
         source: ContentSource?,
@@ -1150,10 +1171,13 @@ class AppRouter private constructor(
         const val KEY_DATA = "data"
         const val KEY_ENTRIES = "entries"
         const val KEY_ERROR = "error"
+        const val KEY_EPUB_FILE_PATH = "epub_file_path"
         const val KEY_EXCLUDE = "exclude"
         const val KEY_FILE = "file"
         const val KEY_FILTER = "filter"
         const val KEY_ID = "id"
+        const val KEY_IMAGE_HEADERS = "image_headers"
+        const val KEY_IMAGE_PATH = "image_path"
         const val KEY_INDEX = "index"
         const val KEY_IS_BOTTOMTAB = "is_btab"
         const val KEY_KIND = "kind"
@@ -1174,6 +1198,7 @@ class AppRouter private constructor(
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"
         const val KEY_URL = "url"
+        const val KEY_CHAPTER_PATH = "chapter_path"
         const val KEY_USER_AGENT = "user_agent"
         const val KEY_SUCCESS_COOKIE_NAME = "success_cookie_name"
         const val KEY_SUCCESS_COOKIE_URL = "success_cookie_url"

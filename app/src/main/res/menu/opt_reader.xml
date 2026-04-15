@@ -15,4 +15,9 @@
 		android:title="@string/reader_translation_retranslate"
 		app:showAsAction="never" />
 
+	<item
+		android:id="@+id/action_translation_log"
+		android:title="@string/reader_translation_task_panel_title"
+		app:showAsAction="never" />
+
 </menu>

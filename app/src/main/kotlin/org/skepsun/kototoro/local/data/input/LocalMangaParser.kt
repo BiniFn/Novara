@@ -60,6 +60,7 @@ class LocalContentParser(private val uri: Uri) {
 	private val rootFile: File = File(uri.schemeSpecificPart)
 
 	suspend fun getContent(withDetails: Boolean): LocalContent {
+		val hasIndexFile = rootFile.isDirectory && File(rootFile, ENTRY_NAME_INDEX).isFile
 		if (rootFile.isFile && rootFile.name.endsWith(".epub", ignoreCase = true)) {
 			val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(rootFile)
 			val content = parser.parseContent()
@@ -84,7 +85,7 @@ class LocalContentParser(private val uri: Uri) {
 		}
 
 		// If the folder contains EPUB files, delegate to LocalEpubParser for proper parsing
-		if (rootFile.isDirectory) {
+		if (rootFile.isDirectory && !hasIndexFile) {
 			val epubFiles = rootFile.listFiles { f -> f.isFile && f.name.endsWith(".epub", ignoreCase = true) }
 			if (!epubFiles.isNullOrEmpty()) {
 				val epubFile = epubFiles.first()
@@ -141,6 +142,9 @@ class LocalContentParser(private val uri: Uri) {
 					mangaInfo.copy(
 					chapters = if (withDetails) {
 						mangaInfo.chapters?.mapNotNull { c ->
+							if (c.url.contains("#chapter/")) {
+								return@mapNotNull c
+							}
 							// 过滤掉隐藏的章节
 							if (c.id in hiddenChapterIds) {
 								return@mapNotNull null
@@ -171,6 +175,9 @@ class LocalContentParser(private val uri: Uri) {
 					} else {
 						// 如果不需要详情，也按索引过滤出实际存在的章节，并统一来源和URL
 						mangaInfo.chapters?.mapNotNull { c ->
+							if (c.url.contains("#chapter/")) {
+								return@mapNotNull c
+							}
 							val fileName = index.getChapterFileName(c.id)
 							val path = fileName?.toPath()
 							if (path != null && fileSystem.exists(rootPath / path)) {
@@ -292,6 +299,7 @@ class LocalContentParser(private val uri: Uri) {
 	}
 
 	suspend fun getContentInfo(): Content? {
+		val hasIndexFile = rootFile.isDirectory && File(rootFile, ENTRY_NAME_INDEX).isFile
 		if (rootFile.isFile && rootFile.name.endsWith(".epub", ignoreCase = true)) {
 			val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(rootFile)
 			val content = parser.parseContent()
@@ -309,7 +317,7 @@ class LocalContentParser(private val uri: Uri) {
 			}
 		}
 
-		if (rootFile.isDirectory) {
+		if (rootFile.isDirectory && !hasIndexFile) {
 			val epubFiles = rootFile.listFiles { f -> f.isFile && f.name.endsWith(".epub", ignoreCase = true) }
 			if (!epubFiles.isNullOrEmpty()) {
 				val epubFile = epubFiles.first()

@@ -290,6 +290,10 @@ class ReaderConfigSheet :
 
             R.id.switch_translation_enabled -> {
                 settings.isReaderTranslationEnabled = isChecked
+                if (isChecked) {
+                    settings.isReaderTranslationShowTranslated = true
+                    viewBinding?.switchTranslationShowTranslated?.isChecked = true
+                }
                 viewBinding?.switchTranslationShowTranslated?.isEnabled = isChecked
                 viewBinding?.buttonRetranslate?.isEnabled = isChecked
                 viewBinding?.buttonTranslationLog?.isEnabled = isChecked

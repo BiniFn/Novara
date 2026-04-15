@@ -294,6 +294,31 @@ class DetailsActivity :
 			appShortcutManager = shortcutManager,
 		)
 		addMenuProvider(menuProvider)
+		viewModel.translatedTitle.observe(this) { translated ->
+			renderTitle()
+			invalidateOptionsMenu()
+		}
+		viewModel.translatedDescription.observe(this) { translated ->
+			val original = viewModel.mangaDetails.value?.description
+				.ifNullOrEmpty { getString(R.string.no_description) }
+			if (translated != null) {
+				viewBinding.textViewDescription.text = "$original\n\n--- Translation ---\n$translated"
+			} else {
+				viewBinding.textViewDescription.text = original
+			}
+		}
+		viewModel.isTranslating.observe(this) { isTranslating ->
+			if (!isTranslating && !viewModel.hasTranslationCache.value) {
+				// Translation finished with no results — might have failed silently
+			}
+			invalidateOptionsMenu()
+		}
+		viewModel.isShowingTranslation.observe(this) {
+			invalidateOptionsMenu()
+		}
+		viewModel.hasTranslationCache.observe(this) {
+			invalidateOptionsMenu()
+		}
 		
 		// 观察折叠屏状态变化
 		observeFoldableState()
@@ -580,12 +605,12 @@ class DetailsActivity :
 	private fun onContentUpdated(details: ContentDetails) {
 		val manga = details.toContent()
 		with(viewBinding) {
-			textViewTitle.text = manga.title
 			textViewSubtitle.textAndVisible = manga.altTitles.joinToString("\n")
 			textViewNsfw16.isVisible = manga.contentRating == ContentRating.SUGGESTIVE
 			textViewNsfw18.isVisible = manga.contentRating == ContentRating.ADULT
 			textViewDescription.text = details.description.ifNullOrEmpty { getString(R.string.no_description) }
 		}
+		renderTitle()
 		with(infoBinding) {
 			val translation = details.getLocale()
 			infoBinding.textViewTranslation.textAndVisible = translation?.getDisplayLanguage(translation)
@@ -652,8 +677,15 @@ class DetailsActivity :
 				.allowRgb565(true)
 				.enqueueWith(coil)
 		}
-		title = manga.title
 		invalidateOptionsMenu()
+	}
+
+	private fun renderTitle() {
+		val manga = viewModel.getContentOrNull() ?: return
+		val displayTitle = viewModel.translatedTitle.value ?: manga.title
+		viewBinding.textViewTitle.text = displayTitle
+		viewBinding.textViewTitle.maxLines = resources.getInteger(R.integer.details_title_lines)
+		title = displayTitle
 	}
 
 	private fun onContentRemoved(manga: Content) {

@@ -119,13 +119,23 @@ class ReaderActivity :
     private lateinit var readerManager: ReaderManager
     private val hideUiRunnable = Runnable { setUiIsVisible(false) }
     private var currentTranslationLayerState: TranslationLayerState = TranslationLayerState.IDLE
+    private var lastMangaTranslationProgress: ReaderViewModel.ChapterTranslationProgress? = null
+    private var lastMangaTranslationToastAtMs: Long = 0L
 
     // Tracks whether the foldable device is in an unfolded state (half-opened or flat)
     private var isFoldUnfolded: Boolean = false
     private var isDoubleReaderMode: Boolean = false
 
+    private fun resetTranslationSession() {
+        settings.isReaderTranslationEnabled = false
+        settings.isReaderTranslationShowTranslated = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            resetTranslationSession()
+        }
         setContentView(ActivityReaderBinding.inflate(layoutInflater))
         readerManager = ReaderManager(supportFragmentManager, viewBinding.container, settings)
         setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
@@ -135,13 +145,16 @@ class ReaderActivity :
         controlDelegate = ReaderControlDelegate(resources, settings, tapGridSettings, this)
         viewBinding.zoomControl.listener = this
         viewBinding.actionsView.listener = this
+        viewBinding.actionsView.setTranslateButtonVisible(viewModel.shouldShowTranslationToggle())
         viewBinding.buttonTimer?.setOnClickListener(this)
-        viewBinding.buttonTranslationToggle.setOnClickListener(this)
-        viewBinding.buttonTranslationToggle.setOnLongClickListener {
-            showTranslationLanguageQuickActions()
-            true
-        }
-        viewBinding.buttonTranslationLogPanel?.setOnClickListener(this)
+        addMenuProvider(
+            ReaderMenuProvider(
+                viewModel = viewModel,
+                isTranslationAvailable = viewModel::shouldShowTranslationToggle,
+                isTranslationSessionEnabled = { settings.isReaderTranslationEnabled },
+                onOpenTranslationLog = { TranslationTaskPanelSheet.show(supportFragmentManager) },
+            ),
+        )
         idlingDetector.bindToLifecycle(this)
         screenOrientationHelper.applySettings()
         viewModel.isBookmarkAdded.observe(this) { viewBinding.actionsView.isBookmarkAdded = it }
@@ -223,6 +236,8 @@ class ReaderActivity :
             currentTranslationLayerState = it
             updateTranslationToggleButton()
         }.launchIn(lifecycleScope)
+        viewModel.chapterTranslationProgress.onEach(::onChapterTranslationProgressChanged)
+            .launchIn(lifecycleScope)
 
         settings.observeAsFlow(AppSettings.KEY_READER_TOOLBAR_FLOATING) {
             isReaderToolbarFloating
@@ -291,8 +306,6 @@ class ReaderActivity :
     override fun onClick(v: View) {
         when (v.id) {
             R.id.button_timer -> onScrollTimerClick(isLongClick = false)
-            R.id.button_translation_toggle -> toggleTranslationLayer()
-            R.id.button_translation_log_panel -> TranslationTaskPanelSheet.show(supportFragmentManager)
         }
     }
 
@@ -363,9 +376,7 @@ class ReaderActivity :
             viewBinding.toolbarDocked?.hasGlobalPoint(rawX, rawY) == true ||
             viewBinding.zoomControl.hasGlobalPoint(rawX, rawY) ||
             viewBinding.timerControl.hasGlobalPoint(rawX, rawY) ||
-            viewBinding.buttonTimer?.hasGlobalPoint(rawX, rawY) == true ||
-            viewBinding.buttonTranslationToggle.hasGlobalPoint(rawX, rawY) ||
-            viewBinding.buttonTranslationLogPanel?.hasGlobalPoint(rawX, rawY) == true
+            viewBinding.buttonTimer?.hasGlobalPoint(rawX, rawY) == true
         ) {
             false
         } else {
@@ -583,6 +594,18 @@ class ReaderActivity :
         }
     }
 
+    override fun onTranslateClick() {
+        toggleTranslationLayer()
+    }
+
+    override fun onTranslateLongClick(): Boolean {
+        if (!viewModel.shouldShowTranslationToggle()) {
+            return false
+        }
+        showTranslationLanguageQuickActions()
+        return true
+    }
+
     override fun toggleScreenOrientation() {
         if (screenOrientationHelper.toggleScreenOrientation()) {
             Snackbar.make(
@@ -658,39 +681,38 @@ class ReaderActivity :
     }
 
     private fun updateTranslationToggleButton() {
-        val button = viewBinding.buttonTranslationToggle
-        val shouldShow = viewModel.shouldShowTranslationToggle() && !viewBinding.appbarTop.isVisible
-        button.isVisible = shouldShow
-        viewBinding.buttonTranslationLogPanel?.isVisible = shouldShow
-        val showTranslated = settings.isReaderTranslationShowTranslated
-        val iconRes = when (currentTranslationLayerState) {
-            TranslationLayerState.GENERATING -> R.drawable.ic_sync
-            TranslationLayerState.FAILED -> R.drawable.ic_error_small
-            TranslationLayerState.READY -> if (showTranslated) R.drawable.ic_language else R.drawable.ic_images
-            TranslationLayerState.IDLE -> if (showTranslated) R.drawable.ic_error_small else R.drawable.ic_images
+        val shouldShow = viewModel.shouldShowTranslationToggle()
+        viewBinding.actionsView.setTranslateButtonVisible(shouldShow)
+        val isShowingTranslated = settings.isReaderTranslationEnabled && settings.isReaderTranslationShowTranslated
+        viewBinding.actionsView.setTranslateActive(isShowingTranslated)
+        val contentDescription = when {
+            currentTranslationLayerState == TranslationLayerState.GENERATING ->
+                getString(R.string.reader_translation_layer_generating)
+
+            currentTranslationLayerState == TranslationLayerState.FAILED && isShowingTranslated ->
+                getString(R.string.reader_translation_layer_failed)
+
+            isShowingTranslated ->
+                getString(R.string.reader_translation_toggle_show_original)
+
+            else ->
+                getString(R.string.reader_translation_toggle_show_translated)
         }
-        button.setIconResource(iconRes)
-        button.contentDescription = when (currentTranslationLayerState) {
-            TranslationLayerState.GENERATING -> getString(R.string.reader_translation_layer_generating)
-            TranslationLayerState.FAILED -> getString(R.string.reader_translation_layer_failed)
-            TranslationLayerState.READY -> getString(
-                if (showTranslated) R.string.reader_translation_toggle_show_original
-                else R.string.reader_translation_toggle_show_translated,
-            )
-            TranslationLayerState.IDLE -> getString(R.string.reader_translation_layer_not_ready)
-        }
+        viewBinding.actionsView.setTranslateButtonContentDescription(contentDescription)
     }
 
     private fun toggleTranslationLayer() {
-        if (!settings.isReaderTranslationEnabled) {
+        viewModel.getTranslationBypassHint(this)?.let { hint ->
+            viewBinding.toastView.showTemporary(hint, 2000L)
             return
         }
-        viewModel.getTranslationBypassHint(this)?.let { hint ->
-            Snackbar.make(
-                viewBinding.container,
-                hint,
-                Snackbar.LENGTH_SHORT,
-            ).setAnchorView(viewBinding.toolbarDocked).show()
+        if (!settings.isReaderTranslationEnabled) {
+            settings.isReaderTranslationEnabled = true
+            settings.isReaderTranslationShowTranslated = true
+            viewBinding.toastView.showTemporary(
+                getString(R.string.reader_translation_mode_switched_translated),
+                1500L,
+            )
             return
         }
         val showTranslated = settings.isReaderTranslationShowTranslated
@@ -700,16 +722,69 @@ class ReaderActivity :
         } else {
             settings.isReaderTranslationShowTranslated = false
         }
-        Snackbar.make(
-            viewBinding.container,
-            if (!showTranslated) R.string.reader_translation_mode_switched_translated
-            else R.string.reader_translation_mode_switched_original,
-            Snackbar.LENGTH_SHORT,
-        ).setAnchorView(viewBinding.toolbarDocked).show()
+        viewBinding.toastView.showTemporary(
+            getString(
+                if (!showTranslated) R.string.reader_translation_mode_switched_translated
+                else R.string.reader_translation_mode_switched_original,
+            ),
+            1500L,
+        )
+    }
+
+    private fun onChapterTranslationProgressChanged(progress: ReaderViewModel.ChapterTranslationProgress?) {
+        if (progress == null) {
+            lastMangaTranslationProgress = null
+            return
+        }
+        val previous = lastMangaTranslationProgress
+        lastMangaTranslationProgress = progress
+        if (!settings.isReaderTranslationEnabled) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        val shouldShow = when {
+            previous == null || previous.chapterId != progress.chapterId -> true
+            progress.isFinished && progress != previous -> true
+            progress.failedCount != previous.failedCount -> true
+            progress.readyCount != previous.readyCount ->
+                now - lastMangaTranslationToastAtMs >= TRANSLATION_PROGRESS_MIN_INTERVAL_MS
+
+            previous.runningCount == 0 && progress.runningCount > 0 -> true
+            else -> false
+        }
+        if (!shouldShow) {
+            return
+        }
+        lastMangaTranslationToastAtMs = now
+        val message = when {
+            progress.isFinished && progress.failedCount > 0 -> getString(
+                R.string.reader_translation_progress_complete_partial,
+                progress.readyCount,
+                progress.failedCount,
+            )
+
+            progress.isFinished -> getString(
+                R.string.reader_translation_progress_complete,
+                progress.readyCount,
+                progress.totalCount,
+            )
+
+            progress.readyCount == 0 && progress.failedCount == 0 -> getString(
+                R.string.reader_translation_progress_started,
+                progress.readyCount,
+                progress.totalCount,
+            )
+
+            else -> getString(
+                R.string.reader_translation_progress_update,
+                progress.readyCount,
+                progress.totalCount,
+            )
+        }
+        viewBinding.toastView.showTemporary(message, TOAST_DURATION)
     }
 
     private fun showTranslationLanguageQuickActions() {
-        if (!settings.isReaderTranslationEnabled) return
         val actions = arrayOf(
             getString(R.string.reader_translation_quick_change_source),
             getString(R.string.reader_translation_quick_change_target),
@@ -750,6 +825,13 @@ class ReaderActivity :
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing && !isChangingConfigurations) {
+            resetTranslationSession()
+        }
+        super.onDestroy()
     }
 
     private fun showTranslationLanguagePicker(
@@ -904,5 +986,6 @@ class ReaderActivity :
     companion object {
 
         private const val TOAST_DURATION = 2000L
+        private const val TRANSLATION_PROGRESS_MIN_INTERVAL_MS = 800L
     }
 }
