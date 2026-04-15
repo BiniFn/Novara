@@ -57,18 +57,7 @@ class AvailableExtensionsViewModel @Inject constructor(
 		installService.downloadStates,
 	) { available, installed, downloads ->
 		available.map { extension ->
-			val isIReader = extension.type == ExternalExtensionType.IREADER
-			val installedSearchKey = if (isIReader) {
-				val parts = extension.pkgName.split("-")
-				if (parts.size >= 3 && parts[0] == "ireader") {
-					val namePart = parts.drop(2).joinToString("-")
-					"ireader.${namePart}.${parts[1]}"
-				} else {
-					extension.pkgName
-				}
-			} else {
-				extension.pkgName
-			}
+			val installedSearchKey = type.normalizePackageNameForMatching(extension.pkgName)
 			val installedInfo = installed[installedSearchKey]
 			val state = extension.resolveAvailableState(
 				installedInfo = installedInfo,

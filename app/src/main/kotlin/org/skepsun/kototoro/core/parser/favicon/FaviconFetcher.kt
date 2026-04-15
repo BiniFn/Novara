@@ -54,6 +54,7 @@ import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.settings.sources.extensions.normalizePackageNameForMatching
 
 class FaviconFetcher(
 	private val uri: Uri,
@@ -230,7 +231,10 @@ class FaviconFetcher(
         // Try to fetch the icon URL from the fetched repo extensions first.
         try {
             val availableExtensions = repoRepository.getAvailableExtensions(ExternalExtensionType.IREADER)
-            val repoExt = availableExtensions.find { it.pkgName == pkgName }
+            val normalizedInstalledPkg = ExternalExtensionType.IREADER.normalizePackageNameForMatching(pkgName)
+            val repoExt = availableExtensions.find { extension ->
+                ExternalExtensionType.IREADER.normalizePackageNameForMatching(extension.pkgName) == normalizedInstalledPkg
+            }
             if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
                 val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
                 if (remoteIcon != null) {

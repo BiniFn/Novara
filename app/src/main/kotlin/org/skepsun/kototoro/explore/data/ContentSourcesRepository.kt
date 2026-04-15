@@ -84,6 +84,21 @@ class ContentSourcesRepository @Inject constructor(
 				assimilateNewSources(force = true)
 			}
 		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			mihonExtensionManager.installedExtensions.collect {
+				assimilateNewSources(force = true)
+			}
+		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			aniyomiExtensionManager.installedExtensions.collect {
+				assimilateNewSources(force = true)
+			}
+		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			ireaderExtensionManager.installedExtensions.collect {
+				assimilateNewSources(force = true)
+			}
+		}
 	}
 
 	val allContentSources: Set<ContentSource>
@@ -547,6 +562,18 @@ class ContentSourcesRepository @Inject constructor(
 
 	fun observeIReaderSourcesCount(): Flow<Int> {
 		return observeIReaderSources().map { it.size }.distinctUntilChanged()
+	}
+
+	fun observeExternalExtensionChanges(): Flow<Unit> {
+		return combine(
+			mihonExtensionManager.installedExtensions,
+			aniyomiExtensionManager.installedExtensions,
+			ireaderExtensionManager.installedExtensions,
+		) { _, _, _ ->
+			Unit
+		}.onStart {
+			emit(Unit)
+		}
 	}
 
 	fun observeEnabledSources(): Flow<List<ContentSourceInfo>> = combine(

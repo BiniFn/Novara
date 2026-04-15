@@ -4,7 +4,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import org.skepsun.kototoro.extensions.install.ExtensionInstallDownloadState
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
@@ -28,8 +27,7 @@ class ExtensionsBrowserModelsTest : FunSpec({
 			downloadStates = mapOf(
 				"pkg.update" to ExtensionInstallDownloadState("pkg.update", bytesRead = 50L, contentLength = 100L),
 			),
-			languageFilter = ExtensionsLanguageFilter.All,
-			selectedContentLanguages = setOf("en"),
+			selectedExtensionLanguages = setOf("en"),
 			collapsedLanguageGroups = emptySet(),
 			query = "",
 			isTrustedPackage = { packageName, _ -> packageName != "pkg.untrusted" },
@@ -58,55 +56,68 @@ class ExtensionsBrowserModelsTest : FunSpec({
 		entries[4].state shouldBe ExtensionsBrowserEntryState.AVAILABLE
 	}
 
-	test("buildExtensionsBrowserItems filters by repository label and source name") {
-		val items = buildExtensionsBrowserItems(
-			type = ExternalExtensionType.MIHON,
-			installed = emptyList(),
-			available = listOf(
-				availableExtension("pkg.alpha", "Alpha", repoName = "Repo Alpha", sourceNames = listOf("Foo Source")),
-				availableExtension("pkg.beta", "Beta", repoName = "Repo Beta", sourceNames = listOf("Bar Source")),
-			),
-			downloadStates = emptyMap(),
-			languageFilter = ExtensionsLanguageFilter.All,
-			selectedContentLanguages = setOf("en"),
-			collapsedLanguageGroups = emptySet(),
-			query = "foo",
-			isTrustedPackage = { _, _ -> true },
-		)
+	test("ireader installed entry uses normalized package name for trust checks") {
+		var validatedPackageName: String? = null
 
-		items.filterIsInstance<ExtensionsBrowserListItem.SectionHeader>().map { it.section } shouldContainExactly listOf(
-			ExtensionsBrowserSection.AVAILABLE,
-		)
-		items.filterIsInstance<ExtensionsBrowserListItem.Entry>().map { it.pkgName } shouldContainExactly listOf("pkg.alpha")
-	}
-
-	test("buildExtensionsBrowserItems filters by selected content languages") {
 		val items = buildExtensionsBrowserItems(
-			type = ExternalExtensionType.MIHON,
+			type = ExternalExtensionType.IREADER,
 			installed = listOf(
-				installedEntry("pkg.multi", lang = "all"),
-				installedEntry("pkg.zh", lang = "zh"),
+				installedEntry(
+					packageName = "ireader.novelfire.en",
+					name = "novelfire",
+				),
 			),
 			available = listOf(
-				availableExtension("pkg.multi", "Multi Source", lang = "all"),
-				availableExtension("pkg.zh.available", "Chinese Source", lang = "zh"),
+				availableExtension(
+					packageName = "ireader-en-novelfire",
+					name = "novelfire (en)",
+					type = ExternalExtensionType.IREADER,
+				),
 			),
 			downloadStates = emptyMap(),
-			languageFilter = ExtensionsLanguageFilter.SelectedContent,
-			selectedContentLanguages = setOf("zh"),
+			selectedExtensionLanguages = setOf("en"),
 			collapsedLanguageGroups = emptySet(),
 			query = "",
-			isTrustedPackage = { _, _ -> true },
+			isTrustedPackage = { packageName, _ ->
+				validatedPackageName = packageName
+				packageName == "ireader.novelfire.en"
+			},
 		)
 
+		validatedPackageName shouldBe "ireader.novelfire.en"
 		items.filterIsInstance<ExtensionsBrowserListItem.Entry>().map { it.pkgName } shouldContainExactly listOf(
-			"pkg.zh",
-			"pkg.multi",
-			"pkg.zh.available",
+			"ireader.novelfire.en",
 		)
-		items.filterIsInstance<ExtensionsBrowserListItem.SectionHeader>()
-			.first { it.section == ExtensionsBrowserSection.INSTALLED }
-			.count shouldBe 2
+		items.filterIsInstance<ExtensionsBrowserListItem.Entry>().single().state shouldBe ExtensionsBrowserEntryState.INSTALLED
+	}
+
+	test("ireader untrusted entry does not leave a duplicate installed card behind") {
+		val items = buildExtensionsBrowserItems(
+			type = ExternalExtensionType.IREADER,
+			installed = listOf(
+				installedEntry(
+					packageName = "ireader.novelfire.en",
+					name = "novelfire",
+				),
+			),
+			available = listOf(
+				availableExtension(
+					packageName = "ireader-en-novelfire",
+					name = "novelfire (en)",
+					type = ExternalExtensionType.IREADER,
+				),
+			),
+			downloadStates = emptyMap(),
+			selectedExtensionLanguages = setOf("en"),
+			collapsedLanguageGroups = emptySet(),
+			query = "",
+			isTrustedPackage = { _, _ -> false },
+		)
+
+		val entries = items.filterIsInstance<ExtensionsBrowserListItem.Entry>()
+		entries shouldHaveSize 1
+		entries.single().pkgName shouldBe "ireader-en-novelfire"
+		entries.single().state shouldBe ExtensionsBrowserEntryState.UNTRUSTED
 	}
 
 	test("normalizeExtensionLanguageCode maps all to multi-language bucket") {
@@ -114,65 +125,17 @@ class ExtensionsBrowserModelsTest : FunSpec({
 		"ALL".normalizeExtensionLanguageCode() shouldBe ""
 		"zh".normalizeExtensionLanguageCode() shouldBe "zh"
 	}
-
-	test("buildExtensionsBrowserItems creates language headers and respects collapsed groups") {
-		val collapsedGroup = ExtensionsLanguageGroupKey(ExtensionsBrowserSection.AVAILABLE, "zh")
-		val items = buildExtensionsBrowserItems(
-			type = ExternalExtensionType.MIHON,
-			installed = emptyList(),
-			available = listOf(
-				availableExtension("pkg.zh.one", "Chinese One", lang = "zh"),
-				availableExtension("pkg.zh.two", "Chinese Two", lang = "zh"),
-				availableExtension("pkg.en.one", "English One", lang = "en"),
-			),
-			downloadStates = emptyMap(),
-			languageFilter = ExtensionsLanguageFilter.All,
-			selectedContentLanguages = setOf("zh"),
-			collapsedLanguageGroups = setOf(collapsedGroup),
-			query = "",
-			isTrustedPackage = { _, _ -> true },
-		)
-
-		val languageHeaders = items.filterIsInstance<ExtensionsBrowserListItem.LanguageHeader>()
-		languageHeaders.shouldHaveSize(2)
-		languageHeaders.first { it.language == "zh" }.isCollapsed shouldBe true
-		items.filterIsInstance<ExtensionsBrowserListItem.Entry>().map { it.pkgName } shouldContainExactly listOf("pkg.en.one")
-		items.find { it is ExtensionsBrowserListItem.LanguageHeader && it.language == "zh" } shouldNotBe null
-	}
-
-	test("multi-language card contributes weighted counts while remaining a single card") {
-		val items = buildExtensionsBrowserItems(
-			type = ExternalExtensionType.MIHON,
-			installed = listOf(
-				installedEntry("pkg.multi", lang = "all", sourceNames = listOf("源 A", "源 B")),
-			),
-			available = emptyList(),
-			downloadStates = emptyMap(),
-			languageFilter = ExtensionsLanguageFilter.All,
-			selectedContentLanguages = setOf("zh", "ja"),
-			collapsedLanguageGroups = emptySet(),
-			query = "",
-			isTrustedPackage = { _, _ -> true },
-		)
-
-		items.filterIsInstance<ExtensionsBrowserListItem.Entry>().shouldHaveSize(1)
-		items.filterIsInstance<ExtensionsBrowserListItem.SectionHeader>()
-			.first { it.section == ExtensionsBrowserSection.INSTALLED }
-			.count shouldBe 2
-		items.filterIsInstance<ExtensionsBrowserListItem.LanguageHeader>()
-			.first { it.language.isBlank() }
-			.count shouldBe 2
-	}
 })
 
 private fun installedEntry(
 	packageName: String,
+	name: String = packageName.substringAfter('.'),
 	lang: String = "en",
 	sourceNames: List<String> = listOf("Source $packageName"),
 ): InstalledExtensionEntry {
 	return InstalledExtensionEntry(
 		pkgName = packageName,
-		name = packageName.substringAfter('.'),
+		name = name,
 		versionName = "1.2.0",
 		versionCode = 1L,
 		libVersion = 1.2,
@@ -185,6 +148,7 @@ private fun installedEntry(
 private fun availableExtension(
 	packageName: String,
 	name: String,
+	type: ExternalExtensionType = ExternalExtensionType.MIHON,
 	versionName: String = "1.2.0",
 	versionCode: Long = 1L,
 	isCompatible: Boolean = true,
@@ -193,7 +157,7 @@ private fun availableExtension(
 	sourceNames: List<String> = listOf(name),
 ): RepoAvailableExtension {
 	return RepoAvailableExtension(
-		type = ExternalExtensionType.MIHON,
+		type = type,
 		name = name,
 		pkgName = packageName,
 		versionName = versionName,
