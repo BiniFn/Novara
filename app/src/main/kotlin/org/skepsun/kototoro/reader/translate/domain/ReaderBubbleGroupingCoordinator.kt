@@ -112,18 +112,8 @@ internal class ReaderBubbleGroupingCoordinator(
 		}
 
 		for (i in fragments.indices) {
-			val rectI = fragments[i].rect
 			for (j in i + 1 until fragments.size) {
-				val rectJ = fragments[j].rect
-				val dx = kotlin.math.abs(rectI.centerX() - rectJ.centerX())
-				val dy = kotlin.math.abs(rectI.centerY() - rectJ.centerY())
-				val avgW = (rectI.width() + rectJ.width()) / 2.0
-				val avgH = (rectI.height() + rectJ.height()) / 2.0
-
-				val isCloseVertically = dx < avgW * 2.5 && dy < avgH * 3.5
-				val isCloseHorizontally = dy < avgH * 1.5 && dx < avgW * 3.0
-
-				if (isCloseVertically || isCloseHorizontally) {
+				if (shouldFallbackGroupFragments(fragments[i], fragments[j])) {
 					union(i, j)
 				}
 			}
@@ -140,6 +130,93 @@ internal class ReaderBubbleGroupingCoordinator(
 				bubbleRect = null,
 				detectorAnchored = false,
 			)
+		}
+	}
+
+	private fun shouldFallbackGroupFragments(a: TextFragment, b: TextFragment): Boolean {
+		if (
+			a.directionHint != TextDirectionHint.UNKNOWN &&
+			b.directionHint != TextDirectionHint.UNKNOWN &&
+			a.directionHint != b.directionHint
+		) {
+			return false
+		}
+		val minW = min(a.rect.width(), b.rect.width()).coerceAtLeast(1).toFloat()
+		val minH = min(a.rect.height(), b.rect.height()).coerceAtLeast(1).toFloat()
+		val gapX = axisGap(a.rect.left, a.rect.right, b.rect.left, b.rect.right).toFloat()
+		val gapY = axisGap(a.rect.top, a.rect.bottom, b.rect.top, b.rect.bottom).toFloat()
+		val xOverlap = overlapLen(a.rect.left, a.rect.right, b.rect.left, b.rect.right).toFloat()
+		val yOverlap = overlapLen(a.rect.top, a.rect.bottom, b.rect.top, b.rect.bottom).toFloat()
+		val xOverlapRatio = xOverlap / minW
+		val yOverlapRatio = yOverlap / minH
+		val dx = kotlin.math.abs(a.rect.centerX() - b.rect.centerX()).toFloat()
+		val dy = kotlin.math.abs(a.rect.centerY() - b.rect.centerY()).toFloat()
+		val preferColumnMerge = shouldPreferColumnMerge(a, b)
+		val sameColumnCandidate =
+			yOverlapRatio >= 0.28f &&
+				gapX <= minW * 0.60f + dp(2f) &&
+				dx <= minW * 1.75f
+		val sameRowCandidate =
+			xOverlapRatio >= 0.28f &&
+				gapY <= minH * 0.70f + dp(2f) &&
+				dy <= minH * 1.75f
+		if (!(if (preferColumnMerge) sameColumnCandidate else sameRowCandidate)) {
+			return false
+		}
+		val merged = Rect(
+			min(a.rect.left, b.rect.left),
+			min(a.rect.top, b.rect.top),
+			max(a.rect.right, b.rect.right),
+			max(a.rect.bottom, b.rect.bottom),
+		)
+		val sumArea = rectArea(a.rect) + rectArea(b.rect)
+		val mergedArea = rectArea(merged).coerceAtLeast(1f)
+		val inflation = if (sumArea > 0f) mergedArea / sumArea else Float.MAX_VALUE
+		if (inflation > 1.85f) {
+			return false
+		}
+		return true
+	}
+
+	private fun shouldPreferColumnMerge(a: TextFragment, b: TextFragment): Boolean {
+		return when {
+			a.directionHint == TextDirectionHint.VERTICAL || b.directionHint == TextDirectionHint.VERTICAL -> true
+			a.directionHint == TextDirectionHint.HORIZONTAL || b.directionHint == TextDirectionHint.HORIZONTAL -> false
+			isLikelyVerticalFragment(a) && isLikelyVerticalFragment(b) -> true
+			isLikelyHorizontalFragment(a) && isLikelyHorizontalFragment(b) -> false
+			else -> {
+				val avgWidth = (a.rect.width() + b.rect.width()) / 2f
+				val avgHeight = (a.rect.height() + b.rect.height()) / 2f
+				avgHeight > avgWidth * 1.2f
+			}
+		}
+	}
+
+	private fun isLikelyVerticalFragment(fragment: TextFragment): Boolean {
+		return when (fragment.directionHint) {
+			TextDirectionHint.VERTICAL -> true
+			TextDirectionHint.HORIZONTAL -> false
+			else -> fragment.rect.height() > fragment.rect.width() * 1.2f
+		}
+	}
+
+	private fun isLikelyHorizontalFragment(fragment: TextFragment): Boolean {
+		return when (fragment.directionHint) {
+			TextDirectionHint.HORIZONTAL -> true
+			TextDirectionHint.VERTICAL -> false
+			else -> fragment.rect.width() >= fragment.rect.height() * 0.85f
+		}
+	}
+
+	private fun overlapLen(aStart: Int, aEnd: Int, bStart: Int, bEnd: Int): Int {
+		return (min(aEnd, bEnd) - max(aStart, bStart)).coerceAtLeast(0)
+	}
+
+	private fun axisGap(aStart: Int, aEnd: Int, bStart: Int, bEnd: Int): Int {
+		return when {
+			aEnd < bStart -> bStart - aEnd
+			bEnd < aStart -> aStart - bEnd
+			else -> 0
 		}
 	}
 

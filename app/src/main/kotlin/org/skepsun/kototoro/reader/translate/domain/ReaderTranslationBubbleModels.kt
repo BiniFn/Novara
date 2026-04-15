@@ -10,6 +10,7 @@ internal data class BubbleInput(
 	val classId: Int = 0,
 	val detectorAnchored: Boolean = false,
 	val sourceContentRect: Rect? = null,
+	val sourceContentRects: List<Rect> = emptyList(),
 )
 
 internal data class BubbleDebugOverlay(
@@ -102,7 +103,15 @@ internal data class PreparedBubble(
 	val contentHeight: Int,
 	val layout: StaticLayout?,
 	val verticalPlan: VerticalLayoutPlan?,
+	val segments: List<PreparedBubbleSegment> = emptyList(),
 	val debugOverlay: BubbleDebugOverlay? = null,
+)
+
+internal data class PreparedBubbleSegment(
+	val backgroundRect: Rect,
+	val contentRect: Rect,
+	val layout: StaticLayout? = null,
+	val verticalPlan: VerticalLayoutPlan? = null,
 )
 
 internal data class VerticalLayoutPlan(

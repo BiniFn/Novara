@@ -69,6 +69,38 @@ Depending on the current build and selected mode, users can configure:
 - Overlay compactness
 - Debug logging
 
+## Current Render Behavior
+
+Recent work on the reader overlay has focused on a specific class of problems:
+
+- OCR text is complete
+- translation text is complete
+- final overlay text is still clipped, offset, or visually inconsistent across nearby regions
+
+The current render path now behaves more defensibly than earlier builds:
+
+- single-region overlays are solved through a unified fit pass instead of ad-hoc text-size retries
+- horizontal and vertical text are drawn from measured layout bounds, which reduces the classic "background box looks right but text is shifted left/right" failure
+- local expansion is applied around the current text region when the first fit still overflows
+- multi-region bubbles can be rendered through a conservative segmented flow instead of blindly stretching one merged rectangle across unrelated OCR fragments
+- heavily overlapping sparse bubbles are filtered before drawing, which reduces obviously wrong large blank overlays caused by tiny text such as page numbers or decoration
+
+This does not mean every edge case is solved. The hardest failures now usually come from:
+
+- incorrect merge quality upstream
+- unstable source content rects from OCR grouping
+- detector regions that are valid for recognition but still awkward for translated overlay geometry
+- very dense mixed-layout bubbles where several small regions compete inside one large speech area
+
+In practical terms, the main priority of the current branch is:
+
+```text
+show the whole translation first,
+then keep font size and box size visually reasonable.
+```
+
+That tradeoff is intentional.
+
 ## Model Management
 
 The model management screen is used to inspect and download built-in OCR and ONNX-related models.
@@ -109,6 +141,17 @@ Downloaded status is shown per model, and missing models can be downloaded on de
 - Confirm endpoint, API key, and model name.
 - If model discovery fails, enter the model name manually.
 - Prefer `LOCAL_FIRST` while validating a new remote provider.
+
+### The overlay background is correct but some translated text is still clipped
+
+- This is now more likely to be a layout-fit or source-rect problem than a missing translation problem.
+- Small residual clipping can still happen when local expansion hits page bounds or when the grouped source regions are already inconsistent.
+- If debug logging is enabled, compare source rect, content rect, prepared rect, and final content area before assuming OCR dropped text.
+
+### The same speech bubble contains normal text in one region and oversized text in another
+
+- This usually points to fragment grouping quality rather than translation quality.
+- The current build reduces aggressive short-text auto-enlargement and keeps segmented rendering conservative, but a bad merge upstream can still produce uneven visual weight.
 
 See also: [Troubleshooting](./troubleshooting.md)
 

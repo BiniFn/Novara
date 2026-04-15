@@ -166,6 +166,55 @@ The main correction in `prepareTranslatedBubble(...)` is:
 
 This corrected a real rendering bug rather than an OCR bug.
 
+## 4. Render fitting is now a unified solver instead of layered fallback heuristics
+
+The recent reader-side changes moved render preparation toward a more explicit fit model:
+
+- single-box bubbles now go through a dedicated solver
+- horizontal and vertical layout each produce measured content usage
+- prepared rect, content width, and content height are resolved in one pass
+- text drawing is aligned to measured layout bounds instead of approximate centering
+
+This is important because the dominant failures on the branch are no longer:
+
+- OCR missed the text
+- translation dropped the text
+
+They are more often:
+
+- the chosen render box was too optimistic
+- text was measured against one width but drawn with another origin
+- a merged group produced geometry that was acceptable for translation but poor for overlay
+
+## 5. Multi-rect rendering is now conservative instead of naive
+
+The branch now carries per-group `sourceContentRects`, not only a single merged content rect.
+
+That enables a pseudo-unmerge style render path:
+
+- keep the merged text unit for translation
+- project original OCR rects back into the final render area
+- attempt segmented text flow across those projected regions
+- reject segmented layouts when the projected sub-rects overlap too heavily
+
+This is not true semantic redistribution of translated text back to original fragments. It is a conservative geometry strategy designed to avoid the worst outcome of treating an irregular merged region as one clean rectangle.
+
+## 6. Overlapping sparse bubbles are filtered before draw
+
+The runtime now suppresses a subset of highly overlapping bubbles when one candidate has:
+
+- a much larger background footprint
+- very low content fill ratio
+- content that is largely contained by a denser neighbor
+
+This specifically targets bad overlays such as:
+
+- page numbers
+- tiny decorative text
+- false positive bubbles that produce a huge white box around a few characters
+
+It is deliberately narrow. This is not a full duplicate-removal system.
+
 ## 4. UI naming is more user-facing
 
 The translation settings and model-management pages have been renamed to reflect user intent:
@@ -224,7 +273,22 @@ more than it has improved:
 
 For vertical or rotated dialogue, this is still a visible limitation.
 
-## 4. Merge and bubble assignment are still tightly coupled in some downstream behavior
+## 4. Merge quality still dominates render quality
+
+The recent render fixes improved fitting, centering, local expansion, and segmented flow.
+
+They do not eliminate the core dependency on grouping quality.
+
+If unrelated OCR fragments are merged together, the renderer still has to solve the wrong problem:
+
+- the translation unit is semantically mixed
+- the merged geometry is irregular
+- segmented projection becomes unstable
+- short residual clipping or oversized local regions can still appear
+
+This means the branch has shifted from "render is obviously broken" to "render quality is now strongly bounded by merge quality."
+
+## 5. Merge and bubble assignment are still tightly coupled in some downstream behavior
 
 The branch has already demoted bubble logic relative to OCR, but bubble grouping still influences how merged units are anchored for rendering.
 
@@ -276,7 +340,8 @@ The highest-value next steps are:
 
 1. Keep `detector -> recognizer -> merge` as the default and preferred route for all mainstream cases.
 2. Continue reducing the architectural importance of bubble-first fallback.
-3. Push quad-aware geometry further into render preparation, not just crop preparation.
-4. Use the new debug overlay and diagnosis output to tune render sizing with real page evidence instead of heuristics alone.
+3. Add stricter duplicate / high-overlap group suppression before render, not only sparse-overlay suppression after preparation.
+4. Push quad-aware geometry further into render preparation, not just crop preparation.
+5. Use the new debug overlay and diagnosis output to tune render sizing with real page evidence instead of heuristics alone.
 
 The stricter target design is documented in [OCR Pipeline](./ocr-pipeline-v2.md).
