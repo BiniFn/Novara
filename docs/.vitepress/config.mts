@@ -55,6 +55,8 @@ export default defineConfig({
           { text: "OCR Architecture Review", link: "/architecture/ocr-architecture-review" },
           { text: "OCR Pipeline", link: "/architecture/ocr-pipeline-v2" },
           { text: "UI Improvement", link: "/architecture/ui_improvement" },
+          { text: "Compose Migration Roadmap", link: "/compose_migration/cmp-liquid-glass-migration" },
+          { text: "Compose Migration Log", link: "/compose_migration/progress-log" },
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
           { text: "External Extension Integration Guide", link: "/architecture/external-extension-integration-guide" },
         ],

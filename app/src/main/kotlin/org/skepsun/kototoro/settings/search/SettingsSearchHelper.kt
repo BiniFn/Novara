@@ -3,7 +3,7 @@ package org.skepsun.kototoro.settings.search
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.annotation.XmlRes
-import androidx.preference.PreferenceFragmentCompat
+import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceManager
 import androidx.preference.PreferenceScreen
 import androidx.preference.get
@@ -107,7 +107,7 @@ class SettingsSearchHelper @Inject constructor(
         result: MutableList<SettingsItem>,
         @XmlRes resId: Int,
         breadcrumbs: List<String>,
-        fragmentClass: Class<out PreferenceFragmentCompat>
+        fragmentClass: Class<out Fragment>
     ) {
         val screen = inflateFromResource(context, resId, null)
         val screenTitle = screen.title?.toString()
@@ -121,7 +121,7 @@ class SettingsSearchHelper @Inject constructor(
     private fun PreferenceScreen.inflateTo(
         result: MutableList<SettingsItem>,
         breadcrumbs: List<String>,
-        fragmentClass: Class<out PreferenceFragmentCompat>
+        fragmentClass: Class<out Fragment>
     ): Unit = repeat(preferenceCount) { i ->
         val pref = this[i]
         if (pref is PreferenceScreen) {

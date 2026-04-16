@@ -11,10 +11,18 @@ fun <T> AppSettings.observeAsState(
     key: String,
     selector: AppSettings.() -> T
 ): State<T> {
+    return observeAsState(*arrayOf(key), selector = selector)
+}
+
+@Composable
+fun <T> AppSettings.observeAsState(
+    vararg keys: String,
+    selector: AppSettings.() -> T
+): State<T> {
     val state = remember { mutableStateOf(selector()) }
-    DisposableEffect(key) {
+    DisposableEffect(*keys) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
-            if (changedKey == key) {
+            if (changedKey in keys) {
                 state.value = selector()
             }
         }

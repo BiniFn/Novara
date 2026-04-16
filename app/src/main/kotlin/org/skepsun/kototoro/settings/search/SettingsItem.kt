@@ -1,13 +1,13 @@
 package org.skepsun.kototoro.settings.search
 
-import androidx.preference.PreferenceFragmentCompat
+import androidx.fragment.app.Fragment
 import org.skepsun.kototoro.list.ui.model.ListModel
 
 data class SettingsItem(
 	val key: String,
 	val title: CharSequence,
 	val breadcrumbs: List<String>,
-	val fragmentClass: Class<out PreferenceFragmentCompat>,
+	val fragmentClass: Class<out Fragment>,
 ) : ListModel {
 
 	override fun areItemsTheSame(other: ListModel): Boolean {

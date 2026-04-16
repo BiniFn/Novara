@@ -28,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +44,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassTopBarContainer
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
@@ -55,7 +59,10 @@ fun KototoroTopBar(
     suggestions: List<SearchSuggestionItem>,
     onQueryChanged: (String) -> Unit,
     onSearch: (String) -> Unit = {},
-    onSuggestionClick: (SearchSuggestionItem) -> Unit = {},
+    onContentSuggestionClick: (Content) -> Unit = {},
+    onTagSuggestionClick: (ContentTag) -> Unit = {},
+    onSourceSuggestionClick: (ContentSource) -> Unit = {},
+    onAuthorSuggestionClick: (String) -> Unit = {},
     onDeleteQuery: (String) -> Unit = {},
     onVoiceInput: () -> Unit = {},
     onMoreClick: (android.view.View?) -> Unit = {},
@@ -76,132 +83,144 @@ fun KototoroTopBar(
             .fillMaxWidth()
             .padding(top = statusBarPadding.calculateTopPadding())
     ) {
-        DockedSearchBar(
-            inputField = {
-                SearchBarDefaults.InputField(
-                    query = query,
-                    onQueryChange = { newQuery ->
-                        query = newQuery
-                        onQueryChanged(newQuery)
-                    },
-                    onSearch = { searchQuery ->
-                        onSearch(searchQuery)
-                        expanded = false
-                    },
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
-                    placeholder = { Text(stringResource(R.string.search_content)) },
-                    leadingIcon = {
-                        if (expanded) {
-                            IconButton(onClick = {
-                                expanded = false
-                                query = ""
-                                onQueryChanged("")
-                            }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.back)
-                                )
-                            }
-                        } else {
-                            Icon(
-                                Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.search)
-                            )
-                        }
-                    },
-                    trailingIcon = {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            if (expanded && query.isNotEmpty()) {
+        GlassTopBarContainer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = if (expanded) 0.dp else 16.dp),
+            style = if (expanded) GlassDefaults.regularStyle() else GlassDefaults.prominentStyle(),
+        ) {
+            DockedSearchBar(
+                inputField = {
+                    SearchBarDefaults.InputField(
+                        query = query,
+                        onQueryChange = { newQuery ->
+                            query = newQuery
+                            onQueryChanged(newQuery)
+                        },
+                        onSearch = { searchQuery ->
+                            onSearch(searchQuery)
+                            expanded = false
+                        },
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it },
+                        placeholder = { Text(stringResource(R.string.search_content)) },
+                        leadingIcon = {
+                            if (expanded) {
                                 IconButton(onClick = {
+                                    expanded = false
                                     query = ""
                                     onQueryChanged("")
                                 }) {
                                     Icon(
-                                        Icons.Filled.Clear,
-                                        contentDescription = stringResource(R.string.clear)
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.back)
                                     )
                                 }
-                            }
-                            if (!expanded && !isSearchBarFilterHidden) {
-                                // Content type filter (swipeable pill)
-                                SwipeableFilterChip(
-                                    selectedType = selectedContentType,
-                                    onTypeSelected = onContentTypeSelected,
-                                    modifier = Modifier.zIndex(1f)
-                                )
-                                // Source tag filter (dropdown)
-                                SourceTagDropdown(
-                                    selectedTags = selectedSourceTags,
-                                    onTagSelected = onSourceTagSelected,
+                            } else {
+                                Icon(
+                                    Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.search)
                                 )
                             }
-                            if (expanded) {
-                                IconButton(onClick = onVoiceInput) {
-                                    Icon(
-                                        painterResource(R.drawable.ic_voice_input),
-                                        contentDescription = stringResource(R.string.voice_search)
+                        },
+                        trailingIcon = {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                if (expanded && query.isNotEmpty()) {
+                                    IconButton(onClick = {
+                                        query = ""
+                                        onQueryChanged("")
+                                    }) {
+                                        Icon(
+                                            Icons.Filled.Clear,
+                                            contentDescription = stringResource(R.string.clear)
+                                        )
+                                    }
+                                }
+                                if (!expanded && !isSearchBarFilterHidden) {
+                                    SwipeableFilterChip(
+                                        selectedType = selectedContentType,
+                                        onTypeSelected = onContentTypeSelected,
+                                        modifier = Modifier.zIndex(1f)
+                                    )
+                                    SourceTagDropdown(
+                                        selectedTags = selectedSourceTags,
+                                        onTagSelected = onSourceTagSelected,
                                     )
                                 }
-                            }
-                            Box {
-                                var anchorView by remember { androidx.compose.runtime.mutableStateOf<android.view.View?>(null) }
-                                androidx.compose.ui.viewinterop.AndroidView(
-                                    factory = { context -> 
-                                        android.view.View(context).apply { 
-                                            layoutParams = android.view.ViewGroup.LayoutParams(1, 1) 
-                                        } 
-                                    },
-                                    update = { anchorView = it }
-                                )
-                                IconButton(onClick = { onMoreClick(anchorView) }) {
-                                    Icon(
-                                        painterResource(R.drawable.ic_more_vert),
-                                        contentDescription = stringResource(R.string.more)
+                                if (expanded) {
+                                    IconButton(onClick = onVoiceInput) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_voice_input),
+                                            contentDescription = stringResource(R.string.voice_search)
+                                        )
+                                    }
+                                }
+                                Box {
+                                    var anchorView by remember { androidx.compose.runtime.mutableStateOf<android.view.View?>(null) }
+                                    androidx.compose.ui.viewinterop.AndroidView(
+                                        factory = { context ->
+                                            android.view.View(context).apply {
+                                                layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+                                            }
+                                        },
+                                        update = { anchorView = it }
                                     )
+                                    IconButton(onClick = { onMoreClick(anchorView) }) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_more_vert),
+                                            contentDescription = stringResource(R.string.more)
+                                        )
+                                    }
                                 }
                             }
-                        }
-                    },
-                )
-            },
-            expanded = expanded,
-            onExpandedChange = { expanded = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = if (expanded) 0.dp else 16.dp),
-            colors = SearchBarDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ),
-        ) {
-            // Suggestion content
-            SuggestionList(
-                suggestions = suggestions,
-                onSuggestionClick = { item ->
-                    when (item) {
-                        is SearchSuggestionItem.RecentQuery -> {
-                            query = item.query
-                            onQueryChanged(item.query)
-                            onSearch(item.query)
-                            expanded = false
-                        }
-                        is SearchSuggestionItem.Hint -> {
-                            query = item.query
-                            onQueryChanged(item.query)
-                            onSearch(item.query)
-                            expanded = false
-                        }
-                        is SearchSuggestionItem.Author -> {
-                            query = item.name
-                            onQueryChanged(item.name)
-                            onSearch(item.name)
-                            expanded = false
-                        }
-                        else -> onSuggestionClick(item)
-                    }
+                        },
+                    )
                 },
-                onDeleteQuery = onDeleteQuery,
-            )
+                expanded = expanded,
+                onExpandedChange = { expanded = it },
+                modifier = Modifier.fillMaxWidth(),
+                colors = SearchBarDefaults.colors(
+                    containerColor = Color.Transparent,
+                    dividerColor = Color.Transparent,
+                ),
+            ) {
+                SuggestionList(
+                    suggestions = suggestions,
+                    onRecentQueryClick = { recentQuery ->
+                        query = recentQuery
+                        onQueryChanged(recentQuery)
+                        onSearch(recentQuery)
+                        expanded = false
+                    },
+                    onHintClick = { hint ->
+                        query = hint
+                        onQueryChanged(hint)
+                        onSearch(hint)
+                        expanded = false
+                    },
+                    onAuthorSuggestionClick = { author ->
+                        query = author
+                        onQueryChanged(author)
+                        onAuthorSuggestionClick(author)
+                        expanded = false
+                    },
+                    onContentSuggestionClick = { content ->
+                        onContentSuggestionClick(content)
+                        expanded = false
+                    },
+                    onTagSuggestionClick = { tag ->
+                        query = tag.title
+                        onQueryChanged(tag.title)
+                        onTagSuggestionClick(tag)
+                        expanded = false
+                    },
+                    onSourceSuggestionClick = { source ->
+                        onSourceSuggestionClick(source)
+                        expanded = false
+                    },
+                    onDeleteQuery = onDeleteQuery,
+                )
+            }
         }
     }
 }
@@ -209,7 +228,12 @@ fun KototoroTopBar(
 @Composable
 private fun SuggestionList(
     suggestions: List<SearchSuggestionItem>,
-    onSuggestionClick: (SearchSuggestionItem) -> Unit,
+    onRecentQueryClick: (String) -> Unit,
+    onHintClick: (String) -> Unit,
+    onAuthorSuggestionClick: (String) -> Unit,
+    onContentSuggestionClick: (Content) -> Unit,
+    onTagSuggestionClick: (ContentTag) -> Unit,
+    onSourceSuggestionClick: (ContentSource) -> Unit,
     onDeleteQuery: (String) -> Unit,
 ) {
     LazyColumn(
@@ -251,7 +275,7 @@ private fun SuggestionList(
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onSuggestionClick(item) },
+                        modifier = Modifier.clickable { onRecentQueryClick(item.query) },
                     )
                 }
 
@@ -265,7 +289,7 @@ private fun SuggestionList(
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onSuggestionClick(item) },
+                        modifier = Modifier.clickable { onHintClick(item.query) },
                     )
                 }
 
@@ -276,7 +300,7 @@ private fun SuggestionList(
                             Icon(Icons.Filled.Person, contentDescription = null)
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onSuggestionClick(item) },
+                        modifier = Modifier.clickable { onAuthorSuggestionClick(item.name) },
                     )
                 }
 
@@ -286,8 +310,9 @@ private fun SuggestionList(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(item.tags) { chip ->
+                            val tag = chip.data as? ContentTag
                             AssistChip(
-                                onClick = { /* TODO: navigate to tag search */ },
+                                onClick = { tag?.let(onTagSuggestionClick) },
                                 label = { Text(chip.title?.toString().orEmpty(), maxLines = 1) },
                             )
                         }
@@ -304,7 +329,7 @@ private fun SuggestionList(
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onSuggestionClick(item) },
+                        modifier = Modifier.clickable { onSourceSuggestionClick(item.source) },
                     )
                 }
 
@@ -318,7 +343,7 @@ private fun SuggestionList(
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onSuggestionClick(item) },
+                        modifier = Modifier.clickable { onSourceSuggestionClick(item.source) },
                     )
                 }
 
@@ -334,7 +359,7 @@ private fun SuggestionList(
                                     )
                                 },
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier.clickable { onSuggestionClick(item) },
+                                modifier = Modifier.clickable { onContentSuggestionClick(content) },
                             )
                         }
                     }

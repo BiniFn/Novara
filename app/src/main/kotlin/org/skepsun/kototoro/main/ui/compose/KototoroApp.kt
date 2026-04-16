@@ -3,7 +3,13 @@ package org.skepsun.kototoro.main.ui.compose
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -17,21 +23,13 @@ import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
 import org.skepsun.kototoro.core.ui.widgets.KototoroBottomNav
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 import kotlinx.coroutines.flow.MutableSharedFlow
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.foundation.shape.CircleShape
 import org.skepsun.kototoro.core.prefs.observeAsState
 
 @Composable
@@ -43,7 +41,10 @@ fun KototoroApp(
     suggestions: List<SearchSuggestionItem> = emptyList(),
     onQueryChanged: (String) -> Unit = {},
     onSearch: (String) -> Unit = {},
-    onSuggestionClick: (SearchSuggestionItem) -> Unit = {},
+    onContentSuggestionClick: (Content) -> Unit = {},
+    onTagSuggestionClick: (ContentTag) -> Unit = {},
+    onSourceSuggestionClick: (ContentSource) -> Unit = {},
+    onAuthorSuggestionClick: (String) -> Unit = {},
     onDeleteQuery: (String) -> Unit = {},
     onVoiceInput: () -> Unit = {},
     onMoreClick: (android.view.View?) -> Unit = {},
@@ -53,6 +54,7 @@ fun KototoroApp(
     onSourceTagSelected: (SourceTag?) -> Unit = {},
     onTopBarHeightChanged: (Int) -> Unit = {},
     onBottomNavHeightChanged: (Int) -> Unit = {},
+    onContentInsetsChanged: (Int, Int) -> Unit = { _, _ -> },
     nestedScrollDeltaYFlow: kotlinx.coroutines.flow.SharedFlow<Float> = MutableSharedFlow(),
     isResumeEnabled: Boolean = false,
     onResumeClick: () -> Unit = {},
@@ -84,6 +86,16 @@ fun KototoroApp(
     
     // Instead of LaunchedEffect flow collection, we directly mutate states from the callback to ensure 100% sync
     // the LaunchedEffect block is removed.
+    val visibleTopInsetPx = (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
+    val visibleBottomInsetPx = if (isFloating) {
+        0
+    } else {
+        (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt()
+    }
+
+    LaunchedEffect(visibleTopInsetPx, visibleBottomInsetPx) {
+        onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
+    }
 
 
     KototoroTheme {
@@ -110,19 +122,7 @@ fun KototoroApp(
                         post { onContainerReady(fragmentContainer) }
                     }
                 },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        top = with(androidx.compose.ui.platform.LocalDensity.current) { (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toDp() },
-                        bottom = with(androidx.compose.ui.platform.LocalDensity.current) { 
-                            if (isFloating) {
-                                // When floating, we do NOT pad the AndroidView to allow content to draw edge-to-edge behind the pill
-                                0.dp
-                            } else {
-                                (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toDp()
-                            }
-                        }
-                    )
+                modifier = Modifier.fillMaxSize()
             )
 
 
@@ -131,7 +131,10 @@ fun KototoroApp(
                 suggestions = suggestions,
                 onQueryChanged = onQueryChanged,
                 onSearch = onSearch,
-                onSuggestionClick = onSuggestionClick,
+                onContentSuggestionClick = onContentSuggestionClick,
+                onTagSuggestionClick = onTagSuggestionClick,
+                onSourceSuggestionClick = onSourceSuggestionClick,
+                onAuthorSuggestionClick = onAuthorSuggestionClick,
                 onDeleteQuery = onDeleteQuery,
                 onVoiceInput = onVoiceInput,
                 onMoreClick = onMoreClick,
@@ -175,4 +178,3 @@ fun KototoroApp(
         }
     }
 }
-

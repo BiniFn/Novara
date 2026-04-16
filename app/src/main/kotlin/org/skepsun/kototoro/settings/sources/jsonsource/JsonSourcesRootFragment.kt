@@ -1,63 +1,74 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
-import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.WindowInsetsCompat
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
-import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.google.android.material.tabs.TabLayoutMediator
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
-import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.databinding.FragmentJsonSourcesRootBinding
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.compose.SettingsTabFragmentPage
+import org.skepsun.kototoro.settings.compose.SettingsTabbedFragmentsScreen
 
-class JsonSourcesRootFragment : BaseFragment<FragmentJsonSourcesRootBinding>() {
+class JsonSourcesRootFragment : Fragment() {
 
-	override fun onCreateViewBinding(
-		inflater: LayoutInflater,
-		container: ViewGroup?,
-	): FragmentJsonSourcesRootBinding {
-		return FragmentJsonSourcesRootBinding.inflate(inflater, container, false)
-	}
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-	override fun onViewBindingCreated(binding: FragmentJsonSourcesRootBinding, savedInstanceState: Bundle?) {
-		super.onViewBindingCreated(binding, savedInstanceState)
-		binding.pager.adapter = JsonSourcesPagerAdapter(this)
-		TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
-			tab.setText(
-				when (position) {
-					0 -> R.string.source_type_legado
-					1 -> R.string.source_type_tvbox
-					else -> R.string.source_type_lnreader
-				},
-			)
-		}.attach()
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            val pages = remember {
+                listOf(
+                    SettingsTabFragmentPage(
+                        title = getString(R.string.source_type_legado),
+                        tag = "json_sources_legado",
+                        createFragment = { createJsonSourcesFragment(JsonSourceType.LEGADO) },
+                    ),
+                    SettingsTabFragmentPage(
+                        title = getString(R.string.source_type_tvbox),
+                        tag = "json_sources_tvbox",
+                        createFragment = { createJsonSourcesFragment(JsonSourceType.TVBOX) },
+                    ),
+                    SettingsTabFragmentPage(
+                        title = getString(R.string.source_type_lnreader),
+                        tag = "json_sources_lnreader",
+                        createFragment = { LNReaderRepoFragment() },
+                    ),
+                )
+            }
 
-	override fun onApplyWindowInsets(v: android.view.View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
+            KototoroTheme {
+                SettingsTabbedFragmentsScreen(
+                    pages = pages,
+                    fragmentManager = childFragmentManager,
+                )
+            }
+        }
+    }
 
-	override fun onResume() {
-		super.onResume()
-		setSupportTitle(R.string.json_sources_directory)
-	}
-}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.json_sources_directory))
+    }
 
-private class JsonSourcesPagerAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
-
-	private val types = listOf(JsonSourceType.LEGADO, JsonSourceType.TVBOX, JsonSourceType.LNREADER)
-
-	override fun getItemCount(): Int = types.size
-
-	override fun createFragment(position: Int): Fragment {
-		return when (types[position]) {
-			JsonSourceType.LNREADER -> LNReaderRepoFragment()
-			else -> JsonSourcesFragment().apply {
-				arguments = Bundle(1).apply {
-					putString(JsonSourcesFragment.ARG_SOURCE_TYPE, types[position].name)
-				}
-			}
-		}
-	}
+    private fun createJsonSourcesFragment(type: JsonSourceType): Fragment {
+        return JsonSourcesFragment().apply {
+            arguments = Bundle(1).apply {
+                putString(JsonSourcesFragment.ARG_SOURCE_TYPE, type.name)
+            }
+        }
+    }
 }

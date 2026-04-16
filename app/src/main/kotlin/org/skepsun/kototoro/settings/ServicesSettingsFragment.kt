@@ -1,170 +1,223 @@
 package org.skepsun.kototoro.settings
 
-import android.content.SharedPreferences
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import androidx.preference.Preference
-import com.google.android.material.snackbar.Snackbar
+import android.view.ViewGroup
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.ui.ScrobblerAuthHelper
-import org.skepsun.kototoro.settings.utils.SplitSwitchPreference
-import javax.inject.Inject
+import org.skepsun.kototoro.settings.compose.ServicesSettingsScreen
+import org.skepsun.kototoro.settings.compose.ServicesSettingsUiState
+import org.skepsun.kototoro.settings.compose.ServicesTrackingItem
+import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
+import org.skepsun.kototoro.settings.userdata.BackupsSettingsFragment
 
 @AndroidEntryPoint
-class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
-	SharedPreferences.OnSharedPreferenceChangeListener {
+class ServicesSettingsFragment : Fragment() {
+
+	@Inject
+	lateinit var settings: AppSettings
 
 	@Inject
 	lateinit var scrobblerAuthHelper: ScrobblerAuthHelper
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_services)
-		findPreference<SplitSwitchPreference>(AppSettings.KEY_STATS_ENABLED)?.let {
-			it.onContainerClickListener = Preference.OnPreferenceClickListener {
-				router.openStatistic()
-				true
-			}
-		}
+	private val resumeTick = MutableStateFlow(0)
 
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		return ComposeView(requireContext()).apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+		}
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
-		bindSuggestionsSummary()
-		bindStatsSummary()
-		settings.subscribe(this)
-	}
+		(view as ComposeView).setContent {
+			val suggestionsEnabled = settings.observeAsState(AppSettings.KEY_SUGGESTIONS) { isSuggestionsEnabled }.value
+			val isRelatedContentEnabled =
+				settings.observeAsState(AppSettings.KEY_RELATED_MANGA) { isRelatedContentEnabled }.value
+			val isStatsEnabled = settings.observeAsState(AppSettings.KEY_STATS_ENABLED) { isStatsEnabled }.value
+			val isReadingTimeEstimationEnabled =
+				settings.observeAsState(AppSettings.KEY_READING_TIME) { isReadingTimeEstimationEnabled }.value
+			val refreshKey = resumeTick.collectAsStateWithLifecycle().value
+			val snackbarHostState = remember { SnackbarHostState() }
+			val coroutineScope = rememberCoroutineScope()
+			var pendingAuthService by remember { mutableStateOf<ScrobblerService?>(null) }
 
-	override fun onDestroyView() {
-		settings.unsubscribe(this)
-		super.onDestroyView()
+			val shikimoriSummary = rememberScrobblerSummary(ScrobblerService.SHIKIMORI, refreshKey)
+			val anilistSummary = rememberScrobblerSummary(ScrobblerService.ANILIST, refreshKey)
+			val malSummary = rememberScrobblerSummary(ScrobblerService.MAL, refreshKey)
+			val kitsuSummary = rememberScrobblerSummary(ScrobblerService.KITSU, refreshKey)
+			val bangumiSummary = rememberScrobblerSummary(ScrobblerService.BANGUMI, refreshKey)
+			val mangaUpdatesSummary = rememberScrobblerSummary(ScrobblerService.MANGAUPDATES, refreshKey)
+
+			val state = ServicesSettingsUiState(
+				suggestionsSummary = if (suggestionsEnabled) {
+					getString(R.string.enabled)
+				} else {
+					getString(R.string.disabled)
+				},
+				isRelatedContentEnabled = isRelatedContentEnabled,
+				isStatsEnabled = isStatsEnabled,
+				isReadingTimeEstimationEnabled = isReadingTimeEstimationEnabled,
+				trackingItems = listOf(
+					ServicesTrackingItem(
+						service = ScrobblerService.ANILIST,
+						title = getString(ScrobblerService.ANILIST.titleResId),
+						summary = anilistSummary,
+						iconRes = ScrobblerService.ANILIST.iconResId,
+					),
+					ServicesTrackingItem(
+						service = ScrobblerService.KITSU,
+						title = getString(ScrobblerService.KITSU.titleResId),
+						summary = kitsuSummary,
+						iconRes = ScrobblerService.KITSU.iconResId,
+					),
+					ServicesTrackingItem(
+						service = ScrobblerService.MAL,
+						title = getString(ScrobblerService.MAL.titleResId),
+						summary = malSummary,
+						iconRes = ScrobblerService.MAL.iconResId,
+					),
+					ServicesTrackingItem(
+						service = ScrobblerService.SHIKIMORI,
+						title = getString(ScrobblerService.SHIKIMORI.titleResId),
+						summary = shikimoriSummary,
+						iconRes = ScrobblerService.SHIKIMORI.iconResId,
+					),
+					ServicesTrackingItem(
+						service = ScrobblerService.BANGUMI,
+						title = getString(ScrobblerService.BANGUMI.titleResId),
+						summary = bangumiSummary,
+						iconRes = ScrobblerService.BANGUMI.iconResId,
+					),
+					ServicesTrackingItem(
+						service = ScrobblerService.MANGAUPDATES,
+						title = getString(ScrobblerService.MANGAUPDATES.titleResId),
+						summary = mangaUpdatesSummary,
+						iconRes = ScrobblerService.MANGAUPDATES.iconResId,
+					),
+				),
+			)
+
+			KototoroTheme {
+				ServicesSettingsScreen(
+					servicesTitle = getString(R.string.services),
+					trackingTitle = getString(R.string.tracking),
+					state = state,
+					snackbarHostState = snackbarHostState,
+					pendingAuthService = pendingAuthService,
+					onDismissAuthPrompt = { pendingAuthService = null },
+					onConfirmAuthPrompt = { service ->
+						pendingAuthService = null
+						scrobblerAuthHelper.startAuth(requireContext(), service).onFailure {
+							coroutineScope.launch {
+								snackbarHostState.showSnackbar(it.getDisplayMessage(resources))
+							}
+						}
+					},
+					onSyncSettingsClick = {
+						(activity as? SettingsActivity)?.openFragment(BackupsSettingsFragment::class.java, null, false)
+					},
+					onSuggestionsClick = {
+						(activity as? SettingsActivity)?.openFragment(SuggestionsSettingsFragment::class.java, null, false)
+					},
+					onRelatedContentChange = { settings.isRelatedContentEnabled = it },
+					onStatsClick = { router.openStatistic() },
+					onStatsEnabledChange = { settings.isStatsEnabled = it },
+					onReadingTimeChange = { settings.isReadingTimeEstimationEnabled = it },
+					onTrackingServiceClick = { service ->
+						if (scrobblerAuthHelper.isAuthorized(service)) {
+							router.openScrobblerSettings(service)
+						} else {
+							pendingAuthService = service
+						}
+					},
+					onDiscordSettingsClick = {
+						(activity as? SettingsActivity)?.openFragment(DiscordSettingsFragment::class.java, null, false)
+					},
+				)
+			}
+		}
 	}
 
 	override fun onResume() {
 		super.onResume()
-		bindScrobblerSummary(AppSettings.KEY_SHIKIMORI, ScrobblerService.SHIKIMORI)
-		bindScrobblerSummary(AppSettings.KEY_ANILIST, ScrobblerService.ANILIST)
-		bindScrobblerSummary(AppSettings.KEY_MAL, ScrobblerService.MAL)
-		bindScrobblerSummary(AppSettings.KEY_KITSU, ScrobblerService.KITSU)
-		bindScrobblerSummary(AppSettings.KEY_BANGUMI, ScrobblerService.BANGUMI)
-		bindScrobblerSummary(AppSettings.KEY_MANGAUPDATES, ScrobblerService.MANGAUPDATES)
+		(activity as? SettingsActivity)?.setSectionTitle(getString(R.string.services))
+		resumeTick.update { it + 1 }
 	}
 
-	override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
-		when (key) {
-			AppSettings.KEY_SUGGESTIONS -> bindSuggestionsSummary()
-			AppSettings.KEY_STATS_ENABLED -> bindStatsSummary()
-		}
+	@Composable
+	private fun rememberScrobblerSummary(
+		service: ScrobblerService,
+		refreshKey: Int,
+	): String {
+		return produceState(
+			initialValue = getScrobblerSummaryPlaceholder(service),
+			key1 = refreshKey,
+			key2 = service,
+		) {
+			value = loadScrobblerSummary(service)
+		}.value
 	}
 
-
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			AppSettings.KEY_SHIKIMORI -> {
-				handleScrobblerClick(ScrobblerService.SHIKIMORI)
-				true
-			}
-
-			AppSettings.KEY_MAL -> {
-				handleScrobblerClick(ScrobblerService.MAL)
-				true
-			}
-
-			AppSettings.KEY_ANILIST -> {
-				handleScrobblerClick(ScrobblerService.ANILIST)
-				true
-			}
-
-			AppSettings.KEY_KITSU -> {
-				handleScrobblerClick(ScrobblerService.KITSU)
-				true
-			}
-
-			AppSettings.KEY_BANGUMI -> {
-				handleScrobblerClick(ScrobblerService.BANGUMI)
-				true
-			}
-
-			AppSettings.KEY_MANGAUPDATES -> {
-				handleScrobblerClick(ScrobblerService.MANGAUPDATES)
-				true
-			}
-
-			else -> super.onPreferenceTreeClick(preference)
+	private fun getScrobblerSummaryPlaceholder(service: ScrobblerService): String {
+		if (!scrobblerAuthHelper.isAuthorized(service)) {
+			return getString(R.string.disabled)
 		}
-	}
-
-	private fun bindScrobblerSummary(
-		key: String,
-		scrobblerService: ScrobblerService
-	) {
-		val pref = findPreference<Preference>(key) ?: return
-		if (!scrobblerAuthHelper.isAuthorized(scrobblerService)) {
-			pref.setSummary(R.string.disabled)
-			return
-		}
-		val username = scrobblerAuthHelper.getCachedUser(scrobblerService)?.nickname
-		if (username != null) {
-			pref.summary = getString(R.string.logged_in_as, username)
+		val username = scrobblerAuthHelper.getCachedUser(service)?.nickname
+		return if (username.isNullOrEmpty()) {
+			getString(R.string.loading_)
 		} else {
-			pref.setSummary(R.string.loading_)
-			viewLifecycleScope.launch {
-				pref.summary = withContext(Dispatchers.Default) {
-					runCatching {
-						val user = scrobblerAuthHelper.getUser(scrobblerService)
-						getString(R.string.logged_in_as, user.nickname)
-					}.getOrElse {
-						it.printStackTraceDebug()
-						it.getDisplayMessage(resources)
-					}
-				}
-			}
+			getString(R.string.logged_in_as, username)
 		}
 	}
 
-	private fun handleScrobblerClick(scrobblerService: ScrobblerService) {
-		if (!scrobblerAuthHelper.isAuthorized(scrobblerService)) {
-			confirmScrobblerAuth(scrobblerService)
-		} else {
-			router.openScrobblerSettings(scrobblerService)
+	private suspend fun loadScrobblerSummary(service: ScrobblerService): String {
+		if (!scrobblerAuthHelper.isAuthorized(service)) {
+			return getString(R.string.disabled)
 		}
-	}
-
-	private fun bindSuggestionsSummary() {
-		findPreference<Preference>(AppSettings.KEY_SUGGESTIONS)?.setSummary(
-			if (settings.isSuggestionsEnabled) R.string.enabled else R.string.disabled,
-		)
-	}
-
-	private fun bindStatsSummary() {
-		findPreference<Preference>(AppSettings.KEY_STATS_ENABLED)?.setSummary(
-			if (settings.isStatsEnabled) R.string.enabled else R.string.disabled,
-		)
-	}
-
-	private fun confirmScrobblerAuth(scrobblerService: ScrobblerService) {
-		buildAlertDialog(context ?: return, isCentered = true) {
-			setIcon(scrobblerService.iconResId)
-			setTitle(scrobblerService.titleResId)
-			setMessage(context.getString(R.string.scrobbler_auth_intro, context.getString(scrobblerService.titleResId)))
-			setPositiveButton(R.string.sign_in) { _, _ ->
-				scrobblerAuthHelper.startAuth(context, scrobblerService).onFailure {
-					Snackbar.make(listView, it.getDisplayMessage(resources), Snackbar.LENGTH_LONG).show()
-				}
+		val username = scrobblerAuthHelper.getCachedUser(service)?.nickname
+		if (!username.isNullOrEmpty()) {
+			return getString(R.string.logged_in_as, username)
+		}
+		return withContext(Dispatchers.Default) {
+			runCatching {
+				val user = scrobblerAuthHelper.getUser(service)
+				getString(R.string.logged_in_as, user.nickname)
+			}.getOrElse {
+				it.printStackTraceDebug()
+				it.getDisplayMessage(resources)
 			}
-			setNegativeButton(android.R.string.cancel, null)
-		}.show()
+		}
 	}
 }

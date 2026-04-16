@@ -1,17 +1,10 @@
 package org.skepsun.kototoro.core.ui.widgets
 
-import android.os.Build
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -21,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
+import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import dagger.hilt.android.EntryPointAccessors
 
 @Composable
@@ -43,19 +38,14 @@ fun KototoroBottomNav(
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
 
-    val surfaceColor = MaterialTheme.colorScheme.surfaceContainer
-    
-    // Compute alpha based on user preference
     val targetAlpha = when (blurMode) {
         AppSettings.BlurMode.ENHANCED -> 0.75f
-        AppSettings.BlurMode.STANDARD -> 1.0f
+        AppSettings.BlurMode.STANDARD -> 0.88f
         else -> 0.90f
     }
-    val bgColor = surfaceColor.copy(alpha = targetAlpha)
 
     val horizontalPadding by androidx.compose.animation.core.animateDpAsState(if (isFloating) 24.dp else 0.dp)
     val verticalPadding by androidx.compose.animation.core.animateDpAsState(if (isFloating) 16.dp else 0.dp)
-    val shapeRadius by androidx.compose.animation.core.animateDpAsState(if (isFloating) 32.dp else 0.dp)
 
     val navBarModifier = Modifier
         .fillMaxWidth()
@@ -66,12 +56,13 @@ fun KototoroBottomNav(
         if (isFloating) navFloatingHeight.dp else navHeight.dp
     )
 
-    Surface(
+    GlassBottomBarContainer(
         modifier = navBarModifier,
-        color = bgColor,
-        tonalElevation = if (isFloating) 0.dp else 3.dp,
-        shadowElevation = 0.dp,
-        shape = RoundedCornerShape(shapeRadius)
+        style = if (isFloating) {
+            GlassDefaults.prominentStyle().copy(containerAlpha = targetAlpha)
+        } else {
+            GlassDefaults.regularStyle().copy(containerAlpha = targetAlpha)
+        }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             NavigationBar(

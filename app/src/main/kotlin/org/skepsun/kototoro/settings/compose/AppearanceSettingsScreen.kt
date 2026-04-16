@@ -1,0 +1,491 @@
+package org.skepsun.kototoro.settings.compose
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ColorScheme
+import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode
+import org.skepsun.kototoro.core.prefs.ScreenshotsPolicy
+import org.skepsun.kototoro.core.prefs.SearchSuggestionType
+import org.skepsun.kototoro.core.prefs.TabletUiMode
+
+data class AppearanceSettingsUiState(
+    val navSummary: String,
+    val colorScheme: ColorScheme,
+    val theme: Int,
+    val isAmoledTheme: Boolean,
+    val tabletUiMode: TabletUiMode,
+    val appLocale: String,
+    val loadingCircleStyle: AppSettings.LoadingCircleStyle,
+    val popupRadius: Int,
+    val listMode: ListMode,
+    val gridSize: Int,
+    val isQuickFilterEnabled: Boolean,
+    val progressIndicatorMode: ProgressIndicatorMode,
+    val mangaListBadges: Set<String>,
+    val isDescriptionExpanded: Boolean,
+    val isPanoramaCoverEnabled: Boolean,
+    val panoramaCoverBlur: Int,
+    val panoramaCoverExtraHeight: Int,
+    val panoramaBottomGradientAlpha: Int,
+    val isPagesTabEnabled: Boolean,
+    val defaultDetailsTab: Int,
+    val searchSuggestionTypes: Set<SearchSuggestionType>,
+    val isSharedElementTransitionsEnabled: Boolean,
+    val isShowLanguagePresetFilter: Boolean,
+    val hiddenLanguagePreset: String,
+    val isShowContentTypeFilter: Boolean,
+    val hiddenContentType: String,
+    val isShowSourceTagFilter: Boolean,
+    val hiddenSourceTag: String,
+    val isMainFabEnabled: Boolean,
+    val isNavLabelsVisible: Boolean,
+    val isNavBarPinned: Boolean,
+    val blurMode: AppSettings.BlurMode,
+    val isNavFloating: Boolean,
+    val navHeight: Int,
+    val navFloatingHeight: Int,
+    val isReaderToolbarFloating: Boolean,
+    val isExitConfirmationEnabled: Boolean,
+    val isDynamicShortcutsVisible: Boolean,
+    val isDynamicShortcutsEnabled: Boolean,
+    val isAppProtected: Boolean,
+    val screenshotsPolicy: ScreenshotsPolicy,
+)
+
+data class AppearanceSettingsOptions(
+    val colorSchemes: List<SettingsChoiceOption<ColorScheme>>,
+    val themes: List<SettingsChoiceOption<Int>>,
+    val tabletUiModes: List<SettingsChoiceOption<TabletUiMode>>,
+    val appLocales: List<SettingsChoiceOption<String>>,
+    val loadingCircleStyles: List<SettingsChoiceOption<AppSettings.LoadingCircleStyle>>,
+    val popupRadii: List<SettingsChoiceOption<Int>>,
+    val listModes: List<SettingsChoiceOption<ListMode>>,
+    val progressIndicatorModes: List<SettingsChoiceOption<ProgressIndicatorMode>>,
+    val mangaListBadges: List<SettingsChoiceOption<String>>,
+    val detailsTabs: List<SettingsChoiceOption<Int>>,
+    val searchSuggestionTypes: List<SettingsChoiceOption<SearchSuggestionType>>,
+    val languagePresets: List<SettingsChoiceOption<String>>,
+    val contentTypes: List<SettingsChoiceOption<String>>,
+    val sourceTags: List<SettingsChoiceOption<String>>,
+    val blurModes: List<SettingsChoiceOption<AppSettings.BlurMode>>,
+    val screenshotsPolicies: List<SettingsChoiceOption<ScreenshotsPolicy>>,
+)
+
+@Composable
+fun AppearanceSettingsScreen(
+    state: AppearanceSettingsUiState,
+    options: AppearanceSettingsOptions,
+    emptySelectionText: String,
+    onColorSchemeChange: (ColorScheme) -> Unit,
+    onThemeChange: (Int) -> Unit,
+    onAmoledThemeChange: (Boolean) -> Unit,
+    onTabletUiModeChange: (TabletUiMode) -> Unit,
+    onAppLocaleChange: (String) -> Unit,
+    onLoadingCircleStyleChange: (AppSettings.LoadingCircleStyle) -> Unit,
+    onPopupRadiusChange: (Int) -> Unit,
+    onListModeChange: (ListMode) -> Unit,
+    onGridSizeChange: (Int) -> Unit,
+    onQuickFilterChange: (Boolean) -> Unit,
+    onProgressIndicatorModeChange: (ProgressIndicatorMode) -> Unit,
+    onMangaListBadgesChange: (Set<String>) -> Unit,
+    onDescriptionExpandedChange: (Boolean) -> Unit,
+    onPanoramaCoverEnabledChange: (Boolean) -> Unit,
+    onPanoramaBlurChange: (Int) -> Unit,
+    onPanoramaExtraHeightChange: (Int) -> Unit,
+    onPanoramaGradientAlphaChange: (Int) -> Unit,
+    onPagesTabEnabledChange: (Boolean) -> Unit,
+    onDefaultDetailsTabChange: (Int) -> Unit,
+    onSearchSuggestionTypesChange: (Set<SearchSuggestionType>) -> Unit,
+    onNavConfigClick: () -> Unit,
+    onSharedElementTransitionsChange: (Boolean) -> Unit,
+    onShowLanguagePresetFilterChange: (Boolean) -> Unit,
+    onHiddenLanguagePresetChange: (String) -> Unit,
+    onShowContentTypeFilterChange: (Boolean) -> Unit,
+    onHiddenContentTypeChange: (String) -> Unit,
+    onShowSourceTagFilterChange: (Boolean) -> Unit,
+    onHiddenSourceTagChange: (String) -> Unit,
+    onMainFabChange: (Boolean) -> Unit,
+    onNavLabelsVisibleChange: (Boolean) -> Unit,
+    onNavBarPinnedChange: (Boolean) -> Unit,
+    onBlurModeChange: (AppSettings.BlurMode) -> Unit,
+    onNavFloatingChange: (Boolean) -> Unit,
+    onNavHeightChange: (Int) -> Unit,
+    onNavFloatingHeightChange: (Int) -> Unit,
+    onReaderToolbarFloatingChange: (Boolean) -> Unit,
+    onExitConfirmationChange: (Boolean) -> Unit,
+    onDynamicShortcutsChange: (Boolean) -> Unit,
+    onAppProtectionChange: (Boolean) -> Unit,
+    onScreenshotsPolicyChange: (ScreenshotsPolicy) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 20.dp,
+            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item(key = "appearance") {
+            SettingsPreferenceSection(title = stringResource(R.string.appearance)) {
+                SettingsChoicePreference(
+                    title = stringResource(R.string.color_theme),
+                    value = state.colorScheme,
+                    options = options.colorSchemes,
+                    onValueChange = onColorSchemeChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.theme),
+                    value = state.theme,
+                    options = options.themes,
+                    onValueChange = onThemeChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.black_dark_theme),
+                    checked = state.isAmoledTheme,
+                    summary = stringResource(R.string.black_dark_theme_summary),
+                    onCheckedChange = onAmoledThemeChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.tablet_ui_mode),
+                    value = state.tabletUiMode,
+                    options = options.tabletUiModes,
+                    onValueChange = onTabletUiModeChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.language),
+                    value = state.appLocale,
+                    options = options.appLocales,
+                    onValueChange = onAppLocaleChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.pref_loading_circle_style),
+                    value = state.loadingCircleStyle,
+                    options = options.loadingCircleStyles,
+                    onValueChange = onLoadingCircleStyleChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.pref_popup_radius),
+                    value = state.popupRadius,
+                    options = options.popupRadii,
+                    onValueChange = onPopupRadiusChange,
+                )
+            }
+        }
+
+        item(key = "manga_list") {
+            SettingsPreferenceSection(title = stringResource(R.string.manga_list)) {
+                SettingsChoicePreference(
+                    title = stringResource(R.string.list_mode),
+                    value = state.listMode,
+                    options = options.listModes,
+                    onValueChange = onListModeChange,
+                )
+                SettingsSectionDivider()
+                SettingsSliderPreference(
+                    title = stringResource(R.string.grid_size),
+                    value = state.gridSize,
+                    valueRange = 50..150,
+                    step = 5,
+                    valueText = { "$it%" },
+                    onValueChange = onGridSizeChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.show_quick_filters),
+                    checked = state.isQuickFilterEnabled,
+                    summary = stringResource(R.string.show_quick_filters_summary),
+                    onCheckedChange = onQuickFilterChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.show_reading_indicators),
+                    value = state.progressIndicatorMode,
+                    options = options.progressIndicatorModes,
+                    onValueChange = onProgressIndicatorModeChange,
+                )
+                SettingsSectionDivider()
+                SettingsMultiChoicePreference(
+                    title = stringResource(R.string.badges_in_lists),
+                    values = state.mangaListBadges,
+                    options = options.mangaListBadges,
+                    emptySelectionText = emptySelectionText,
+                    onValueChange = onMangaListBadgesChange,
+                )
+            }
+        }
+
+        item(key = "details") {
+            SettingsPreferenceSection(title = stringResource(R.string.details)) {
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.collapse_long_description),
+                    checked = !state.isDescriptionExpanded,
+                    onCheckedChange = { onDescriptionExpandedChange(!it) },
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.pref_panorama_cover),
+                    checked = state.isPanoramaCoverEnabled,
+                    summary = stringResource(R.string.pref_panorama_cover_summary),
+                    onCheckedChange = onPanoramaCoverEnabledChange,
+                )
+                if (state.isPanoramaCoverEnabled) {
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_panorama_blur),
+                        value = state.panoramaCoverBlur,
+                        valueRange = 0..100,
+                        step = 5,
+                        valueText = { "$it%" },
+                        onValueChange = onPanoramaBlurChange,
+                    )
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_panorama_extra_height),
+                        value = state.panoramaCoverExtraHeight,
+                        valueRange = 0..100,
+                        step = 5,
+                        valueText = { "${it}dp" },
+                        onValueChange = onPanoramaExtraHeightChange,
+                    )
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_panorama_gradient_alpha),
+                        value = state.panoramaBottomGradientAlpha,
+                        valueRange = 0..100,
+                        step = 5,
+                        valueText = { "$it%" },
+                        onValueChange = onPanoramaGradientAlphaChange,
+                    )
+                }
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.show_pages_thumbs),
+                    checked = state.isPagesTabEnabled,
+                    summary = stringResource(R.string.show_pages_thumbs_summary),
+                    onCheckedChange = onPagesTabEnabledChange,
+                )
+                if (state.isPagesTabEnabled) {
+                    SettingsSectionDivider()
+                    SettingsChoicePreference(
+                        title = stringResource(R.string.default_tab),
+                        value = state.defaultDetailsTab,
+                        options = options.detailsTabs,
+                        onValueChange = onDefaultDetailsTabChange,
+                    )
+                }
+            }
+        }
+
+        item(key = "main") {
+            SettingsPreferenceSection(title = stringResource(R.string.main_screen)) {
+                SettingsMultiChoicePreference(
+                    title = stringResource(R.string.search_suggestions),
+                    values = state.searchSuggestionTypes,
+                    options = options.searchSuggestionTypes,
+                    emptySelectionText = emptySelectionText,
+                    onValueChange = onSearchSuggestionTypesChange,
+                )
+                SettingsSectionDivider()
+                SettingsActionPreference(
+                    title = stringResource(R.string.main_screen_sections),
+                    summary = state.navSummary,
+                    onClick = onNavConfigClick,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.shared_element_transitions),
+                    checked = state.isSharedElementTransitionsEnabled,
+                    summary = stringResource(R.string.shared_element_transitions_summary),
+                    onCheckedChange = onSharedElementTransitionsChange,
+                )
+                SettingsSectionDivider()
+                SearchBarFiltersBlock(
+                    state = state,
+                    options = options,
+                    onShowLanguagePresetFilterChange = onShowLanguagePresetFilterChange,
+                    onHiddenLanguagePresetChange = onHiddenLanguagePresetChange,
+                    onShowContentTypeFilterChange = onShowContentTypeFilterChange,
+                    onHiddenContentTypeChange = onHiddenContentTypeChange,
+                    onShowSourceTagFilterChange = onShowSourceTagFilterChange,
+                    onHiddenSourceTagChange = onHiddenSourceTagChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.main_screen_fab),
+                    checked = state.isMainFabEnabled,
+                    summary = stringResource(R.string.main_screen_fab_summary),
+                    onCheckedChange = onMainFabChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.show_labels_in_navbar),
+                    checked = state.isNavLabelsVisible,
+                    onCheckedChange = onNavLabelsVisibleChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.pin_navigation_ui),
+                    checked = state.isNavBarPinned,
+                    summary = stringResource(R.string.pin_navigation_ui_summary),
+                    onCheckedChange = onNavBarPinnedChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.pref_blur_mode),
+                    value = state.blurMode,
+                    options = options.blurModes,
+                    summary = stringResource(R.string.pref_blur_mode_summary),
+                    onValueChange = onBlurModeChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.pref_nav_floating),
+                    checked = state.isNavFloating,
+                    summary = stringResource(R.string.pref_nav_floating_summary),
+                    onCheckedChange = onNavFloatingChange,
+                )
+                SettingsSectionDivider()
+                SettingsSliderPreference(
+                    title = stringResource(R.string.pref_nav_height),
+                    value = state.navHeight,
+                    valueRange = 48..88,
+                    step = 4,
+                    valueText = { "${it}dp" },
+                    onValueChange = onNavHeightChange,
+                )
+                SettingsSectionDivider()
+                SettingsSliderPreference(
+                    title = stringResource(R.string.pref_nav_floating_height),
+                    value = state.navFloatingHeight,
+                    valueRange = 48..84,
+                    step = 4,
+                    valueText = { "${it}dp" },
+                    onValueChange = onNavFloatingHeightChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.pref_reader_toolbar_floating),
+                    checked = state.isReaderToolbarFloating,
+                    summary = stringResource(R.string.pref_reader_toolbar_floating_summary),
+                    onCheckedChange = onReaderToolbarFloatingChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.exit_confirmation),
+                    checked = state.isExitConfirmationEnabled,
+                    summary = stringResource(R.string.exit_confirmation_summary),
+                    onCheckedChange = onExitConfirmationChange,
+                )
+                if (state.isDynamicShortcutsVisible) {
+                    SettingsSectionDivider()
+                    SettingsSwitchPreference(
+                        title = stringResource(R.string.history_shortcuts),
+                        checked = state.isDynamicShortcutsEnabled,
+                        summary = stringResource(R.string.history_shortcuts_summary),
+                        onCheckedChange = onDynamicShortcutsChange,
+                    )
+                }
+            }
+        }
+
+        item(key = "privacy") {
+            SettingsPreferenceSection(title = stringResource(R.string.privacy)) {
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.protect_application),
+                    checked = state.isAppProtected,
+                    summary = stringResource(R.string.protect_application_summary),
+                    onCheckedChange = onAppProtectionChange,
+                )
+                SettingsSectionDivider()
+                SettingsChoicePreference(
+                    title = stringResource(R.string.screenshots_policy),
+                    value = state.screenshotsPolicy,
+                    options = options.screenshotsPolicies,
+                    onValueChange = onScreenshotsPolicyChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchBarFiltersBlock(
+    state: AppearanceSettingsUiState,
+    options: AppearanceSettingsOptions,
+    onShowLanguagePresetFilterChange: (Boolean) -> Unit,
+    onHiddenLanguagePresetChange: (String) -> Unit,
+    onShowContentTypeFilterChange: (Boolean) -> Unit,
+    onHiddenContentTypeChange: (String) -> Unit,
+    onShowSourceTagFilterChange: (Boolean) -> Unit,
+    onHiddenSourceTagChange: (String) -> Unit,
+) {
+    SettingsPreferenceSection(
+        title = stringResource(R.string.search_bar_filters),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        SettingsSwitchPreference(
+            title = stringResource(R.string.show_language_preset_filter),
+            checked = state.isShowLanguagePresetFilter,
+            onCheckedChange = onShowLanguagePresetFilterChange,
+        )
+        if (!state.isShowLanguagePresetFilter) {
+            SettingsSectionDivider()
+            SettingsChoicePreference(
+                title = stringResource(R.string.fixed_language_preset),
+                value = state.hiddenLanguagePreset,
+                options = options.languagePresets,
+                onValueChange = onHiddenLanguagePresetChange,
+            )
+        }
+        SettingsSectionDivider()
+        SettingsSwitchPreference(
+            title = stringResource(R.string.show_content_type_filter),
+            checked = state.isShowContentTypeFilter,
+            onCheckedChange = onShowContentTypeFilterChange,
+        )
+        if (!state.isShowContentTypeFilter) {
+            SettingsSectionDivider()
+            SettingsChoicePreference(
+                title = stringResource(R.string.fixed_content_type),
+                value = state.hiddenContentType,
+                options = options.contentTypes,
+                onValueChange = onHiddenContentTypeChange,
+            )
+        }
+        SettingsSectionDivider()
+        SettingsSwitchPreference(
+            title = stringResource(R.string.show_source_tag_filter),
+            checked = state.isShowSourceTagFilter,
+            onCheckedChange = onShowSourceTagFilterChange,
+        )
+        if (!state.isShowSourceTagFilter) {
+            SettingsSectionDivider()
+            SettingsChoicePreference(
+                title = stringResource(R.string.fixed_source_tag),
+                value = state.hiddenSourceTag,
+                options = options.sourceTags,
+                onValueChange = onHiddenSourceTagChange,
+            )
+        }
+    }
+}

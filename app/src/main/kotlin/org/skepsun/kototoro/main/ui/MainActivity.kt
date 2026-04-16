@@ -14,12 +14,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.net.toUri
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.MenuProvider
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentContainerView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -32,9 +33,9 @@ import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.domain.BackupStartupCoordinator
 import org.skepsun.kototoro.browser.AdListUpdateService
-import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.VoiceInputContract
+import org.skepsun.kototoro.core.parser.ContentLinkResolver
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseActivity
@@ -56,12 +57,12 @@ import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
+import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
+import org.skepsun.kototoro.search.domain.SearchContentKind
+import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.domain.sourceTypesFromTags
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionViewModel
 import javax.inject.Inject
-import androidx.fragment.app.FragmentContainerView
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
 
 @AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>(),
@@ -88,6 +89,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	private var topBarHeightPx = 0
 	private var bottomNavHeightPx = 0
+	private var containerTopInsetPx = 0
+	private var containerBottomInsetPx = 0
 	
 	private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
 
@@ -105,6 +108,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	fun clearActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
 		if (currentFilterCallback == callback) {
 			currentFilterCallback = null
+			activeFilterContentType = null
+			activeFilterSourceTags = emptySet()
+			syncSearchSuggestionFilters()
 		}
 	}
 
@@ -118,6 +124,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			else -> null
 		}
 		activeFilterSourceTags = callback.getSelectedSourceTags()
+		syncSearchSuggestionFilters()
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,6 +153,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					onContainerReady = { fragmentContainer ->
 						if (!::container.isInitialized) {
 							container = fragmentContainer
+							updateContainerPadding()
 							
 							// Initialize NavigationDelegate when container is physically mounted
 							navigationDelegate = MainNavigationDelegate(
@@ -185,12 +193,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					},
 					suggestions = suggestions,
 				onQueryChanged = searchSuggestionViewModel::onQueryChanged,
-				onSearch = { query ->
-					searchSuggestionViewModel.saveQuery(query)
-					router.openSearch(query)
+				onSearch = ::submitSearch,
+				onContentSuggestionClick = router::openDetails,
+				onTagSuggestionClick = { tag ->
+					submitSearch(tag.title, SearchKind.TAG)
 				},
-				onSuggestionClick = { item ->
-					// Handle suggestion click by type
+				onSourceSuggestionClick = { source ->
+					router.openList(source, null, null)
+				},
+				onAuthorSuggestionClick = { author ->
+					submitSearch(author, SearchKind.AUTHOR)
 				},
 				onDeleteQuery = searchSuggestionViewModel::deleteQuery,
 				onVoiceInput = {
@@ -220,9 +232,17 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 						viewModel.setBottomNavHeightPx(height)
 					}
 				},
+				onContentInsetsChanged = { topInset, bottomInset ->
+					if (containerTopInsetPx != topInset || containerBottomInsetPx != bottomInset) {
+						containerTopInsetPx = topInset
+						containerBottomInsetPx = bottomInset
+						updateContainerPadding()
+					}
+				},
 				selectedContentType = activeFilterContentType,
 				onContentTypeSelected = { type ->
 					activeFilterContentType = type
+					syncSearchSuggestionFilters()
 					val tab = when (type) {
 						ContentType.NOVEL -> BrowseGroupTab.Novel
 						ContentType.VIDEO -> BrowseGroupTab.Video
@@ -234,6 +254,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 				selectedSourceTags = activeFilterSourceTags,
 				onSourceTagSelected = { tag ->
 					activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
+					syncSearchSuggestionFilters()
 					currentFilterCallback?.onSourceTagSelected(tag)
 				}
 			)
@@ -279,36 +300,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
 		val typeMask = WindowInsetsCompat.Type.systemBars()
-		val barsInsets = insets.getInsets(typeMask)
-		val isNavFloating = settings.isNavFloating
-		val navMargin = if (isNavFloating) (16 * resources.displayMetrics.density).toInt() else 0
-		val bottomPadding = if (isNavFloating) 0 else barsInsets.bottom
 
 		container.clipChildren = false
 		container.clipToPadding = false
 		updateContainerBottomMargin()
-		val consumedInsets = insets.consume(v, typeMask, start = false)
-		val finalInsets = if (isNavFloating && settings.isNavBarPinned) {
-			val floating = settings.isNavFloating
-			val labeled = settings.isNavLabelsVisible
-			val heightDp = if (floating) {
-				settings.navFloatingHeight
-			} else if (!labeled) {
-				56
-			} else {
-				settings.navHeight
-			}
-			val bNavHeight = if (heightDp > 0) (heightDp * resources.displayMetrics.density).toInt() else (56 * resources.displayMetrics.density).toInt()
-			
-			val h = if (bNavHeight > 0) bNavHeight else (56 * resources.displayMetrics.density).toInt()
-			val totalBottom = barsInsets.bottom + navMargin + h
-			androidx.core.view.WindowInsetsCompat.Builder(consumedInsets)
-				.setInsets(typeMask, androidx.core.graphics.Insets.of(barsInsets.left, barsInsets.top, barsInsets.right, totalBottom))
-				.build()
-		} else {
-			consumedInsets
-		}
-		return finalInsets
+		return insets.consume(v, typeMask, start = false)
 	}
 
 	override fun onLayoutChange(
@@ -339,6 +335,30 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	private fun onOpenReader(manga: Content) {
 		router.openReader(manga, null)
+	}
+
+	private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
+		if (query.isEmpty()) {
+			return
+		}
+		if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
+			router.openDetails(query.toUri())
+			return
+		}
+		router.openSearch(
+			query = query,
+			kind = kind,
+			sourceTypes = searchSuggestionViewModel.getSourceTypes(),
+			contentKinds = searchSuggestionViewModel.getContentKinds(),
+		)
+		if (kind != SearchKind.TAG) {
+			searchSuggestionViewModel.saveQuery(query)
+		}
+	}
+
+	private fun syncSearchSuggestionFilters() {
+		searchSuggestionViewModel.setSourceTypes(sourceTypesFromTags(activeFilterSourceTags))
+		searchSuggestionViewModel.setContentKinds(activeFilterContentType.toSearchContentKinds())
 	}
 
 	private fun onFeedCounterChanged(counter: Int) {
@@ -402,7 +422,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	private fun updateContainerPadding() {
 		if (!::container.isInitialized) return
-		container.requestApplyInsets()
+		container.setPadding(0, containerTopInsetPx, 0, containerBottomInsetPx)
 	}
 
 	private fun updateContainerBottomMargin() {
@@ -464,4 +484,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			onFragmentChanged(fragment, false)
 		}
 	}
+}
+
+private fun ContentType?.toSearchContentKinds(): Set<SearchContentKind> = when (this) {
+	ContentType.MANGA -> setOf(SearchContentKind.MANGA)
+	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> setOf(SearchContentKind.NOVEL)
+	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> setOf(SearchContentKind.VIDEO)
+	else -> ALL_SEARCH_CONTENT_KINDS
 }
