@@ -183,6 +183,8 @@ parser-api/
 - `MainActivity` 已开始接管主壳内容避让，`FragmentContainerView` 的顶栏/底栏可见 inset 改由 Compose chrome 回传并统一注入 padding。
 - `KototoroApp` 不再直接通过 `AndroidView` padding 驱动 Fragment 内容区位移，主壳边界开始向 Activity 侧收口。
 - 浮动底栏场景下，Fragment 宿主不再依赖伪造的 child insets 间接避让，为后续统一导航壳奠定边界。
+- Compose 顶栏搜索建议点击已补齐旧路由语义：`Content` 打开详情、`Tag` 进入标签搜索、`Source/SourceTip` 打开来源列表、`Author` 进入作者搜索。
+- 主壳内容类型与来源筛选现已同步到 `SearchSuggestionViewModel`，普通搜索、最近搜索与提示词点击也会沿用当前筛选条件，并在简单搜索场景支持链接直达详情。
 
 ### Phase 3：高频内容页迁移
 
@@ -290,6 +292,7 @@ parser-api/
 - 保留 manage/catalog/json/extensions 等来源管理子入口在既有路由层，Compose 页面仅负责 `Sources` 设置渲染。
 - 保留 `NavConfigFragment` 与 `ProtectSetupActivity` 作为 Android 特有流程入口，Compose 页面仅负责状态展示与路由。
 - 再次执行 `./gradlew :app:compileDebugKotlin --no-daemon` 并通过。
+- 补齐 Compose 顶栏搜索建议点击链路，恢复与旧 `SearchSuggestionListenerImpl` 等价的主路由行为，并把主壳筛选状态同步到搜索建议 ViewModel。
 
 ## 下一步
 

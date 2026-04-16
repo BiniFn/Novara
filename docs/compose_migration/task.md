@@ -42,6 +42,7 @@
   - [x] 迁移 `Sources`
   - [x] 收口 Settings 残余 Android-only 子页（`Backups` / `Notification legacy` / `JSON Sources` / `Extensions`）
 - [/] Phase 2: Main Shell 与导航壳收口
+  - [x] 补齐 Compose 顶栏搜索建议点击与旧路由行为对齐（`Content` / `Tag` / `Source` / `Author` / 链接直达）
 - [ ] Phase 3: 高频内容页迁移
 - [ ] Phase 4: Dialog / Sheet Compose 化
 - [ ] Phase 5: 共享层抽取

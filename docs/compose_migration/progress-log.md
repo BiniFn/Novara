@@ -57,6 +57,8 @@
 - `Extensions` 迁移后再次通过 `./gradlew :app:compileDebugKotlin --no-daemon` 验证
 - `MainActivity` 已开始接管主壳内容避让，`FragmentContainerView` 的顶栏/底栏可见 inset 改由 Compose chrome 回传并统一注入 padding
 - `KototoroApp` 不再直接对 Android `Fragment` 宿主施加内部 padding，浮动底栏时也不再通过伪造 child insets 间接避让
+- Compose 顶栏搜索建议点击已对齐旧实现：`Content` 直达详情、`Tag` 保持筛选条件进入标签搜索、`Source/SourceTip` 直达列表、`Author` 进入作者搜索
+- 普通搜索、最近搜索与提示词点击已补齐链接直达逻辑，主壳内容类型与来源筛选也会同步到 `SearchSuggestionViewModel`
 - 主壳收口后再次通过 `./gradlew :app:compileDebugKotlin --no-daemon` 验证
 - 文档站在本轮结束后再次通过 `npm run docs:build` 验证
 
