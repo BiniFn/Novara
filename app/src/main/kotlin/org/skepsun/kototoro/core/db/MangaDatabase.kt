@@ -71,6 +71,10 @@ import org.skepsun.kototoro.core.db.migrations.Migration7To8
 import org.skepsun.kototoro.core.db.migrations.Migration8To9
 import org.skepsun.kototoro.core.db.migrations.Migration9To10
 import org.skepsun.kototoro.core.util.ext.processLifecycleScope
+import org.skepsun.kototoro.entitygraph.data.EntityBindingRecord
+import org.skepsun.kototoro.entitygraph.data.EntityGraphDao
+import org.skepsun.kototoro.entitygraph.data.EntityRecord
+import org.skepsun.kototoro.entitygraph.data.RelationRecord
 import org.skepsun.kototoro.favourites.data.FavouriteCategoriesDao
 import org.skepsun.kototoro.favourites.data.FavouriteCategoryEntity
 import org.skepsun.kototoro.favourites.data.FavouriteEntity
@@ -92,7 +96,7 @@ import org.skepsun.kototoro.tracker.data.TracksDao
 import org.skepsun.kototoro.explore.data.SourcePresetEntity
 import org.skepsun.kototoro.explore.data.SourcePresetsDao
 
-const val DATABASE_VERSION = 36
+const val DATABASE_VERSION = 37
 
 @Database(
 	entities = [
@@ -102,6 +106,7 @@ const val DATABASE_VERSION = 36
 		MangaSourceEntity::class, StatsEntity::class, LocalContentIndexEntity::class, EpubChapterMappingEntity::class,
 		JsonSourceEntity::class, ExternalExtensionRepoEntity::class,
 		TrackingSiteItemEntity::class, TrackingSiteLinkEntity::class, SourcePresetEntity::class,
+		EntityRecord::class, EntityBindingRecord::class, RelationRecord::class,
 		// EpubChapterEntity::class,
 	],
 	version = DATABASE_VERSION,
@@ -148,6 +153,8 @@ abstract class MangaDatabase : RoomDatabase() {
 
 	abstract fun getSourcePresetsDao(): SourcePresetsDao
 
+	abstract fun getEntityGraphDao(): EntityGraphDao
+
 	// abstract fun getEpubChapterDao(): EpubChapterDao
 }
 
@@ -188,6 +195,7 @@ fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
 	Migration33To34(),
 	Migration34To35(),
 	org.skepsun.kototoro.core.db.migrations.Migration35To36(),
+	org.skepsun.kototoro.core.db.migrations.Migration36To37(),
 )
 
 fun MangaDatabase(context: Context): MangaDatabase = Room

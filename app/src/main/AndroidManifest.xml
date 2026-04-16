@@ -205,6 +205,9 @@
 			android:name="org.skepsun.kototoro.discover.ui.details.TrackingSiteDetailsActivity"
 			android:label="@string/discover" />
 		<activity
+			android:name="org.skepsun.kototoro.entitygraph.ui.details.EntityDetailsActivity"
+			android:label="@string/entity_graph_detail_title" />
+		<activity
 			android:name="org.skepsun.kototoro.discover.ui.category.DiscoverCategoryActivity"
 			android:label="@string/discover" />
 		<activity

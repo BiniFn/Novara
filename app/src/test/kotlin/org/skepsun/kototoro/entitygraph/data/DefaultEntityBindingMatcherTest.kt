@@ -1,0 +1,80 @@
+package org.skepsun.kototoro.entitygraph.data
+
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.entitygraph.domain.Entity
+import org.skepsun.kototoro.entitygraph.domain.EntityBindingStrength
+import org.skepsun.kototoro.entitygraph.domain.EntityType
+import org.skepsun.kototoro.entitygraph.domain.RelationType
+
+class DefaultEntityBindingMatcherTest {
+
+	private val dao = mockk<EntityGraphDao>()
+	private val db = mockk<MangaDatabase> {
+		every { getEntityGraphDao() } returns dao
+	}
+	private val matcher = DefaultEntityBindingMatcher(db)
+
+	@Test
+	fun `exact match returns full confidence`() = runTest {
+		val left = entity(id = 1L, type = EntityType.WORK, name = "三体")
+		val right = entity(id = 2L, type = EntityType.WORK, name = "三体")
+		val confidence = matcher.tryBindEntities(left, right)
+		assertEquals(1f, confidence)
+	}
+
+	@Test
+	fun `ignore case match returns case insensitive confidence`() = runTest {
+		val left = entity(id = 1L, type = EntityType.WORK, name = "Frieren")
+		val right = entity(id = 2L, type = EntityType.WORK, name = "frieren")
+		val confidence = matcher.tryBindEntities(left, right)
+		assertEquals(0.9f, confidence)
+	}
+
+	@Test
+	fun `different types never bind`() = runTest {
+		val left = entity(id = 1L, type = EntityType.WORK, name = "Frieren")
+		val right = entity(id = 2L, type = EntityType.CHARACTER, name = "Frieren")
+		val confidence = matcher.tryBindEntities(left, right)
+		assertEquals(0f, confidence)
+	}
+
+	@Test
+	fun `shared character context boosts person confidence`() = runTest {
+		val left = entity(id = 10L, type = EntityType.PERSON, name = "Kana Hanazawa")
+		val right = entity(id = 20L, type = EntityType.PERSON, name = "Kana Hanazawa")
+		coEvery { dao.findIncomingEntityIds(10L, RelationType.VOICED_BY.name) } returns listOf(100L)
+		coEvery { dao.findIncomingEntityIds(20L, RelationType.VOICED_BY.name) } returns listOf(100L)
+		coEvery { dao.findIncomingEntityIds(10L, RelationType.CREATED_BY.name) } returns emptyList()
+		coEvery { dao.findIncomingEntityIds(20L, RelationType.CREATED_BY.name) } returns emptyList()
+		val confidence = matcher.tryBindEntities(left, right)
+		assertTrue(confidence >= 1f)
+	}
+
+	@Test
+	fun `classify uses auto weak and ignore thresholds`() {
+		assertEquals(EntityBindingStrength.AUTO_BIND, matcher.classify(0.86f))
+		assertEquals(EntityBindingStrength.WEAK_BIND, matcher.classify(0.60f))
+		assertEquals(EntityBindingStrength.IGNORE, matcher.classify(0.59f))
+	}
+
+	private fun entity(
+		id: Long,
+		type: EntityType,
+		name: String,
+	): Entity = Entity(
+		id = id,
+		type = type,
+		primaryName = name,
+		aliases = emptyList(),
+		createdAt = 1L,
+		lastAccessed = 1L,
+		accessCount = 1,
+	)
+}
