@@ -60,7 +60,7 @@ fun KototoroBottomNav(
     val navBarModifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = horizontalPadding, vertical = verticalPadding)
-        .navigationBarsPadding()
+        .run { if (isFloating) navigationBarsPadding() else this }
 
     val currentExplicitHeight by androidx.compose.animation.core.animateDpAsState(
         if (isFloating) navFloatingHeight.dp else navHeight.dp
@@ -73,51 +73,56 @@ fun KototoroBottomNav(
         shadowElevation = 0.dp,
         shape = RoundedCornerShape(shapeRadius)
     ) {
-        NavigationBar(
-            containerColor = Color.Transparent,
-            tonalElevation = 0.dp,
-            modifier = Modifier.fillMaxWidth().height(currentExplicitHeight),
-            windowInsets = WindowInsets(0)
-        ) {
-            activeItems.forEach { item ->
-                val isSelected = navState.selectedItemId == item.id
-                val badge = navState.badges[item.id]
-                
-                NavigationBarItem(
-                    selected = isSelected,
-                    onClick = {
-                        if (isSelected) onItemReselected(item.id) else onItemSelected(item.id)
-                    },
-                    icon = {
-                        BadgedBox(
-                            badge = {
-                                if (badge?.isVisible == true) {
-                                    if (badge.number > 0) {
-                                        Badge { Text(badge.number.toString()) }
-                                    } else {
-                                        Badge()
+        Column(modifier = Modifier.fillMaxWidth()) {
+            NavigationBar(
+                containerColor = Color.Transparent,
+                tonalElevation = 0.dp,
+                modifier = Modifier.fillMaxWidth().height(currentExplicitHeight),
+                windowInsets = WindowInsets(0)
+            ) {
+                activeItems.forEach { item ->
+                    val isSelected = navState.selectedItemId == item.id
+                    val badge = navState.badges[item.id]
+                    
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = {
+                            if (isSelected) onItemReselected(item.id) else onItemSelected(item.id)
+                        },
+                        icon = {
+                            BadgedBox(
+                                badge = {
+                                    if (badge?.isVisible == true) {
+                                        if (badge.number > 0) {
+                                            Badge { Text(badge.number.toString()) }
+                                        } else {
+                                            Badge()
+                                        }
                                     }
                                 }
+                            ) {
+                                Icon(
+                                    painter = getPremiumPainter(item.id, isSelected),
+                                    contentDescription = stringResource(item.title)
+                                )
                             }
-                        ) {
-                            Icon(
-                                painter = getPremiumPainter(item.id, isSelected),
-                                contentDescription = stringResource(item.title)
-                            )
-                        }
-                    },
-                    label = if (isLabelsVisible) {
-                        { Text(stringResource(item.title)) }
-                    } else null,
-                    alwaysShowLabel = isLabelsVisible,
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        label = if (isLabelsVisible) {
+                            { Text(stringResource(item.title)) }
+                        } else null,
+                        alwaysShowLabel = isLabelsVisible,
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
-                )
+                }
+            }
+            if (!isFloating) {
+                Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
             }
         }
     }

@@ -59,6 +59,7 @@ fun KototoroApp(
     onContainerReady: (androidx.fragment.app.FragmentContainerView) -> Unit = {}
 ) {
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
+    val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
@@ -80,30 +81,48 @@ fun KototoroApp(
             }
         }
     }
+    
+    // Instead of LaunchedEffect flow collection, we directly mutate states from the callback to ensure 100% sync
+    // the LaunchedEffect block is removed.
 
-    LaunchedEffect(isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
-        nestedScrollDeltaYFlow.collect { dy ->
-            if (!isNavBarPinned && dy != 0f) {
-                topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
-                bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
-            } else if (isNavBarPinned) {
-                topBarOffset = 0f
-                bottomNavOffset = 0f
-            }
-        }
-    }
 
     KototoroTheme {
         Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
-            // Native Fragment Container layer beneath all Compose UI bars
             androidx.compose.ui.viewinterop.AndroidView(
                 factory = { context ->
-                    androidx.fragment.app.FragmentContainerView(context).apply {
-                        id = org.skepsun.kototoro.R.id.container
-                        post { onContainerReady(this) }
+                    org.skepsun.kototoro.core.ui.widgets.NestedScrollBridgingFrameLayout(context).apply {
+                        val fragmentContainer = androidx.fragment.app.FragmentContainerView(context).apply {
+                            id = org.skepsun.kototoro.R.id.container
+                        }
+                        addView(fragmentContainer, android.widget.FrameLayout.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT, 
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        ))
+                        onNestedScrollDeltaY = { dy ->
+                            if (!isNavBarPinned && dy != 0f) {
+                                topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
+                                bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
+                            } else if (isNavBarPinned) {
+                                topBarOffset = 0f
+                                bottomNavOffset = 0f
+                            }
+                        }
+                        post { onContainerReady(fragmentContainer) }
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = with(androidx.compose.ui.platform.LocalDensity.current) { (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toDp() },
+                        bottom = with(androidx.compose.ui.platform.LocalDensity.current) { 
+                            if (isFloating) {
+                                // When floating, we do NOT pad the AndroidView to allow content to draw edge-to-edge behind the pill
+                                0.dp
+                            } else {
+                                (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toDp()
+                            }
+                        }
+                    )
             )
 
 
