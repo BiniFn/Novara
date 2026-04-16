@@ -215,11 +215,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		}
 
 		val uninstallPkg = if (item.extension.type == ExternalExtensionType.IREADER && item.pkgName.startsWith("ireader-")) {
-			val parts = item.pkgName.split("-")
-			if (parts.size >= 3) {
-				val namePart = parts.drop(2).joinToString("-")
-				"ireader.${namePart}.${parts[1]}"
-			} else item.pkgName
+			item.pkgName.toInstalledIReaderPackageName()
 		} else item.pkgName
 
 		val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -263,13 +259,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			ExternalExtensionType.MIHON -> mihonExtensionManager.getMihonMangaSources().filter { it.pkgName == pkgName }
 			ExternalExtensionType.ANIYOMI -> aniyomiExtensionManager.getAniyomiAnimeSources().filter { it.pkgName == pkgName }
 			ExternalExtensionType.IREADER -> {
-				val lookupPkg = if (pkgName.startsWith("ireader-")) {
-					val parts = pkgName.split("-")
-					if (parts.size >= 3) {
-						val namePart = parts.drop(2).joinToString("-")
-						"ireader.${namePart}.${parts[1]}"
-					} else pkgName
-				} else pkgName
+				val lookupPkg = pkgName.toInstalledIReaderPackageName()
 				ireaderExtensionManager.getIReaderMangaSources().filter { it.pkgName == lookupPkg || it.pkgName == pkgName }
 			}
 			ExternalExtensionType.JAR -> emptyList()

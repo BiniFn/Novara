@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -23,7 +24,8 @@ import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.widgets.SelectActionBar
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
+import org.skepsun.kototoro.core.util.ext.invalidateSupportMenu
 import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
 import org.skepsun.kototoro.core.util.ext.end
 import org.skepsun.kototoro.core.util.ext.observe
@@ -154,15 +156,15 @@ class JsonSourcesFragment :
 		
 		// Observe available groups to refresh menu if needed
 		viewModel.availableGroups.observe(viewLifecycleOwner) {
-			activity?.invalidateMenu()
+			invalidateSupportMenu()
 		}
 		viewModel.tvBoxRepositories.observe(viewLifecycleOwner) {
 			adapter?.activeTvBoxRepositoryLocator = viewModel.activeTvBoxRepositoryLocator.value
 			adapter?.notifyDataSetChanged()
-			activity?.invalidateMenu()
+			invalidateSupportMenu()
 		}
 		
-		addMenuProvider(JsonSourcesMenuProvider())
+		addSupportMenuProvider(JsonSourcesMenuProvider())
 	}
 	
 	private fun setupSelectActionBar(binding: FragmentJsonSourcesBinding) {
@@ -195,7 +197,7 @@ class JsonSourcesFragment :
 	override fun onResume() {
 		super.onResume()
 		if (parentFragment == null) {
-			activity?.setTitle(R.string.json_sources_directory)
+			setSupportTitle(R.string.json_sources_directory)
 		}
 	}
 	
@@ -496,14 +498,14 @@ class JsonSourcesFragment :
 			if (groupName != null && availableGroups.contains(groupName)) {
 				currentFilter = FilterOption.GROUP(groupName)
 				viewModel.setFilterOption(currentFilter)
-				activity?.invalidateMenu()
+				invalidateSupportMenu()
 				return true
 			}
 
 			tvBoxRepositoryMenuIds[menuItem.itemId]?.let { locator ->
 				currentFilter = FilterOption.TVBOX_REPOSITORY(locator)
 				viewModel.setFilterOption(currentFilter)
-				activity?.invalidateMenu()
+				invalidateSupportMenu()
 				return true
 			}
 			
@@ -523,79 +525,79 @@ class JsonSourcesFragment :
 				R.id.menu_sort_name -> {
 					currentSort = SortOption.NAME
 					viewModel.setSortOption(currentSort)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_sort_enabled -> {
 					currentSort = SortOption.ENABLED
 					viewModel.setSortOption(currentSort)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_all -> {
 					currentFilter = FilterOption.ALL
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_enabled -> {
 					currentFilter = FilterOption.ENABLED
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_disabled -> {
 					currentFilter = FilterOption.DISABLED
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_need_login -> {
 					currentFilter = FilterOption.NEED_LOGIN
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_no_group -> {
 					currentFilter = FilterOption.NO_GROUP
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_explore_enabled -> {
 					currentFilter = FilterOption.EXPLORE_ENABLED
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_explore_disabled -> {
 					currentFilter = FilterOption.EXPLORE_DISABLED
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_filter_invalid -> {
 					currentFilter = FilterOption.INVALID
 					viewModel.setFilterOption(currentFilter)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_group_by_origin -> {
 					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_ORIGIN
 					viewModel.setGroupingStrategy(currentGrouping)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_group_by_type -> {
 					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_CONTENT
 					viewModel.setGroupingStrategy(currentGrouping)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				R.id.menu_group_by_tvbox_repository -> {
 					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_TVBOX_REPOSITORY
 					viewModel.setGroupingStrategy(currentGrouping)
-					activity?.invalidateMenu()
+					invalidateSupportMenu()
 					true
 				}
 				else -> false

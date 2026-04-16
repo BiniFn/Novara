@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -62,6 +63,7 @@ class FavouritesListViewModel @Inject constructor(
 	private val sourceGroupManager: SourceGroupManager,
 	settings: AppSettings,
 	mangaDataRepository: ContentDataRepository,
+	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener {
@@ -110,6 +112,11 @@ class FavouritesListViewModel @Inject constructor(
 		currentGroupTab,
 		currentSourceTags,
 		selectedCategoryIds,
+		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+			.flatMapLatest { id ->
+				if (id == -1L) flowOf(null)
+				else sourcePresetsRepository.observe(id)
+			}
 	) { values: Array<Any?> ->
 		val list = values[0] as List<org.skepsun.kototoro.parsers.model.Content>
 		val filters = values[1] as Set<ListFilterOption>
@@ -118,10 +125,11 @@ class FavouritesListViewModel @Inject constructor(
 		val groupTab = values[4] as BrowseGroupTab
 		val sourceTags = values[5] as Set<SourceTag>
 		val categoryIds = values[6] as Set<Long>
-		mapList(list, filters, mode, groupTab, sourceTags, categoryIds)
-	}.distinctUntilChanged().onEach {
+		val preset = values[7] as? org.skepsun.kototoro.explore.data.SourcePreset
+		mapList(list, filters, mode, groupTab, sourceTags, categoryIds, preset)
+	}.onEach {
 		isPaginationReady.set(true)
-	}.catch {
+	}.distinctUntilChanged().catch {
 		emit(listOf(it.toErrorState(canRetry = false)))
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
@@ -192,9 +200,14 @@ class FavouritesListViewModel @Inject constructor(
 		groupTab: BrowseGroupTab,
 		sourceTags: Set<SourceTag>,
 		categoryIds: Set<Long>,
+		preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 	): List<ListModel> {
 		val filteredList = list.filter { manga ->
 			val source = manga.source
+			if (preset != null && source.name !in preset.sources) {
+				return@filter false
+			}
+
 			val contentGroup = sourceGroupManager.getContentGroup(source)
 			val originGroup = sourceGroupManager.getOriginGroup(source)
 

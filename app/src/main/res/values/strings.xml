@@ -43,8 +43,12 @@
     <string name="discover">Discover</string>
     <string name="search_content">Search content</string>
     <string name="manga_downloading_">Downloading…</string>
+    <string name="translating_">Translating…</string>
+    <string name="super_resolution_processing_">Upscaling…</string>
     <string name="processing_">Processing…</string>
     <string name="download_complete">Downloaded</string>
+    <string name="translation_prepared">Translation prepared</string>
+    <string name="super_resolution_prepared">Super resolution prepared</string>
     <string name="downloads">Downloads</string>
     <string name="by_name">Name</string>
     <string name="popular">Popular</string>
@@ -100,6 +104,8 @@
     <string name="enabled_d_of_d" tools:ignore="PluralsCandidate">%1$d of %2$d on</string>
     <string name="new_chapters">New chapters</string>
     <string name="download">Download</string>
+    <string name="prepare_translation">Prepare translation</string>
+    <string name="prepare_super_resolution">Prepare super resolution</string>
     <string name="notifications_settings">Notifications settings</string>
     <string name="notification_sound">Notification sound</string>
     <string name="light_indicator">LED indicator</string>
@@ -116,7 +122,9 @@
     <string name="manga_shelf">Shelf</string>
     <string name="recent_manga">Recent</string>
     <string name="pages_animation">Page animation</string>
-    <string name="manga_save_location">Downloads folder</string>
+    <string name="manga_save_location">Manga downloads folder</string>
+    <string name="novel_save_location">Novel downloads folder</string>
+    <string name="video_save_location">Video downloads folder</string>
     <string name="not_available">Not available</string>
     <string name="cannot_find_available_storage">No available storage</string>
     <string name="other_storage">Other storage</string>
@@ -422,6 +430,11 @@
     <string name="novel_fullscreen_mode">Fullscreen Mode (Hide Status Bar)</string>
     <string name="novel_show_reading_status">Show Reading Status</string>
     <string name="novel_transparent_status_bar">Transparent Status Bar</string>
+    <string name="novel_translation_display_mode">Translation Display Mode</string>
+    <string name="novel_translation_only">Translation Only</string>
+    <string name="novel_translation_bilingual">Bilingual</string>
+    <string name="clear_translation_cache">Clear Translation Cache</string>
+    <string name="novel_translate">Translate</string>
     <string name="novel_reset">Reset</string>
     <string name="novel_chapters_count">%1$d Chapters</string>
     <string name="novel_last_chapter">Already at the last chapter</string>
@@ -461,6 +474,9 @@
     <string name="chapters_empty">No chapters in this manga</string>
     <string name="percent_string_pattern" translatable="false">%1$s%%</string>
     <string name="appearance">Appearance</string>
+    <string name="tablet_ui_mode">Tablet layout detection</string>
+    <string name="tablet_ui_mode_relaxed">Relaxed (wide portrait counts)</string>
+    <string name="tablet_ui_mode_strict">Strict (original Kotatsu)</string>
     <string name="suggestions_updating">Suggestions updating</string>
     <string name="suggestions_excluded_genres">Exclude genres</string>
     <string name="suggestions_excluded_genres_summary">Specify genres that you do not want to see in the suggestions</string>
@@ -654,10 +670,15 @@
     <string name="import_file_description_novel">Select one or more .epub or .txt files. Each file is imported as one novel. EPUB chapters are recognized when reading; a .txt file is treated as a single chapter.</string>
     <string name="import_file_description_video">Select one or more video files (.mp4, .mkv, etc.). Each file is imported as a separate anime.</string>
     <string name="import_folder_single_description_manga">Select a folder containing one manga. Subdirectories will be treated as chapters.</string>
-    <string name="import_folder_single_description_novel">Select a folder containing novel files (.epub, .txt). Each file is a separate novel. EPUB chapters are recognized when reading; a .txt file is treated as a single chapter.</string>
+    <string name="import_folder_single_description_novel">Select a folder containing one novel. .txt files inside will be imported as chapters; each .epub file will be treated as a volume while preserving its internal chapters.</string>
     <string name="import_folder_single_description_video">Select a folder containing one anime series. Each video file inside is an episode.</string>
-    <string name="import_folder_multiple_description_manga">Select a folder containing multiple manga. Each subdirectory will be imported as a separate manga.</string>
-    <string name="import_folder_multiple_description_video">Select a folder containing multiple anime series. Each subdirectory is a separate series.</string>
+    <string name="import_folder_multiple_description_manga">Select a folder containing multiple manga. Each subdirectory and each top-level .cbz or .zip file will be imported as a separate manga.</string>
+    <string name="import_folder_multiple_description_video">Select a folder containing multiple anime series. Each subdirectory and each top-level video file will be imported as a separate series.</string>
+    <string name="folder_single_novel">Folder (single novel)</string>
+    <string name="folder_multiple_novel">Folder (multiple novels)</string>
+    <string name="folder_single_video">Folder (single series)</string>
+    <string name="folder_multiple_video">Folder (multiple series)</string>
+    <string name="import_folder_multiple_description_novel">Select a folder containing multiple novels. Each subdirectory and each top-level .epub or .txt file will be imported as a separate novel.</string>
     <string name="speed">Speed</string>
     <string name="show_on_shelf">Show on the Shelf</string>
     <string name="sync_auth_hint">You can sign in into an existing account or create a new one</string>
@@ -1008,6 +1029,7 @@
     <string name="ai_video_enhancement_summary_format">Current mode: %1$s\nShader: %2$s</string>
     <string name="ai_translation_summary_enabled">Enabled, %1$s\n%2$s -> %3$s</string>
     <string name="ai_translation_summary_disabled">Disabled, %1$s\n%2$s -> %3$s</string>
+    <string name="ai_translation_summary_configured">Configured, %1$s\n%2$s -> %3$s</string>
     <string name="reader_translation_section_general">General</string>
     <string name="reader_translation_settings_entry_summary">Configure text detection and recognition, local translation models, online translation services, and bubble detection</string>
     <string name="reader_translation_section_ocr">Text Detection and Recognition</string>
@@ -1036,6 +1058,8 @@
     <string name="reader_translation_api_provider_openrouter">OpenRouter OpenAI compat (openai/gpt-4o-mini)</string>
     <string name="reader_translation_api_model">Online translation model</string>
     <string name="reader_translation_api_model_summary">Model name for OpenAI-compatible chat/completions, e.g. gpt-4o-mini</string>
+    <string name="reader_translation_api_custom_headers">Custom Headers (JSON)</string>
+    <string name="reader_translation_api_custom_headers_summary">Add custom HTTP headers in JSON format (e.g. {\"Model\": \"gpt-4\"})</string>
     <string name="reader_translation_api_models_fetch">Fetch available models</string>
     <string name="reader_translation_api_models_fetch_summary">Request /models from current endpoint and pick one model id</string>
     <string name="reader_translation_api_models_pick_title">Pick a model</string>
@@ -1065,11 +1089,18 @@
     <string name="reader_translation_retry_failed_pages">Retry failed pages</string>
     <string name="reader_translation_retry_failed_started">Retrying failed pages</string>
     <string name="reader_translation_retry_failed_none">No failed page to retry</string>
+    <string name="reader_translation_progress_started">Chapter translation started (%1$d/%2$d)</string>
+    <string name="reader_translation_progress_update">Chapter translation progress %1$d/%2$d</string>
+    <string name="reader_translation_progress_complete">Chapter translation complete (%1$d/%2$d)</string>
+    <string name="reader_translation_progress_complete_partial">Chapter translation complete (%1$d succeeded, %2$d failed)</string>
     <string name="reader_translation_retry_this_page">Retry this page</string>
     <string name="reader_translation_view_page_log">View page translation log</string>
     <string name="reader_translation_page_log_title">Page %1$d translation log</string>
     <string name="reader_translation_page_log_empty">No translation log for this page yet.</string>
     <string name="reader_translation_task_panel_title">Translation task panel</string>
+    <string name="novel_translation_progress_started">Novel translation started (%1$d/%2$d paragraphs)</string>
+    <string name="novel_translation_progress_update">Novel translation progress %1$d/%2$d paragraphs</string>
+    <string name="novel_translation_progress_complete">Novel translation complete (%1$d/%2$d paragraphs)</string>
     <string name="reader_translation_task_panel_empty">No page tasks in current chapter.</string>
     <string name="reader_translation_task_panel_empty_for_filter">No tasks for filter: %1$s</string>
     <string name="reader_translation_task_panel_summary">Pages: %1$d | Ready: %2$d | Running: %3$d | Failed: %4$d</string>
@@ -2137,6 +2168,7 @@
     <string name="pref_reader_toolbar_floating">Floating bottom toolbar</string>
     <string name="pref_reader_toolbar_floating_summary">Make the reader bottom toolbar float above the screen edge</string>
     <string name="pref_loading_circle_style">Loading circle style</string>
+    <string name="pref_popup_radius">Popup menu corner radius</string>
     <string name="loading_circle_style_thick_straight">Thick Straight</string>
     <string name="loading_circle_style_thick_wavy">Thick Wavy</string>
     <string name="loading_circle_style_thin_straight">Thin Straight</string>
@@ -2155,4 +2187,20 @@
     <string name="jar_plugins_updates_available">JAR Plugins have updates available!</string>
     <string name="jar_plugins_update_all">Update All</string>
     <string name="jar_plugins_updating">Updating JAR Plugins...</string>
+    <!-- Crash log viewer (#132) -->
+    <string name="crash_logs">Crash logs</string>
+    <string name="crash_logs_summary">View and share crash reports without adb</string>
+    <string name="crash_log_detail">Crash log detail</string>
+    <string name="no_crash_logs">No crash logs recorded</string>
+    <string name="clear_crash_logs">Clear all crash logs</string>
+    <string name="clear_crash_logs_confirm">Delete all recorded crash logs?</string>
+    <string name="crash_logs_cleared">Crash logs cleared</string>
+    <string name="copy">Copy</string>
+    <!-- Title translation (#133) -->
+    <string name="translate_title">Translate title</string>
+    <string name="translating">Translating…</string>
+    <string name="translation_failed">Translation failed</string>
+    <string name="clear_translation">Clear translation</string>
+    <string name="details_show_original">Show original</string>
+    <string name="details_show_translation">Show translation</string>
 </resources>

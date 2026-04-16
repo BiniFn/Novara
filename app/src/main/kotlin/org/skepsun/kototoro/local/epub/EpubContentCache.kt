@@ -12,7 +12,7 @@ import java.util.LinkedHashMap
  * 
  * Requirements: 11.2 - Add LRU cache for parsed chapter content (max 10 chapters)
  */
-class EpubContentCache(
+class EpubContentCache private constructor(
     private val maxSize: Int = DEFAULT_MAX_SIZE
 ) {
     
@@ -113,5 +113,14 @@ class EpubContentCache(
     companion object {
         private const val TAG = "EpubContentCache"
         private const val DEFAULT_MAX_SIZE = 10 // Max 10 EPUBs cached (Requirement 11.2)
+        
+        @Volatile
+        private var instance: EpubContentCache? = null
+        
+        fun getInstance(): EpubContentCache {
+            return instance ?: synchronized(this) {
+                instance ?: EpubContentCache().also { instance = it }
+            }
+        }
     }
 }

@@ -3,15 +3,22 @@ package org.skepsun.kototoro.reader.novel
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.text.Layout
+import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.util.AttributeSet
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import androidx.collection.LruCache
+import androidx.core.view.GestureDetectorCompat
 import coil3.ImageLoader
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
@@ -58,6 +65,7 @@ class NovelChapterView @JvmOverloads constructor(
     private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
     var chapterContent: String = ""
         private set
+    private var activeTranslation: NovelChapterTranslation? = null
     
     private var displayLayout: StaticLayout? = null
     var processedText: String = ""
@@ -78,6 +86,7 @@ class NovelChapterView @JvmOverloads constructor(
     private var chapterPath: String? = null
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     var imageHeadersProvider: ((String) -> Map<String, String>?)? = null
+    var onImageClickListener: ((NovelInlineImageRequest) -> Unit)? = null
     
     @Inject
     lateinit var imageLoader: ImageLoader
@@ -86,6 +95,23 @@ class NovelChapterView @JvmOverloads constructor(
     private val imageCache = LruCache<String, Bitmap>(20)
     private val loadingImages = mutableSetOf<String>()
     private val failedImages = mutableSetOf<String>()
+    private val gestureDetector: GestureDetectorCompat
+
+    init {
+        isClickable = true
+        isFocusable = true
+        gestureDetector = GestureDetectorCompat(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                findInlineImageAt(e.x, e.y)?.let { image ->
+                    onImageClickListener?.invoke(image)
+                    return true
+                }
+                return false
+            }
+        })
+    }
 
     fun setContent(
         content: String,
@@ -98,6 +124,18 @@ class NovelChapterView @JvmOverloads constructor(
         this.displayLayout = null
         loadingImages.clear()
         failedImages.clear()
+        requestLayout()
+        invalidate()
+    }
+
+    /**
+     * 更新翻译结果，触发重新排版和渲染。
+     * 传入 null 则清除翻译，恢复显示原文。
+     */
+    fun setTranslation(translation: NovelChapterTranslation?) {
+        if (activeTranslation == translation) return
+        activeTranslation = translation
+        displayLayout = null
         requestLayout()
         invalidate()
     }
@@ -115,6 +153,11 @@ class NovelChapterView @JvmOverloads constructor(
             highlightRange = range
             invalidate()
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val handled = gestureDetector.onTouchEvent(event)
+        return handled || super.onTouchEvent(event)
     }
 
     fun getLineTopForOffset(charOffset: Int): Float {
@@ -171,22 +214,33 @@ class NovelChapterView @JvmOverloads constructor(
     }
 
     private fun buildLayout(pageWidth: Int) {
-        var (processedText, imagePaths) = parseImages(chapterContent)
-        val hasImages = imagePaths.isNotEmpty()
+        // 如果有激活的翻译，先对内容进行段落级替换/拼接
+        val contentForLayout = applyTranslationToContent(chapterContent, activeTranslation)
+        val parsedImages = parseNovelImages(contentForLayout)
+        var processedText = prepareContentText(parsedImages.text)
+        val blockImagePaths = parsedImages.blockImagePaths
+        val inlineImagePaths = parsedImages.inlineImagePaths
+        val hasImages = blockImagePaths.isNotEmpty()
         val tempImageSpans = mutableListOf<ChapterImageSpan>()
         
         if (hasImages) {
             val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
-            val imageWidth = pageWidth.toFloat()
-            val imageHeight = imageWidth * 0.75f
+            val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
             val paraSpacingPx = settings.paragraphSpacing * resources.displayMetrics.density
             val extraSpacerLines = if (paraSpacingPx > 0) max(1, kotlin.math.ceil(paraSpacingPx / lineHeight).toInt()) else 0
-            val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
-            val spacer = "\n".repeat(spacerLines)
             
             var newText = processedText
-            for (i in imagePaths.indices) {
+            for (i in blockImagePaths.indices) {
                 val placeholder = "[IMAGE_PLACEHOLDER_$i]"
+                val imagePath = blockImagePaths[i]
+                val imageHeight = getReservedNovelImageHeight(
+                    imagePath = imagePath,
+                    maxWidth = pageWidth.toFloat(),
+                    maxHeight = maxScreenHeight,
+                )
+                
+                val spacerLines = (imageHeight / lineHeight).toInt() + (extraSpacerLines * 2).coerceAtLeast(2)
+                val spacer = "\n".repeat(spacerLines)
                 newText = newText.replace(placeholder, "\n$placeholder\n$spacer\n")
             }
             processedText = newText
@@ -201,13 +255,18 @@ class NovelChapterView @JvmOverloads constructor(
             
             placeholderPattern.findAll(processedText).forEach { match ->
                 val imageIndex = match.groupValues[1].toInt()
-                if (imageIndex < imagePaths.size) {
-                    val imagePath = imagePaths[imageIndex]
+                if (imageIndex < blockImagePaths.size) {
+                    val imagePath = blockImagePaths[imageIndex]
                     val before = processedText.substring(lastIndex, match.range.first)
                     displayBuilder.append(before)
                     lastIndex = match.range.last + 1
 
-                    val tempLayout = createStaticLayout(displayBuilder.toString(), pageWidth)
+                    val tempLayout = createStaticLayout(
+                        applyInlineImageSpans(displayBuilder.toString(), inlineImagePaths) { path ->
+                            loadImage(path)
+                        },
+                        pageWidth,
+                    )
                     val yPosition = if (tempLayout.lineCount > 0) {
                         tempLayout.getLineBottom(tempLayout.lineCount - 1).toFloat()
                     } else {
@@ -215,7 +274,13 @@ class NovelChapterView @JvmOverloads constructor(
                     }
                     
                     val imageWidth = pageWidth.toFloat()
-                    val imageHeight = imageWidth * 0.75f 
+                    val maxScreenHeight = resources.displayMetrics.heightPixels * 1.5f
+                    val imageHeight = getReservedNovelImageHeight(
+                        imagePath = imagePath,
+                        maxWidth = imageWidth,
+                        maxHeight = maxScreenHeight,
+                    )
+                    
                     tempImageSpans.add(ChapterImageSpan(imagePath, yPosition, imageWidth, imageHeight))
                 }
             }
@@ -227,10 +292,116 @@ class NovelChapterView @JvmOverloads constructor(
 
         imageSpans = tempImageSpans
         this.processedText = processedText
-        displayLayout = createStaticLayout(processedText, pageWidth)
+        val layoutText = applyInlineImageSpans(
+            applyBilingualSpannable(processedText, activeTranslation),
+            inlineImagePaths,
+        ) { path ->
+            loadImage(path)
+        }
+        displayLayout = createStaticLayout(layoutText, pageWidth)
     }
 
-    private fun createStaticLayout(text: String, width: Int): StaticLayout {
+    private fun prepareContentText(text: String): String {
+        val normalized = text.replace(Regex("\\n{3,}"), "\n\n")
+        val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
+        return applyParagraphIndent(spacedText)
+    }
+
+    /**
+     * 根据翻译结果，将章节内容转换为展示用文本。
+     *
+     * - TRANSLATION_ONLY：每个 TEXT 段落替换为译文（IMAGE 段落原样保留）
+     * - BILINGUAL：每个 TEXT 段落变为 [原文(灰色小字)]\n[译文(正常样式)]
+     * - translation 为 null：直接返回原始内容
+     */
+    private fun applyTranslationToContent(
+        content: String,
+        translation: NovelChapterTranslation?,
+    ): String {
+        if (translation == null || translation.translations.isEmpty()) return content
+        val paragraphs = translation.paragraphs
+        if (paragraphs.isEmpty()) return content
+
+        val sb = StringBuilder()
+        for ((i, para) in paragraphs.withIndex()) {
+            if (i > 0) sb.append("\n\n")
+            if (para.type == NovelParagraphType.IMAGE) {
+                sb.append(para.originalText)
+                continue
+            }
+            val translated = translation.translations[para.index]
+            if (translated.isNullOrBlank()) {
+                sb.append(para.originalText)
+                continue
+            }
+            when (translation.displayMode) {
+                NovelTranslationDisplayMode.TRANSLATION_ONLY -> sb.append(translated)
+                NovelTranslationDisplayMode.BILINGUAL -> {
+                    sb.append(para.originalText)
+                    sb.append("\n")
+                    sb.append(translated)
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * 仅用于双语模式：在已拼接好的 processedText 上查找原文段落，
+     * 将原文部分设置为灰色小字 Span，译文部分保持默认样式。
+     * 其他模式直接返回原字符串。
+     */
+    private fun applyBilingualSpannable(
+        processedText: String,
+        translation: NovelChapterTranslation?,
+    ): CharSequence {
+        if (translation == null ||
+            translation.displayMode != NovelTranslationDisplayMode.BILINGUAL ||
+            translation.translations.isEmpty()
+        ) {
+            return processedText
+        }
+
+        val ssb = SpannableStringBuilder(processedText)
+        val grayColor = android.graphics.Color.GRAY
+        val smallSize = 0.8f
+
+        for (para in translation.paragraphs) {
+            if (para.type != NovelParagraphType.TEXT) continue
+            val translated = translation.translations[para.index] ?: continue
+            if (translated.isBlank()) continue
+
+            // 在 processedText 中定位原文段落（按照 applyTranslationToContent 拼出的顺序）
+            val originalInText = para.originalText
+            var searchFrom = 0
+            while (searchFrom < ssb.length) {
+                val idx = ssb.indexOf(originalInText, searchFrom)
+                if (idx < 0) break
+                // 原文结束后紧跟 \n + 译文
+                val expectedAfter = idx + originalInText.length
+                if (expectedAfter < ssb.length && ssb[expectedAfter] == '\n') {
+                    // 对原文部分加灰色 + 缩小 Span
+                    ssb.setSpan(
+                        ForegroundColorSpan(grayColor),
+                        idx,
+                        expectedAfter,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    ssb.setSpan(
+                        RelativeSizeSpan(smallSize),
+                        idx,
+                        expectedAfter,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                }
+                searchFrom = expectedAfter + 1
+                break
+            }
+        }
+        return ssb
+    }
+
+    private fun createStaticLayout(text: CharSequence, width: Int): StaticLayout {
         return try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 StaticLayout.Builder.obtain(text, 0, text.length, textPaint, width)
@@ -255,38 +426,6 @@ class NovelChapterView @JvmOverloads constructor(
                 text, textPaint, width, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0f, false
             )
         }
-    }
-
-    private fun parseImages(text: String): Pair<String, List<String>> {
-        val imagePaths = mutableListOf<String>()
-        val imagePattern = Regex("""📷\s*\[图片:\s*([^\]]+)\]""")
-        val htmlImagePattern = Regex("""<img[^>]+src=['"]([^'"]+)['"][^>]*>""", RegexOption.IGNORE_CASE)
-
-        var processedText = text
-        imagePattern.findAll(text).forEach { match ->
-            val imagePath = match.groupValues[1].trim()
-            imagePaths.add(imagePath)
-            processedText = processedText.replaceFirst(match.value, "[IMAGE_PLACEHOLDER_${imagePaths.size - 1}]")
-        }
-
-        processedText = processedText.replace(htmlImagePattern) { matchResult ->
-            val src = matchResult.groupValues.getOrNull(1)?.trim().orEmpty()
-            if (src.isNotEmpty()) {
-                imagePaths.add(src)
-                "[IMAGE_PLACEHOLDER_${imagePaths.size - 1}]"
-            } else ""
-        }
-
-        processedText = processedText
-            .replace(Regex("(?i)<br\\s*/?>"), "\n")
-            .replace(Regex("(?i)</p>"), "\n")
-            .replace(Regex("(?i)<p[^>]*>"), "")
-            .replace(Regex("<[^>]+>"), "")
-        
-        val normalized = processedText.replace(Regex("\\n{3,}"), "\n\n")
-        val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
-        val indented = applyParagraphIndent(spacedText)
-        return Pair(indented, imagePaths)
     }
 
     private fun applyParagraphSpacing(text: String): String {
@@ -337,13 +476,12 @@ class NovelChapterView @JvmOverloads constructor(
             val bitmap = loadImage(imageSpan.imagePath)
             if (bitmap != null) {
                 val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
-                val rawTargetHeight = imageSpan.width * bitmap.height / bitmap.width
-                val scale = if (rawTargetHeight > imageSpan.height) imageSpan.height / rawTargetHeight else 1f
-                val targetWidth = imageSpan.width * scale
-                val targetHeight = rawTargetHeight * scale
-                val leftPos = (imageSpan.width - targetWidth) / 2f
-                val topPos = imageSpan.yPosition + (imageSpan.height - targetHeight) / 2f
-                val dstRect = RectF(leftPos, topPos, leftPos + targetWidth, topPos + targetHeight)
+                val dstRect = getNovelImageDisplayRect(
+                    imagePath = imageSpan.imagePath,
+                    reservedWidth = imageSpan.width,
+                    reservedHeight = imageSpan.height,
+                    yPosition = imageSpan.yPosition,
+                )
                 canvas.drawBitmap(bitmap, srcRect, dstRect, imagePaint)
             } else {
                 val placeholderPaint = Paint().apply { color = 0xFFCCCCCC.toInt(); style = Paint.Style.FILL }
@@ -354,6 +492,39 @@ class NovelChapterView @JvmOverloads constructor(
             }
         }
         canvas.restore()
+    }
+
+    private fun findInlineImageAt(x: Float, y: Float): NovelInlineImageRequest? {
+        val localX = x - paddingLeft - settings.marginHorizontal
+        val localY = y - paddingTop - settings.marginVertical
+        if (localX < 0f || localY < 0f) {
+            return null
+        }
+        val inlineImagePath = displayLayout?.let { layout ->
+            findInlineImagePathAt(layout, localX, localY)
+        }
+        if (inlineImagePath != null) {
+            return NovelInlineImageRequest(
+                imagePath = inlineImagePath,
+                epubFilePath = epubFile?.absolutePath,
+                chapterPath = chapterPath,
+                headers = imageHeadersProvider?.invoke(inlineImagePath).orEmpty(),
+            )
+        }
+        val image = imageSpans.firstOrNull { span ->
+            getNovelImageDisplayRect(
+                imagePath = span.imagePath,
+                reservedWidth = span.width,
+                reservedHeight = span.height,
+                yPosition = span.yPosition,
+            ).contains(localX, localY)
+        } ?: return null
+        return NovelInlineImageRequest(
+            imagePath = image.imagePath,
+            epubFilePath = epubFile?.absolutePath,
+            chapterPath = chapterPath,
+            headers = imageHeadersProvider?.invoke(image.imagePath).orEmpty(),
+        )
     }
 
     private fun loadImage(imagePath: String): Bitmap? {
@@ -373,7 +544,15 @@ class NovelChapterView @JvmOverloads constructor(
                     if (bitmap != null) {
                         imageCache.put(cacheKey, bitmap)
                         loadingImages.remove(cacheKey)
-                        invalidate()
+                        val metrics = NovelImageMetrics(bitmap.width, bitmap.height)
+                        val previousMetrics = NovelImageMetricsCache.get(imagePath)
+                        NovelImageMetricsCache.put(imagePath, metrics)
+                        if (previousMetrics != metrics) {
+                            displayLayout = null
+                            requestLayout()
+                        } else {
+                            invalidate()
+                        }
                     } else {
                         loadingImages.remove(cacheKey)
                         failedImages.add(cacheKey)
@@ -411,6 +590,7 @@ class NovelChapterView @JvmOverloads constructor(
             is ErrorResult -> throw result.throwable
         }
     }
+
 }
 
 /** 供图片渲染使用的简单数据类，移出 NovelReaderView 以复用 */

@@ -19,7 +19,7 @@ import org.skepsun.kototoro.discover.ui.DiscoverFragment
 
 import androidx.fragment.app.viewModels
 import androidx.viewpager2.widget.ViewPager2
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -123,9 +123,10 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 		}
 	}
 
-	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
+	override fun isLanguagePresetFilterVisible(): Boolean = settings.isShowLanguagePresetFilter
+	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter
 
-	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
+	override fun isSourceTagFilterVisible(): Boolean = settings.isShowSourceTagFilter
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.currentSourceTags.value ?: emptySet()

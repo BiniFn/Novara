@@ -115,7 +115,7 @@ fun downloadItemAD(
 
 			WorkInfo.State.RUNNING -> {
 				binding.textViewStatus.setText(
-					if (item.isPaused) R.string.paused else R.string.manga_downloading_,
+					if (item.isPaused) R.string.paused else item.taskKind.activeStatusResId,
 				)
 				binding.progressBar.isIndeterminate = item.isIndeterminate
 				binding.progressBar.isVisible = true
@@ -138,7 +138,7 @@ fun downloadItemAD(
 			}
 
 			WorkInfo.State.SUCCEEDED -> {
-				binding.textViewStatus.setText(R.string.download_complete)
+				binding.textViewStatus.setText(item.taskKind.completedStatusResId)
 				binding.progressBar.isIndeterminate = false
 				binding.progressBar.isVisible = false
 				binding.progressBar.isEnabled = true

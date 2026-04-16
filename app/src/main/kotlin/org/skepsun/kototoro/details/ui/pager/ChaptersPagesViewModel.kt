@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.plus
 import okio.FileNotFoundException
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.toChipModel
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsStateFlow
@@ -38,6 +39,7 @@ import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.mapChapters
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.download.ui.worker.DownloadTask
+import org.skepsun.kototoro.download.ui.worker.DownloadTaskKind
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ListFilterOption
@@ -278,6 +280,41 @@ abstract class ChaptersPagesViewModel(
 			format = null,
 			allowMeteredNetwork = isMeteredNetworkAllowed,
 			preferredQuality = preferredQuality,
+		)
+		launchJob(Dispatchers.Default) {
+			downloadScheduler.schedule(setOf(manga to task))
+			onDownloadStarted.call(Unit)
+		}
+	}
+
+	fun prepareTranslation(snapshot: Set<Long>, isMeteredNetworkAllowed: Boolean) {
+		schedulePreparation(snapshot, DownloadTaskKind.PREPARE_TRANSLATION, isMeteredNetworkAllowed)
+	}
+
+	fun prepareSuperResolution(snapshot: Set<Long>) {
+		schedulePreparation(snapshot, DownloadTaskKind.PREPARE_SUPER_RESOLUTION, true)
+	}
+
+	private fun schedulePreparation(
+		snapshot: Set<Long>,
+		kind: DownloadTaskKind,
+		isMeteredNetworkAllowed: Boolean,
+	) {
+		val manga = mangaDetails.value?.toContent() ?: return
+		val items = chapters.value.filter { it.chapter.id in snapshot }
+			.filter { it.isDownloaded || it.chapter.source.isLocal }
+		if (items.isEmpty()) {
+			return
+		}
+		val task = DownloadTask(
+			mangaId = manga.id,
+			isPaused = false,
+			isSilent = snapshot.size == 1,
+			chaptersIds = items.map { it.chapter.id }.toLongArray(),
+			destination = null,
+			format = null,
+			allowMeteredNetwork = isMeteredNetworkAllowed,
+			kind = kind,
 		)
 		launchJob(Dispatchers.Default) {
 			downloadScheduler.schedule(setOf(manga to task))

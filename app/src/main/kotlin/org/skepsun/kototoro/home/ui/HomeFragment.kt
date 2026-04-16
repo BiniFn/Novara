@@ -13,11 +13,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -43,6 +45,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 
 	override fun onViewBindingCreated(binding: FragmentHomeBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
+
 		
 		filterMenuProvider = SearchBarFilterViewController(this)
 		filterMenuProvider?.attachTo(this)
@@ -141,9 +144,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 		return viewModel.summaryState.value.selectedSourceTags
 	}
 
-	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
+	override fun isLanguagePresetFilterVisible(): Boolean = settings.isShowLanguagePresetFilter
+	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter && true
 
-	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden && true
+	override fun isSourceTagFilterVisible(): Boolean = settings.isShowSourceTagFilter && true
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = getSelectedSourceTags()

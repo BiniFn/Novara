@@ -56,6 +56,7 @@ class FeedViewModel @Inject constructor(
 	private val quickFilter: UpdatesListQuickFilter,
 	private val sourceGroupManager: SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
+	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
 ) : BaseViewModel(), QuickFilterListener by quickFilter {
 
 	private val limit = MutableStateFlow(PAGE_SIZE)
@@ -83,9 +84,26 @@ class FeedViewModel @Inject constructor(
 			.flatMapLatest { repository.observeTrackingLog(it.first, it.second) },
 		currentGroupTab,
 		currentSourceTags,
-	) { header, filters, list, groupTab, sourceTags ->
+		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+			.flatMapLatest { id ->
+				if (id == -1L) flowOf(null)
+				else sourcePresetsRepository.observe(id)
+			}
+	) { values: Array<Any?> ->
+		val header = values[0] as UpdatedContentHeader?
+		val filters = values[1] as Set<ListFilterOption>
+		val list = values[2] as List<TrackingLogItem>
+		val groupTab = values[3] as BrowseGroupTab
+		val sourceTags = values[4] as Set<SourceTag>
+		val preset = values[5] as? org.skepsun.kototoro.explore.data.SourcePreset
+
 		val filteredList = list.filter { item ->
-			val contentGroup = sourceGroupManager.getContentGroup(item.manga.source)
+			val source = item.manga.source
+			if (preset != null && source.name !in preset.sources) {
+				return@filter false
+			}
+
+			val contentGroup = sourceGroupManager.getContentGroup(source)
 			val originGroup = sourceGroupManager.getOriginGroup(item.manga.source)
 			
 			groupTab.matchesContentGroup(contentGroup) &&
@@ -97,6 +115,7 @@ class FeedViewModel @Inject constructor(
 		if (header != null) {
 			result += header
 		}
+		isReady.set(true)
 		if (filteredList.isEmpty()) {
 			result += EmptyState(
 				icon = R.drawable.ic_empty_feed,
@@ -105,7 +124,6 @@ class FeedViewModel @Inject constructor(
 				actionStringRes = 0,
 			)
 		} else {
-			isReady.set(true)
 			filteredList.mapListTo(result)
 		}
 		result as List<ListModel>
@@ -177,19 +195,30 @@ class FeedViewModel @Inject constructor(
 		isHeaderEnabled,
 		currentGroupTab,
 		currentSourceTags,
-	) { hasHeader, groupTab, sourceTags ->
-		Triple(hasHeader, groupTab, sourceTags)
-	}.flatMapLatest { (hasHeader, groupTab, sourceTags) ->
-		if (hasHeader) {
+		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+			.flatMapLatest { id ->
+				if (id == -1L) flowOf(null)
+				else sourcePresetsRepository.observe(id)
+			}
+	) { hasHeader, groupTab, sourceTags, preset ->
+		data class HeaderParams(val hasHeader: Boolean, val groupTab: BrowseGroupTab, val sourceTags: Set<SourceTag>, val preset: org.skepsun.kototoro.explore.data.SourcePreset?)
+		HeaderParams(hasHeader, groupTab, sourceTags, preset)
+	}.flatMapLatest { args ->
+		if (args.hasHeader) {
 			quickFilter.appliedOptions.combineWithSettings().flatMapLatest {
 				repository.observeUpdatedContent(10, it)
 			}.map { mangaList ->
 				val filteredContentList = mangaList.filter { item ->
-					val contentGroup = sourceGroupManager.getContentGroup(item.manga.source)
-					val originGroup = sourceGroupManager.getOriginGroup(item.manga.source)
+					val source = item.manga.source
+					if (args.preset != null && source.name !in args.preset.sources) {
+						return@filter false
+					}
+
+					val contentGroup = sourceGroupManager.getContentGroup(source)
+					val originGroup = sourceGroupManager.getOriginGroup(source)
 					
-					groupTab.matchesContentGroup(contentGroup) &&
-						(sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) })
+					args.groupTab.matchesContentGroup(contentGroup) &&
+						(args.sourceTags.isEmpty() || args.sourceTags.any { it.matches(contentGroup, originGroup) })
 				}
 				if (filteredContentList.isEmpty()) {
 					null

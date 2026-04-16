@@ -43,13 +43,7 @@ class GetMihonSourcesUseCase @Inject constructor(
     }
     
     fun getSourcesFlowFiltered(userLanguages: Set<String>): Flow<List<MihonSourceItem>> {
-        return getSourcesFlow().map { sources ->
-            if (!settings.isExtensionsFilterLangEnabled) return@map sources
-            
-            sources.filter { item ->
-                item.language == "all" || userLanguages.isEmpty() || userLanguages.contains(item.language)
-            }
-        }
+        return getSourcesFlow()
     }
     
     fun getSourcesByLanguage(): Map<String, List<MihonMangaSource>> {

@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.extensions
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.text.InputType
@@ -21,7 +22,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ToastErrorObserver
 import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
@@ -57,7 +58,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			swipeRefresh.setOnRefreshListener(viewModel::refresh)
 		}
 		observeViewModel(binding)
-		addMenuProvider(RepositoriesMenuProvider())
+		addSupportMenuProvider(RepositoriesMenuProvider())
 
 		arguments?.getString("add_repo_url")?.let { url ->
 			arguments?.remove("add_repo_url")
@@ -69,7 +70,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(
+		setSupportTitle(
 			when (viewModel.type) {
 				ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories
 				ExternalExtensionType.ANIYOMI -> R.string.aniyomi_extension_repositories

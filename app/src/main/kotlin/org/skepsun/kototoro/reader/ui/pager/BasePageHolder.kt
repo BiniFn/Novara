@@ -196,8 +196,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 			}
 
 			is PageState.AwaitingTranslation -> {
-				bindingInfo.progressBar.isIndeterminate = true
-				bindingInfo.textViewStatus.setText(R.string.reader_translation_render_pending)
+				bindingInfo.layoutProgress.isGone = true
 				ssiv.setImage(state.source)
 			}
 

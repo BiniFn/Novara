@@ -227,7 +227,11 @@ class ExtensionRepoService @Inject constructor(
 			iconUrl = applyMirror("${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}"),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
-			signatureHash = repo.signingKeyFingerprint,
+			// IReader repos currently don't expose a verifiable APK signing fingerprint.
+			// `repo.signingKeyFingerprint` is a synthetic repo identifier for repo management,
+			// not the package certificate fingerprint, so using it for trust checks would
+			// always misclassify installed IReader extensions as untrusted.
+			signatureHash = "",
 			isCompatible = true,
 		)
 	}

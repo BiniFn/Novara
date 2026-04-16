@@ -1,12 +1,15 @@
 package org.skepsun.kototoro.reader.translate.domain
 
+import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import eu.kanade.tachiyomi.network.await
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
@@ -70,28 +73,50 @@ internal class ReaderTranslationCoordinator(
 		}
 		if (misses.isEmpty()) return translated
 
+		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
+			val sampleText = misses.filter { it.isNotBlank() }.joinToString("\n").take(500)
+			if (sampleText.isNotBlank()) {
+				detectLanguage(sampleText) ?: "en"
+			} else {
+				"en"
+			}
+		} else {
+			sourceLang
+		}
+		android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: resolved source language to $resolvedSourceLang")
+
 		val mode = settings.readerTranslationMode
 		val onnxModelId = settings.readerTranslationOnnxModelId.trim()
+		android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: mode=$mode, onnxModelId='$onnxModelId', misses.size=${misses.size}")
 		if (mode != ReaderTranslationMode.API_ONLY && onnxModelId.isNotBlank()) {
 			val needOnnx = misses.filter { translated[it].isNullOrBlank() }
+			android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: calling ONNX for ${needOnnx.size} texts")
 			if (needOnnx.isNotEmpty()) {
 				val onnxMap = runCatching {
-					onnxTranslationEngine.translateBatch(needOnnx, sourceLang, targetLang, onnxModelId)
+					onnxTranslationEngine.translateBatch(needOnnx, resolvedSourceLang, targetLang, onnxModelId)
 				}.onFailure {
+					if (it is kotlinx.coroutines.CancellationException) throw it
 					it.printStackTraceDebug()
 					log { "translate onnx failed: ${it.message.orEmpty()}" }
+					android.util.Log.e("ReaderTranslationCoordinator", "translateBlocksCached: ONNX failed: ${it.message}", it)
 				}.getOrDefault(emptyMap())
+				android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: ONNX returned ${onnxMap.size} results")
 				for (text in needOnnx) {
 					val onnxText = onnxMap[text]?.trim().orEmpty()
+					android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: ONNX result for '${text.take(50)}...': '${onnxText.take(50)}...' (length=${onnxText.length})")
 					if (onnxText.isNotBlank()) {
 						val sanitized = sanitizeTranslation(onnxText)
 						if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
 							translated[text] = sanitized
 							textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
 							log { "translate onnx hit src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+							android.util.Log.d("ReaderTranslationCoordinator", "translateBlocksCached: ONNX accepted")
 						} else {
 							log { "translate onnx rejected src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+							android.util.Log.w("ReaderTranslationCoordinator", "translateBlocksCached: ONNX rejected by isAcceptableTranslation")
 						}
+					} else {
+						android.util.Log.w("ReaderTranslationCoordinator", "translateBlocksCached: ONNX returned blank")
 					}
 				}
 			}
@@ -99,40 +124,48 @@ internal class ReaderTranslationCoordinator(
 
 		if (mode != ReaderTranslationMode.API_ONLY) {
 			val needLocal = misses.filter { translated[it].isNullOrBlank() }
-			log { "translate local requested size=${needLocal.size}" }
-			var localResults = runCatching {
-				translateLocalBatch(needLocal, sourceLang, targetLang)
-			}.onFailure {
-				it.printStackTraceDebug()
-				log { "translate local batch failed: ${it.message.orEmpty()}" }
-			}.getOrDefault(emptyMap())
-			if (needLocal.isNotEmpty() && localResults.values.none { it.isNotBlank() }) {
-				log { "translate local batch empty, fallback to per-item translation" }
-				localResults = coroutineScope {
-					needLocal.map { text ->
-						async {
-							val local = runCatching {
-								translateLocal(text, sourceLang, targetLang)
-							}.onFailure {
-								log { "translate local fallback failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
-							}.getOrDefault("").trim()
-							text to local
-						}
-					}.awaitAll().toMap()
-				}
-			}
-			for ((text, local) in localResults) {
-				val raw = local.trim()
-				if (raw.isNotBlank()) {
-					val sanitized = sanitizeTranslation(raw)
-					if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
-						translated[text] = sanitized
-						textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
-						log { "translate local hit src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
-					} else {
-						log { "translate local rejected src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+			if (needLocal.isNotEmpty()) {  // 只有还有未翻译的文本时才用 ML Kit
+				log { "translate local requested size=${needLocal.size}" }
+				var localResults = runCatching {
+					log { "translate local batch calling translateLocalBatch..." }
+					translateLocalBatch(needLocal, resolvedSourceLang, targetLang)
+				}.onFailure {
+					if (it is kotlinx.coroutines.CancellationException) throw it
+					it.printStackTraceDebug()
+					log { "translate local batch failed: ${it.message.orEmpty()}" }
+				}.getOrDefault(emptyMap())
+				log { "translate local batch returned ${localResults.size} results" }
+				if (needLocal.isNotEmpty() && localResults.values.none { it.isNotBlank() }) {
+					log { "translate local batch empty, fallback to per-item translation" }
+					localResults = coroutineScope {
+						needLocal.map { text ->
+							async {
+								val local = runCatching {
+									translateLocal(text, resolvedSourceLang, targetLang)
+								}.onFailure {
+									if (it is kotlinx.coroutines.CancellationException) throw it
+									log { "translate local fallback failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
+								}.getOrDefault("").trim()
+								text to local
+							}
+						}.awaitAll().toMap()
 					}
 				}
+				for ((text, local) in localResults) {
+					val raw = local.trim()
+					if (raw.isNotBlank()) {
+						val sanitized = sanitizeTranslation(raw)
+						if (isAcceptableTranslation(text, sanitized, sourceLang, targetLang)) {
+							translated[text] = sanitized
+							textCache[buildTextCacheKey(text, sourceLang, targetLang)] = sanitized
+							log { "translate local hit src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+						} else {
+							log { "translate local rejected src=${oneLine(text, 140)} out=${oneLine(sanitized, 140)}" }
+						}
+					}
+				}
+			} else {
+				log { "translate local skipped, all texts already translated by ONNX" }
 			}
 		}
 
@@ -147,7 +180,7 @@ internal class ReaderTranslationCoordinator(
 		if (mode != ReaderTranslationMode.LOCAL_ONLY) {
 			val needApi = misses.filter { translated[it].isNullOrBlank() }
 			if (needApi.isNotEmpty()) {
-				val apiMap = translateBatchByApi(needApi, sourceLang, targetLang)
+				val apiMap = translateBatchByApi(needApi, resolvedSourceLang, targetLang)
 				for (text in needApi) {
 					val apiText = apiMap[text]?.trim().orEmpty()
 					if (apiText.isNotBlank()) {
@@ -255,35 +288,39 @@ internal class ReaderTranslationCoordinator(
 			)
 		}
 		return runCatching {
-			val requestBuilder = Request.Builder()
-				.url(endpoint)
-				.post(payload.toString().toRequestBody(jsonMediaType))
-				.header("Content-Type", "application/json")
-			if (apiKey.isNotBlank()) {
-				requestBuilder.header("Authorization", "Bearer $apiKey")
-				requestBuilder.header("X-API-Key", apiKey)
-			}
-			val response = okHttpClient.newCall(requestBuilder.build()).await()
-			response.use { resp ->
-				val rawBody = resp.body.readJsonTextUtf8()
-				if (!resp.isSuccessful) {
-					log { "openai batch request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return@use emptyMap()
+			withContext(Dispatchers.IO) {
+				val requestBuilder = Request.Builder()
+					.url(endpoint)
+					.post(payload.toString().toRequestBody(jsonMediaType))
+					.header("Content-Type", "application/json")
+				if (apiKey.isNotBlank()) {
+					requestBuilder.header("Authorization", "Bearer $apiKey")
+					requestBuilder.header("X-API-Key", apiKey)
 				}
-				if (rawBody.isBlank()) return@use emptyMap()
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use emptyMap()
-				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return@use emptyMap()
-				log { "openai batch raw reply=${oneLine(content, 400)}" }
-				val parsed = parseBatchTranslationJson(content, texts.size)
-				if (parsed.isEmpty()) return@use emptyMap()
-				LinkedHashMap<String, String>(texts.size).apply {
-					texts.forEachIndexed { index, text ->
-						put(text, sanitizeTranslation(parsed[index + 1].orEmpty()))
+				applyCustomHeaders(requestBuilder)
+				val response = okHttpClient.newCall(requestBuilder.build()).await()
+				response.use { resp ->
+					val rawBody = resp.body.readJsonTextUtf8()
+					if (!resp.isSuccessful) {
+						log { "openai batch request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
+						return@use emptyMap()
+					}
+					if (rawBody.isBlank()) return@use emptyMap()
+					val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use emptyMap()
+					val content = extractOpenAiMessageContent(json).orEmpty()
+					if (content.isBlank()) return@use emptyMap()
+					log { "openai batch raw reply=${oneLine(content, 400)}" }
+					val parsed = parseBatchTranslationJson(content, texts.size)
+					if (parsed.isEmpty()) return@use emptyMap()
+					LinkedHashMap<String, String>(texts.size).apply {
+						texts.forEachIndexed { index, text ->
+							put(text, sanitizeTranslation(parsed[index + 1].orEmpty()))
+						}
 					}
 				}
 			}
 		}.onFailure {
+			if (it is kotlinx.coroutines.CancellationException) throw it
 			log { "openai batch request failed size=${texts.size} err=${it.message.orEmpty()}" }
 		}.getOrDefault(emptyMap())
 	}
@@ -319,39 +356,50 @@ internal class ReaderTranslationCoordinator(
 		}
 
 		return runCatching {
-			val requestBuilder = Request.Builder()
-				.url(endpoint)
-				.post(payload.toString().toRequestBody(jsonMediaType))
-				.header("Content-Type", "application/json")
-			if (apiKey.isNotBlank()) {
-				requestBuilder.header("Authorization", "Bearer $apiKey")
-				requestBuilder.header("X-API-Key", apiKey)
-			}
-			val response = okHttpClient.newCall(requestBuilder.build()).await()
-			response.use { resp ->
-				val rawBody = resp.body.readJsonTextUtf8()
-				if (!resp.isSuccessful) {
-					log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
-					return@use ""
+			withContext(Dispatchers.IO) {
+				val requestBuilder = Request.Builder()
+					.url(endpoint)
+					.post(payload.toString().toRequestBody(jsonMediaType))
+					.header("Content-Type", "application/json")
+				if (apiKey.isNotBlank()) {
+					requestBuilder.header("Authorization", "Bearer $apiKey")
+					requestBuilder.header("X-API-Key", apiKey)
 				}
-				if (rawBody.isBlank()) return@use ""
-				val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use ""
-				val content = extractOpenAiMessageContent(json).orEmpty()
-				if (content.isBlank()) return@use ""
-				log { "openai raw reply=${oneLine(content, 400)}" }
-				sanitizeTranslation(content)
+				applyCustomHeaders(requestBuilder)
+				val response = okHttpClient.newCall(requestBuilder.build()).await()
+				response.use { resp ->
+					val rawBody = resp.body.readJsonTextUtf8()
+					if (!resp.isSuccessful) {
+						log { "openai request failed code=${resp.code} msg=${resp.message} body=${oneLine(rawBody, 300)}" }
+						return@use ""
+					}
+					if (rawBody.isBlank()) return@use ""
+					val json = runCatching { JSONObject(rawBody) }.getOrNull() ?: return@use ""
+					val content = extractOpenAiMessageContent(json).orEmpty()
+					if (content.isBlank()) return@use ""
+					log { "openai raw reply=${oneLine(content, 400)}" }
+					sanitizeTranslation(content)
+				}
 			}
 		}.onFailure {
+			if (it is kotlinx.coroutines.CancellationException) throw it
 			log { "openai single request failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
 		}.getOrDefault("")
 	}
 
 	private suspend fun translateLocal(text: String, sourceLang: String, targetLang: String): String {
-		val source = resolveMlKitLanguage(sourceLang)
+		// 如果源语言是 auto，先检测
+		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
+			detectLanguage(text) ?: "en"
+		} else {
+			sourceLang
+		}
+
+		val source = resolveMlKitLanguage(resolvedSourceLang)
 		val target = resolveMlKitLanguage(targetLang)
 		if (source == null || target == null) {
-			log { "translate local skip unsupported source=$sourceLang target=$targetLang" }
-			return text
+			log { "translate local skip unsupported source=$resolvedSourceLang target=$targetLang" }
+			return ""  // 返回空字符串，不返回原文
 		}
 		val options = TranslatorOptions.Builder()
 			.setSourceLanguage(source)
@@ -359,8 +407,12 @@ internal class ReaderTranslationCoordinator(
 			.build()
 		val translator = Translation.getClient(options)
 		return try {
-			translator.downloadModelIfNeeded().awaitCancellable()
-			translator.translate(text).awaitCancellable()
+			withTimeout(60_000) {
+				translator.downloadModelIfNeeded().awaitCancellable()
+			}
+			withTimeout(15_000) {
+				translator.translate(text).awaitCancellable()
+			}
 		} finally {
 			translator.close()
 		}
@@ -371,36 +423,97 @@ internal class ReaderTranslationCoordinator(
 		sourceLang: String,
 		targetLang: String,
 	): Map<String, String> {
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch entered: texts.size=${texts.size}, source=$sourceLang, target=$targetLang")
 		if (texts.isEmpty()) return emptyMap()
-		val source = resolveMlKitLanguage(sourceLang)
+
+		// 如果源语言是 auto，先检测第一段文本的语言
+		val resolvedSourceLang = if (sourceLang.trim().lowercase() == "auto") {
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch detecting language...")
+			val sampleText = texts.filter { it.isNotBlank() }.joinToString("\n").take(500)
+			if (sampleText.isNotBlank()) {
+				detectLanguage(sampleText) ?: "en"
+			} else {
+				"en"
+			}
+		} else {
+			sourceLang
+		}
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch resolved source language: $resolvedSourceLang")
+
+		val source = resolveMlKitLanguage(resolvedSourceLang)
 		val target = resolveMlKitLanguage(targetLang)
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch ML Kit languages: source=$source, target=$target")
 		if (source == null || target == null) {
-			log { "translate local batch skip unsupported source=$sourceLang target=$targetLang size=${texts.size}" }
+			log { "translate local batch skip unsupported source=$resolvedSourceLang target=$targetLang size=${texts.size}" }
+			android.util.Log.w("ReaderTranslationCoordinator", "translateLocalBatch unsupported languages, returning empty")
 			return texts.associateWith { "" }
 		}
+		android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch creating translator...")
 		val options = TranslatorOptions.Builder()
 			.setSourceLanguage(source)
 			.setTargetLanguage(target)
 			.build()
 		val translator = Translation.getClient(options)
 		return try {
-			log { "translate local batch start size=${texts.size} source=$sourceLang target=$targetLang" }
-			translator.downloadModelIfNeeded().awaitCancellable()
+			log { "translate local batch start size=${texts.size} source=$resolvedSourceLang target=$targetLang" }
+
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch downloading model if needed...")
+			val downloadTask = translator.downloadModelIfNeeded()
+			withTimeout(60_000) {
+				downloadTask.awaitCancellable()
+			}
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch model ready, starting translation...")
+
 			val results = LinkedHashMap<String, String>(texts.size)
-			for (text in texts) {
+			for ((index, text) in texts.withIndex()) {
 				val out = runCatching {
 					withTimeout(15_000) {
 						translator.translate(text).awaitCancellable()
 					}
 				}.onFailure {
+					if (it is kotlinx.coroutines.CancellationException) throw it
 					log { "translate local item failed src=${oneLine(text, 140)} err=${it.message.orEmpty()}" }
+					android.util.Log.e("ReaderTranslationCoordinator", "translateLocalBatch item $index failed: ${it.message}")
 				}.getOrDefault("").trim()
 				results[text] = out
+				if (index == 0) {
+					android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch first item done, result length=${out.length}")
+				}
 			}
+			android.util.Log.d("ReaderTranslationCoordinator", "translateLocalBatch done translated=${results.count { it.value.isNotBlank() }}/${texts.size}")
 			log { "translate local batch done translated=${results.count { it.value.isNotBlank() }}/${texts.size}" }
 			results
+		} catch (e: Exception) {
+			android.util.Log.e("ReaderTranslationCoordinator", "translateLocalBatch failed: ${e.javaClass.simpleName}: ${e.message}", e)
+			throw e
 		} finally {
 			translator.close()
+		}
+	}
+
+	/**
+	 * 使用 ML Kit Language Identification 检测文本语言
+	 * 返回 BCP-47 语言标签（如 "en", "zh", "ja"），失败返回 null
+	 */
+	private suspend fun detectLanguage(text: String): String? {
+		if (text.isBlank()) return null
+		val languageIdentifier = LanguageIdentification.getClient()
+		return try {
+			val result = withTimeout(15_000) {
+				languageIdentifier.identifyLanguage(text).awaitCancellable()
+			}
+			if (result == "und") {
+				log { "language detection undetermined for text=${oneLine(text, 100)}" }
+				null
+			} else {
+				log { "language detected: $result for text=${oneLine(text, 100)}" }
+				result
+			}
+		} catch (e: Exception) {
+			log { "language detection failed: ${e.message.orEmpty()}" }
+			null
+		} finally {
+			languageIdentifier.close()
 		}
 	}
 
@@ -463,6 +576,7 @@ internal class ReaderTranslationCoordinator(
 			requestBuilder.header("Authorization", "Bearer $key")
 			requestBuilder.header("X-API-Key", key)
 		}
+		applyCustomHeaders(requestBuilder)
 		val request = requestBuilder.build()
 		val response = okHttpClient.newCall(request).await()
 		response.use { resp ->
@@ -785,6 +899,20 @@ internal class ReaderTranslationCoordinator(
 				it.isBlank() || it == "..." || it == "…"
 			}
 			.orEmpty()
+	}
+
+	private fun applyCustomHeaders(requestBuilder: Request.Builder) {
+		val customHeaders = settings.readerTranslationApiCustomHeaders.trim()
+		if (customHeaders.isBlank() || !customHeaders.startsWith("{")) return
+		kotlin.runCatching {
+			val json = JSONObject(customHeaders)
+			for (key in json.keys()) {
+				val value = json.optString(key)
+				if (value.isNotBlank()) {
+					requestBuilder.header(key, value)
+				}
+			}
+		}
 	}
 
 	private fun shouldSuppressRenderedBubble(

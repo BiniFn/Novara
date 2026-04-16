@@ -16,7 +16,7 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.router
 
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.getCauseUrl
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.observe
@@ -38,8 +38,8 @@ class RemoteListFragment : ContentListFragment(), FilterCoordinator.Owner, View.
 
     override fun onViewBindingCreated(binding: FragmentContentListBinding, savedInstanceState: Bundle?) {
         super.onViewBindingCreated(binding, savedInstanceState)
-        addMenuProvider(RemoteListMenuProvider())
-        addMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
+        addSupportMenuProvider(RemoteListMenuProvider())
+        addSupportMenuProvider(ContentSearchMenuProvider(filterCoordinator, viewModel))
         viewModel.isRandomLoading.observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
         viewModel.onOpenContent.observeEvent(viewLifecycleOwner) { router.openDetails(it) }
         viewModel.onSourceBroken.observeEvent(viewLifecycleOwner) { showSourceBrokenWarning() }

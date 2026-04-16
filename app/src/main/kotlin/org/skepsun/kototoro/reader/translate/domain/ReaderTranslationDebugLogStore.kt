@@ -1,13 +1,13 @@
 package org.skepsun.kototoro.reader.translate.domain
 
 import androidx.collection.LongSparseArray
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
+import javax.inject.Singleton
 
-@ActivityRetainedScoped
+@Singleton
 class ReaderTranslationDebugLogStore @Inject constructor() {
 
 	private val lock = Any()

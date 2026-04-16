@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.IdRes
 import androidx.appcompat.view.ActionMode
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -251,6 +252,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	override fun onResume() {
 		super.onResume()
+	}
+
+	fun selectMainNavigationItem(@IdRes itemId: Int): Boolean {
+		return navigationDelegate.selectItem(itemId)
 	}
 
 	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {

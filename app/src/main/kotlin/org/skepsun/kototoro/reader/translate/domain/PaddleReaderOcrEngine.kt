@@ -11,7 +11,6 @@ import android.graphics.Rect
 import android.net.Uri
 import android.util.Log
 import androidx.core.net.toFile
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -24,11 +23,12 @@ import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import java.io.File
 import java.nio.FloatBuffer
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-@ActivityRetainedScoped
+@Singleton
 class PaddleReaderOcrEngine @Inject constructor(
 	private val settings: AppSettings,
 	private val onnxModelManager: OnnxModelManager,

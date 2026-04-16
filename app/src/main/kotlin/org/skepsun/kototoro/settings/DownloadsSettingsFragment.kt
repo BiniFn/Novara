@@ -66,6 +66,8 @@ class DownloadsSettingsFragment :
 		super.onViewCreated(view, savedInstanceState)
 		findPreference<Preference>(AppSettings.KEY_LOCAL_STORAGE)?.bindStorageName()
 		findPreference<Preference>(AppSettings.KEY_LOCAL_MANGA_DIRS)?.bindDirectoriesCount()
+		findPreference<Preference>(AppSettings.KEY_LOCAL_NOVEL_STORAGE)?.bindNovelStorageName()
+		findPreference<Preference>(AppSettings.KEY_LOCAL_VIDEO_STORAGE)?.bindVideoStorageName()
 		findPreference<Preference>(AppSettings.KEY_PAGES_SAVE_DIR)?.bindPagesDirectory()
 		settings.subscribe(this)
 	}
@@ -83,6 +85,14 @@ class DownloadsSettingsFragment :
 
 			AppSettings.KEY_LOCAL_MANGA_DIRS -> {
 				findPreference<Preference>(key)?.bindDirectoriesCount()
+			}
+
+			AppSettings.KEY_LOCAL_NOVEL_STORAGE -> {
+				findPreference<Preference>(key)?.bindNovelStorageName()
+			}
+
+			AppSettings.KEY_LOCAL_VIDEO_STORAGE -> {
+				findPreference<Preference>(key)?.bindVideoStorageName()
 			}
 
 			AppSettings.KEY_DOWNLOADS_METERED_NETWORK -> {
@@ -104,6 +114,20 @@ class DownloadsSettingsFragment :
 
 			AppSettings.KEY_LOCAL_MANGA_DIRS -> {
 				router.openDirectoriesSettings()
+				true
+			}
+
+			AppSettings.KEY_LOCAL_NOVEL_STORAGE -> {
+				router.showDirectorySelectDialog(
+					org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL
+				)
+				true
+			}
+
+			AppSettings.KEY_LOCAL_VIDEO_STORAGE -> {
+				router.showDirectorySelectDialog(
+					org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO
+				)
 				true
 			}
 
@@ -130,6 +154,28 @@ class DownloadsSettingsFragment :
 			it.canWrite()
 		}
 		settings.setPagesSaveDir(doc?.uri)
+	}
+
+	private fun Preference.bindNovelStorageName() {
+		viewLifecycleScope.launch {
+			val storage = storageManager.getDefaultNovelWriteableDir()
+			summary = if (storage != null) {
+				storageManager.getDirectoryDisplayName(storage, isFullPath = true)
+			} else {
+				getString(R.string.not_available)
+			}
+		}
+	}
+
+	private fun Preference.bindVideoStorageName() {
+		viewLifecycleScope.launch {
+			val storage = storageManager.getDefaultVideoWriteableDir()
+			summary = if (storage != null) {
+				storageManager.getDirectoryDisplayName(storage, isFullPath = true)
+			} else {
+				getString(R.string.not_available)
+			}
+		}
 	}
 
 	private fun Preference.bindStorageName() {

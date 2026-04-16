@@ -8,7 +8,6 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -22,11 +21,12 @@ import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
 import java.io.File
 import java.nio.FloatBuffer
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-@ActivityRetainedScoped
+@Singleton
 class OnnxBubbleDetectorEngine @Inject constructor(
 	private val settings: AppSettings,
 	private val onnxModelManager: OnnxModelManager,

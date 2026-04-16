@@ -17,6 +17,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ToastErrorObserver
 import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
 import org.skepsun.kototoro.core.ui.AlertDialogFragment
+import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.core.ui.list.OnListItemClickListener
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
@@ -70,9 +71,14 @@ class ContentDirectorySelectDialog : AlertDialogFragment<DialogDirectorySelectBi
 	}
 
 	override fun onBuildDialog(builder: MaterialAlertDialogBuilder): MaterialAlertDialogBuilder {
+		val titleRes = when (arguments?.getString(ARG_CONTENT_TYPE)) {
+			CONTENT_TYPE_NOVEL -> R.string.novel_save_location
+			CONTENT_TYPE_VIDEO -> R.string.video_save_location
+			else -> R.string.manga_save_location
+		}
 		return super.onBuildDialog(builder)
 			.setCancelable(true)
-			.setTitle(R.string.manga_save_location)
+			.setTitle(titleRes)
 			.setNegativeButton(android.R.string.cancel, null)
 	}
 
@@ -83,6 +89,17 @@ class ContentDirectorySelectDialog : AlertDialogFragment<DialogDirectorySelectBi
 	private fun pickCustomDirectory() {
 		if (!permissionRequestLauncher.tryLaunch(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
 			Toast.makeText(context ?: return, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+		}
+	}
+
+	companion object {
+		const val ARG_CONTENT_TYPE = "content_type"
+		const val CONTENT_TYPE_MANGA = "manga"
+		const val CONTENT_TYPE_NOVEL = "novel"
+		const val CONTENT_TYPE_VIDEO = "video"
+
+		fun newInstance(contentType: String = CONTENT_TYPE_MANGA) = ContentDirectorySelectDialog().withArgs(1) {
+			putString(ARG_CONTENT_TYPE, contentType)
 		}
 	}
 }

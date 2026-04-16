@@ -150,6 +150,7 @@ open class BaseApp : App(), Configuration.Provider {
 				resTheme = android.R.style.Theme_Material_Light_Dialog_Alert
 			}
 		}
+		org.skepsun.kototoro.core.logs.CrashLogWriter.install(this)
 	}
 
 	@WorkerThread

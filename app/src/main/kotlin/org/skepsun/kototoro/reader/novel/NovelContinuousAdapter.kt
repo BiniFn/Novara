@@ -9,19 +9,27 @@ data class NovelChapterData(
     val chapterIndex: Int, // The absolute index of the chapter in the TOC
     val content: String,
     val epubFile: File?,
-    val chapterPath: String?
+    val chapterPath: String?,
+    val translation: NovelChapterTranslation? = null,
 )
 
 class NovelContinuousAdapter(
-    private var settings: NovelReaderSettings
+    private var settings: NovelReaderSettings,
+    private val onImageClick: (NovelInlineImageRequest) -> Unit,
 ) : RecyclerView.Adapter<NovelContinuousAdapter.ChapterViewHolder>() {
 
     private val chapters = mutableListOf<NovelChapterData>()
 
     class ChapterViewHolder(val view: NovelChapterView) : RecyclerView.ViewHolder(view) {
-        fun bind(data: NovelChapterData, settings: NovelReaderSettings) {
+        fun bind(
+            data: NovelChapterData,
+            settings: NovelReaderSettings,
+            onImageClick: (NovelInlineImageRequest) -> Unit,
+        ) {
             view.updateSettings(settings)
+            view.onImageClickListener = onImageClick
             view.setContent(data.content, data.epubFile, data.chapterPath)
+            view.setTranslation(data.translation)
         }
     }
 
@@ -36,7 +44,7 @@ class NovelContinuousAdapter(
     }
 
     override fun onBindViewHolder(holder: ChapterViewHolder, position: Int) {
-        holder.bind(chapters[position], settings)
+        holder.bind(chapters[position], settings, onImageClick)
     }
 
     override fun getItemCount(): Int = chapters.size
@@ -72,5 +80,25 @@ class NovelContinuousAdapter(
         val size = chapters.size
         chapters.clear()
         notifyItemRangeRemoved(0, size)
+    }
+
+    /**
+     * 更新指定章节的翻译结果，触发对应 item 的局部刷新。
+     */
+    fun updateTranslation(chapterIndex: Int, translation: NovelChapterTranslation) {
+        val position = chapters.indexOfFirst { it.chapterIndex == chapterIndex }
+        if (position < 0) return
+        chapters[position] = chapters[position].copy(translation = translation)
+        notifyItemChanged(position)
+    }
+
+    /**
+     * 清除所有章节的翻译，恢复原文显示。
+     */
+    fun clearTranslations() {
+        for (i in chapters.indices) {
+            chapters[i] = chapters[i].copy(translation = null)
+        }
+        notifyDataSetChanged()
     }
 }

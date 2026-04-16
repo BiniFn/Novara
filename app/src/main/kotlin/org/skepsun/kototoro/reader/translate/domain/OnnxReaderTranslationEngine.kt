@@ -144,7 +144,13 @@ class OnnxReaderTranslationEngine @Inject constructor(
 		modelId: String,
 	): Map<String, String> {
 		if (texts.isEmpty()) return emptyMap()
-		val rt = ensureRuntime(modelId) ?: return texts.associateWith { "" }
+		android.util.Log.d(LOG_TAG, "translateBatch: modelId=$modelId, texts.size=${texts.size}")
+		val rt = ensureRuntime(modelId)
+		if (rt == null) {
+			android.util.Log.e(LOG_TAG, "translateBatch: ensureRuntime returned null for modelId=$modelId")
+			return texts.associateWith { "" }
+		}
+		android.util.Log.d(LOG_TAG, "translateBatch: runtime loaded successfully, type=${rt.javaClass.simpleName}")
 		val parallelism = minOf(MAX_PARALLEL_TRANSLATIONS, texts.size)
 		Log.d(
 			LOG_TAG,
@@ -242,7 +248,15 @@ class OnnxReaderTranslationEngine @Inject constructor(
 	}
 
 	private suspend fun ensureRuntime(modelId: String, forceReload: Boolean = false): RuntimeHolder? {
-		if (modelId.isBlank() || !onnxModelManager.isModelDownloaded(modelId)) {
+		android.util.Log.d(LOG_TAG, "ensureRuntime: modelId=$modelId, forceReload=$forceReload")
+		if (modelId.isBlank()) {
+			android.util.Log.e(LOG_TAG, "ensureRuntime: modelId is blank")
+			return null
+		}
+		val isDownloaded = onnxModelManager.isModelDownloaded(modelId)
+		android.util.Log.d(LOG_TAG, "ensureRuntime: isModelDownloaded=$isDownloaded")
+		if (!isDownloaded) {
+			android.util.Log.e(LOG_TAG, "ensureRuntime: model not downloaded: $modelId")
 			return null
 		}
 		val current = runtime

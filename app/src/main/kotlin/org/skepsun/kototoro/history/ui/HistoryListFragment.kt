@@ -14,7 +14,7 @@ import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
 import org.skepsun.kototoro.core.ui.list.RecyclerScrollKeeper
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
@@ -34,8 +34,7 @@ class HistoryListFragment : ContentListFragment() {
 			?.let(BrowseGroupTab::fromId)
 			?.let(viewModel::setSelectedGroupTab)
 		super.onViewBindingCreated(binding, savedInstanceState)
-
-		addMenuProvider(HistoryListMenuProvider(binding.root.context, router, viewModel))
+		addSupportMenuProvider(HistoryListMenuProvider(binding.root.context, router, viewModel))
 		viewModel.isStatsEnabled.observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
 	}
 

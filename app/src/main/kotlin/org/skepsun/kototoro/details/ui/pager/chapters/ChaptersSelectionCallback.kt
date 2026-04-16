@@ -8,7 +8,6 @@ import androidx.appcompat.view.ActionMode
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.list.BaseListSelectionCallback
 import org.skepsun.kototoro.core.ui.list.ListSelectionController
@@ -16,6 +15,7 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toCollection
 import org.skepsun.kototoro.core.util.ext.toSet
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.local.ui.LocalChaptersRemoveService
@@ -41,12 +41,16 @@ class ChaptersSelectionCallback(
 		val items = allItems.withIndex().filter { it.value.chapter.id in selectedIds }
 		var canSave = true
 		var canDelete = true
+		val allLocal = items.isNotEmpty() && items.all { it.value.isDownloaded || it.value.chapter.source.isLocal }
+		val contentType = viewModel.getContentOrNull()?.source?.getContentType()
 		items.forEach { (_, x) ->
-			val isLocal = x.isDownloaded || x.chapter.source == LocalMangaSource
+			val isLocal = x.isDownloaded || x.chapter.source.isLocal
 			if (isLocal) canSave = false else canDelete = false
 		}
 		menu.findItem(R.id.action_save).isVisible = canSave
 		menu.findItem(R.id.action_delete).isVisible = canDelete
+		menu.findItem(R.id.action_prepare_translation).isVisible = allLocal && contentType != null && contentType != ContentType.VIDEO && contentType != ContentType.HENTAI_VIDEO
+		menu.findItem(R.id.action_prepare_super_resolution).isVisible = allLocal && contentType != null && contentType != ContentType.VIDEO && contentType != ContentType.HENTAI_VIDEO && contentType != ContentType.NOVEL && contentType != ContentType.HENTAI_NOVEL
 		menu.findItem(R.id.action_select_all).isVisible = items.size < allItems.size
 		menu.findItem(R.id.action_mark_current).isVisible = items.size == 1
 		mode?.title = items.size.toString()
@@ -104,6 +108,26 @@ class ChaptersSelectionCallback(
 					}
 				}
 				mode?.finish()
+				true
+			}
+
+			R.id.action_prepare_translation -> {
+				val snapshot = controller.snapshot()
+				mode?.finish()
+				if (snapshot.isNotEmpty()) {
+					router.askForDownloadOverMeteredNetwork {
+						viewModel.prepareTranslation(snapshot, it)
+					}
+				}
+				true
+			}
+
+			R.id.action_prepare_super_resolution -> {
+				val snapshot = controller.snapshot()
+				mode?.finish()
+				if (snapshot.isNotEmpty()) {
+					viewModel.prepareSuperResolution(snapshot)
+				}
 				true
 			}
 

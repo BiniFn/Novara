@@ -11,7 +11,6 @@ import android.util.Log
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import androidx.core.net.toFile
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -25,9 +24,10 @@ import java.io.File
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.max
 
-@ActivityRetainedScoped
+@Singleton
 class MangaOcrReaderTextRecognizer @Inject constructor(
 	private val onnxModelManager: OnnxModelManager,
 ) : ReaderTextRecognizer {

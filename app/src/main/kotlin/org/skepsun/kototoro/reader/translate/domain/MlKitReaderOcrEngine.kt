@@ -9,7 +9,6 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -18,8 +17,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import androidx.core.net.toFile
 import javax.inject.Inject
+import javax.inject.Singleton
 
-@ActivityRetainedScoped
+@Singleton
 class MlKitReaderOcrEngine @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	private val settings: AppSettings,

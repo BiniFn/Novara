@@ -45,7 +45,7 @@ import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.widgets.TipView
 import org.skepsun.kototoro.core.util.ShareHelper
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
@@ -168,8 +168,7 @@ abstract class ContentListFragment :
 				)
 			}
 		}
-
-		addMenuProvider(ContentListMenuProvider(this))
+		addSupportMenuProvider(ContentListMenuProvider(this))
 
 		viewModel.onError.observeEvent(
 			viewLifecycleOwner, 
@@ -315,8 +314,9 @@ abstract class ContentListFragment :
 	override fun getSelectedContentType(): BrowseGroupTab = viewModel.currentGroupTab.value
 	override fun getSelectedSourceTags(): Set<SourceTag> = viewModel.currentSourceTags.value
 	override fun getSourceTagEntries(): List<SourceTag> = sourceTagChipEntries()
-	override fun isContentTypeFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
-	override fun isSourceTagFilterVisible(): Boolean = !settings.isSearchBarFilterHidden
+	override fun isLanguagePresetFilterVisible(): Boolean = false
+	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter
+	override fun isSourceTagFilterVisible(): Boolean = settings.isShowSourceTagFilter
 
 	override fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean {
 		val selectedTags = viewModel.currentSourceTags.value

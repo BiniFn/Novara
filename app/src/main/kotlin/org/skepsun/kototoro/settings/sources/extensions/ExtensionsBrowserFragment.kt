@@ -30,7 +30,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.getDisplayName
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
+import org.skepsun.kototoro.core.util.ext.invalidateSupportMenu
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
@@ -105,7 +106,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 			swipeRefresh.setOnRefreshListener(viewModel::refresh)
 		}
 		observeViewModel(binding)
-		addMenuProvider(BrowserMenuProvider())
+		addSupportMenuProvider(BrowserMenuProvider())
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
@@ -397,7 +398,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 	 */
 	private fun safeInvalidateOptionsMenu() {
 		if (!isSearchExpanded) {
-			activity?.invalidateOptionsMenu()
+			invalidateSupportMenu()
 		}
 	}
 

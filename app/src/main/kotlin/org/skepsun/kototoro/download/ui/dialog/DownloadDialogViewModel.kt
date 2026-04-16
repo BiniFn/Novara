@@ -262,7 +262,15 @@ class DownloadDialogViewModel @Inject constructor(
 		val defaultDir = manga.mapToSet {
 			localContentRepository.getOutputDir(it, null)
 		}.singleOrNull()
-		val dirs = localStorageManager.getWriteableDirs()
+		
+		val isVideo = manga.firstOrNull()?.source?.getContentType() == ContentType.VIDEO
+		val isNovel = manga.firstOrNull()?.source?.getContentType() == ContentType.NOVEL
+		
+		val dirs = when {
+			isVideo -> localStorageManager.getVideoWriteableDirs()
+			isNovel -> localStorageManager.getNovelWriteableDirs()
+			else -> localStorageManager.getWriteableDirs()
+		}
 		availableDestinations.value = buildList(dirs.size + 1) {
 			if (defaultDir == null) {
 				add(defaultDestination())

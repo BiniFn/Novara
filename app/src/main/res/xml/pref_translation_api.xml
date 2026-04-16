@@ -43,6 +43,14 @@
         android:title="@string/reader_translation_api_model"
         app:useSimpleSummaryProvider="true" />
 
+    <EditTextPreference
+        android:defaultValue=""
+        android:key="reader_translation_api_custom_headers"
+        android:singleLine="true"
+        android:summary="@string/reader_translation_api_custom_headers_summary"
+        android:title="@string/reader_translation_api_custom_headers"
+        app:useSimpleSummaryProvider="true" />
+
     <Preference
         android:key="reader_translation_api_fetch_models"
         android:summary="@string/reader_translation_api_models_fetch_summary"

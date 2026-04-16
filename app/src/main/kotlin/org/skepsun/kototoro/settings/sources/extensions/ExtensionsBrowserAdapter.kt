@@ -112,7 +112,8 @@ class ExtensionsBrowserAdapter(
 			textPackage.text = item.pkgName
 			textVersion.text = item.versionName
 			if (item.state == ExtensionsBrowserEntryState.INSTALLED || item.state == ExtensionsBrowserEntryState.UNTRUSTED) {
-				val icon = runCatching { root.context.packageManager.getApplicationIcon(item.pkgName) }.getOrNull()
+				val iconPackageName = item.extension.type.normalizePackageNameForMatching(item.pkgName)
+				val icon = runCatching { root.context.packageManager.getApplicationIcon(iconPackageName) }.getOrNull()
 				if (icon != null) {
 					imageIcon.disposeImage()
 					imageIcon.setImageDrawable(icon)

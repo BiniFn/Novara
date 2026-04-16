@@ -15,7 +15,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.discover.ui.compose.DiscoverScreen
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -79,7 +79,7 @@ class DiscoverFragment :
 			}
 		}
 
-		addMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
+		addSupportMenuProvider(org.skepsun.kototoro.list.ui.ContentListMenuProvider(this))
 	}
 
 	override fun onMenuItemActionExpand(item: MenuItem): Boolean = true

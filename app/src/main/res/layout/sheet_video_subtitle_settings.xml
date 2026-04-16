@@ -121,6 +121,7 @@
                     android:id="@+id/slider_font_size"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:value="16"
                     android:valueFrom="10"
                     android:valueTo="100"
                     android:stepSize="1" />

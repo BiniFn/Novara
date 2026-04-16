@@ -19,7 +19,6 @@ import androidx.collection.LruCache
 import androidx.collection.LongSparseArray
 import androidx.core.net.toFile
 import androidx.core.net.toUri
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import eu.kanade.tachiyomi.network.await
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -63,11 +62,13 @@ import kotlinx.coroutines.withContext
 import okio.source
 import java.security.MessageDigest
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
-@ActivityRetainedScoped
+@Singleton
 class ReaderPageTranslationProcessor @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 	private val settings: AppSettings,
@@ -260,8 +261,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return renderedSourceMap[renderedUri.toString()]?.toUri()
 	}
 
-	suspend fun process(page: ContentPage, sourceUri: Uri): Uri {
-		val enabled = settings.isReaderTranslationEnabled
+	suspend fun process(page: ContentPage, sourceUri: Uri, forceEnabled: Boolean = false): Uri {
+		val enabled = forceEnabled || settings.isReaderTranslationEnabled
 		val showTranslated = settings.isReaderTranslationShowTranslated
 		Log.d(LOG_TAG, "process debug: page=${page.id} enabled=$enabled showTranslated=$showTranslated")
 		if (!enabled) {
@@ -932,21 +933,23 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		targetLang: String,
 	): List<BubbleInput> {
 		return groups.mapIndexedNotNull { index, group ->
+			val orderedFragments = sortFragmentsForReadingOrder(group.fragments, sourceLang)
 			val mergedRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: return@mapIndexedNotNull null
-			val sourceText = composeGroupedText(group.fragments, sourceLang).trim()
+			val sourceText = composeGroupedText(orderedFragments, sourceLang).trim()
 			if (sourceText.isBlank()) {
 				return@mapIndexedNotNull null
 			}
 			val verticalPreferred = isVerticalTargetLanguage(targetLang) &&
 				sourceLang.startsWith("ja") &&
-				(isLikelyColumnLayout(group.fragments) || mergedRect.height() > mergedRect.width() * 13 / 10)
+				(isLikelyColumnLayout(orderedFragments) || mergedRect.height() > mergedRect.width() * 13 / 10)
 			BubbleInput(
 				rect = mergedRect,
 				sourceText = sourceText,
 				verticalPreferred = verticalPreferred,
 				classId = group.classId,
 				detectorAnchored = group.detectorAnchored,
-				sourceContentRect = mergeRects(group.fragments.map { it.rect }),
+				sourceContentRect = mergeRects(orderedFragments.map { it.rect }),
+				sourceContentRects = orderedFragments.map { Rect(it.rect) },
 			)
 		}
 	}
@@ -999,20 +1002,17 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		val maxGapX = minW * maxGapScale + dp(3f)
 		val maxGapY = minH * maxGapScale + dp(3f)
-		val primaryAxisAligned = when {
-			aDirection == TextDirectionHint.VERTICAL || bDirection == TextDirectionHint.VERTICAL -> {
-				yOverlapRatio >= (minOverlapRatio * 1.2f) && gapX <= maxGapX * 1.25f
-			}
-			aDirection == TextDirectionHint.HORIZONTAL || bDirection == TextDirectionHint.HORIZONTAL -> {
-				xOverlapRatio >= (minOverlapRatio * 1.2f) && gapY <= maxGapY * 1.25f
-			}
-			else -> false
-		}
-
-		// At least one axis should have meaningful overlap, otherwise nearby panels are easily merged.
-		if (!primaryAxisAligned && xOverlapRatio < minOverlapRatio && yOverlapRatio < minOverlapRatio) return false
-		// Distance gate, normalized by glyph size.
-		if (!primaryAxisAligned && (gapX > maxGapX || gapY > maxGapY)) return false
+		val preferColumnMerge = shouldPreferColumnMerge(a, b, aDirection, bDirection)
+		val sameColumnCandidate =
+			yOverlapRatio >= (minOverlapRatio * 1.35f) &&
+				gapX <= maxGapX * 0.95f &&
+				dx <= minW * 1.85f
+		val sameRowCandidate =
+			xOverlapRatio >= (minOverlapRatio * 1.35f) &&
+				gapY <= maxGapY * 0.95f &&
+				dy <= minH * 1.85f
+		val primaryAxisAligned = if (preferColumnMerge) sameColumnCandidate else sameRowCandidate
+		if (!primaryAxisAligned) return false
 		// Reject pair if merged area grows too much compared with two source boxes.
 		val merged = Rect(
 			min(a.rect.left, b.rect.left),
@@ -1042,6 +1042,41 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			TuningLevel.RELAXED -> 2.6f
 		}
 		return dx <= minW * distanceScale && dy <= minH * distanceScale
+	}
+
+	private fun shouldPreferColumnMerge(
+		a: TextFragment,
+		b: TextFragment,
+		aDirection: TextDirectionHint,
+		bDirection: TextDirectionHint,
+	): Boolean {
+		return when {
+			aDirection == TextDirectionHint.VERTICAL || bDirection == TextDirectionHint.VERTICAL -> true
+			aDirection == TextDirectionHint.HORIZONTAL || bDirection == TextDirectionHint.HORIZONTAL -> false
+			isLikelyVerticalFragment(a) && isLikelyVerticalFragment(b) -> true
+			isLikelyHorizontalFragment(a) && isLikelyHorizontalFragment(b) -> false
+			else -> {
+				val avgWidth = (a.rect.width() + b.rect.width()) / 2f
+				val avgHeight = (a.rect.height() + b.rect.height()) / 2f
+				avgHeight > avgWidth * 1.2f
+			}
+		}
+	}
+
+	private fun isLikelyVerticalFragment(fragment: TextFragment): Boolean {
+		return when (effectiveDirectionHint(fragment)) {
+			TextDirectionHint.VERTICAL -> true
+			TextDirectionHint.HORIZONTAL -> false
+			else -> fragment.rect.height() > fragment.rect.width() * 1.2f
+		}
+	}
+
+	private fun isLikelyHorizontalFragment(fragment: TextFragment): Boolean {
+		return when (effectiveDirectionHint(fragment)) {
+			TextDirectionHint.HORIZONTAL -> true
+			TextDirectionHint.VERTICAL -> false
+			else -> fragment.rect.width() >= fragment.rect.height() * 0.85f
+		}
 	}
 
 	private fun effectiveDirectionHint(fragment: TextFragment): TextDirectionHint {
@@ -1114,7 +1149,17 @@ class ReaderPageTranslationProcessor @Inject constructor(
 	private fun composeGroupedText(group: List<TextFragment>, sourceLang: String): String {
 		if (group.isEmpty()) return ""
 		val isJa = sourceLang.startsWith("ja")
-		val sorted = if (isJa) {
+		val sorted = sortFragmentsForReadingOrder(group, sourceLang)
+		val separator = if (isJa && isLikelyColumnLayout(group)) "\n" else ""
+		return sorted.joinToString(separator) { it.text.trim() }.trim()
+	}
+
+	private fun sortFragmentsForReadingOrder(
+		group: List<TextFragment>,
+		sourceLang: String,
+	): List<TextFragment> {
+		if (group.isEmpty()) return emptyList()
+		return if (sourceLang.startsWith("ja")) {
 			group.sortedWith(
 				compareByDescending<TextFragment> { it.rect.centerX() }
 					.thenBy { it.rect.centerY() }
@@ -1122,8 +1167,6 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		} else {
 			group.sortedWith(compareBy<TextFragment> { it.rect.centerY() }.thenBy { it.rect.centerX() })
 		}
-		val separator = if (isJa && isLikelyColumnLayout(group)) "\n" else ""
-		return sorted.joinToString(separator) { it.text.trim() }.trim()
 	}
 
 	private fun isLikelyColumnLayout(group: List<TextFragment>): Boolean {
@@ -1187,6 +1230,15 @@ class ReaderPageTranslationProcessor @Inject constructor(
 				it.bottom.coerceIn(1, bitmapHeight),
 			)
 		}
+		val normalizedContentRects = input.sourceContentRects.mapNotNull { contentRect ->
+			val normalized = Rect(
+				contentRect.left.coerceIn(0, bitmapWidth - 1),
+				contentRect.top.coerceIn(0, bitmapHeight - 1),
+				contentRect.right.coerceIn(1, bitmapWidth),
+				contentRect.bottom.coerceIn(1, bitmapHeight),
+			)
+			normalized.takeIf { it.width() > 1 && it.height() > 1 }
+		}
 		val rawRect = if (detectorAnchored && normalizedContentRect != null) {
 			mergeRects(
 				listOf(
@@ -1211,135 +1263,69 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		} else {
 			BUBBLE_EXPAND_SCALES
 		}
-
-		if (verticalPreferred) {
-			for (scale in expansionScales) {
-				val safeRect = if (scale <= 1f) {
-					baseRect
-				} else {
-					expandRectAroundCenter(baseRect, scale, bitmapWidth, bitmapHeight)
-				}
-				val width = max(1, safeRect.width() - padding * 2)
-				val height = max(1, safeRect.height() - padding * 2)
-				if (width <= 1 || height <= 1) continue
-				val vertical = buildVerticalPlan(text, width, height) ?: continue
-				val contentW = computeVerticalUsedWidth(vertical)
-				val contentH = computeVerticalUsedHeight(vertical)
-				val drawRect = if (bubbleLikeRegion) {
-					Rect(safeRect)
-				} else {
-					centerRectByContent(
-						outer = safeRect,
-						contentWidth = contentW,
-						contentHeight = contentH,
-						padding = padding,
-						sourceContentRect = sourceContentRect,
-					)
-				}
-				val drawContentWidth = max(1, drawRect.width() - padding * 2)
-				val drawContentHeight = max(1, drawRect.height() - padding * 2)
-				return PreparedBubble(
-					rect = drawRect,
-					padding = padding,
-					contentWidth = drawContentWidth,
-					contentHeight = drawContentHeight,
-					layout = null,
-					verticalPlan = vertical,
-					debugOverlay = buildBubbleDebugOverlay(
-						input = input,
-						preparedRect = drawRect,
-						padding = padding,
-						contentWidth = drawContentWidth,
-						contentHeight = drawContentHeight,
-					),
-				)
-			}
-		}
-
-		var best: PreparedBubble? = null
-		var bestOverflow = Int.MAX_VALUE
-		for (scale in expansionScales) {
-			val safeRect = if (scale <= 1f) {
-				baseRect
-			} else {
-				expandRectAroundCenter(baseRect, scale, bitmapWidth, bitmapHeight)
-			}
-			val width = max(1, safeRect.width() - padding * 2)
-			val height = max(1, safeRect.height() - padding * 2)
-			if (width <= 1 || height <= 1) continue
-			var textSize = initialHorizontalTextSize(text = text, width = width, height = height)
-			var layout = buildTextLayout(text, width, textSize)
-			while (layout.height > height && textSize > dp(8f)) {
-				textSize -= 1f
-				layout = buildTextLayout(text, width, textSize)
-			}
-			val overflow = (layout.height - height).coerceAtLeast(0)
-			val contentW = computeLayoutUsedWidth(layout)
-			val contentH = min(layout.height, height)
-			val drawRect = if (bubbleLikeRegion) {
-				Rect(safeRect)
-			} else {
-				centerRectByContent(
-					outer = safeRect,
-					contentWidth = contentW,
-					contentHeight = contentH,
-					padding = padding,
-					sourceContentRect = sourceContentRect,
-				)
-			}
-			val drawContentWidth = max(1, drawRect.width() - padding * 2)
-			val drawContentHeight = max(1, drawRect.height() - padding * 2)
-			var adjustedLayout = if (!bubbleLikeRegion && drawContentWidth != width) {
-				buildTextLayout(
-					text = text,
-					width = drawContentWidth,
-					textSize = textSize,
-					maxLines = Int.MAX_VALUE,
-				)
-			} else {
-				layout
-			}
-			if (adjustedLayout.height > drawContentHeight) {
-				val lineHeight = max(1, adjustedLayout.getLineBottom(0))
-				val maxLines = max(1, drawContentHeight / lineHeight)
-				adjustedLayout = buildTextLayout(
-					text = text,
-					width = drawContentWidth,
-					textSize = textSize,
-					maxLines = maxLines,
-					ellipsize = TextUtils.TruncateAt.END,
-				)
-			}
-			val candidate = PreparedBubble(
-				rect = drawRect,
-				padding = padding,
-				contentWidth = drawContentWidth,
-				contentHeight = drawContentHeight,
-				layout = adjustedLayout,
-				verticalPlan = null,
-				debugOverlay = buildBubbleDebugOverlay(
-					input = input,
-					preparedRect = drawRect,
-					padding = padding,
-					contentWidth = drawContentWidth,
-					contentHeight = drawContentHeight,
+		val outerRects = resolveRenderOuterRects(
+			baseRect = baseRect,
+			expansionScales = expansionScales,
+			bitmapWidth = bitmapWidth,
+			bitmapHeight = bitmapHeight,
+		)
+		if (normalizedContentRect != null && normalizedContentRects.size > 1) {
+			val segmented = prepareSegmentedBubble(
+				text = text,
+				sourceContentRect = normalizedContentRect,
+				sourceContentRects = normalizedContentRects,
+				outerRects = outerRects,
+				verticalPreferred = verticalPreferred,
+				input = input.copy(
+					sourceContentRect = normalizedContentRect,
+					sourceContentRects = normalizedContentRects.map { Rect(it) },
 				),
 			)
-			if (overflow < bestOverflow) {
-				bestOverflow = overflow
-				best = candidate
+			if (segmented?.segments?.isNotEmpty() == true) {
+				return segmented
 			}
-			if (overflow == 0) break
 		}
-		return best
+		return solveSingleBoxBubble(
+			input = input,
+			text = text,
+			outerRects = outerRects,
+			padding = padding,
+			sourceContentRect = normalizedContentRect,
+			bubbleLikeRegion = bubbleLikeRegion,
+			verticalPreferred = verticalPreferred,
+			bitmapWidth = bitmapWidth,
+			bitmapHeight = bitmapHeight,
+		)
 	}
 
-	private fun computeLayoutUsedWidth(layout: StaticLayout): Int {
-		var maxWidth = 1f
+	private fun computeLayoutBounds(layout: StaticLayout): LayoutBounds {
+		var minLeft = 0f
+		var maxRight = 1f
+		var initialized = false
 		for (i in 0 until layout.lineCount) {
-			maxWidth = max(maxWidth, layout.getLineWidth(i))
+			val lineLeft = layout.getLineLeft(i)
+			val lineRight = layout.getLineRight(i)
+			if (!initialized) {
+				minLeft = lineLeft
+				maxRight = lineRight
+				initialized = true
+			} else {
+				minLeft = min(minLeft, lineLeft)
+				maxRight = max(maxRight, lineRight)
+			}
 		}
-		return ceil(maxWidth.toDouble()).toInt().coerceAtLeast(1)
+		if (!initialized) {
+			return LayoutBounds(
+				left = 0f,
+				right = 1f,
+				width = 1,
+			)
+		}
+		return LayoutBounds(
+			left = minLeft,
+			right = maxRight,
+			width = ceil((maxRight - minLeft).toDouble()).toInt().coerceAtLeast(1),
+		)
 	}
 
 	private fun computeVerticalUsedWidth(plan: VerticalLayoutPlan): Int {
@@ -1474,9 +1460,29 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			width * HORIZONTAL_TEXT_SIZE_WIDTH_RATIO,
 		)
 		return min(
-			dp(14f).toFloat(),
+			dp(MAX_RENDER_TEXT_SIZE_DP).toFloat(),
 			min(areaBasedSize, dimBound)
-		).coerceAtLeast(dp(8f).toFloat())
+		).coerceAtLeast(dp(MIN_INITIAL_TEXT_SIZE_DP).toFloat())
+	}
+
+	private fun resolveHorizontalMaxTextSize(width: Int, height: Int): Float {
+		return min(
+			dp(MAX_RENDER_TEXT_SIZE_DP).toFloat(),
+			min(
+				height * 0.58f,
+				width * 0.82f,
+			),
+		).coerceAtLeast(dp(MIN_INITIAL_TEXT_SIZE_DP).toFloat())
+	}
+
+	private fun resolveVerticalMaxTextSize(width: Int, height: Int): Float {
+		return min(
+			dp(MAX_RENDER_TEXT_SIZE_DP).toFloat(),
+			min(
+				height * 0.48f,
+				width * 0.82f,
+			),
+		).coerceAtLeast(dp(MIN_INITIAL_TEXT_SIZE_DP).toFloat())
 	}
 
 	private fun centerRectByContent(
@@ -1584,20 +1590,67 @@ class ReaderPageTranslationProcessor @Inject constructor(
 
 	private fun drawBubbleBackground(canvas: Canvas, bubble: PreparedBubble) {
 		val roundRadius = dp(6f).toFloat()
+		if (bubble.segments.isNotEmpty()) {
+			for (segment in bubble.segments) {
+				canvas.drawRoundRect(RectF(segment.backgroundRect), roundRadius, roundRadius, bubblePaint)
+			}
+			return
+		}
 		canvas.drawRoundRect(RectF(bubble.rect), roundRadius, roundRadius, bubblePaint)
 	}
 
 	private fun drawBubbleText(canvas: Canvas, bubble: PreparedBubble) {
-		canvas.save()
-		canvas.translate((bubble.rect.left + bubble.padding).toFloat(), (bubble.rect.top + bubble.padding).toFloat())
-		canvas.clipRect(0, 0, bubble.contentWidth, bubble.contentHeight)
+		if (bubble.segments.isNotEmpty()) {
+			for (segment in bubble.segments) {
+				val vertical = segment.verticalPlan
+				if (vertical != null) {
+					drawVerticalText(
+						canvas = canvas,
+						plan = vertical,
+						contentLeft = segment.contentRect.left.toFloat(),
+						contentTop = segment.contentRect.top.toFloat(),
+						contentWidth = segment.contentRect.width(),
+						contentHeight = segment.contentRect.height(),
+					)
+				} else {
+					segment.layout?.let { layout ->
+						drawHorizontalLayout(
+							canvas = canvas,
+							layout = layout,
+							contentLeft = segment.contentRect.left.toFloat(),
+							contentTop = segment.contentRect.top.toFloat(),
+							contentWidth = segment.contentRect.width(),
+							contentHeight = segment.contentRect.height(),
+						)
+					}
+				}
+			}
+			return
+		}
+		val contentLeft = (bubble.rect.left + bubble.padding).toFloat()
+		val contentTop = (bubble.rect.top + bubble.padding).toFloat()
 		val vertical = bubble.verticalPlan
 		if (vertical != null) {
-			drawVerticalText(canvas, vertical, bubble.contentWidth)
+			drawVerticalText(
+				canvas = canvas,
+				plan = vertical,
+				contentLeft = contentLeft,
+				contentTop = contentTop,
+				contentWidth = bubble.contentWidth,
+				contentHeight = bubble.contentHeight,
+			)
 		} else {
-			bubble.layout?.draw(canvas)
+			bubble.layout?.let { layout ->
+				drawHorizontalLayout(
+					canvas = canvas,
+					layout = layout,
+					contentLeft = contentLeft,
+					contentTop = contentTop,
+					contentWidth = bubble.contentWidth,
+					contentHeight = bubble.contentHeight,
+				)
+			}
 		}
-		canvas.restore()
 	}
 
 	private fun drawBubbleDebugOverlay(canvas: Canvas, bubble: PreparedBubble) {
@@ -1634,13 +1687,23 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		padding: Int,
 		contentWidth: Int,
 		contentHeight: Int,
+		segments: List<PreparedBubbleSegment> = emptyList(),
 	): BubbleDebugOverlay {
-		val contentAreaRect = Rect(
-			preparedRect.left + padding,
-			preparedRect.top + padding,
-			preparedRect.left + padding + contentWidth,
-			preparedRect.top + padding + contentHeight,
-		)
+		val contentAreaRect = if (segments.isNotEmpty()) {
+			mergeRects(segments.map { it.contentRect }) ?: Rect(
+				preparedRect.left + padding,
+				preparedRect.top + padding,
+				preparedRect.left + padding + contentWidth,
+				preparedRect.top + padding + contentHeight,
+			)
+		} else {
+			Rect(
+				preparedRect.left + padding,
+				preparedRect.top + padding,
+				preparedRect.left + padding + contentWidth,
+				preparedRect.top + padding + contentHeight,
+			)
+		}
 		val diagnosis = diagnoseBubbleRender(
 			contentRect = input.sourceContentRect,
 			preparedRect = preparedRect,
@@ -1677,19 +1740,66 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 	}
 
-	private fun drawVerticalText(canvas: Canvas, plan: VerticalLayoutPlan, contentWidth: Int) {
+	private fun drawHorizontalLayout(
+		canvas: Canvas,
+		layout: StaticLayout,
+		contentLeft: Float,
+		contentTop: Float,
+		contentWidth: Int,
+		contentHeight: Int,
+	) {
+		val previousAlign = textPaint.textAlign
+		textPaint.textAlign = Paint.Align.LEFT
+		val bounds = computeLayoutBounds(layout)
+		val dx = ((contentWidth - bounds.width) / 2f - bounds.left).coerceAtLeast(-bounds.left)
+		val dy = ((contentHeight - layout.height) / 2f).coerceAtLeast(0f)
+		canvas.save()
+		canvas.clipRect(
+			contentLeft,
+			contentTop,
+			contentLeft + contentWidth,
+			contentTop + contentHeight,
+		)
+		canvas.translate(contentLeft + dx, contentTop + dy)
+		layout.draw(canvas)
+		canvas.restore()
+		textPaint.textAlign = previousAlign
+	}
+
+	private fun drawVerticalText(
+		canvas: Canvas,
+		plan: VerticalLayoutPlan,
+		contentLeft: Float,
+		contentTop: Float,
+		contentWidth: Int,
+		contentHeight: Int,
+	) {
+		val previousAlign = textPaint.textAlign
 		textPaint.textSize = plan.textSize
 		textPaint.textAlign = Paint.Align.CENTER
 		val fm = textPaint.fontMetrics
 		val baselineOffset = -(fm.ascent + fm.descent) / 2f
 		val cell = plan.cellSize.toFloat()
+		val usedWidth = computeVerticalUsedWidth(plan).toFloat()
+		val usedHeight = computeVerticalUsedHeight(plan).toFloat()
+		val offsetX = ((contentWidth - usedWidth) / 2f).coerceAtLeast(0f)
+		val offsetY = ((contentHeight - usedHeight) / 2f).coerceAtLeast(0f)
+		canvas.save()
+		canvas.clipRect(
+			contentLeft,
+			contentTop,
+			contentLeft + contentWidth,
+			contentTop + contentHeight,
+		)
 		plan.glyphs.forEachIndexed { index, glyph ->
 			val col = index / plan.rowCapacity
 			val row = index % plan.rowCapacity
-			val cx = contentWidth - cell * (col + 0.5f)
-			val cy = cell * (row + 0.5f)
+			val cx = contentLeft + offsetX + usedWidth - cell * (col + 0.5f)
+			val cy = contentTop + offsetY + cell * (row + 0.5f)
 			canvas.drawText(glyph, cx, cy + baselineOffset, textPaint)
 		}
+		canvas.restore()
+		textPaint.textAlign = previousAlign
 	}
 
 	private fun buildVerticalPlan(text: String, width: Int, height: Int): VerticalLayoutPlan? {
@@ -1705,7 +1815,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			dp(14f).toFloat(),
 			min(areaBasedSize, dimBound)
 		)
-		val minSize = dp(8f).toFloat()
+		val minSize = dp(MIN_INITIAL_TEXT_SIZE_DP).toFloat()
 		while (textSize >= minSize) {
 			val cell = max(1, (textSize * 1.1f).toInt())
 			val rows = max(1, height / cell)
@@ -1735,6 +1845,74 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			textSize = minSize,
 			cellSize = cell,
 			rowCapacity = rows,
+		)
+	}
+
+	private fun fitVerticalPlan(
+		text: String,
+		width: Int,
+		height: Int,
+		initialTextSize: Float,
+	): VerticalLayoutFit? {
+		val glyphs = textToGlyphs(text)
+		if (glyphs.isEmpty()) return null
+		val minSize = dp(MIN_RENDER_TEXT_SIZE_DP).toFloat()
+		val maxSize = resolveVerticalMaxTextSize(width, height)
+		var textSize = initialTextSize.coerceIn(minSize, maxSize)
+		while (textSize >= minSize) {
+			val fit = buildVerticalFitAtSize(
+				glyphs = glyphs,
+				width = width,
+				height = height,
+				textSize = textSize,
+			)
+			if (fit != null) {
+				return fit
+			}
+			if (textSize == minSize) break
+			textSize = max(minSize, textSize - 1f)
+		}
+		val cell = max(1, (minSize * 1.1f).toInt())
+		val rows = max(1, height / cell)
+		val colsMax = max(1, width / cell)
+		val capacity = max(1, rows * colsMax)
+		val neededCols = ceil(glyphs.size / rows.toDouble()).toInt().coerceAtLeast(1)
+		return VerticalLayoutFit(
+			plan = VerticalLayoutPlan(
+				glyphs = glyphs.take(capacity),
+				textSize = minSize,
+				cellSize = cell,
+				rowCapacity = rows,
+			),
+			requiredWidth = neededCols * cell,
+			requiredHeight = min(rows, glyphs.size).coerceAtLeast(1) * cell,
+			overflow = (glyphs.size - capacity).coerceAtLeast(0),
+			truncated = glyphs.size > capacity,
+		)
+	}
+
+	private fun buildVerticalFitAtSize(
+		glyphs: List<String>,
+		width: Int,
+		height: Int,
+		textSize: Float,
+	): VerticalLayoutFit? {
+		val cell = max(1, (textSize * 1.1f).toInt())
+		val rows = max(1, height / cell)
+		val colsMax = max(1, width / cell)
+		val neededCols = ceil(glyphs.size / rows.toDouble()).toInt().coerceAtLeast(1)
+		if (neededCols > colsMax) return null
+		return VerticalLayoutFit(
+			plan = VerticalLayoutPlan(
+				glyphs = glyphs,
+				textSize = textSize,
+				cellSize = cell,
+				rowCapacity = rows,
+			),
+			requiredWidth = neededCols * cell,
+			requiredHeight = min(rows, glyphs.size).coerceAtLeast(1) * cell,
+			overflow = 0,
+			truncated = false,
 		)
 	}
 
@@ -1778,6 +1956,7 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		ellipsize: TextUtils.TruncateAt? = null,
 	): StaticLayout {
 		textPaint.textSize = textSize
+		textPaint.textAlign = Paint.Align.LEFT
 		return StaticLayout.Builder.obtain(text, 0, text.length, textPaint, max(1, width))
 			.setAlignment(Layout.Alignment.ALIGN_NORMAL)
 			.setIncludePad(false)
@@ -1785,6 +1964,927 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			.setMaxLines(maxLines)
 			.setEllipsize(ellipsize)
 			.build()
+	}
+
+	private fun fitHorizontalLayout(
+		text: String,
+		width: Int,
+		height: Int,
+		initialTextSize: Float,
+		allowEllipsize: Boolean = true,
+	): HorizontalLayoutFit {
+		val safeWidth = max(1, width)
+		val safeHeight = max(1, height)
+		val minTextSize = dp(MIN_RENDER_TEXT_SIZE_DP).toFloat()
+		val maxTextSize = resolveHorizontalMaxTextSize(safeWidth, safeHeight)
+		var textSize = initialTextSize.coerceIn(minTextSize, maxTextSize)
+		var layout = buildTextLayout(text, safeWidth, textSize)
+		while (layout.height > safeHeight && textSize > minTextSize) {
+			textSize = max(minTextSize, textSize - 1f)
+			layout = buildTextLayout(text, safeWidth, textSize)
+		}
+		val overflow = (layout.height - safeHeight).coerceAtLeast(0)
+		if (overflow == 0 || !allowEllipsize) {
+			return HorizontalLayoutFit(
+				layout = layout,
+				textSize = textSize,
+				usedWidth = computeLayoutBounds(layout).width,
+				usedHeight = layout.height,
+				overflow = overflow,
+				truncated = overflow > 0,
+			)
+		}
+		val lineHeight = computeLayoutLineHeight(layout)
+		val maxLines = max(1, safeHeight / lineHeight)
+		val truncatedLayout = buildTextLayout(
+			text = text,
+			width = safeWidth,
+			textSize = textSize,
+			maxLines = maxLines,
+			ellipsize = TextUtils.TruncateAt.END,
+		)
+			return HorizontalLayoutFit(
+				layout = truncatedLayout,
+				textSize = textSize,
+				usedWidth = computeLayoutBounds(truncatedLayout).width,
+				usedHeight = truncatedLayout.height,
+				overflow = overflow,
+				truncated = true,
+			)
+	}
+
+	private fun computeLayoutLineHeight(layout: StaticLayout): Int {
+		if (layout.lineCount <= 0) return 1
+		return if (layout.lineCount == 1) {
+			max(1, layout.getLineBottom(0) - layout.getLineTop(0))
+		} else {
+			max(1, layout.getLineTop(1) - layout.getLineTop(0))
+		}
+	}
+
+	private fun prepareSegmentedBubble(
+		text: String,
+		sourceContentRect: Rect,
+		sourceContentRects: List<Rect>,
+		outerRects: List<Rect>,
+		verticalPreferred: Boolean,
+		input: BubbleInput,
+	): PreparedBubble? {
+		for (safeRect in outerRects) {
+			val projectedRects = projectContentRects(sourceContentRect, sourceContentRects, safeRect)
+			if (projectedRects.isEmpty() || hasExcessiveProjectedOverlap(projectedRects)) continue
+			val referenceRect = resolveSegmentReferenceRect(projectedRects)
+			val fit = if (verticalPreferred) {
+				fitVerticalAcrossRects(
+					text = text,
+					backgroundRects = projectedRects,
+					initialTextSize = min(
+						dp(14f).toFloat(),
+						min(
+							(referenceRect.width().toFloat() * VERTICAL_TEXT_SIZE_WIDTH_RATIO).coerceAtLeast(dp(MIN_INITIAL_TEXT_SIZE_DP).toFloat()),
+							(referenceRect.height() * 0.42f).coerceAtLeast(dp(MIN_INITIAL_TEXT_SIZE_DP).toFloat()),
+						),
+					),
+				)
+			} else {
+				fitHorizontalAcrossRects(
+					text = text,
+					backgroundRects = projectedRects,
+					initialTextSize = initialHorizontalTextSize(
+						text = text,
+						width = referenceRect.width().coerceAtLeast(1),
+						height = referenceRect.height().coerceAtLeast(1),
+					),
+				)
+			} ?: continue
+			if (fit.segments.isEmpty() || fit.overflowUnits > 0 || fit.truncated) continue
+			val preparedRect = mergeRects(fit.segments.map { it.backgroundRect }) ?: safeRect
+			val contentAreaRect = mergeRects(fit.segments.map { it.contentRect })
+			return PreparedBubble(
+				rect = preparedRect,
+				padding = dp(4f),
+				contentWidth = contentAreaRect?.width()?.coerceAtLeast(1) ?: 1,
+				contentHeight = contentAreaRect?.height()?.coerceAtLeast(1) ?: 1,
+				layout = null,
+				verticalPlan = null,
+				segments = fit.segments,
+				debugOverlay = buildBubbleDebugOverlay(
+					input = input,
+					preparedRect = preparedRect,
+					padding = dp(4f),
+					contentWidth = contentAreaRect?.width()?.coerceAtLeast(1) ?: 1,
+					contentHeight = contentAreaRect?.height()?.coerceAtLeast(1) ?: 1,
+					segments = fit.segments,
+				),
+			)
+		}
+		return null
+	}
+
+	private fun resolveRenderOuterRects(
+		baseRect: Rect,
+		expansionScales: FloatArray,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): List<Rect> {
+		val candidates = linkedMapOf<String, Rect>()
+		fun add(rect: Rect) {
+			if (rect.width() <= 1 || rect.height() <= 1) return
+			val normalized = Rect(
+				rect.left.coerceIn(0, bitmapWidth - 1),
+				rect.top.coerceIn(0, bitmapHeight - 1),
+				rect.right.coerceIn(1, bitmapWidth),
+				rect.bottom.coerceIn(1, bitmapHeight),
+			)
+			if (normalized.width() <= 1 || normalized.height() <= 1) return
+			val key = "${normalized.left},${normalized.top},${normalized.right},${normalized.bottom}"
+			candidates.putIfAbsent(key, normalized)
+		}
+		add(baseRect)
+		for (scale in expansionScales) {
+			add(
+				if (scale <= 1f) baseRect else expandRectAroundCenter(baseRect, scale, bitmapWidth, bitmapHeight)
+			)
+		}
+		return candidates.values.toList()
+	}
+
+	private fun solveSingleBoxBubble(
+		input: BubbleInput,
+		text: String,
+		outerRects: List<Rect>,
+		padding: Int,
+		sourceContentRect: Rect?,
+		bubbleLikeRegion: Boolean,
+		verticalPreferred: Boolean,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): PreparedBubble? {
+		var best: SingleBoxBubbleFit? = null
+		for (outerRect in outerRects) {
+			val candidate = if (verticalPreferred) {
+				solveVerticalSingleBoxBubble(
+					input = input,
+					text = text,
+					outerRect = outerRect,
+					padding = padding,
+					sourceContentRect = sourceContentRect,
+					bubbleLikeRegion = bubbleLikeRegion,
+					bitmapWidth = bitmapWidth,
+					bitmapHeight = bitmapHeight,
+				)
+			} else {
+				solveHorizontalSingleBoxBubble(
+					input = input,
+					text = text,
+					outerRect = outerRect,
+					padding = padding,
+					sourceContentRect = sourceContentRect,
+					bubbleLikeRegion = bubbleLikeRegion,
+					bitmapWidth = bitmapWidth,
+					bitmapHeight = bitmapHeight,
+				)
+			} ?: continue
+			if (best == null || candidate.score < best!!.score) {
+				best = candidate
+			}
+			if (candidate.score == 0) {
+				break
+			}
+		}
+		return best?.bubble
+	}
+
+	private fun solveHorizontalSingleBoxBubble(
+		input: BubbleInput,
+		text: String,
+		outerRect: Rect,
+		padding: Int,
+		sourceContentRect: Rect?,
+		bubbleLikeRegion: Boolean,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): SingleBoxBubbleFit? {
+		val initialContentWidth = max(1, outerRect.width() - padding * 2)
+		val initialContentHeight = max(1, outerRect.height() - padding * 2)
+		if (initialContentWidth <= 1 || initialContentHeight <= 1) return null
+		var fit = fitHorizontalLayout(
+			text = text,
+			width = initialContentWidth,
+			height = initialContentHeight,
+			initialTextSize = initialHorizontalTextSize(text, initialContentWidth, initialContentHeight),
+			allowEllipsize = false,
+		)
+		var resolvedRect = resolveSingleBoxRect(
+			outerRect = outerRect,
+			padding = padding,
+			bubbleLikeRegion = bubbleLikeRegion,
+			sourceContentRect = sourceContentRect,
+			requiredWidth = fit.usedWidth,
+			requiredHeight = fit.usedHeight,
+		)
+		repeat(2) {
+			val contentWidth = max(1, resolvedRect.width() - padding * 2)
+			val contentHeight = max(1, resolvedRect.height() - padding * 2)
+			val nextFit = fitHorizontalLayout(
+				text = text,
+				width = contentWidth,
+				height = contentHeight,
+				initialTextSize = initialHorizontalTextSize(text, contentWidth, contentHeight),
+				allowEllipsize = false,
+			)
+			val nextRect = resolveSingleBoxRect(
+				outerRect = outerRect,
+				padding = padding,
+				bubbleLikeRegion = bubbleLikeRegion,
+				sourceContentRect = sourceContentRect,
+				requiredWidth = nextFit.usedWidth,
+				requiredHeight = nextFit.usedHeight,
+			)
+			fit = nextFit
+			resolvedRect = nextRect
+		}
+		if (fit.overflow > 0 || fit.truncated) {
+			val expanded = resolveHorizontalExpandedBubble(
+				input = input,
+				text = text,
+				initialOuterRect = resolvedRect,
+				padding = padding,
+				sourceContentRect = sourceContentRect,
+				bubbleLikeRegion = bubbleLikeRegion,
+				bitmapWidth = bitmapWidth,
+				bitmapHeight = bitmapHeight,
+			)
+			if (expanded != null) {
+				return expanded
+			}
+		}
+		val contentWidth = max(1, resolvedRect.width() - padding * 2)
+		val contentHeight = max(1, resolvedRect.height() - padding * 2)
+		return SingleBoxBubbleFit(
+			bubble = PreparedBubble(
+				rect = resolvedRect,
+				padding = padding,
+				contentWidth = contentWidth,
+				contentHeight = contentHeight,
+				layout = fit.layout,
+				verticalPlan = null,
+				debugOverlay = buildBubbleDebugOverlay(
+					input = input,
+					preparedRect = resolvedRect,
+					padding = padding,
+					contentWidth = contentWidth,
+					contentHeight = contentHeight,
+				),
+			),
+			score = fit.overflow + if (fit.truncated) contentHeight + 1 else 0,
+		)
+	}
+
+	private fun solveVerticalSingleBoxBubble(
+		input: BubbleInput,
+		text: String,
+		outerRect: Rect,
+		padding: Int,
+		sourceContentRect: Rect?,
+		bubbleLikeRegion: Boolean,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): SingleBoxBubbleFit? {
+		val initialContentWidth = max(1, outerRect.width() - padding * 2)
+		val initialContentHeight = max(1, outerRect.height() - padding * 2)
+		if (initialContentWidth <= 1 || initialContentHeight <= 1) return null
+		var fit = fitVerticalPlan(
+			text = text,
+			width = initialContentWidth,
+			height = initialContentHeight,
+			initialTextSize = min(
+				dp(14f).toFloat(),
+					min(
+						(initialContentHeight * 0.42f).coerceAtLeast(dp(MIN_RENDER_TEXT_SIZE_DP).toFloat()),
+						(initialContentWidth * VERTICAL_TEXT_SIZE_WIDTH_RATIO).coerceAtLeast(dp(MIN_RENDER_TEXT_SIZE_DP).toFloat()),
+					),
+				),
+			) ?: return null
+		var resolvedRect = resolveSingleBoxRect(
+			outerRect = outerRect,
+			padding = padding,
+			bubbleLikeRegion = bubbleLikeRegion,
+			sourceContentRect = sourceContentRect,
+			requiredWidth = fit.requiredWidth,
+			requiredHeight = fit.requiredHeight,
+		)
+		repeat(2) {
+			val contentWidth = max(1, resolvedRect.width() - padding * 2)
+			val contentHeight = max(1, resolvedRect.height() - padding * 2)
+			val nextFit = fitVerticalPlan(
+				text = text,
+				width = contentWidth,
+				height = contentHeight,
+				initialTextSize = resolveVerticalMaxTextSize(contentWidth, contentHeight),
+			) ?: return@repeat
+			val nextRect = resolveSingleBoxRect(
+				outerRect = outerRect,
+				padding = padding,
+				bubbleLikeRegion = bubbleLikeRegion,
+				sourceContentRect = sourceContentRect,
+				requiredWidth = nextFit.requiredWidth,
+				requiredHeight = nextFit.requiredHeight,
+			)
+			fit = nextFit
+			resolvedRect = nextRect
+		}
+		if (fit.overflow > 0 || fit.truncated) {
+			val expanded = resolveVerticalExpandedBubble(
+				input = input,
+				text = text,
+				initialOuterRect = resolvedRect,
+				padding = padding,
+				sourceContentRect = sourceContentRect,
+				bubbleLikeRegion = bubbleLikeRegion,
+				bitmapWidth = bitmapWidth,
+				bitmapHeight = bitmapHeight,
+			)
+			if (expanded != null) {
+				return expanded
+			}
+		}
+		val contentWidth = max(1, resolvedRect.width() - padding * 2)
+		val contentHeight = max(1, resolvedRect.height() - padding * 2)
+		return SingleBoxBubbleFit(
+			bubble = PreparedBubble(
+				rect = resolvedRect,
+				padding = padding,
+				contentWidth = contentWidth,
+				contentHeight = contentHeight,
+				layout = null,
+				verticalPlan = fit.plan,
+				debugOverlay = buildBubbleDebugOverlay(
+					input = input,
+					preparedRect = resolvedRect,
+					padding = padding,
+					contentWidth = contentWidth,
+					contentHeight = contentHeight,
+				),
+			),
+			score = fit.overflow + if (fit.truncated) contentHeight + 1 else 0,
+		)
+	}
+
+	private fun resolveHorizontalExpandedBubble(
+		input: BubbleInput,
+		text: String,
+		initialOuterRect: Rect,
+		padding: Int,
+		sourceContentRect: Rect?,
+		bubbleLikeRegion: Boolean,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): SingleBoxBubbleFit? {
+		var outerRect = Rect(initialOuterRect)
+		var bestAttempt: SingleBoxBubbleFit? = null
+		repeat(MAX_LOCAL_EXPANSION_STEPS) {
+			val contentWidth = max(1, outerRect.width() - padding * 2)
+			val contentHeight = max(1, outerRect.height() - padding * 2)
+			val fit = fitHorizontalLayout(
+				text = text,
+				width = contentWidth,
+				height = contentHeight,
+				initialTextSize = initialHorizontalTextSize(text, contentWidth, contentHeight),
+				allowEllipsize = false,
+			)
+			val resolvedRect = resolveSingleBoxRect(
+				outerRect = outerRect,
+				padding = padding,
+				bubbleLikeRegion = bubbleLikeRegion,
+				sourceContentRect = sourceContentRect,
+				requiredWidth = fit.usedWidth,
+				requiredHeight = fit.usedHeight,
+			)
+			val resolvedContentWidth = max(1, resolvedRect.width() - padding * 2)
+			val resolvedContentHeight = max(1, resolvedRect.height() - padding * 2)
+			val resolvedFit = if (resolvedContentWidth == contentWidth && resolvedContentHeight == contentHeight) {
+				fit
+			} else {
+				fitHorizontalLayout(
+					text = text,
+					width = resolvedContentWidth,
+					height = resolvedContentHeight,
+					initialTextSize = initialHorizontalTextSize(text, resolvedContentWidth, resolvedContentHeight),
+					allowEllipsize = false,
+				)
+			}
+			val attempt = SingleBoxBubbleFit(
+				bubble = PreparedBubble(
+					rect = resolvedRect,
+					padding = padding,
+					contentWidth = resolvedContentWidth,
+					contentHeight = resolvedContentHeight,
+					layout = resolvedFit.layout,
+					verticalPlan = null,
+					debugOverlay = buildBubbleDebugOverlay(
+						input = input,
+						preparedRect = resolvedRect,
+						padding = padding,
+						contentWidth = resolvedContentWidth,
+						contentHeight = resolvedContentHeight,
+					),
+				),
+				score = resolvedFit.overflow + if (resolvedFit.truncated) resolvedContentHeight + 1 else 0,
+			)
+			if (bestAttempt == null || attempt.score < bestAttempt!!.score) {
+				bestAttempt = attempt
+			}
+			if (resolvedFit.overflow == 0 && !resolvedFit.truncated) {
+				return attempt
+			}
+			val nextOuter = buildLocalExpansionOuterRect(
+				currentOuterRect = outerRect,
+				anchorRect = sourceContentRect ?: resolvedRect,
+				targetContentWidth = max(resolvedContentWidth, resolvedFit.usedWidth),
+				targetContentHeight = max(resolvedContentHeight, resolvedFit.usedHeight),
+				padding = padding,
+				bitmapWidth = bitmapWidth,
+				bitmapHeight = bitmapHeight,
+			)
+			if (nextOuter == outerRect) {
+				return bestAttempt
+			}
+			outerRect = nextOuter
+		}
+		return bestAttempt
+	}
+
+	private fun resolveVerticalExpandedBubble(
+		input: BubbleInput,
+		text: String,
+		initialOuterRect: Rect,
+		padding: Int,
+		sourceContentRect: Rect?,
+		bubbleLikeRegion: Boolean,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): SingleBoxBubbleFit? {
+		var outerRect = Rect(initialOuterRect)
+		var bestAttempt: SingleBoxBubbleFit? = null
+		repeat(MAX_LOCAL_EXPANSION_STEPS) {
+			val contentWidth = max(1, outerRect.width() - padding * 2)
+			val contentHeight = max(1, outerRect.height() - padding * 2)
+			val fit = fitVerticalPlan(
+				text = text,
+				width = contentWidth,
+				height = contentHeight,
+				initialTextSize = resolveVerticalMaxTextSize(contentWidth, contentHeight),
+			) ?: return bestAttempt
+			val resolvedRect = resolveSingleBoxRect(
+				outerRect = outerRect,
+				padding = padding,
+				bubbleLikeRegion = bubbleLikeRegion,
+				sourceContentRect = sourceContentRect,
+				requiredWidth = fit.requiredWidth,
+				requiredHeight = fit.requiredHeight,
+			)
+			val resolvedContentWidth = max(1, resolvedRect.width() - padding * 2)
+			val resolvedContentHeight = max(1, resolvedRect.height() - padding * 2)
+			val resolvedFit = if (resolvedContentWidth == contentWidth && resolvedContentHeight == contentHeight) {
+				fit
+			} else {
+				fitVerticalPlan(
+					text = text,
+					width = resolvedContentWidth,
+					height = resolvedContentHeight,
+					initialTextSize = resolveVerticalMaxTextSize(resolvedContentWidth, resolvedContentHeight),
+				) ?: fit
+			}
+			val attempt = SingleBoxBubbleFit(
+				bubble = PreparedBubble(
+					rect = resolvedRect,
+					padding = padding,
+					contentWidth = resolvedContentWidth,
+					contentHeight = resolvedContentHeight,
+					layout = null,
+					verticalPlan = resolvedFit.plan,
+					debugOverlay = buildBubbleDebugOverlay(
+						input = input,
+						preparedRect = resolvedRect,
+						padding = padding,
+						contentWidth = resolvedContentWidth,
+						contentHeight = resolvedContentHeight,
+					),
+				),
+				score = resolvedFit.overflow + if (resolvedFit.truncated) resolvedContentHeight + 1 else 0,
+			)
+			if (bestAttempt == null || attempt.score < bestAttempt!!.score) {
+				bestAttempt = attempt
+			}
+			if (resolvedFit.overflow == 0 && !resolvedFit.truncated) {
+				return attempt
+			}
+			val nextOuter = buildLocalExpansionOuterRect(
+				currentOuterRect = outerRect,
+				anchorRect = sourceContentRect ?: resolvedRect,
+				targetContentWidth = max(resolvedContentWidth, resolvedFit.requiredWidth),
+				targetContentHeight = max(resolvedContentHeight, resolvedFit.requiredHeight),
+				padding = padding,
+				bitmapWidth = bitmapWidth,
+				bitmapHeight = bitmapHeight,
+			)
+			if (nextOuter == outerRect) {
+				return bestAttempt
+			}
+			outerRect = nextOuter
+		}
+		return bestAttempt
+	}
+
+	private fun buildLocalExpansionOuterRect(
+		currentOuterRect: Rect,
+		anchorRect: Rect,
+		targetContentWidth: Int,
+		targetContentHeight: Int,
+		padding: Int,
+		bitmapWidth: Int,
+		bitmapHeight: Int,
+	): Rect {
+		val targetWidth = max(
+			currentOuterRect.width(),
+			((targetContentWidth + padding * 2) * LOCAL_EXPANSION_GROWTH_FACTOR).toInt(),
+		).coerceAtMost(bitmapWidth)
+		val targetHeight = max(
+			currentOuterRect.height(),
+			((targetContentHeight + padding * 2) * LOCAL_EXPANSION_GROWTH_FACTOR).toInt(),
+		).coerceAtMost(bitmapHeight)
+		val cx = anchorRect.centerX()
+		val cy = anchorRect.centerY()
+		var left = cx - targetWidth / 2
+		var top = cy - targetHeight / 2
+		var right = left + targetWidth
+		var bottom = top + targetHeight
+		if (left < 0) {
+			right -= left
+			left = 0
+		}
+		if (top < 0) {
+			bottom -= top
+			top = 0
+		}
+		if (right > bitmapWidth) {
+			left -= right - bitmapWidth
+			right = bitmapWidth
+		}
+		if (bottom > bitmapHeight) {
+			top -= bottom - bitmapHeight
+			bottom = bitmapHeight
+		}
+		return Rect(
+			left.coerceIn(0, bitmapWidth - 1),
+			top.coerceIn(0, bitmapHeight - 1),
+			right.coerceIn(1, bitmapWidth),
+			bottom.coerceIn(1, bitmapHeight),
+		)
+	}
+
+	private fun resolveSingleBoxRect(
+		outerRect: Rect,
+		padding: Int,
+		bubbleLikeRegion: Boolean,
+		sourceContentRect: Rect?,
+		requiredWidth: Int,
+		requiredHeight: Int,
+	): Rect {
+		return if (bubbleLikeRegion) {
+			Rect(outerRect)
+		} else {
+			centerRectByContent(
+				outer = outerRect,
+				contentWidth = requiredWidth,
+				contentHeight = requiredHeight,
+				padding = padding,
+				sourceContentRect = sourceContentRect,
+			)
+		}
+	}
+
+	private fun projectContentRects(
+		sourceUnionRect: Rect,
+		sourceRects: List<Rect>,
+		outerRect: Rect,
+	): List<Rect> {
+		val sourceWidth = sourceUnionRect.width().coerceAtLeast(1)
+		val sourceHeight = sourceUnionRect.height().coerceAtLeast(1)
+		val outerWidth = outerRect.width().coerceAtLeast(1)
+		val outerHeight = outerRect.height().coerceAtLeast(1)
+		val positionScaleX = outerWidth.toFloat() / sourceWidth.toFloat()
+		val positionScaleY = outerHeight.toFloat() / sourceHeight.toFloat()
+		val sizeScaleX = if (positionScaleX <= 1f) positionScaleX else min(positionScaleX, SEGMENT_MAX_SIZE_EXPANSION_SCALE)
+		val sizeScaleY = if (positionScaleY <= 1f) positionScaleY else min(positionScaleY, SEGMENT_MAX_SIZE_EXPANSION_SCALE)
+		return sourceRects.mapNotNull { rect ->
+			val centerX = outerRect.left + ((rect.exactCenterX() - sourceUnionRect.left.toFloat()) / sourceWidth.toFloat() * outerWidth.toFloat())
+			val centerY = outerRect.top + ((rect.exactCenterY() - sourceUnionRect.top.toFloat()) / sourceHeight.toFloat() * outerHeight.toFloat())
+			val targetWidth = max(1, (rect.width().toFloat() * sizeScaleX).roundToInt())
+			val targetHeight = max(1, (rect.height().toFloat() * sizeScaleY).roundToInt())
+			var left = (centerX - targetWidth / 2f).roundToInt()
+			var top = (centerY - targetHeight / 2f).roundToInt()
+			var right = left + targetWidth
+			var bottom = top + targetHeight
+			if (left < outerRect.left) {
+				left = outerRect.left
+				right = left + targetWidth
+			}
+			if (top < outerRect.top) {
+				top = outerRect.top
+				bottom = top + targetHeight
+			}
+			if (right > outerRect.right) {
+				right = outerRect.right
+				left = right - targetWidth
+			}
+			if (bottom > outerRect.bottom) {
+				bottom = outerRect.bottom
+				top = bottom - targetHeight
+			}
+			val projected = Rect(
+				left.coerceIn(outerRect.left, outerRect.right - 1),
+				top.coerceIn(outerRect.top, outerRect.bottom - 1),
+				right.coerceIn(left + 1, outerRect.right),
+				bottom.coerceIn(top + 1, outerRect.bottom),
+			)
+			projected.takeIf { it.width() > 1 && it.height() > 1 }
+		}
+	}
+
+	private fun resolveSegmentReferenceRect(projectedRects: List<Rect>): Rect {
+		val sortedByArea = projectedRects.sortedBy { it.width().coerceAtLeast(1) * it.height().coerceAtLeast(1) }
+		return sortedByArea[(sortedByArea.size - 1) / 2]
+	}
+
+	private fun hasExcessiveProjectedOverlap(projectedRects: List<Rect>): Boolean {
+		for (i in projectedRects.indices) {
+			for (j in i + 1 until projectedRects.size) {
+				val a = projectedRects[i]
+				val b = projectedRects[j]
+				val overlap = projectedOverlapArea(a, b)
+				if (overlap <= 0) continue
+				val minArea = min(
+					a.width().coerceAtLeast(1) * a.height().coerceAtLeast(1),
+					b.width().coerceAtLeast(1) * b.height().coerceAtLeast(1),
+				)
+				val overlapRatio = overlap.toFloat() / minArea.toFloat()
+				if (overlapRatio >= SEGMENT_MAX_OVERLAP_RATIO) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	private fun projectedOverlapArea(a: Rect, b: Rect): Int {
+		val left = max(a.left, b.left)
+		val top = max(a.top, b.top)
+		val right = min(a.right, b.right)
+		val bottom = min(a.bottom, b.bottom)
+		if (right <= left || bottom <= top) return 0
+		return (right - left) * (bottom - top)
+	}
+
+	private fun fitHorizontalAcrossRects(
+		text: String,
+		backgroundRects: List<Rect>,
+		initialTextSize: Float,
+	): SegmentedBubbleFit? {
+		val minTextSize = dp(MIN_RENDER_TEXT_SIZE_DP).toFloat()
+		var textSize = initialTextSize.coerceAtLeast(minTextSize)
+		while (true) {
+			val fit = buildHorizontalFlowSegments(
+				text = text,
+				backgroundRects = backgroundRects,
+				textSize = textSize,
+				ellipsizeLast = false,
+			)
+			if (fit != null && fit.overflowUnits == 0) {
+				return fit
+			}
+			if (textSize <= minTextSize) {
+				return buildHorizontalFlowSegments(
+					text = text,
+					backgroundRects = backgroundRects,
+					textSize = minTextSize,
+					ellipsizeLast = true,
+				)
+			}
+			textSize = max(minTextSize, textSize - 1f)
+		}
+	}
+
+	private fun buildHorizontalFlowSegments(
+		text: String,
+		backgroundRects: List<Rect>,
+		textSize: Float,
+		ellipsizeLast: Boolean,
+	): SegmentedBubbleFit? {
+		val regions = buildSegmentRegions(backgroundRects)
+		if (regions.isEmpty()) return null
+		var cursor = skipFlowLeadingWhitespace(text, 0)
+		val segments = ArrayList<PreparedBubbleSegment>(regions.size)
+		for ((index, region) in regions.withIndex()) {
+			if (cursor >= text.length) break
+			val remaining = text.substring(cursor)
+			val width = region.contentRect.width().coerceAtLeast(1)
+			val baseLayout = buildTextLayout(remaining, width, textSize)
+			if (baseLayout.lineCount <= 0) continue
+			val lineHeight = computeLayoutLineHeight(baseLayout)
+			val maxLines = max(1, region.contentRect.height() / lineHeight)
+			val allFits = baseLayout.height <= region.contentRect.height()
+			val isLastRegion = index == regions.lastIndex
+			if (allFits) {
+				segments += PreparedBubbleSegment(
+					backgroundRect = region.backgroundRect,
+					contentRect = region.contentRect,
+					layout = baseLayout,
+				)
+				cursor = text.length
+				break
+			}
+			if (isLastRegion && ellipsizeLast) {
+				segments += PreparedBubbleSegment(
+					backgroundRect = region.backgroundRect,
+					contentRect = region.contentRect,
+					layout = buildTextLayout(
+						text = remaining,
+						width = width,
+						textSize = textSize,
+						maxLines = maxLines,
+						ellipsize = TextUtils.TruncateAt.END,
+					),
+				)
+				return SegmentedBubbleFit(
+					segments = segments,
+					textSize = textSize,
+					overflowUnits = remaining.length,
+					truncated = true,
+				)
+			}
+			val linesThatFit = maxLines.coerceAtMost(baseLayout.lineCount)
+			val end = if (linesThatFit > 0) baseLayout.getLineEnd(linesThatFit - 1) else 0
+			if (end <= 0) continue
+			val segmentText = remaining.substring(0, end).trimEnd()
+			if (segmentText.isBlank()) {
+				cursor = skipFlowLeadingWhitespace(text, cursor + end)
+				continue
+			}
+			segments += PreparedBubbleSegment(
+				backgroundRect = region.backgroundRect,
+				contentRect = region.contentRect,
+				layout = buildTextLayout(
+					text = segmentText,
+					width = width,
+					textSize = textSize,
+					maxLines = linesThatFit,
+				),
+			)
+			cursor = skipFlowLeadingWhitespace(text, cursor + end)
+		}
+		return SegmentedBubbleFit(
+			segments = segments,
+			textSize = textSize,
+			overflowUnits = (text.length - cursor).coerceAtLeast(0),
+			truncated = false,
+		)
+	}
+
+	private fun fitVerticalAcrossRects(
+		text: String,
+		backgroundRects: List<Rect>,
+		initialTextSize: Float,
+	): SegmentedBubbleFit? {
+		val minTextSize = dp(MIN_RENDER_TEXT_SIZE_DP).toFloat()
+		var textSize = initialTextSize.coerceAtLeast(minTextSize)
+		while (true) {
+			val fit = buildVerticalFlowSegments(
+				text = text,
+				backgroundRects = backgroundRects,
+				textSize = textSize,
+				ellipsizeLast = false,
+			)
+			if (fit != null && fit.overflowUnits == 0) {
+				return fit
+			}
+			if (textSize <= minTextSize) {
+				return buildVerticalFlowSegments(
+					text = text,
+					backgroundRects = backgroundRects,
+					textSize = minTextSize,
+					ellipsizeLast = true,
+				)
+			}
+			textSize = max(minTextSize, textSize - 1f)
+		}
+	}
+
+	private fun buildVerticalFlowSegments(
+		text: String,
+		backgroundRects: List<Rect>,
+		textSize: Float,
+		ellipsizeLast: Boolean,
+	): SegmentedBubbleFit? {
+		val glyphs = textToGlyphs(text)
+		if (glyphs.isEmpty()) return null
+		val regions = buildSegmentRegions(backgroundRects)
+		if (regions.isEmpty()) return null
+		val segments = ArrayList<PreparedBubbleSegment>(regions.size)
+		var cursor = 0
+		val cellSize = max(1, (textSize * 1.1f).toInt())
+		for ((index, region) in regions.withIndex()) {
+			if (cursor >= glyphs.size) break
+			val rowCapacity = max(1, region.contentRect.height() / cellSize)
+			val columns = max(1, region.contentRect.width() / cellSize)
+			val capacity = rowCapacity * columns
+			if (capacity <= 0) continue
+			val remaining = glyphs.size - cursor
+			val isLastRegion = index == regions.lastIndex
+			if (remaining <= capacity) {
+				segments += PreparedBubbleSegment(
+					backgroundRect = region.backgroundRect,
+					contentRect = region.contentRect,
+					verticalPlan = VerticalLayoutPlan(
+						glyphs = glyphs.subList(cursor, glyphs.size),
+						textSize = textSize,
+						cellSize = cellSize,
+						rowCapacity = rowCapacity,
+					),
+				)
+				cursor = glyphs.size
+				break
+			}
+			if (isLastRegion && ellipsizeLast) {
+				val visibleCount = capacity.coerceAtLeast(1)
+				val visibleGlyphs = if (visibleCount == 1) {
+					listOf("…")
+				} else {
+					glyphs.subList(cursor, cursor + visibleCount - 1) + "…"
+				}
+				segments += PreparedBubbleSegment(
+					backgroundRect = region.backgroundRect,
+					contentRect = region.contentRect,
+					verticalPlan = VerticalLayoutPlan(
+						glyphs = visibleGlyphs,
+						textSize = textSize,
+						cellSize = cellSize,
+						rowCapacity = rowCapacity,
+					),
+				)
+				return SegmentedBubbleFit(
+					segments = segments,
+					textSize = textSize,
+					overflowUnits = remaining - visibleCount,
+					truncated = true,
+				)
+			}
+			segments += PreparedBubbleSegment(
+				backgroundRect = region.backgroundRect,
+				contentRect = region.contentRect,
+				verticalPlan = VerticalLayoutPlan(
+					glyphs = glyphs.subList(cursor, cursor + capacity),
+					textSize = textSize,
+					cellSize = cellSize,
+					rowCapacity = rowCapacity,
+				),
+			)
+			cursor += capacity
+		}
+		return SegmentedBubbleFit(
+			segments = segments,
+			textSize = textSize,
+			overflowUnits = (glyphs.size - cursor).coerceAtLeast(0),
+			truncated = false,
+		)
+	}
+
+	private fun buildSegmentRegions(backgroundRects: List<Rect>): List<SegmentRegion> {
+		return backgroundRects.mapNotNull { backgroundRect ->
+			val padding = resolveSegmentPadding(backgroundRect)
+			val contentRect = Rect(backgroundRect)
+			contentRect.inset(padding, padding)
+			contentRect.takeIf { it.width() > 1 && it.height() > 1 }?.let {
+				SegmentRegion(
+					backgroundRect = Rect(backgroundRect),
+					contentRect = it,
+				)
+			}
+		}
+	}
+
+	private fun resolveSegmentPadding(rect: Rect): Int {
+		val minSide = min(rect.width(), rect.height()).coerceAtLeast(1)
+		return min(dp(4f), max(1, minSide / 8))
+	}
+
+	private fun skipFlowLeadingWhitespace(text: String, start: Int): Int {
+		var index = start.coerceAtLeast(0)
+		while (index < text.length && text[index].isWhitespace()) {
+			index++
+		}
+		return index
 	}
 
 	private fun isLikelyGarbledText(text: String): Boolean {
@@ -1830,6 +2930,46 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		}
 		return false
 	}
+
+	private data class HorizontalLayoutFit(
+		val layout: StaticLayout,
+		val textSize: Float,
+		val usedWidth: Int,
+		val usedHeight: Int,
+		val overflow: Int,
+		val truncated: Boolean,
+	)
+
+	private data class LayoutBounds(
+		val left: Float,
+		val right: Float,
+		val width: Int,
+	)
+
+	private data class VerticalLayoutFit(
+		val plan: VerticalLayoutPlan,
+		val requiredWidth: Int,
+		val requiredHeight: Int,
+		val overflow: Int,
+		val truncated: Boolean,
+	)
+
+	private data class SingleBoxBubbleFit(
+		val bubble: PreparedBubble,
+		val score: Int,
+	)
+
+	private data class SegmentedBubbleFit(
+		val segments: List<PreparedBubbleSegment>,
+		val textSize: Float,
+		val overflowUnits: Int,
+		val truncated: Boolean,
+	)
+
+	private data class SegmentRegion(
+		val backgroundRect: Rect,
+		val contentRect: Rect,
+	)
 
 	private fun isWeakTranslatedNoise(text: String, targetLang: String): Boolean {
 		if (text.isBlank()) return true
@@ -2103,6 +3243,13 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val DETECTOR_CONTENT_MERGE_PADDING_DP = 8f
 		const val HORIZONTAL_TEXT_SIZE_WIDTH_RATIO = 0.58f
 		const val VERTICAL_TEXT_SIZE_WIDTH_RATIO = 0.78f
+		const val MAX_RENDER_TEXT_SIZE_DP = 15f
+		const val MIN_INITIAL_TEXT_SIZE_DP = 6f
+		const val MIN_RENDER_TEXT_SIZE_DP = 3f
+		const val LOCAL_EXPANSION_GROWTH_FACTOR = 1.08f
+		const val MAX_LOCAL_EXPANSION_STEPS = 6
+		const val SEGMENT_MAX_SIZE_EXPANSION_SCALE = 1.28f
+		const val SEGMENT_MAX_OVERLAP_RATIO = 0.18f
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
 		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f, 1.12f, 1.24f)
 		val DETECTOR_ANCHORED_EXPAND_SCALES = floatArrayOf(1f, 1.18f, 1.34f, 1.52f)

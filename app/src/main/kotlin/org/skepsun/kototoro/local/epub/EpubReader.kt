@@ -39,7 +39,7 @@ interface EpubReader {
  * - Progress indicators for large files (Requirement 11.4)
  */
 class EpubReaderImpl(
-    private val cache: EpubContentCache = EpubContentCache(),
+    private val cache: EpubContentCache = EpubContentCache.getInstance(),
     private val progressListener: EpubLoadingProgressListener? = null
 ) : EpubReader {
     

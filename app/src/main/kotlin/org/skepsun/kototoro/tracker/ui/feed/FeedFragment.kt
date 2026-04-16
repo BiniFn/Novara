@@ -17,7 +17,7 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.observe
 import androidx.compose.runtime.collectAsState
@@ -75,11 +75,12 @@ class FeedFragment : BaseFragment<FragmentContentListBinding>() {
 			}
 		}
 
-		addMenuProvider(FeedMenuProvider(binding.composeView, viewModel))
+		addSupportMenuProvider(FeedMenuProvider(binding.composeView, viewModel))
 		viewModel.isHeaderEnabled.drop(1).observe(viewLifecycleOwner, MenuInvalidator(requireActivity()))
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.root, this))
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(binding.root))
 		viewModel.isRunning.observe(viewLifecycleOwner, this::onIsTrackerRunningChanged)
+
 	}
 
 	private fun onIsTrackerRunningChanged(isRunning: Boolean) {

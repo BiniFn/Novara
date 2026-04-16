@@ -77,7 +77,7 @@ internal fun buildExtensionsBrowserItems(
 	query: String,
 	isTrustedPackage: (packageName: String, expectedFingerprint: String) -> Boolean,
 ): List<ExtensionsBrowserListItem> {
-	val installedMap = installed.associateBy { it.pkgName }
+	val installedMap = installed.associateBy { type.normalizePackageNameForMatching(it.pkgName) }
 	val updates = mutableListOf<ExtensionsBrowserListItem.Entry>()
 	val untrusted = mutableListOf<ExtensionsBrowserListItem.Entry>()
 	val incompatible = mutableListOf<ExtensionsBrowserListItem.Entry>()
@@ -85,27 +85,16 @@ internal fun buildExtensionsBrowserItems(
 	val handledPackages = HashSet<String>()
 
 	available.forEach { extension ->
-		val isIReader = extension.type == ExternalExtensionType.IREADER
-		val installedSearchKey = if (isIReader) {
-			val parts = extension.pkgName.split("-")
-			if (parts.size >= 3 && parts[0] == "ireader") {
-				val namePart = parts.drop(2).joinToString("-")
-				"ireader.${namePart}.${parts[1]}"
-			} else {
-				extension.pkgName
-			}
-		} else {
-			extension.pkgName
-		}
+		val installedSearchKey = type.normalizePackageNameForMatching(extension.pkgName)
 
 		val normalizedLanguage = extension.lang.normalizeExtensionLanguageCode()
 		val installedEntry = installedMap[installedSearchKey]
 		val downloadState = downloadStates[extension.pkgName]
 		val isDownloading = downloadState != null
-		val isTrusted = installedEntry == null || isTrustedPackage(extension.pkgName, extension.signatureHash)
+		val isTrusted = installedEntry == null || isTrustedPackage(installedEntry.pkgName, extension.signatureHash)
 		when {
 			installedEntry != null && !isTrusted -> {
-				handledPackages += extension.pkgName
+				handledPackages += installedSearchKey
 				untrusted += ExtensionsBrowserListItem.Entry(
 					pkgName = extension.pkgName,
 					name = extension.name,
@@ -122,7 +111,7 @@ internal fun buildExtensionsBrowserItems(
 			}
 
 			!extension.isCompatible -> {
-				handledPackages += extension.pkgName
+				handledPackages += installedSearchKey
 				incompatible += ExtensionsBrowserListItem.Entry(
 					pkgName = extension.pkgName,
 					name = extension.name,
@@ -155,7 +144,7 @@ internal fun buildExtensionsBrowserItems(
 			}
 
 			extension.versionCode > installedEntry.versionCode || extension.libVersion > installedEntry.libVersion -> {
-				handledPackages += extension.pkgName
+				handledPackages += installedSearchKey
 				updates += ExtensionsBrowserListItem.Entry(
 					pkgName = extension.pkgName,
 					name = extension.name,
@@ -174,19 +163,7 @@ internal fun buildExtensionsBrowserItems(
 	}
 
 	val installedOnly = installed
-		.filter { entry -> 
-			val handledCheckKey = if (type == ExternalExtensionType.IREADER && entry.pkgName.startsWith("ireader.")) {
-				val parts = entry.pkgName.split(".")
-				if (parts.size >= 3) {
-					val namePart = parts.subList(1, parts.size - 1).joinToString(".") // Actually we can just keep the original handledPackages checking if we put extension.pkgName in handledPackages
-					// Wait, we put `extension.pkgName` into handledPackages, which is `ireader-cn-sexinsex`.
-					// So `installedOnly` filter needs to check if the Android pkg (ireader.sexinsex.cn) backwards-maps to `ireader-cn-sexinsex`
-					val reverseMap = "ireader-${parts.last()}-${parts.subList(1, parts.size - 1).joinToString(".")}"
-					reverseMap
-				} else entry.pkgName
-			} else entry.pkgName
-			handledCheckKey !in handledPackages 
-		}
+		.filter { entry -> type.normalizePackageNameForMatching(entry.pkgName) !in handledPackages }
 		.map { entry ->
 			ExtensionsBrowserListItem.Entry(
 				pkgName = entry.pkgName,

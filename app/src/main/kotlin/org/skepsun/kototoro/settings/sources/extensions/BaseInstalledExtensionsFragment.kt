@@ -1,4 +1,5 @@
 package org.skepsun.kototoro.settings.sources.extensions
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.Menu
@@ -14,7 +15,7 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModel
 import androidx.recyclerview.widget.LinearLayoutManager
 import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -82,14 +83,14 @@ abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstal
 		}
 
 		observeViewModel(binding)
-		addMenuProvider(ExtensionsMenuProvider())
+		addSupportMenuProvider(ExtensionsMenuProvider())
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
 
 	override fun onResume() {
 		super.onResume()
-		activity?.setTitle(titleRes)
+		setSupportTitle(titleRes)
 	}
 
 	override fun onDestroyView() {

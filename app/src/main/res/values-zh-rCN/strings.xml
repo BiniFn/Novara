@@ -139,7 +139,9 @@
     <string name="manga_shelf">收藏</string>
     <string name="recent_manga">最近</string>
     <string name="pages_animation">翻页动画</string>
-    <string name="manga_save_location">作品下载目录</string>
+    <string name="manga_save_location">漫画下载目录</string>
+    <string name="novel_save_location">小说下载目录</string>
+    <string name="video_save_location">视频下载目录</string>
     <string name="not_available">不可用</string>
     <string name="cannot_find_available_storage">没有多余的存储空间</string>
     <string name="other_storage">其他存储</string>
@@ -329,6 +331,8 @@
     <string name="comics_archive">漫画压缩包</string>
     <string name="folder_with_images">图片文件夹</string>
     <string name="importing_manga">内容导入中</string>
+    <string name="import_content_type">内容类型</string>
+    <string name="import_content_type_auto">自动识别</string>
     <string name="reader_info_pattern">第 %1$d/%2$d 章 第 %3$d/%4$d 页</string>
     <string name="enabled_d_of_d" tools:ignore="PluralsCandidate">共 %2$d ，已启用 %1$d</string>
     <string name="size_s">大小：%s</string>
@@ -421,10 +425,15 @@
     <string name="import_file_description_novel">选择一个或多个 EPUB 或 TXT 文件，每个文件导入为一部小说。EPUB 在阅读时自动识别章节，TXT 则作为单个章节。</string>
     <string name="import_file_description_video">选择一个或多个视频文件（.mp4、.mkv 等），每个文件将导入为一部独立的动画。</string>
     <string name="import_folder_single_description_manga">选择一个包含单部漫画的文件夹，子文件夹将被识别为章节。</string>
-    <string name="import_folder_single_description_novel">选择一个包含小说文件（.epub、.txt）的文件夹，每个文件是一部小说。EPUB 在阅读时自动识别章节，TXT 则作为单个章节。</string>
+    <string name="import_folder_single_description_novel">选择一个包含单部小说的文件夹。内部 TXT 文件会作为章节导入；每个 EPUB 文件会作为一个分卷导入，并保留其内部章节。</string>
     <string name="import_folder_single_description_video">选择一个包含单部动画的文件夹，内部每个视频文件就是一集。</string>
-    <string name="import_folder_multiple_description_manga">选择一个包含多部漫画的文件夹，每个子文件夹将被导入为独立的漫画。</string>
-    <string name="import_folder_multiple_description_video">选择一个包含多部动画的文件夹，每个子文件夹是一部独立的动画。</string>
+    <string name="import_folder_multiple_description_manga">选择一个包含多部漫画的文件夹。每个子文件夹以及顶层的每个 CBZ 或 ZIP 文件，都会被导入为独立漫画。</string>
+    <string name="import_folder_multiple_description_video">选择一个包含多部动画的文件夹。每个子文件夹以及顶层的每个视频文件，都会被导入为独立动画。</string>
+    <string name="folder_single_novel">文件夹（单部小说）</string>
+    <string name="folder_multiple_novel">文件夹（多部小说）</string>
+    <string name="folder_single_video">文件夹（单部动画）</string>
+    <string name="folder_multiple_video">文件夹（多部动画）</string>
+    <string name="import_folder_multiple_description_novel">选择一个包含多部小说的文件夹。每个子文件夹以及顶层的每个 EPUB 或 TXT 文件，都会被导入为独立小说。</string>
     <string name="find_similar">搜索相似作品</string>
     <string name="web_view_unavailable">WebView不可用：检查是否已安装WebView</string>
     <string name="sync_host_description">可使用自建同步服务器或默认同步服务器，若不知道有何用处请不要自行修改。</string>
@@ -1311,6 +1320,7 @@
     <string name="ai_video_enhancement_summary_format">当前模式：%1$s\n算法：%2$s</string>
     <string name="ai_translation_summary_enabled">已启用，%1$s\n%2$s -> %3$s</string>
     <string name="ai_translation_summary_disabled">已关闭，%1$s\n%2$s -> %3$s</string>
+    <string name="ai_translation_summary_configured">已配置，%1$s\n%2$s -> %3$s</string>
     <string name="reader_translation_section_general">通用</string>
     <string name="reader_translation_section_ocr">文字检测与识别</string>
     <string name="reader_translation_section_translation">本地翻译</string>
@@ -1358,11 +1368,18 @@
     <string name="reader_translation_retry_failed_pages">重试失败页</string>
     <string name="reader_translation_retry_failed_started">已开始重试失败页</string>
     <string name="reader_translation_retry_failed_none">当前章节没有失败页</string>
+    <string name="reader_translation_progress_started">本章开始翻译（%1$d/%2$d）</string>
+    <string name="reader_translation_progress_update">本章翻译进度 %1$d/%2$d</string>
+    <string name="reader_translation_progress_complete">本章翻译完成（%1$d/%2$d）</string>
+    <string name="reader_translation_progress_complete_partial">本章翻译完成（成功 %1$d，失败 %2$d）</string>
     <string name="reader_translation_retry_this_page">重试此页</string>
     <string name="reader_translation_view_page_log">查看本页翻译日志</string>
     <string name="reader_translation_page_log_title">第 %1$d 页翻译日志</string>
     <string name="reader_translation_page_log_empty">当前页还没有翻译日志。</string>
     <string name="reader_translation_task_panel_title">翻译任务面板</string>
+    <string name="novel_translation_progress_started">本章开始翻译（%1$d/%2$d 段）</string>
+    <string name="novel_translation_progress_update">本章翻译进度 %1$d/%2$d 段</string>
+    <string name="novel_translation_progress_complete">本章翻译完成（%1$d/%2$d 段）</string>
     <string name="reader_translation_task_panel_empty">当前章节还没有可显示的翻译任务。</string>
     <string name="reader_translation_task_panel_empty_for_filter">筛选条件 %1$s 下没有任务。</string>
     <string name="reader_translation_task_panel_summary">总页数：%1$d | 完成：%2$d | 进行中：%3$d | 失败：%4$d</string>
@@ -1878,6 +1895,7 @@
     <string name="pref_reader_toolbar_floating">悬浮阅读器工具栏</string>
     <string name="pref_reader_toolbar_floating_summary">使阅读器底部工具栏悬浮在屏幕边缘上方</string>
     <string name="pref_loading_circle_style">加载圆圈样式</string>
+    <string name="pref_popup_radius">弹出菜单圆角</string>
     <string name="loading_circle_style_thick_straight">粗直线 (MD3 默认)</string>
     <string name="loading_circle_style_thick_wavy">粗波浪 (MD3 Expressive)</string>
     <string name="loading_circle_style_thin_straight">细直线 (系统经典)</string>
@@ -1897,4 +1915,10 @@
     <string name="jar_plugins_updates_available">JAR 插件有可用更新！</string>
     <string name="jar_plugins_update_all">全部更新</string>
     <string name="jar_plugins_updating">正在更新 JAR 插件...</string>
+    <string name="translate_title">翻译标题</string>
+    <string name="translating">翻译中…</string>
+    <string name="translation_failed">翻译失败</string>
+    <string name="clear_translation">清除翻译</string>
+    <string name="details_show_original">显示原文</string>
+    <string name="details_show_translation">显示译文</string>
 </resources>

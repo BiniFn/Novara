@@ -2,7 +2,11 @@ package org.skepsun.kototoro.main.ui
 
 import android.view.View
 import androidx.fragment.app.Fragment
+
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.main.ui.MainActivity
 
@@ -21,11 +25,13 @@ class SearchBarFilterViewController(
 		fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 		fun isContentTypeFilterVisible(): Boolean = true
 		fun isSourceTagFilterVisible(): Boolean = true
+		fun isLanguagePresetFilterVisible(): Boolean = true
 		fun isContentTypeEnabled(tab: BrowseGroupTab): Boolean = true
 		fun isSourceTagEnabled(tag: SourceTag): Boolean = true
 		fun getSourceTagIconRes(): Int = 0
 		/** Return true to consume the click and prevent default popup */
 		fun onFilterIconClicked(anchor: View): Boolean = false
+		fun onLanguagePresetClicked(anchor: View) {}
 	}
 
 	private var attachedFragment: Fragment? = null
@@ -34,7 +40,6 @@ class SearchBarFilterViewController(
 		attachedFragment = fragment
 		val activity = fragment.activity as? MainActivity
 		activity?.setActiveFilterCallback(callback)
-		updateIcons()
 	}
 
 	fun updateVisibility() {

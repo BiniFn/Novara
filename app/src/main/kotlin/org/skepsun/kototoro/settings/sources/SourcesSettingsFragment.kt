@@ -131,6 +131,5 @@ class SourcesSettingsFragment : BasePreferenceFragment(R.string.remote_sources),
 
 	private fun updateEnableAllDependencies() {
 		findPreference<Preference>(AppSettings.KEY_SOURCES_CATALOG)?.isEnabled = !settings.isAllSourcesEnabled
-		findPreference<Preference>(AppSettings.KEY_ENABLE_KOTATSU_SOURCES)?.isEnabled = !settings.isAllSourcesEnabled
 	}
 }

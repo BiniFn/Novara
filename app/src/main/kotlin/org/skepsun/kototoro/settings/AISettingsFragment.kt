@@ -59,7 +59,6 @@ class AISettingsFragment :
 		when (key) {
 			AppSettings.KEY_READER_TRANSLATION_MODE,
 			AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET,
-			AppSettings.KEY_READER_TRANSLATION_ENABLED,
 			AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT,
 			AppSettings.KEY_READER_TRANSLATION_API_KEY,
 			AppSettings.KEY_READER_TRANSLATION_API_MODEL,
@@ -77,11 +76,7 @@ class AISettingsFragment :
 
 	private fun updateDynamicSummaries() {
 		findPreference<Preference>("ai_translation")?.summary = getString(
-			if (settings.isReaderTranslationEnabled) {
-				R.string.ai_translation_summary_enabled
-			} else {
-				R.string.ai_translation_summary_disabled
-			},
+			R.string.ai_translation_summary_configured,
 			AISettingsSummarySupport.getTranslationModeLabel(requireContext(), settings.readerTranslationMode),
 			AISettingsSummarySupport.getSourceLanguageLabel(requireContext(), settings.readerTranslationSourceLanguage),
 			AISettingsSummarySupport.getTargetLanguageLabel(requireContext(), settings.readerTranslationTargetLanguage),

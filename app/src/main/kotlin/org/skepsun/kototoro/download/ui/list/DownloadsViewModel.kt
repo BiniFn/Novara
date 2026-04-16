@@ -282,6 +282,7 @@ class DownloadsViewModel @Inject constructor(
 			id = id,
 			workState = state,
 			manga = manga,
+			taskKind = DownloadState.getTaskKind(workData),
 			error = DownloadState.getError(workData),
 			isIndeterminate = DownloadState.isIndeterminate(workData),
 			isPaused = DownloadState.isPaused(workData),
@@ -371,6 +372,8 @@ class DownloadsViewModel @Inject constructor(
 			destination = task.destination,
 			format = task.format,
 			allowMeteredNetwork = task.allowMeteredNetwork,
+			preferredQuality = task.preferredQuality,
+			kind = task.kind,
 		)
 		workScheduler.delete(work.id)
 		workScheduler.schedule(listOf(manga to newTask))

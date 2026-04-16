@@ -49,6 +49,7 @@ class ExploreViewModel @Inject constructor(
 	private val shortcutManager: AppShortcutManager,
 	private val sourceGroupManager: SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
+	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
 ) : BaseViewModel() {
 
 	val isGrid = settings.observeAsStateFlow(
@@ -188,7 +189,12 @@ class ExploreViewModel @Inject constructor(
 				key = AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE,
 				scope = viewModelScope + Dispatchers.IO,
 				valueProducer = { isSourcesGroupedByLanguage },
-			)
+			),
+			settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+				.flatMapLatest { id ->
+					if (id == -1L) flowOf(null)
+					else sourcePresetsRepository.observe(id)
+				}
 		) { values: Array<Any?> ->
 			@Suppress("UNCHECKED_CAST")
 			buildList(
@@ -199,6 +205,7 @@ class ExploreViewModel @Inject constructor(
 				values[4] as BrowseGroupTab,
 				values[5] as Set<SourceTag>,
 				values[6] as Boolean,
+				values[7] as? org.skepsun.kototoro.explore.data.SourcePreset,
 			)
 		}.withErrorHandling()
 
@@ -210,9 +217,10 @@ class ExploreViewModel @Inject constructor(
 		groupTab: BrowseGroupTab,
 		sourceTags: Set<SourceTag>,
 		isGroupedByLanguage: Boolean,
+		preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 	): List<ListModel> {
 		// Apply group tab filtering
-		val filteredSources = applyGroupTabFilter(sources, groupTab, sourceTags)
+		val filteredSources = applyGroupTabFilter(sources, groupTab, sourceTags, preset)
 		
 		val result = ArrayList<ListModel>(filteredSources.size + 3)
 		if (filteredSources.isNotEmpty()) {
@@ -273,11 +281,16 @@ class ExploreViewModel @Inject constructor(
 		sources: List<ContentSourceInfo>,
 		groupTab: BrowseGroupTab,
 		sourceTags: Set<SourceTag>,
+		preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 	): List<ContentSourceInfo> {
 		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: total sources=${sources.size}, groupTab=$groupTab, sourceTags=$sourceTags")
 		
 		val filtered = sources.filter { sourceInfo ->
 			val source = sourceInfo.mangaSource
+			if (preset != null && source.name !in preset.sources) {
+				return@filter false
+			}
+
 			val contentGroup = sourceGroupManager.getContentGroup(source)
 			val originGroup = sourceGroupManager.getOriginGroup(source)
 			

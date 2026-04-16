@@ -142,7 +142,8 @@ class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 	}
 
 	private fun showLocalesMenu(anchor: View) {
-		val locales = viewModel.locales.mapTo(ArrayList(viewModel.locales.size)) {
+		val localeValues = viewModel.locales.value
+		val locales = localeValues.mapTo(ArrayList(localeValues.size)) {
 			it to it?.toLocale()
 		}
 		locales.sortWith(compareBy(nullsFirst(LocaleComparator())) { it.second })

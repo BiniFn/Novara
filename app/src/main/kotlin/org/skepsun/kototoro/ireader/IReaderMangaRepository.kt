@@ -35,7 +35,7 @@ class IReaderMangaRepository(
 
     override val filterCapabilities: ContentListFilterCapabilities
         get() = ContentListFilterCapabilities(
-            isSearchSupported = catalogSource?.supportsSearch() ?: false,
+            isSearchSupported = catalogSource != null,
             isMultipleTagsSupported = false,
             isSearchWithFiltersSupported = false,
         )
@@ -54,9 +54,25 @@ class IReaderMangaRepository(
             val result = if (!query.isNullOrBlank()) {
                 // Search: use filters with query
                 val filters = catalog.getFilters().toMutableList()
-                // Set first filter's value if it's a search filter
+                var titleFilterIndex = -1
+                for (i in filters.indices) {
+                    if (filters[i] is ireader.core.source.model.Filter.Title) {
+                        titleFilterIndex = i
+                        break
+                    }
+                }
+                
+                if (titleFilterIndex != -1) {
+                    val filter = filters[titleFilterIndex] as ireader.core.source.model.Filter.Title
+                    filter.value = query
+                } else {
+                    val newFilter = ireader.core.source.model.Filter.Title()
+                    newFilter.value = query
+                    filters.add(0, newFilter)
+                }
+                
                 catalog.getMangaList(
-                    filters = listOf(ireader.core.source.model.Filter.Title(query)),
+                    filters = filters,
                     page = page
                 )
             } else {

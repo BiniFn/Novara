@@ -70,6 +70,13 @@ class SettingsActivity :
 				setReorderingAllowed(true)
 				replace(R.id.container_master, RootSettingsFragment())
 			}
+		} else if (!isMasterDetails) {
+			val zombieMaster = fm.findFragmentById(R.id.container_master)
+			if (zombieMaster != null) {
+				fm.commit {
+					remove(zombieMaster)
+				}
+			}
 		}
 		viewModel.isSearchActive.observe(this, ::toggleSearchMode)
 		viewModel.onNavigateToPreference.observeEvent(this, ::navigateToPreference)
@@ -91,10 +98,10 @@ class SettingsActivity :
 			top = bars.top,
 			end = if (isTablet) 0 else bars.end(v),
 		)
-		viewBinding.textViewHeader?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-			marginEnd = bars.end(v)
-			topMargin = bars.top
-		}
+		viewBinding.appbarDetail?.updatePaddingRelative(
+			end = bars.end(v),
+			top = bars.top,
+		)
 		return insets
 	}
 
@@ -112,8 +119,9 @@ class SettingsActivity :
 	}
 
 	fun setSectionTitle(title: CharSequence?) {
-		viewBinding.textViewHeader?.apply {
-			textAndVisible = title
+		viewBinding.toolbarDetail?.let { toolbar ->
+			toolbar.title = title
+			toolbar.isVisible = title != null
 		} ?: setTitle(title ?: getString(R.string.settings))
 	}
 

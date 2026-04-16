@@ -61,6 +61,25 @@ class DetailsMenuProvider(
 		} else {
 			actionMarkSafe.setTitle(R.string.mark_as_nsfw)
 		}
+
+		val translateItem = menu.findItem(R.id.action_translate_title)
+		if (viewModel.hasTranslationCache.value) {
+			translateItem.setTitle(R.string.reader_translation_retranslate)
+		} else {
+			translateItem.setTitle(R.string.translate_title)
+		}
+		translateItem.isEnabled = !viewModel.isTranslating.value
+
+		val toggleTranslationItem = menu.findItem(R.id.action_toggle_translation)
+		toggleTranslationItem.isVisible = viewModel.hasTranslationCache.value
+		toggleTranslationItem.isEnabled = viewModel.hasTranslationCache.value && !viewModel.isTranslating.value
+		toggleTranslationItem.setTitle(
+			if (viewModel.isShowingTranslation.value) {
+				R.string.details_show_original
+			} else {
+				R.string.details_show_translation
+			},
+		)
 	}
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
@@ -123,6 +142,20 @@ class DetailsMenuProvider(
 
 			R.id.action_mark_safe -> {
 				viewModel.toggleMarkSafe()
+			}
+
+			R.id.action_translate_title -> {
+				val hasCache = viewModel.hasTranslationCache.value
+				viewModel.translateTitleAndDescription(forceRefresh = hasCache)
+				Snackbar.make(
+					snackbarHost,
+					if (hasCache) R.string.reader_translation_retranslate_started else R.string.translating,
+					Snackbar.LENGTH_SHORT,
+				).show()
+			}
+
+			R.id.action_toggle_translation -> {
+				viewModel.toggleTranslationDisplay()
 			}
 
 			else -> return false

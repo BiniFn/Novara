@@ -30,6 +30,7 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
+import org.skepsun.kototoro.core.prefs.TabletUiMode
 import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
 import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.util.ext.findParentCallback
@@ -78,8 +79,8 @@ class ReaderConfigSheet :
         val context = requireContext()
         val conf = context.resources.configuration
         val isPortrait = conf.orientation == Configuration.ORIENTATION_PORTRAIT
-        // 以 600dp 作为宽屏阈值，覆盖折叠竖屏和大屏竖向场景
-        val isWidePortrait = conf.screenWidthDp >= 600
+        // 宽松模式沿用当前逻辑：竖屏下只要宽度达到阈值也改用侧边面板。
+        val isWidePortrait = settings.tabletUiMode == TabletUiMode.RELAXED && conf.screenWidthDp >= 600
 
         return if (isPortrait && isWidePortrait) {
             object : SideSheetDialog(context, theme) {
@@ -290,6 +291,10 @@ class ReaderConfigSheet :
 
             R.id.switch_translation_enabled -> {
                 settings.isReaderTranslationEnabled = isChecked
+                if (isChecked) {
+                    settings.isReaderTranslationShowTranslated = true
+                    viewBinding?.switchTranslationShowTranslated?.isChecked = true
+                }
                 viewBinding?.switchTranslationShowTranslated?.isEnabled = isChecked
                 viewBinding?.buttonRetranslate?.isEnabled = isChecked
                 viewBinding?.buttonTranslationLog?.isEnabled = isChecked

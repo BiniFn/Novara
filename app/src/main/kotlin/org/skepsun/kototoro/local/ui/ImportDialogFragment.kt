@@ -99,18 +99,19 @@ class ImportDialogFragment : AlertDialogFragment<DialogImportBinding>(), View.On
 			R.id.button_type_novel -> {
 				binding.buttonFile.title = getString(R.string.import_file)
 				binding.buttonFile.subtitle = getString(R.string.import_file_description_novel)
-				binding.buttonDirSingle.title = getString(R.string.import_folder_single)
+				binding.buttonDirSingle.title = getString(R.string.folder_single_novel)
 				binding.buttonDirSingle.subtitle = getString(R.string.import_folder_single_description_novel)
-				// Novel doesn't need "multiple folder" - a folder of novels is just files
+				binding.buttonDirMultiple.title = getString(R.string.folder_multiple_novel)
+				binding.buttonDirMultiple.subtitle = getString(R.string.import_folder_multiple_description_novel)
 				binding.buttonDirSingle.isVisible = true
-				binding.buttonDirMultiple.isVisible = false
+				binding.buttonDirMultiple.isVisible = true
 			}
 			R.id.button_type_video -> {
 				binding.buttonFile.title = getString(R.string.import_file)
 				binding.buttonFile.subtitle = getString(R.string.import_file_description_video)
-				binding.buttonDirSingle.title = getString(R.string.import_folder_single)
+				binding.buttonDirSingle.title = getString(R.string.folder_single_video)
 				binding.buttonDirSingle.subtitle = getString(R.string.import_folder_single_description_video)
-				binding.buttonDirMultiple.title = getString(R.string.import_folder_multiple)
+				binding.buttonDirMultiple.title = getString(R.string.folder_multiple_video)
 				binding.buttonDirMultiple.subtitle = getString(R.string.import_folder_multiple_description_video)
 				binding.buttonDirSingle.isVisible = true
 				binding.buttonDirMultiple.isVisible = true

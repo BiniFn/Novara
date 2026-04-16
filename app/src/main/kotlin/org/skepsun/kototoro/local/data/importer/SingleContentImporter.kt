@@ -12,25 +12,35 @@ import kotlinx.coroutines.withContext
 import okio.buffer
 import okio.sink
 import org.skepsun.kototoro.core.exceptions.UnsupportedFileException
+import org.skepsun.kototoro.core.model.LocalNovelSource
+import org.skepsun.kototoro.core.util.AlphanumComparator
 import org.skepsun.kototoro.core.util.ext.openSource
 import org.skepsun.kototoro.core.util.ext.resolveName
 import org.skepsun.kototoro.core.util.ext.writeAllCancellable
+import org.skepsun.kototoro.local.data.ContentIndex
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.data.hasZipExtension
 import org.skepsun.kototoro.local.data.input.LocalContentParser
+import org.skepsun.kototoro.local.data.output.LocalContentOutput
+import org.skepsun.kototoro.local.epub.LocalEpubParser
 import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
+import org.skepsun.kototoro.parsers.util.longHashCode
 import java.io.File
 import java.io.IOException
+import java.util.LinkedHashSet
 import javax.inject.Inject
 
 /**
  * Import mode for directory import
  */
 enum class ImportMode {
-	/** Import a single manga - the folder itself is the manga, subdirectories are chapters */
+	/** Import a single work - the folder itself is one work */
 	SINGLE_MANGA,
-	/** Import multiple manga - each subdirectory is a separate manga */
+	/** Import multiple works - subdirectories and supported top-level files are separate works */
 	MULTIPLE_MANGA
 }
 
@@ -110,7 +120,7 @@ class SingleContentImporter @Inject constructor(
 	}
 
 	/**
-	 * Import as single manga - the selected folder is one manga, subdirectories are chapters
+	 * Import as single work - the selected folder is one work
 	 */
 	private suspend fun importDirectorySingle(uri: Uri, overrideKind: LocalImportKind? = null): List<LocalContent> {
 		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
@@ -123,11 +133,14 @@ class SingleContentImporter @Inject constructor(
 		for (docFile in childFiles) {
 			docFile.copyTo(dest)
 		}
+		if (kind == LocalImportKind.NOVEL) {
+			writeSingleNovelIndex(dest)
+		}
 		return listOf(LocalContentParser(dest).getContent(withDetails = false))
 	}
 
 	/**
-	 * Import as multiple manga - each subdirectory is a separate manga
+	 * Import as multiple works - subdirectories and supported top-level files are separate works
 	 */
 	private suspend fun importDirectoryMultiple(uri: Uri, overrideKind: LocalImportKind? = null): List<LocalContent> {
 		val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) {
@@ -152,6 +165,9 @@ class SingleContentImporter @Inject constructor(
 			// to avoid double-nesting like "漫画1/漫画1/图片.webp"
 			for (docFile in folderChildren) {
 				docFile.copyTo(dest)
+			}
+			if (kind == LocalImportKind.NOVEL) {
+				writeSingleNovelIndex(dest)
 			}
 			runCatching { LocalContentParser(dest).getContent(withDetails = false) }
 				.getOrNull()
@@ -181,6 +197,101 @@ class SingleContentImporter @Inject constructor(
 		}
 		
 		return results
+	}
+
+	private suspend fun writeSingleNovelIndex(rootDir: File) = withContext(Dispatchers.IO) {
+		val chapterFiles = rootDir.listFiles()
+			.orEmpty()
+			.filter { file ->
+				file.isFile && when {
+					file.name.endsWith(".epub", ignoreCase = true) -> true
+					file.name.endsWith(".txt", ignoreCase = true) -> true
+					else -> false
+				}
+			}
+			.sortedWith(compareBy(AlphanumComparator()) { it.name })
+		if (chapterFiles.isEmpty()) {
+			return@withContext
+		}
+
+		val authors = LinkedHashSet<String>()
+		var firstDescription: String? = null
+		var order = 0
+		var volumeIndex = 0
+		val indexedChapters = ArrayList<Pair<ContentChapter, String?>>(chapterFiles.size)
+
+		for (file in chapterFiles) {
+			if (file.name.endsWith(".epub", ignoreCase = true)) {
+				val epubContent = runCatching { LocalEpubParser(file).parseContent() }.getOrNull()
+				// 单文件夹小说导入时，每个 EPUB 文件都应稳定对应一个分卷。
+				// 这里使用文件名而不是 EPUB 元数据标题，避免多个分卷因共享同一个书名被错误合并。
+				val volumeTitle = file.name.substringBeforeLast('.').toDisplayTitle()
+				epubContent?.authors?.filter { it.isNotBlank() }?.let(authors::addAll)
+				if (firstDescription == null) {
+					firstDescription = epubContent?.description?.takeIf { it.isNotBlank() }
+				}
+				val internalChapters = epubContent?.chapters.orEmpty()
+				if (internalChapters.isNotEmpty()) {
+					volumeIndex += 1
+					internalChapters.forEachIndexed { chapterIndex, chapter ->
+						order += 1
+						indexedChapters += ContentChapter(
+							id = "${file.absolutePath}#chapter/$chapterIndex".longHashCode(),
+							title = chapter.title,
+							number = order.toFloat(),
+							volume = volumeIndex,
+							url = "localepub://${file.absolutePath}#chapter/$chapterIndex",
+							scanlator = volumeTitle,
+							uploadDate = file.lastModified(),
+							branch = null,
+							source = LocalNovelSource,
+						) to null
+					}
+					continue
+				}
+			}
+
+			order += 1
+			indexedChapters += ContentChapter(
+				id = file.absolutePath.longHashCode(),
+				title = file.name.substringBeforeLast('.').toDisplayTitle(),
+				number = order.toFloat(),
+				volume = 0,
+				url = file.toURI().toString(),
+				scanlator = null,
+				uploadDate = file.lastModified(),
+				branch = null,
+				source = LocalNovelSource,
+			) to file.name
+		}
+
+		if (indexedChapters.isEmpty()) {
+			return@withContext
+		}
+
+		val content = Content(
+			id = rootDir.absolutePath.longHashCode(),
+			title = rootDir.name.toDisplayTitle(),
+			altTitles = emptySet(),
+			url = rootDir.toURI().toString(),
+			publicUrl = rootDir.toURI().toString(),
+			rating = RATING_UNKNOWN,
+			contentRating = null,
+			coverUrl = "",
+			tags = emptySet(),
+			state = null,
+			authors = authors,
+			largeCoverUrl = null,
+			description = firstDescription,
+			chapters = null,
+			source = LocalNovelSource,
+		)
+		val index = ContentIndex(null)
+		index.setContentInfo(content)
+		indexedChapters.forEachIndexed { idx, (chapter, fileName) ->
+			index.addChapter(IndexedValue(idx, chapter), fileName, null)
+		}
+		File(rootDir, LocalContentOutput.ENTRY_NAME_INDEX).writeText(index.toString())
 	}
 
 	private suspend fun DocumentFile.copyTo(destDir: File) {
@@ -230,5 +341,11 @@ class SingleContentImporter @Inject constructor(
 		return runCatching {
 			DocumentFile.fromTreeUri(context, uri)
 		}.isSuccess
+	}
+
+	private fun String.toDisplayTitle(): String {
+		return substringBeforeLast('.')
+			.replace('_', ' ')
+			.replaceFirstChar { it.uppercase() }
 	}
 }

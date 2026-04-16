@@ -72,11 +72,8 @@ fun ContentSource(name: String?): ContentSource {
 	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == name }?.let { return it }
 
 	// Fallbacks: If not loaded yet, return stable AnonymousContentSource
-	if (name.startsWith("JSON_") || name.startsWith("TRACKING_") || name.startsWith("MIHON_") || name.startsWith("ANIYOMI_") || name.startsWith("IREADER_")) {
-		return AnonymousContentSource(name)
-	}
-
-	return UnknownContentSource
+	// Keep the original name so it isn't lost if the source loads later
+	return AnonymousContentSource(name)
 }
 
 fun Collection<String>.toContentSources() = map(::ContentSource)

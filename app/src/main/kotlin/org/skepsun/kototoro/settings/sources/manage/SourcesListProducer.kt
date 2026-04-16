@@ -51,6 +51,10 @@ class SourcesListProducer @Inject constructor(
 			.flowOn(Dispatchers.Default)
 			.onEach { onInvalidated(emptySet()) }
 			.launchIn(scope)
+		repository.observeExternalExtensionChanges()
+			.flowOn(Dispatchers.Default)
+			.onEach { onInvalidated(emptySet()) }
+			.launchIn(scope)
 	}
 
 	override fun onInvalidated(tables: Set<String>) {

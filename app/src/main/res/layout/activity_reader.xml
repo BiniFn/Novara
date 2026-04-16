@@ -23,33 +23,6 @@
 		app:icon="@drawable/ic_timelapse"
 		app:layout_insetEdge="bottom" />
 
-	<com.google.android.material.button.MaterialButton
-		android:id="@+id/button_translation_toggle"
-		style="?materialIconButtonOutlinedStyle"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_gravity="bottom|start"
-		android:layout_margin="16dp"
-		android:visibility="gone"
-		app:backgroundTint="@color/bg_floating_button"
-		app:icon="@drawable/ic_language"
-		app:layout_insetEdge="bottom"
-		tools:visibility="visible" />
-
-	<com.google.android.material.button.MaterialButton
-		android:id="@+id/button_translation_log_panel"
-		style="?materialIconButtonOutlinedStyle"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_gravity="bottom|start"
-		android:layout_marginStart="16dp"
-		android:layout_marginBottom="80dp"
-		android:visibility="gone"
-		app:backgroundTint="@color/bg_floating_button"
-		app:icon="@drawable/ic_info_outline"
-		app:layout_insetEdge="bottom"
-		tools:visibility="visible" />
-
 	<org.skepsun.kototoro.core.ui.widgets.ZoomControl
 		android:id="@+id/zoomControl"
 		android:layout_width="wrap_content"

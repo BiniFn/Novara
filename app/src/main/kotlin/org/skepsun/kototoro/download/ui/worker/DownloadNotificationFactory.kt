@@ -144,10 +144,13 @@ class DownloadNotificationFactory @AssistedInject constructor(
 		)
 		when {
 			state == null -> Unit
-			state.localContent != null -> { // downloaded, final state
+			state.isCompleted || state.localContent != null -> {
 				builder.setProgress(0, 0, false)
-				builder.setContentText(context.getString(R.string.download_complete))
-				builder.setContentIntent(createContentIntent(context, state.localContent.manga))
+				builder.setSubText(context.getString(state.taskKind.actionTitleResId))
+				builder.setContentText(context.getString(state.taskKind.completedStatusResId))
+				builder.setContentIntent(
+					state.localContent?.let { createContentIntent(context, it.manga) } ?: queueIntent,
+				)
 				builder.setAutoCancel(true)
 				builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
 				builder.setCategory(null)
@@ -159,6 +162,7 @@ class DownloadNotificationFactory @AssistedInject constructor(
 
 			state.isStopped -> {
 				builder.setProgress(0, 0, false)
+				builder.setSubText(context.getString(state.taskKind.actionTitleResId))
 				builder.setContentText(context.getString(R.string.queued))
 				builder.setCategory(NotificationCompat.CATEGORY_PROGRESS)
 				builder.setStyle(null)
@@ -168,6 +172,7 @@ class DownloadNotificationFactory @AssistedInject constructor(
 			}
 
 			state.isPaused -> { // paused (with error or manually)
+				builder.setSubText(context.getString(state.taskKind.actionTitleResId))
 				builder.setProgress(state.max, state.progress, false)
 				val percent = if (state.percent >= 0) {
 					context.getString(R.string.percent_string_pattern, (state.percent * 100).format())
@@ -223,6 +228,7 @@ class DownloadNotificationFactory @AssistedInject constructor(
 			}
 
 			else -> {
+				builder.setSubText(context.getString(state.taskKind.activeStatusResId))
 				builder.setProgress(state.max, state.progress, false)
 				builder.setContentText(getProgressString(state.percent, state.eta, state.isStuck))
 				builder.setCategory(NotificationCompat.CATEGORY_PROGRESS)

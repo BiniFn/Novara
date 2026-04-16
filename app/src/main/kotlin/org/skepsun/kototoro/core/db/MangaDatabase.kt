@@ -89,7 +89,10 @@ import org.skepsun.kototoro.tracker.data.TrackEntity
 import org.skepsun.kototoro.tracker.data.TrackLogEntity
 import org.skepsun.kototoro.tracker.data.TracksDao
 
-const val DATABASE_VERSION = 35
+import org.skepsun.kototoro.explore.data.SourcePresetEntity
+import org.skepsun.kototoro.explore.data.SourcePresetsDao
+
+const val DATABASE_VERSION = 36
 
 @Database(
 	entities = [
@@ -98,7 +101,7 @@ const val DATABASE_VERSION = 35
 		TrackLogEntity::class, SuggestionEntity::class, BookmarkEntity::class, ScrobblingEntity::class,
 		MangaSourceEntity::class, StatsEntity::class, LocalContentIndexEntity::class, EpubChapterMappingEntity::class,
 		JsonSourceEntity::class, ExternalExtensionRepoEntity::class,
-		TrackingSiteItemEntity::class, TrackingSiteLinkEntity::class,
+		TrackingSiteItemEntity::class, TrackingSiteLinkEntity::class, SourcePresetEntity::class,
 		// EpubChapterEntity::class,
 	],
 	version = DATABASE_VERSION,
@@ -143,6 +146,8 @@ abstract class MangaDatabase : RoomDatabase() {
 
 	abstract fun getTrackingSiteDao(): TrackingSiteDao
 
+	abstract fun getSourcePresetsDao(): SourcePresetsDao
+
 	// abstract fun getEpubChapterDao(): EpubChapterDao
 }
 
@@ -182,6 +187,7 @@ fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
 	Migration32To33(),
 	Migration33To34(),
 	Migration34To35(),
+	org.skepsun.kototoro.core.db.migrations.Migration35To36(),
 )
 
 fun MangaDatabase(context: Context): MangaDatabase = Room

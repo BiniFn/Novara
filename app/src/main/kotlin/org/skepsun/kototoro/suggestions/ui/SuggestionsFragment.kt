@@ -10,7 +10,7 @@ import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.list.ui.ContentListFragment
@@ -26,7 +26,7 @@ class SuggestionsFragment : ContentListFragment() {
 			?.let(BrowseGroupTab::fromId)
 			?.let(viewModel::setSelectedGroupTab)
 		super.onViewBindingCreated(binding, savedInstanceState)
-		addMenuProvider(SuggestionMenuProvider())
+		addSupportMenuProvider(SuggestionMenuProvider())
 	}
 
 	override fun onScrolledToEnd() = Unit

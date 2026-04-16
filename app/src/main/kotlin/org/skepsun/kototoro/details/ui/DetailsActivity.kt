@@ -100,6 +100,8 @@ class DetailsActivity :
 			if (manga != null) {
 				androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
 				supportPostponeEnterTransition()
+				// Fallback to prevent indefinite hang on broken content or failed image loads
+				window.decorView.postDelayed({ supportStartPostponedEnterTransition() }, 350)
 			}
 		}
 
@@ -197,6 +199,7 @@ class DetailsActivity :
 				leftMargin = rect.left.toInt()
 			}
 		}
+
 	}
 
 	override fun onProvideAssistContent(outContent: AssistContent) {
@@ -205,6 +208,7 @@ class DetailsActivity :
 	}
 
 	override fun isNsfwContent(): Flow<Boolean> = viewModel.manga.map { it?.contentRating == ContentRating.ADULT }
+
 
 	private fun onContentRemoved(manga: Content) {
 		Toast.makeText(

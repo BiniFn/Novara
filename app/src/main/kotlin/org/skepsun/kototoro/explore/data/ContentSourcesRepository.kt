@@ -84,6 +84,21 @@ class ContentSourcesRepository @Inject constructor(
 				assimilateNewSources(force = true)
 			}
 		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			mihonExtensionManager.installedExtensions.collect {
+				assimilateNewSources(force = true)
+			}
+		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			aniyomiExtensionManager.installedExtensions.collect {
+				assimilateNewSources(force = true)
+			}
+		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			ireaderExtensionManager.installedExtensions.collect {
+				assimilateNewSources(force = true)
+			}
+		}
 	}
 
 	val allContentSources: Set<ContentSource>
@@ -95,6 +110,18 @@ class ContentSourcesRepository @Inject constructor(
 			}
 			return set
 		}
+
+	suspend fun getAllAvailableSourcesUnfiltered(): List<ContentSource> {
+		assimilateNewSources()
+		return buildList {
+			addAll(allContentSources)
+			addAll(getExternalSources())
+			addAll(getEnabledJsonSources())
+			addAll(getEnabledMihonSources())
+			addAll(getEnabledAniyomiSources())
+			addAll(getEnabledIReaderSources())
+		}
+	}
 
 	suspend fun getEnabledSources(): List<ContentSource> {
 		assimilateNewSources()
@@ -131,6 +158,7 @@ class ContentSourcesRepository @Inject constructor(
 				if (!settings.isShowBrokenSources) {
 					list.retainAll { !it.isBroken }
 				}
+				
 				list
 			}
 	}
@@ -143,46 +171,8 @@ class ContentSourcesRepository @Inject constructor(
 	 */
 	private fun getEnabledMihonSources(): List<org.skepsun.kototoro.mihon.model.MihonMangaSource> {
 		val allSources = mihonExtensionManager.getMihonMangaSources()
-		
-		// Get user's preferred content languages (from onboarding)
-		val userLanguages = settings.contentLanguages
 		val isNsfwDisabled = settings.isNsfwContentDisabled
-		
-		android.util.Log.d("ContentSourcesRepository", "User content languages for Mihon sources: $userLanguages, NSFW disabled: $isNsfwDisabled")
-		
-		// Map empty string (Various Languages in Kototoro native) to "all" (Mihon)
-		val isMultiLangEnabled = userLanguages.contains("")
-		
-		// Filter sources:
-		// - "all" language sources are shown only if user enabled multi-language
-		// - Other sources must match user's language preference (handles variants like zh-Hans)
-		// - NSFW sources are hidden if isNsfwDisabled is true
-		return allSources.filter { source ->
-			// Check NSFW first
-			if (isNsfwDisabled && source.isNsfw) {
-				return@filter false
-			}
-
-			// If language filter is disabled, show all sources
-			if (!settings.isExtensionsFilterLangEnabled) {
-				return@filter true
-			}
-
-			val mihonLang = source.language.lowercase()
-			if (mihonLang == "all") {
-				isMultiLangEnabled
-			} else {
-				userLanguages.any { userLang ->
-					userLang.isNotEmpty() && (mihonLang == userLang || mihonLang.startsWith("$userLang-"))
-				}
-			}
-		}.also { filtered ->
-			android.util.Log.d("ContentSourcesRepository", "Mihon sources: ${allSources.size} total, ${filtered.size} after filters. userLanguages=$userLanguages, isNsfwDisabled=$isNsfwDisabled")
-			if (filtered.size < allSources.size) {
-				val filteredOut = allSources.filter { it !in filtered }
-				android.util.Log.d("ContentSourcesRepository", "Filtered out Mihon sources (example): ${filteredOut.take(5).joinToString { "${it.displayName} (${it.language}, NSFW=${it.isNsfw})" }}")
-			}
-		}
+		return allSources.filter { !isNsfwDisabled || !it.isNsfw }
 	}
 	
 	/**
@@ -216,26 +206,7 @@ class ContentSourcesRepository @Inject constructor(
 	private fun getEnabledIReaderSources(): List<org.skepsun.kototoro.ireader.model.IReaderMangaSource> {
 		val allSources = ireaderExtensionManager.getIReaderMangaSources()
 		val isNsfwDisabled = settings.isNsfwContentDisabled
-
-		return allSources.filter { source ->
-			if (isNsfwDisabled && source.isNsfw) return@filter false
-
-			if (!settings.isExtensionsFilterLangEnabled) return@filter true
-
-			val userLanguages = settings.contentLanguages
-			// Map IReader country code to ISO 639-1 language code
-			val mappedLang = org.skepsun.kototoro.core.model.mapIReaderLangToLocale(source.language) ?: source.language.lowercase()
-			val isMultiLangEnabled = userLanguages.contains("")
-			if (mappedLang == "" || mappedLang == "all") {
-				isMultiLangEnabled
-			} else {
-				userLanguages.any { userLang ->
-					userLang.isNotEmpty() && (mappedLang == userLang || mappedLang.startsWith("$userLang-") || userLang.startsWith("$mappedLang-"))
-				}
-			}
-		}.also { filtered ->
-			android.util.Log.d("ContentSourcesRepository", "IReader sources: ${allSources.size} total, ${filtered.size} after filters. langs=${allSources.map { it.language }}")
-		}
+		return allSources.filter { !isNsfwDisabled || !it.isNsfw }
 	}
 	
 	/**
@@ -244,10 +215,8 @@ class ContentSourcesRepository @Inject constructor(
 	private fun observeIReaderSources(): Flow<List<org.skepsun.kototoro.ireader.model.IReaderMangaSource>> {
 		return combine(
 			ireaderExtensionManager.installedExtensions,
-			observeIsNsfwDisabled(),
-			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-			settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
-		) { _, _, _, _ ->
+			observeIsNsfwDisabled()
+		) { _, _ ->
 			getEnabledIReaderSources()
 		}
 	}
@@ -418,10 +387,12 @@ class ContentSourcesRepository @Inject constructor(
 		
 		if (shouldIncludeMihon) {
 			val allMihon = mihonExtensionManager.getMihonMangaSources()
-			val enabledNames = if (!settings.isAllSourcesEnabled) dao.findAllEnabledNames() else allMihon.map { it.name }
+			val disabledNames = if (!settings.isAllSourcesEnabled) dao.findAll().filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
+			val existingNames = result.mapToSet { it.name }
 			val filteredMihon = allMihon.filter { source ->
-				val isMatch = if (isDisabledOnly) source.name !in enabledNames else source.name in enabledNames
-				isMatch && (query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
+				source.name !in existingNames &&
+				(if (isDisabledOnly) source.name in disabledNames else source.name !in disabledNames) && 
+				(query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
 			}
 			result.addAll(filteredMihon)
 		}
@@ -440,10 +411,12 @@ class ContentSourcesRepository @Inject constructor(
 					)
 				}
 			}
-			val enabledNames = if (!settings.isAllSourcesEnabled) dao.findAllEnabledNames() else allAniyomi.map { it.name }
+			val disabledNames = if (!settings.isAllSourcesEnabled) dao.findAll().filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
+			val existingNames = result.mapToSet { it.name }
 			val filteredAniyomi = allAniyomi.filter { source ->
-				val isMatch = if (isDisabledOnly) source.name !in enabledNames else source.name in enabledNames
-				isMatch && (query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
+				source.name !in existingNames &&
+				(if (isDisabledOnly) source.name in disabledNames else source.name !in disabledNames) && 
+				(query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
 			}
 			result.addAll(filteredAniyomi)
 		}
@@ -454,12 +427,30 @@ class ContentSourcesRepository @Inject constructor(
 		
 		if (shouldIncludeIReader) {
 			val allIReader = ireaderExtensionManager.getIReaderMangaSources()
-			val enabledNames = if (!settings.isAllSourcesEnabled) dao.findAllEnabledNames() else allIReader.map { it.name }
+			val disabledNames = if (!settings.isAllSourcesEnabled) dao.findAll().filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
+			val existingNames = result.mapToSet { it.name }
 			val filteredIReader = allIReader.filter { source ->
-				val isMatch = if (isDisabledOnly) source.name !in enabledNames else source.name in enabledNames
-				isMatch && (query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
+				source.name !in existingNames &&
+				(if (isDisabledOnly) source.name in disabledNames else source.name !in disabledNames) && 
+				(query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
 			}
 			result.addAll(filteredIReader)
+		}
+		
+		if (locale != null) {
+			result.retainAll { it.getLocale()?.language == locale }
+		}
+		if (types.isNotEmpty()) {
+			result.retainAll { it.getContentType() in types }
+		}
+		
+		val activePresetId = settings.activeSourcePresetId
+		if (activePresetId != -1L) {
+			val preset = db.getSourcePresetsDao().find(activePresetId)
+			if (preset != null) {
+				val activeSources = if (preset.sources.isEmpty()) emptySet() else preset.sources.split(",").toSet()
+				result.retainAll { it.name in activeSources }
+			}
 		}
 		
 		return result
@@ -573,21 +564,24 @@ class ContentSourcesRepository @Inject constructor(
 		return observeIReaderSources().map { it.size }.distinctUntilChanged()
 	}
 
+	fun observeExternalExtensionChanges(): Flow<Unit> {
+		return combine(
+			mihonExtensionManager.installedExtensions,
+			aniyomiExtensionManager.installedExtensions,
+			ireaderExtensionManager.installedExtensions,
+		) { _, _, _ ->
+			Unit
+		}.onStart {
+			emit(Unit)
+		}
+	}
+
 	fun observeEnabledSources(): Flow<List<ContentSourceInfo>> = combine(
 		observeIsNsfwDisabled(),
 		observeAllEnabled(),
 		observeSortOrder(),
-		settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-		settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled },
 		settings.observeAsFlow(AppSettings.KEY_SHOW_BROKEN_SOURCES) { isShowBrokenSources }
-	) { args ->
-		val skipNsfw = args[0] as Boolean
-		val allEnabled = args[1] as Boolean
-		val order = args[2] as SourcesSortOrder
-		@Suppress("UNCHECKED_CAST")
-		val contentLanguages = args[3] as Set<String>
-		val isExtFilterEnabled = args[4] as Boolean
-		val showBroken = args[5] as Boolean
+	) { skipNsfw, allEnabled, order, showBroken ->
 
 		combine(
 			dao.observeAll(false, order),
@@ -600,22 +594,7 @@ class ContentSourcesRepository @Inject constructor(
 			val sources = enabledEntities.toSources(skipNsfw, order).filter { info ->
 				val source = info.mangaSource
 				if (!showBroken && source.isBroken) return@filter false
-				
-				if (source is org.skepsun.kototoro.mihon.model.MihonMangaSource) {
-					if (!isExtFilterEnabled) return@filter true
-					
-					val isMultiLangEnabled = contentLanguages.contains("")
-					val mihonLang = source.language.lowercase()
-					if (mihonLang == "all") {
-						isMultiLangEnabled
-					} else {
-						contentLanguages.any { userLang ->
-							userLang.isNotEmpty() && (mihonLang == userLang || mihonLang.startsWith("$userLang-"))
-						}
-					}
-				} else {
-					true 
-				}
+				true
 			}
 			Pair(sources, disabledNames)
 		}
@@ -704,10 +683,8 @@ class ContentSourcesRepository @Inject constructor(
 	private fun observeAniyomiSources(): Flow<List<org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource>> {
 		return combine(
 			aniyomiExtensionManager.installedExtensions,
-			observeIsNsfwDisabled(),
-			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-			settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
-		) { _, _, _, _ ->
+			observeIsNsfwDisabled()
+		) { _, _ ->
 			getEnabledAniyomiSources()
 		}
 	}
@@ -771,10 +748,8 @@ class ContentSourcesRepository @Inject constructor(
 	private fun observeMihonSources(): Flow<List<org.skepsun.kototoro.mihon.model.MihonMangaSource>> {
 		return combine(
 			mihonExtensionManager.installedExtensions,
-			observeIsNsfwDisabled(),
-			settings.observeAsFlow(AppSettings.KEY_CONTENT_LANGUAGES) { contentLanguages },
-			settings.observeAsFlow(AppSettings.KEY_EXTENSIONS_FILTER_LANG) { isExtensionsFilterLangEnabled }
-		) { _, _, _, _ ->
+			observeIsNsfwDisabled()
+		) { _, _ ->
 			getEnabledMihonSources()
 		}
 	}
@@ -798,11 +773,30 @@ class ContentSourcesRepository @Inject constructor(
 	}
 
 	suspend fun setSourcesEnabledExclusive(sources: Set<ContentSource>) {
+		val allSources = queryAllSources()
+		val enabledNames = sources.map { it.name }.toSet()
+		
+		val jsonSourcesToEnable = mutableListOf<String>()
+		val jsonSourcesToDisable = mutableListOf<String>()
+		val nativeSourcesToEnable = mutableListOf<String>()
+		val nativeSourcesToDisable = mutableListOf<String>()
+		
+		for (s in allSources) {
+			val isEnabled = s.name in enabledNames
+			if (s.name.startsWith("JSON_")) {
+				if (isEnabled) jsonSourcesToEnable.add(s.name) else jsonSourcesToDisable.add(s.name)
+			} else {
+				if (isEnabled) nativeSourcesToEnable.add(s.name) else nativeSourcesToDisable.add(s.name)
+			}
+		}
+		
+		if (jsonSourcesToEnable.isNotEmpty()) jsonSourceManager.toggleSourcesBatch(jsonSourcesToEnable, true)
+		if (jsonSourcesToDisable.isNotEmpty()) jsonSourceManager.toggleSourcesBatch(jsonSourcesToDisable, false)
+		
 		db.withTransaction {
 			assimilateNewSources()
-			for (s in allContentSources) {
-				dao.setEnabled(s.name, s in sources)
-			}
+			for (name in nativeSourcesToEnable) dao.setEnabled(name, true)
+			for (name in nativeSourcesToDisable) dao.setEnabled(name, false)
 		}
 	}
 
@@ -909,9 +903,18 @@ class ContentSourcesRepository @Inject constructor(
 
 	private suspend fun getNewSources(): MutableSet<out ContentSource> {
 		val entities = dao.findAll()
-		val result = allContentSources.toMutableSet()
-		for (e in entities) {
-			result.remove(e.source.toContentSourceOrNull() ?: continue)
+		val existing = entities.mapToSet { it.source }
+		val result = LinkedHashSet<ContentSource>()
+		val totalSources = buildList {
+			addAll(allContentSources)
+			addAll(getEnabledMihonSources())
+			addAll(getEnabledAniyomiSources())
+			addAll(getEnabledIReaderSources())
+		}
+		for (source in totalSources) {
+			if (source.name !in existing) {
+				result.add(source)
+			}
 		}
 		return result
 	}

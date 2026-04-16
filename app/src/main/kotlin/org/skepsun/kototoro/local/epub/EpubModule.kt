@@ -42,7 +42,7 @@ interface EpubModule {
         @Provides
         @Singleton
         fun provideEpubContentCache(): EpubContentCache {
-            return EpubContentCache()
+            return EpubContentCache.getInstance()
         }
         
         @Provides

@@ -14,6 +14,16 @@
 		android:persistent="false"
 		android:title="@string/manga_save_location" />
 
+	<Preference
+		android:key="local_novel_storage"
+		android:persistent="false"
+		android:title="@string/novel_save_location" />
+
+	<Preference
+		android:key="local_video_storage"
+		android:persistent="false"
+		android:title="@string/video_save_location" />
+
 	<ListPreference
 		android:entries="@array/download_formats"
 		android:key="downloads_format"

@@ -77,6 +77,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isAmoledTheme: Boolean
 		get() = prefs.getBoolean(KEY_THEME_AMOLED, false)
 
+	val tabletUiMode: TabletUiMode
+		get() = prefs.getEnumValue(KEY_TABLET_UI_MODE, TabletUiMode.RELAXED)
+
 	var mainNavItems: List<NavItem>
 		get() {
 			val rawStr = prefs.getString(KEY_NAV_MAIN, null)
@@ -130,9 +133,39 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isQuickFilterEnabled: Boolean
 		get() = prefs.getBoolean(KEY_QUICK_FILTER, true)
 
-	var isSearchBarFilterHidden: Boolean
-		get() = prefs.getBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, false)
-		set(value) = prefs.edit { putBoolean(KEY_SEARCH_BAR_FILTER_HIDDEN, value) }
+	var isShowLanguagePresetFilter: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_LANGUAGE_PRESET_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_LANGUAGE_PRESET_FILTER, value) }
+
+	var hiddenLanguagePreset: String?
+		get() = prefs.getString(KEY_HIDDEN_LANGUAGE_PRESET, null)
+		set(value) = prefs.edit { putString(KEY_HIDDEN_LANGUAGE_PRESET, value) }
+
+	var isShowContentTypeFilter: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_CONTENT_TYPE_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_CONTENT_TYPE_FILTER, value) }
+
+	var hiddenContentType: String?
+		get() = prefs.getString(KEY_HIDDEN_CONTENT_TYPE, null)
+		set(value) = prefs.edit { putString(KEY_HIDDEN_CONTENT_TYPE, value) }
+
+	var isShowSourceTagFilter: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_SOURCE_TAG_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHOW_SOURCE_TAG_FILTER, value) }
+
+	var hiddenSourceTag: String?
+		get() = prefs.getString(KEY_HIDDEN_SOURCE_TAG, null)
+		set(value) = prefs.edit { putString(KEY_HIDDEN_SOURCE_TAG, value) }
+
+	var activeSourcePresetId: Long
+		get() = try {
+			prefs.getLong(KEY_ACTIVE_SOURCE_PRESET_ID, -1L)
+		} catch (_: ClassCastException) {
+			// After backup restore, JSON may deserialize Long as Int
+			val intValue = prefs.getInt(KEY_ACTIVE_SOURCE_PRESET_ID, -1)
+			intValue.toLong().also { activeSourcePresetId = it }
+		}
+		set(value) = prefs.edit { putLong(KEY_ACTIVE_SOURCE_PRESET_ID, value) }
 
 	val isDescriptionExpanded: Boolean
 		get() = !prefs.getBoolean(KEY_COLLAPSE_DESCRIPTION, true)
@@ -573,6 +606,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = LoadingCircleStyle.fromValue(prefs.getString(KEY_LOADING_CIRCLE_STYLE, LoadingCircleStyle.THICK_STRAIGHT.value))
 		set(value) = prefs.edit { putString(KEY_LOADING_CIRCLE_STYLE, value.value) }
 
+	val popupRadius: Int
+		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull() ?: -1
+
 	enum class BlurMode(val value: String) {
 		STANDARD("standard"),
 		IMMERSIVE("immersive"),
@@ -707,17 +743,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_SOURCES_ENABLED_ALL, false)
 		set(value) = prefs.edit { putBoolean(KEY_SOURCES_ENABLED_ALL, value) }
 
-	var isExtensionsFilterLangEnabled: Boolean
-		get() = prefs.getBoolean(KEY_EXTENSIONS_FILTER_LANG, false)
-		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_FILTER_LANG, value) }
+
 
 	var isExtensionsGridMode: Boolean
 		get() = prefs.getBoolean(KEY_EXTENSIONS_GRID, false)
 		set(value) = prefs.edit { putBoolean(KEY_EXTENSIONS_GRID, value) }
-
-	var isKotatsuSourcesEnabled: Boolean
-		get() = prefs.getBoolean(KEY_ENABLE_KOTATSU_SOURCES, true)
-		set(value) = prefs.edit { putBoolean(KEY_ENABLE_KOTATSU_SOURCES, value) }
 
 	var isShowBrokenSources: Boolean
 		get() = prefs.getBoolean(KEY_SHOW_BROKEN_SOURCES, false)
@@ -770,6 +800,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val readerTranslationApiProviderPreset: String
 		get() = prefs.getString(KEY_READER_TRANSLATION_API_PROVIDER_PRESET, "CUSTOM") ?: "CUSTOM"
 
+	val readerTranslationApiCustomHeaders: String
+		get() = prefs.getString(KEY_READER_TRANSLATION_API_CUSTOM_HEADERS, "") ?: ""
+
 	val readerE2eApiEndpoint: String
 		get() = prefs.getString(KEY_READER_E2E_API_ENDPOINT, "") ?: ""
 
@@ -781,6 +814,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	val readerE2eApiProviderPreset: String
 		get() = prefs.getString(KEY_READER_E2E_API_PROVIDER_PRESET, "GEMINI") ?: "GEMINI"
+
+	val readerE2eApiCustomHeaders: String
+		get() = prefs.getString(KEY_READER_E2E_API_CUSTOM_HEADERS, "") ?: ""
 
 	val readerE2eApiConcurrency: Int
 		get() = prefs.getString(KEY_READER_E2E_API_CONCURRENCY, "3")?.toIntOrNull() ?: 3
@@ -914,6 +950,30 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 					userSpecifiedContentDirectories = userDirs + value
 				}
 				putString(KEY_LOCAL_STORAGE, value.path)
+			}
+		}
+
+	var novelStorageDir: File?
+		get() = prefs.getString(KEY_LOCAL_NOVEL_STORAGE, null)?.let {
+			File(it)
+		}?.takeIf { it.exists() }
+		set(value) = prefs.edit {
+			if (value == null) {
+				remove(KEY_LOCAL_NOVEL_STORAGE)
+			} else {
+				putString(KEY_LOCAL_NOVEL_STORAGE, value.path)
+			}
+		}
+
+	var videoStorageDir: File?
+		get() = prefs.getString(KEY_LOCAL_VIDEO_STORAGE, null)?.let {
+			File(it)
+		}?.takeIf { it.exists() }
+		set(value) = prefs.edit {
+			if (value == null) {
+				remove(KEY_LOCAL_VIDEO_STORAGE)
+			} else {
+				putString(KEY_LOCAL_VIDEO_STORAGE, value.path)
 			}
 		}
 
@@ -1334,7 +1394,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		values.forEach { (key, value) ->
 			when (value) {
 				is Boolean -> putBoolean(key, value)
-				is Int -> putInt(key, value)
+				is Int -> putLong(key, value.toLong()) // JSON can't distinguish Int/Long; store as Long for safety
 				is Long -> putLong(key, value)
 				is Float -> putFloat(key, value)
 				is String -> putString(key, value)
@@ -1415,7 +1475,13 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	companion object {
 
 
-		const val KEY_SEARCH_BAR_FILTER_HIDDEN = "search_filter_hidden"
+		const val KEY_SHOW_LANGUAGE_PRESET_FILTER = "show_language_preset_filter"
+		const val KEY_HIDDEN_LANGUAGE_PRESET = "hidden_language_preset"
+		const val KEY_SHOW_CONTENT_TYPE_FILTER = "show_content_type_filter"
+		const val KEY_HIDDEN_CONTENT_TYPE = "hidden_content_type"
+		const val KEY_SHOW_SOURCE_TAG_FILTER = "show_source_tag_filter"
+		const val KEY_HIDDEN_SOURCE_TAG = "hidden_source_tag"
+		const val KEY_ACTIVE_SOURCE_PRESET_ID = "active_source_preset_id"
 		const val KEY_SOURCES_GROUPED_BY_LANGUAGE = "sources_grouped_by_language"
 
 		const val TRACK_HISTORY = "history"
@@ -1429,6 +1495,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_THEME = "theme"
 		const val KEY_COLOR_THEME = "color_theme"
 		const val KEY_THEME_AMOLED = "amoled_theme"
+		const val KEY_TABLET_UI_MODE = "tablet_ui_mode"
 		const val KEY_OFFLINE_DISABLED = "no_offline"
 		const val KEY_PAGES_CACHE_CLEAR = "pages_cache_clear"
 		const val KEY_VIDEO_CACHE_CLEAR = "video_cache_clear"
@@ -1443,6 +1510,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_GRID_SIZE_PAGES = "grid_size_pages"
 		const val KEY_REMOTE_SOURCES = "remote_sources"
 		const val KEY_LOCAL_STORAGE = "local_storage"
+		const val KEY_LOCAL_NOVEL_STORAGE = "local_novel_storage"
+		const val KEY_LOCAL_VIDEO_STORAGE = "local_video_storage"
 		const val KEY_READER_DOUBLE_PAGES = "reader_double_pages"
 		const val KEY_READER_DOUBLE_PAGES_SENSITIVITY = "reader_double_pages_sensitivity_2"
 		const val KEY_READER_DOUBLE_FOLDABLE = "reader_double_foldable"
@@ -1506,12 +1575,14 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TRANSLATION_API_KEY = "reader_translation_api_key"
 		const val KEY_READER_TRANSLATION_API_MODEL = "reader_translation_api_model"
 		const val KEY_READER_TRANSLATION_API_PROVIDER_PRESET = "reader_translation_api_provider_preset"
+		const val KEY_READER_TRANSLATION_API_CUSTOM_HEADERS = "reader_translation_api_custom_headers"
 		const val KEY_READER_TRANSLATION_API_FETCH_MODELS = "reader_translation_api_fetch_models"
 
 		const val KEY_READER_E2E_API_ENDPOINT = "reader_e2e_api_endpoint"
 		const val KEY_READER_E2E_API_KEY = "reader_e2e_api_key"
 		const val KEY_READER_E2E_API_MODEL = "reader_e2e_api_model"
 		const val KEY_READER_E2E_API_PROVIDER_PRESET = "reader_e2e_api_provider_preset"
+		const val KEY_READER_E2E_API_CUSTOM_HEADERS = "reader_e2e_api_custom_headers"
 		const val KEY_READER_E2E_API_FETCH_MODELS = "reader_e2e_api_fetch_models"
 		const val KEY_READER_E2E_API_CONCURRENCY = "reader_e2e_api_concurrency"
 		const val KEY_READER_TRANSLATION_OCR_PIPELINE_STRATEGY = "reader_translation_ocr_pipeline_strategy"
@@ -1686,6 +1757,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_NAV_FLOATING_HEIGHT = "nav_floating_height"
 		const val KEY_READER_TOOLBAR_FLOATING = "reader_toolbar_floating"
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
+		const val KEY_POPUP_RADIUS = "popup_radius"
 		const val KEY_BLUR_MODE = "blur_mode"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"
@@ -1707,9 +1779,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SEARCH_SUGGESTION_TYPES = "search_suggest_types"
 		const val KEY_SOURCES_VERSION = "sources_version"
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
-		const val KEY_EXTENSIONS_FILTER_LANG = "extensions_filter_lang"
 		const val KEY_EXTENSIONS_GRID = "extensions_grid"
-		const val KEY_ENABLE_KOTATSU_SOURCES = "enable_kotatsu_sources"
 		const val KEY_SHOW_BROKEN_SOURCES = "show_broken_sources"
 		const val KEY_EXTENSIONS = "extensions"
 		const val KEY_JSON_SOURCES = "json_sources"

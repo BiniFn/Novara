@@ -21,7 +21,9 @@ import androidx.transition.TransitionManager
 import androidx.transition.TransitionSet
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
+import android.util.SparseArray
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
@@ -88,6 +90,9 @@ class NovelReaderActivity :
     @Inject
     lateinit var localContentRepository: org.skepsun.kototoro.local.data.LocalMangaRepository
 
+    @Inject
+    lateinit var translationProcessor: NovelTranslationProcessor
+
     private lateinit var manga: Content
     private lateinit var repository: ContentRepository
     private var originalContent: Content? = null  // Store original for online fallback
@@ -106,6 +111,10 @@ class NovelReaderActivity :
     private var continuousAdapter: NovelContinuousAdapter? = null
     private var isLoadingPrevious = false
     private var isLoadingNext = false
+
+    // Translation state
+    private var translationJob: Job? = null
+    private val chapterTranslations = SparseArray<NovelChapterTranslation>()
 
     override val readerMode: ReaderMode?
         get() = ReaderMode.STANDARD
@@ -231,7 +240,7 @@ class NovelReaderActivity :
         super.onCreate(savedInstanceState)
         setContentView(ActivityNovelReaderV2Binding.inflate(layoutInflater))
 
-        readerSettings = NovelReaderSettings.load(this)
+        readerSettings = NovelReaderSettings.load(this).copy(isTranslationEnabled = false)
         
         // 只恢复UI状态，不恢复章节和页码（由loadChapters处理）
         savedInstanceState?.let {
@@ -297,6 +306,11 @@ class NovelReaderActivity :
                 }
             }
         }
+
+        // 进入当前小说时显式清空上一轮阅读会话中的翻译状态，
+        // 但不清理长期翻译缓存。
+        resetTranslationSession()
+
         repository = mangaRepositoryFactory.create(manga.source)
         if (local != null) {
             android.util.Log.d("NovelReaderActivity", "Using local manga for reading: ${manga.title}")
@@ -322,6 +336,8 @@ class NovelReaderActivity :
         viewBinding.toolbar.subtitle = getString(R.string.loading_)
 
         viewBinding.actionsView.listener = this
+        viewBinding.actionsView.setTranslateButtonVisible(true)
+        viewBinding.actionsView.setTranslateActive(false)
         setupImageHeaders()
         setupTtsControls()
 
@@ -347,6 +363,9 @@ class NovelReaderActivity :
         viewBinding.readerView.onTapAreaListener = { area ->
             handleTapGesture(area)
         }
+        viewBinding.readerView.onImageClickListener = { image ->
+            openInlineImage(image)
+        }
         
         // 章节切换请求处理
         viewBinding.readerView.onChapterChangeRequestListener = { delta ->
@@ -368,7 +387,9 @@ class NovelReaderActivity :
         viewBinding.readerView.updateSettings(readerSettings)
         
         // Initialize Continuous Scroll Adapter
-        continuousAdapter = NovelContinuousAdapter(readerSettings)
+        continuousAdapter = NovelContinuousAdapter(readerSettings) { image ->
+            openInlineImage(image)
+        }
         viewBinding.continuousScrollView.adapter = continuousAdapter
         viewBinding.continuousScrollView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
@@ -493,6 +514,29 @@ class NovelReaderActivity :
         }
     }
 
+    private fun openInlineImage(image: NovelInlineImageRequest) {
+        val router = AppRouter(this)
+        val canUseStandardViewer = image.epubFilePath.isNullOrBlank() &&
+            image.headers.isEmpty() &&
+            (
+                image.imagePath.startsWith("http://", ignoreCase = true) ||
+                    image.imagePath.startsWith("https://", ignoreCase = true) ||
+                    image.imagePath.startsWith("file://", ignoreCase = true) ||
+                    image.imagePath.startsWith("content://", ignoreCase = true)
+                )
+        if (canUseStandardViewer) {
+            router.openImage(image.imagePath, manga.source)
+        } else {
+            router.openNovelInlineImage(
+                imagePath = image.imagePath,
+                source = manga.source,
+                epubFilePath = image.epubFilePath,
+                chapterPath = image.chapterPath,
+                headers = image.headers,
+            )
+        }
+    }
+
     override fun getParentActivityIntent(): Intent? {
         return AppRouter.detailsIntent(this, manga)
     }
@@ -570,6 +614,9 @@ class NovelReaderActivity :
             currentChapterIndex = targetIndex
             // 如果是向下一章，从第一页开始；如果是向上一章，从最后一页开始
             currentPageIndex = if (delta > 0) 0 else -1  // -1 表示最后一页
+            // 切章时取消旧的翻译任务
+            translationJob?.cancel()
+            translationJob = null
             loadChapter(currentChapterIndex)
         } else {
             // 已经是第一章或最后一章
@@ -609,6 +656,178 @@ class NovelReaderActivity :
 
     override fun openMenu() {
         showConfigSheet()
+    }
+
+    override fun onTranslateClick() {
+        toggleTranslation()
+    }
+
+    private fun toggleTranslation() {
+        val enabled = !readerSettings.isTranslationEnabled
+        readerSettings = readerSettings.copy(isTranslationEnabled = enabled)
+        readerSettings.save(this)
+        viewBinding.actionsView.setTranslateActive(enabled)
+        if (enabled) {
+            startTranslation()
+        } else {
+            clearTranslation()
+        }
+    }
+
+    private fun startTranslation() {
+        translationJob?.cancel()
+        val content = getCurrentChapterContent()
+        android.util.Log.d("NovelReaderActivity", "startTranslation: content length=${content?.length ?: 0}")
+        if (content.isNullOrBlank()) {
+            viewBinding.toastView.showTemporary("暂无章节内容可翻译", 2000L)
+            return
+        }
+
+        // 检查是否有可用的翻译配置
+        val mode = settings.readerTranslationMode
+        val onnxModelId = settings.readerTranslationOnnxModelId
+        val hasOnnx = onnxModelId.isNotBlank()
+        val hasApi = settings.readerTranslationApiEndpoint.isNotBlank()
+        android.util.Log.d("NovelReaderActivity", "Translation config: mode=$mode, onnxModelId='$onnxModelId', hasOnnx=$hasOnnx, hasApi=$hasApi")
+        if (!hasOnnx && !hasApi && mode.name != "LOCAL_ONLY") {
+            viewBinding.toastView.showTemporary(
+                "请先在「设置 → AI翻译」中配置翻译引擎（API 或 ONNX 本地模型）",
+                3000L,
+            )
+            return
+        }
+
+        val sourceLang = settings.readerTranslationSourceLanguage
+        val targetLang = settings.readerTranslationTargetLanguage
+        val displayMode = readerSettings.translationDisplayMode
+        val chapterIndex = currentChapterIndex
+        val totalParagraphs = NovelParagraphSplitter.split(content)
+            .count { it.type == NovelParagraphType.TEXT && it.originalText.isNotBlank() }
+        android.util.Log.d("NovelReaderActivity", "Starting translation: chapter=$chapterIndex, source=$sourceLang, target=$targetLang, mode=$displayMode")
+        showNovelTranslationProgress(
+            translatedCount = 0,
+            totalCount = totalParagraphs,
+            isComplete = false,
+        )
+
+        translationJob = lifecycleScope.launch {
+            var lastNotifiedCount = 0
+            try {
+                translationProcessor.translateChapterFlow(
+                    chapterIndex = chapterIndex,
+                    content = content,
+                    sourceLang = sourceLang,
+                    targetLang = targetLang,
+                    displayMode = displayMode,
+                ).collect { translation ->
+                    android.util.Log.d("NovelReaderActivity", "Translation progress: complete=${translation.isComplete}, translations=${translation.translations.size}")
+                    chapterTranslations.put(translation.chapterIndex, translation)
+                    applyTranslationToViews(translation)
+                    val translatedCount = translation.translations.size
+                    if (translation.isComplete) {
+                        if (translatedCount == 0) {
+                            viewBinding.toastView.showTemporary(
+                                "未获得译文，请检查「设置 → AI翻译」中的引擎配置",
+                                3000L,
+                            )
+                        } else {
+                            showNovelTranslationProgress(
+                                translatedCount = translatedCount,
+                                totalCount = totalParagraphs,
+                                isComplete = true,
+                            )
+                        }
+                    } else if (translatedCount != lastNotifiedCount) {
+                        lastNotifiedCount = translatedCount
+                        showNovelTranslationProgress(
+                            translatedCount = translatedCount,
+                            totalCount = totalParagraphs,
+                            isComplete = false,
+                        )
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // 翻译任务被取消（切换章节、关闭翻译、退出阅读器等），这是正常行为
+                android.util.Log.d("NovelReaderActivity", "Translation cancelled")
+                throw e  // 重新抛出 CancellationException 以正确传播取消信号
+            } catch (e: Exception) {
+                android.util.Log.e("NovelReaderActivity", "Translation failed", e)
+                viewBinding.toastView.showTemporary("翻译失败: ${e.message}", 2000L)
+            }
+        }
+    }
+
+    private fun showNovelTranslationProgress(
+        translatedCount: Int,
+        totalCount: Int,
+        isComplete: Boolean,
+    ) {
+        if (totalCount <= 0) {
+            return
+        }
+        val message = when {
+            isComplete -> getString(
+                R.string.novel_translation_progress_complete,
+                translatedCount,
+                totalCount,
+            )
+
+            translatedCount == 0 -> getString(
+                R.string.novel_translation_progress_started,
+                translatedCount,
+                totalCount,
+            )
+
+            else -> getString(
+                R.string.novel_translation_progress_update,
+                translatedCount,
+                totalCount,
+            )
+        }
+        viewBinding.toastView.showTemporary(message, TRANSLATION_PROGRESS_TOAST_DURATION)
+    }
+
+    private fun clearTranslation() {
+        translationJob?.cancel()
+        translationJob = null
+        chapterTranslations.clear()
+        viewBinding.readerView.setTranslation(null)
+        continuousAdapter?.clearTranslations()
+        viewBinding.actionsView.setTranslateActive(false)
+    }
+
+    /**
+     * 进入一本新小说时，只重置当前阅读会话里的翻译状态，
+     * 不清理长期翻译缓存，避免跨书残留但保留复用能力。
+     */
+    private fun resetTranslationSession() {
+        readerSettings = readerSettings.copy(isTranslationEnabled = false)
+        clearTranslation()
+    }
+
+    private fun applyTranslationToViews(translation: NovelChapterTranslation) {
+        val isScrollMode = readerSettings.readingMode == ReadingMode.SCROLL
+        if (isScrollMode) {
+            continuousAdapter?.updateTranslation(translation.chapterIndex, translation)
+        } else {
+            if (translation.chapterIndex == currentChapterIndex) {
+                viewBinding.readerView.setTranslation(translation)
+            }
+        }
+    }
+
+    /**
+     * 获取当前章节的原始文本内容（用于翻译）
+     */
+    private fun getCurrentChapterContent(): String? {
+        val isScrollMode = readerSettings.readingMode == ReadingMode.SCROLL
+        return if (isScrollMode) {
+            continuousAdapter?.getItems()
+                ?.firstOrNull { it.chapterIndex == currentChapterIndex }
+                ?.content
+        } else {
+            viewBinding.readerView.chapterContent
+        }
     }
 
     override fun scrollBy(delta: Int, smooth: Boolean): Boolean = false
@@ -786,6 +1005,11 @@ class NovelReaderActivity :
         if (state == org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE) {
             onTtsPlayPauseClicked()
         }
+    }
+
+    override fun onClearTranslationCacheClick() {
+        translationProcessor.clearCache()
+        viewBinding.toastView.showTemporary("翻译缓存已清除", 1500L)
     }
 
     private fun startTtsFromCurrentPage() {
@@ -1404,16 +1628,7 @@ class NovelReaderActivity :
                 // 新架构：使用EpubInternalChapterLoader
                 android.util.Log.d("NovelReaderActivity", "Using EpubInternalChapterLoader for new architecture")
                 
-                val epubFileManager = org.skepsun.kototoro.local.epub.EpubFileManagerImpl()
-                val database = org.skepsun.kototoro.core.db.MangaDatabase(this)
-                val epubChapterMappingDao = database.getEpubChapterMappingDao()
-                val epubInternalChapterLoader = org.skepsun.kototoro.reader.novel.EpubInternalChapterLoader(
-                    context = this,
-                    epubFileManager = epubFileManager,
-                    epubChapterMappingDao = epubChapterMappingDao
-                )
-                
-                    val result = epubInternalChapterLoader.loadEpubInternalChapter(chapter)
+                val result = this.epubInternalChapterLoader.loadEpubInternalChapter(chapter)
                     
                     if (result.isSuccess) {
                         val loadResult = result.getOrNull()
@@ -1645,6 +1860,11 @@ class NovelReaderActivity :
                             }
                         }, 500)
                     }
+
+                    // 章节渲染完成后，若翻译已开启则自动启动翻译
+                    if (readerSettings.isTranslationEnabled) {
+                        startTranslation()
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("NovelReaderActivity", "Failed to render EPUB chapter", e)
@@ -1654,7 +1874,7 @@ class NovelReaderActivity :
             }
         }
     }
-    
+
     private fun renderChapter(chapter: ContentChapter, text: String) {
         try {
             android.util.Log.d("NovelReaderActivity", "renderChapter called for: ${chapter.title}")
@@ -1826,6 +2046,11 @@ class NovelReaderActivity :
                                         startTtsFromCurrentPage()
                                     }
                                 }, 500)
+                            }
+
+                            // 章节渲染完成后，若翻译已开启则自动启动翻译
+                            if (readerSettings.isTranslationEnabled) {
+                                startTranslation()
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("NovelReaderActivity", "Failed to set content", e)
@@ -2297,6 +2522,7 @@ class NovelReaderActivity :
         private const val KEY_CHAPTER_INDEX = "chapter_index"
         private const val KEY_PAGE_INDEX = "page_index"
         private const val KEY_UI_VISIBLE = "ui_visible"
+        private const val TRANSLATION_PROGRESS_TOAST_DURATION = 1800L
     }
 
     /**
@@ -2560,17 +2786,24 @@ class NovelReaderActivity :
     override fun onSettingsChanged(settings: NovelReaderSettings) {
         try {
             android.util.Log.d("NovelReaderActivity", "Settings changed: fontSize=${settings.fontSizeSp}")
+            val previousDisplayMode = readerSettings.translationDisplayMode
             readerSettings = settings
-            
+
             runOnUiThread {
                 try {
                     viewBinding.readerView.updateSettings(settings)
                     continuousAdapter?.updateSettings(settings)
                     applyReadingModeToggles()
-                    
+
                     updateDualPageMode()
                     updateFullscreenMode()
                     updateReadingStatusVisibility()
+
+                    // 若翻译展示模式变更且翻译已启用，重启翻译使新模式立即生效
+                    if (settings.isTranslationEnabled &&
+                        settings.translationDisplayMode != previousDisplayMode) {
+                        startTranslation()
+                    }
                 } catch (e: Exception) {
                     android.util.Log.e("NovelReaderActivity", "Failed to update settings", e)
                     showError("更新设置失败: ${e.message}")

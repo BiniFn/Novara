@@ -74,14 +74,6 @@ object OnnxOfficialModelCatalog {
 			description = "Large multilingual translation model with optimized cache architecture.",
 		),
 		OnnxOfficialModel(
-			id = "mozilla_v1_0_0_beta",
-			title = "Mozilla (OnnxModelsEnhancer)",
-			version = "v1.0.0-beta",
-			archiveUrl = "https://github.com/niedev/OnnxModelsEnhancer/releases/download/v1.0.0-beta/Mozilla.zip",
-			sha256 = "05e7187ff86e267e559d3b126efeb6152d1107e6650ffc56aa6cae05a54e674e",
-			description = "Mozilla translation model pack mirrored for RTranslator compatibility.",
-		),
-		OnnxOfficialModel(
 			id = "manga_bubble_yolo_hf_main",
 			title = "Content Bubble YOLO",
 			version = "hf-main",

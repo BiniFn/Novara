@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -35,6 +36,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
@@ -47,6 +49,7 @@ import okhttp3.internal.closeQuietly
 import okio.IOException
 import okio.buffer
 import okio.sink
+import okio.source
 import okio.use
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.image.BitmapDecoderCompat
@@ -73,12 +76,15 @@ import org.skepsun.kototoro.core.util.ext.ensureSuccess
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.getWorkInputData
 import org.skepsun.kototoro.core.util.ext.getWorkSpec
+import org.skepsun.kototoro.core.util.ext.isFileUri
+import org.skepsun.kototoro.core.util.ext.isZipUri
 import org.skepsun.kototoro.core.util.ext.openSource
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
 import org.skepsun.kototoro.core.util.ext.toFileNameSafe
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
+import org.skepsun.kototoro.core.util.ext.use
 import org.skepsun.kototoro.core.util.ext.withTicker
 import org.skepsun.kototoro.core.util.ext.writeAllCancellable
 import org.skepsun.kototoro.core.util.progress.RealtimeEtaEstimator
@@ -108,7 +114,14 @@ import org.skepsun.kototoro.parsers.util.mapToSet
 import org.skepsun.kototoro.parsers.util.requireBody
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.reader.domain.ReaderSuperResolutionManager
 import org.skepsun.kototoro.reader.domain.PageLoader
+import org.skepsun.kototoro.reader.novel.NovelContentLoader
+import org.skepsun.kototoro.reader.novel.NovelParagraphSplitter
+import org.skepsun.kototoro.reader.novel.NovelParagraphType
+import org.skepsun.kototoro.reader.novel.NovelReaderSettings
+import org.skepsun.kototoro.reader.novel.NovelTranslationProcessor
+import org.skepsun.kototoro.reader.translate.domain.ReaderPageTranslationProcessor
 import org.jsoup.Jsoup
 import java.io.File
 import java.net.URLDecoder
@@ -116,6 +129,7 @@ import java.util.UUID
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.zip.ZipFile
 import javax.inject.Inject
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import javax.crypto.Cipher
@@ -141,6 +155,10 @@ class DownloadWorker @AssistedInject constructor(
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 	private val localStorageManager: org.skepsun.kototoro.local.data.LocalStorageManager,
 	private val videoDownloadIndex: VideoDownloadIndex,
+	private val translationProcessor: ReaderPageTranslationProcessor,
+	private val novelTranslationProcessor: NovelTranslationProcessor,
+	private val novelContentLoader: NovelContentLoader,
+	private val superResolutionManager: ReaderSuperResolutionManager,
 ) : CoroutineWorker(appContext, params) {
 
 	private val task = DownloadTask(params.inputData)
@@ -158,14 +176,11 @@ class DownloadWorker @AssistedInject constructor(
 	override suspend fun doWork(): Result = withContext(org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND)) {
 		setForeground(getForegroundInfo())
 		val manga = mangaDataRepository.findContentById(task.mangaId, withChapters = true) ?: return@withContext Result.failure()
-		publishState(DownloadState(manga = manga, isIndeterminate = true).also { lastPublishedState = it })
+		publishState(DownloadState(manga = manga, isIndeterminate = true, taskKind = task.kind).also { lastPublishedState = it })
 		Log.i(
 			"DownloadWorker",
-			"doWork start: workId=$id mangaId=${manga.id} title=${manga.title} chapters=${manga.chapters?.size ?: 0} taskChapters=${task.chaptersIds?.size ?: -1}",
+			"doWork start: workId=$id mangaId=${manga.id} title=${manga.title} kind=${task.kind} chapters=${manga.chapters?.size ?: 0} taskChapters=${task.chaptersIds?.size ?: -1}",
 		)
-		Log.i("DownloadWorker", "doWork before getDoneChapters: workId=$id mangaId=${manga.id}")
-		val downloadedIds = getDoneChapters(manga)
-		Log.i("DownloadWorker", "doWork after getDoneChapters: downloadedIds=${downloadedIds.size} workId=$id mangaId=${manga.id}")
 		try {
 			val pausingHandle = PausingHandle()
 			if (task.isPaused) {
@@ -173,9 +188,22 @@ class DownloadWorker @AssistedInject constructor(
 				pausingHandle.pause()
 			}
 			withContext(pausingHandle) {
-				Log.i("DownloadWorker", "doWork before downloadContentImpl: workId=$id mangaId=${manga.id}")
-				downloadContentImpl(manga, task, downloadedIds)
-				Log.i("DownloadWorker", "doWork after downloadContentImpl: workId=$id mangaId=${manga.id}")
+				when (task.kind) {
+					DownloadTaskKind.DOWNLOAD -> {
+						Log.i("DownloadWorker", "doWork before downloadContentImpl: workId=$id mangaId=${manga.id}")
+						val downloadedIds = getDoneChapters(manga)
+						Log.i("DownloadWorker", "doWork after getDoneChapters: downloadedIds=${downloadedIds.size} workId=$id mangaId=${manga.id}")
+						downloadContentImpl(manga, task, downloadedIds)
+						Log.i("DownloadWorker", "doWork after downloadContentImpl: workId=$id mangaId=${manga.id}")
+					}
+
+					DownloadTaskKind.PREPARE_TRANSLATION,
+					DownloadTaskKind.PREPARE_SUPER_RESOLUTION -> {
+						Log.i("DownloadWorker", "doWork before prepareContentImpl: workId=$id mangaId=${manga.id} kind=${task.kind}")
+						prepareContentImpl(manga, task)
+						Log.i("DownloadWorker", "doWork after prepareContentImpl: workId=$id mangaId=${manga.id} kind=${task.kind}")
+					}
+				}
 			}
 			Result.success(currentState.toWorkData())
 		} catch (_: CancellationException) {
@@ -320,7 +348,7 @@ class DownloadWorker @AssistedInject constructor(
 					localContentRepository.findSavedContent(mangaDetails)
 					android.util.Log.d("DownloadWorker", "Novel download completed, emitting localStorageChanges for ${output.rootFile}")
 					localStorageChanges.emit(localContent)
-					publishState(currentState.copy(localContent = localContent, eta = -1L, isStuck = false))
+					publishState(currentState.copy(localContent = localContent, eta = -1L, isStuck = false, isCompleted = true))
 					return@withLock
 				}
 				processStandardChapters(mangaDetails, task, repo, destination, chaptersToSkip, output)
@@ -331,7 +359,7 @@ class DownloadWorker @AssistedInject constructor(
 				// 刷新缓存
 				localContentRepository.findSavedContent(mangaDetails)
 				localStorageChanges.emit(localContent)
-				publishState(currentState.copy(localContent = localContent, eta = -1L, isStuck = false))
+				publishState(currentState.copy(localContent = localContent, eta = -1L, isStuck = false, isCompleted = true))
 			} catch (e: Exception) {
 				Log.e(
 					"DownloadWorker",
@@ -360,6 +388,252 @@ class DownloadWorker @AssistedInject constructor(
 					}
 				}
 			}
+		}
+	}
+
+	private suspend fun prepareContentImpl(
+		subject: Content,
+		task: DownloadTask,
+	) {
+		require(task.kind != DownloadTaskKind.DOWNLOAD) { "Prepare flow cannot use DOWNLOAD task kind" }
+		val contentType = subject.source.getContentType()
+		mangaLock.withLock(subject) {
+			when (contentType) {
+				ContentType.NOVEL, ContentType.HENTAI_NOVEL -> {
+					check(task.kind == DownloadTaskKind.PREPARE_TRANSLATION) {
+						"Novel content only supports translation preparation"
+					}
+					prepareNovelTranslation(subject, task)
+				}
+
+				ContentType.VIDEO, ContentType.HENTAI_VIDEO -> {
+					error("Video content does not support preparation tasks")
+				}
+
+				else -> {
+					prepareMangaContent(subject, task)
+				}
+			}
+		}
+	}
+
+	private suspend fun prepareMangaContent(
+		manga: Content,
+		task: DownloadTask,
+	) {
+		val chapters = getChapters(manga, task)
+		for ((chapterIndex, chapter) in chapters.withIndex()) {
+			checkIsPaused()
+			val pages = loadLocalPages(chapter.value)
+			check(pages.isNotEmpty()) { "No local pages found for chapter ${chapter.value.title ?: chapter.value.id}" }
+			for ((pageIndex, page) in pages.withIndex()) {
+				checkIsPaused()
+				publishState(
+					currentState.copy(
+						totalChapters = chapters.size,
+						currentChapter = chapterIndex,
+						totalPages = pages.size,
+						currentPage = pageIndex,
+						isIndeterminate = false,
+						eta = -1L,
+						isStuck = false,
+					),
+				)
+				val sourceUri = resolvePreparationPageUri(page)
+					?: error("Cannot resolve page uri for ${page.url}")
+				when (task.kind) {
+					DownloadTaskKind.PREPARE_TRANSLATION -> {
+						val translationInputUri = prepareTranslationInputUri(sourceUri)
+						translationProcessor.process(
+							page = page,
+							sourceUri = translationInputUri,
+							forceEnabled = true,
+						)
+					}
+
+					DownloadTaskKind.PREPARE_SUPER_RESOLUTION -> {
+						superResolutionManager.processImage(
+							originalUri = sourceUri,
+							modelId = getSuperResolutionModelId(),
+							noiseLevel = settings.readerSuperResolutionNoiseLevel,
+							cacheLimitMb = settings.readerSuperResolutionCacheLimitMb,
+						)
+					}
+
+					DownloadTaskKind.DOWNLOAD -> Unit
+				}
+			}
+			publishState(
+				currentState.copy(
+					downloadedChapters = currentState.downloadedChapters + 1,
+				),
+			)
+		}
+		publishState(
+			currentState.copy(
+				isIndeterminate = false,
+				eta = -1L,
+				isStuck = false,
+				isCompleted = true,
+			),
+		)
+	}
+
+	private suspend fun prepareNovelTranslation(
+		manga: Content,
+		task: DownloadTask,
+	) {
+		val chapters = getChapters(manga, task)
+		val repo = mangaRepositoryFactory.createWithDiagnostics(manga.source).requireAvailableRepository(
+			tag = "DownloadWorker",
+			prefix = "prepareNovelTranslation_repository_unavailable",
+		) { "Prepare translation source ${manga.source.name} is not available" }
+		val sourceLang = settings.readerTranslationSourceLanguage
+		val targetLang = settings.readerTranslationTargetLanguage
+		val displayMode = NovelReaderSettings.load(applicationContext).translationDisplayMode
+		for ((chapterIndex, chapter) in chapters.withIndex()) {
+			checkIsPaused()
+			val content = novelContentLoader.loadChapterContent(
+				repository = repo,
+				chapter = chapter.value,
+			)
+			val totalParagraphs = NovelParagraphSplitter.split(content)
+				.count { it.type == NovelParagraphType.TEXT && it.originalText.isNotBlank() }
+				.coerceAtLeast(1)
+			novelTranslationProcessor.translateChapterFlow(
+				chapterIndex = chapterIndex,
+				content = content,
+				sourceLang = sourceLang,
+				targetLang = targetLang,
+				displayMode = displayMode,
+			).collect { translation ->
+				checkIsPaused()
+				val translatedCount = translation.translations.size.coerceAtMost(totalParagraphs)
+				publishState(
+					currentState.copy(
+						totalChapters = chapters.size,
+						currentChapter = chapterIndex,
+						totalPages = totalParagraphs,
+						currentPage = translatedCount.coerceAtLeast(1) - 1,
+						isIndeterminate = false,
+						eta = -1L,
+						isStuck = false,
+						downloadedChapters = if (translation.isComplete) chapterIndex + 1 else chapterIndex,
+					),
+				)
+			}
+		}
+		publishState(
+			currentState.copy(
+				isIndeterminate = false,
+				eta = -1L,
+				isStuck = false,
+				isCompleted = true,
+			),
+		)
+	}
+
+	private suspend fun loadLocalPages(chapter: ContentChapter): List<ContentPage> {
+		check(isPreparationChapterEligible(chapter)) {
+			"Chapter ${chapter.id} is not downloaded or local"
+		}
+		return LocalContentParser(chapter.url.toUri()).getPages(chapter)
+	}
+
+	private fun isPreparationChapterEligible(chapter: ContentChapter): Boolean {
+		return chapter.source.isLocal || isLocalChapterUrl(chapter.url)
+	}
+
+	private fun isLocalChapterUrl(url: String): Boolean {
+		return url.startsWith("file:") ||
+			url.startsWith("zip:") ||
+			url.startsWith("file+zip:") ||
+			url.startsWith("content:") ||
+			url.startsWith("epub:") ||
+			url.startsWith("localepub:")
+	}
+
+	private suspend fun resolvePreparationPageUri(page: ContentPage): Uri? {
+		val uri = page.url.toUri()
+		return when {
+			uri.isFileUri() -> uri
+			uri.isZipUri() -> cacheZipPage(uri)
+			uri.scheme == "content" || uri.scheme == "android.resource" -> cacheContentUri(page.url, uri)
+			uri.scheme == "data" -> cacheDataUri(page.url)
+			else -> null
+		}
+	}
+
+	private suspend fun cacheZipPage(uri: Uri): Uri? {
+		cache[uri.toString()]?.let { return it.toUri() }
+		return runCatching {
+			val zipFile = when (uri.scheme) {
+				"file+zip" -> File(uri.host.orEmpty() + uri.path.orEmpty())
+				else -> File(uri.schemeSpecificPart)
+			}
+			ZipFile(zipFile).use { zip ->
+				val entry = zip.getEntry(uri.fragment) ?: return@runCatching null
+				BitmapDecoderCompat.decode(
+					zip.getInputStream(entry),
+					MimeTypes.getMimeTypeFromExtension(entry.name),
+				)
+			}.use { image ->
+				cache.set(uri.toString(), image).toUri()
+			}
+		}.onFailure {
+			it.printStackTraceDebug()
+		}.getOrNull()
+	}
+
+	private suspend fun cacheContentUri(cacheKey: String, uri: Uri): Uri? {
+		cache[cacheKey]?.let { return it.toUri() }
+		return runCatching {
+			val type = applicationContext.contentResolver.getType(uri)?.toMimeTypeOrNull()
+			applicationContext.contentResolver.openInputStream(uri)?.use { input ->
+				cache.set(cacheKey, input.source(), type).toUri()
+			}
+		}.onFailure {
+			it.printStackTraceDebug()
+		}.getOrNull()
+	}
+
+	private suspend fun cacheDataUri(dataUrl: String): Uri? {
+		cache[dataUrl]?.let { return it.toUri() }
+		return runCatching {
+			val commaIndex = dataUrl.indexOf(',')
+			check(commaIndex != -1) { "Invalid data URL" }
+			val header = dataUrl.substring(0, commaIndex)
+			val data = dataUrl.substring(commaIndex + 1)
+			val isBase64 = header.contains(";base64")
+			val contentType = header.substringAfter("data:").substringBefore(";").toMimeTypeOrNull()
+			val bytes = if (isBase64) {
+				Base64.getDecoder().decode(data)
+			} else {
+				URLDecoder.decode(data, "UTF-8").toByteArray()
+			}
+			cache.set(dataUrl, bytes.inputStream().source(), contentType).toUri()
+		}.onFailure {
+			it.printStackTraceDebug()
+		}.getOrNull()
+	}
+
+	private suspend fun prepareTranslationInputUri(sourceUri: Uri): Uri {
+		if (!settings.isReaderSuperResolutionEnabled) {
+			return sourceUri
+		}
+		return superResolutionManager.processImage(
+			originalUri = sourceUri,
+			modelId = getSuperResolutionModelId(),
+			noiseLevel = settings.readerSuperResolutionNoiseLevel,
+			cacheLimitMb = settings.readerSuperResolutionCacheLimitMb,
+		) ?: sourceUri
+	}
+
+	private fun getSuperResolutionModelId(): String {
+		return if (settings.readerSuperResolutionEngine == "ANIME4K") {
+			settings.readerSuperResolutionAnime4kMode
+		} else {
+			settings.readerSuperResolutionModel
 		}
 	}
 

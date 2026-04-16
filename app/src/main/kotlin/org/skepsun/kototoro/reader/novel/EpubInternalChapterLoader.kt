@@ -43,7 +43,7 @@ class EpubInternalChapterLoader(
     private val context: Context,
     private val epubFileManager: EpubFileManager,
     private val epubChapterMappingDao: EpubChapterMappingDao,
-    private val epubContentCache: EpubContentCache = EpubContentCache()
+    private val epubContentCache: EpubContentCache = EpubContentCache.getInstance()
 ) {
     
     private val epubReader = EpubReaderImpl(epubContentCache)

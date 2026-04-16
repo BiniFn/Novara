@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings.storage
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,12 @@ import javax.inject.Inject
 class ContentDirectorySelectViewModel @Inject constructor(
 	private val storageManager: LocalStorageManager,
 	private val settings: AppSettings,
+	private val savedStateHandle: SavedStateHandle,
 ) : BaseViewModel() {
+
+	private val contentType: String
+		get() = savedStateHandle.get<String>(ContentDirectorySelectDialog.ARG_CONTENT_TYPE)
+			?: ContentDirectorySelectDialog.CONTENT_TYPE_MANGA
 
 	val items = MutableStateFlow(emptyList<DirectoryModel>())
 	val onDismissDialog = MutableEventFlow<Unit>()
@@ -29,7 +35,11 @@ class ContentDirectorySelectViewModel @Inject constructor(
 
 	fun onItemClick(item: DirectoryModel) {
 		if (item.file != null) {
-			settings.mangaStorageDir = item.file
+			when (contentType) {
+				ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL -> settings.novelStorageDir = item.file
+				ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO -> settings.videoStorageDir = item.file
+				else -> settings.mangaStorageDir = item.file
+			}
 			onDismissDialog.call(Unit)
 		} else {
 			onPickDirectory.call(Unit)
@@ -43,18 +53,32 @@ class ContentDirectorySelectViewModel @Inject constructor(
 			if (!dir.isWriteable()) {
 				throw AccessDeniedException(dir)
 			}
-			if (dir !in storageManager.getApplicationStorageDirs()) {
-				settings.mangaStorageDir = dir
-				storageManager.setDirIsNoMedia(dir)
+			when (contentType) {
+				ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL -> settings.novelStorageDir = dir
+				ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO -> settings.videoStorageDir = dir
+				else -> {
+					if (dir !in storageManager.getApplicationStorageDirs()) {
+						settings.mangaStorageDir = dir
+					}
+				}
 			}
+			storageManager.setDirIsNoMedia(dir)
 			onDismissDialog.call(Unit)
 		}
 	}
 
 	fun refresh() {
 		launchJob(Dispatchers.Default) {
-			val defaultValue = storageManager.getDefaultWriteableDir()
-			val available = storageManager.getWriteableDirs()
+			val defaultValue = when (contentType) {
+				ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL -> storageManager.getDefaultNovelWriteableDir()
+				ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO -> storageManager.getDefaultVideoWriteableDir()
+				else -> storageManager.getDefaultWriteableDir()
+			}
+			val available = when (contentType) {
+				ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL -> storageManager.getNovelWriteableDirs()
+				ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO -> storageManager.getVideoWriteableDirs()
+				else -> storageManager.getWriteableDirs()
+			}
 			items.value = buildList(available.size + 1) {
 				available.mapTo(this) { dir ->
 					DirectoryModel(

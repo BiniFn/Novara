@@ -11,7 +11,7 @@ import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.util.ext.addMenuProvider
+import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.settings.search.SettingsSearchMenuProvider
@@ -49,7 +49,7 @@ class RootSettingsFragment : BasePreferenceFragment(0) {
 				}
 			}
 		}
-		addMenuProvider(SettingsSearchMenuProvider(activityViewModel))
+		addSupportMenuProvider(SettingsSearchMenuProvider(activityViewModel))
 	}
 
 	override fun setTitle(title: CharSequence?) {
