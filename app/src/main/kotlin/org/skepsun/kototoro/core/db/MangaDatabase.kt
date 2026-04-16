@@ -193,6 +193,7 @@ fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
 fun MangaDatabase(context: Context): MangaDatabase = Room
 	.databaseBuilder(context, MangaDatabase::class.java, "kototoro-db")
 	.addMigrations(*getDatabaseMigrations(context))
+	.fallbackToDestructiveMigrationOnDowngrade()
 	.addCallback(DatabasePrePopulateCallback(context.resources))
 	.build()
 

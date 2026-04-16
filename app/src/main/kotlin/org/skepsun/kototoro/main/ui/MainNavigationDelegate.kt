@@ -193,7 +193,7 @@ class MainNavigationDelegate(
 	}
 
 	fun selectItem(@IdRes itemId: Int): Boolean {
-		if (navBar.menu.findItem(itemId) == null) {
+		if (navBar.getItemTitle(itemId) == null) {
 			return false
 		}
 		if (navBar.selectedItemId == itemId) {

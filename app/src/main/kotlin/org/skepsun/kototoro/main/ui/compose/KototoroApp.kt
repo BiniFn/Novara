@@ -59,7 +59,6 @@ fun KototoroApp(
     onContainerReady: (androidx.fragment.app.FragmentContainerView) -> Unit = {}
 ) {
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
-    val isSearchBarFilterHidden by appSettings.observeAsState(AppSettings.KEY_SEARCH_BAR_FILTER_HIDDEN) { isSearchBarFilterHidden }
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
@@ -121,7 +120,7 @@ fun KototoroApp(
                 onContentTypeSelected = onContentTypeSelected,
                 selectedSourceTags = selectedSourceTags,
                 onSourceTagSelected = onSourceTagSelected,
-                isSearchBarFilterHidden = isSearchBarFilterHidden,
+                isSearchBarFilterHidden = false,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
