@@ -176,3 +176,19 @@
 - 选择一组高频 Dialog / Sheet 进入 Compose 化，优先处理详情页上下文动作链路
 - 继续收口 `Home` / `Discover` Hero 的共享视觉 token，优先评估 CTA、badge 与卡片前景构图是否继续抽成更细粒度组件
 - 继续推进 `Home` 首页的 Dantotsu 化内容层，评估本地 Hero 与 tracking Hero 之间的层级关系是否还需进一步压缩
+
+- 已完成应用外壳大重构：纯 Jetpack Compose Navigation 架构落地，全面替换 XML 布局残留
+- `MainActivity` 已彻底移除对 `FragmentContainerView` 与 `MainNavigationDelegate` 的依赖，解决了因硬件加速或 Fragment 挂载生命周期导致的崩溃
+- 新增 `AppNavGraph.kt` 组件接管了主导航（Home, Discover 等 Tab 结构），消除了 `KototoroApp.kt` 里的 `AndroidView { FragmentContainerView(it) }` 套壳
+- 针对目前尚未 Compose 化的老旧纯 Fragment 设计，加入了兼容层 `FragmentHostRoute`
+- 已在 `gradle/libs.versions.toml` 与 `app/build.gradle` 引入并集成了 `androidx.hilt:hilt-navigation-compose` 并成功走通依赖流程
+- 解决了因为 `DiscoverScreen` 和 `HomeScreen` 的 Compose 导航签入产生的所有相关 Kotlin 编译类型和 Lambda 参数校验问题，验证通过。
+- 本轮架构级别重构后再次通过 `./gradlew :app:assembleDebug` 验证
+
+### 进行中
+
+- 验证 Compose NavHost 下 BottomNavBar 的状态反向同步并排查边缘体验和白屏问题。
+
+### 下一步
+
+- 彻底将 `FragmentHostRoute` 包壳托管的页面重构为纯 Compose 页面。

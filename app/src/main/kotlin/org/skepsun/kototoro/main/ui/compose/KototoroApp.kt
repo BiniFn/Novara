@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -13,14 +12,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.fragment.app.FragmentContainerView
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
@@ -32,18 +26,14 @@ import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
-
-import kotlinx.coroutines.flow.MutableSharedFlow
 import org.skepsun.kototoro.core.prefs.observeAsState
 import androidx.navigation.compose.rememberNavController
-import org.skepsun.kototoro.main.ui.compose.AppNavGraph
 
 @Composable
 fun KototoroApp(
     appSettings: AppSettings,
     navStateFlow: StateFlow<BottomNavState>,
     query: String = "",
-    
     suggestions: List<SearchSuggestionItem> = emptyList(),
     onQueryChanged: (String) -> Unit = {},
     onSearch: (String) -> Unit = {},
@@ -71,22 +61,11 @@ fun KototoroApp(
     onContentInsetsChanged: (Int, Int) -> Unit = { _, _ -> },
     isResumeEnabled: Boolean = false,
     onResumeClick: () -> Unit = {},
-    
 ) {
     val context = LocalContext.current
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
     val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
     val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
-
-    ,
-                android.widget.FrameLayout.LayoutParams(
-                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
-    }
-    
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
@@ -120,21 +99,6 @@ fun KototoroApp(
         onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
     }
 
-    DisposableEffect(fragmentHostView, isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
-        fragmentHostView.onNestedScrollDeltaY = { dy ->
-            if (!isNavBarPinned && dy != 0f) {
-                topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
-                bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
-            } else if (isNavBarPinned) {
-                topBarOffset = 0f
-                bottomNavOffset = 0f
-            }
-        }
-        onDispose {
-            fragmentHostView.onNestedScrollDeltaY = null
-        }
-    }
-
     val navController = rememberNavController()
 
     KototoroTheme {
@@ -143,11 +107,8 @@ fun KototoroApp(
                 navController = navController,
                 modifier = Modifier.fillMaxSize()
             )
-            
 
-
-
-            // TopBar at the top — measure its height for content padding
+            // TopBar at the top
             KototoroTopBar(
                 query = query,
                 suggestions = suggestions,
@@ -185,8 +146,7 @@ fun KototoroApp(
                     },
             )
 
-
-            // BottomNav at the bottom — measure its height for content padding
+            // BottomNav at the bottom
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -201,10 +161,29 @@ fun KototoroApp(
             ) {
                 KototoroBottomNav(
                     state = navStateFlow,
-                    onItemSelected = onNavItemSelected,
-                    onItemReselected = onNavItemReselected,
+                    onItemSelected = { itemId ->
+                        val route = when (itemId) {
+                            org.skepsun.kototoro.R.id.nav_home -> "home"
+                            org.skepsun.kototoro.R.id.nav_history -> "history"
+                            org.skepsun.kototoro.R.id.nav_favorites -> "favorites"
+                            org.skepsun.kototoro.R.id.nav_explore -> "explore"
+                            org.skepsun.kototoro.R.id.nav_discover -> "discover"
+                            org.skepsun.kototoro.R.id.nav_feed -> "feed"
+                            org.skepsun.kototoro.R.id.nav_local -> "local"
+                            org.skepsun.kototoro.R.id.nav_suggestions -> "suggestions"
+                            org.skepsun.kototoro.R.id.nav_bookmarks -> "bookmarks"
+                            org.skepsun.kototoro.R.id.nav_updated -> "updated"
+                            else -> "home"
+                        }
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onItemReselected = { },
                 )
+            }
         }
     }
-}
 }

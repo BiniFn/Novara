@@ -65,10 +65,12 @@ import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionViewModel
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : BaseActivity<ActivityMainBinding>(),
-	View.OnClickListener,
-	MainNavigationDelegate.OnFragmentChangedListener,
-	View.OnLayoutChangeListener {
+class MainActivity : BaseActivity<ActivityMainBinding>() {
+	override fun onApplyWindowInsets(v: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		val typeMask = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+		return insets.consume(v, typeMask, start = false)
+	}
+
 
 	@Inject
 	lateinit var settings: AppSettings
@@ -181,7 +183,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					submitSearch(tag.title, SearchKind.TAG)
 				},
 				onSourceSuggestionClick = { source ->
-					router.openList(source, null, null)
+					this.router.openList(source, null, null)
 				},
 				onAuthorSuggestionClick = { author ->
 					submitSearch(author, SearchKind.AUTHOR)
@@ -218,7 +220,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					if (containerTopInsetPx != topInset || containerBottomInsetPx != bottomInset) {
 						containerTopInsetPx = topInset
 						containerBottomInsetPx = bottomInset
-						updateContainerPadding()
+						
 					}
 				},
 				isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
@@ -253,7 +255,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 				}
 			)
 		}
-		viewModel.onFirstStart.observeEvent(this) { router.showWelcomeSheet() }
+		viewModel.onFirstStart.observeEvent(this) { this.router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
 		
 		// 观察折叠屏状态变化
@@ -262,9 +264,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
 		super.onRestoreInstanceState(savedInstanceState)
-		if (::					} else {
-			pendingNavigationSyncAfterRestore = true
-		}
+		
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {
@@ -276,19 +276,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		super.onResume()
 	}
 
-	fun selectMainNavigationItem(@IdRes itemId: Int): Boolean {
-		return 	}
+	fun selectMainNavigationItem(@IdRes itemId: Int): Boolean { return false }
 
-	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {
-		if (fromUser) {
-			actionModeDelegate.finishActionMode()
-		}
-		if (fragment is SearchBarFilterViewController.Callback) {
-			setActiveFilterCallback(fragment)
-		} else {
-			clearActiveFilters()
-		}
-	}
 
 	override fun addMenuProvider(provider: MenuProvider, owner: LifecycleOwner, state: Lifecycle.State) {
 		if (provider !is ContentSearchMenuProvider) { // do not duplicate search menu item
@@ -296,46 +285,21 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		}
 	}
 
-	override fun onClick(v: View) {
-	}
 
-	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val typeMask = WindowInsetsCompat.Type.systemBars()
 
-		container.clipChildren = false
-		container.clipToPadding = false
-		updateContainerBottomMargin()
-		return insets.consume(v, typeMask, start = false)
-	}
-
-	override fun onLayoutChange(
-		v: View?,
-		left: Int,
-		top: Int,
-		right: Int,
-		bottom: Int,
-		oldLeft: Int,
-		oldTop: Int,
-		oldRight: Int,
-		oldBottom: Int
-	) {
-		if (top != oldTop || bottom != oldBottom) {
-			updateContainerBottomMargin()
-		}
-	}
 
 	override fun onSupportActionModeStarted(mode: ActionMode) {
 		super.onSupportActionModeStarted(mode)
-		updateContainerBottomMargin()
+		
 	}
 
 	override fun onSupportActionModeFinished(mode: ActionMode) {
 		super.onSupportActionModeFinished(mode)
-		updateContainerBottomMargin()
+		
 	}
 
 	private fun onOpenReader(manga: Content) {
-		router.openReader(manga, null)
+		this.router.openReader(manga, null)
 	}
 
 	private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
@@ -344,10 +308,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		}
 		updateSearchQuery(query)
 		if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
-			router.openDetails(query.toUri())
+			this.router.openDetails(query.toUri())
 			return
 		}
-		router.openSearch(
+		this.router.openSearch(
 			query = query,
 			kind = kind,
 			sourceTypes = searchSuggestionViewModel.getSourceTypes(),
@@ -402,7 +366,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			withContext(Dispatchers.Default) {
 				LocalStorageCleanupWorker.enqueue(applicationContext)
 			}
-			withResumed {
+			lifecycle.withResumed {
 				ContentPrefetchService.prefetchLast(this@MainActivity)
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
@@ -432,7 +396,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	private fun setNavbarPinned(isPinned: Boolean) {
-		updateContainerBottomMargin()
+		
 	}
 
 	private var isNavFloating = false
@@ -442,35 +406,20 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private fun setNavHeight(heightDp: Int) {}
 
 	private fun onLanguagePresetFilterClick(anchorView: View?): Boolean {
-		val anchor = anchorView ?: if (::container.isInitialized) {
-			container
-		} else {
-			viewBinding.composeRoot
-		}
+		val anchor = anchorView ?: viewBinding.composeRoot
 		if (currentFilterCallback?.onLanguagePresetClicked(anchor) == true) {
 			return true
 		}
-		router.openSourcePresets()
+		this.router.openSourcePresets()
 		return true
 	}
 
 	private fun onSourceTagFilterClick(anchorView: View?): Boolean {
-		val anchor = anchorView ?: if (::container.isInitialized) {
-			container
-		} else {
-			viewBinding.composeRoot
-		}
+		val anchor = anchorView ?: viewBinding.composeRoot
 		return currentFilterCallback?.onFilterIconClicked(anchor) == true
 	}
 
-	private fun updateContainerPadding() {
-		if (!::container.isInitialized) return
-		container.setPadding(0, containerTopInsetPx, 0, containerBottomInsetPx)
-	}
 
-	private fun updateContainerBottomMargin() {
-		updateContainerPadding()
-	}
 
 	private fun showOverflowMenu(anchorView: android.view.View?) {
 		val anchor = anchorView ?: viewBinding.composeRoot
@@ -486,11 +435,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		popup.setOnMenuItemClickListener { menuItem ->
 			when (menuItem.itemId) {
 				R.id.action_settings -> {
-					router.openSettings()
+					this.router.openSettings()
 					true
 				}
 				R.id.action_display_mode -> {
-					router.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.General)
+					this.router.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.General)
 					true
 				}
 				R.id.action_incognito -> {
@@ -498,7 +447,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					true
 				}
 				R.id.action_app_update -> {
-					router.openAppUpdate()
+					this.router.openAppUpdate()
 					true
 				}
 				else -> false
@@ -520,12 +469,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		}
 	}
 
-	private fun adjustLayoutForFoldableState() {
-		val shouldUseLandscapeLayout = FoldableUtils.shouldUseLandscapeLayout(this, isFoldUnfolded)
-
-					onFragmentChanged(fragment, false)
-		}
-	}
+	private fun adjustLayoutForFoldableState() { }
 }
 
 private fun ContentType?.toSearchContentKinds(): Set<SearchContentKind> = when (this) {

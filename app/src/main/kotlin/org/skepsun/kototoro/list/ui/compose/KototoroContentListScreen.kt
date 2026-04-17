@@ -46,7 +46,8 @@ fun KototoroContentListScreen(
     onClearSelection: () -> Unit,
     onSelectionAction: (SelectionAction) -> Unit,
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    listHeader: (@Composable () -> Unit)? = null
 ) {
     val pullRefreshState = rememberPullToRefreshState()
 
@@ -76,6 +77,11 @@ fun KototoroContentListScreen(
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
+                            if (listHeader != null) {
+                                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                                    listHeader()
+                                }
+                            }
                             items(items) { listModel ->
                                 if (listModel is ContentGridModel) {
                                     KototoroContentCardGrid(
@@ -100,6 +106,11 @@ fun KototoroContentListScreen(
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
+                            if (listHeader != null) {
+                                item {
+                                    listHeader()
+                                }
+                            }
                             items(items) { listModel ->
                                 if (listModel is ContentCompactListModel) {
                                     KototoroContentCardList(
@@ -122,6 +133,11 @@ fun KototoroContentListScreen(
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
+                            if (listHeader != null) {
+                                item {
+                                    listHeader()
+                                }
+                            }
                             items(items) { listModel ->
                                 if (listModel is ContentDetailedListModel) {
                                     KototoroContentCardDetailedList(

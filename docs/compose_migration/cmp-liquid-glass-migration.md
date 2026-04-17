@@ -166,7 +166,7 @@ parser-api/
 
 ### Phase 2：Main Shell 与导航壳收口
 
-状态：执行中
+状态：已完成
 
 范围：
 
@@ -191,6 +191,9 @@ parser-api/
 - `SearchBarFilterViewController` 关联的 Fragment 现已在 `onDestroyView()` 主动释放回调，主壳不会继续持有已销毁页面的筛选语义，降低导航切换与重建时的状态残留风险。
 - 主壳恢复链路已继续补强：稳定 `FragmentContainerView` 复用、fragment `detach/attach` 重挂、动态导航项菜单重建与选中态保留已接入第一轮修复，开始收敛旋转白屏、导航配置后空白页与双层 Home 叠层等问题。
 - Compose 内容类型筛选按钮的默认单击目标已改回漫画，避免主壳筛选在未显式选择时默认跳到视频。
+- **已完整卸载 Main Shell 的冗余 XML 布局：`MainActivity` 已移除所有对 `MainNavigationDelegate` 与 `FragmentContainerView` 的依赖。**
+- **应用导航完全基于 Compose `NavHost` (`AppNavGraph.kt`) 重构。**
+- **残留的老旧 Fragment 已通过 `FragmentHostRoute` 单层被透明兼容包壳。**
 
 ### Phase 3：高频内容页迁移
 
@@ -340,3 +343,8 @@ parser-api/
 1. 收口 Settings 残余 Android-only 子页，优先处理 `Backups` / `Notification legacy` / `JSON Sources` / `Extensions`。
 2. 视需要补齐 Compose 设置 DSL 中尚未落地的 warning card / 更复杂输入模式。
 3. 继续把玻璃组件扩展到 card、sheet 与 dialog。
+
+### 2026-04-17
+- 已完成 Phase 2 主导航壳与 MainActivity 余量 XML 卸载。
+- `MainActivity` 彻底移除了 `FragmentContainerView` 和 `MainNavigationDelegate` 的深层依赖，架构演进到纯 Jetpack Compose NavHost。
+- 新增 `FragmentHostRoute` 作为尚未迁移 Fragment 的无缝 Compose 包装器，确保迭代迁移的平滑进行。

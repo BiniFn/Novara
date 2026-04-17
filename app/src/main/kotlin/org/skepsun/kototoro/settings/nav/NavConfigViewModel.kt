@@ -19,11 +19,12 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ActivityRecreationHandle
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.main.ui.MainActivity
-import org.skepsun.kototoro.main.ui.MainNavigationDelegate
 import org.skepsun.kototoro.parsers.util.move
 import org.skepsun.kototoro.settings.nav.model.NavItemAddModel
 import org.skepsun.kototoro.settings.nav.model.NavItemConfigModel
 import javax.inject.Inject
+
+const val MAX_ITEM_COUNT = 5
 
 @HiltViewModel
 class NavConfigViewModel @Inject constructor(
@@ -39,7 +40,7 @@ class NavConfigViewModel @Inject constructor(
 				NavItemConfigModel(it, getUnavailabilityHint(it))
 			}
 			if (size < NavItem.entries.size) {
-				add(NavItemAddModel(size < MainNavigationDelegate.MAX_ITEM_COUNT))
+				add(NavItemAddModel(size < MAX_ITEM_COUNT))
 			}
 		}
 	}.stateIn(

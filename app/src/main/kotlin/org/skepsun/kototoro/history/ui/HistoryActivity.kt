@@ -1,5 +1,19 @@
 package org.skepsun.kototoro.history.ui
 
-import org.skepsun.kototoro.core.ui.FragmentContainerActivity
+import android.content.Intent
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.main.ui.MainActivity
 
-class HistoryActivity : FragmentContainerActivity(HistoryListFragment::class.java)
+class HistoryActivity : AppCompatActivity() {
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		val intent = Intent(this, MainActivity::class.java).apply {
+			putExtra(AppRouter.KEY_NAV_MAIN, "history")
+			addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+		}
+		startActivity(intent)
+		finish()
+	}
+}
