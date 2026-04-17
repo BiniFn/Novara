@@ -150,7 +150,7 @@ class MainNavigationDelegate(
 			}
 			transaction.commitNowAllowingStateLoss()
 			if (found != null) {
-				onFragmentChanged(found, fromUser = false)
+				onFragmentChanged(ensureFragmentViewAttached(found), fromUser = false)
 			} else {
 				onNavigationItemSelected(selectedItemId)
 			}
@@ -184,7 +184,7 @@ class MainNavigationDelegate(
 	}
 
 	fun syncSelectedItem() {
-		val fragment = primaryFragment ?: return
+		val fragment = primaryFragment?.let(::ensureFragmentViewAttached) ?: return
 		onFragmentChanged(fragment, fromUser = false)
 		val itemId = getItemId(fragment)
 		if (navBar.selectedItemId != itemId) {
@@ -301,7 +301,12 @@ class MainNavigationDelegate(
 
 		val targetFrag: Fragment
 		if (existingFrag != null) {
-			// Fragment already cached — just show it
+			// Fragment already cached — if its view was dropped during a config change,
+			// force FragmentManager to recreate and attach it to the restored container.
+			if (existingFrag.view == null || existingFrag.view?.parent == null) {
+				transaction.detach(existingFrag)
+				transaction.attach(existingFrag)
+			}
 			transaction.show(existingFrag)
 			transaction.setMaxLifecycle(existingFrag, Lifecycle.State.RESUMED)
 			targetFrag = existingFrag
@@ -319,6 +324,36 @@ class MainNavigationDelegate(
 			.runOnCommit { onFragmentChanged(targetFrag, fromUser = true) }
 			.commit()
 		return true
+	}
+
+	private fun ensureFragmentViewAttached(fragment: Fragment): Fragment {
+		if (fragmentManager.isStateSaved) {
+			return fragment
+		}
+		if (fragment.view != null && fragment.view?.parent != null) {
+			return fragment
+		}
+		val wasHidden = fragment.isHidden
+		val fragmentTag = fragment.tag
+		val maxLifecycle = if (wasHidden) Lifecycle.State.STARTED else Lifecycle.State.RESUMED
+		fragmentManager.beginTransaction()
+			.setReorderingAllowed(true)
+			.detach(fragment)
+			.attach(fragment)
+			.apply {
+				if (wasHidden) {
+					hide(fragment)
+				} else {
+					show(fragment)
+				}
+				setMaxLifecycle(fragment, maxLifecycle)
+			}
+			.commitNowAllowingStateLoss()
+		return if (fragmentTag != null) {
+			fragmentManager.findFragmentByTag(fragmentTag) ?: fragment
+		} else {
+			fragment
+		}
 	}
 
 
@@ -339,11 +374,31 @@ class MainNavigationDelegate(
 	}
 
 	private fun observeSettings(lifecycleOwner: LifecycleOwner) {
-		settings.observe(AppSettings.KEY_TRACKER_ENABLED, AppSettings.KEY_SUGGESTIONS, AppSettings.KEY_NAV_LABELS)
+		settings.observe(
+			AppSettings.KEY_TRACKER_ENABLED,
+			AppSettings.KEY_SUGGESTIONS,
+			AppSettings.KEY_NAV_LABELS,
+			AppSettings.KEY_NAV_MAIN,
+		)
 			.onEach {
+				navBar.setupMenu(settings.mainNavItems)
 				setItemVisibility(R.id.nav_suggestions, settings.isSuggestionsEnabled)
 				setItemVisibility(R.id.nav_feed, settings.isTrackerEnabled)
 				setNavbarIsLabeled(settings.isNavLabelsVisible)
+				val primaryItemId = primaryFragment?.let(::getItemId)
+				val targetItemId = when {
+					primaryItemId != null && navBar.getItemTitle(primaryItemId) != null && navBar.isItemVisible(primaryItemId) -> primaryItemId
+					navBar.getItemTitle(navBar.selectedItemId) != null && navBar.isItemVisible(navBar.selectedItemId) -> navBar.selectedItemId
+					else -> navBar.getFirstVisibleItemId()
+				}
+				if (targetItemId != null && navBar.selectedItemId != targetItemId) {
+					navBar.setOnItemSelectedListener(null)
+					navBar.selectedItemId = targetItemId
+					navBar.setOnItemSelectedListener(this)
+				}
+				if (primaryItemId != null && primaryItemId != targetItemId) {
+					targetItemId?.let(::onNavigationItemSelected)
+				}
 			}.launchIn(lifecycleOwner.lifecycleScope)
 	}
 

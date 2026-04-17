@@ -6,11 +6,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -38,6 +39,11 @@ import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.compose.PagesScreenRoot
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
+
+private data class DetailsTabSpec(
+	val titleResId: Int,
+	val iconResId: Int,
+)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -61,9 +67,9 @@ fun ChaptersPagesTabsContent(
 
 	val tabsList = remember(isPagesTabEnabled, isBookmarksTabEnabled) {
 		buildList {
-			add(R.string.chapters)
-			if (isPagesTabEnabled) add(R.string.pages)
-			if (isBookmarksTabEnabled) add(R.string.bookmarks)
+			add(DetailsTabSpec(titleResId = R.string.chapters, iconResId = R.drawable.ic_list))
+			if (isPagesTabEnabled) add(DetailsTabSpec(titleResId = R.string.pages, iconResId = R.drawable.ic_grid))
+			if (isBookmarksTabEnabled) add(DetailsTabSpec(titleResId = R.string.bookmarks, iconResId = R.drawable.ic_bookmark))
 		}
 	}
 
@@ -87,9 +93,9 @@ fun ChaptersPagesTabsContent(
 			if (tabsList.size > 1) {
 				TabRow(
 					selectedTabIndex = pagerState.currentPage,
-					containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+					containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp).copy(alpha = 0.72f),
 				) {
-					tabsList.forEachIndexed { index, titleRes ->
+					tabsList.forEachIndexed { index, tab ->
 						Tab(
 							selected = pagerState.currentPage == index,
 							onClick = {
@@ -97,7 +103,12 @@ fun ChaptersPagesTabsContent(
 									pagerState.animateScrollToPage(index)
 								}
 							},
-							text = { Text(stringResource(id = titleRes)) }
+							icon = {
+								Icon(
+									painter = painterResource(tab.iconResId),
+									contentDescription = stringResource(tab.titleResId),
+								)
+							},
 						)
 					}
 				}
@@ -109,7 +120,7 @@ fun ChaptersPagesTabsContent(
 			) { page ->
 				if (router == null) return@HorizontalPager
 
-				when (tabsList[page]) {
+				when (tabsList[page].titleResId) {
 					R.string.chapters -> ChaptersScreenRoot(
 						viewModel = viewModel,
 						router = router,

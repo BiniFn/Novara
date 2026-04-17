@@ -98,6 +98,7 @@ fun SwipeableFilterChip(
                     highlightIndex = currentSelectedType
                         ?.toSwipeableIndex()
                         ?.takeIf { index -> types[index] in enabledTypes }
+                        ?: types.indexOf(ContentType.MANGA).takeIf { index -> index >= 0 && types[index] in enabledTypes }
                         ?: types.indexOfFirst { type -> type in enabledTypes }.takeIf { it >= 0 }
                         ?: 1
                     dragOffsetX = 0f

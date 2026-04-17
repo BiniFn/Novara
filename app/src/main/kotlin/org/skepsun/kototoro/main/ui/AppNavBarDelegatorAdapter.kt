@@ -31,6 +31,7 @@ fun NavigationBarView.asAppNavBarDelegator(): AppNavBarDelegator {
 
         override fun setupMenu(items: List<NavItem>) {
             val menu = navView.menu
+            menu.clear()
             for (item in items) {
                 menu.add(android.view.Menu.NONE, item.id, android.view.Menu.NONE, item.title)
                     .setIcon(item.icon)

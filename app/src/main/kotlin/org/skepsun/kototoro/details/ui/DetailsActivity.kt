@@ -63,6 +63,7 @@ class DetailsActivity :
 	private val bookmarksViewModel: BookmarksViewModel by viewModels()
 
 	private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
+	private var shouldRenderTransitionCover = true
 	private val overrideEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
 		if (result.resultCode == Activity.RESULT_OK) {
 			viewModel.reload()
@@ -134,11 +135,23 @@ class DetailsActivity :
 					settings = settings,
 					pageSaveHelper = pageSaveHelper,
 					onBackClick = { onBackPressedDispatcher.onBackPressed() },
-					onCoverBoundsSync = { rect ->
-						syncCoverBounds(rect)
+					onCoverBoundsSync = { rect, alpha ->
+						syncCoverBounds(rect, alpha)
 					},
 					onActionClick = { action ->
 						when (action) {
+							DetailsAction.OpenCover -> {
+								viewModel.getContentOrNull()?.let { content ->
+									content.coverUrl?.let { url ->
+										router.openImage(
+											url = url,
+											source = content.source,
+											anchor = viewBinding.imageViewCover,
+										)
+									}
+								}
+							}
+
 							DetailsAction.Resume -> {
 								openReader()
 							}
@@ -271,15 +284,28 @@ class DetailsActivity :
 		viewBinding.imageViewCover.addImageRequestListener(object : coil3.request.ImageRequest.Listener {
 			override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
 				supportStartPostponedEnterTransition()
+				scheduleTransitionCoverFadeOut()
 			}
 			override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
 				supportStartPostponedEnterTransition()
+				scheduleTransitionCoverFadeOut()
 			}
 		})
 
 		lifecycleScope.launch {
 			viewModel.coverUrl.collect { url ->
 				viewBinding.imageViewCover.setImageAsync(url, viewModel.getContentOrNull())
+			}
+		}
+		viewBinding.imageViewCover.setOnClickListener {
+			viewModel.getContentOrNull()?.let { content ->
+				content.coverUrl?.let { url ->
+					router.openImage(
+						url = url,
+						source = content.source,
+						anchor = viewBinding.imageViewCover,
+					)
+				}
 			}
 		}
 		viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
@@ -350,7 +376,7 @@ class DetailsActivity :
 		}
 	}
 
-	private fun syncCoverBounds(rect: Rect) {
+	private fun syncCoverBounds(rect: Rect, alpha: Float) {
 		if (rect.width > 0 && rect.height > 0) {
 			viewBinding.imageViewCover.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				width = rect.width.toInt()
@@ -359,7 +385,23 @@ class DetailsActivity :
 				leftMargin = rect.left.toInt()
 			}
 		}
+		viewBinding.imageViewCover.alpha = if (shouldRenderTransitionCover) {
+			alpha.coerceIn(0f, 1f)
+		} else {
+			0f
+		}
+		viewBinding.imageViewCover.visibility = View.VISIBLE
+	}
 
+	private fun scheduleTransitionCoverFadeOut() {
+		if (!shouldRenderTransitionCover) {
+			return
+		}
+		val delayMs = if (settings.isSharedElementTransitionsEnabled) 380L else 0L
+		viewBinding.imageViewCover.postDelayed({
+			shouldRenderTransitionCover = false
+			viewBinding.imageViewCover.alpha = 0f
+		}, delayMs)
 	}
 
 	override fun onProvideAssistContent(outContent: AssistContent) {

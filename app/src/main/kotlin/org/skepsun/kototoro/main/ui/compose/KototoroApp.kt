@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -17,6 +18,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.fragment.app.FragmentContainerView
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
@@ -66,9 +70,9 @@ fun KototoroApp(
     onContentInsetsChanged: (Int, Int) -> Unit = { _, _ -> },
     nestedScrollDeltaYFlow: kotlinx.coroutines.flow.SharedFlow<Float> = MutableSharedFlow(),
     isResumeEnabled: Boolean = false,
-    onResumeClick: () -> Unit = {},
-    onContainerReady: (androidx.fragment.app.FragmentContainerView) -> Unit = {}
+    onResumeClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
     val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
     val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
@@ -107,33 +111,21 @@ fun KototoroApp(
         onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
     }
 
+    LaunchedEffect(nestedScrollDeltaYFlow, isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
+        nestedScrollDeltaYFlow.collect { dy ->
+            if (!isNavBarPinned && dy != 0f) {
+                topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
+                bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
+            } else if (isNavBarPinned) {
+                topBarOffset = 0f
+                bottomNavOffset = 0f
+            }
+        }
+    }
 
     KototoroTheme {
         Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
-            androidx.compose.ui.viewinterop.AndroidView(
-                factory = { context ->
-                    org.skepsun.kototoro.core.ui.widgets.NestedScrollBridgingFrameLayout(context).apply {
-                        val fragmentContainer = androidx.fragment.app.FragmentContainerView(context).apply {
-                            id = org.skepsun.kototoro.R.id.container
-                        }
-                        addView(fragmentContainer, android.widget.FrameLayout.LayoutParams(
-                            android.view.ViewGroup.LayoutParams.MATCH_PARENT, 
-                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                        ))
-                        onNestedScrollDeltaY = { dy ->
-                            if (!isNavBarPinned && dy != 0f) {
-                                topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
-                                bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
-                            } else if (isNavBarPinned) {
-                                topBarOffset = 0f
-                                bottomNavOffset = 0f
-                            }
-                        }
-                        post { onContainerReady(fragmentContainer) }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+
 
 
             // TopBar at the top — measure its height for content padding

@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,9 +10,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,19 +40,26 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,7 +95,7 @@ fun DetailsScreen(
     settings: AppSettings,
     pageSaveHelper: PageSaveHelper,
     onBackClick: () -> Unit,
-    onCoverBoundsSync: (Rect) -> Unit,
+    onCoverBoundsSync: (Rect, Float) -> Unit,
     onActionClick: (DetailsAction) -> Unit = {},
 ) {
     val mangaDetails by viewModel.mangaDetails.collectAsState()
@@ -109,6 +119,35 @@ fun DetailsScreen(
     }
     val content = mangaDetails?.toContent()
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    val toolbarGapPx = with(density) { 12.dp.toPx() }
+    var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
+    var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
+    var initialInfoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
+    LaunchedEffect(infoCardTopPx) {
+        if (infoCardTopPx.isFinite() && (!initialInfoCardTopPx.isFinite() || infoCardTopPx > initialInfoCardTopPx)) {
+            initialInfoCardTopPx = infoCardTopPx
+        }
+    }
+    val collapseProgress by remember(
+        scrollState,
+        toolbarBottomPx,
+        infoCardTopPx,
+        initialInfoCardTopPx,
+        toolbarGapPx,
+    ) {
+        derivedStateOf {
+            val targetTop = toolbarBottomPx + toolbarGapPx
+            if (toolbarBottomPx.isFinite() && infoCardTopPx.isFinite() && initialInfoCardTopPx.isFinite()) {
+                val travelDistance = (initialInfoCardTopPx - targetTop).coerceAtLeast(1f)
+                ((initialInfoCardTopPx - infoCardTopPx) / travelDistance).coerceIn(0f, 1f)
+            } else {
+                (scrollState.value / 360f).coerceIn(0f, 1f)
+            }
+        }
+    }
+    val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (settings.isPanoramaCoverEnabled) {
@@ -126,7 +165,7 @@ fun DetailsScreen(
                     .fillMaxWidth()
                     .height(350.dp + (panoramaExtraHeight ?: 50).dp)
                     .blur(radius = (((panoramaBlur ?: 35) / 100f) * 20f).dp)
-                    .alpha(0.6f),
+                    .alpha(0.6f * (1f - collapseProgress)),
             )
             Box(
                 modifier = Modifier
@@ -158,9 +197,17 @@ fun DetailsScreen(
             },
             topBar = {
                 TopAppBar(
-                    title = { },
+                    title = {
+                        if (collapseProgress > 0.92f) {
+                            Text(
+                                text = toolbarTitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
                     navigationIcon = {
-                        IconButton(onClick = onBackClick) {
+                        DetailsChromeButton(onClick = onBackClick) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.back),
@@ -168,13 +215,13 @@ fun DetailsScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { onActionClick(DetailsAction.Share) }) {
+                        DetailsChromeButton(onClick = { onActionClick(DetailsAction.Share) }) {
                             Icon(
                                 imageVector = Icons.Default.Share,
                                 contentDescription = stringResource(R.string.share),
                             )
                         }
-                        IconButton(onClick = { onActionClick(DetailsAction.Download) }) {
+                        DetailsChromeButton(onClick = { onActionClick(DetailsAction.Download) }) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_download),
                                 contentDescription = stringResource(R.string.download),
@@ -196,11 +243,15 @@ fun DetailsScreen(
                             onActionClick = onActionClick,
                         )
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f * collapseProgress),
+                    ),
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        toolbarBottomPx = coordinates.boundsInRoot().bottom
+                    },
                 )
             },
         ) { paddingValues ->
-            val scrollState = rememberScrollState()
             val source = content?.source
 
             Column(
@@ -212,12 +263,16 @@ fun DetailsScreen(
                 DetailsHeader(
                     mangaDetails = mangaDetails,
                     favouriteCategories = favouriteCategories,
+                    historyInfo = historyInfo,
                     translatedTitle = translatedTitle,
                     translatedDescription = translatedDescription,
                     isShowingTranslation = isShowingTranslation,
                     hasTranslationCache = hasTranslationCache,
                     isTranslating = isTranslating,
+                    collapseProgress = collapseProgress,
                     onCoverBoundsSync = onCoverBoundsSync,
+                    onInfoCardTopSync = { top -> infoCardTopPx = top },
+                    onCoverClick = { onActionClick(DetailsAction.OpenCover) },
                     onFavoriteClick = { onActionClick(DetailsAction.Favorite) },
                     onSourceClick = { onActionClick(DetailsAction.OpenSource(it)) },
                     onAuthorClick = { author ->
@@ -243,49 +298,84 @@ private fun DetailsBottomBar(
     isLoading: Boolean,
     onActionClick: (DetailsAction) -> Unit,
 ) {
-    BottomAppBar(
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        IconButton(onClick = { onActionClick(DetailsAction.ToggleList) }) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+            tonalElevation = 6.dp,
+            shadowElevation = 18.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                DetailsDockActionButton(
+                    iconRes = R.drawable.ic_list,
+                    contentDescription = stringResource(R.string.chapters),
+                    onClick = { onActionClick(DetailsAction.ToggleList) },
+                )
+                DetailsDockActionButton(
+                    iconRes = R.drawable.ic_grid,
+                    contentDescription = stringResource(R.string.pages),
+                    onClick = { onActionClick(DetailsAction.ToggleGrid) },
+                )
+                DetailsDockActionButton(
+                    iconRes = R.drawable.ic_bookmark,
+                    contentDescription = stringResource(R.string.bookmarks),
+                    onClick = { onActionClick(DetailsAction.ToggleBookmarkView) },
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                ReadDock(
+                    readLabel = resolveReadActionLabel(
+                        contentType = contentType,
+                        historyInfo = historyInfo,
+                        isLoading = isLoading,
+                    ),
+                    branches = branches,
+                    historyInfo = historyInfo,
+                    isDownloadAvailable = historyInfo.canDownload,
+                    isEnabled = !isLoading && historyInfo.isValid,
+                    onReadClick = { onActionClick(DetailsAction.Resume) },
+                    onIncognitoClick = { onActionClick(DetailsAction.ResumeIncognito) },
+                    onForgetClick = { onActionClick(DetailsAction.ForgetHistory) },
+                    onDownloadClick = { onActionClick(DetailsAction.Download) },
+                    onBranchSelected = { onActionClick(DetailsAction.SelectBranch(it)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsDockActionButton(
+    iconRes: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+        modifier = Modifier.padding(end = 8.dp),
+    ) {
+        IconButton(onClick = onClick) {
             Icon(
-                painter = painterResource(R.drawable.ic_list),
-                contentDescription = stringResource(R.string.chapters),
+                painter = painterResource(iconRes),
+                contentDescription = contentDescription,
             )
         }
-        IconButton(onClick = { onActionClick(DetailsAction.ToggleGrid) }) {
-            Icon(
-                painter = painterResource(R.drawable.ic_grid),
-                contentDescription = stringResource(R.string.pages),
-            )
-        }
-        IconButton(onClick = { onActionClick(DetailsAction.ToggleBookmarkView) }) {
-            Icon(
-                painter = painterResource(R.drawable.ic_bookmark),
-                contentDescription = stringResource(R.string.bookmarks),
-            )
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        ReadDock(
-            readLabel = resolveReadActionLabel(
-                contentType = contentType,
-                historyInfo = historyInfo,
-                isLoading = isLoading,
-            ),
-            branches = branches,
-            historyInfo = historyInfo,
-            isDownloadAvailable = historyInfo.canDownload,
-            isEnabled = !isLoading && historyInfo.isValid,
-            onReadClick = { onActionClick(DetailsAction.Resume) },
-            onIncognitoClick = { onActionClick(DetailsAction.ResumeIncognito) },
-            onForgetClick = { onActionClick(DetailsAction.ForgetHistory) },
-            onDownloadClick = { onActionClick(DetailsAction.Download) },
-            onBranchSelected = { onActionClick(DetailsAction.SelectBranch(it)) },
-        )
     }
 }
 
 sealed interface DetailsAction {
+    data object OpenCover : DetailsAction
     data class OpenSource(val source: ContentSource) : DetailsAction
     data class AuthorClick(val author: String, val source: ContentSource) : DetailsAction
     data class TagClick(val tag: ContentTag) : DetailsAction
@@ -340,27 +430,28 @@ private fun ReadDock(
     }
 
     Surface(
-        modifier = Modifier.height(52.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.height(56.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 3.dp,
+        tonalElevation = 4.dp,
+        shadowElevation = 8.dp,
     ) {
         Box {
             Row {
                 TextButton(
                     onClick = onReadClick,
                     enabled = isEnabled,
-                    modifier = Modifier.height(52.dp),
+                    modifier = Modifier.height(56.dp),
                 ) {
                     Text(
                         text = readLabel,
-                        modifier = Modifier.padding(horizontal = 8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp),
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .padding(vertical = 10.dp)
+                        .padding(vertical = 12.dp)
                         .width(1.dp)
                         .height(32.dp)
                         .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f)),
@@ -368,7 +459,7 @@ private fun ReadDock(
                 TextButton(
                     onClick = { expanded = true },
                     enabled = hasMenuActions,
-                    modifier = Modifier.height(52.dp),
+                    modifier = Modifier.height(56.dp),
                 ) {
                     Text(
                         text = menuLabel,
@@ -490,7 +581,7 @@ private fun DetailsOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
 
     Box {
-        IconButton(onClick = { expanded = true }) {
+        DetailsChromeButton(onClick = { expanded = true }) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = stringResource(R.string.more),
@@ -612,6 +703,35 @@ private fun DetailsOverflowMenu(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailsChromeButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier
+            .padding(horizontal = 2.dp)
+            .shadow(
+                elevation = 12.dp,
+                shape = CircleShape,
+                ambientColor = Color.Black.copy(alpha = 0.18f),
+                spotColor = Color.Black.copy(alpha = 0.24f),
+            ),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
+        tonalElevation = 2.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        ),
+    ) {
+        IconButton(onClick = onClick) {
+            content()
         }
     }
 }

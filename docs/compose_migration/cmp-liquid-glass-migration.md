@@ -189,6 +189,8 @@ parser-api/
 - Compose 顶栏查询状态现已由主壳统一持有，语音输入与手动输入、建议点击共用同一状态链路，避免 Compose 搜索栏与 Activity 回调脱节。
 - Compose 顶栏已重新接入旧版的全局语言预设入口，并通过全局 `activeSourcePresetId` 状态反馈当前是否存在已启用的源预设。
 - `SearchBarFilterViewController` 关联的 Fragment 现已在 `onDestroyView()` 主动释放回调，主壳不会继续持有已销毁页面的筛选语义，降低导航切换与重建时的状态残留风险。
+- 主壳恢复链路已继续补强：稳定 `FragmentContainerView` 复用、fragment `detach/attach` 重挂、动态导航项菜单重建与选中态保留已接入第一轮修复，开始收敛旋转白屏、导航配置后空白页与双层 Home 叠层等问题。
+- Compose 内容类型筛选按钮的默认单击目标已改回漫画，避免主壳筛选在未显式选择时默认跳到视频。
 
 ### Phase 3：高频内容页迁移
 
@@ -227,6 +229,9 @@ parser-api/
 - `DetailsScreen` 顶栏 `More` 菜单已补齐本地删除、override 编辑与创建快捷方式，`DetailsActivity` 复用现有删除确认、override 返回刷新与快捷方式请求逻辑。
 - `DetailsActivity` 已统一章节、页面、书签三个底部入口到内嵌 `ChaptersPagesSheet`，并按动态 tab 可用性映射索引。
 - `ChaptersPagesSheet` 中 tab 切页现已改为在 Compose 协程上下文内驱动 `PagerState.animateScrollToPage()`，修复 `MonotonicFrameClock` 缺失导致的章节 / 页面 / 书签按钮闪退。
+- `Home` 首页已进入第三轮 Dantotsu 化细节收口：顶部主卡收敛为 `History / Updates / Suggestions` 三标签 Hero，动态源名与来源胶囊已统一为可读信息，tracking Hero 进一步压缩并重新安放指示器 / 评分区域。
+- `Details` 详情页已继续打磨：封面共享元素转场只保留单层过渡、章节 / 页面 / 书签改回 icon-only tabs、顶部折叠工具栏保留分享 / 下载 / 更多动作，基础信息卡与简介卡的 Compose 背景 token 也进一步统一。
+- `Appearance` 页已补齐根背景容器，避免设置页透出旧 View 宿主底色。
 
 ### Phase 4：Dialog / Sheet Compose 化
 
@@ -324,6 +329,11 @@ parser-api/
 - 将 `DiscoverHeroCarousel` 从单层大图进一步推进到双层视觉结构，形成“背景 banner 氛围 + 前景浮动 cover”的首页 Hero。
 - 为 `DiscoverCarousel` 分类行补齐位移 / 缩放 / 透明度动效，并修复 carousel / search grid 模式下 Compose 空态白屏。
 - 本轮 Discover 视觉深化阶段受本地 Hilt/KSP 生成目录问题影响，额外以 `./gradlew :app:compileDebugKotlin --no-daemon -x kspDebugKotlin "-Pkotlin.incremental=false"` 完成 Kotlin 语法与类型校验。
+- 解决 `KototoroTopBar` 和 `BottomNav` 以及各级 Compose Screen `WindowInsets` 丢失、状态栏和导航栏重叠的问题。
+- 完成 `activity_main.xml` 架构重构：舍弃嵌套在 Compose `AndroidView` 内的 `FragmentContainerView`，改为在 XML 层面以 `NestedScrollBridgingFrameLayout` 作为根视图，将 `FragmentContainerView` 和 `ComposeView` 作为平行层叠（Sibling）视图。
+- 移除 `KototoroApp.kt` 对内部 Legacy 容器渲染流程的干涉，将依赖反转回 `MainActivity` 驱动。
+- 重构 Compose 嵌套滑动链路：剥离依赖层级的反向冒泡，改为在 `MainActivity` 捕捉 `NestedScrollBridgingFrameLayout` 的滑动事件并通过 `nestedScrollDeltaYFlow` 显式向 Compose UI（搜索栏、底栏）下发滚动偏移补偿量，实现丝滑联动的自适应避让表现。
+- 修正沉浸式导航栏的 `padding` 应用时机和对象：利用原生 WindowInsets 分发机制确保 Legacy Fragment 层获得基于状态栏高度计算的实际安全边界，同时在 `isFloating` 状态下保持 Compose 层玻璃效果底栏正确的 UI 叠加透出行为。
 
 ## 下一步
 

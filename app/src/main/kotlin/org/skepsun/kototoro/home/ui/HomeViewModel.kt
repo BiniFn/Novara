@@ -8,11 +8,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
@@ -39,7 +44,11 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
+import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
 import org.skepsun.kototoro.tracking.discovery.domain.PreferredTrackingSiteProvider
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
 import javax.inject.Inject
 
 data class HomeRecentItem(
@@ -105,6 +114,25 @@ data class HomeSyncState(
 	val lastUploadKind: String? = null,
 )
 
+data class HomeTrackingSpotlightItem(
+	val service: ScrobblerService,
+	val remoteId: Long,
+	val title: String,
+	val altTitle: String? = null,
+	val coverUrl: String? = null,
+	val subtitle: String? = null,
+	val score: Float? = null,
+	val url: String? = null,
+	val supportsDetails: Boolean = false,
+)
+
+data class HomeTrackingSection(
+	val service: ScrobblerService,
+	val categoryId: String? = null,
+	@StringRes val titleResId: Int,
+	val items: List<HomeTrackingSpotlightItem> = emptyList(),
+)
+
 data class HomeSummaryState(
 	val selectedTab: HomeContentTab? = null,
 	val recentHistoryCount: Int = 0,
@@ -119,6 +147,7 @@ data class HomeSummaryState(
 	val enabledSourcesCount: Int = 0,
 	val sourceBreakdown: List<HomeSourceBreakdown> = emptyList(),
 	val preferredTrackingSite: ScrobblerService = ScrobblerService.BANGUMI,
+	val trackingSections: List<HomeTrackingSection> = emptyList(),
 	val syncState: HomeSyncState = HomeSyncState(),
 	val selectedSourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = emptySet(),
 )
@@ -131,6 +160,8 @@ class HomeViewModel @Inject constructor(
 	suggestionRepository: SuggestionRepository,
 	contentSourcesRepository: ContentSourcesRepository,
 	preferredTrackingSiteProvider: PreferredTrackingSiteProvider,
+	private val trackingDiscoveryService: TrackingSiteDiscoveryService,
+	private val trackingSiteCacheRepository: TrackingSiteCacheRepository,
 	private val exploreRepository: org.skepsun.kototoro.explore.domain.ExploreRepository,
 	private val settings: AppSettings,
 	private val webDavUploader: WebDavBackupUploader,
@@ -197,6 +228,21 @@ class HomeViewModel @Inject constructor(
 				.take(3)
 		}
 	private val preferredTrackingSiteFlow = preferredTrackingSiteProvider.preferredSite
+	private val trackingSectionsFlow = combine(
+		selectedTabFlow,
+		preferredTrackingSiteFlow,
+	) { selectedTab, service ->
+		selectedTab to service
+	}
+		.distinctUntilChanged()
+		.mapLatest { (selectedTab, service) ->
+			loadTrackingSections(service, selectedTab)
+		}
+		.stateIn(
+			scope = viewModelScope,
+			started = SharingStarted.WhileSubscribed(5_000),
+			initialValue = emptyList(),
+		)
 
 	private val syncStateFlow = settings.observe(
 		AppSettings.KEY_BACKUP_WEBDAV_ENABLED,
@@ -246,9 +292,10 @@ class HomeViewModel @Inject constructor(
 			enabledSourcesCountFlow,
 			sourceBreakdownFlow,
 			preferredTrackingSiteFlow,
+			trackingSectionsFlow,
 			syncStateFlow,
-		) { enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState ->
-			Quadruple(enabledSourcesCount, sourceBreakdown, preferredTrackingSite, syncState)
+		) { enabledSourcesCount, sourceBreakdown, preferredTrackingSite, trackingSections, syncState ->
+			Quintuple(enabledSourcesCount, sourceBreakdown, preferredTrackingSite, trackingSections, syncState)
 		},
 		combine(
 			isTrackerNsfwDisabledFlow,
@@ -301,7 +348,8 @@ class HomeViewModel @Inject constructor(
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
 		val preferredTrackingSite = right.third
-		val syncState = right.fourth
+		val trackingSections = right.fourth
+		val syncState = right.fifth
 
 		HomeSummaryState(
 			selectedTab = selectedTab,
@@ -317,6 +365,7 @@ class HomeViewModel @Inject constructor(
 			enabledSourcesCount = enabledSourcesCount,
 			sourceBreakdown = sourceBreakdown,
 			preferredTrackingSite = preferredTrackingSite,
+			trackingSections = trackingSections,
 			syncState = syncState,
 			selectedSourceTags = selectedSourceTags,
 		)
@@ -424,6 +473,117 @@ class HomeViewModel @Inject constructor(
 			}
 		}
 	}
+
+	private suspend fun loadTrackingSections(
+		service: ScrobblerService,
+		selectedTab: HomeContentTab?,
+	): List<HomeTrackingSection> = coroutineScope {
+		val caps = trackingDiscoveryService.getCapabilities(service)
+		if (!caps.supportsTrending) {
+			return@coroutineScope emptyList()
+		}
+		val supportsDetails = caps.supportsDetails
+		val visibleCategories = caps.discoveryCategories
+			.filter { isTrackingCategoryVisibleForTab(it.id, service, selectedTab) }
+			.take(HOME_TRACKING_SECTION_LIMIT)
+
+		if (visibleCategories.isEmpty()) {
+			val rootItems = resolveTrackingCategoryItems(service, HOME_TRACKING_ROOT_CATEGORY)
+			return@coroutineScope rootItems
+				.take(HOME_TRACKING_ITEM_LIMIT)
+				.takeIf { it.isNotEmpty() }
+				?.let {
+					listOf(
+						HomeTrackingSection(
+							service = service,
+							categoryId = null,
+							titleResId = service.titleResId,
+							items = it.map { item -> item.toHomeTrackingItem(supportsDetails) },
+						),
+					)
+				}
+				.orEmpty()
+		}
+
+		visibleCategories.map { category ->
+			async {
+				val items = resolveTrackingCategoryItems(service, category.id)
+					.take(HOME_TRACKING_ITEM_LIMIT)
+				if (items.isEmpty()) {
+					null
+				} else {
+					HomeTrackingSection(
+						service = service,
+						categoryId = category.id,
+						titleResId = category.nameResId,
+						items = items.map { item -> item.toHomeTrackingItem(supportsDetails) },
+					)
+				}
+			}
+		}.awaitAll().filterNotNull()
+	}
+
+	private suspend fun resolveTrackingCategoryItems(
+		service: ScrobblerService,
+		categoryId: String,
+	): List<TrackingSiteItem> {
+		trackingSiteCacheRepository.readCategoryCache(service, categoryId)?.let { cached ->
+			if (cached.isNotEmpty()) {
+				return cached
+			}
+		}
+		val items = runCatching {
+			trackingDiscoveryService.getTrending(
+				TrackingSiteCatalog(
+					service = service,
+					category = categoryId.takeUnless { it == HOME_TRACKING_ROOT_CATEGORY },
+					page = 0,
+				),
+			)
+		}.getOrElse {
+			emptyList()
+		}
+		if (items.isNotEmpty()) {
+			trackingSiteCacheRepository.saveCategoryCache(service, categoryId, items)
+		}
+		return items
+	}
+
+	private fun isTrackingCategoryVisibleForTab(
+		categoryId: String,
+		service: ScrobblerService,
+		selectedTab: HomeContentTab?,
+	): Boolean {
+		if (selectedTab == null) {
+			return true
+		}
+		val isVideo = categoryId.contains("anime") ||
+			categoryId.contains("movie") ||
+			categoryId.contains("ova") ||
+			categoryId.contains("tv") ||
+			categoryId.contains("calendar") ||
+			categoryId.contains("real") ||
+			categoryId.contains("seasonal") ||
+			(service == ScrobblerService.KITSU && !categoryId.contains("manga"))
+		val isNovel = categoryId.contains("novel") ||
+			categoryId.contains("light_novel") ||
+			(service == ScrobblerService.BANGUMI && categoryId == "book")
+		val isManga = categoryId.contains("manga") ||
+			categoryId.contains("doujin") ||
+			categoryId.contains("oneshots") ||
+			categoryId.contains("manhwa") ||
+			categoryId.contains("manhua") ||
+			categoryId.contains("mu_") ||
+			categoryId.contains("al_manga") ||
+			categoryId.contains("shiki_manga") ||
+			(service == ScrobblerService.BANGUMI && categoryId == "book")
+
+		return when (selectedTab) {
+			HomeContentTab.VIDEO -> isVideo
+			HomeContentTab.NOVEL -> isNovel
+			HomeContentTab.MANGA -> isManga
+		}
+	}
 }
 
 private data class Quadruple<A, B, C, D>(
@@ -431,6 +591,14 @@ private data class Quadruple<A, B, C, D>(
 	val second: B,
 	val third: C,
 	val fourth: D,
+)
+
+private data class Quintuple<A, B, C, D, E>(
+	val first: A,
+	val second: B,
+	val third: C,
+	val fourth: D,
+	val fifth: E,
 )
 
 private data class Sextuple<A, B, C, D, E, F>(
@@ -456,6 +624,22 @@ private fun ContentTracking.toHomeUpdateItem(): HomeUpdateItem {
 	return HomeUpdateItem(
 		content = manga,
 		newChapters = newChapters,
+	)
+}
+
+private fun TrackingSiteItem.toHomeTrackingItem(
+	supportsDetails: Boolean,
+): HomeTrackingSpotlightItem {
+	return HomeTrackingSpotlightItem(
+		service = service,
+		remoteId = remoteId,
+		title = title,
+		altTitle = altTitle,
+		coverUrl = coverUrl,
+		subtitle = subtitle,
+		score = score,
+		url = url,
+		supportsDetails = supportsDetails,
 	)
 }
 
@@ -511,6 +695,10 @@ private fun List<Content>.groupByTabThenSelect(
 	// Return in original order (already sorted by recency from DB)
 	return filtered.filter { it in taken }
 }
+
+private const val HOME_TRACKING_SECTION_LIMIT = 3
+private const val HOME_TRACKING_ITEM_LIMIT = 10
+private const val HOME_TRACKING_ROOT_CATEGORY = "root_trending"
 
 /**
  * Same grouping logic for [ContentTracking] items.

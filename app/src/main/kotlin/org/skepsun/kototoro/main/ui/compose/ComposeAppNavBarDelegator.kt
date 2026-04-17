@@ -53,10 +53,14 @@ class ComposeAppNavBarDelegator(
     override fun isMenuEmpty(): Boolean = stateFlow.value.items.isEmpty()
 
     override fun setupMenu(items: List<NavItem>) {
-        stateFlow.value = stateFlow.value.copy(items = items)
-        if (items.isNotEmpty()) {
-            stateFlow.value = stateFlow.value.copy(selectedItemId = items.first().id)
-        }
+        val currentSelectedId = stateFlow.value.selectedItemId
+        val targetSelectedId = items.firstOrNull { it.id == currentSelectedId }?.id
+            ?: items.firstOrNull()?.id
+            ?: 0
+        stateFlow.value = stateFlow.value.copy(
+            items = items,
+            selectedItemId = targetSelectedId,
+        )
     }
 
     override fun setBadgeNumber(itemId: Int, number: Int) {

@@ -32,14 +32,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -51,9 +49,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.delay
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
+import org.skepsun.kototoro.core.ui.compose.HeroBackdropCard
+import org.skepsun.kototoro.core.ui.compose.HeroBackdropScrim
+import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import kotlin.math.absoluteValue
 
@@ -104,70 +105,50 @@ fun DiscoverHeroCarousel(
         label = "discover_hero_background_translation_y",
     )
 
-    LaunchedEffect(items.size) {
-        if (items.size <= 1) {
-            return@LaunchedEffect
-        }
-        while (true) {
-            delay(4500)
-            if (!pagerState.isScrollInProgress) {
-                pagerState.animateScrollToPage((pagerState.currentPage + 1) % items.size)
-            }
-        }
-    }
+    HeroAutoAdvanceEffect(
+        pagerState = pagerState,
+        pageCount = items.size,
+    )
 
-    Box(
+    HeroBackdropCard(
         modifier = modifier
-            .fillMaxWidth()
-            .height(470.dp)
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-    ) {
-        Crossfade(targetState = selectedItem.id, label = "discover_hero_background") { currentId ->
-            val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
-            AsyncImage(
-                model = backgroundItem.coverUrl,
-                contentDescription = backgroundItem.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = backgroundScale
-                        scaleY = backgroundScale
-                        translationX = backgroundTranslationX
-                        translationY = backgroundTranslationY
-                    }
-                    .blur(28.dp),
+            .padding(horizontal = 16.dp),
+        minHeight = 470.dp,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        elevation = 0.dp,
+        background = {
+            Crossfade(targetState = selectedItem.id, label = "discover_hero_background") { currentId ->
+                val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
+                AsyncImage(
+                    model = backgroundItem.coverUrl,
+                    contentDescription = backgroundItem.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = backgroundScale
+                            scaleY = backgroundScale
+                            translationX = backgroundTranslationX
+                            translationY = backgroundTranslationY
+                        }
+                        .blur(28.dp),
+                )
+            }
+            HeroBackdropScrim(
+                verticalColors = listOf(
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.36f),
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                ),
+                horizontalColors = listOf(
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+                    Color.Transparent,
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.44f),
+                ),
             )
-        }
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.36f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                        ),
-                    ),
-                ),
-        )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.44f),
-                        ),
-                    ),
-                ),
-        )
-
+        },
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -221,7 +202,7 @@ fun DiscoverHeroCarousel(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    DiscoverHeroIndicator(
+                    HeroPagerIndicator(
                         pageCount = items.size,
                         currentPage = selectedIndex,
                     )
@@ -375,32 +356,5 @@ private fun DiscoverHeroPill(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
         )
-    }
-}
-
-@Composable
-private fun DiscoverHeroIndicator(
-    pageCount: Int,
-    currentPage: Int,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        repeat(pageCount) { index ->
-            val isSelected = index == currentPage
-            Box(
-                modifier = Modifier
-                    .size(width = if (isSelected) 22.dp else 8.dp, height = 8.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
-                        },
-                    ),
-            )
-        }
     }
 }

@@ -26,6 +26,7 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.home.ui.compose.HomeScreen
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import androidx.compose.runtime.getValue
+import org.skepsun.kototoro.main.ui.MainActivity
 
 @AndroidEntryPoint
 class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewController.Callback {
@@ -64,13 +65,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 			KototoroTheme {
 				HomeScreen(
 					state = state,
-					appSettings = settings,
 					onContentClick = { content -> router.openDetails(content, null) },
 					onSettingsClick = { router.openSettings() },
 					onReaderSettingsClick = { router.openReaderSettings() },
 					onSyncSettingsClick = { router.openSyncSettings() },
-					onSyncBackupClick = { viewModel.uploadWebDavNow() },
-					onSyncRestoreClick = { viewModel.restoreWebDavNow() },
 					onViewAllRecentClick = { router.openHistory(currentBrowseGroupTab()) },
 					onViewAllUpdatesClick = { router.openMangaUpdates(currentBrowseGroupTab()) },
 					onViewAllRecommendationsClick = { router.openSuggestions(currentBrowseGroupTab()) },
@@ -81,6 +79,20 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 					onDownloadsClick = { router.openDownloads() },
 					onRandomClick = { viewModel.openRandom() },
 					onAutoTranslateClick = { router.openTranslationSettings() },
+					onTrackingItemClick = { item ->
+						if (item.supportsDetails) {
+							router.openTrackingSiteDetails(item.service, item.remoteId, item.url)
+						} else if (!item.url.isNullOrBlank()) {
+							router.openExternalBrowser(item.url)
+						}
+					},
+					onTrackingSectionMoreClick = { section ->
+						if (section.categoryId != null) {
+							router.openTrackingDiscoveryCategory(section.service, section.categoryId, section.titleResId)
+						} else {
+							(activity as? MainActivity)?.selectMainNavigationItem(R.id.nav_discover)
+						}
+					},
 					isRandomLoading = isRandomLoading
 				)
 			}

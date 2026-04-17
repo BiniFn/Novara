@@ -211,6 +211,7 @@
     <string name="welcome_jar_install_failed">Kototoro: Parser network loading failed (%1$s), please try again or go to settings to switch proxy mirrors</string>
     <string name="home_placeholder_title">Reading dashboard</string>
     <string name="home_placeholder_subtitle">See your recent reading, updates, library, sync, and sources in one place.</string>
+    <string name="home_hero_local_subtitle">Pick up where you left off, or jump back into what you opened recently.</string>
     <string name="check_updates">Check updates</string>
     <string name="home_overview_title">At a glance</string>
     <string name="sync_status">Sync</string>

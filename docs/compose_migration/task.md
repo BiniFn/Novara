@@ -18,10 +18,10 @@
   - Delete `activity_main.xml`
   - Refactor `MainActivity` layout inflation to use `setContent { KototoroApp() }`
   - Remove/Deprecate `MainNavigationDelegate` and XML binding logic
-- [/] Phase 3: Pure Compose TopAppBar & Native Search
-  - [ ] Overhaul `activity_main.xml` to pure `FrameLayout` overlay
-  - [ ] Implement `KototoroTopBar.kt` (M3 TopAppBar & SearchBar)
-  - [ ] Integrate explicit NestedScrolling dispatch from `MainActivity` FrameLayout to Compose
+- [x] Phase 3: Pure Compose TopAppBar & Native Search
+  - [x] Overhaul `activity_main.xml` to pure `FrameLayout` overlay
+  - [x] Implement `KototoroTopBar.kt` (M3 TopAppBar & SearchBar)
+  - [x] Integrate explicit NestedScrolling dispatch from `MainActivity` FrameLayout to Compose
 - [x] Phase 4: Refactor Fragment Spacing (`AppBarOwner` Removal)
   - [x] Remove `AppBarOwner` interface
   - [x] Remove `AppBarOwner` dependencies from fragment layout logic
@@ -47,9 +47,13 @@
   - [x] 打通 Compose 顶栏查询状态与语音输入回填链路
   - [x] 恢复 Compose 顶栏全局语言预设入口，并与全局源预设激活状态对齐
   - [x] 补齐 Fragment 销毁时的筛选回调释放，避免主壳持有陈旧顶栏状态
+  - [x] 收口导航壳稳定性问题：旋转恢复、容器重挂、动态导航项同步与选中态保留已补齐第一轮修复
 - [/] Phase 3: 高频内容页迁移
   - [x] Home Compose 对齐首轮落地：快捷入口改为自适应矩阵，列表模式在宽屏下支持三栏并排，Sync 状态时间改为可读文本
   - [x] Home 概览卡落地：继续阅读、收藏/分类、启用源、默认 tracking 站点已接入首页 Compose 展示
+  - [x] Home Dantotsu 第二轮骨架落地：首页已重构为 Hero 门户、继续发现入口、分层内容区与工具区，且可从 `Home` 直接切换到 `Discover`
+  - [x] Home tracking 精选流接入：首选 tracking 站点的多组 trending 分类已注入首页，并支持首页直达 tracking 详情与分类页
+  - [x] Home 首组 tracking section Hero 化：已升级为分页 Hero 卡组与详情联动区，首页顶部形成双层发现结构
   - [x] Discover tracking 首页首轮视觉强化：顶部 Hero 轮播、模糊背景联动与自动轮播已接入 Compose 首页
   - [x] Discover tracking 分类横滑动效收口：分类行卡片已补齐位移/缩放/透明度过渡，并修复 carousel / grid 空态白屏
   - [x] Details Header 收口：接入收藏分类、译文标题/简介、来源/作者/标签动作，移除 Compose 占位文案
@@ -59,5 +63,9 @@
   - [x] Details Bottom Dock 收口：底部阅读入口已接入动态主按钮文案、分支选择下拉与当前分支回写
   - [x] Details Bottom Dock 旧 split-button 语义收口：已补齐无痕阅读、从历史移除、下载入口与分支菜单
   - [x] Details 章节/页面/书签内嵌 sheet 稳定性修复：切换 Tab 改为使用 Compose 协程上下文驱动 `PagerState.animateScrollToPage()`，修复 `MonotonicFrameClock` 崩溃
+  - [x] Details Dantotsu 风格视觉收口：封面外框 / 状态徽标 / 分组信息卡 / 悬浮顶栏按钮 / 浮动阅读 dock 已统一到 Compose 视觉语言
+  - [x] Home/Details 第三轮细节收口：真实源名与来源胶囊、三标签 Hero、tracking strip 压缩、折叠工具栏保留动作、icon-only tabs 与详情卡背景统一已落地
 - [ ] Phase 4: Dialog / Sheet Compose 化
-- [ ] Phase 5: 共享层抽取
+- [/] Phase 5: 共享层抽取
+  - [x] 抽取 `Home` / `Discover` 共用 Hero 底座：背景容器、自动轮播、分页指示器
+  - [ ] 继续评估 Hero 前景卡片、badge、CTA 是否需要进一步组件化
