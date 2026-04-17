@@ -50,6 +50,7 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchV2Helper
 import org.skepsun.kototoro.search.domain.matches
@@ -76,6 +77,15 @@ class SearchViewModel @Inject constructor(
 
 	val query = savedStateHandle.get<String>(AppRouter.KEY_QUERY).orEmpty()
 	val kind = savedStateHandle.get<SearchKind>(AppRouter.KEY_KIND) ?: SearchKind.SIMPLE
+	
+	val advancedQuery = if (kind == SearchKind.ADVANCED) {
+		AdvancedSearchParams(
+			query = query,
+			title = savedStateHandle.get<String>(AppRouter.KEY_ADVANCED_TITLE).orEmpty(),
+			tags = savedStateHandle.get<String>(AppRouter.KEY_ADVANCED_TAGS).orEmpty(),
+			author = savedStateHandle.get<String>(AppRouter.KEY_ADVANCED_AUTHOR).orEmpty(),
+    	)
+	} else null
 
 	private var includeDisabledSources = MutableStateFlow(false)
 	private var pinnedOnly = MutableStateFlow(false)
@@ -348,7 +358,7 @@ class SearchViewModel @Inject constructor(
 
 	private suspend fun searchLocal(): SearchResultsListModel? = runCatchingCancellable {
 		if (isSourceTypeAllowed(LocalMangaSource)) {
-			searchHelperFactory.create(LocalMangaSource).invoke(query, kind)
+			searchHelperFactory.create(LocalMangaSource).invoke(query, kind, advancedQuery)
 		} else {
 			null
 		}
