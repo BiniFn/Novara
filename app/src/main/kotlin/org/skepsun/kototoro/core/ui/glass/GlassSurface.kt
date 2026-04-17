@@ -7,13 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 
 @Immutable
 data class GlassStyle(
@@ -65,15 +65,16 @@ fun GlassSurface(
     )
 
     Surface(
-        modifier = modifier.shadow(
-            elevation = style.shadowElevation,
-            shape = shape,
-            clip = false,
-        ),
+        modifier = modifier
+            .shadow(
+                elevation = style.shadowElevation,
+                shape = shape,
+                clip = false,
+            ),
         shape = shape,
-        color = colorScheme.surfaceContainerHigh.copy(alpha = style.containerAlpha),
+        color = colorScheme.surface.copy(alpha = style.containerAlpha),
         contentColor = colorScheme.onSurface,
-        tonalElevation = style.tonalElevation,
+        tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         border = border,
     ) {

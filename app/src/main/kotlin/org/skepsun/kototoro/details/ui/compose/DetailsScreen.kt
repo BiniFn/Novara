@@ -162,15 +162,13 @@ fun DetailsScreen(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(350.dp + (panoramaExtraHeight ?: 50).dp)
+                    .fillMaxSize()
                     .blur(radius = (((panoramaBlur ?: 35) / 100f) * 20f).dp)
                     .alpha(0.6f * (1f - collapseProgress)),
             )
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(350.dp + (panoramaExtraHeight ?: 50).dp)
+                    .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(

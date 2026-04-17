@@ -17,19 +17,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
-import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -69,14 +64,8 @@ fun DiscoverCarousel(
 			itemsIndexed(
 				items = row.items,
 				key = { _, item -> "carousel_${row.category.id}_${(item as? ContentListModel)?.manga?.id ?: item.hashCode()}" }
-			) { index, contentModel ->
+			) { _, contentModel ->
 				(contentModel as? ContentListModel)?.let { model ->
-					val itemOffsetFraction by remember(listState, index) {
-						derivedStateOf {
-							resolveItemOffsetFraction(listState, index)
-						}
-					}
-					val absoluteOffset = itemOffsetFraction.absoluteValue
 					KototoroContentCard(
 						model = model,
 						isListLayout = false,
@@ -84,16 +73,7 @@ fun DiscoverCarousel(
 						onLongClick = { },
 						isSelected = false,
 						selectionModeActive = false,
-						modifier = Modifier
-							.width(124.dp)
-							.graphicsLayer {
-								translationX = itemOffsetFraction * -14f
-								translationY = absoluteOffset * 20f
-								val scale = 1f - (absoluteOffset * 0.08f)
-								scaleX = scale
-								scaleY = scale
-								alpha = 1f - (absoluteOffset * 0.18f)
-							}
+						modifier = Modifier.width(124.dp)
 					)
 				}
 			}
@@ -101,19 +81,4 @@ fun DiscoverCarousel(
 
 		Spacer(modifier = Modifier.height(16.dp))
 	}
-}
-
-private fun resolveItemOffsetFraction(
-	listState: androidx.compose.foundation.lazy.LazyListState,
-	index: Int,
-): Float {
-	val layoutInfo = listState.layoutInfo
-	val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return 0f
-	val viewportWidth = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
-	if (viewportWidth <= 0f) {
-		return 0f
-	}
-	val viewportCenter = layoutInfo.viewportStartOffset + (viewportWidth / 2f)
-	val itemCenter = itemInfo.offset + (itemInfo.size / 2f)
-	return ((itemCenter - viewportCenter) / viewportWidth).coerceIn(-1f, 1f)
 }

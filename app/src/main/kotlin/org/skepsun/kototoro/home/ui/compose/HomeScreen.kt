@@ -87,6 +87,8 @@ import org.skepsun.kototoro.core.ui.compose.HeroBackdropScrim
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.compose.rememberSourceChipMeta
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.home.ui.HomeSourceOrigin
 import org.skepsun.kototoro.home.ui.HomeTrackingSection
@@ -561,17 +563,13 @@ private fun HomeHeroSection(
         }
     }
 
-    Card(
+    HeroBackdropCard(
         modifier = Modifier.fillMaxWidth(),
+        minHeight = 344.dp,
         shape = RoundedCornerShape(30.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 344.dp),
-        ) {
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        elevation = 8.dp,
+        background = {
             if (imageRequest != null && selectedItem != null) {
                 AsyncImage(
                     model = imageRequest,
@@ -609,6 +607,8 @@ private fun HomeHeroSection(
                         ),
                     ),
             )
+        },
+        content = {
 
             BoxWithConstraints(
                 modifier = Modifier
@@ -707,8 +707,8 @@ private fun HomeHeroSection(
                     }
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -2053,13 +2053,10 @@ private fun DashboardCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
+    GlassSurface(
+        modifier = modifier,
+        style = GlassDefaults.regularStyle(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.62f),
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp), content = content)
     }

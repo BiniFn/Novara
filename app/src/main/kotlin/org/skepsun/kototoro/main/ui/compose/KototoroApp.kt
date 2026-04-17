@@ -35,14 +35,15 @@ import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.skepsun.kototoro.core.prefs.observeAsState
+import androidx.navigation.compose.rememberNavController
+import org.skepsun.kototoro.main.ui.compose.AppNavGraph
 
 @Composable
 fun KototoroApp(
     appSettings: AppSettings,
     navStateFlow: StateFlow<BottomNavState>,
     query: String = "",
-    onNavItemSelected: (Int) -> Unit,
-    onNavItemReselected: (Int) -> Unit,
+    
     suggestions: List<SearchSuggestionItem> = emptyList(),
     onQueryChanged: (String) -> Unit = {},
     onSearch: (String) -> Unit = {},
@@ -68,14 +69,24 @@ fun KototoroApp(
     onTopBarHeightChanged: (Int) -> Unit = {},
     onBottomNavHeightChanged: (Int) -> Unit = {},
     onContentInsetsChanged: (Int, Int) -> Unit = { _, _ -> },
-    nestedScrollDeltaYFlow: kotlinx.coroutines.flow.SharedFlow<Float> = MutableSharedFlow(),
     isResumeEnabled: Boolean = false,
-    onResumeClick: () -> Unit = {}
+    onResumeClick: () -> Unit = {},
+    
 ) {
     val context = LocalContext.current
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
     val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
     val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+
+    ,
+                android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+    
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
@@ -83,8 +94,8 @@ fun KototoroApp(
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
     
     val nestedScrollConnection = remember(isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
                 val dy = available.y
                 if (!isNavBarPinned && dy != 0f) {
                     topBarOffset = (topBarOffset + dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
@@ -93,13 +104,11 @@ fun KototoroApp(
                     topBarOffset = 0f
                     bottomNavOffset = 0f
                 }
-                return Offset.Zero
+                return androidx.compose.ui.geometry.Offset.Zero
             }
         }
     }
     
-    // Instead of LaunchedEffect flow collection, we directly mutate states from the callback to ensure 100% sync
-    // the LaunchedEffect block is removed.
     val visibleTopInsetPx = (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
     val visibleBottomInsetPx = if (isFloating) {
         0
@@ -111,8 +120,8 @@ fun KototoroApp(
         onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
     }
 
-    LaunchedEffect(nestedScrollDeltaYFlow, isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
-        nestedScrollDeltaYFlow.collect { dy ->
+    DisposableEffect(fragmentHostView, isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
+        fragmentHostView.onNestedScrollDeltaY = { dy ->
             if (!isNavBarPinned && dy != 0f) {
                 topBarOffset = (topBarOffset - dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
                 bottomNavOffset = (bottomNavOffset + dy).coerceIn(0f, bottomNavHeightPx.toFloat())
@@ -121,10 +130,20 @@ fun KototoroApp(
                 bottomNavOffset = 0f
             }
         }
+        onDispose {
+            fragmentHostView.onNestedScrollDeltaY = null
+        }
     }
+
+    val navController = rememberNavController()
 
     KototoroTheme {
         Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
+            AppNavGraph(
+                navController = navController,
+                modifier = Modifier.fillMaxSize()
+            )
+            
 
 
 
@@ -185,7 +204,7 @@ fun KototoroApp(
                     onItemSelected = onNavItemSelected,
                     onItemReselected = onNavItemReselected,
                 )
-            }
         }
     }
+}
 }

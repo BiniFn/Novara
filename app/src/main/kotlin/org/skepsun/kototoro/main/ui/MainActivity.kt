@@ -85,8 +85,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		}
 	}
 
-	private lateinit var navigationDelegate: MainNavigationDelegate
-	private var isFoldUnfolded = false
+		private var isFoldUnfolded = false
 	private val navStateFlow = MutableStateFlow(BottomNavState())
 	private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
 
@@ -168,47 +167,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			return
 		}
 
-		container = viewBinding.container
-		updateContainerPadding()
-
-		if (!::navigationDelegate.isInitialized) {
-			navigationDelegate = MainNavigationDelegate(
-				navBar = composeNavBarDelegator,
-				fragmentManager = supportFragmentManager,
-				settings = settings,
-			)
-			navigationDelegate.addOnFragmentChangedListener(this@MainActivity)
-			navigationDelegate.onCreate(this@MainActivity, savedInstanceState)
-			if (pendingNavigationSyncAfterRestore) {
-				navigationDelegate.syncSelectedItem()
-				pendingNavigationSyncAfterRestore = false
-			}
-
-			addMenuProvider(MainMenuProvider(router, viewModel))
-
-			val exitCallback = ExitCallback(this@MainActivity, container)
-			onBackPressedDispatcher.addCallback(exitCallback)
-			onBackPressedDispatcher.addCallback(navigationDelegate)
-
-			if (savedInstanceState == null) {
-				onFirstStart()
-			}
-
-			viewModel.onOpenReader.observeEvent(this@MainActivity, this@MainActivity::onOpenReader)
-			viewModel.onError.observeEvent(this@MainActivity, org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(container, null))
-			viewModel.isLoading.observe(this@MainActivity, this@MainActivity::onLoadingStateChanged)
-			viewModel.isResumeEnabled.observe(this@MainActivity, this@MainActivity::onResumeEnabledChanged)
-			viewModel.feedCounter.observe(this@MainActivity, ::onFeedCounterChanged)
-			viewModel.appUpdate.observe(this@MainActivity, org.skepsun.kototoro.core.ui.util.MenuInvalidator(this@MainActivity))
-		} else {
-			supportFragmentManager.executePendingTransactions()
-			navigationDelegate.syncSelectedItem()
-		}
-
-		androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(container) { _, insets ->
-			insets
-		}
-
 		viewBinding.composeRoot.setContent {
 			val suggestions by searchSuggestionViewModel.suggestion.collectAsState(initial = emptyList())
 
@@ -218,13 +176,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 					query = searchQuery,
 					isResumeEnabled = isResumeEnabledState,
 					onResumeClick = viewModel::openLastReader,
-					onNavItemSelected = composeNavBarDelegator::handleItemSelected,
-					onNavItemReselected = composeNavBarDelegator::handleItemSelected,
-					nestedScrollDeltaYFlow = viewBinding.rootLayout.nestedScrollDeltaY,
-					suggestions = suggestions,
-				onQueryChanged = ::updateSearchQuery,
-				onSearch = ::submitSearch,
-				onContentSuggestionClick = router::openDetails,
+			onContentSuggestionClick = router::openDetails,
 				onTagSuggestionClick = { tag ->
 					submitSearch(tag.title, SearchKind.TAG)
 				},
@@ -310,9 +262,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
 		super.onRestoreInstanceState(savedInstanceState)
-		if (::navigationDelegate.isInitialized) {
-			navigationDelegate.syncSelectedItem()
-		} else {
+		if (::					} else {
 			pendingNavigationSyncAfterRestore = true
 		}
 	}
@@ -327,8 +277,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	fun selectMainNavigationItem(@IdRes itemId: Int): Boolean {
-		return navigationDelegate.selectItem(itemId)
-	}
+		return 	}
 
 	override fun onFragmentChanged(fragment: Fragment, fromUser: Boolean) {
 		if (fromUser) {
@@ -422,8 +371,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	}
 
 	private fun onFeedCounterChanged(counter: Int) {
-		navigationDelegate.setCounter(NavItem.FEED, counter)
-	}
+			}
 
 	private fun onIncognitoModeChanged(isIncognito: Boolean) {
 		invalidateOptionsMenu()
@@ -575,8 +523,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private fun adjustLayoutForFoldableState() {
 		val shouldUseLandscapeLayout = FoldableUtils.shouldUseLandscapeLayout(this, isFoldUnfolded)
 
-		navigationDelegate.primaryFragment?.let { fragment ->
-			onFragmentChanged(fragment, false)
+					onFragmentChanged(fragment, false)
 		}
 	}
 }

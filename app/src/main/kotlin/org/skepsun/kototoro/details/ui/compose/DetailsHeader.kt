@@ -57,6 +57,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedContentSource
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.model.iconResId
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.details.data.ContentDetails
@@ -315,18 +317,14 @@ fun DetailsHeader(
         }
 
         if (infoItems.isNotEmpty()) {
-            Card(
+            GlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .onGloballyPositioned { coordinates ->
                         onInfoCardTopSync(coordinates.boundsInRoot().top)
                     },
+                style = GlassDefaults.regularStyle(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.68f),
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
             ) {
                 Column(
                     modifier = Modifier
@@ -362,14 +360,10 @@ fun DetailsHeader(
             }
         }
 
-        Card(
+        GlassSurface(
             modifier = Modifier.fillMaxWidth(),
+            style = GlassDefaults.regularStyle(),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.14f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
             Column(
                 modifier = Modifier
