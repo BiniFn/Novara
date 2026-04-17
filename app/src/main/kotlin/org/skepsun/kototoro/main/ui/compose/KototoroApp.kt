@@ -36,6 +36,7 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 fun KototoroApp(
     appSettings: AppSettings,
     navStateFlow: StateFlow<BottomNavState>,
+    query: String = "",
     onNavItemSelected: (Int) -> Unit,
     onNavItemReselected: (Int) -> Unit,
     suggestions: List<SearchSuggestionItem> = emptyList(),
@@ -48,9 +49,17 @@ fun KototoroApp(
     onDeleteQuery: (String) -> Unit = {},
     onVoiceInput: () -> Unit = {},
     onMoreClick: (android.view.View?) -> Unit = {},
+    isLanguagePresetFilterVisible: Boolean = false,
+    onLanguagePresetFilterClick: (android.view.View?) -> Boolean = { false },
     selectedContentType: ContentType? = null,
+    enabledContentTypes: Set<ContentType> = setOf(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
+    isContentTypeFilterVisible: Boolean = true,
     onContentTypeSelected: (ContentType?) -> Unit = {},
     selectedSourceTags: Set<SourceTag> = emptySet(),
+    sourceTagEntries: List<SourceTag> = SourceTag.quickFilterEntries,
+    enabledSourceTags: Set<SourceTag> = sourceTagEntries.toSet(),
+    isSourceTagFilterVisible: Boolean = true,
+    onSourceTagFilterClick: (android.view.View?) -> Boolean = { false },
     onSourceTagSelected: (SourceTag?) -> Unit = {},
     onTopBarHeightChanged: (Int) -> Unit = {},
     onBottomNavHeightChanged: (Int) -> Unit = {},
@@ -62,6 +71,7 @@ fun KototoroApp(
 ) {
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
     val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
+    val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
@@ -128,6 +138,7 @@ fun KototoroApp(
 
             // TopBar at the top — measure its height for content padding
             KototoroTopBar(
+                query = query,
                 suggestions = suggestions,
                 onQueryChanged = onQueryChanged,
                 onSearch = onSearch,
@@ -138,11 +149,19 @@ fun KototoroApp(
                 onDeleteQuery = onDeleteQuery,
                 onVoiceInput = onVoiceInput,
                 onMoreClick = onMoreClick,
+                isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
+                hasActiveLanguagePreset = activeSourcePresetId > 0L,
+                onLanguagePresetFilterClick = onLanguagePresetFilterClick,
                 selectedContentType = selectedContentType,
+                enabledContentTypes = enabledContentTypes,
+                isContentTypeFilterVisible = isContentTypeFilterVisible,
                 onContentTypeSelected = onContentTypeSelected,
                 selectedSourceTags = selectedSourceTags,
+                sourceTagEntries = sourceTagEntries,
+                enabledSourceTags = enabledSourceTags,
+                isSourceTagFilterVisible = isSourceTagFilterVisible,
+                onSourceTagFilterClick = onSourceTagFilterClick,
                 onSourceTagSelected = onSourceTagSelected,
-                isSearchBarFilterHidden = false,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }

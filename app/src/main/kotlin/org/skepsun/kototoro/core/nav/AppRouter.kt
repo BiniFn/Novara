@@ -76,6 +76,7 @@ import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
 import org.skepsun.kototoro.filter.ui.tags.TagsCatalogSheet
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.preset.SourcePresetListActivity
 import org.skepsun.kototoro.history.ui.HistoryActivity
 import org.skepsun.kototoro.image.ui.ImageActivity
 import org.skepsun.kototoro.list.ui.config.ListConfigBottomSheet
@@ -172,6 +173,10 @@ class AppRouter private constructor(
     }
 
     fun openSearch(source: ContentSource, query: String) = openList(source, ContentListFilter(query = query), null)
+
+    fun openSourcePresets() {
+        startActivity(SourcePresetListActivity::class.java)
+    }
 
     fun openDetails(manga: Content, anchor: View? = null) {
         startActivity(

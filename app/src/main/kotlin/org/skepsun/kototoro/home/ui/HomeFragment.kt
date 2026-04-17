@@ -101,6 +101,8 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 	}
 
 	override fun onDestroyView() {
+		filterMenuProvider?.destroy()
+		filterMenuProvider = null
 		showHomeChrome()
 		super.onDestroyView()
 	}

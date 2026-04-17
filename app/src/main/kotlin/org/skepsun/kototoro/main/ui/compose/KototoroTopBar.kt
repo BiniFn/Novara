@@ -56,6 +56,7 @@ import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KototoroTopBar(
+    query: String,
     suggestions: List<SearchSuggestionItem>,
     onQueryChanged: (String) -> Unit,
     onSearch: (String) -> Unit = {},
@@ -66,14 +67,21 @@ fun KototoroTopBar(
     onDeleteQuery: (String) -> Unit = {},
     onVoiceInput: () -> Unit = {},
     onMoreClick: (android.view.View?) -> Unit = {},
+    isLanguagePresetFilterVisible: Boolean = false,
+    hasActiveLanguagePreset: Boolean = false,
+    onLanguagePresetFilterClick: (android.view.View?) -> Boolean = { false },
     selectedContentType: ContentType? = null,
+    enabledContentTypes: Set<ContentType> = setOf(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
+    isContentTypeFilterVisible: Boolean = true,
     onContentTypeSelected: (ContentType?) -> Unit = {},
     selectedSourceTags: Set<SourceTag> = emptySet(),
+    sourceTagEntries: List<SourceTag> = SourceTag.quickFilterEntries,
+    enabledSourceTags: Set<SourceTag> = sourceTagEntries.toSet(),
+    isSourceTagFilterVisible: Boolean = true,
+    onSourceTagFilterClick: (android.view.View?) -> Boolean = { false },
     onSourceTagSelected: (SourceTag?) -> Unit = {},
-    isSearchBarFilterHidden: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    var query by rememberSaveable { mutableStateOf("") }
     var expanded by rememberSaveable { mutableStateOf(false) }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
@@ -94,7 +102,6 @@ fun KototoroTopBar(
                     SearchBarDefaults.InputField(
                         query = query,
                         onQueryChange = { newQuery ->
-                            query = newQuery
                             onQueryChanged(newQuery)
                         },
                         onSearch = { searchQuery ->
@@ -108,7 +115,6 @@ fun KototoroTopBar(
                             if (expanded) {
                                 IconButton(onClick = {
                                     expanded = false
-                                    query = ""
                                     onQueryChanged("")
                                 }) {
                                     Icon(
@@ -127,7 +133,6 @@ fun KototoroTopBar(
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 if (expanded && query.isNotEmpty()) {
                                     IconButton(onClick = {
-                                        query = ""
                                         onQueryChanged("")
                                     }) {
                                         Icon(
@@ -136,14 +141,33 @@ fun KototoroTopBar(
                                         )
                                     }
                                 }
-                                if (!expanded && !isSearchBarFilterHidden) {
+                                if (!expanded && isLanguagePresetFilterVisible) {
+                                    TopBarAnchorIconButton(onClick = onLanguagePresetFilterClick) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_language),
+                                            contentDescription = stringResource(R.string.show_language_preset_filter),
+                                            tint = if (hasActiveLanguagePreset) {
+                                                androidx.compose.material3.MaterialTheme.colorScheme.primary
+                                            } else {
+                                                androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        )
+                                    }
+                                }
+                                if (!expanded && isContentTypeFilterVisible) {
                                     SwipeableFilterChip(
                                         selectedType = selectedContentType,
+                                        enabledTypes = enabledContentTypes,
                                         onTypeSelected = onContentTypeSelected,
                                         modifier = Modifier.zIndex(1f)
                                     )
+                                }
+                                if (!expanded && isSourceTagFilterVisible) {
                                     SourceTagDropdown(
                                         selectedTags = selectedSourceTags,
+                                        entries = sourceTagEntries,
+                                        enabledTags = enabledSourceTags,
+                                        onButtonClickIntercept = onSourceTagFilterClick,
                                         onTagSelected = onSourceTagSelected,
                                     )
                                 }
@@ -155,22 +179,16 @@ fun KototoroTopBar(
                                         )
                                     }
                                 }
-                                Box {
-                                    var anchorView by remember { androidx.compose.runtime.mutableStateOf<android.view.View?>(null) }
-                                    androidx.compose.ui.viewinterop.AndroidView(
-                                        factory = { context ->
-                                            android.view.View(context).apply {
-                                                layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-                                            }
-                                        },
-                                        update = { anchorView = it }
-                                    )
-                                    IconButton(onClick = { onMoreClick(anchorView) }) {
+                                TopBarAnchorIconButton(
+                                    onClick = { anchorView ->
+                                        onMoreClick(anchorView)
+                                        true
+                                    },
+                                ) {
                                         Icon(
                                             painterResource(R.drawable.ic_more_vert),
                                             contentDescription = stringResource(R.string.more)
                                         )
-                                    }
                                 }
                             }
                         },
@@ -187,19 +205,16 @@ fun KototoroTopBar(
                 SuggestionList(
                     suggestions = suggestions,
                     onRecentQueryClick = { recentQuery ->
-                        query = recentQuery
                         onQueryChanged(recentQuery)
                         onSearch(recentQuery)
                         expanded = false
                     },
                     onHintClick = { hint ->
-                        query = hint
                         onQueryChanged(hint)
                         onSearch(hint)
                         expanded = false
                     },
                     onAuthorSuggestionClick = { author ->
-                        query = author
                         onQueryChanged(author)
                         onAuthorSuggestionClick(author)
                         expanded = false
@@ -209,7 +224,6 @@ fun KototoroTopBar(
                         expanded = false
                     },
                     onTagSuggestionClick = { tag ->
-                        query = tag.title
                         onQueryChanged(tag.title)
                         onTagSuggestionClick(tag)
                         expanded = false
@@ -221,6 +235,27 @@ fun KototoroTopBar(
                     onDeleteQuery = onDeleteQuery,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun TopBarAnchorIconButton(
+    onClick: (android.view.View?) -> Boolean,
+    content: @Composable () -> Unit,
+) {
+    var anchorView by remember { mutableStateOf<android.view.View?>(null) }
+    Box {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { context ->
+                android.view.View(context).apply {
+                    layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+                }
+            },
+            update = { anchorView = it },
+        )
+        IconButton(onClick = { onClick(anchorView) }) {
+            content()
         }
     }
 }

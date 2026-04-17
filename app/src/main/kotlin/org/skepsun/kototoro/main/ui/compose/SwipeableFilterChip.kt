@@ -4,8 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -29,11 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -44,21 +38,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.parsers.model.ContentType
-import kotlin.math.abs
-
-/**
- * A swipe-to-select filter pill.
- *
- * **Collapsed**: Shows a single icon for the current [selectedType].
- * **On press**: Expands horizontally to reveal 3 icons (Video | Manga | Novel).
- * **Drag left/right**: Moves highlight between the 3 slots.
- * **Release**: Selects; re-selecting the same type toggles back to `null` (= All).
- *
- * Fixed order: Left = Video, Center = Manga, Right = Novel.
- */
 @Composable
 fun SwipeableFilterChip(
     selectedType: ContentType?,
+    enabledTypes: Set<ContentType>,
     onTypeSelected: (ContentType?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -103,13 +86,20 @@ fun SwipeableFilterChip(
                 indication = null,
                 onClick = {}
             )
-            .pointerInput(Unit) {
+            .pointerInput(enabledTypes, currentSelectedType) {
+                if (enabledTypes.isEmpty()) {
+                    return@pointerInput
+                }
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                     down.consume() // Consume immediately so DockedSearchBar doesn't trigger!
 
                     isPressed = true
-                    highlightIndex = 1
+                    highlightIndex = currentSelectedType
+                        ?.toSwipeableIndex()
+                        ?.takeIf { index -> types[index] in enabledTypes }
+                        ?: types.indexOfFirst { type -> type in enabledTypes }.takeIf { it >= 0 }
+                        ?: 1
                     dragOffsetX = 0f
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     scope.launch {
@@ -143,7 +133,7 @@ fun SwipeableFilterChip(
                                     dragOffsetX > swipeThresholdPx -> 2
                                     else -> 1
                                 }
-                                if (newIndex != highlightIndex) {
+                                if (newIndex != highlightIndex && types[newIndex] in enabledTypes) {
                                     highlightIndex = newIndex
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
@@ -157,8 +147,10 @@ fun SwipeableFilterChip(
 
                     if (!dragCanceled) {
                         val newType = types[highlightIndex]
-                        val finalType = if (newType == currentSelectedType) null else newType
-                        currentOnTypeSelected(finalType)
+                        if (newType in enabledTypes) {
+                            val finalType = if (newType == currentSelectedType) null else newType
+                            currentOnTypeSelected(finalType)
+                        }
                     }
 
                     scope.launch {
@@ -231,14 +223,19 @@ fun SwipeableFilterChip(
                 // Expanded: draw 3 icons
                 val icons = listOf(iconVideo, iconManga, iconNovel)
                 for (i in 0..2) {
+                    val isEnabled = types[i] in enabledTypes
                     val centerX = when (i) {
                         0 -> baseW / 2f - baseW
                         2 -> baseW / 2f + baseW
                         else -> baseW / 2f
                     }
                     val isHighlighted = i == highlightIndex
-                    val alpha = exp * if (isHighlighted) 1f else 0.5f
-                    val tint = if (isHighlighted) onPrimaryContainer else onSurfaceVariant
+                    val alpha = if (isEnabled) {
+                        exp * if (isHighlighted) 1f else 0.5f
+                    } else {
+                        exp * 0.24f
+                    }
+                    val tint = if (isEnabled && isHighlighted) onPrimaryContainer else onSurfaceVariant
 
                     translate(
                         left = centerX - iconSize / 2f,
@@ -256,4 +253,11 @@ fun SwipeableFilterChip(
             }
         }
     }
+}
+
+private fun ContentType.toSwipeableIndex(): Int? = when (this) {
+    ContentType.VIDEO, ContentType.HENTAI_VIDEO -> 0
+    ContentType.MANGA, ContentType.HENTAI_MANGA -> 1
+    ContentType.NOVEL, ContentType.HENTAI_NOVEL -> 2
+    else -> null
 }

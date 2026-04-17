@@ -31,7 +31,7 @@ class SearchBarFilterViewController(
 		fun getSourceTagIconRes(): Int = 0
 		/** Return true to consume the click and prevent default popup */
 		fun onFilterIconClicked(anchor: View): Boolean = false
-		fun onLanguagePresetClicked(anchor: View) {}
+		fun onLanguagePresetClicked(anchor: View): Boolean = false
 	}
 
 	private var attachedFragment: Fragment? = null

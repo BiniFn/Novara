@@ -1,11 +1,12 @@
 package org.skepsun.kototoro.discover.ui.compose
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -23,13 +24,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +63,29 @@ fun DiscoverScreen(
 		onRefresh = onRefresh,
 		modifier = modifier.fillMaxSize()
 	) {
+		val carouselRows = remember(items) { items.filterIsInstance<DiscoverCarouselRow>() }
+		val emptyState = remember(items) { items.filterIsInstance<EmptyState>().firstOrNull() }
+
 		if (isCarousel) {
+			val heroRow = remember(carouselRows) {
+				carouselRows.firstOrNull { row -> row.items.any { it is ContentListModel } }
+			}
+			val heroItems = remember(heroRow) {
+				heroRow
+					?.items
+					?.filterIsInstance<ContentListModel>()
+					?.take(6)
+					.orEmpty()
+			}
+
+			if (carouselRows.isEmpty() && emptyState != null) {
+				DiscoverEmptyState(
+					state = emptyState,
+					contentPadding = contentPadding,
+				)
+				return@PullToRefreshBox
+			}
+
 			val listState = rememberLazyListState()
 			LazyColumn(
 				state = listState,
@@ -69,8 +95,18 @@ fun DiscoverScreen(
 				),
 				modifier = Modifier.fillMaxSize()
 			) {
+				if (heroItems.isNotEmpty() && heroRow != null) {
+					item(key = "discover_hero") {
+						DiscoverHeroCarousel(
+							title = stringResource(heroRow.category.nameResId),
+							items = heroItems,
+							onItemClick = onItemClick,
+							modifier = Modifier.padding(bottom = 4.dp)
+						)
+					}
+				}
 				items(
-					items = items.filterIsInstance<DiscoverCarouselRow>(),
+					items = carouselRows,
 					key = { it.category.id }
 				) { row ->
 					DiscoverCarousel(
@@ -82,10 +118,14 @@ fun DiscoverScreen(
 			}
 		} else {
 			val gridState = rememberLazyGridState()
+			val gridItems = remember(items) { items.filterIsInstance<ContentListModel>() }
 
 			// Trigger pagination threshold for grid
-			val shouldLoadMore by remember {
+			val shouldLoadMore by remember(gridState, gridSpanCount, gridItems.size) {
 				derivedStateOf {
+					if (gridItems.isEmpty()) {
+						return@derivedStateOf false
+					}
 					val layoutInfo = gridState.layoutInfo
 					val totalVisibleItems = layoutInfo.visibleItemsInfo.size
 					val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -99,6 +139,14 @@ fun DiscoverScreen(
 				}
 			}
 
+			if (gridItems.isEmpty() && emptyState != null) {
+				DiscoverEmptyState(
+					state = emptyState,
+					contentPadding = contentPadding,
+				)
+				return@PullToRefreshBox
+			}
+
 			LazyVerticalGrid(
 				columns = GridCells.Fixed(gridSpanCount),
 				state = gridState,
@@ -110,8 +158,6 @@ fun DiscoverScreen(
 				),
 				modifier = Modifier.fillMaxSize()
 			) {
-				// Only render content list models in search grid mode
-				val gridItems = items.filterIsInstance<ContentListModel>()
 				items(
 					items = gridItems,
 					key = { it.manga.id }
@@ -126,6 +172,46 @@ fun DiscoverScreen(
 					)
 				}
 			}
+		}
+	}
+}
+
+@Composable
+private fun DiscoverEmptyState(
+	state: EmptyState,
+	contentPadding: PaddingValues,
+) {
+	Box(
+		modifier = Modifier
+			.fillMaxSize()
+			.padding(
+				start = 24.dp,
+				end = 24.dp,
+				top = contentPadding.calculateTopPadding() + 24.dp,
+				bottom = contentPadding.calculateBottomPadding() + 24.dp,
+			),
+		contentAlignment = Alignment.Center,
+	) {
+		Column(
+			horizontalAlignment = Alignment.CenterHorizontally,
+			verticalArrangement = Arrangement.spacedBy(12.dp),
+		) {
+			Image(
+				painter = painterResource(state.icon),
+				contentDescription = null,
+				modifier = Modifier.align(Alignment.CenterHorizontally),
+			)
+			androidx.compose.material3.Text(
+				text = stringResource(state.textPrimary),
+				style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+				textAlign = TextAlign.Center,
+			)
+			androidx.compose.material3.Text(
+				text = stringResource(state.textSecondary),
+				style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+				color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+				textAlign = TextAlign.Center,
+			)
 		}
 	}
 }

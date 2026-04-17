@@ -131,6 +131,7 @@ class FavouritesContainerFragment : BaseFragment<FragmentFavouritesContainerBind
 	}
 
 	override fun onDestroyView() {
+		filterMenuProvider?.destroy()
 		filterMenuProvider = null
 		actionModeDelegate.removeListener(this)
 		super.onDestroyView()

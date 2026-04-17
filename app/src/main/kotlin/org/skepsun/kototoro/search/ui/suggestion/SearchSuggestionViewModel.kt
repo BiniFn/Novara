@@ -25,6 +25,8 @@ import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.explore.data.SourcePreset
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
@@ -53,6 +55,7 @@ class SearchSuggestionViewModel @Inject constructor(
 	private val repository: ContentSearchRepository,
 	private val settings: AppSettings,
 	private val sourcesRepository: ContentSourcesRepository,
+	private val sourcePresetsRepository: SourcePresetsRepository,
 	private val sourceTypeIdentifier: SourceTypeIdentifier,
 	private val globalFavoritesState: GlobalFavoritesState,
 ) : BaseViewModel() {
@@ -64,8 +67,24 @@ class SearchSuggestionViewModel @Inject constructor(
 	)
 	private val contentKinds = MutableStateFlow(ALL_SEARCH_CONTENT_KINDS)
 
-	private val enabledSourcesSnapshot: Flow<EnabledSourcesSnapshot> = sourcesRepository.observeEnabledSources()
-		.map { infos -> infos.toEnabledSourcesSnapshot() }
+	private val activeSourcePreset: Flow<SourcePreset?> = settings.observeAsFlow(
+		AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID,
+	) {
+		activeSourcePresetId
+	}.mapLatest { presetId ->
+		if (presetId > 0L) {
+			sourcePresetsRepository.getById(presetId)
+		} else {
+			null
+		}
+	}
+
+	private val enabledSourcesSnapshot: Flow<EnabledSourcesSnapshot> = combine(
+		sourcesRepository.observeEnabledSources(),
+		activeSourcePreset,
+	) { infos, preset ->
+		infos.toEnabledSourcesSnapshot().filterByPreset(preset)
+	}
 		.distinctUntilChanged()
 
 	val isIncognitoModeEnabled = settings.observeAsStateFlow(
@@ -302,6 +321,19 @@ private fun EnabledSourcesSnapshot.filterByTypes(
 		identifier.getSourceType(source.name) in sourceTypes &&
 			contentKinds.any { kind -> kind.matches(source) }
 	}
+	return EnabledSourcesSnapshot(
+		sources = filtered,
+		names = filtered.mapToSet { it.name },
+	)
+}
+
+private fun EnabledSourcesSnapshot.filterByPreset(
+	preset: SourcePreset?,
+): EnabledSourcesSnapshot {
+	if (preset == null) {
+		return this
+	}
+	val filtered = sources.filter { source -> source.name in preset.sources }
 	return EnabledSourcesSnapshot(
 		sources = filtered,
 		names = filtered.mapToSet { it.name },

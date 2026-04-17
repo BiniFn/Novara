@@ -96,6 +96,7 @@ class ExploreFragment : BaseFragment<FragmentExploreHostBinding>(), SearchBarFil
 	}
 
 	override fun onDestroyView() {
+		filterMenuProvider?.destroy()
 		super.onDestroyView()
 		filterMenuProvider = null
 	}

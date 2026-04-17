@@ -79,7 +79,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private val viewModel by viewModels<MainViewModel>()
 	private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
 	private val voiceInputLauncher = registerForActivityResult(VoiceInputContract()) { result ->
-		// TODO: Pass voice input result to Compose SearchBar state
+		val query = result?.trim().orEmpty()
+		if (query.isNotEmpty()) {
+			updateSearchQuery(query)
+		}
 	}
 
 	private lateinit var navigationDelegate: MainNavigationDelegate
@@ -91,12 +94,19 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private var bottomNavHeightPx = 0
 	private var containerTopInsetPx = 0
 	private var containerBottomInsetPx = 0
+	private var searchQuery by mutableStateOf("")
 	
 	private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
 
 	private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
 	private var activeFilterContentType by mutableStateOf<ContentType?>(null)
 	private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
+	private var isLanguagePresetFilterVisible by mutableStateOf(false)
+	private var isContentTypeFilterVisible by mutableStateOf(false)
+	private var isSourceTagFilterVisible by mutableStateOf(false)
+	private var availableSourceTags by mutableStateOf(SourceTag.quickFilterEntries)
+	private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
+	private var enabledContentTypes by mutableStateOf(allTopBarContentTypes())
 	
 	private lateinit var container: FragmentContainerView
 
@@ -107,10 +117,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	fun clearActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
 		if (currentFilterCallback == callback) {
-			currentFilterCallback = null
-			activeFilterContentType = null
-			activeFilterSourceTags = emptySet()
-			syncSearchSuggestionFilters()
+			clearActiveFilters()
 		}
 	}
 
@@ -124,11 +131,31 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			else -> null
 		}
 		activeFilterSourceTags = callback.getSelectedSourceTags()
+		isLanguagePresetFilterVisible = callback.isLanguagePresetFilterVisible()
+		isContentTypeFilterVisible = callback.isContentTypeFilterVisible()
+		val sourceTagEntries = callback.getSourceTagEntries()
+		availableSourceTags = sourceTagEntries
+		isSourceTagFilterVisible = callback.isSourceTagFilterVisible() && sourceTagEntries.isNotEmpty()
+		enabledSourceTags = sourceTagEntries.filterTo(linkedSetOf()) { tag ->
+			callback.isSourceTagEnabled(tag)
+		}
+		enabledContentTypes = buildSet {
+			if (callback.isContentTypeEnabled(BrowseGroupTab.Content)) {
+				add(ContentType.MANGA)
+			}
+			if (callback.isContentTypeEnabled(BrowseGroupTab.Novel)) {
+				add(ContentType.NOVEL)
+			}
+			if (callback.isContentTypeEnabled(BrowseGroupTab.Video)) {
+				add(ContentType.VIDEO)
+			}
+		}
 		syncSearchSuggestionFilters()
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		searchQuery = savedInstanceState?.getString(STATE_TOP_BAR_QUERY).orEmpty()
 		
 		composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
 		
@@ -146,6 +173,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 			KototoroApp(
 					appSettings = settings,
 					navStateFlow = navStateFlow,
+					query = searchQuery,
 					isResumeEnabled = isResumeEnabledState,
 					onResumeClick = viewModel::openLastReader,
 					onNavItemSelected = composeNavBarDelegator::handleItemSelected,
@@ -192,7 +220,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 						}
 					},
 					suggestions = suggestions,
-				onQueryChanged = searchSuggestionViewModel::onQueryChanged,
+				onQueryChanged = ::updateSearchQuery,
 				onSearch = ::submitSearch,
 				onContentSuggestionClick = router::openDetails,
 				onTagSuggestionClick = { tag ->
@@ -239,23 +267,35 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 						updateContainerPadding()
 					}
 				},
+				isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
+				onLanguagePresetFilterClick = ::onLanguagePresetFilterClick,
 				selectedContentType = activeFilterContentType,
+				enabledContentTypes = enabledContentTypes,
+				isContentTypeFilterVisible = isContentTypeFilterVisible,
 				onContentTypeSelected = { type ->
-					activeFilterContentType = type
-					syncSearchSuggestionFilters()
-					val tab = when (type) {
-						ContentType.NOVEL -> BrowseGroupTab.Novel
-						ContentType.VIDEO -> BrowseGroupTab.Video
-						ContentType.MANGA -> BrowseGroupTab.Content
-						else -> BrowseGroupTab.All
+					if (type == null || type in enabledContentTypes) {
+						activeFilterContentType = type
+						syncSearchSuggestionFilters()
+						val tab = when (type) {
+							ContentType.NOVEL -> BrowseGroupTab.Novel
+							ContentType.VIDEO -> BrowseGroupTab.Video
+							ContentType.MANGA -> BrowseGroupTab.Content
+							else -> BrowseGroupTab.All
+						}
+						currentFilterCallback?.onContentTypeSelected(tab)
 					}
-					currentFilterCallback?.onContentTypeSelected(tab)
 				},
 				selectedSourceTags = activeFilterSourceTags,
+				sourceTagEntries = availableSourceTags,
+				enabledSourceTags = enabledSourceTags,
+				isSourceTagFilterVisible = isSourceTagFilterVisible,
+				onSourceTagFilterClick = ::onSourceTagFilterClick,
 				onSourceTagSelected = { tag ->
-					activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
-					syncSearchSuggestionFilters()
-					currentFilterCallback?.onSourceTagSelected(tag)
+					if (tag == null || tag in enabledSourceTags) {
+						activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
+						syncSearchSuggestionFilters()
+						currentFilterCallback?.onSourceTagSelected(tag)
+					}
 				}
 			)
 		}
@@ -271,6 +311,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		navigationDelegate.syncSelectedItem()
 	}
 
+	override fun onSaveInstanceState(outState: Bundle) {
+		super.onSaveInstanceState(outState)
+		outState.putString(STATE_TOP_BAR_QUERY, searchQuery)
+	}
+
 	override fun onResume() {
 		super.onResume()
 	}
@@ -283,9 +328,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		if (fromUser) {
 			actionModeDelegate.finishActionMode()
 		}
-		// Active fragment changed, check if it has a filter menu
 		if (fragment is SearchBarFilterViewController.Callback) {
 			setActiveFilterCallback(fragment)
+		} else {
+			clearActiveFilters()
 		}
 	}
 
@@ -341,6 +387,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		if (query.isEmpty()) {
 			return
 		}
+		updateSearchQuery(query)
 		if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
 			router.openDetails(query.toUri())
 			return
@@ -361,6 +408,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 		searchSuggestionViewModel.setContentKinds(activeFilterContentType.toSearchContentKinds())
 	}
 
+	private fun updateSearchQuery(query: String) {
+		if (searchQuery != query) {
+			searchQuery = query
+		}
+		searchSuggestionViewModel.onQueryChanged(query)
+	}
+
 	private fun onFeedCounterChanged(counter: Int) {
 		navigationDelegate.setCounter(NavItem.FEED, counter)
 	}
@@ -374,6 +428,19 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 
 	private fun onResumeEnabledChanged(isEnabled: Boolean) {
 		isResumeEnabledState = isEnabled
+	}
+
+	private fun clearActiveFilters() {
+		currentFilterCallback = null
+		activeFilterContentType = null
+		activeFilterSourceTags = emptySet()
+		isLanguagePresetFilterVisible = false
+		isContentTypeFilterVisible = false
+		isSourceTagFilterVisible = false
+		availableSourceTags = SourceTag.quickFilterEntries
+		enabledSourceTags = SourceTag.quickFilterEntries.toSet()
+		enabledContentTypes = allTopBarContentTypes()
+		syncSearchSuggestionFilters()
 	}
 
 	private fun onFirstStart() = try {
@@ -419,6 +486,28 @@ class MainActivity : BaseActivity<ActivityMainBinding>(),
 	private fun setNavFloating(isFloating: Boolean) {}
 
 	private fun setNavHeight(heightDp: Int) {}
+
+	private fun onLanguagePresetFilterClick(anchorView: View?): Boolean {
+		val anchor = anchorView ?: if (::container.isInitialized) {
+			container
+		} else {
+			viewBinding.composeRoot
+		}
+		if (currentFilterCallback?.onLanguagePresetClicked(anchor) == true) {
+			return true
+		}
+		router.openSourcePresets()
+		return true
+	}
+
+	private fun onSourceTagFilterClick(anchorView: View?): Boolean {
+		val anchor = anchorView ?: if (::container.isInitialized) {
+			container
+		} else {
+			viewBinding.composeRoot
+		}
+		return currentFilterCallback?.onFilterIconClicked(anchor) == true
+	}
 
 	private fun updateContainerPadding() {
 		if (!::container.isInitialized) return
@@ -492,3 +581,11 @@ private fun ContentType?.toSearchContentKinds(): Set<SearchContentKind> = when (
 	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> setOf(SearchContentKind.VIDEO)
 	else -> ALL_SEARCH_CONTENT_KINDS
 }
+
+private fun allTopBarContentTypes(): Set<ContentType> = setOf(
+	ContentType.MANGA,
+	ContentType.NOVEL,
+	ContentType.VIDEO,
+)
+
+private const val STATE_TOP_BAR_QUERY = "main_activity.top_bar_query"

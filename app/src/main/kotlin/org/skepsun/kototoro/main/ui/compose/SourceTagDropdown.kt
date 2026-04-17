@@ -1,11 +1,6 @@
 package org.skepsun.kototoro.main.ui.compose
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -18,17 +13,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asAndroidColorFilter
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.painter.Painter
 
@@ -52,10 +44,13 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 fun SourceTagDropdown(
     selectedTags: Set<SourceTag>,
     entries: List<SourceTag> = SourceTag.quickFilterEntries,
+    enabledTags: Set<SourceTag> = entries.toSet(),
+    onButtonClickIntercept: (android.view.View?) -> Boolean = { false },
     onTagSelected: (SourceTag?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var anchorView by remember { mutableStateOf<android.view.View?>(null) }
 
     val iconRes = if (selectedTags.size == 1) {
         selectedTags.first().iconRes
@@ -69,9 +64,21 @@ fun SourceTagDropdown(
     }
 
     IconButton(
-        onClick = { expanded = true },
+        onClick = {
+            if (!onButtonClickIntercept(anchorView)) {
+                expanded = true
+            }
+        },
         modifier = modifier,
     ) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { context ->
+                android.view.View(context).apply {
+                    layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+                }
+            },
+            update = { anchorView = it },
+        )
         Icon(
             painter = rememberSafePainter(iconRes),
             contentDescription = stringResource(R.string.filter),
@@ -107,6 +114,7 @@ fun SourceTagDropdown(
                     onTagSelected(tag)
                     expanded = false
                 },
+                enabled = tag in enabledTags,
                 leadingIcon = {
                     Icon(
                         painter = rememberSafePainter(tag.iconRes),

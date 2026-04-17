@@ -3,7 +3,7 @@
 ## 文档信息
 
 - 创建日期：2026-04-16
-- 最后更新：2026-04-16
+- 最后更新：2026-04-17
 - 状态：执行中
 - 负责人：Codex / 仓库维护者协作
 
@@ -185,10 +185,14 @@ parser-api/
 - 浮动底栏场景下，Fragment 宿主不再依赖伪造的 child insets 间接避让，为后续统一导航壳奠定边界。
 - Compose 顶栏搜索建议点击已补齐旧路由语义：`Content` 打开详情、`Tag` 进入标签搜索、`Source/SourceTip` 打开来源列表、`Author` 进入作者搜索。
 - 主壳内容类型与来源筛选现已同步到 `SearchSuggestionViewModel`，普通搜索、最近搜索与提示词点击也会沿用当前筛选条件，并在简单搜索场景支持链接直达详情。
+- Compose 顶栏过滤器现已对齐旧 Fragment 过滤语义：可见性、禁用态、来源入口列表以及来源按钮自定义点击行为都由当前页面回传给主壳统一渲染。
+- Compose 顶栏查询状态现已由主壳统一持有，语音输入与手动输入、建议点击共用同一状态链路，避免 Compose 搜索栏与 Activity 回调脱节。
+- Compose 顶栏已重新接入旧版的全局语言预设入口，并通过全局 `activeSourcePresetId` 状态反馈当前是否存在已启用的源预设。
+- `SearchBarFilterViewController` 关联的 Fragment 现已在 `onDestroyView()` 主动释放回调，主壳不会继续持有已销毁页面的筛选语义，降低导航切换与重建时的状态残留风险。
 
 ### Phase 3：高频内容页迁移
 
-状态：未开始
+状态：执行中
 
 优先级：
 
@@ -205,6 +209,24 @@ parser-api/
 
 - 收敛成统一的 `State / Event / Effect`
 - 把 Compose Screen 与平台桥接明确拆开
+
+当前进展：
+
+- `HomeScreen` 已开始按 legacy 对齐规范收口：快捷入口改为自适应矩阵，列表模式在足够宽度下会把历史 / 更新 / 推荐三栏并排展示，窄屏继续维持纵向堆叠。
+- Home 中 WebDAV 最近同步时间已由原始时间戳改为本地可读时间文本，避免 Compose 首页信息卡继续暴露迁移期占位实现。
+- Home 已新增概览卡，接入继续阅读、收藏/分类统计、启用源数量与默认 tracking 站点等聚合信息，让首页 Compose 宿主开始完整消费 `HomeSummaryState` 的关键状态。
+- `DiscoverScreen` 已为 tracking 首页接入首轮 Hero 轮播：从分类数据中提取顶部内容，补齐模糊背景联动、自动轮播、页间缩放 / 位移 / 轻微旋转过渡，开始借鉴 Dantotsu 的首页视觉结构。
+- `DiscoverHeroCarousel` 已从单层大图推进为“双层 banner 氛围 + 前景 cover”的卡面结构，Compose 首页现已具备更明确的视觉焦点与顶部内容节奏。
+- `DiscoverCarousel` 已补齐分类横向卡片滑动时的位移 / 缩放 / 透明度过渡；同时 `DiscoverScreen` 已修复 carousel 与 search grid 模式下 `EmptyState` 被过滤后的白屏问题。
+- `DetailsHeader` 已接入收藏分类、译文标题/简介与来源 / 作者 / 标签动作，开始对齐 legacy metadata 卡片的真实信息与交互语义。
+- `DetailsScreen` / `DetailsActivity` 已补齐分享、下载、来源跳转、作者 / 标签弹层与翻译切换动作，Compose 详情页头部不再停留在占位实现。
+- `DetailsScreen` 顶栏 `More` 菜单已切换为 Compose overflow menu，补齐翻译、相似内容、在线版本、浏览器、追踪、统计与 NSFW 切换等旧菜单核心能力。
+- `DetailsScreen` 底部阅读 dock 已开始对齐旧 split-button 语义：主按钮会跟随加载 / 继续阅读 / 播放状态变化，右侧分支段支持直接切换 `selectedBranch`。
+- `DetailsActivity` 当前 Compose 阅读入口已回接章节缺失提示与分支透传，底部 dock 不再只是固定“阅读”按钮的静态占位。
+- `DetailsScreen` 底部阅读 dock 已补齐旧 split-button 菜单中的无痕阅读、从历史移除、下载入口与分支菜单，Compose 端已覆盖旧 `popup_read` 的核心语义。
+- `DetailsScreen` 顶栏 `More` 菜单已补齐本地删除、override 编辑与创建快捷方式，`DetailsActivity` 复用现有删除确认、override 返回刷新与快捷方式请求逻辑。
+- `DetailsActivity` 已统一章节、页面、书签三个底部入口到内嵌 `ChaptersPagesSheet`，并按动态 tab 可用性映射索引。
+- `ChaptersPagesSheet` 中 tab 切页现已改为在 Compose 协程上下文内驱动 `PagerState.animateScrollToPage()`，修复 `MonotonicFrameClock` 缺失导致的章节 / 页面 / 书签按钮闪退。
 
 ### Phase 4：Dialog / Sheet Compose 化
 
@@ -293,6 +315,15 @@ parser-api/
 - 保留 `NavConfigFragment` 与 `ProtectSetupActivity` 作为 Android 特有流程入口，Compose 页面仅负责状态展示与路由。
 - 再次执行 `./gradlew :app:compileDebugKotlin --no-daemon` 并通过。
 - 补齐 Compose 顶栏搜索建议点击链路，恢复与旧 `SearchSuggestionListenerImpl` 等价的主路由行为，并把主壳筛选状态同步到搜索建议 ViewModel。
+
+### 2026-04-17
+
+- 修复 `ChaptersPagesSheet` 中章节、页面、书签 Tab 切换崩溃：将 `PagerState.animateScrollToPage()` 的触发迁移到 Compose `rememberCoroutineScope()`，避免 `MonotonicFrameClock` 缺失。
+- 为 `ChaptersPagesSheet` 增加动态 tab 到真实 pager 页的索引映射，裁剪不可用 tab 后仍能正确切页。
+- 在 `DiscoverScreen` 顶部接入 tracking 首页 Hero 轮播，补齐模糊背景联动、自动翻页和页间过渡动画。
+- 将 `DiscoverHeroCarousel` 从单层大图进一步推进到双层视觉结构，形成“背景 banner 氛围 + 前景浮动 cover”的首页 Hero。
+- 为 `DiscoverCarousel` 分类行补齐位移 / 缩放 / 透明度动效，并修复 carousel / search grid 模式下 Compose 空态白屏。
+- 本轮 Discover 视觉深化阶段受本地 Hilt/KSP 生成目录问题影响，额外以 `./gradlew :app:compileDebugKotlin --no-daemon -x kspDebugKotlin "-Pkotlin.incremental=false"` 完成 Kotlin 语法与类型校验。
 
 ## 下一步
 

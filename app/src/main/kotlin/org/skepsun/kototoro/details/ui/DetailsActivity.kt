@@ -1,11 +1,13 @@
 package org.skepsun.kototoro.details.ui
 
+import android.app.Activity
 import android.app.assist.AssistContent
 import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
@@ -15,9 +17,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.databinding.ActivityDetailsBinding
@@ -30,10 +36,13 @@ import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.ContentType
 import javax.inject.Inject
 import androidx.compose.ui.geometry.Rect
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.core.ui.sheet.BottomSheetCollapseCallback
+import org.skepsun.kototoro.details.ui.compose.DetailsAction
 
 @AndroidEntryPoint
 class DetailsActivity :
@@ -46,11 +55,19 @@ class DetailsActivity :
 	@Inject
 	lateinit var pageSaveHelperFactory: org.skepsun.kototoro.reader.ui.PageSaveHelper.Factory
 
+	@Inject
+	lateinit var appShortcutManager: AppShortcutManager
+
 	private val viewModel: DetailsViewModel by viewModels()
 	private val pagesViewModel: PagesViewModel by viewModels()
 	private val bookmarksViewModel: BookmarksViewModel by viewModels()
 
 	private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
+	private val overrideEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+		if (result.resultCode == Activity.RESULT_OK) {
+			viewModel.reload()
+		}
+	}
 
 	override val bottomSheet: View?
 		get() = viewBinding.containerBottomSheet
@@ -121,50 +138,131 @@ class DetailsActivity :
 						syncCoverBounds(rect)
 					},
 					onActionClick = { action ->
-                        when (action) {
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.Resume -> {
-                                val content = viewModel.mangaDetails.value?.toContent()
-                                if (content != null) {
-                                    val intent = org.skepsun.kototoro.core.nav.ReaderIntent.Builder(this@DetailsActivity)
-                                        .manga(content)
-                                        .build()
-                                    this@DetailsActivity.router.openReader(intent)
-                                }
-                            }
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.Download -> {
-                                // TODO: Map to actual download logic
-                            }
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.Share -> {
-                                // TODO: Map to actual share logic
-                            }
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.OpenSource -> {
-                                // TODO: Handle source routing
-                            }
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.ToggleList -> {
-                                viewBinding.containerBottomSheet?.let { sheet ->
-                                    val behavior = BottomSheetBehavior.from(sheet)
-                                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                                    val fragment = supportFragmentManager.findFragmentById(R.id.container_bottom_sheet) as? org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
-                                    fragment?.selectTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
-                                } ?: run {
-                                    this@DetailsActivity.router.showChapterPagesSheet(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
-                                }
-                            }
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.ToggleGrid -> {
-                                viewBinding.containerBottomSheet?.let { sheet ->
-                                    val behavior = BottomSheetBehavior.from(sheet)
-                                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                                    val fragment = supportFragmentManager.findFragmentById(R.id.container_bottom_sheet) as? org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
-                                    fragment?.selectTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
-                                } ?: run {
-                                    this@DetailsActivity.router.showChapterPagesSheet(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
-                                }
-                            }
-                            is org.skepsun.kototoro.details.ui.compose.DetailsAction.ToggleBookmarkView -> {
-                                this@DetailsActivity.router.showChapterPagesSheet(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_BOOKMARKS)
-                            }
-                            else -> {}
-                        }
+						when (action) {
+							DetailsAction.Resume -> {
+								openReader()
+							}
+
+							DetailsAction.ResumeIncognito -> {
+								openReader(isIncognitoMode = true)
+							}
+
+							DetailsAction.Favorite -> {
+								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showFavoriteDialog)
+							}
+
+							DetailsAction.Download -> {
+								viewModel.getContentOrNull()?.let {
+									this@DetailsActivity.router.showDownloadDialog(it, viewBinding.root)
+								}
+							}
+
+							DetailsAction.Share -> {
+								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showShareDialog)
+							}
+
+							is DetailsAction.OpenSource -> {
+								this@DetailsActivity.router.openList(action.source, null, null)
+							}
+
+							is DetailsAction.AuthorClick -> {
+								this@DetailsActivity.router.showAuthorDialog(action.author, action.source)
+							}
+
+							is DetailsAction.TagClick -> {
+								this@DetailsActivity.router.showTagDialog(action.tag)
+							}
+
+							is DetailsAction.SelectBranch -> {
+								viewModel.setSelectedBranch(action.branch)
+							}
+
+							DetailsAction.ForgetHistory -> {
+								viewModel.removeFromHistory()
+							}
+
+							DetailsAction.Translate -> {
+								val hasCache = viewModel.hasTranslationCache.value
+								viewModel.translateTitleAndDescription(forceRefresh = hasCache)
+								Snackbar.make(
+									viewBinding.root,
+									if (hasCache) R.string.reader_translation_retranslate_started else R.string.translating,
+									Snackbar.LENGTH_SHORT,
+								).show()
+							}
+
+							DetailsAction.ToggleTranslation -> {
+								viewModel.toggleTranslationDisplay()
+							}
+
+							DetailsAction.FindSimilar -> {
+								viewModel.getContentOrNull()?.let {
+									this@DetailsActivity.router.openSearch(it.title)
+								}
+							}
+
+							DetailsAction.OpenAlternatives -> {
+								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::openAlternatives)
+							}
+
+							DetailsAction.OpenOnlineVariant -> {
+								viewModel.remoteContent.value?.let(this@DetailsActivity.router::openDetails)
+							}
+
+							DetailsAction.OpenInBrowser -> {
+								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::openBrowser)
+							}
+
+							DetailsAction.OpenTracking -> {
+								viewModel.getContentOrNull()?.let {
+									this@DetailsActivity.router.showScrobblingSelectorSheet(it, null)
+								}
+							}
+
+							DetailsAction.OpenStatistics -> {
+								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showStatisticSheet)
+							}
+
+							DetailsAction.ToggleSafe -> {
+								viewModel.toggleMarkSafe()
+							}
+
+							DetailsAction.DeleteLocal -> {
+								confirmDeleteLocal()
+							}
+
+							DetailsAction.EditOverride -> {
+								viewModel.getContentOrNull()?.let {
+									overrideEditLauncher.launch(AppRouter.overrideEditIntent(this@DetailsActivity, it))
+								}
+							}
+
+							DetailsAction.CreateShortcut -> {
+								viewModel.getContentOrNull()?.let { manga ->
+									lifecycleScope.launch {
+										if (!appShortcutManager.requestPinShortcut(manga)) {
+											Snackbar.make(
+												viewBinding.root,
+												R.string.operation_not_supported,
+												Snackbar.LENGTH_SHORT,
+											).show()
+										}
+									}
+								}
+							}
+
+							DetailsAction.ToggleList -> {
+								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
+							}
+
+							DetailsAction.ToggleGrid -> {
+								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
+							}
+
+							DetailsAction.ToggleBookmarkView -> {
+								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_BOOKMARKS)
+							}
+						}
 					}
 				)
 			}
@@ -187,6 +285,68 @@ class DetailsActivity :
 		viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
 		lifecycleScope.launch {
 			viewModel.chapters.collect(PrefetchObserver(this@DetailsActivity))
+		}
+	}
+
+	private fun openReader(isIncognitoMode: Boolean = false) {
+		if (viewModel.historyInfo.value.isChapterMissing) {
+			Snackbar.make(viewBinding.root, R.string.chapter_is_missing, Snackbar.LENGTH_SHORT).show()
+			return
+		}
+		val content = viewModel.getContentOrNull() ?: return
+		val intent = org.skepsun.kototoro.core.nav.ReaderIntent.Builder(this)
+			.manga(content)
+			.branch(viewModel.selectedBranchValue)
+			.apply {
+				if (isIncognitoMode) {
+					incognito()
+				}
+			}
+			.build()
+		this.router.openReader(intent)
+	}
+
+	private fun confirmDeleteLocal() {
+		val manga = viewModel.getContentOrNull() ?: return
+		buildAlertDialog(this) {
+			setTitle(R.string.delete_manga)
+			setMessage(getString(R.string.text_delete_local_manga, manga.title))
+			setPositiveButton(R.string.delete) { _, _ -> viewModel.deleteLocal() }
+			setNegativeButton(android.R.string.cancel, null)
+		}.show()
+	}
+
+	private fun showDetailsBottomSheetTab(targetTab: Int) {
+		viewBinding.containerBottomSheet?.let { sheet ->
+			supportFragmentManager.executePendingTransactions()
+			BottomSheetBehavior.from(sheet).state = BottomSheetBehavior.STATE_EXPANDED
+			val fragment = supportFragmentManager.findFragmentById(R.id.container_bottom_sheet)
+				as? org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
+			fragment?.selectTab(resolveDetailsBottomSheetTabIndex(targetTab))
+			return
+		}
+		this.router.showChapterPagesSheet(targetTab)
+	}
+
+	private fun resolveDetailsBottomSheetTabIndex(targetTab: Int): Int {
+		val contentType = viewModel.getContentOrNull()?.source?.getContentType()
+		val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
+		val isVideo = contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO
+		val isPagesTabEnabled = settings.isPagesTabEnabled && !isNovel && !isVideo
+		val isBookmarksTabEnabled = !isVideo
+		return when (targetTab) {
+			org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS -> 0
+			org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES -> {
+				if (isPagesTabEnabled) 1 else 0
+			}
+
+			org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_BOOKMARKS -> when {
+				isPagesTabEnabled && isBookmarksTabEnabled -> 2
+				isBookmarksTabEnabled -> 1
+				else -> 0
+			}
+
+			else -> 0
 		}
 	}
 

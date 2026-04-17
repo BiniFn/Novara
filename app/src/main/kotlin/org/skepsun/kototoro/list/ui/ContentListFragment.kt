@@ -274,6 +274,7 @@ abstract class ContentListFragment :
 	}
 
 	override fun onDestroyView() {
+		filterMenuProvider?.destroy()
 		filterMenuProvider = null
 		categoryChipIds.clear()
 		contentTypeChipIds.clear()
