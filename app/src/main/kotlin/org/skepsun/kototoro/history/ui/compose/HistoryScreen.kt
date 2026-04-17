@@ -12,7 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.automirrored.filled.BarChart
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,7 +87,7 @@ fun HistoryScreen(
                             onClick = onStatsClick,
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.BarChart,
+                                    imageVector = Icons.AutoMirrored.Filled.BarChart,
                                     contentDescription = null,
                                     modifier = Modifier.padding(end = 4.dp)
                                 )
