@@ -79,3 +79,10 @@
 - **修复**：补齐三个参数传递，清理 `FragmentContainerView` 残留 import 和字段
 - **文档重组**：将 5 份混合文档拆为 status-snapshot / decision-log / task 三文件结构
 - **引入 L1-L4 迁移深度框架**，用于准确标注各组件真实迁移层级
+
+## 2026-04-18：主导航与 UI 架构重构
+
+- **修复状态栏重叠**：修正 `ExploreHostScreen` 和 `FavoritesHostScreen` 根布局因未正确消耗 `contentPadding.calculateTopPadding()` 导致 TabRow 和状态栏重叠的问题。
+- **全局内容类型筛选**：将内容筛选器（漫画/小说/动画）在 `appNavGraph` 范围内的默认可见性设为 `true`，使得在所有主页面搜索栏中都可见。
+- **重构 Home 页面**：移除由单卡片承载多 Tab 的 `HomeHeroSection`。重构成分别对应“历史记录”、“最新更新”、“建议”三个独立且样式类似 tracking site feed 的 Hero Backdrop Card 轮播组件。
+- **重构 Discover 与 Explore（合并发现页）**：废弃了独立的 `DiscoverScreen`，将发现模块的内容合并进了 `ExploreHostScreen` 中，打造了一个上层展示 `SourcesQuickAccessCard`（原 Explore 源横滑列表）、下层紧接 Tracking 系列卡片（原 Discover 横滑卡片）的统一纯粹发现页，路由指向全部重定向，从而精简了层级结构。

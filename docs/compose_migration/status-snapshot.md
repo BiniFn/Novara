@@ -65,9 +65,9 @@
 已通过 Compose NavHost 路由（`AppNavGraph` → `"home"` → `HomeScreen`）。
 Hero 轮播、tracking 首页、概览卡等已全部 Compose 实现。
 
-### Discover — **L2**
+### Discover (Merged into Explore)
 
-已通过 Compose NavHost 路由。Hero 轮播、分类横滑、空态处理已 Compose 实现。
+The standalone `DiscoverScreen` has been removed. The `"discover"` and `"explore"` routes now both map to the unified `KototoroExploreHostRoute`.
 
 ### History — **L2**
 
@@ -78,10 +78,9 @@ Hero 轮播、tracking 首页、概览卡等已全部 Compose 实现。
 已通过 Compose NavHost 路由。`FavouritesActivity` 已使用 `setContent` 包 Compose route。
 旧 `FavouritesContainerFragment` 已重写为 `FavoritesHostScreen`。
 
-### Explore — **L2**
+### Explore (Unified Discovery Page) — **L2**
 
-已通过 Compose NavHost 路由。`ExploreSourcesFragment` 已重构为纯 Compose。
-`ExploreFragment` 已重写为 `ExploreHostScreen`（Compose HorizontalPager）。
+已通过 Compose NavHost 路由。`ExploreHostScreen` 现已重写为统一下拉加载的发现页，顶部为 Source 卡片（由原 ExploreSourcesFragment 演化），下方为追踪类别卡片（原 Discover 的 Hero 和 Carousel），完全去除了旧版的双标签结构。
 
 ### Feed — **L2**
 
