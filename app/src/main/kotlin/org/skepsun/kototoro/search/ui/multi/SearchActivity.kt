@@ -69,6 +69,7 @@ class SearchActivity :
 			)
 
 			SearchKind.TAG -> getString(R.string.inline_preference_pattern, getString(R.string.genre), viewModel.query)
+			SearchKind.ADVANCED -> getString(R.string.advanced_search)
 		}
 
 		val itemClickListener = OnListItemClickListener<SearchResultsListModel> { item, view ->
@@ -115,6 +116,8 @@ class SearchActivity :
 				false
 			}
 		}
+
+		setupAdvancedSearchPanel()
 
 		addMenuProvider(SearchMenuProvider(this, viewModel))
 
@@ -234,6 +237,28 @@ class SearchActivity :
 
 	private fun collectSelectedItems(): Set<Content> {
 		return viewModel.getItems(selectionController.peekCheckedIds())
+	}
+
+	private fun setupAdvancedSearchPanel() {
+		val advancedQuery = viewModel.advancedQuery
+		if (advancedQuery != null) {
+			viewBinding.layoutAdvancedSearch.visibility = View.VISIBLE
+			viewBinding.iconAdvancedToggle.rotation = 180f
+			viewBinding.editAdvancedTitle.setText(advancedQuery.title)
+			viewBinding.editAdvancedTags.setText(advancedQuery.tags)
+			viewBinding.editAdvancedAuthor.setText(advancedQuery.author)
+		}
+
+		viewBinding.buttonAdvancedToggle.setOnClickListener {
+			val isExpanded = viewBinding.layoutAdvancedSearch.visibility == View.VISIBLE
+			if (isExpanded) {
+				viewBinding.layoutAdvancedSearch.visibility = View.GONE
+				viewBinding.iconAdvancedToggle.animate().rotation(0f).start()
+			} else {
+				viewBinding.layoutAdvancedSearch.visibility = View.VISIBLE
+				viewBinding.iconAdvancedToggle.animate().rotation(180f).start()
+			}
+		}
 	}
 
 	private fun submitEditedQuery() {
