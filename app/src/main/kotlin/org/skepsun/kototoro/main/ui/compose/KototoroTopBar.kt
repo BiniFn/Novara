@@ -244,19 +244,9 @@ private fun TopBarAnchorIconButton(
     onClick: (android.view.View?) -> Boolean,
     content: @Composable () -> Unit,
 ) {
-    var anchorView by remember { mutableStateOf<android.view.View?>(null) }
-    Box {
-        androidx.compose.ui.viewinterop.AndroidView(
-            factory = { context ->
-                android.view.View(context).apply {
-                    layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-                }
-            },
-            update = { anchorView = it },
-        )
-        IconButton(onClick = { onClick(anchorView) }) {
-            content()
-        }
+    val anchor = androidx.compose.ui.platform.LocalView.current
+    IconButton(onClick = { onClick(anchor) }) {
+        content()
     }
 }
 

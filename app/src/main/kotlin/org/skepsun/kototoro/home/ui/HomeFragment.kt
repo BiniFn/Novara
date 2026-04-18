@@ -89,8 +89,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 					onTrackingSectionMoreClick = { section ->
 						if (section.categoryId != null) {
 							router.openTrackingDiscoveryCategory(section.service, section.categoryId, section.titleResId)
-						} else {
-							(activity as? MainActivity)?.selectMainNavigationItem(R.id.nav_discover)
 						}
 					},
 					isRandomLoading = isRandomLoading

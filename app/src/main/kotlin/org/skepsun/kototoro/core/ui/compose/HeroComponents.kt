@@ -47,6 +47,19 @@ fun HeroBackdropCard(
                 .fillMaxWidth()
                 .heightIn(min = minHeight),
         ) {
+            // Fallback gradient shown when AsyncImage has no cover or is still loading
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceContainerHighest,
+                                MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
+                        ),
+                    ),
+            )
             background()
             content()
         }

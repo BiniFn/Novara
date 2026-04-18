@@ -65,6 +65,13 @@ fun KototoroFavoritesHostRoute(
     val pagerState = rememberPagerState(pageCount = { categories.size })
     val coroutineScope = rememberCoroutineScope()
 
+    val innerPadding = PaddingValues(
+        start = contentPadding.calculateStartPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+        end = contentPadding.calculateEndPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+        top = 0.dp,
+        bottom = contentPadding.calculateBottomPadding(),
+    )
+
     Column(modifier = Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         ScrollableTabRow(
             selectedTabIndex = pagerState.currentPage,
@@ -101,7 +108,7 @@ fun KototoroFavoritesHostRoute(
                 KototoroFavoritesListScreen(
                     categoryId = category.id,
                     appRouter = appRouter,
-                    contentPadding = contentPadding
+                    contentPadding = innerPadding
                 )
             }
         }

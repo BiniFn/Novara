@@ -1,25 +1,31 @@
 package org.skepsun.kototoro.details.ui.pager.bookmarks.compose
 
 import android.content.Context
-import androidx.compose.runtime.*
-
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
-import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreen
 
 @Composable
 fun BookmarksScreenRoot(
 	activityViewModel: ChaptersPagesViewModel,
 	router: AppRouter,
 	context: Context,
-	viewModel: BookmarksViewModel
+	viewModel: BookmarksViewModel,
 ) {
 	val contentItems by viewModel.content.collectAsState(initial = emptyList())
+	val gridScale by viewModel.gridScale.collectAsState(initial = 1f)
 	val selectedItemIds = remember { mutableStateListOf<Long>() }
-	
+
 	val mangaDetails by activityViewModel.mangaDetails.collectAsState(initial = null)
 	LaunchedEffect(mangaDetails) {
 		viewModel.emit(mangaDetails)
@@ -27,28 +33,27 @@ fun BookmarksScreenRoot(
 
 	BookmarksScreen(
 		items = contentItems,
+		gridMinSize = (120.dp / gridScale.coerceIn(0.5f, 1.5f)),
 		selectedItemIds = selectedItemIds.toSet(),
 		onItemClick = { item ->
+			val bookmark = item as Bookmark
 			if (selectedItemIds.isNotEmpty()) {
-				val bookmark = item as org.skepsun.kototoro.bookmarks.domain.Bookmark
 				if (selectedItemIds.contains(bookmark.pageId)) {
 					selectedItemIds.remove(bookmark.pageId)
 				} else {
 					selectedItemIds.add(bookmark.pageId)
 				}
 			} else {
-				val bookmark = item as org.skepsun.kototoro.bookmarks.domain.Bookmark
-				// 之前逻辑中直接通过 Parent Callback 或 Router 启动
 				router.openReader(
 					ReaderIntent.Builder(context)
 						.manga(bookmark.manga)
 						.state(org.skepsun.kototoro.reader.ui.ReaderState(bookmark.chapterId, bookmark.page, bookmark.scroll))
-						.build()
+						.build(),
 				)
 			}
 		},
 		onItemLongClick = { item ->
-			val bookmark = item as org.skepsun.kototoro.bookmarks.domain.Bookmark
+			val bookmark = item as Bookmark
 			if (selectedItemIds.contains(bookmark.pageId)) {
 				selectedItemIds.remove(bookmark.pageId)
 			} else {
@@ -61,6 +66,6 @@ fun BookmarksScreenRoot(
 			}
 			selectedItemIds.clear()
 		},
-		onClearSelection = { selectedItemIds.clear() }
+		onClearSelection = { selectedItemIds.clear() },
 	)
 }

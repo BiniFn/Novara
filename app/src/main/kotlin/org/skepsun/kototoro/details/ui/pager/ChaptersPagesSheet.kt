@@ -73,35 +73,18 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         disableFitToContents()
 
         val args = arguments ?: Bundle.EMPTY
-        var defaultTab = args.getInt(AppRouter.KEY_TAB, settings.defaultDetailsTab)
-
         val source = resolveContentSource()
         val contentType = source?.getContentType()
-        val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
-        val isVideo = contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO
-        val isPagesTabEnabled = settings.isPagesTabEnabled && !isNovel && !isVideo
-        val isBookmarksTabEnabled = !isVideo
-
-        val tabsList = buildList {
-            add(R.string.chapters)
-            if (isPagesTabEnabled) {
-                add(R.string.pages)
-            }
-            if (isBookmarksTabEnabled) {
-                add(R.string.bookmarks)
-            }
-        }
+        val tabsList = resolveAvailableTabIds(contentType)
         activeTabs = tabsList
 
-        binding.tabs.removeAllTabs()
-        for (titleRes in tabsList) {
-            binding.tabs.addTab(binding.tabs.newTab().setText(titleRes))
-        }
+        var selectedTabId = args.getInt(AppRouter.KEY_TAB, settings.defaultDetailsTab)
+        selectedTabId = resolveSelectedTabId(selectedTabId, tabsList)
 
-        if (!isPagesTabEnabled && defaultTab > TAB_CHAPTERS) {
-            defaultTab = (defaultTab - 1).coerceAtLeast(TAB_CHAPTERS)
+        binding.tabs.removeAllTabs()
+        for (tabId in tabsList) {
+            binding.tabs.addTab(binding.tabs.newTab().setText(tabTitleRes(tabId)))
         }
-        defaultTab = defaultTab.coerceIn(0, tabsList.lastIndex.coerceAtLeast(0))
 
         (viewModel as? DetailsViewModel)?.let { dvm ->
             ReadButtonDelegate(binding.splitButtonRead, dvm, router).attach(viewLifecycleOwner)
@@ -118,7 +101,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
             setContent {
                 val composeScope = rememberCoroutineScope()
                 val pagerState = androidx.compose.foundation.pager.rememberPagerState(
-                    initialPage = defaultTab,
+                    initialPage = tabsList.indexOf(selectedTabId).coerceAtLeast(0),
                     pageCount = { tabsList.size },
                 )
 
@@ -126,7 +109,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
                     if (binding.tabs.selectedTabPosition != pagerState.currentPage) {
                         binding.tabs.selectTab(binding.tabs.getTabAt(pagerState.currentPage))
                     }
-                    this@ChaptersPagesSheet.onPageChanged(pagerState.currentPage)
+                    this@ChaptersPagesSheet.onPageChanged(tabsList[pagerState.currentPage])
                 }
 
                 DisposableEffect(binding.tabs, pagerState) {
@@ -156,7 +139,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
                         modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                     ) { page ->
                         when (tabsList[page]) {
-                            R.string.chapters -> ChaptersScreenRoot(
+                            TAB_CHAPTERS -> ChaptersScreenRoot(
                                 viewModel = viewModel,
                                 router = router,
                                 context = context,
@@ -164,7 +147,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
                                 lifecycleOwner = viewLifecycleOwner,
                             )
 
-                            R.string.pages -> PagesScreenRoot(
+                            TAB_PAGES -> PagesScreenRoot(
                                 activityViewModel = viewModel,
                                 router = router,
                                 context = context,
@@ -174,7 +157,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
                                 viewModel = pagesViewModel,
                             )
 
-                            R.string.bookmarks -> BookmarksScreenRoot(
+                            TAB_BOOKMARKS -> BookmarksScreenRoot(
                                 activityViewModel = viewModel,
                                 router = router,
                                 context = context,
@@ -191,11 +174,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
             viewModel = viewModel,
             sheet = this,
             getCurrentTab = {
-                var page = binding.tabs.selectedTabPosition
-                if (page > 0 && binding.tabs.tabCount == 2) {
-                    page++
-                }
-                page
+                tabsList.getOrElse(binding.tabs.selectedTabPosition.coerceAtLeast(0)) { tabsList.firstOrNull() ?: TAB_CHAPTERS }
             },
             getTabCount = { binding.tabs.tabCount },
             settings = settings,
@@ -263,22 +242,16 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
     }
 
     fun selectTab(tab: Int) {
-        val targetTitleRes = when (tab) {
-            TAB_CHAPTERS -> R.string.chapters
-            TAB_PAGES -> R.string.pages
-            TAB_BOOKMARKS -> R.string.bookmarks
-            else -> return
-        }
-        val index = activeTabs.indexOf(targetTitleRes)
-        if (index < 0) {
+        val targetIndex = activeTabs.indexOf(tab)
+        if (targetIndex < 0) {
             return
         }
-        viewBinding?.tabs?.selectTab(viewBinding?.tabs?.getTabAt(index))
+        viewBinding?.tabs?.selectTab(viewBinding?.tabs?.getTabAt(targetIndex))
     }
 
-    private fun onPageChanged(position: Int) {
+    private fun onPageChanged(tabId: Int) {
         viewBinding?.toolbar?.invalidateMenu()
-        settings.lastDetailsTab = position
+        settings.lastDetailsTab = tabId
     }
 
     private fun onNewChaptersChanged(counter: Int) {
@@ -319,6 +292,38 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
             ?.getParcelableExtra<org.skepsun.kototoro.core.model.parcelable.ParcelableContent>(AppRouter.KEY_MANGA)
             ?.manga
             ?.source
+    }
+
+    private fun resolveAvailableTabIds(contentType: ContentType?): List<Int> = buildList {
+        add(TAB_CHAPTERS)
+        val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
+        val isVideo = contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO
+        if (settings.isPagesTabEnabled && !isNovel && !isVideo) {
+            add(TAB_PAGES)
+        }
+        if (!isVideo) {
+            add(TAB_BOOKMARKS)
+        }
+    }
+
+    private fun resolveSelectedTabId(requestedTabId: Int, availableTabs: List<Int>): Int {
+        return if (requestedTabId in availableTabs) {
+            requestedTabId
+        } else {
+            when {
+                requestedTabId > TAB_CHAPTERS -> {
+                    availableTabs.getOrElse((requestedTabId - 1).coerceAtLeast(0)) { availableTabs.first() }
+                }
+                else -> availableTabs.first()
+            }
+        }
+    }
+
+    private fun tabTitleRes(tabId: Int): Int = when (tabId) {
+        TAB_CHAPTERS -> R.string.chapters
+        TAB_PAGES -> R.string.pages
+        TAB_BOOKMARKS -> R.string.bookmarks
+        else -> R.string.chapters
     }
 
     companion object {

@@ -93,10 +93,10 @@ class FavouritesContainerViewModel @Inject constructor(
 	)
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
-val importMessages = MutableEventFlow<String>()
+	val importMessages = MutableEventFlow<String>()
 	val syncMessages = MutableEventFlow<String>()
-	private fun logImport(msg: String) = runCatching { println("[FavouritesImport] $msg") }
-	private fun logSync(msg: String) = runCatching { println("[FavouritesSync] $msg") }
+	private fun logImport(msg: String) = Unit
+	private fun logSync(msg: String) = Unit
 
 	private val categoriesStateFlow = favouritesRepository.observeCategoriesForLibrary()
 		.withErrorHandling()
@@ -343,7 +343,7 @@ val importMessages = MutableEventFlow<String>()
 					.getOrDefault(emptyList())
 				val localKeys = local.associateBy { it.url }
 				val remoteKeys = remote.associateBy { it.url }
-				// 先把远程新增的（本地没有的）合并进本地分�?
+				// 先把远程新增的（本地没有的）合并进本地分�?
 				val remoteExtras = remoteKeys.keys.minus(localKeys.keys).mapNotNull { remoteKeys[it] }
 				if (remoteExtras.isNotEmpty()) {
 					logSync("sync merge remote extras source=${item.source.name} extras=${remoteExtras.size}")

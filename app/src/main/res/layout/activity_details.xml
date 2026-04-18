@@ -33,20 +33,4 @@
 
 	</androidx.constraintlayout.widget.ConstraintLayout>
 
-	<androidx.fragment.app.FragmentContainerView
-		android:id="@+id/container_bottom_sheet"
-		android:name="org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet"
-		style="@style/Widget.Material3.BottomSheet"
-		android:layout_width="match_parent"
-		android:layout_height="match_parent"
-		android:elevation="6dp"
-		android:nestedScrollingEnabled="false"
-		android:outlineProvider="background"
-		app:behavior_fitToContents="false"
-		app:behavior_hideable="false"
-		app:behavior_peekHeight="@dimen/details_bs_peek_height"
-		app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
-		app:paddingBottomSystemWindowInsets="false"
-		tools:layout="@layout/sheet_chapters_pages" />
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

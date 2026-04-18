@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -18,9 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -28,7 +25,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -37,26 +33,21 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroBackdropCard
 import org.skepsun.kototoro.core.ui.compose.HeroBackdropScrim
-import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
 import org.skepsun.kototoro.discover.ui.compose.DiscoverHeroCarousel
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.explore.ui.ExploreViewModel
 import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.list.ui.model.ContentListModel
-import org.skepsun.kototoro.list.ui.model.EmptyState
-import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.LoadingState
-import kotlin.math.absoluteValue
 
 /**
  * Unified Discover page: combines content sources and tracking site discovery
  * into a single vertically-scrolling card-based layout.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun KototoroExploreHostRoute(
     appRouter: AppRouter,
@@ -102,29 +93,10 @@ fun KototoroExploreHostRoute(
             contentPadding = PaddingValues(
                 top = contentPadding.calculateTopPadding() + 8.dp,
                 bottom = contentPadding.calculateBottomPadding() + 8.dp,
-                start = 12.dp,
-                end = 12.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            // Sources quick-access card
-            if (sources.isNotEmpty()) {
-                item(key = "sources_card") {
-                    SourcesQuickAccessCard(
-                        sources = sources,
-                        onSourceClick = { source -> appRouter.openList(source.source, null, null) },
-                        onManageClick = {
-                            if (exploreViewModel.isAllSourcesEnabled.value) {
-                                appRouter.openManageSources()
-                            } else {
-                                appRouter.openSourcesCatalog()
-                            }
-                        },
-                    )
-                }
-            }
-
             // Hero carousel (daily picks)
             if (heroItems.isNotEmpty() && heroRow != null) {
                 item(key = "discover_hero") {
@@ -144,7 +116,24 @@ fun KototoroExploreHostRoute(
                                 }
                             }
                         },
-                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+            }
+
+            // Sources quick-access card
+            if (sources.isNotEmpty()) {
+                item(key = "sources_card") {
+                    SourcesQuickAccessCard(
+                        sources = sources,
+                        onSourceClick = { source -> appRouter.openList(source.source, null, null) },
+                        onManageClick = {
+                            if (exploreViewModel.isAllSourcesEnabled.value) {
+                                appRouter.openManageSources()
+                            } else {
+                                appRouter.openSourcesCatalog()
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 }
             }
@@ -161,6 +150,7 @@ fun KototoroExploreHostRoute(
                     TrackingCategoryCarouselCard(
                         title = stringResource(row.category.nameResId),
                         items = rowContentItems,
+                        modifier = Modifier.padding(horizontal = 12.dp),
                         onItemClick = { item ->
                             val serviceName = item.manga.source.name.removePrefix("TRACKING_")
                             val trackingService = discoverViewModel.availableServices.value.find { it.name == serviceName }
@@ -232,35 +222,30 @@ private fun SourcesQuickAccessCard(
                     Text(stringResource(R.string.more))
                 }
             }
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 8.dp),
+            FlowRow(
+                modifier = Modifier.padding(top = 8.dp, start = 12.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(
-                    items = sources.take(20),
-                    key = { it.id },
-                ) { source ->
+                sources.take(20).forEach { source ->
                     val title = source.source.getTitle(context)
                     Surface(
                         modifier = Modifier.clickable { onSourceClick(source) },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceContainer,
                         tonalElevation = 2.dp,
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .width(80.dp)
-                                .padding(horizontal = 8.dp, vertical = 10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_storage),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.labelSmall,
@@ -279,7 +264,6 @@ private fun SourcesQuickAccessCard(
  * A tracking category rendered as a HeroBackdropCard with HorizontalPager,
  * matching the visual style of HomeTrackingHeroSection.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackingCategoryCarouselCard(
     title: String,
@@ -290,34 +274,25 @@ private fun TrackingCategoryCarouselCard(
 ) {
     if (items.isEmpty()) return
 
-    val pagerState = rememberPagerState(pageCount = { items.size })
-    val selectedIndex by remember(items, pagerState) {
-        derivedStateOf { pagerState.currentPage.coerceIn(0, items.lastIndex) }
-    }
-    val selectedItem = items[selectedIndex]
     val context = LocalContext.current
-    val backgroundRequest = remember(selectedItem.coverUrl, selectedItem.id) {
+    val backgroundItem = items.first()
+    val backgroundRequest = remember(backgroundItem.coverUrl, backgroundItem.id) {
         ImageRequest.Builder(context)
-            .data(selectedItem.coverUrl)
+            .data(backgroundItem.coverUrl)
             .crossfade(true)
             .build()
     }
 
-    HeroAutoAdvanceEffect(
-        pagerState = pagerState,
-        pageCount = items.size,
-    )
-
     HeroBackdropCard(
-        modifier = modifier.height(184.dp),
-        minHeight = 184.dp,
-        shape = RoundedCornerShape(26.dp),
+        modifier = modifier,
+        minHeight = 0.dp,
+        shape = RoundedCornerShape(22.dp),
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        elevation = 4.dp,
+        elevation = 2.dp,
         background = {
             AsyncImage(
                 model = backgroundRequest,
-                contentDescription = selectedItem.title,
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
@@ -340,9 +315,8 @@ private fun TrackingCategoryCarouselCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+                .fillMaxWidth()
+                .padding(12.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -351,7 +325,7 @@ private fun TrackingCategoryCarouselCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -361,44 +335,30 @@ private fun TrackingCategoryCarouselCard(
                     Text(stringResource(R.string.more))
                 }
             }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp),
             ) {
-                HorizontalPager(
-                    state = pagerState,
-                    pageSpacing = 8.dp,
-                    contentPadding = PaddingValues(horizontal = 2.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                    TrackingCategoryPoster(
-                        item = items[page],
-                        pageOffset = pageOffset,
-                        onClick = { onItemClick(items[page]) },
+                items(
+                    items = items,
+                    key = { it.id },
+                ) { item ->
+                    TrackingCompactPoster(
+                        item = item,
+                        onClick = { onItemClick(item) },
                     )
                 }
             }
-            HeroPagerIndicator(
-                pageCount = items.size,
-                currentPage = selectedIndex,
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
-            )
         }
     }
 }
 
 @Composable
-private fun TrackingCategoryPoster(
+private fun TrackingCompactPoster(
     item: ContentListModel,
-    pageOffset: Float,
     onClick: () -> Unit,
 ) {
-    val offsetFraction = pageOffset.absoluteValue.coerceIn(0f, 1f)
-    val posterWidth = lerp(72.dp, 66.dp, offsetFraction)
-    val posterHeight = lerp(100.dp, 92.dp, offsetFraction)
     val context = LocalContext.current
     val imageRequest = remember(item.coverUrl, item.id) {
         ImageRequest.Builder(context)
@@ -406,70 +366,33 @@ private fun TrackingCategoryPoster(
             .crossfade(true)
             .build()
     }
-    val sourceLabel = item.source.getTitle(context)
 
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = Color.Transparent,
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val scale = 0.94f + ((1f - offsetFraction) * 0.06f)
-                scaleX = scale
-                scaleY = scale
-                alpha = 0.74f + ((1f - offsetFraction) * 0.26f)
-                translationX = pageOffset * -18f
-            }
+            .width(72.dp)
             .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .size(width = 72.dp, height = 100.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            Box(
-                modifier = Modifier
-                    .width(posterWidth)
-                    .height(posterHeight)
-                    .clip(RoundedCornerShape(22.dp)),
-            ) {
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.38f)),
-                            ),
-                        ),
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = sourceLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

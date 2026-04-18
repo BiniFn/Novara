@@ -6,22 +6,14 @@ import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.annotation.IdRes
-import androidx.appcompat.view.ActionMode
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.core.net.toUri
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.MenuProvider
-import androidx.core.view.WindowInsetsCompat
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.withResumed
 import dagger.hilt.android.AndroidEntryPoint
@@ -36,10 +28,8 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.VoiceInputContract
 import org.skepsun.kototoro.core.parser.ContentLinkResolver
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseActivity
-import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.util.ext.consume
@@ -53,8 +43,6 @@ import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
 import org.skepsun.kototoro.local.ui.LocalStorageCleanupWorker
 import org.skepsun.kototoro.main.ui.compose.ComposeAppNavBarDelegator
 import org.skepsun.kototoro.main.ui.compose.KototoroApp
-import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
-import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.SearchContentKind
@@ -97,14 +85,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 	private var searchQuery by mutableStateOf("")
 	
 	private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
-	private var pendingNavigationSyncAfterRestore = false
 
 	private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
 	private var activeFilterContentType by mutableStateOf<ContentType?>(null)
 	private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
 	private var isLanguagePresetFilterVisible by mutableStateOf(false)
 	private var isContentTypeFilterVisible by mutableStateOf(true)
-	private var isSourceTagFilterVisible by mutableStateOf(false)
+	private var isSourceTagFilterVisible by mutableStateOf(true)
 	private var availableSourceTags by mutableStateOf(SourceTag.quickFilterEntries)
 	private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
 	private var enabledContentTypes by mutableStateOf(allTopBarContentTypes())
@@ -267,47 +254,18 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 		}
 		viewModel.onFirstStart.observeEvent(this) { this.router.showWelcomeSheet() }
 		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
-		
+
+		if (savedInstanceState == null) {
+			onFirstStart()
+		}
+
 		// 观察折叠屏状态变化
 		observeFoldableState()
-	}
-
-	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
-		super.onRestoreInstanceState(savedInstanceState)
-		
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {
 		super.onSaveInstanceState(outState)
 		outState.putString(STATE_TOP_BAR_QUERY, searchQuery)
-	}
-
-	override fun onResume() {
-		super.onResume()
-	}
-
-	fun selectMainNavigationItem(@IdRes itemId: Int): Boolean { return false }
-
-
-	override fun addMenuProvider(provider: MenuProvider, owner: LifecycleOwner, state: Lifecycle.State) {
-		super.addMenuProvider(provider, owner, state)
-	}
-
-
-
-
-	override fun onSupportActionModeStarted(mode: ActionMode) {
-		super.onSupportActionModeStarted(mode)
-		
-	}
-
-	override fun onSupportActionModeFinished(mode: ActionMode) {
-		super.onSupportActionModeFinished(mode)
-		
-	}
-
-	private fun onOpenReader(manga: Content) {
-		this.router.openReader(manga, null)
 	}
 
 	private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
@@ -342,27 +300,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 		searchSuggestionViewModel.onQueryChanged(query)
 	}
 
-	private fun onFeedCounterChanged(counter: Int) {
-			}
-
-	private fun onIncognitoModeChanged(isIncognito: Boolean) {
-		invalidateOptionsMenu()
-	}
-
-	private fun onLoadingStateChanged(isLoading: Boolean) {
-	}
-
-	private fun onResumeEnabledChanged(isEnabled: Boolean) {
-		isResumeEnabledState = isEnabled
-	}
-
 	private fun clearActiveFilters() {
 		currentFilterCallback = null
 		activeFilterContentType = null
 		activeFilterSourceTags = emptySet()
 		isLanguagePresetFilterVisible = false
 		isContentTypeFilterVisible = true
-		isSourceTagFilterVisible = false
+		isSourceTagFilterVisible = true
 		availableSourceTags = SourceTag.quickFilterEntries
 		enabledSourceTags = SourceTag.quickFilterEntries.toSet()
 		enabledContentTypes = allTopBarContentTypes()
@@ -370,7 +314,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 	}
 
 	private fun onFirstStart() = try {
-		lifecycleScope.launch(Dispatchers.Main) { 
+		lifecycleScope.launch(Dispatchers.Main) {
 			withContext(Dispatchers.Default) {
 				LocalStorageCleanupWorker.enqueue(applicationContext)
 			}
@@ -378,8 +322,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 				ContentPrefetchService.prefetchLast(this@MainActivity)
 				requestNotificationsPermission()
 				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
-					backupStartupCoordinator.startOnFirstLaunch(lifecycleScope)
-				
+				backupStartupCoordinator.startOnFirstLaunch(lifecycleScope)
 				if (settings.isAdBlockEnabled) {
 					startService(Intent(this@MainActivity, AdListUpdateService::class.java))
 				}
@@ -403,15 +346,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 		}
 	}
 
-	private fun setNavbarPinned(isPinned: Boolean) {
-		
-	}
-
-	private var isNavFloating = false
-
-	private fun setNavFloating(isFloating: Boolean) {}
-
-	private fun setNavHeight(heightDp: Int) {}
+	private fun setNavbarPinned(isPinned: Boolean) = Unit
 
 	private fun onLanguagePresetFilterClick(anchorView: View?): Boolean {
 		val anchor = anchorView ?: viewBinding.composeRoot

@@ -24,6 +24,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     onRemoveSelection: ((Set<Long>) -> Unit)? = null,
     onShareSelection: ((Set<Long>) -> Unit)? = null,
     onEmptyActionClick: (() -> Unit)? = null,
+    onLoadMore: () -> Unit = {},
     onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -104,7 +105,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         isRefreshing = isRefreshing,
         showRemoveOption = showRemoveOption,
         onRefresh = { viewModel.onRefresh() },
-        onLoadMore = { },
+        onLoadMore = onLoadMore,
         gridScale = gridScale,
         selectedItemsIds = composeSelectionIds,
         onItemClick = { item ->

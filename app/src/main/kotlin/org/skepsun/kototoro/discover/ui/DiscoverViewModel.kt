@@ -223,7 +223,6 @@ class DiscoverViewModel @Inject constructor(
 	}
 
 	private suspend fun loadData(service: ScrobblerService, category: String?, query: String, pageRequested: Int) {
-		android.util.Log.d("DiscoverPagination", "loadData initiated: Category=$category, PageRequested=$pageRequested")
 		val isFirstPage = pageRequested == 0
 
 		if (isFirstPage) {

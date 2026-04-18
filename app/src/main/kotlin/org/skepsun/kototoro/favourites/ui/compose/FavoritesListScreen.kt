@@ -27,6 +27,7 @@ fun KototoroFavoritesListScreen(
         contentPadding = contentPadding,
         appRouter = appRouter,
         showRemoveOption = true,
+        onLoadMore = { viewModel.requestMoreItems() },
         onRemoveSelection = { ids ->
             viewModel.removeFromFavourites(ids)
         }

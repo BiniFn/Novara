@@ -20,7 +20,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
@@ -60,7 +62,10 @@ fun KototoroContentListScreen(
         ) {
             if (items.isEmpty() && !isRefreshing) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "No content available", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = stringResource(R.string.nothing_found),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 } else {
                 when (listMode) {
@@ -82,7 +87,16 @@ fun KototoroContentListScreen(
                                     listHeader()
                                 }
                             }
-                            items(items) { listModel ->
+                            items(
+                                items = items,
+                                span = { listModel ->
+                                    if (listModel is ContentGridModel) {
+                                        androidx.compose.foundation.lazy.grid.GridItemSpan(1)
+                                    } else {
+                                        androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan)
+                                    }
+                                },
+                            ) { listModel ->
                                 if (listModel is ContentGridModel) {
                                     KototoroContentCardGrid(
                                         item = listModel,
@@ -91,8 +105,7 @@ fun KototoroContentListScreen(
                                         onLongClick = { onItemLongClick(listModel) }
                                     )
                                 }
-                                
-                                // Trigger load more when reaching the end
+
                                 if (listModel == items.lastOrNull()) {
                                     LaunchedEffect(listModel) {
                                         onLoadMore()

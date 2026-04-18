@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,6 +35,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -51,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -134,6 +138,7 @@ fun DetailsScreen(
         panoramaBottomGradientAlpha
     }
     val content = mangaDetails?.toContent()
+    val contentType = content?.source?.getContentType()
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
     val scrollState = rememberScrollState()
     var showDeleteLocalDialog by remember { mutableStateOf(false) }
@@ -144,12 +149,31 @@ fun DetailsScreen(
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showScrobblingDialog by remember { mutableStateOf(false) }
+    val availableTabIds = remember(contentType, settings.isPagesTabEnabled) {
+        resolveAvailableDetailsTabIds(contentType, settings)
+    }
+    var showPaneSheet by remember { mutableStateOf(false) }
+    var selectedPaneTabId by remember {
+        mutableStateOf(resolveDetailsTabSelection(settings.defaultDetailsTab, availableTabIds))
+    }
+    val sheetTabSelection = remember(selectedPaneTabId, availableTabIds) {
+        resolveDetailsTabSelection(selectedPaneTabId, availableTabIds)
+    }
     val density = LocalDensity.current
     val snackbarHostState = remember { SnackbarHostState() }
     val toolbarGapPx = with(density) { 12.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
     var initialInfoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
+
+    LaunchedEffect(availableTabIds) {
+        val resolvedDefaultTab = resolveDetailsTabSelection(settings.defaultDetailsTab, availableTabIds)
+        selectedPaneTabId = resolveDetailsTabSelection(selectedPaneTabId, availableTabIds)
+        if (settings.defaultDetailsTab != resolvedDefaultTab) {
+            settings.defaultDetailsTab = resolvedDefaultTab
+        }
+    }
+
     LaunchedEffect(infoCardTopPx) {
         if (infoCardTopPx.isFinite() && (!initialInfoCardTopPx.isFinite() || infoCardTopPx > initialInfoCardTopPx)) {
             initialInfoCardTopPx = infoCardTopPx
@@ -173,6 +197,28 @@ fun DetailsScreen(
         }
     }
     val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
+    val handleActionClick: (DetailsAction) -> Unit = remember(onActionClick, availableTabIds) {
+        { action ->
+            when (action) {
+                DetailsAction.ToggleList -> {
+                    selectedPaneTabId = DETAILS_TAB_CHAPTERS
+                    showPaneSheet = true
+                }
+                DetailsAction.ToggleGrid -> {
+                    selectedPaneTabId = resolveDetailsTabSelection(DETAILS_TAB_PAGES, availableTabIds)
+                    showPaneSheet = true
+                }
+                DetailsAction.ToggleBookmarkView -> {
+                    selectedPaneTabId = resolveDetailsTabSelection(DETAILS_TAB_BOOKMARKS, availableTabIds)
+                    showPaneSheet = true
+                }
+                DetailsAction.Download -> {
+                    showDownloadDialog = true
+                }
+                else -> onActionClick(action)
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (settings.isPanoramaCoverEnabled) {
@@ -212,11 +258,11 @@ fun DetailsScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 DetailsBottomBar(
-                    contentType = content?.source?.getContentType(),
+                    contentType = contentType,
                     historyInfo = historyInfo,
                     branches = branches,
                     isLoading = isLoading,
-                    onActionClick = onActionClick,
+                    onActionClick = handleActionClick,
                 )
             },
             topBar = {
@@ -249,8 +295,8 @@ fun DetailsScreen(
                                 contentDescription = stringResource(R.string.share),
                             )
                         }
-                        DetailsChromeButton(onClick = { 
-                            onActionClick(DetailsAction.Download)
+                        DetailsChromeButton(onClick = {
+                            handleActionClick(DetailsAction.Download)
                             showDownloadDialog = true
                         }) {
                             Icon(
@@ -272,18 +318,16 @@ fun DetailsScreen(
                             isEditOverrideAvailable = content != null,
                             isShortcutSupported = isShortcutSupported && content != null,
                             isNsfw = content?.isNsfw() == true,
-                            onDeleteLocalRequest = { onActionClick(DetailsAction.DeleteLocal) },
+                            onDeleteLocalRequest = { handleActionClick(DetailsAction.DeleteLocal) },
                             onActionClick = { action ->
                                 when (action) {
                                     DetailsAction.OpenTracking -> {
                                         showScrobblingDialog = true
-                                        onActionClick(action)
                                     }
                                     DetailsAction.OpenStatistics -> {
                                         showStatsDialog = true
-                                        onActionClick(action)
                                     }
-                                    else -> onActionClick(action)
+                                    else -> handleActionClick(action)
                                 }
                             },
                         )
@@ -317,9 +361,9 @@ fun DetailsScreen(
                     collapseProgress = collapseProgress,
                     onCoverBoundsSync = onCoverBoundsSync,
                     onInfoCardTopSync = { top -> infoCardTopPx = top },
-                    onCoverClick = { onActionClick(DetailsAction.OpenCover) },
+                    onCoverClick = { handleActionClick(DetailsAction.OpenCover) },
                     onFavoriteClick = { showFavoriteDialog = true },
-                    onSourceClick = { onActionClick(DetailsAction.OpenSource(it)) },
+                    onSourceClick = { handleActionClick(DetailsAction.OpenSource(it)) },
                     onAuthorClick = { author ->
                         source?.let { currentSource ->
                             pendingAuthorSearch = PendingAuthorSearch(
@@ -329,10 +373,33 @@ fun DetailsScreen(
                         }
                     },
                     onTagClick = { pendingTagSearch = it },
-                    onTranslateClick = { onActionClick(DetailsAction.Translate) },
-                    onToggleTranslationClick = { onActionClick(DetailsAction.ToggleTranslation) },
+                    onTranslateClick = { handleActionClick(DetailsAction.Translate) },
+                    onToggleTranslationClick = { handleActionClick(DetailsAction.ToggleTranslation) },
                 )
                 Spacer(modifier = Modifier.height(240.dp))
+            }
+        }
+
+        if (showPaneSheet) {
+            val paneSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ModalBottomSheet(
+                onDismissRequest = { showPaneSheet = false },
+                sheetState = paneSheetState,
+                modifier = Modifier.fillMaxHeight(0.92f),
+            ) {
+                ChaptersPagesTabsContent(
+                    viewModel = viewModel,
+                    pagesViewModel = pagesViewModel,
+                    bookmarksViewModel = bookmarksViewModel,
+                    settings = settings,
+                    pageSaveHelper = pageSaveHelper,
+                    selectedTabId = sheetTabSelection,
+                    onSelectedTabIdChange = { tabId ->
+                        val resolvedTab = resolveDetailsTabSelection(tabId, availableTabIds)
+                        selectedPaneTabId = resolvedTab
+                        settings.lastDetailsTab = resolvedTab
+                    },
+                )
             }
         }
 
@@ -344,11 +411,11 @@ fun DetailsScreen(
                 onDismissRequest = { pendingAuthorSearch = null },
                 onSearchOnSource = {
                     pendingAuthorSearch = null
-                    onActionClick(DetailsAction.SearchAuthorOnSource(pending.author, pending.source))
+                    handleActionClick(DetailsAction.SearchAuthorOnSource(pending.author, pending.source))
                 },
                 onSearchEverywhere = {
                     pendingAuthorSearch = null
-                    onActionClick(DetailsAction.SearchAuthorEverywhere(pending.author))
+                    handleActionClick(DetailsAction.SearchAuthorEverywhere(pending.author))
                 },
             )
         }
@@ -361,11 +428,11 @@ fun DetailsScreen(
                 onDismissRequest = { pendingTagSearch = null },
                 onSearchOnSource = {
                     pendingTagSearch = null
-                    onActionClick(DetailsAction.SearchTagOnSource(tag))
+                    handleActionClick(DetailsAction.SearchTagOnSource(tag))
                 },
                 onSearchEverywhere = {
                     pendingTagSearch = null
-                    onActionClick(DetailsAction.SearchTagEverywhere(tag.title))
+                    handleActionClick(DetailsAction.SearchTagEverywhere(tag.title))
                 },
             )
         }
@@ -377,7 +444,7 @@ fun DetailsScreen(
                 onDismissRequest = { showShareOptions = false },
                 onShareAppLink = {
                     showShareOptions = false
-                    onActionClick(
+                    handleActionClick(
                         DetailsAction.ShareLink(
                             title = content.title,
                             link = content.appUrl.toString(),
@@ -386,7 +453,7 @@ fun DetailsScreen(
                 },
                 onShareSourceLink = {
                     showShareOptions = false
-                    onActionClick(
+                    handleActionClick(
                         DetailsAction.ShareLink(
                             title = content.title,
                             link = content.publicUrl,
@@ -402,7 +469,7 @@ fun DetailsScreen(
                 onDismissRequest = { showDeleteLocalDialog = false },
                 onConfirm = {
                     showDeleteLocalDialog = false
-                    onActionClick(DetailsAction.DeleteLocal)
+                    handleActionClick(DetailsAction.DeleteLocal)
                 },
             )
         }
@@ -421,7 +488,7 @@ fun DetailsScreen(
                 },
                 onManageCategories = {
                     showFavoriteDialog = false
-                    onActionClick(DetailsAction.ManageCategories)
+                    handleActionClick(DetailsAction.ManageCategories)
                 },
                 onDismiss = { showFavoriteDialog = false },
             )
@@ -431,7 +498,7 @@ fun DetailsScreen(
             DownloadDialog(
                 mangaList = listOf(content),
                 snackbarHostState = snackbarHostState,
-                onDismiss = { showDownloadDialog = false }
+                onDismiss = { showDownloadDialog = false },
             )
         }
 
@@ -442,8 +509,7 @@ fun DetailsScreen(
                 onDismissRequest = { showStatsDialog = false },
                 onOpenDetails = {
                     showStatsDialog = false
-                    // Legacy details open logic handled by router if needed, currently not supported via DetailsAction, maybe emit generic or leave?
-                }
+                },
             )
         }
 
@@ -451,7 +517,7 @@ fun DetailsScreen(
             val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
             ScrobblingSelectorDialog(
                 viewModel = scrobblingViewModel,
-                onDismissRequest = { showScrobblingDialog = false }
+                onDismissRequest = { showScrobblingDialog = false },
             )
         }
     }
@@ -1011,10 +1077,42 @@ private fun ShareOptionsDialog(
     )
 }
 
+
 private data class PendingAuthorSearch(
     val author: String,
     val source: ContentSource,
 )
+
+private fun resolveAvailableDetailsTabIds(
+    contentType: ContentType?,
+    settings: AppSettings,
+): List<Int> = buildList {
+    add(DETAILS_TAB_CHAPTERS)
+    val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
+    val isVideo = contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO
+    if (settings.isPagesTabEnabled && !isNovel && !isVideo) {
+        add(DETAILS_TAB_PAGES)
+    }
+    if (!isVideo) {
+        add(DETAILS_TAB_BOOKMARKS)
+    }
+}
+
+private fun resolveDetailsTabSelection(
+    requestedTabId: Int,
+    availableTabs: List<Int>,
+): Int {
+    return if (requestedTabId in availableTabs) {
+        requestedTabId
+    } else {
+        when {
+            requestedTabId > DETAILS_TAB_CHAPTERS -> {
+                availableTabs.getOrElse((requestedTabId - 1).coerceAtLeast(0)) { availableTabs.first() }
+            }
+            else -> availableTabs.first()
+        }
+    }
+}
 
 @Composable
 private fun DetailsChromeButton(

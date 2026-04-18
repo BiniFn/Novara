@@ -49,13 +49,31 @@ fun AppNavGraph(
                 onSettingsClick = { appRouter.openSettings() },
                 onReaderSettingsClick = { appRouter.openReaderSettings() },
                 onSyncSettingsClick = { appRouter.openSyncSettings() },
-                onViewAllRecentClick = { appRouter.openHistory(BrowseGroupTab.Content) },
+                onViewAllRecentClick = {
+                    navController.navigate("history") {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
                 onViewAllUpdatesClick = { navController.navigate("updated") },
                 onViewAllRecommendationsClick = { navController.navigate("suggestions") },
                 onSourceSettingsClick = { appRouter.openSourcesSettings() },
-                onLibraryOpenClick = { appRouter.openFavorites() },
+                onLibraryOpenClick = {
+                    navController.navigate("favorites") {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
                 onBookmarksClick = { navController.navigate("bookmarks") },
-                onLocalClick = { appRouter.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) },
+                onLocalClick = {
+                    navController.navigate("local") {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
                 onDownloadsClick = { appRouter.openDownloads() },
                 onRandomClick = { viewModel.openRandom() },
                 onAutoTranslateClick = { appRouter.openTranslationSettings() },

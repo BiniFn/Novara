@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,7 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
@@ -33,7 +32,7 @@ fun PageThumbnailCard(
 	isSelected: Boolean,
 	onClick: () -> Unit,
 	onLongClick: () -> Unit,
-	modifier: Modifier = Modifier
+	modifier: Modifier = Modifier,
 ) {
 	Card(
 		modifier = modifier
@@ -41,13 +40,13 @@ fun PageThumbnailCard(
 			.aspectRatio(0.7f)
 			.combinedClickable(
 				onClick = onClick,
-				onLongClick = onLongClick
+				onLongClick = onLongClick,
 			),
 		shape = RoundedCornerShape(8.dp),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceVariant
+			containerColor = MaterialTheme.colorScheme.surfaceVariant,
 		),
-		border = if (isSelected) BorderStroke(4.dp, MaterialTheme.colorScheme.primary) else null
+		border = if (isSelected) BorderStroke(4.dp, MaterialTheme.colorScheme.primary) else null,
 	) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			val model = thumbnail.page.preview ?: thumbnail.page.url
@@ -56,22 +55,21 @@ fun PageThumbnailCard(
 					model = model,
 					contentDescription = "Page Thumbnail",
 					contentScale = ContentScale.Crop,
-					modifier = Modifier.fillMaxSize()
+					modifier = Modifier.fillMaxSize(),
 				)
 			}
 
-			// Page number badge
 			Surface(
 				modifier = Modifier
 					.align(Alignment.BottomEnd)
 					.padding(6.dp),
 				shape = RoundedCornerShape(4.dp),
-				color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+				color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
 			) {
 				Text(
 					text = "${thumbnail.number}",
 					style = MaterialTheme.typography.labelSmall,
-					modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+					modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
 				)
 			}
 
@@ -79,22 +77,21 @@ fun PageThumbnailCard(
 				Surface(
 					modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
 					shape = RoundedCornerShape(4.dp),
-					color = MaterialTheme.colorScheme.primaryContainer
+					color = MaterialTheme.colorScheme.primaryContainer,
 				) {
 					Icon(
 						painter = painterResource(id = R.drawable.ic_current_chapter),
 						contentDescription = "Current Page",
 						tint = MaterialTheme.colorScheme.onPrimaryContainer,
-						modifier = Modifier.size(16.dp).padding(2.dp)
+						modifier = Modifier.size(16.dp).padding(2.dp),
 					)
 				}
 			}
 
-			// Selection overlay
 			if (isSelected) {
 				Surface(
 					modifier = Modifier.fillMaxSize(),
-					color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+					color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
 				) {
 					Icon(
 						imageVector = Icons.Default.CheckCircle,
@@ -102,7 +99,7 @@ fun PageThumbnailCard(
 						tint = MaterialTheme.colorScheme.primaryContainer,
 						modifier = Modifier
 							.align(Alignment.Center)
-							.size(48.dp)
+							.size(48.dp),
 					)
 				}
 			}
@@ -113,14 +110,14 @@ fun PageThumbnailCard(
 @Composable
 fun PagesScreen(
 	items: List<org.skepsun.kototoro.list.ui.model.ListModel>,
-	gridSpanCount: Int,
+	gridMinSize: Dp,
 	selectedItemIds: Set<Long>,
 	emptyMessageResId: Int?,
 	isLoading: Boolean,
 	onItemClick: (PageThumbnail) -> Unit,
 	onItemLongClick: (PageThumbnail) -> Unit,
 	onSelectionActionClick: (Int) -> Unit,
-	onClearSelection: () -> Unit
+	onClearSelection: () -> Unit,
 ) {
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (isLoading) {
@@ -131,7 +128,6 @@ fun PagesScreen(
 			val listState = rememberLazyGridState()
 			val thumbnails = items.filterIsInstance<PageThumbnail>()
 
-			// Auto-scroll to current page when loaded
 			LaunchedEffect(thumbnails) {
 				val currentIndex = thumbnails.indexOfFirst { it.isCurrent }
 				if (currentIndex >= 0 && listState.firstVisibleItemIndex == 0) {
@@ -141,40 +137,39 @@ fun PagesScreen(
 
 			LazyVerticalGrid(
 				state = listState,
-				columns = GridCells.Adaptive(minSize = 120.dp),
+				columns = GridCells.Adaptive(minSize = gridMinSize),
 				contentPadding = PaddingValues(16.dp),
 				horizontalArrangement = Arrangement.spacedBy(8.dp),
 				verticalArrangement = Arrangement.spacedBy(8.dp),
-				modifier = Modifier.fillMaxSize()
+				modifier = Modifier.fillMaxSize(),
 			) {
 				items(thumbnails, key = { it.page.id }) { thumbnail ->
 					PageThumbnailCard(
 						thumbnail = thumbnail,
 						isSelected = selectedItemIds.contains(thumbnail.page.id),
 						onClick = { onItemClick(thumbnail) },
-						onLongClick = { onItemLongClick(thumbnail) }
+						onLongClick = { onItemLongClick(thumbnail) },
 					)
 				}
 			}
 		}
 
-		// Floating Action Bar for Selection
 		androidx.compose.animation.AnimatedVisibility(
 			visible = selectedItemIds.isNotEmpty(),
 			enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
 			exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
-			modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
+			modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
 		) {
 			Surface(
 				shape = RoundedCornerShape(16.dp),
 				color = MaterialTheme.colorScheme.inverseSurface,
 				contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-				modifier = Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.safeDrawing)
+				modifier = Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.safeDrawing),
 			) {
 				Row(
 					modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
 					verticalAlignment = Alignment.CenterVertically,
-					horizontalArrangement = Arrangement.SpaceBetween
+					horizontalArrangement = Arrangement.SpaceBetween,
 				) {
 					Row(verticalAlignment = Alignment.CenterVertically) {
 						IconButton(onClick = onClearSelection) {
@@ -183,7 +178,7 @@ fun PagesScreen(
 						Text(
 							text = "${selectedItemIds.size}",
 							style = MaterialTheme.typography.titleMedium,
-							modifier = Modifier.padding(start = 8.dp)
+							modifier = Modifier.padding(start = 8.dp),
 						)
 					}
 					Row {
