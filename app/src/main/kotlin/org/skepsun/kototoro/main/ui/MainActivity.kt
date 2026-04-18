@@ -103,7 +103,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 	private var activeFilterContentType by mutableStateOf<ContentType?>(null)
 	private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
 	private var isLanguagePresetFilterVisible by mutableStateOf(false)
-	private var isContentTypeFilterVisible by mutableStateOf(false)
+	private var isContentTypeFilterVisible by mutableStateOf(true)
 	private var isSourceTagFilterVisible by mutableStateOf(false)
 	private var availableSourceTags by mutableStateOf(SourceTag.quickFilterEntries)
 	private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
@@ -361,7 +361,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 		activeFilterContentType = null
 		activeFilterSourceTags = emptySet()
 		isLanguagePresetFilterVisible = false
-		isContentTypeFilterVisible = false
+		isContentTypeFilterVisible = true
 		isSourceTagFilterVisible = false
 		availableSourceTags = SourceTag.quickFilterEntries
 		enabledSourceTags = SourceTag.quickFilterEntries.toSet()

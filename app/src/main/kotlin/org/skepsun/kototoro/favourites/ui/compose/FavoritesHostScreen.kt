@@ -65,7 +65,7 @@ fun KototoroFavoritesHostRoute(
     val pagerState = rememberPagerState(pageCount = { categories.size })
     val coroutineScope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         ScrollableTabRow(
             selectedTabIndex = pagerState.currentPage,
             containerColor = MaterialTheme.colorScheme.background,

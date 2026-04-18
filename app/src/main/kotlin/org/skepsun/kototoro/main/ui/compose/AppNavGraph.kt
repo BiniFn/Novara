@@ -16,8 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import org.skepsun.kototoro.discover.ui.compose.DiscoverScreen
-import org.skepsun.kototoro.discover.ui.DiscoverViewModel
 import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
 import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
 
@@ -83,38 +81,9 @@ fun AppNavGraph(
             )
         }
         composable("discover") {
-            val viewModel = hiltViewModel<DiscoverViewModel>()
-            val items by viewModel.content.collectAsStateWithLifecycle()
-            val isLoading = items.any { it is org.skepsun.kototoro.list.ui.model.LoadingState }
-            val isCarousel = true // Default for tracking home
-            val isLoadingOnly = isLoading && items.size <= 1
-            DiscoverScreen(
-                contentPadding = contentPadding,
-                items = items,
-                isRefreshing = isLoading && !isLoadingOnly,
-                isCarousel = isCarousel,
-                isLoadingOnly = isLoadingOnly,
-                gridSpanCount = 3,
-                onRefresh = { viewModel.refresh() },
-                onLoadMore = { viewModel.loadNextPage() },
-                onItemClick = { item ->
-                    val serviceName = item.manga.source.name.removePrefix("TRACKING_")
-                    val trackingService = viewModel.availableServices.value.find { it.name == serviceName } ?: return@DiscoverScreen
-                    if (viewModel.supportsDetails(trackingService)) {
-                        appRouter.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
-                    } else {
-                        val url = item.manga.url ?: item.manga.publicUrl
-                        if (!url.isNullOrBlank()) {
-                            appRouter.openExternalBrowser(url)
-                        }
-                    }
-                },
-                onCategoryMoreClick = { category ->
-                    val service = viewModel.activeService.value
-                    if (service != null && category != null) {
-                        appRouter.openTrackingDiscoveryCategory(service, category.id, category.nameResId)
-                    }
-                }
+            org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
+                appRouter = appRouter,
+                contentPadding = contentPadding
             )
         }
         composable("history") {
