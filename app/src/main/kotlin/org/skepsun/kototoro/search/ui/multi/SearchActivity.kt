@@ -69,6 +69,7 @@ class SearchActivity :
 			)
 
 			SearchKind.TAG -> getString(R.string.inline_preference_pattern, getString(R.string.genre), viewModel.query)
+			SearchKind.ADVANCED -> viewModel.query
 		}
 
 		val itemClickListener = OnListItemClickListener<SearchResultsListModel> { item, view ->

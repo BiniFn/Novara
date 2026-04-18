@@ -22,14 +22,16 @@ class SearchMenuProvider(
 
 	override fun onPrepareMenu(menu: Menu) {
 		super.onPrepareMenu(menu)
-		menu.findItem(
-			when (viewModel.kind) {
-				SearchKind.SIMPLE -> R.id.action_kind_simple
-				SearchKind.TITLE -> R.id.action_kind_title
-				SearchKind.AUTHOR -> R.id.action_kind_author
-				SearchKind.TAG -> R.id.action_kind_tag
-			},
-		)?.isChecked = true
+		val itemId = when (viewModel.kind) {
+			SearchKind.SIMPLE -> R.id.action_kind_simple
+			SearchKind.TITLE -> R.id.action_kind_title
+			SearchKind.AUTHOR -> R.id.action_kind_author
+			SearchKind.TAG -> R.id.action_kind_tag
+			SearchKind.ADVANCED -> -1
+		}
+		if (itemId != -1) {
+			menu.findItem(itemId)?.isChecked = true
+		}
 	}
 
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean {

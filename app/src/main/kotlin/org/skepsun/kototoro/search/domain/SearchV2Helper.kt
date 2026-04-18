@@ -91,12 +91,12 @@ class SearchV2Helper @AssistedInject constructor(
 				e.printStackTraceDebug()
 			}.getOrDefault(emptySet())
 			
-			val queryExcludeTagsStr = advanced?.tags?.split(",").map { it.trim() }.filter { it.isNotEmpty() && it[0] == '-' }
+			val queryExcludeTagsStr = advanced?.tags?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && it[0] == '-' }.orEmpty()
 			val matchedExcludeTags = queryExcludeTagsStr.mapNotNull { tagQ -> 
 				val newTagQ = tagQ.substring(1)
 				tags.find { x -> x.title.equals(newTagQ, ignoreCase = true) }
 			}.toSet()
-			val queryTagsStr = advanced?.tags?.split(",").map { it.trim() }.filter { it.isNotEmpty() && it[0] != '-'}
+			val queryTagsStr = advanced?.tags?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && it[0] != '-'}.orEmpty()
 			val matchedTags = queryTagsStr.mapNotNull { tagQ -> 
 				tags.find { x -> x.title.equals(tagQ, ignoreCase = true) }
 			}.toSet()
@@ -137,19 +137,15 @@ class SearchV2Helper @AssistedInject constructor(
 			SearchKind.SIMPLE, // no filtering expected
 			SearchKind.TAG -> Unit
 			SearchKind.ADVANCED -> retainAll { m ->
-				var title = null
-				var author = null
-				if (advanced?.title?.isNotEmpty()) {
-					title = m.matches(advanced?.title, MATCH_THRESHOLD_DEFAULT)
+				var title: Boolean? = null
+				var author: Boolean? = null
+				if (advanced?.title?.isNotEmpty() == true) {
+					title = m.matches(advanced.title, MATCH_THRESHOLD_DEFAULT)
 				}
-				if (advanced?.author?.isNotEmpty()) {
-					author = m.authors.isEmpty() || m.authors.contains(advanced?.author, ignoreCase = true)		
+				if (advanced?.author?.isNotEmpty() == true) {
+					author = m.authors.isEmpty() || m.authors.contains(advanced.author, ignoreCase = true)		
 				}
-				if (title != false && author != false) {
-					true
-				} else {
-					false
-				}
+				title != false && author != false
 			}
 		}
 	}
@@ -172,14 +168,14 @@ class SearchV2Helper @AssistedInject constructor(
 			}
 
 			SearchKind.ADVANCED -> sortByDescending{ m -> 
-				val queryExcludeTagsStr = advanced?.tags?.split(",").map { it.trim() }.filter { it.isNotEmpty() && it[0] == '-'}
-				val queryTagsStr = advanced?.tags?.split(",").map { it.trim() }.filter { it.isNotEmpty() && it[0] != '-'}
+				val queryExcludeTagsStr = advanced?.tags?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && it[0] == '-'}.orEmpty()
+				val queryTagsStr = advanced?.tags?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && it[0] != '-'}.orEmpty()
 				val tagScore = m.tags.count { tag -> queryTagsStr.any { q -> tag.title.equals(q, ignoreCase = true) } } - m.tags.count { tag -> queryExcludeTagsStr.any { q -> tag.title.equals(q.substring(1), ignoreCase = true) } }
 				
-				val authorScore = if (m.authors.contains(advanced?.author, ignoreCase = true)) 5 else 0
+				val authorScore = if (m.authors.contains(advanced?.author ?: "", ignoreCase = true)) 5 else 0
 
-				val queryScore = -(minOf(m.title.levenshteinDistance(advanced?.query), m.altTitle?.levenshteinDistance(advanced?.query) ?: Int.MAX_VALUE))
-				val titleScore = -(minOf(m.title.levenshteinDistance(advanced?.title), m.altTitle?.levenshteinDistance(advanced?.title) ?: Int.MAX_VALUE))
+				val queryScore = -(minOf(m.title.levenshteinDistance(advanced?.query ?: ""), m.altTitle?.levenshteinDistance(advanced?.query ?: "") ?: Int.MAX_VALUE))
+				val titleScore = -(minOf(m.title.levenshteinDistance(advanced?.title ?: ""), m.altTitle?.levenshteinDistance(advanced?.title ?: "") ?: Int.MAX_VALUE))
 				tagScore + authorScore + titleScore + queryScore
 			}
 		}
