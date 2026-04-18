@@ -45,6 +45,7 @@ fun KototoroSelectionTopBar(
     isAllNonLocal: Boolean,
     isSingleSelection: Boolean,
     showRemoveOption: Boolean = false,
+    supportedActions: Set<SelectionAction>? = null,
     onClearSelection: () -> Unit,
     onActionClick: (SelectionAction) -> Unit,
     modifier: Modifier = Modifier
@@ -59,21 +60,25 @@ fun KototoroSelectionTopBar(
             }
         },
         actions = {
-            IconButton(onClick = { onActionClick(SelectionAction.SELECT_ALL) }) {
-                Icon(painter = painterResource(id = R.drawable.ic_select_all), contentDescription = "Select All")
+            if (supportedActions == null || SelectionAction.SELECT_ALL in supportedActions) {
+                IconButton(onClick = { onActionClick(SelectionAction.SELECT_ALL) }) {
+                    Icon(painter = painterResource(id = R.drawable.ic_select_all), contentDescription = "Select All")
+                }
             }
-            if (showRemoveOption) {
+            if (showRemoveOption || (supportedActions != null && SelectionAction.REMOVE in supportedActions)) {
                 IconButton(onClick = { onActionClick(SelectionAction.REMOVE) }) {
                     Icon(Icons.Default.Delete, contentDescription = "Remove")
                 }
             }
-            if (isAllNonLocal) {
+            if (isAllNonLocal || (supportedActions != null && SelectionAction.SAVE in supportedActions)) {
                 IconButton(onClick = { onActionClick(SelectionAction.SAVE) }) {
-                    Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = "Download")
+                    Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = "Download/Save")
                 }
             }
-            IconButton(onClick = { onActionClick(SelectionAction.SHARE) }) {
-                Icon(Icons.Default.Share, contentDescription = "Share")
+            if (supportedActions == null || SelectionAction.SHARE in supportedActions) {
+                IconButton(onClick = { onActionClick(SelectionAction.SHARE) }) {
+                    Icon(Icons.Default.Share, contentDescription = "Share")
+                }
             }
             
             // Overflow menu

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -17,13 +18,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.discover.ui.compose.DiscoverScreen
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
-import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerFragment
-import org.skepsun.kototoro.explore.ui.ExploreFragment
-import org.skepsun.kototoro.tracker.ui.feed.FeedFragment
-import org.skepsun.kototoro.local.ui.LocalListFragment
-import org.skepsun.kototoro.suggestions.ui.SuggestionsFragment
-import org.skepsun.kototoro.bookmarks.ui.AllBookmarksFragment
-import org.skepsun.kototoro.tracker.ui.updates.UpdatesFragment
+import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
+import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
+
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.nav.AppRouter
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +29,7 @@ import androidx.fragment.app.FragmentActivity
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
     modifier: Modifier = Modifier
 ) {
     val activity = LocalContext.current as FragmentActivity
@@ -47,17 +45,18 @@ fun AppNavGraph(
             val state by viewModel.summaryState.collectAsStateWithLifecycle()
             val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
             HomeScreen(
+                contentPadding = contentPadding,
                 state = state,
                 onContentClick = { content -> appRouter.openDetails(content, null) },
                 onSettingsClick = { appRouter.openSettings() },
                 onReaderSettingsClick = { appRouter.openReaderSettings() },
                 onSyncSettingsClick = { appRouter.openSyncSettings() },
                 onViewAllRecentClick = { appRouter.openHistory(BrowseGroupTab.Content) },
-                onViewAllUpdatesClick = { appRouter.openMangaUpdates(BrowseGroupTab.Content) },
-                onViewAllRecommendationsClick = { appRouter.openSuggestions(BrowseGroupTab.Content) },
+                onViewAllUpdatesClick = { navController.navigate("updated") },
+                onViewAllRecommendationsClick = { navController.navigate("suggestions") },
                 onSourceSettingsClick = { appRouter.openSourcesSettings() },
                 onLibraryOpenClick = { appRouter.openFavorites() },
-                onBookmarksClick = { appRouter.openBookmarks() },
+                onBookmarksClick = { navController.navigate("bookmarks") },
                 onLocalClick = { appRouter.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) },
                 onDownloadsClick = { appRouter.openDownloads() },
                 onRandomClick = { viewModel.openRandom() },
@@ -90,6 +89,7 @@ fun AppNavGraph(
             val isCarousel = true // Default for tracking home
             val isLoadingOnly = isLoading && items.size <= 1
             DiscoverScreen(
+                contentPadding = contentPadding,
                 items = items,
                 isRefreshing = isLoading && !isLoadingOnly,
                 isCarousel = isCarousel,
@@ -128,6 +128,7 @@ fun AppNavGraph(
             val isLoading = items.any { it is org.skepsun.kototoro.list.ui.model.LoadingState }
             
             org.skepsun.kototoro.history.ui.compose.HistoryScreen(
+                contentPadding = contentPadding,
                 items = items,
                 listMode = listMode,
                 isRefreshing = false,
@@ -171,12 +172,177 @@ fun AppNavGraph(
                 )
             }
         }
-        composable("favorites") { FragmentHostRoute(FavouritesContainerFragment::class.java) }
-        composable("explore") { FragmentHostRoute(ExploreFragment::class.java) }
-        composable("feed") { FragmentHostRoute(FeedFragment::class.java) }
-        composable("local") { FragmentHostRoute(LocalListFragment::class.java) }
-        composable("suggestions") { FragmentHostRoute(SuggestionsFragment::class.java) }
-        composable("bookmarks") { FragmentHostRoute(AllBookmarksFragment::class.java) }
-        composable("updated") { FragmentHostRoute(UpdatesFragment::class.java) }
+        composable("favorites") { 
+            KototoroFavoritesHostRoute(
+                appRouter = appRouter,
+                contentPadding = contentPadding
+            )
+        }
+        composable("explore") { 
+            org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
+                appRouter = appRouter,
+                contentPadding = contentPadding
+            )
+        }
+        composable("feed") { 
+            val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
+            val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
+            val isRunning by viewModel.isRunning.collectAsStateWithLifecycle()
+            
+            val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            
+            androidx.compose.runtime.DisposableEffect(viewModel, activity, lifecycleOwner) {
+                val menuProvider = org.skepsun.kototoro.tracker.ui.feed.FeedMenuProvider(
+                    snackbarHost = activity?.window?.decorView?.rootView ?: android.view.View(activity),
+                    viewModel = viewModel
+                )
+                activity?.addMenuProvider(menuProvider, lifecycleOwner, androidx.lifecycle.Lifecycle.State.RESUMED)
+                onDispose {
+                    activity?.removeMenuProvider(menuProvider)
+                }
+            }
+
+            androidx.compose.runtime.LaunchedEffect(viewModel.onError) {
+                val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
+                val observer = org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(host, null)
+                viewModel.onError.collect { event: org.skepsun.kototoro.core.util.Event<Throwable>? ->
+                    event?.consume(observer)
+                }
+            }
+            
+            org.skepsun.kototoro.tracker.ui.feed.compose.FeedScreen(
+                contentPadding = contentPadding,
+                items = items,
+                isRefreshing = isRunning,
+                onRefresh = { viewModel.update() },
+                onLoadMore = { viewModel.requestMoreItems() },
+                onFeedItemClick = { item ->
+                    viewModel.onItemClick(item)
+                    appRouter.openDetails(item.toContentWithOverride(), null)
+                },
+                onUpdatedContentItemClick = { contentItem ->
+                    appRouter.openDetails(contentItem.toContentWithOverride(), null)
+                },
+                onUpdatedContentMoreClick = {
+                    navController.navigate("updated")
+                }
+            )
+        }
+        composable("local") { 
+            val viewModel = hiltViewModel<org.skepsun.kototoro.local.ui.LocalListViewModel>()
+            val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
+            org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
+                viewModel = viewModel,
+                contentPadding = contentPadding,
+                appRouter = appRouter,
+                showRemoveOption = true,
+                isContentTypeFilterVisible = false,
+                isSourceTagFilterVisible = false,
+                onRemoveSelection = { ids ->
+                    if (activity != null) {
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                            .setTitle(org.skepsun.kototoro.R.string.delete_manga)
+                            .setMessage(org.skepsun.kototoro.R.string.text_delete_local_manga_batch)
+                            .setPositiveButton(org.skepsun.kototoro.R.string.delete) { _, _ -> viewModel.delete(ids) }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                },
+                onShareSelection = { ids ->
+                    if (activity != null) {
+                        val files = viewModel.content.value.filter { it is org.skepsun.kototoro.list.ui.model.ContentListModel && it.id in ids }.mapNotNull { (it as? org.skepsun.kototoro.list.ui.model.ContentListModel)?.manga?.url?.let { url -> java.io.File(android.net.Uri.parse(url).path ?: "") } }
+                        org.skepsun.kototoro.core.util.ShareHelper(activity).shareCbz(files)
+                    }
+                },
+                onAddMenuProvider = { act, _, owner ->
+                    org.skepsun.kototoro.local.ui.LocalListMenuProvider(appRouter, { appRouter.showImportDialog() })
+                }
+            )
+        }
+        composable("suggestions") { 
+            val viewModel = hiltViewModel<org.skepsun.kototoro.suggestions.ui.SuggestionsViewModel>()
+            org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
+                viewModel = viewModel,
+                contentPadding = contentPadding,
+                appRouter = appRouter,
+                showRemoveOption = false,
+                isContentTypeFilterVisible = true,
+                isSourceTagFilterVisible = true,
+                onAddMenuProvider = { act, _, _ ->
+                    object : androidx.core.view.MenuProvider {
+                        override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
+                            menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_suggestions, menu)
+                            menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
+                        }
+                        override fun onPrepareMenu(menu: android.view.Menu) {
+                            menu.findItem(org.skepsun.kototoro.R.id.action_settings_suggestions)?.isVisible = true
+                        }
+                        override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
+                            org.skepsun.kototoro.R.id.action_update -> {
+                                viewModel.updateSuggestions()
+                                com.google.android.material.snackbar.Snackbar.make(act.window.decorView.rootView, org.skepsun.kototoro.R.string.suggestions_updating, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
+                                true
+                            }
+                            org.skepsun.kototoro.R.id.action_list_mode -> {
+                                appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Suggestions)
+                                true
+                            }
+                            org.skepsun.kototoro.R.id.action_settings_suggestions -> {
+                                appRouter.openSuggestionsSettings()
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                }
+            )
+        }
+        composable("bookmarks") { 
+            val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
+            val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
+            val pageSaveHelperFactory = androidx.compose.runtime.remember {
+                // To get the Dagger Factory, we can just use an EntryPoint
+                dagger.hilt.android.EntryPointAccessors.fromActivity(
+                    activity as android.app.Activity,
+                    org.skepsun.kototoro.bookmarks.ui.PageSaveHelperEntryPoint::class.java
+                ).pageSaveHelperFactory()
+            }
+            val pageSaveHelper = androidx.compose.runtime.remember {
+                pageSaveHelperFactory.create(activity as androidx.activity.ComponentActivity)
+            }
+            org.skepsun.kototoro.bookmarks.ui.compose.AppBookmarksRoute(
+                viewModel = viewModel,
+                contentPadding = contentPadding,
+                appRouter = appRouter,
+                pageSaveHelper = pageSaveHelper
+            )
+        }
+        composable("updated") { 
+            val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.updates.UpdatesViewModel>()
+            org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
+                viewModel = viewModel,
+                contentPadding = contentPadding,
+                appRouter = appRouter,
+                showRemoveOption = true,
+                isContentTypeFilterVisible = true,
+                isSourceTagFilterVisible = true,
+                onRemoveSelection = { ids -> viewModel.remove(ids) },
+                onAddMenuProvider = { _, _, _ ->
+                    object : androidx.core.view.MenuProvider {
+                        override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
+                            menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
+                        }
+                        override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
+                            org.skepsun.kototoro.R.id.action_list_mode -> {
+                                appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Updated)
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                }
+            )
+        }
     }
 }

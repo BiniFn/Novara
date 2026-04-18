@@ -46,7 +46,7 @@ class DiscoverViewModel @Inject constructor(
 	private val discoveryService: TrackingSiteDiscoveryService,
 	private val cacheRepository: TrackingSiteCacheRepository,
 	private val contentListMapper: ContentListMapper,
-	private val appSettings: AppSettings,
+	val settings: AppSettings,
 ) : BaseViewModel() {
 
 	private val refreshTrigger = MutableStateFlow(0)
@@ -138,8 +138,8 @@ class DiscoverViewModel @Inject constructor(
 
 		viewModelScope.launch {
 			combine(
-				appSettings.observe(AppSettings.KEY_LIST_MODE),
-				appSettings.observe(AppSettings.KEY_SELECTED_GROUP_TAB)
+				settings.observe(AppSettings.KEY_LIST_MODE),
+				settings.observe(AppSettings.KEY_SELECTED_GROUP_TAB)
 			) { _, _ -> }.drop(1).collect {
 				remapContentState()
 			}
@@ -149,7 +149,7 @@ class DiscoverViewModel @Inject constructor(
 	private suspend fun remapContentState() {
 		val service = activeService.value
 		val query = searchQuery.value.trim()
-		val currentTabId = appSettings.getSelectedGroupTab()
+		val currentTabId = settings.getSelectedGroupTab()
 		val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
 			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
 		
@@ -253,7 +253,7 @@ class DiscoverViewModel @Inject constructor(
 			
 			// Parallel fetch top 10 for every category (with retry)
 			val rows = caps.discoveryCategories.mapNotNull { cat ->
-				val currentTabId = appSettings.getSelectedGroupTab()
+				val currentTabId = settings.getSelectedGroupTab()
 				val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
 					?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
 				if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
@@ -412,7 +412,7 @@ class DiscoverViewModel @Inject constructor(
 				source = ContentSource("TRACKING_${item.service.name}"),
 			)
 		}
-		val mode = appSettings.listMode
+		val mode = settings.listMode
 		return contentListMapper.toListModelList(proxyContents, mode)
 	}
 }

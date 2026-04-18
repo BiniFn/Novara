@@ -44,12 +44,23 @@ class MainViewModel @Inject constructor(
 	private val _bottomNavHeightPx = MutableStateFlow(0)
 	val bottomNavHeightPx = _bottomNavHeightPx.asStateFlow()
 
+	private val _topContentInsetPx = MutableStateFlow(0)
+	val topContentInsetPx = _topContentInsetPx.asStateFlow()
+
+	private val _bottomContentInsetPx = MutableStateFlow(0)
+	val bottomContentInsetPx = _bottomContentInsetPx.asStateFlow()
+
 	fun setTopBarHeightPx(height: Int) {
 		_topBarHeightPx.value = height
 	}
 
 	fun setBottomNavHeightPx(height: Int) {
 		_bottomNavHeightPx.value = height
+	}
+
+	fun setContentInsetsPx(top: Int, bottom: Int) {
+		_topContentInsetPx.value = top
+		_bottomContentInsetPx.value = bottom
 	}
 
 	val isResumeEnabled = readingResumeEnabledUseCase()

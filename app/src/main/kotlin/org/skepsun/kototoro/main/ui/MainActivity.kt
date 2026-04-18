@@ -20,7 +20,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentContainerView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -38,6 +37,7 @@ import org.skepsun.kototoro.core.os.VoiceInputContract
 import org.skepsun.kototoro.core.parser.ContentLinkResolver
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.util.MenuInvalidator
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
@@ -56,7 +56,6 @@ import org.skepsun.kototoro.main.ui.compose.KototoroApp
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
-import org.skepsun.kototoro.remotelist.ui.ContentSearchMenuProvider
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchKind
@@ -109,8 +108,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 	private var availableSourceTags by mutableStateOf(SourceTag.quickFilterEntries)
 	private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
 	private var enabledContentTypes by mutableStateOf(allTopBarContentTypes())
-	
-	private lateinit var container: FragmentContainerView
 
 	fun setActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
 		currentFilterCallback = callback
@@ -161,6 +158,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 		
 		composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
 		
+		lifecycleScope.launch {
+			settings.observeAsFlow(AppSettings.KEY_NAV_MAIN) { mainNavItems }
+				.collect { items ->
+					composeNavBarDelegator.setupMenu(items)
+				}
+		}
+
 		viewModel.isResumeEnabled.observe(this) { isEnabled ->
 			isResumeEnabledState = isEnabled
 		}
@@ -175,6 +179,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 			KototoroApp(
 					appSettings = settings,
 					navStateFlow = navStateFlow,
+					suggestions = suggestions,
+					onQueryChanged = ::updateSearchQuery,
+					onSearch = { query -> submitSearch(query) },
 					query = searchQuery,
 					isResumeEnabled = isResumeEnabledState,
 					onResumeClick = viewModel::openLastReader,
@@ -220,8 +227,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 					if (containerTopInsetPx != topInset || containerBottomInsetPx != bottomInset) {
 						containerTopInsetPx = topInset
 						containerBottomInsetPx = bottomInset
-						
+						viewModel.setContentInsetsPx(topInset, bottomInset)
 					}
+				},
+				onNavDestinationChanged = { itemId ->
+					composeNavBarDelegator.handleItemSelected(itemId)
 				},
 				isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
 				onLanguagePresetFilterClick = ::onLanguagePresetFilterClick,
@@ -280,9 +290,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 
 
 	override fun addMenuProvider(provider: MenuProvider, owner: LifecycleOwner, state: Lifecycle.State) {
-		if (provider !is ContentSearchMenuProvider) { // do not duplicate search menu item
-			super.addMenuProvider(provider, owner, state)
-		}
+		super.addMenuProvider(provider, owner, state)
 	}
 
 

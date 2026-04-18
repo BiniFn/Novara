@@ -3,8 +3,23 @@ package org.skepsun.kototoro.details.ui.pager.chapters.compose
 import android.content.Context
 import android.view.View
 import android.widget.Toast
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
@@ -33,6 +48,7 @@ fun ChaptersScreenRoot(
 	val quickFilter by viewModel.quickFilter.collectAsState(initial = emptyList())
 	val emptyReason by viewModel.emptyReason.collectAsState(initial = null)
 	val chapters by viewModel.chapters.collectAsState(initial = emptyList())
+	var qualityProbeResult by remember { mutableStateOf<ChaptersPagesViewModel.QualityProbeResult?>(null) }
 	
 	val chaptersWithHeaders = remember(chapters) {
 		chapters.withVolumeHeaders(context)
@@ -49,19 +65,23 @@ fun ChaptersScreenRoot(
 	val selectedItemIds = remember { mutableStateListOf<Long>() }
 
 	DisposableEffect(Unit) {
-		val observer = viewModel.onShowVideoQualityDialog.observeEvent(lifecycleOwner) { result ->
-			val options = listOf(context.getString(R.string.system_default)) + result.qualities
-			MaterialAlertDialogBuilder(context)
-				.setTitle(R.string.video_quality)
-				.setItems(options.toTypedArray()) { _, which ->
-					val quality = if (which == 0) null else options[which]
-					router.askForDownloadOverMeteredNetwork { allow ->
-						viewModel.download(result.snapshot, allow, quality)
-					}
-				}
-				.show()
+		viewModel.onShowVideoQualityDialog.observeEvent(lifecycleOwner) { result ->
+			qualityProbeResult = result
 		}
 		onDispose {}
+	}
+
+	qualityProbeResult?.let { result ->
+		VideoQualityDialog(
+			qualities = result.qualities,
+			onDismissRequest = { qualityProbeResult = null },
+			onConfirm = { quality ->
+				qualityProbeResult = null
+				router.askForDownloadOverMeteredNetwork { allow ->
+					viewModel.download(result.snapshot, allow, quality)
+				}
+			},
+		)
 	}
 
 	ChaptersScreen(
@@ -144,5 +164,61 @@ fun ChaptersScreenRoot(
 			selectedItemIds.clear()
 		},
 		onClearSelection = { selectedItemIds.clear() }
+	)
+}
+
+@Composable
+private fun VideoQualityDialog(
+	qualities: List<String>,
+	onDismissRequest: () -> Unit,
+	onConfirm: (String?) -> Unit,
+) {
+	val options = remember(qualities) { listOf<String?>(null) + qualities }
+	var selectedIndex by remember(options) { mutableIntStateOf(0) }
+
+	AlertDialog(
+		onDismissRequest = onDismissRequest,
+		title = { Text(text = stringResource(R.string.video_quality)) },
+		text = {
+			Column(modifier = Modifier.selectableGroup()) {
+				options.forEachIndexed { index, option ->
+					Row(
+						modifier = Modifier
+							.fillMaxWidth()
+							.selectable(
+								selected = index == selectedIndex,
+								onClick = { selectedIndex = index },
+								role = Role.RadioButton,
+							)
+							.padding(vertical = 8.dp),
+						verticalAlignment = Alignment.CenterVertically,
+					) {
+						RadioButton(
+							selected = index == selectedIndex,
+							onClick = null,
+						)
+						Text(
+							text = option ?: stringResource(R.string.system_default),
+							style = MaterialTheme.typography.bodyLarge,
+							modifier = Modifier.padding(start = 16.dp),
+						)
+					}
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(
+				onClick = {
+					onConfirm(options[selectedIndex])
+				},
+			) {
+				Text(text = stringResource(R.string.download))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismissRequest) {
+				Text(text = stringResource(android.R.string.cancel))
+			}
+		},
 	)
 }

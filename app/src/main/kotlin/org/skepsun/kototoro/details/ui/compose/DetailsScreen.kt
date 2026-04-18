@@ -29,11 +29,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,18 +66,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.DetailsViewModel
@@ -81,10 +90,17 @@ import org.skepsun.kototoro.details.ui.model.ContentBranch
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
+import org.skepsun.kototoro.download.ui.dialog.DownloadDialogViewModel
+import org.skepsun.kototoro.download.ui.compose.DownloadDialog
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.favourites.ui.categories.select.compose.FavoriteCategoryDialog
+import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
+import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
+import org.skepsun.kototoro.scrobbling.common.ui.selector.compose.ScrobblingSelectorDialog
+import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,7 +136,16 @@ fun DetailsScreen(
     val content = mangaDetails?.toContent()
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
     val scrollState = rememberScrollState()
+    var showDeleteLocalDialog by remember { mutableStateOf(false) }
+    var showShareOptions by remember { mutableStateOf(false) }
+    var pendingAuthorSearch by remember { mutableStateOf<PendingAuthorSearch?>(null) }
+    var pendingTagSearch by remember { mutableStateOf<ContentTag?>(null) }
+    var showFavoriteDialog by remember { mutableStateOf(false) }
+    var showDownloadDialog by remember { mutableStateOf(false) }
+    var showStatsDialog by remember { mutableStateOf(false) }
+    var showScrobblingDialog by remember { mutableStateOf(false) }
     val density = LocalDensity.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val toolbarGapPx = with(density) { 12.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -184,6 +209,7 @@ fun DetailsScreen(
 
         Scaffold(
             containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 DetailsBottomBar(
                     contentType = content?.source?.getContentType(),
@@ -213,19 +239,27 @@ fun DetailsScreen(
                         }
                     },
                     actions = {
-                        DetailsChromeButton(onClick = { onActionClick(DetailsAction.Share) }) {
+                        DetailsChromeButton(
+                            onClick = {
+                                showShareOptions = true
+                            },
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Share,
                                 contentDescription = stringResource(R.string.share),
                             )
                         }
-                        DetailsChromeButton(onClick = { onActionClick(DetailsAction.Download) }) {
+                        DetailsChromeButton(onClick = { 
+                            onActionClick(DetailsAction.Download)
+                            showDownloadDialog = true
+                        }) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_download),
                                 contentDescription = stringResource(R.string.download),
                             )
                         }
                         DetailsOverflowMenu(
+                            contentTitle = content?.title,
                             hasTranslationCache = hasTranslationCache,
                             isShowingTranslation = isShowingTranslation,
                             isTranslating = isTranslating,
@@ -238,7 +272,20 @@ fun DetailsScreen(
                             isEditOverrideAvailable = content != null,
                             isShortcutSupported = isShortcutSupported && content != null,
                             isNsfw = content?.isNsfw() == true,
-                            onActionClick = onActionClick,
+                            onDeleteLocalRequest = { onActionClick(DetailsAction.DeleteLocal) },
+                            onActionClick = { action ->
+                                when (action) {
+                                    DetailsAction.OpenTracking -> {
+                                        showScrobblingDialog = true
+                                        onActionClick(action)
+                                    }
+                                    DetailsAction.OpenStatistics -> {
+                                        showStatsDialog = true
+                                        onActionClick(action)
+                                    }
+                                    else -> onActionClick(action)
+                                }
+                            },
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -271,19 +318,141 @@ fun DetailsScreen(
                     onCoverBoundsSync = onCoverBoundsSync,
                     onInfoCardTopSync = { top -> infoCardTopPx = top },
                     onCoverClick = { onActionClick(DetailsAction.OpenCover) },
-                    onFavoriteClick = { onActionClick(DetailsAction.Favorite) },
+                    onFavoriteClick = { showFavoriteDialog = true },
                     onSourceClick = { onActionClick(DetailsAction.OpenSource(it)) },
                     onAuthorClick = { author ->
                         source?.let { currentSource ->
-                            onActionClick(DetailsAction.AuthorClick(author, currentSource))
+                            pendingAuthorSearch = PendingAuthorSearch(
+                                author = author,
+                                source = currentSource,
+                            )
                         }
                     },
-                    onTagClick = { onActionClick(DetailsAction.TagClick(it)) },
+                    onTagClick = { pendingTagSearch = it },
                     onTranslateClick = { onActionClick(DetailsAction.Translate) },
                     onToggleTranslationClick = { onActionClick(DetailsAction.ToggleTranslation) },
                 )
                 Spacer(modifier = Modifier.height(240.dp))
             }
+        }
+
+        pendingAuthorSearch?.let { pending ->
+            SearchTargetDialog(
+                iconRes = R.drawable.ic_user,
+                title = pending.author,
+                sourceTitle = rememberResolvedSourceTitle(pending.source),
+                onDismissRequest = { pendingAuthorSearch = null },
+                onSearchOnSource = {
+                    pendingAuthorSearch = null
+                    onActionClick(DetailsAction.SearchAuthorOnSource(pending.author, pending.source))
+                },
+                onSearchEverywhere = {
+                    pendingAuthorSearch = null
+                    onActionClick(DetailsAction.SearchAuthorEverywhere(pending.author))
+                },
+            )
+        }
+
+        pendingTagSearch?.let { tag ->
+            SearchTargetDialog(
+                iconRes = R.drawable.ic_tag,
+                title = tag.title,
+                sourceTitle = rememberResolvedSourceTitle(tag.source),
+                onDismissRequest = { pendingTagSearch = null },
+                onSearchOnSource = {
+                    pendingTagSearch = null
+                    onActionClick(DetailsAction.SearchTagOnSource(tag))
+                },
+                onSearchEverywhere = {
+                    pendingTagSearch = null
+                    onActionClick(DetailsAction.SearchTagEverywhere(tag.title))
+                },
+            )
+        }
+
+        if (showShareOptions && content != null) {
+            ShareOptionsDialog(
+                title = content.title,
+                sourceTitle = rememberResolvedSourceTitle(content.source),
+                onDismissRequest = { showShareOptions = false },
+                onShareAppLink = {
+                    showShareOptions = false
+                    onActionClick(
+                        DetailsAction.ShareLink(
+                            title = content.title,
+                            link = content.appUrl.toString(),
+                        ),
+                    )
+                },
+                onShareSourceLink = {
+                    showShareOptions = false
+                    onActionClick(
+                        DetailsAction.ShareLink(
+                            title = content.title,
+                            link = content.publicUrl,
+                        ),
+                    )
+                },
+            )
+        }
+
+        if (showDeleteLocalDialog && content != null) {
+            DeleteLocalDialog(
+                title = content.title,
+                onDismissRequest = { showDeleteLocalDialog = false },
+                onConfirm = {
+                    showDeleteLocalDialog = false
+                    onActionClick(DetailsAction.DeleteLocal)
+                },
+            )
+        }
+
+        if (showFavoriteDialog && content != null) {
+            val allCategories by viewModel.allCategories.collectAsState()
+            val memberCategoryIds = remember(favouriteCategories) {
+                favouriteCategories.mapTo(mutableSetOf()) { it.id }
+            }
+            FavoriteCategoryDialog(
+                contentTitle = content.title,
+                allCategories = allCategories,
+                memberCategoryIds = memberCategoryIds,
+                onCategoryToggle = { categoryId, isChecked ->
+                    viewModel.setFavouriteCategory(categoryId, isChecked)
+                },
+                onManageCategories = {
+                    showFavoriteDialog = false
+                    onActionClick(DetailsAction.ManageCategories)
+                },
+                onDismiss = { showFavoriteDialog = false },
+            )
+        }
+
+        if (showDownloadDialog && content != null) {
+            DownloadDialog(
+                mangaList = listOf(content),
+                snackbarHostState = snackbarHostState,
+                onDismiss = { showDownloadDialog = false }
+            )
+        }
+
+        if (showStatsDialog && content != null) {
+            val statsViewModel: ContentStatsViewModel = hiltViewModel()
+            ContentStatsDialog(
+                viewModel = statsViewModel,
+                onDismissRequest = { showStatsDialog = false },
+                onOpenDetails = {
+                    showStatsDialog = false
+                    // Legacy details open logic handled by router if needed, currently not supported via DetailsAction, maybe emit generic or leave?
+                }
+            )
+        }
+
+        if (showScrobblingDialog && content != null) {
+            val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
+            ScrobblingSelectorDialog(
+                viewModel = scrobblingViewModel,
+                onDismissRequest = { showScrobblingDialog = false }
+            )
         }
     }
 }
@@ -375,15 +544,17 @@ private fun DetailsDockActionButton(
 sealed interface DetailsAction {
     data object OpenCover : DetailsAction
     data class OpenSource(val source: ContentSource) : DetailsAction
-    data class AuthorClick(val author: String, val source: ContentSource) : DetailsAction
-    data class TagClick(val tag: ContentTag) : DetailsAction
+    data class SearchAuthorOnSource(val author: String, val source: ContentSource) : DetailsAction
+    data class SearchAuthorEverywhere(val author: String) : DetailsAction
+    data class SearchTagOnSource(val tag: ContentTag) : DetailsAction
+    data class SearchTagEverywhere(val tagTitle: String) : DetailsAction
     data class SelectBranch(val branch: String?) : DetailsAction
+    data object ManageCategories : DetailsAction
+    data object ManageDownloads : DetailsAction
     data object Favorite : DetailsAction
     data object Share : DetailsAction
+    data class ShareLink(val title: String, val link: String) : DetailsAction
     data object Download : DetailsAction
-    data object Resume : DetailsAction
-    data object ResumeIncognito : DetailsAction
-    data object ForgetHistory : DetailsAction
     data object DeleteLocal : DetailsAction
     data object EditOverride : DetailsAction
     data object CreateShortcut : DetailsAction
@@ -399,6 +570,9 @@ sealed interface DetailsAction {
     data object ToggleList : DetailsAction
     data object ToggleGrid : DetailsAction
     data object ToggleBookmarkView : DetailsAction
+    data object Resume : DetailsAction
+    data object ResumeIncognito : DetailsAction
+    data object ForgetHistory : DetailsAction
 }
 
 @Composable
@@ -562,6 +736,7 @@ private fun resolveReadActionLabel(
 
 @Composable
 private fun DetailsOverflowMenu(
+    contentTitle: String?,
     hasTranslationCache: Boolean,
     isShowingTranslation: Boolean,
     isTranslating: Boolean,
@@ -574,6 +749,7 @@ private fun DetailsOverflowMenu(
     isEditOverrideAvailable: Boolean,
     isShortcutSupported: Boolean,
     isNsfw: Boolean,
+    onDeleteLocalRequest: () -> Unit,
     onActionClick: (DetailsAction) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -627,7 +803,9 @@ private fun DetailsOverflowMenu(
                     text = { Text(stringResource(R.string.delete)) },
                     onClick = {
                         expanded = false
-                        onActionClick(DetailsAction.DeleteLocal)
+                        if (contentTitle != null) {
+                            onDeleteLocalRequest()
+                        }
                     },
                 )
             }
@@ -704,6 +882,139 @@ private fun DetailsOverflowMenu(
         }
     }
 }
+
+@Composable
+private fun DeleteLocalDialog(
+    title: String,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(stringResource(R.string.delete_manga)) },
+        text = { Text(stringResource(R.string.text_delete_local_manga, title)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun SearchTargetDialog(
+    iconRes: Int,
+    title: String,
+    sourceTitle: String,
+    onDismissRequest: () -> Unit,
+    onSearchOnSource: () -> Unit,
+    onSearchEverywhere: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        icon = {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+            )
+        },
+        title = { Text(text = title) },
+        text = {
+            Column {
+                TextButton(
+                    onClick = onSearchOnSource,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.search_on_s, sourceTitle),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                TextButton(
+                    onClick = onSearchEverywhere,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.search_everywhere),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(R.string.close))
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+@Composable
+private fun ShareOptionsDialog(
+    title: String,
+    sourceTitle: String,
+    onDismissRequest: () -> Unit,
+    onShareAppLink: () -> Unit,
+    onShareSourceLink: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Share,
+                contentDescription = null,
+            )
+        },
+        title = { Text(text = stringResource(R.string.share)) },
+        text = {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                )
+                TextButton(
+                    onClick = onShareAppLink,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.link_to_manga_in_app),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                TextButton(
+                    onClick = onShareSourceLink,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.link_to_manga_on_s, sourceTitle),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(android.R.string.cancel))
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+private data class PendingAuthorSearch(
+    val author: String,
+    val source: ContentSource,
+)
 
 @Composable
 private fun DetailsChromeButton(

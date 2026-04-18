@@ -39,7 +39,6 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DownloadDialogViewModel @Inject constructor(
-	savedStateHandle: SavedStateHandle,
 	private val scheduler: DownloadWorker.Scheduler,
 	private val localStorageManager: LocalStorageManager,
 	private val localContentRepository: LocalMangaRepository,
@@ -48,9 +47,9 @@ class DownloadDialogViewModel @Inject constructor(
 	private val settings: AppSettings,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<Array<ParcelableContent>>(AppRouter.KEY_MANGA).map {
-		it.manga
-	}
+	var manga: List<Content> = emptyList()
+		private set
+
 	private val mangaDetails = suspendLazy {
 		coroutineScope {
 			manga.map { m ->
@@ -74,7 +73,13 @@ class DownloadDialogViewModel @Inject constructor(
 	val isVideoContent = MutableStateFlow(false)
 	val isVideoQualitiesLoading = MutableStateFlow(false)
 
-	init {
+	private var isInitialized = false
+
+	fun initialize(mangaList: List<Content>) {
+		if (isInitialized || mangaList.isEmpty()) return
+		isInitialized = true
+		this.manga = mangaList
+
 		launchJob(Dispatchers.Default) {
 			defaultFormat.value = settings.preferredDownloadFormat
 		}

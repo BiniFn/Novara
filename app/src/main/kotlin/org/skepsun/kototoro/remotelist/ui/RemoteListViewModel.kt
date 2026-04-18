@@ -64,7 +64,7 @@ open class RemoteListViewModel @Inject constructor(
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), FilterCoordinator.Owner {
 
-	private val initialSource = ContentSource(savedStateHandle[RemoteListFragment.ARG_SOURCE])
+	private val initialSource = ContentSource(savedStateHandle[org.skepsun.kototoro.core.nav.AppRouter.KEY_SOURCE])
 	val isRandomLoading = MutableStateFlow(false)
 	val onOpenContent = MutableEventFlow<Content>()
     val onSourceBroken = MutableEventFlow<Unit>()

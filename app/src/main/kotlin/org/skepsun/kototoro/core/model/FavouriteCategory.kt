@@ -32,4 +32,8 @@ data class FavouriteCategory(
 			null
 		}
 	}
+
+	companion object {
+		const val NO_ID = -1L
+	}
 }

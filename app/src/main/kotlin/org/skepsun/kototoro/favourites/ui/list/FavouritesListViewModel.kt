@@ -28,7 +28,7 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.flattenLatest
 import org.skepsun.kototoro.favourites.domain.FavoritesListQuickFilter
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.history.domain.MarkAsReadUseCase
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
@@ -53,9 +53,9 @@ import org.skepsun.kototoro.core.model.isNsfw
 
 private const val PAGE_SIZE = 16
 
-@HiltViewModel
-class FavouritesListViewModel @Inject constructor(
-	savedStateHandle: SavedStateHandle,
+@HiltViewModel(assistedFactory = FavouritesListViewModel.Factory::class)
+class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
+	@dagger.assisted.Assisted val categoryId: Long,
 	private val repository: FavouritesRepository,
 	private val mangaListMapper: ContentListMapper,
 	private val markAsReadUseCase: MarkAsReadUseCase,
@@ -68,7 +68,11 @@ class FavouritesListViewModel @Inject constructor(
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), QuickFilterListener {
 
-	val categoryId: Long = savedStateHandle[AppRouter.KEY_ID] ?: NO_ID
+	@dagger.assisted.AssistedFactory
+	interface Factory {
+		fun create(categoryId: Long): FavouritesListViewModel
+	}
+
 	private val quickFilter = quickFilterFactory.create(categoryId)
 	private val refreshTrigger = MutableStateFlow(Any())
 	private val limit = MutableStateFlow(if (categoryId == NO_ID) Int.MAX_VALUE else PAGE_SIZE)

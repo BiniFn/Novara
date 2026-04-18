@@ -28,6 +28,7 @@ import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 import org.skepsun.kototoro.core.prefs.observeAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 @Composable
 fun KototoroApp(
@@ -59,6 +60,7 @@ fun KototoroApp(
     onTopBarHeightChanged: (Int) -> Unit = {},
     onBottomNavHeightChanged: (Int) -> Unit = {},
     onContentInsetsChanged: (Int, Int) -> Unit = { _, _ -> },
+    onNavDestinationChanged: (Int) -> Unit = {},
     isResumeEnabled: Boolean = false,
     onResumeClick: () -> Unit = {},
 ) {
@@ -98,13 +100,44 @@ fun KototoroApp(
     LaunchedEffect(visibleTopInsetPx, visibleBottomInsetPx) {
         onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
     }
-
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(currentRoute) {
+        val mappedId = when (currentRoute) {
+            "home" -> org.skepsun.kototoro.R.id.nav_home
+            "history" -> org.skepsun.kototoro.R.id.nav_history
+            "favorites" -> org.skepsun.kototoro.R.id.nav_favorites
+            "explore" -> org.skepsun.kototoro.R.id.nav_explore
+            "discover" -> org.skepsun.kototoro.R.id.nav_discover
+            "feed" -> org.skepsun.kototoro.R.id.nav_feed
+            "local" -> org.skepsun.kototoro.R.id.nav_local
+            "suggestions" -> org.skepsun.kototoro.R.id.nav_suggestions
+            "bookmarks" -> org.skepsun.kototoro.R.id.nav_bookmarks
+            "updated" -> org.skepsun.kototoro.R.id.nav_updated
+            else -> -1
+        }
+        if (mappedId != -1) {
+            onNavDestinationChanged(mappedId)
+        }
+    }
+
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val contentPadding = remember(visibleTopInsetPx, visibleBottomInsetPx, density) {
+        with(density) {
+            androidx.compose.foundation.layout.PaddingValues(
+                top = visibleTopInsetPx.toDp(),
+                bottom = visibleBottomInsetPx.toDp()
+            )
+        }
+    }
 
     KototoroTheme {
         Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
             AppNavGraph(
                 navController = navController,
+                contentPadding = contentPadding,
                 modifier = Modifier.fillMaxSize()
             )
 

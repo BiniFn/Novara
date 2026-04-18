@@ -131,8 +131,21 @@ abstract class ContentListFragment :
 				val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = ListMode.GRID)
 				val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
 				val isRefreshing by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+				val topInset by mainViewModel.topContentInsetPx.collectAsStateWithLifecycle()
+				val bottomInset by mainViewModel.bottomContentInsetPx.collectAsStateWithLifecycle()
+				
+				val density = androidx.compose.ui.platform.LocalDensity.current
+				val contentPadding = androidx.compose.runtime.remember(topInset, bottomInset, density) {
+					with(density) {
+						androidx.compose.foundation.layout.PaddingValues(
+							top = topInset.toDp(),
+							bottom = bottomInset.toDp()
+						)
+					}
+				}
 				
 				KototoroContentListScreen(
+					contentPadding = contentPadding,
 					items = items,
 					listMode = listMode,
 					isRefreshing = isRefreshing,
@@ -146,9 +159,7 @@ abstract class ContentListFragment :
 							composeSelectionIds = if (item.id in composeSelectionIds) composeSelectionIds - item.id else composeSelectionIds + item.id
 						} else {
 							val manga = item.toContentWithOverride()
-							if ((activity as? ContentListActivity)?.showPreview(manga) != true) {
-								router.openDetails(manga, null)
-							}
+							router.openDetails(manga, null)
 						}
 					},
 					onItemLongClick = { item ->

@@ -1,0 +1,235 @@
+package org.skepsun.kototoro.bookmarks.ui.compose
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.Icons
+import android.content.Context
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
+import org.skepsun.kototoro.core.model.unwrap
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
+import org.skepsun.kototoro.list.ui.compose.SelectionAction
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.reader.ui.PageSaveHelper
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppBookmarksRoute(
+    viewModel: AllBookmarksViewModel,
+    contentPadding: PaddingValues,
+    appRouter: AppRouter,
+    pageSaveHelper: PageSaveHelper
+) {
+    val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
+    var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+
+    val activity = LocalContext.current as? androidx.activity.ComponentActivity
+
+    LaunchedEffect(viewModel.onError) {
+        val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
+        val observer = SnackbarErrorObserver(host, null)
+        viewModel.onError.collect { event ->
+            event?.consume(observer)
+        }
+    }
+
+    LaunchedEffect(viewModel.onActionDone) {
+        val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
+        val observer = ReversibleActionObserver(host)
+        viewModel.onActionDone.collect { event ->
+            event?.consume(observer)
+        }
+    }
+
+    val pullRefreshState = rememberPullToRefreshState()
+    val isRefreshing = items.firstOrNull() is LoadingState
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { /* Bookmarks have no pull to refresh */ },
+            state = pullRefreshState,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 100.dp),
+                contentPadding = contentPadding,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(
+                    items = items,
+                    span = { item ->
+                        if (item is ListHeader || item is EmptyState || item is LoadingState) {
+                            GridItemSpan(maxLineSpan)
+                        } else {
+                            GridItemSpan(1)
+                        }
+                    }
+                ) { listModel ->
+                    when (listModel) {
+                        is ListHeader -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val manga = listModel.payload as? Content
+                                        if (manga != null) {
+                                            appRouter.openDetails(manga)
+                                        }
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val text = listModel.getText(LocalContext.current)
+                                Text(
+                                    text = text?.toString() ?: "",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                if (listModel.buttonTextRes != 0) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.KeyboardArrowRight,
+                                        contentDescription = "More",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        is Bookmark -> {
+                            val isSelected = listModel.pageId in composeSelectionIds
+                            val source = listModel.manga.source.unwrap()
+                            val contentType = source.getContentType()
+                            val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
+
+                            if (isNovel) {
+                                KototoroBookmarkCardNovel(
+                                    item = listModel,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        if (composeSelectionIds.isNotEmpty()) {
+                                            composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                        } else {
+                                            val intent = ReaderIntent.Builder(activity as Context)
+                                                .bookmark(listModel)
+                                                .incognito()
+                                                .build()
+                                            appRouter.openReader(intent)
+                                            android.widget.Toast.makeText(activity, R.string.incognito_mode, android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onLongClick = {
+                                        composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                    }
+                                )
+                            } else {
+                                KototoroBookmarkCardThumb(
+                                    item = listModel,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        if (composeSelectionIds.isNotEmpty()) {
+                                            composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                        } else {
+                                            val intent = ReaderIntent.Builder(activity as Context)
+                                                .bookmark(listModel)
+                                                .incognito()
+                                                .build()
+                                            appRouter.openReader(intent)
+                                            android.widget.Toast.makeText(activity, R.string.incognito_mode, android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onLongClick = {
+                                        composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                    }
+                                )
+                            }
+                        }
+                        is EmptyState -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 64.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = listModel.icon),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = stringResource(id = listModel.textPrimary),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(id = listModel.textSecondary),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        is LoadingState -> {
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (composeSelectionIds.isNotEmpty()) {
+            KototoroSelectionTopBar(
+                selectedCount = composeSelectionIds.size,
+                isAllNonLocal = true,
+                isSingleSelection = composeSelectionIds.size == 1,
+                showRemoveOption = true,
+                supportedActions = setOf(SelectionAction.SELECT_ALL, SelectionAction.REMOVE, SelectionAction.SAVE),
+                onClearSelection = { composeSelectionIds = emptySet() },
+                onActionClick = { action ->
+                    when (action) {
+                        SelectionAction.SELECT_ALL -> {
+                            val allIds = items.mapNotNull { (it as? Bookmark)?.pageId }.toSet()
+                            composeSelectionIds = allIds
+                        }
+                        SelectionAction.REMOVE -> {
+                            viewModel.removeBookmarks(composeSelectionIds)
+                            composeSelectionIds = emptySet()
+                        }
+                        SelectionAction.SAVE -> {
+                            viewModel.savePages(pageSaveHelper, composeSelectionIds)
+                            composeSelectionIds = emptySet()
+                        }
+                        else -> {}
+                    }
+                }
+            )
+        }
+    }
+}

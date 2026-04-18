@@ -21,7 +21,7 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.ContentDataRepository
@@ -343,7 +343,7 @@ val importMessages = MutableEventFlow<String>()
 					.getOrDefault(emptyList())
 				val localKeys = local.associateBy { it.url }
 				val remoteKeys = remote.associateBy { it.url }
-				// 先把远程新增的（本地没有的）合并进本地分组
+				// 先把远程新增的（本地没有的）合并进本地分�?
 				val remoteExtras = remoteKeys.keys.minus(localKeys.keys).mapNotNull { remoteKeys[it] }
 				if (remoteExtras.isNotEmpty()) {
 					logSync("sync merge remote extras source=${item.source.name} extras=${remoteExtras.size}")

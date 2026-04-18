@@ -1,17 +1,28 @@
 package org.skepsun.kototoro.favourites.ui
 
 import android.os.Bundle
-import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.ui.FragmentContainerActivity
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment
+import androidx.fragment.app.FragmentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.unit.dp
+import dagger.hilt.android.AndroidEntryPoint
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
 
-class FavouritesActivity : FragmentContainerActivity(FavouritesListFragment::class.java) {
+@AndroidEntryPoint
+class FavouritesActivity : FragmentActivity() {
 
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		val categoryTitle = intent.getStringExtra(AppRouter.KEY_TITLE)
-		if (categoryTitle != null) {
-			title = categoryTitle
-		}
-	}
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        setContent {
+            KototoroTheme {
+                KototoroFavoritesHostRoute(
+                    appRouter = router,
+                    contentPadding = PaddingValues(0.dp)
+                )
+            }
+        }
+    }
 }

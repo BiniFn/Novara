@@ -59,6 +59,9 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
 import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.model.ids
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -95,6 +98,7 @@ class DetailsViewModel @Inject constructor(
 	private val localEpubSource: org.skepsun.kototoro.local.epub.LocalEpubSource,
 	private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
 	private val videoDownloadIndex: VideoDownloadIndex,
+	private val favouritesRepository: FavouritesRepository,
 	mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory,
 	private val trackingSiteMatcher: TrackingSiteMatcher,
 	private val dataRepository: org.skepsun.kototoro.core.parser.ContentDataRepository,
@@ -342,6 +346,23 @@ class DetailsViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			val handle = historyRepository.delete(setOf(mangaId))
 			onActionDone.call(ReversibleAction(R.string.removed_from_history, handle))
+		}
+	}
+
+	// --- Favorite Category Management (for Compose dialog) ---
+
+	val allCategories: StateFlow<List<FavouriteCategory>> = favouritesRepository.observeCategories()
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, emptyList())
+
+	fun setFavouriteCategory(categoryId: Long, isChecked: Boolean) {
+		launchJob(Dispatchers.Default) {
+			val content = getContentOrNull() ?: return@launchJob
+			if (isChecked) {
+				favouritesRepository.addToCategory(categoryId, listOf(content))
+			} else {
+				favouritesRepository.removeFromCategory(categoryId, listOf(content.id))
+			}
 		}
 	}
 

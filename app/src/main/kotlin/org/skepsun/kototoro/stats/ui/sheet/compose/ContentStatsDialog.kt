@@ -1,0 +1,281 @@
+package org.skepsun.kototoro.stats.ui.sheet.compose
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.model.DateTimeAgo
+import org.skepsun.kototoro.core.util.KototoroColors
+import org.skepsun.kototoro.parsers.util.format
+import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
+import androidx.collection.IntList
+
+private fun IntList.toList(): List<Int> = buildList { this@toList.forEach { add(it) } }
+
+@Composable
+fun ContentStatsDialog(
+    viewModel: ContentStatsViewModel,
+    onDismissRequest: () -> Unit,
+    onOpenDetails: () -> Unit,
+) {
+    val manga = viewModel.manga
+    val context = LocalContext.current
+    val stats by viewModel.stats.collectAsState()
+    val startDate by viewModel.startDate.collectAsState()
+    val totalPagesRead by viewModel.totalPagesRead.collectAsState()
+    val barColor = remember(manga) {
+        Color(KototoroColors.ofContent(context, manga))
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                text = manga.title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        text = {
+            ContentStatsBody(
+                startDate = startDate,
+                totalPagesRead = totalPagesRead,
+                stats = stats.toList(),
+                barColor = barColor,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(onClick = onOpenDetails) {
+                Text(stringResource(R.string.details))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+fun ContentStatsSheetContent(
+    viewModel: ContentStatsViewModel,
+    onOpenDetails: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val manga = viewModel.manga
+    val context = LocalContext.current
+    val stats by viewModel.stats.collectAsState()
+    val startDate by viewModel.startDate.collectAsState()
+    val totalPagesRead by viewModel.totalPagesRead.collectAsState()
+    val barColor = remember(manga) {
+        Color(KototoroColors.ofContent(context, manga))
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = manga.title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onOpenDetails) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_open_external),
+                    contentDescription = stringResource(R.string.details),
+                )
+            }
+        }
+
+        ContentStatsBody(
+            startDate = startDate,
+            totalPagesRead = totalPagesRead,
+            stats = stats.toList(),
+            barColor = barColor,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun ContentStatsBody(
+    startDate: DateTimeAgo?,
+    totalPagesRead: Int,
+    stats: List<Int>,
+    barColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            ContentStatsBarChart(
+                stats = stats,
+                barColor = barColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
+
+        startDate?.let {
+            Text(
+                text = it.format(context),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.pages_read_s, totalPagesRead.format()),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ContentStatsBarChart(
+    stats: List<Int>,
+    barColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    if (stats.isEmpty()) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.empty_stats_text),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+
+    val minBarSpacingDp = 12.dp
+    val barWidthDp = 12.dp
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
+    val dashedPathEffect = remember {
+        PathEffect.dashPathEffect(floatArrayOf(15f, 15f), 0f)
+    }
+
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val minBarSpacing = minBarSpacingDp.toPx()
+        val barWidth = barWidthDp.toPx()
+        val maxRawWidth = stats.size * (barWidth + minBarSpacing) + minBarSpacing
+        val windowSize = kotlin.math.ceil(maxRawWidth / width).toInt().coerceAtLeast(1)
+        val compressedBars = stats.chunked(windowSize) { chunk ->
+            chunk.average().toInt()
+        }
+        val maxValue = compressedBars.maxOrNull()?.toFloat() ?: 0f
+
+        if (maxValue <= 0f) {
+            return@Canvas
+        }
+
+        val step = computeValueStep(height, maxValue)
+        for (value in 0..maxValue.toInt() step step) {
+            val y = height - (height * value / maxValue)
+            drawLine(
+                color = outlineColor,
+                start = Offset(0f, y),
+                end = Offset(width, y),
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = dashedPathEffect,
+            )
+        }
+
+        drawLine(
+            color = outlineColor,
+            start = Offset(0f, height),
+            end = Offset(width, height),
+            strokeWidth = 2.dp.toPx(),
+        )
+
+        val spacing = (width - (barWidth * compressedBars.size)) / (compressedBars.size + 1)
+        val cornerRadius = barWidth / 2f
+
+        compressedBars.forEachIndexed { index, value ->
+            if (value <= 0) {
+                return@forEachIndexed
+            }
+            val barHeight = (height * value / maxValue).coerceAtLeast(barWidth)
+            val x = spacing + index * (barWidth + spacing)
+            drawRoundRect(
+                color = barColor,
+                topLeft = Offset(x, height - barHeight),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+            )
+        }
+    }
+}
+
+private fun computeValueStep(heightPx: Float, maxValue: Float): Int {
+    val minSpacePx = 60f
+    var step = 1
+    while (heightPx / (maxValue / step) <= minSpacePx) {
+        step++
+    }
+    return step
+}

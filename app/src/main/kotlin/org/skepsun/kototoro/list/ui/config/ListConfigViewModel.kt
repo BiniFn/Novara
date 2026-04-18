@@ -10,7 +10,7 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.sortedByOrdinal
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject

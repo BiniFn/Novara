@@ -1977,9 +1977,9 @@ private fun OverviewMetricCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = GlassDefaults.nestedCardColor(),
         tonalElevation = 0.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)),
+        border = BorderStroke(1.dp, GlassDefaults.nestedCardBorderColor()),
     ) {
         Row(
             modifier = Modifier.padding(
@@ -2029,8 +2029,8 @@ private fun EmptyCollectionCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)),
+        color = GlassDefaults.nestedCardColor(),
+        border = BorderStroke(1.dp, GlassDefaults.nestedCardBorderColor()),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -2078,8 +2078,8 @@ private fun QuickAccessButton(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)),
+        color = GlassDefaults.nestedCardColor(),
+        border = BorderStroke(1.dp, GlassDefaults.nestedCardBorderColor()),
     ) {
         if (compact) {
             Column(

@@ -7,17 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.BarChart
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -28,11 +20,10 @@ import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ListModel
-import org.skepsun.kototoro.core.model.ContentSource
-import java.time.Instant
 
 @Composable
 fun HistoryScreen(
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
     items: List<ListModel>,
     listMode: ListMode,
     isRefreshing: Boolean,
@@ -51,6 +42,7 @@ fun HistoryScreen(
 ) {
     Box(modifier = modifier) {
         KototoroContentListScreen(
+            contentPadding = contentPadding,
             items = items,
             listMode = listMode,
             isRefreshing = isRefreshing,
@@ -87,7 +79,7 @@ fun HistoryScreen(
                             onClick = onStatsClick,
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.BarChart,
+                                    painter = painterResource(R.drawable.ic_bar_chart),
                                     contentDescription = null,
                                     modifier = Modifier.padding(end = 4.dp)
                                 )

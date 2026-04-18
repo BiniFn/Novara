@@ -23,7 +23,6 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.AppShortcutManager
 import org.skepsun.kototoro.core.ui.BaseActivity
-import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.databinding.ActivityDetailsBinding
@@ -37,17 +36,23 @@ import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.search.domain.SearchKind
 import javax.inject.Inject
 import androidx.compose.ui.geometry.Rect
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.core.ui.sheet.BottomSheetCollapseCallback
 import org.skepsun.kototoro.details.ui.compose.DetailsAction
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 
 @AndroidEntryPoint
 class DetailsActivity :
 	BaseActivity<ActivityDetailsBinding>(),
 	BottomSheetOwner {
+
+	override fun onApplyWindowInsets(v: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		return insets
+	}
 
 	@Inject
 	lateinit var settings: AppSettings
@@ -110,7 +115,6 @@ class DetailsActivity :
 
 		viewBinding.containerBottomSheet?.let { sheet ->
 			onBackPressedDispatcher.addCallback(BottomSheetCollapseCallback(sheet))
-			// BottomSheetBehavior.from(sheet) can be used to add callbacks etc if needed later!
 		}
 
 		if (settings.isSharedElementTransitionsEnabled) {
@@ -118,7 +122,6 @@ class DetailsActivity :
 			if (manga != null) {
 				androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
 				supportPostponeEnterTransition()
-				// Fallback to prevent indefinite hang on broken content or failed image loads
 				window.decorView.postDelayed({ supportStartPostponedEnterTransition() }, 350)
 			}
 		}
@@ -160,38 +163,66 @@ class DetailsActivity :
 								openReader(isIncognitoMode = true)
 							}
 
-							DetailsAction.Favorite -> {
-								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showFavoriteDialog)
+
+
+							DetailsAction.ManageDownloads -> {
+								router.openDownloads()
 							}
 
-							DetailsAction.Download -> {
-								viewModel.getContentOrNull()?.let {
-									this@DetailsActivity.router.showDownloadDialog(it, viewBinding.root)
-								}
+							DetailsAction.Favorite -> {
+								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showFavoriteDialog)
 							}
 
 							DetailsAction.Share -> {
 								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showShareDialog)
 							}
 
+							DetailsAction.ForgetHistory -> {
+								viewModel.removeFromHistory()
+							}
+
+							DetailsAction.ToggleList -> {
+								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
+							}
+
+							DetailsAction.ToggleGrid -> {
+								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
+							}
+
+							DetailsAction.ToggleBookmarkView -> {
+								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_BOOKMARKS)
+							}
+
+							DetailsAction.ManageCategories -> {
+								this@DetailsActivity.router.openFavoriteCategories()
+							}
+
 							is DetailsAction.OpenSource -> {
 								this@DetailsActivity.router.openList(action.source, null, null)
 							}
 
-							is DetailsAction.AuthorClick -> {
-								this@DetailsActivity.router.showAuthorDialog(action.author, action.source)
+							is DetailsAction.SearchAuthorOnSource -> {
+								this@DetailsActivity.router.openSearch(action.source, action.author)
 							}
 
-							is DetailsAction.TagClick -> {
-								this@DetailsActivity.router.showTagDialog(action.tag)
+							is DetailsAction.SearchAuthorEverywhere -> {
+								this@DetailsActivity.router.openSearch(action.author, SearchKind.AUTHOR)
+							}
+
+							is DetailsAction.SearchTagOnSource -> {
+								this@DetailsActivity.router.openSearch(action.tag.source, action.tag.title)
+							}
+
+							is DetailsAction.SearchTagEverywhere -> {
+								this@DetailsActivity.router.openSearch(action.tagTitle, SearchKind.TAG)
 							}
 
 							is DetailsAction.SelectBranch -> {
 								viewModel.setSelectedBranch(action.branch)
 							}
 
-							DetailsAction.ForgetHistory -> {
-								viewModel.removeFromHistory()
+							is DetailsAction.ShareLink -> {
+								router.shareLink(action.link, action.title)
 							}
 
 							DetailsAction.Translate -> {
@@ -227,13 +258,15 @@ class DetailsActivity :
 							}
 
 							DetailsAction.OpenTracking -> {
-								viewModel.getContentOrNull()?.let {
-									this@DetailsActivity.router.showScrobblingSelectorSheet(it, null)
+								viewModel.getContentOrNull()?.let { m ->
+									intent.putExtra(AppRouter.KEY_MANGA, arrayOf(ParcelableContent(m)))
 								}
 							}
 
 							DetailsAction.OpenStatistics -> {
-								viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showStatisticSheet)
+								viewModel.getContentOrNull()?.let { m ->
+									intent.putExtra(AppRouter.KEY_MANGA, arrayOf(ParcelableContent(m)))
+								}
 							}
 
 							DetailsAction.ToggleSafe -> {
@@ -241,7 +274,7 @@ class DetailsActivity :
 							}
 
 							DetailsAction.DeleteLocal -> {
-								confirmDeleteLocal()
+								viewModel.deleteLocal()
 							}
 
 							DetailsAction.EditOverride -> {
@@ -263,24 +296,15 @@ class DetailsActivity :
 									}
 								}
 							}
-
-							DetailsAction.ToggleList -> {
-								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_CHAPTERS)
-							}
-
-							DetailsAction.ToggleGrid -> {
-								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_PAGES)
-							}
-
-							DetailsAction.ToggleBookmarkView -> {
-								showDetailsBottomSheetTab(org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.TAB_BOOKMARKS)
-							}
+							else -> {}
 						}
-					}
+					},
 				)
 			}
 		}
-        
+
+
+
 		viewBinding.imageViewCover.addImageRequestListener(object : coil3.request.ImageRequest.Listener {
 			override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
 				supportStartPostponedEnterTransition()
@@ -309,9 +333,7 @@ class DetailsActivity :
 			}
 		}
 		viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
-		lifecycleScope.launch {
-			viewModel.chapters.collect(PrefetchObserver(this@DetailsActivity))
-		}
+
 	}
 
 	private fun openReader(isIncognitoMode: Boolean = false) {
@@ -330,16 +352,6 @@ class DetailsActivity :
 			}
 			.build()
 		this.router.openReader(intent)
-	}
-
-	private fun confirmDeleteLocal() {
-		val manga = viewModel.getContentOrNull() ?: return
-		buildAlertDialog(this) {
-			setTitle(R.string.delete_manga)
-			setMessage(getString(R.string.text_delete_local_manga, manga.title))
-			setPositiveButton(R.string.delete) { _, _ -> viewModel.deleteLocal() }
-			setNegativeButton(android.R.string.cancel, null)
-		}.show()
 	}
 
 	private fun showDetailsBottomSheetTab(targetTab: Int) {
@@ -411,7 +423,6 @@ class DetailsActivity :
 
 	override fun isNsfwContent(): Flow<Boolean> = viewModel.manga.map { it?.contentRating == ContentRating.ADULT }
 
-
 	private fun onContentRemoved(manga: Content) {
 		Toast.makeText(
 			this,
@@ -421,25 +432,5 @@ class DetailsActivity :
 		finishAfterTransition()
 	}
 
-	private class PrefetchObserver(
-		private val context: Context,
-	) : FlowCollector<List<ChapterListItem>?> {
 
-		private var isCalled = false
-
-		override suspend fun emit(value: List<ChapterListItem>?) {
-			if (value.isNullOrEmpty()) {
-				return
-			}
-			if (!isCalled) {
-				isCalled = true
-				val item = value.find { it.isCurrent } ?: value.first()
-				ContentPrefetchService.prefetchPages(context, item.chapter)
-			}
-		}
-	}
-
-	override fun onApplyWindowInsets(v: View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
-		return insets
-	}
 }

@@ -135,7 +135,7 @@ class TrackerNotificationHelper @Inject constructor(
 					VISIBILITY_PRIVATE
 				},
 			)
-			val intent = AppRouter.mangaUpdatesIntent(applicationContext)
+			val intent = AppRouter.homeIntent(applicationContext)
 			setContentIntent(
 				PendingIntentCompat.getActivity(
 					applicationContext,
