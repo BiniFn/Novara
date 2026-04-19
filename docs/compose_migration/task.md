@@ -85,55 +85,89 @@
 
 ---
 
-## Phase 2：Browse / Home 视觉升级
+## Phase 2（当前优先级最高）：验收回归与交互修复
 
-### 5. Browse 顶部”每日放松”Hero 重做
+### 5. Browse 顶部“每日放送”Hero 二次收口
 
-- [x] 提升为 Browse 首屏主视觉，位置置顶
-- [x] 背景从状态栏开始渲染，弱化卡片边界感
-- [x] 正式封面缩小，右侧改为信息列（标题 / 共享状态 / 章节 / 源名 / 分类）
-- [x] 超出信息使用省略号而非挤压布局
+- [ ] 背景真正从状态栏顶部开始渲染，而不是仍被限制在搜索栏下方
+- [ ] 统一 Hero 总高度，避免下半部分出现明显空白
+- [ ] Hero 下边缘增加平滑渐变，过渡到当前主题背景色（浅色 / 深色）
+- [ ] 在“每日放送”区域补上追踪网站切换按钮
 
-### 6. 内容源入口改为 2~3 行紧凑网格
+### 6. Browse 追踪卡片背景与高度修正
 
-- [x] 缩小单个 source 图标按钮视觉尺寸
-- [x] 从横向滚动优先改为 2~3 行紧凑展示
-- [x] 保持可点击热区足够大
+- [ ] 其他追踪卡片补齐下边缘渐变过渡，避免生硬截断到主背景
+- [ ] 整体高度继续压缩，避免信息密度不足和大面积空白
+- [ ] 保持封面 / 标题信息在窄屏与常规宽度下都不过度拉伸
 
-### 7. Browse 追踪网页卡片改信息密集样式
+### 7. 主页面搜索栏过滤器真正一致
 
-- [x] 从 Hero 式大卡改为小封面 + 下侧标题
-- [x] 提升单屏信息量，降低视觉噪音
+- [ ] 除 Favorites 外，为 Home / Explore / History / Feed / Local 等主页面补齐语言预设按钮
+- [ ] 修正横屏下搜索栏按钮组居中问题，改为靠右对齐
+- [ ] 修复搜索栏“更多”按钮点击无响应
+- [ ] 复查语言预设 / 内容类型 / 源类型 / 更多按钮在各主页面的显示与行为一致性
 
-### 8. Home 快捷入口视觉统一
+### 8. Details 首帧与 pane 交互回归
 
-- [x] 弱化”工具面板感”
-- [x] 与 Home 其他卡片保持统一材质、间距和层次
+- [ ] 详情页首次进入时封面即保持圆角，避免先直角后圆角
+- [ ] 统一底部工具栏与弹出控件的交互模型，避免悬浮工具栏却弹出可拖拽 sheet 的割裂感
+- [ ] 修复章节 / 页面 / 书签 pane 的实际内容显示，确保真正出现章节列表而非空白或错误内容
+- [ ] 继续保持 Reader / Video 入口不被本轮修复回归影响
+
+### 9. Home 卡片改为可横向拖拽列表
+
+- [ ] 将历史 / 更新 / 推荐改为可左右拖拽的卡片列表
+- [ ] 卡片样式统一为“封面 + 下方名称”
+- [ ] 在窄屏、常规宽度和大屏下验证拖拽、分页与点击行为
+
+### 10. 固定导航栏 UI 的底部 inset 修复
+
+- [ ] 开启“设置 → 外观 → 固定导航栏 UI”后，主页面底部内容应正好滚到导航栏上方
+- [ ] 复查 Home / Explore / History / Favorites / Feed / Local 等主页面的 bottom content padding
 
 **Critical files**
 - `app/src/main/kotlin/org/skepsun/kototoro/discover/ui/compose/DiscoverHeroCarousel.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/compose/ExploreHostScreen.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/compose/ExploreSourcesScreen.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/home/ui/compose/HomeScreen.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/main/ui/compose/KototoroTopBar.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/main/ui/compose/AppNavGraph.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/main/ui/SearchBarFilterViewController.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/details/ui/compose/DetailsScreen.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/details/ui/compose/ChaptersPagesTabsContent.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/details/ui/pager/ChaptersPagesSheet.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/core/ui/compose/HeroComponents.kt`
 
 ---
 
-## Phase 3：产品结构与页面分工收口
+## Phase 3（当前进行中）：Details / Tracking 体验统一
 
-### 9. Home 与 Browse 的产品建议
+### 11. 普通详情页与追踪详情页统一绑定体验
 
-**建议：保留 Home + Browse 双页，不做完全合并；采用“弱合并 + 明确分工”。**
+- [x] 修复当前 working tree 中 details/tracking 改造产生的编译阻塞
+  - `DetailsBindingCard.kt` 的 Compose layout import 缺失
+  - `DetailsHeader.kt` 缺少 `stringArrayResource` import
+  - `TrackingSiteDetailsActivity.kt` 缺少 `router` import
+- [ ] 完成普通详情页顶部绑定卡片收口
+  - 已开始接入“已绑定 tracking 卡片”和“推荐绑定卡片”
+  - 仍需校正解绑语义，不应把已绑定卡片的移除动作继续绑在 `trackingSuggestion?.isLinked`
+  - 仍需确认多绑定场景是否展示首个卡片还是支持多卡片
+- [x] 将 tracking 详情页正式 Compose 化并与普通详情页视觉对齐
+  - `TrackingSiteDetailsActivity` 已改为 `AppCompatActivity` + `setContent {}` 纯 Compose host
+  - `TrackingSiteDetailsScreen` 已实现 collapseProgress / panorama blur / graphicsLayer 动画
+  - `TrackingSiteDetailsFragment` 已改为 ComposeView host
+  - 旧 `activity_tracking_site_details.xml` 已删除
+- [ ] 扩展 tracking 自动推荐绑定逻辑
+  - 当前 `DetailsViewModel.refreshTrackingMatchSuggestion()` 仍只对 `content.isLocal` 生效
+  - 需要扩展到非本地内容，并补齐内容类型过滤、优先站点策略和缓存复用
+- [ ] 打通双向跳转与绑定管理体验
+  - 普通详情页：打开 tracking 详情 / 进入绑定管理 / 绑定建议 / 解除匹配
+  - tracking 详情页：打开本地详情 / 进入绑定管理 / 打开外部页面
 
-- [x] Home 保留继续阅读 / 历史 / 更新 / 快捷入口等个人仪表盘职责
-- [x] Browse 保留每日放松 Hero、内容源入口、追踪网页、发现型推荐等探索职责
-- [x] 统一卡片语言、空态、封面 fallback、标题信息层级
-- [x] 如需代码层调整，优先做职责收敛而不是路由合并
+### 12. 文档交接要求
 
-**Critical files**
-- `app/src/main/kotlin/org/skepsun/kototoro/home/ui/compose/HomeScreen.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/explore/ui/compose/ExploreHostScreen.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/main/ui/compose/AppNavGraph.kt`
+- [ ] 在 `status-snapshot.md` 中持续维护 details/tracking 的真实迁移状态与当前阻塞
+- [ ] 在 `decision-log.md` 中记录“追踪详情页必须 Compose 化”和共享绑定卡片方案的后续决策
+- [ ] 所有后续推进者在继续实现前，先以 `./gradlew :app:compileDebugKotlin --no-daemon` 作为最小校验基线
 
 ---
 
@@ -143,16 +177,40 @@
 - [ ] 大规模重构 `ViewModel` 层职责
 - [ ] 全局导航结构重做或删页
 - [ ] 全局卡片系统抽象重写
-- [ ] CMP / commonMain 抽取（继续保持远期事项）
+---
+
+## Phase 4（全新高优先级）：Settings 系统彻底 Compose 化与去壳
+
+> 目标：构建 Compose Settings 脚手架，彻底移除所有 `preference_*.xml` 布局、`BasePreferenceFragment` 壳以及 `androidx.preference` 依赖。
+
+### 13. 基础 Component 脚手架搭建
+- [x] 实现 `PreferenceCategory`、`TextPreference`、`SwitchPreference` 等基础声明式 UI 组件
+- [x] 实现 `ListPreference` / `MultiSelectListPreference`、`SliderPreference` 组件及带弹窗或内联操作的交互
+- [ ] 建立统一的 `SettingsScreenScaffold` (包含 TopAppBar, 通用 Padding 与 Insets 规避处理)
+
+### 14. 路由、存储层桥接与搜索源替换
+- [x] AI/翻译模块：将 `pref_ai.xml`, `pref_ai_image.xml`, `pref_translation.xml`, `pref_translation_api.xml` 改为纯 Kotlin Key Lists
+- [x] 利用 `observeAsState` + `SharedPreferences.edit {}` 搭建设置数据持久化绑定桥
+- [ ] 彻底重写 `SettingsSearchHelper`，改变其从零散 XML 提取搜索提示的历史路径（已部分完成：AI/翻译模块）
+
+### 15. 各大子设置页面的重写映射
+- [x] `AISettingsScreen` — 纯路由页，导航到各子页面
+- [x] `TranslationSettingsScreen` — 完整 Compose 化，含 OCR/Bubble/Pipeline 全部设置项
+- [x] `TranslationApiSettingsScreen` — 含 endpoint/key/model/custom headers 输入
+- [x] `AIImageEnhancementSettingsScreen` — 含引擎/模式/模型/缓存设置项
+- [ ] 核心单页（Storage, Downloads, Tracking, Sync 等）映射翻译为 Compose DSL
+- [ ] 多子页与深层源管理（ExtensionsRoot, JsonSources 等）的纯 Compose 化跳转
+- [ ] 将相关入口整合至主 `NavHost` 结构中
+
+### 16. 历史包袱最终清理
+- [x] 清理 `pref_ai.xml`, `pref_ai_image.xml`, `pref_translation.xml`, `pref_translation_api.xml`
+- [ ] 清理剩余 `preference_*.xml`（`pref_ai_video.xml` 等）与 `fragment_settings_sources.xml`
+- [ ] 删除不再需要的各种设置 `Fragment` 基类和实现
+- [ ] 清理 `build.gradle` 内的传统 AndroidX Preference 依赖项
 
 ---
 
 ## 中长期迁移项（保持追踪，但不抢当前优先级）
-
-### Settings 语义源统一
-- [ ] 用 typed descriptor / registry 替代 `pref_*.xml` 作为搜索和导航元数据源
-- [ ] 补齐设置 DSL 中的 warning card 组件
-- [ ] 评估 `SettingsTabbedFragmentsScreen` 是否可用 Compose tabs 替代
 
 ### Details / Dialog / Sheet 深化去壳
 - [ ] `DetailsActivity` 从 `ActivityDetailsBinding` 迁到 `setContent {}`
@@ -177,20 +235,22 @@
 
 ### 文档校验
 - [x] `status-snapshot.md` / `decision-log.md` / `task.md` 三者仍保持“状态 / 历史 / 计划”分工
-- [x] 文档对 Details 当前状态的表述与现有代码一致
-- [x] 文档中的优先级顺序与当前真实需求一致
+- [x] 文档优先级顺序已按 2026-04-19 本轮用户验收反馈重排
+- [x] 已将“已完成但仍存在回归/未收口”的事项重新打开
 
 ### 构建 / 静态验证
-- [x] `./gradlew :app:compileDebugKotlin --no-daemon`
-- [x] 如主导航 / 资源 / 布局改动较多，再跑 `./gradlew :app:assembleDebug`
+- [ ] `./gradlew :app:compileDebugKotlin --no-daemon`
+- [ ] 如主导航 / 资源 / 布局改动较多，再跑 `./gradlew :app:assembleDebug`
 
 ### 端到端检查
-- [x] 主页面搜索栏过滤按钮显示与行为一致
-- [x] 详情页章节 / 页面 / 书签 pane 真正可见、可滚动、可操作
-- [x] 收藏页单卡片出现在首列
-- [x] 历史 / 更新 / 推荐 / Browse hero / 追踪网页无空封面白块
-- [x] Browse Hero / 来源入口 / 追踪卡 / Home 快捷入口符合新的视觉目标
-- [x] 覆盖窄屏、常规宽度和至少一种大屏场景
+- [ ] Browse Hero 真正延伸到状态栏，且底部过渡自然
+- [ ] 追踪卡片高度压缩且下边缘过渡自然
+- [ ] 各主页面搜索栏都有语言预设按钮，横屏按钮组靠右，“更多”按钮可点击
+- [ ] 详情页封面首帧即圆角
+- [ ] 详情页章节 / 页面 / 书签 pane 显示真实内容，且交互模型统一
+- [ ] Home 的历史 / 更新 / 推荐支持横向拖拽卡片列表
+- [ ] 开启固定导航栏 UI 后，底部内容不再被导航栏遮挡
+- [ ] 覆盖窄屏、常规宽度、横屏和至少一种大屏场景
 
 ---
 

@@ -185,11 +185,51 @@
 
 - 所有四个任务均通过 `./gradlew :app:compileDebugKotlin --no-daemon`。**Phase 2 全部完成。**
 
-## 2026-04-19：Phase 3 职责归拢与架构收口
 
-### 任务 9：Home / Browse 职责拆分与明确
+## 2026-04-19：Details / Tracking 统一体验进入实现期
 
-- **决策**：Home 与 Browse 采取“弱合并 + 明确分工”：Home 保留历史/更新/个人快捷操作（个人仪表盘），Browse（对应为 Explore/Discover 模块）保留每日推荐 Hero、Tracking 搜索与 Source 入口（探索发现职责）。
-- **执行**：从 `HomeScreen.kt` 中整体移除了 `HomeTrackingHeroSection` 等负责渲染 Tracking 的卡片组件。
-- 引申从 `HomeViewModel.kt` 中清除了与 `TrackingSiteDiscoveryService`、`TrackingSiteCacheRepository`、`PreferredTrackingSiteProvider` 相关的注入及 Flow 处理，使 View 层与 Model 层完全解耦对于追踪站点推荐内容的加载。探索职责完全由 `ExploreHostScreen` + `DiscoverViewModel` 承载。
-- 更新 `AppNavGraph.kt` 中 `HomeScreen` 路由移除与 Tracking 项点击相关回调，达成架构与代码量上的**收敛**。**Phase 3 全量完成。**
+- 用户明确要求：**不要推倒重写现有绑定机制，而是在原生已有 tracking 绑定实现基础上继续增强**，目标是“无论是原生作品详情页还是追踪作品详情页，体验上完全一致，并且可以方便绑定和跳转”。
+- 初始方案曾倾向于“先让 tracking 详情页仅在视觉上向普通详情页靠拢”，但用户随后进一步明确：**追踪网站作品详情页既然需要和普通作品详情页一致，那就必须 Compose 化**。这使得 tracking details 的目标从“样式对齐”升级为“宿主与交互模型一并迁移”。
+- 为减少双端实现分叉，开始引入共享绑定展示层：新增 `LinkedTrackingItemUiModel` 与 `DetailsBindingCard`，作为普通详情页与 tracking 详情页共同复用的绑定信息卡片基础。
+- 普通详情页侧开始接入两类新能力：
+  - 观察当前内容已绑定的 tracking 项并渲染“已绑定 tracking 卡片”；
+  - 在详情 header 内显示“推荐绑定卡片”，并打通打开 tracking 详情、进入绑定管理、执行绑定/解绑等动作。
+- tracking 详情页侧开始 Compose 化：`TrackingSiteDetailsActivity` 被改造成 Compose host，新增 `activity_tracking_site_details.xml` 与 `TrackingSiteDetailsScreen.kt`，并在 `TrackingSiteDetailsViewModel` 暴露 `linkedTrackingItem` 以支持共享卡片渲染。
+- 当前结论：
+  1. **共享绑定卡片** 是 details/tracking 双页统一体验的基础；
+  2. **tracking details Compose 化** 是用户明确指定的必须项，不再接受停留在 Fragment/XML 终态；
+  3. 自动推荐绑定逻辑仍应继续建立在既有 `TrackingSiteMatcher` / cache / DAO 上扩展，而不是另起一套新机制；
+  4. 在文档与交接中必须明确记录：目前该批改动仍处于 working tree 中，且尚有编译阻塞未清完，不能误记为已完成。
+
+## 2026-04-19（夜）：Settings 脚手架提权决议
+
+- **事实背景**：虽然目前大部分设置页面的 UI body 已经切换为 Compose 渲染（L1 迁移），但仍极度依赖 `BasePreferenceFragment`、XML 声明的 Preference Hierarchy 和 `androidx.preference` 等全套包袱，导致大量中间桥接层存在，阻碍了后续更深层次的 Compose/多平台融合。
+- **决议内容**：采纳构建统一的**纯 Compose Settings Scaffold（设置脚手架）**方案，将其设为下一步高优先级任务（新增 Phase 4）。
+- **预期成果**：最终通过搭建基础 UI 层、数据 Flow 同步层与 DSL 声明层，将完全铲除全仓库的 `preference_*.xml` 资源，并全面删除相关 AndroidX Preference 及旧 Fragment/Activity 绑定逻辑。这不但可以解决目前状态散乱的问题，还将显著削减 APK 布局打包并加速构建体验。
+
+## 2026-04-19（续）：Phase 4 首轮执行 — Tracker Compose 化 + AI/翻译设置迁移
+
+### Tracker Details Compose 化（已完成）
+
+- `TrackingSiteDetailsActivity` 从 `BaseActivity<ActivityTrackingSiteDetailsBinding>` 改为 `AppCompatActivity` + `setContent {}`，彻底移除 XML layout 依赖
+- `TrackingSiteDetailsScreen` 注入 `collapseProgress` 滚动折叠算法、panorama blur 背景、`graphicsLayer` 偏移动画，与 `DetailsScreen` 风格一致
+- `TrackingSiteDetailsFragment` 改为纯 `ComposeView` 宿主
+- 删除 `activity_tracking_site_details.xml`
+- 之前记录的编译阻塞（`router` import、`DetailsBindingCard` unresolved 等）已全部修复
+
+### AI/翻译设置 Compose 迁移（已完成）
+
+- **新增 4 个 Compose Screen**：
+  - `AISettingsScreen` — 纯路由页，使用 `SettingsActionPreference` 导航到各子设置
+  - `TranslationSettingsScreen` — 完整 Compose 化，含 General/OCR/Bubble 三个 section，动态显隐基于 pipeline mode
+  - `TranslationApiSettingsScreen` — 含 provider preset、endpoint/key/model text input、fetch models action
+  - `AIImageEnhancementSettingsScreen` — 含 SR 开关、engine/mode/model 选择、cache 管理
+- **改造 4 个 Fragment**：`AISettingsFragment`、`TranslationSettingsFragment`、`TranslationApiSettingsFragment`、`AIImageEnhancementSettingsFragment` 从 `BasePreferenceFragment` 改为 `Fragment` + `ComposeView` 宿主
+- **删除 4 个 XML**：`pref_ai.xml`、`pref_translation.xml`、`pref_translation_api.xml`、`pref_ai_image.xml`
+- **SettingsSearchHelper** 对应的 `inflateTo(R.xml.pref_*)` 调用替换为手工 key lists（`pref_ai_video` 保留）
+
+### 设计决策
+
+1. **Fragment 层仍保留**：虽然 Screen 已 Compose 化，但 Fragment 宿主仍保留以兼容 `SettingsActivity` 的 Fragment 导航架构。完全去 Fragment 化需等 `SettingsActivity` 整体重构。
+2. **模型选项列表在 Fragment 构建**：`TranslationSettingsFragment` 中 ONNX 模型选项列表在 `onViewCreated` 中通过 `OnnxModelManager` 构建后传入 Compose Screen，而非在 Compose 中直接注入 Manager（避免 Compose 层对 Hilt 注入的直接依赖）。
+3. **数据绑定模式**：采用 `settings.observeAsState(KEY) { getter }` + `settings.prefs.edit { putX(KEY, value) }` 模式，与已有的 Reader/Playback 设置 Screen 保持一致。

@@ -14,10 +14,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import org.skepsun.kototoro.home.ui.HomeViewModel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
 import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
+import org.skepsun.kototoro.main.ui.MainActivity
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -32,6 +36,7 @@ fun AppNavGraph(
 ) {
     val activity = LocalContext.current as FragmentActivity
     val appRouter = activity.router
+    val mainActivity = activity as? MainActivity
 
     NavHost(
         navController = navController,
@@ -42,6 +47,46 @@ fun AppNavGraph(
             val viewModel = hiltViewModel<HomeViewModel>()
             val state by viewModel.summaryState.collectAsStateWithLifecycle()
             val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
+
+            DisposableEffect(mainActivity, viewModel, state.selectedTab, state.selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun getSelectedContentType(): BrowseGroupTab = when (state.selectedTab) {
+                        org.skepsun.kototoro.home.ui.HomeContentTab.MANGA -> BrowseGroupTab.Content
+                        org.skepsun.kototoro.home.ui.HomeContentTab.NOVEL -> BrowseGroupTab.Novel
+                        org.skepsun.kototoro.home.ui.HomeContentTab.VIDEO -> BrowseGroupTab.Video
+                        null -> BrowseGroupTab.All
+                    }
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        viewModel.setSelectedTab(
+                            when (if (getSelectedContentType() == tab) BrowseGroupTab.All else tab) {
+                                BrowseGroupTab.Content -> org.skepsun.kototoro.home.ui.HomeContentTab.MANGA
+                                BrowseGroupTab.Novel -> org.skepsun.kototoro.home.ui.HomeContentTab.NOVEL
+                                BrowseGroupTab.Video -> org.skepsun.kototoro.home.ui.HomeContentTab.VIDEO
+                                else -> null
+                            }
+                        )
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = state.selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        val current = state.selectedSourceTags
+                        viewModel.setSelectedSourceTags(
+                            when {
+                                tag == null -> emptySet()
+                                tag in current -> current - tag
+                                else -> current + tag
+                            }
+                        )
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             HomeScreen(
                 contentPadding = contentPadding,
                 state = state,
@@ -81,9 +126,40 @@ fun AppNavGraph(
             )
         }
         composable("discover") {
+            val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
+            val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
+            val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+
+            DisposableEffect(mainActivity, exploreViewModel, selectedGroupTab, selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        exploreViewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        exploreViewModel.setSelectedSourceTags(
+                            when {
+                                tag == null -> emptySet()
+                                tag in selectedSourceTags -> selectedSourceTags - tag
+                                else -> selectedSourceTags + tag
+                            }
+                        )
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
                 appRouter = appRouter,
-                contentPadding = contentPadding
+                contentPadding = contentPadding,
+                exploreViewModel = exploreViewModel
             )
         }
         composable("history") {
@@ -92,10 +168,37 @@ fun AppNavGraph(
             val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
             val isStatsEnabled by viewModel.isStatsEnabled.collectAsStateWithLifecycle(initialValue = false)
             val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
+            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
+            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
             var selectedItemsIds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(emptySet<Long>()) }
             var showClearDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-            val isLoading = items.any { it is org.skepsun.kototoro.list.ui.model.LoadingState }
-            
+
+            DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        viewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        viewModel.setSelectedSourceTags(
+                            when {
+                                tag == null -> emptySet()
+                                tag in selectedSourceTags -> selectedSourceTags - tag
+                                else -> selectedSourceTags + tag
+                            }
+                        )
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             org.skepsun.kototoro.history.ui.compose.HistoryScreen(
                 contentPadding = contentPadding,
                 items = items,
@@ -106,18 +209,18 @@ fun AppNavGraph(
                 selectedItemsIds = selectedItemsIds,
                 onRefresh = { viewModel.onRefresh() },
                 onLoadMore = { viewModel.requestMoreItems() },
-                onItemClick = { item -> 
+                onItemClick = { item ->
                     if (selectedItemsIds.isNotEmpty()) {
                         selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                     } else {
                         appRouter.openDetails(item.toContentWithOverride(), null)
                     }
                 },
-                onItemLongClick = { item -> 
+                onItemLongClick = { item ->
                     selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                 },
                 onClearSelection = { selectedItemsIds = emptySet() },
-                onSelectionAction = { action -> 
+                onSelectionAction = { action ->
                     if (action == org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE) {
                         viewModel.removeFromHistory(selectedItemsIds)
                         selectedItemsIds = emptySet()
@@ -126,7 +229,7 @@ fun AppNavGraph(
                 onClearHistoryClick = { showClearDialog = true },
                 onStatsClick = { appRouter.openStatistic() }
             )
-            
+
             if (showClearDialog) {
                 org.skepsun.kototoro.history.ui.compose.ClearHistoryDialog(
                     onDismissRequest = { showClearDialog = false },
@@ -147,20 +250,77 @@ fun AppNavGraph(
                 contentPadding = contentPadding
             )
         }
-        composable("explore") { 
+        composable("explore") {
+            val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
+            val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
+            val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+
+            DisposableEffect(mainActivity, exploreViewModel, selectedGroupTab, selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        exploreViewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        exploreViewModel.setSelectedSourceTags(
+                            when {
+                                tag == null -> emptySet()
+                                tag in selectedSourceTags -> selectedSourceTags - tag
+                                else -> selectedSourceTags + tag
+                            }
+                        )
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
                 appRouter = appRouter,
-                contentPadding = contentPadding
+                contentPadding = contentPadding,
+                exploreViewModel = exploreViewModel
             )
         }
-        composable("feed") { 
+        composable("feed") {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
             val isRunning by viewModel.isRunning.collectAsStateWithLifecycle()
-            
+            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
+            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-            
+
+            DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        viewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        if (tag == null) {
+                            selectedSourceTags.forEach(viewModel::toggleSourceTag)
+                        } else {
+                            viewModel.toggleSourceTag(tag)
+                        }
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             androidx.compose.runtime.DisposableEffect(viewModel, activity, lifecycleOwner) {
                 val menuProvider = org.skepsun.kototoro.tracker.ui.feed.FeedMenuProvider(
                     snackbarHost = activity?.window?.decorView?.rootView ?: android.view.View(activity),
@@ -179,7 +339,7 @@ fun AppNavGraph(
                     event?.consume(observer)
                 }
             }
-            
+
             org.skepsun.kototoro.tracker.ui.feed.compose.FeedScreen(
                 contentPadding = contentPadding,
                 items = items,

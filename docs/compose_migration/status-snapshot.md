@@ -2,8 +2,8 @@
 
 > 最后校对日期：2026-04-19
 >
-> 本文件只描述**此刻代码的事实状态**。不包含历史决策、未来计划。
-> 所有判断均来自对 `main` 分支代码文件的直接审查。
+> 本文件描述**此刻代码的事实状态**，并补充 2026-04-19 本轮用户验收反馈中已明确出现的 UI 回归。
+> 不包含历史决策、未来计划。
 
 ## 迁移深度定义
 
@@ -45,18 +45,22 @@
 
 ## 设置系统
 
-### Settings 页面渲染 — **L1**
+### Settings 页面渲染 — **L1（AI/翻译模块已提升至 L2）**
 
 | 方面 | 状态 |
 |------|------|
 | Root 入口 | `RootSettingsFragment` 承载 Compose 入口页 |
 | 二级页面 | Appearance / StorageAndNetwork / Services / Downloads / Tracker / Sources / Backups / Notification / JsonSources / Extensions 均已 Compose 渲染 |
+| AI 设置 | `AISettingsScreen` 纯 Compose 路由页（已删除 `pref_ai.xml`） |
+| 翻译设置 | `TranslationSettingsScreen` 完整 Compose 化，含 OCR/Bubble/Pipeline 全部设置项（已删除 `pref_translation.xml`） |
+| API 设置 | `TranslationApiSettingsScreen` Compose 化，含 text input / fetch models（已删除 `pref_translation_api.xml`） |
+| 图像增强 | `AIImageEnhancementSettingsScreen` Compose 化（已删除 `pref_ai_image.xml`） |
 | 导航 | 仍复用 `SettingsActivity` + Fragment 跳转 |
-| 搜索索引 | `SettingsSearchHelper` 仍直接解析 28 个 `pref_*.xml` 作为搜索元数据源 |
+| 搜索索引 | `SettingsSearchHelper` AI/翻译模块已改用 Kotlin key lists，剩余模块仍解析 `pref_*.xml` |
 | 子页宿主 | `SettingsTabbedFragmentsScreen` 仍用 `AndroidView + FragmentContainerView` 承载子 Fragment |
-| Warning card | 设置 DSL 中承诺但**未实现** |
+| 仍使用 BasePreferenceFragment 的页面 | AIVideo / TTS / E2E API / OCR Models / Sync / Suggestions / Sources / Proxy / Discord / About / DataCleanup |
 
-**关键事实**：渲染层已 Compose 化，但语义模型（搜索索引、配置定义）仍绑定老 Preference XML 体系。
+**关键事实**：AI/翻译相关 4 个 XML preference 文件已全部删除并替换为 Compose 屏幕。其余模块渲染层已 Compose 化但语义模型仍绑定老 Preference XML 体系。
 
 ---
 
@@ -109,31 +113,51 @@
 
 `ContentListActivity` 已迁移为 Compose 路由。
 
-### Details — **L1**
+### Details — **L1（正在向 L2 推进，但当前 working tree 尚未编译通过）**
 
 | 方面 | 状态 |
 |------|------|
 | Activity | `DetailsActivity` 仍使用 `ActivityDetailsBinding` |
 | Compose 接入 | 通过 `viewBinding.composeView?.setContent { DetailsScreen(...) }` |
 | 头部 / 操作 | Compose `DetailsScreen` 完成 |
-| 详情页 pane 宿主 | `DetailsScreen` 已在 Compose 内使用 `ModalBottomSheet` 打开章节 / 页面 / 书签 pane |
+| pane 宿主 | `DetailsScreen` 已在 Compose 内使用 `ModalBottomSheet` 打开章节 / 页面 / 书签 pane |
 | pane 内容 | `ChaptersPagesTabsContent` 已承载 Chapters / Pages / Bookmarks 与 Compose toolbar |
 | 通用 adaptive sheet | `ChaptersPagesSheet` 仍保留给 Reader / Video 入口，不再应视为详情页的主 pane 宿主 |
 | 阅读入口 | `DetailsActivity` 与 `ReadButtonDelegate` 已共用 `openDetailsReader(...)`，EPUB 历史修正 / 视频恢复播放 / incognito 逻辑已收敛 |
 | tab 记忆 | `ChaptersPagesSheet` 已改为持久化语义 tab id（chapters / pages / bookmarks），避免把 pager index 写回 `lastDetailsTab` |
-| 当前回归 | ~~详情页 Compose pane 内容区高度分配异常~~（**已修复**）：`ChaptersPagesToolbar` FilterChip 改为横排 `Row`，`ModalBottomSheet` 加 `skipPartiallyExpanded = true` |
-| 转场 | 依赖 XML `imageViewCover` 做共享元素转场；**已去除 350 ms 硬编码启动**，仅保留图片加载回调 + 1200 ms fallback |
+| 绑定体验（进行中） | working tree 中已新增"已绑定 tracking 卡片"数据流和共享 `DetailsBindingCard` 组件，并开始把推荐绑定卡片接入普通详情页 header |
+| 当前阻塞 | ~~details/tracking 新增代码编译错误~~（**已修复**）。自动推荐绑定仍仅对 `content.isLocal` 生效 |
+| 当前回归 | ~~详情页 Compose pane 内容区高度分配异常~~（**高度挤压已修复**），但根据 2026-04-19 用户验收反馈，仍存在 **首帧封面先直角后圆角**、**底部工具栏与弹出控件交互模型不一致**、**章节 / 页面 / 书签 pane 未稳定显示真实列表内容** |
+| 转场 | 依赖 XML `imageViewCover` 做共享元素转场；**已去除 350 ms 硬编码启动**，仅保留图片加载回调 + 1200 ms fallback，但当前首帧圆角观感仍未完全收口 |
 | 删除确认 | Compose `AlertDialog` |
 | `DetailsMenuProvider` | 已删除（171 行未被引用） |
 | `OpenTracking/OpenStatistics` Action | Activity 端死分支已删除，仅由 Compose 内 dialog state 驱动 |
 
-**降级原因**：仍是 XML Activity 壳 + ComposeView 混合宿主；虽然详情页 pane 已进入 Compose，但 Activity / 转场 / 平台桥仍未去壳。
+**降级原因**：仍是 XML Activity 壳 + ComposeView 混合宿主；虽然详情页 pane 已进入 Compose，但 Activity / 转场 / 平台桥仍未去壳，且新的 tracking 统一体验改造尚未编译收口。
+
+### Tracking Site Details — **L2（已完成 Compose host 迁移）**
+
+| 方面 | 状态 |
+|------|------|
+| Activity | `TrackingSiteDetailsActivity` 已改为 `AppCompatActivity` + `setContent {}` 纯 Compose host，不再使用 `ViewBinding` |
+| Screen | `TrackingSiteDetailsScreen` 已实现 collapseProgress / panorama blur / graphicsLayer 动画，与 `DetailsScreen` 风格对齐 |
+| Fragment | `TrackingSiteDetailsFragment` 已改为 `ComposeView` host |
+| ViewModel | `TrackingSiteDetailsViewModel` 已暴露 `linkedContent`、`scrobblingEntity`、`linkedTrackingItem` 供 Compose 卡片渲染 |
+| 旧 XML | `activity_tracking_site_details.xml` 已删除，`ActivityTrackingSiteDetailsBinding` 不再使用 |
+| 当前结论 | 追踪详情页与普通详情页在 header 结构、滚动折叠动画、模糊背景上已一致 |
 
 ### 当前已识别的 UI 回归（待修）
 
-- ~~主页面搜索栏过滤器接线不一致：`KototoroTopBar` 已支持语言预设 / 内容类型 / 源类型，但只有部分页面正确桥接了 `SearchBarFilterViewController`~~（**已修复**：统一默认展示所有过滤器按钮以防突兀消失）
+- 2026-04-19 用户验收反馈显示：**Browse 顶部“每日放送” Hero 仍未真正延伸到状态栏顶部**，视觉上仍被搜索栏下沿截断；同时 Hero 总高度偏高，下半部分存在明显空白，底部也缺少向主题背景的平滑渐变过渡。
+- **Browse 其他追踪卡片** 当前仍缺少下边缘背景过渡，且整体高度偏高，信息密度与视觉重心仍未收口。
+- ~~主页面搜索栏过滤器接线不一致：`KototoroTopBar` 已支持语言预设 / 内容类型 / 源类型，但只有部分页面正确桥接了 `SearchBarFilterViewController`~~（此前的“统一默认展示”只能避免按钮整体消失）；**根据最新验收，除 Favorites 外其余主页面仍缺语言预设按钮**，且横屏时按钮组会居中，“更多”按钮点击无响应。
+- **Browse 顶部“每日放送”区域当前缺少追踪网站切换按钮**，站点切换能力未回到首屏主视觉入口。
 - ~~收藏页 grid 模式下，单个内容卡片可能被前置非 `ContentGridModel` 项挤到第二列~~（**已修复**：`LazyVerticalGrid` 的 `items` 添加 `span` 参数，非 `ContentGridModel` 项占满整行）
-- ~~Home / Browse / Discover 的 hero/backdrop 在封面为空时仍可能出现割裂的白色矩形占位~~（**已修复**：添加深色 fallback 背景层级）
+- ~~Home / Browse / Discover 的 hero/backdrop 在封面为空时仍可能出现割裂的白色矩形占位~~（**基础 fallback 已修复**），但 Hero / Tracking 卡片底部的主题过渡处理仍未全部完成。
+- **Home 的历史 / 更新 / 推荐** 目前虽已合并为更紧凑的三合一卡片，但用户期望的最终形态仍是可左右拖拽的封面卡片列表。
+- **设置页** 当前已收紧 section 间距并移除部分嵌套层次，但用户新增要求还包括：移除“透明特效等级”设置入口，并继续永久消除 section 内嵌浅色背景感。
+- **普通详情页与 tracking 详情页统一绑定体验** 当前只完成了数据模型与首轮 UI 接线，自动推荐绑定仍仅对 `content.isLocal` 生效，尚未完成非本地内容、类型过滤、优先站点与缓存策略扩展。
+- **开启“设置 → 外观 → 固定导航栏 UI”后**，主页面底部内容仍可能被导航栏遮挡，说明 bottom inset / content padding 仍未完全统一。
 
 ---
 

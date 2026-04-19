@@ -44,7 +44,12 @@ fun KototoroApp(
     onAuthorSuggestionClick: (String) -> Unit = {},
     onDeleteQuery: (String) -> Unit = {},
     onVoiceInput: () -> Unit = {},
-    onMoreClick: (android.view.View?) -> Unit = {},
+    onOpenListOptions: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    isAppUpdateAvailable: Boolean = false,
+    onAppUpdateClick: () -> Unit = {},
+    isIncognitoModeEnabled: Boolean = false,
+    onIncognitoToggle: () -> Unit = {},
     isLanguagePresetFilterVisible: Boolean = false,
     onLanguagePresetFilterClick: (android.view.View?) -> Boolean = { false },
     selectedContentType: ContentType? = null,
@@ -73,7 +78,7 @@ fun KototoroApp(
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
     var topBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
-    
+
     val nestedScrollConnection = remember(isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
@@ -89,7 +94,7 @@ fun KototoroApp(
             }
         }
     }
-    
+
     val visibleTopInsetPx = (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
     val visibleBottomInsetPx = if (isFloating) {
         0
@@ -141,7 +146,6 @@ fun KototoroApp(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // TopBar at the top
             KototoroTopBar(
                 query = query,
                 suggestions = suggestions,
@@ -153,7 +157,12 @@ fun KototoroApp(
                 onAuthorSuggestionClick = onAuthorSuggestionClick,
                 onDeleteQuery = onDeleteQuery,
                 onVoiceInput = onVoiceInput,
-                onMoreClick = onMoreClick,
+                onOpenListOptions = onOpenListOptions,
+                onSettingsClick = onSettingsClick,
+                isAppUpdateAvailable = isAppUpdateAvailable,
+                onAppUpdateClick = onAppUpdateClick,
+                isIncognitoModeEnabled = isIncognitoModeEnabled,
+                onIncognitoToggle = onIncognitoToggle,
                 isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
                 hasActiveLanguagePreset = activeSourcePresetId > 0L,
                 onLanguagePresetFilterClick = onLanguagePresetFilterClick,
@@ -179,7 +188,6 @@ fun KototoroApp(
                     },
             )
 
-            // BottomNav at the bottom
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

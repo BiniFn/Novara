@@ -41,8 +41,8 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreenRoot
@@ -69,6 +69,7 @@ fun ChaptersPagesTabsContent(
 	pagesViewModel: PagesViewModel,
 	bookmarksViewModel: BookmarksViewModel,
 	settings: AppSettings,
+	appRouter: AppRouter,
 	pageSaveHelper: PageSaveHelper,
 	initialPage: Int = 0,
 	selectedTabId: Int? = null,
@@ -103,8 +104,7 @@ fun ChaptersPagesTabsContent(
 	}
 
 	val context = LocalContext.current
-	val activity = context as? BaseActivity<*>
-	val router = activity?.router
+	val router = appRouter
 	val viewForSnackbar = LocalView.current
 	val lifecycleOwner = LocalLifecycleOwner.current
 	val coroutineScope = rememberCoroutineScope()

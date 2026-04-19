@@ -53,379 +53,348 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>() {
-	override fun onApplyWindowInsets(v: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
-		val typeMask = androidx.core.view.WindowInsetsCompat.Type.systemBars()
-		return insets.consume(v, typeMask, start = false)
-	}
+    override fun onApplyWindowInsets(v: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+        val typeMask = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+        return insets.consume(v, typeMask, start = false)
+    }
 
+    @Inject
+    lateinit var settings: AppSettings
 
-	@Inject
-	lateinit var settings: AppSettings
+    @Inject
+    lateinit var backupStartupCoordinator: BackupStartupCoordinator
 
-	@Inject
-	lateinit var backupStartupCoordinator: BackupStartupCoordinator
+    private val viewModel by viewModels<MainViewModel>()
+    private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
+    private val voiceInputLauncher = registerForActivityResult(VoiceInputContract()) { result ->
+        val query = result?.trim().orEmpty()
+        if (query.isNotEmpty()) {
+            updateSearchQuery(query)
+        }
+    }
 
-	private val viewModel by viewModels<MainViewModel>()
-	private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
-	private val voiceInputLauncher = registerForActivityResult(VoiceInputContract()) { result ->
-		val query = result?.trim().orEmpty()
-		if (query.isNotEmpty()) {
-			updateSearchQuery(query)
-		}
-	}
+    private var isFoldUnfolded = false
+    private val navStateFlow = MutableStateFlow(BottomNavState())
+    private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
 
-		private var isFoldUnfolded = false
-	private val navStateFlow = MutableStateFlow(BottomNavState())
-	private lateinit var composeNavBarDelegator: ComposeAppNavBarDelegator
+    private var topBarHeightPx = 0
+    private var bottomNavHeightPx = 0
+    private var containerTopInsetPx = 0
+    private var containerBottomInsetPx = 0
+    private var searchQuery by mutableStateOf("")
+    private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
 
-	private var topBarHeightPx = 0
-	private var bottomNavHeightPx = 0
-	private var containerTopInsetPx = 0
-	private var containerBottomInsetPx = 0
-	private var searchQuery by mutableStateOf("")
-	
-	private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
+    private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
+    private var activeFilterContentType by mutableStateOf<ContentType?>(null)
+    private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
+    private var isLanguagePresetFilterVisible by mutableStateOf(false)
+    private var isContentTypeFilterVisible by mutableStateOf(true)
+    private var isSourceTagFilterVisible by mutableStateOf(true)
+    private var availableSourceTags by mutableStateOf(SourceTag.quickFilterEntries)
+    private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
+    private var enabledContentTypes by mutableStateOf(allTopBarContentTypes())
 
-	private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
-	private var activeFilterContentType by mutableStateOf<ContentType?>(null)
-	private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
-	private var isLanguagePresetFilterVisible by mutableStateOf(false)
-	private var isContentTypeFilterVisible by mutableStateOf(true)
-	private var isSourceTagFilterVisible by mutableStateOf(true)
-	private var availableSourceTags by mutableStateOf(SourceTag.quickFilterEntries)
-	private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
-	private var enabledContentTypes by mutableStateOf(allTopBarContentTypes())
+    fun setActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
+        currentFilterCallback = callback
+        refreshFilters()
+    }
 
-	fun setActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
-		currentFilterCallback = callback
-		refreshFilters()
-	}
+    fun clearActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
+        if (currentFilterCallback == callback) {
+            clearActiveFilters()
+        }
+    }
 
-	fun clearActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
-		if (currentFilterCallback == callback) {
-			clearActiveFilters()
-		}
-	}
+    fun refreshFilters() {
+        val callback = currentFilterCallback ?: return
+        val selectedTab = callback.getSelectedContentType()
+        activeFilterContentType = when (selectedTab) {
+            BrowseGroupTab.Novel -> ContentType.NOVEL
+            BrowseGroupTab.Video -> ContentType.VIDEO
+            BrowseGroupTab.Content -> ContentType.MANGA
+            else -> null
+        }
+        activeFilterSourceTags = callback.getSelectedSourceTags()
+        isLanguagePresetFilterVisible = callback.isLanguagePresetFilterVisible()
+        isContentTypeFilterVisible = callback.isContentTypeFilterVisible()
+        val sourceTagEntries = callback.getSourceTagEntries()
+        availableSourceTags = sourceTagEntries
+        isSourceTagFilterVisible = callback.isSourceTagFilterVisible() && sourceTagEntries.isNotEmpty()
+        enabledSourceTags = sourceTagEntries.filterTo(linkedSetOf()) { tag ->
+            callback.isSourceTagEnabled(tag)
+        }
+        enabledContentTypes = buildSet {
+            if (callback.isContentTypeEnabled(BrowseGroupTab.Content)) {
+                add(ContentType.MANGA)
+            }
+            if (callback.isContentTypeEnabled(BrowseGroupTab.Novel)) {
+                add(ContentType.NOVEL)
+            }
+            if (callback.isContentTypeEnabled(BrowseGroupTab.Video)) {
+                add(ContentType.VIDEO)
+            }
+        }
+        syncSearchSuggestionFilters()
+    }
 
-	fun refreshFilters() {
-		val callback = currentFilterCallback ?: return
-		val selectedTab = callback.getSelectedContentType()
-		activeFilterContentType = when (selectedTab) {
-			BrowseGroupTab.Novel -> ContentType.NOVEL
-			BrowseGroupTab.Video -> ContentType.VIDEO
-			BrowseGroupTab.Content -> ContentType.MANGA
-			else -> null
-		}
-		activeFilterSourceTags = callback.getSelectedSourceTags()
-		isLanguagePresetFilterVisible = callback.isLanguagePresetFilterVisible()
-		isContentTypeFilterVisible = callback.isContentTypeFilterVisible()
-		val sourceTagEntries = callback.getSourceTagEntries()
-		availableSourceTags = sourceTagEntries
-		isSourceTagFilterVisible = callback.isSourceTagFilterVisible() && sourceTagEntries.isNotEmpty()
-		enabledSourceTags = sourceTagEntries.filterTo(linkedSetOf()) { tag ->
-			callback.isSourceTagEnabled(tag)
-		}
-		enabledContentTypes = buildSet {
-			if (callback.isContentTypeEnabled(BrowseGroupTab.Content)) {
-				add(ContentType.MANGA)
-			}
-			if (callback.isContentTypeEnabled(BrowseGroupTab.Novel)) {
-				add(ContentType.NOVEL)
-			}
-			if (callback.isContentTypeEnabled(BrowseGroupTab.Video)) {
-				add(ContentType.VIDEO)
-			}
-		}
-		syncSearchSuggestionFilters()
-	}
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        searchQuery = savedInstanceState?.getString(STATE_TOP_BAR_QUERY).orEmpty()
 
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		searchQuery = savedInstanceState?.getString(STATE_TOP_BAR_QUERY).orEmpty()
-		
-		composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
-		
-		lifecycleScope.launch {
-			settings.observeAsFlow(AppSettings.KEY_NAV_MAIN) { mainNavItems }
-				.collect { items ->
-					composeNavBarDelegator.setupMenu(items)
-				}
-		}
+        composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
 
-		viewModel.isResumeEnabled.observe(this) { isEnabled ->
-			isResumeEnabledState = isEnabled
-		}
-		
-		if (!setContentViewWebViewSafe { ActivityMainBinding.inflate(layoutInflater) }) {
-			return
-		}
+        lifecycleScope.launch {
+            settings.observeAsFlow(AppSettings.KEY_NAV_MAIN) { mainNavItems }
+                .collect { items ->
+                    composeNavBarDelegator.setupMenu(items)
+                }
+        }
 
-		viewBinding.composeRoot.setContent {
-			val suggestions by searchSuggestionViewModel.suggestion.collectAsState(initial = emptyList())
+        viewModel.isResumeEnabled.observe(this) { isEnabled ->
+            isResumeEnabledState = isEnabled
+        }
 
-			KototoroApp(
-					appSettings = settings,
-					navStateFlow = navStateFlow,
-					suggestions = suggestions,
-					onQueryChanged = ::updateSearchQuery,
-					onSearch = { query -> submitSearch(query) },
-					query = searchQuery,
-					isResumeEnabled = isResumeEnabledState,
-					onResumeClick = viewModel::openLastReader,
-			onContentSuggestionClick = router::openDetails,
-				onTagSuggestionClick = { tag ->
-					submitSearch(tag.title, SearchKind.TAG)
-				},
-				onSourceSuggestionClick = { source ->
-					this.router.openList(source, null, null)
-				},
-				onAuthorSuggestionClick = { author ->
-					submitSearch(author, SearchKind.AUTHOR)
-				},
-				onDeleteQuery = searchSuggestionViewModel::deleteQuery,
-				onVoiceInput = {
-					try {
-						voiceInputLauncher.launch(null)
-					} catch (e: Exception) {
-						android.widget.Toast.makeText(this@MainActivity, R.string.voice_search, android.widget.Toast.LENGTH_SHORT).show()
-						e.printStackTrace()
-					}
-				},
-				onMoreClick = { anchorView ->
-					if (anchorView != null) {
-						showOverflowMenu(anchorView)
-					} else {
-						showOverflowMenu(viewBinding.composeRoot)
-					}
-				},
-				onTopBarHeightChanged = { height ->
-					if (topBarHeightPx != height) {
-						topBarHeightPx = height
-						viewModel.setTopBarHeightPx(height)
-					}
-				},
-				onBottomNavHeightChanged = { height ->
-					if (bottomNavHeightPx != height) {
-						bottomNavHeightPx = height
-						viewModel.setBottomNavHeightPx(height)
-					}
-				},
-				onContentInsetsChanged = { topInset, bottomInset ->
-					if (containerTopInsetPx != topInset || containerBottomInsetPx != bottomInset) {
-						containerTopInsetPx = topInset
-						containerBottomInsetPx = bottomInset
-						viewModel.setContentInsetsPx(topInset, bottomInset)
-					}
-				},
-				onNavDestinationChanged = { itemId ->
-					composeNavBarDelegator.handleItemSelected(itemId)
-				},
-				isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
-				onLanguagePresetFilterClick = ::onLanguagePresetFilterClick,
-				selectedContentType = activeFilterContentType,
-				enabledContentTypes = enabledContentTypes,
-				isContentTypeFilterVisible = isContentTypeFilterVisible,
-				onContentTypeSelected = { type ->
-					if (type == null || type in enabledContentTypes) {
-						activeFilterContentType = type
-						syncSearchSuggestionFilters()
-						val tab = when (type) {
-							ContentType.NOVEL -> BrowseGroupTab.Novel
-							ContentType.VIDEO -> BrowseGroupTab.Video
-							ContentType.MANGA -> BrowseGroupTab.Content
-							else -> BrowseGroupTab.All
-						}
-						currentFilterCallback?.onContentTypeSelected(tab)
-					}
-				},
-				selectedSourceTags = activeFilterSourceTags,
-				sourceTagEntries = availableSourceTags,
-				enabledSourceTags = enabledSourceTags,
-				isSourceTagFilterVisible = isSourceTagFilterVisible,
-				onSourceTagFilterClick = ::onSourceTagFilterClick,
-				onSourceTagSelected = { tag ->
-					if (tag == null || tag in enabledSourceTags) {
-						activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
-						syncSearchSuggestionFilters()
-						currentFilterCallback?.onSourceTagSelected(tag)
-					}
-				}
-			)
-		}
-		viewModel.onFirstStart.observeEvent(this) { this.router.showWelcomeSheet() }
-		viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
+        if (!setContentViewWebViewSafe { ActivityMainBinding.inflate(layoutInflater) }) {
+            return
+        }
 
-		if (savedInstanceState == null) {
-			onFirstStart()
-		}
+        viewBinding.composeRoot.setContent {
+            val suggestions by searchSuggestionViewModel.suggestion.collectAsState(initial = emptyList())
+            val appUpdate by viewModel.appUpdate.collectAsState(initial = null)
+            val isIncognitoModeEnabled by viewModel.isIncognitoModeEnabled.collectAsState()
 
-		// 观察折叠屏状态变化
-		observeFoldableState()
-	}
+            KototoroApp(
+                appSettings = settings,
+                navStateFlow = navStateFlow,
+                suggestions = suggestions,
+                onQueryChanged = ::updateSearchQuery,
+                onSearch = { query -> submitSearch(query) },
+                query = searchQuery,
+                isResumeEnabled = isResumeEnabledState,
+                onResumeClick = viewModel::openLastReader,
+                onContentSuggestionClick = router::openDetails,
+                onTagSuggestionClick = { tag ->
+                    submitSearch(tag.title, SearchKind.TAG)
+                },
+                onSourceSuggestionClick = { source ->
+                    this.router.openList(source, null, null)
+                },
+                onAuthorSuggestionClick = { author ->
+                    submitSearch(author, SearchKind.AUTHOR)
+                },
+                onDeleteQuery = searchSuggestionViewModel::deleteQuery,
+                onVoiceInput = {
+                    try {
+                        voiceInputLauncher.launch(null)
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(this@MainActivity, R.string.voice_search, android.widget.Toast.LENGTH_SHORT).show()
+                        e.printStackTrace()
+                    }
+                },
+                onOpenListOptions = {
+                    this.router.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.General)
+                },
+                onSettingsClick = {
+                    this.router.openSettings()
+                },
+                isAppUpdateAvailable = appUpdate != null,
+                onAppUpdateClick = {
+                    this.router.openAppUpdate()
+                },
+                isIncognitoModeEnabled = isIncognitoModeEnabled,
+                onIncognitoToggle = {
+                    viewModel.setIncognitoMode(!isIncognitoModeEnabled)
+                },
+                onTopBarHeightChanged = { height ->
+                    if (topBarHeightPx != height) {
+                        topBarHeightPx = height
+                        viewModel.setTopBarHeightPx(height)
+                    }
+                },
+                onBottomNavHeightChanged = { height ->
+                    if (bottomNavHeightPx != height) {
+                        bottomNavHeightPx = height
+                        viewModel.setBottomNavHeightPx(height)
+                    }
+                },
+                onContentInsetsChanged = { topInset, bottomInset ->
+                    if (containerTopInsetPx != topInset || containerBottomInsetPx != bottomInset) {
+                        containerTopInsetPx = topInset
+                        containerBottomInsetPx = bottomInset
+                        viewModel.setContentInsetsPx(topInset, bottomInset)
+                    }
+                },
+                onNavDestinationChanged = { itemId ->
+                    composeNavBarDelegator.handleItemSelected(itemId)
+                },
+                isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
+                onLanguagePresetFilterClick = ::onLanguagePresetFilterClick,
+                selectedContentType = activeFilterContentType,
+                enabledContentTypes = enabledContentTypes,
+                isContentTypeFilterVisible = isContentTypeFilterVisible,
+                onContentTypeSelected = { type ->
+                    if (type == null || type in enabledContentTypes) {
+                        activeFilterContentType = type
+                        syncSearchSuggestionFilters()
+                        val tab = when (type) {
+                            ContentType.NOVEL -> BrowseGroupTab.Novel
+                            ContentType.VIDEO -> BrowseGroupTab.Video
+                            ContentType.MANGA -> BrowseGroupTab.Content
+                            else -> BrowseGroupTab.All
+                        }
+                        currentFilterCallback?.onContentTypeSelected(tab)
+                    }
+                },
+                selectedSourceTags = activeFilterSourceTags,
+                sourceTagEntries = availableSourceTags,
+                enabledSourceTags = enabledSourceTags,
+                isSourceTagFilterVisible = isSourceTagFilterVisible,
+                onSourceTagFilterClick = ::onSourceTagFilterClick,
+                onSourceTagSelected = { tag ->
+                    if (tag == null || tag in enabledSourceTags) {
+                        activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
+                        syncSearchSuggestionFilters()
+                        currentFilterCallback?.onSourceTagSelected(tag)
+                    }
+                },
+            )
+        }
+        viewModel.onFirstStart.observeEvent(this) { this.router.showWelcomeSheet() }
+        viewModel.isBottomNavPinned.observe(this, ::setNavbarPinned)
 
-	override fun onSaveInstanceState(outState: Bundle) {
-		super.onSaveInstanceState(outState)
-		outState.putString(STATE_TOP_BAR_QUERY, searchQuery)
-	}
+        if (savedInstanceState == null) {
+            onFirstStart()
+        }
 
-	private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
-		if (query.isEmpty()) {
-			return
-		}
-		updateSearchQuery(query)
-		if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
-			this.router.openDetails(query.toUri())
-			return
-		}
-		this.router.openSearch(
-			query = query,
-			kind = kind,
-			sourceTypes = searchSuggestionViewModel.getSourceTypes(),
-			contentKinds = searchSuggestionViewModel.getContentKinds(),
-		)
-		if (kind != SearchKind.TAG) {
-			searchSuggestionViewModel.saveQuery(query)
-		}
-	}
+        observeFoldableState()
+    }
 
-	private fun syncSearchSuggestionFilters() {
-		searchSuggestionViewModel.setSourceTypes(sourceTypesFromTags(activeFilterSourceTags))
-		searchSuggestionViewModel.setContentKinds(activeFilterContentType.toSearchContentKinds())
-	}
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_TOP_BAR_QUERY, searchQuery)
+    }
 
-	private fun updateSearchQuery(query: String) {
-		if (searchQuery != query) {
-			searchQuery = query
-		}
-		searchSuggestionViewModel.onQueryChanged(query)
-	}
+    private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
+        if (query.isEmpty()) {
+            return
+        }
+        updateSearchQuery(query)
+        if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
+            this.router.openDetails(query.toUri())
+            return
+        }
+        this.router.openSearch(
+            query = query,
+            kind = kind,
+            sourceTypes = searchSuggestionViewModel.getSourceTypes(),
+            contentKinds = searchSuggestionViewModel.getContentKinds(),
+        )
+        if (kind != SearchKind.TAG) {
+            searchSuggestionViewModel.saveQuery(query)
+        }
+    }
 
-	private fun clearActiveFilters() {
-		currentFilterCallback = null
-		activeFilterContentType = null
-		activeFilterSourceTags = emptySet()
-		isLanguagePresetFilterVisible = false
-		isContentTypeFilterVisible = true
-		isSourceTagFilterVisible = true
-		availableSourceTags = SourceTag.quickFilterEntries
-		enabledSourceTags = SourceTag.quickFilterEntries.toSet()
-		enabledContentTypes = allTopBarContentTypes()
-		syncSearchSuggestionFilters()
-	}
+    private fun syncSearchSuggestionFilters() {
+        searchSuggestionViewModel.setSourceTypes(sourceTypesFromTags(activeFilterSourceTags))
+        searchSuggestionViewModel.setContentKinds(activeFilterContentType.toSearchContentKinds())
+    }
 
-	private fun onFirstStart() = try {
-		lifecycleScope.launch(Dispatchers.Main) {
-			withContext(Dispatchers.Default) {
-				LocalStorageCleanupWorker.enqueue(applicationContext)
-			}
-			lifecycle.withResumed {
-				ContentPrefetchService.prefetchLast(this@MainActivity)
-				requestNotificationsPermission()
-				startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
-				backupStartupCoordinator.startOnFirstLaunch(lifecycleScope)
-				if (settings.isAdBlockEnabled) {
-					startService(Intent(this@MainActivity, AdListUpdateService::class.java))
-				}
-			}
-		}
-	} catch (e: IllegalStateException) {
-		e.printStackTrace()
-	}
+    private fun updateSearchQuery(query: String) {
+        if (searchQuery != query) {
+            searchQuery = query
+        }
+        searchSuggestionViewModel.onQueryChanged(query)
+    }
 
-	private fun requestNotificationsPermission() {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(
-				this,
-				Manifest.permission.POST_NOTIFICATIONS,
-			) != PERMISSION_GRANTED
-		) {
-			ActivityCompat.requestPermissions(
-				this,
-				arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-				1,
-			)
-		}
-	}
+    private fun clearActiveFilters() {
+        currentFilterCallback = null
+        activeFilterContentType = null
+        activeFilterSourceTags = emptySet()
+        isLanguagePresetFilterVisible = true
+        isContentTypeFilterVisible = true
+        isSourceTagFilterVisible = true
+        availableSourceTags = SourceTag.quickFilterEntries
+        enabledSourceTags = SourceTag.quickFilterEntries.toSet()
+        enabledContentTypes = allTopBarContentTypes()
+        syncSearchSuggestionFilters()
+    }
 
-	private fun setNavbarPinned(isPinned: Boolean) = Unit
+    private fun onFirstStart() = try {
+        lifecycleScope.launch(Dispatchers.Main) {
+            withContext(Dispatchers.Default) {
+                LocalStorageCleanupWorker.enqueue(applicationContext)
+            }
+            lifecycle.withResumed {
+                ContentPrefetchService.prefetchLast(this@MainActivity)
+                requestNotificationsPermission()
+                startService(Intent(this@MainActivity, LocalIndexUpdateService::class.java))
+                backupStartupCoordinator.startOnFirstLaunch(lifecycleScope)
+                if (settings.isAdBlockEnabled) {
+                    startService(Intent(this@MainActivity, AdListUpdateService::class.java))
+                }
+            }
+        }
+    } catch (e: IllegalStateException) {
+        e.printStackTrace()
+    }
 
-	private fun onLanguagePresetFilterClick(anchorView: View?): Boolean {
-		val anchor = anchorView ?: viewBinding.composeRoot
-		if (currentFilterCallback?.onLanguagePresetClicked(anchor) == true) {
-			return true
-		}
-		this.router.openSourcePresets()
-		return true
-	}
+    private fun requestNotificationsPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                1,
+            )
+        }
+    }
 
-	private fun onSourceTagFilterClick(anchorView: View?): Boolean {
-		val anchor = anchorView ?: viewBinding.composeRoot
-		return currentFilterCallback?.onFilterIconClicked(anchor) == true
-	}
+    private fun setNavbarPinned(isPinned: Boolean) = Unit
 
+    private fun onLanguagePresetFilterClick(anchorView: View?): Boolean {
+        val anchor = anchorView ?: viewBinding.composeRoot
+        if (currentFilterCallback?.onLanguagePresetClicked(anchor) == true) {
+            return true
+        }
+        this.router.openSourcePresets()
+        return true
+    }
 
+    private fun onSourceTagFilterClick(anchorView: View?): Boolean {
+        val anchor = anchorView ?: viewBinding.composeRoot
+        return currentFilterCallback?.onFilterIconClicked(anchor) == true
+    }
 
-	private fun showOverflowMenu(anchorView: android.view.View?) {
-		val anchor = anchorView ?: viewBinding.composeRoot
-		val popup = androidx.appcompat.widget.PopupMenu(this, anchor, android.view.Gravity.END or android.view.Gravity.TOP)
-		popup.menuInflater.inflate(R.menu.opt_main, popup.menu)
-		
-		popup.menu.findItem(R.id.action_incognito)?.isChecked = viewModel.isIncognitoModeEnabled.value
-		popup.menu.findItem(R.id.action_app_update)?.isVisible = viewModel.appUpdate.value != null
-		
-		val displayItem = popup.menu.findItem(R.id.action_display_mode)
-		displayItem?.title = getString(R.string.list_options)
+    private fun observeFoldableState() {
+        val foldableState = FoldableUtils.observeFoldableState(this, this)
 
-		popup.setOnMenuItemClickListener { menuItem ->
-			when (menuItem.itemId) {
-				R.id.action_settings -> {
-					this.router.openSettings()
-					true
-				}
-				R.id.action_display_mode -> {
-					this.router.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.General)
-					true
-				}
-				R.id.action_incognito -> {
-					viewModel.setIncognitoMode(!menuItem.isChecked)
-					true
-				}
-				R.id.action_app_update -> {
-					this.router.openAppUpdate()
-					true
-				}
-				else -> false
-			}
-		}
-		popup.show()
-	}
+        lifecycleScope.launch {
+            foldableState.collect { unfolded ->
+                if (unfolded != isFoldUnfolded) {
+                    isFoldUnfolded = unfolded
+                    adjustLayoutForFoldableState()
+                }
+            }
+        }
+    }
 
-	private fun observeFoldableState() {
-		val foldableState = FoldableUtils.observeFoldableState(this, this)
-		
-		lifecycleScope.launch {
-			foldableState.collect { unfolded ->
-				if (unfolded != isFoldUnfolded) {
-					isFoldUnfolded = unfolded
-					adjustLayoutForFoldableState()
-				}
-			}
-		}
-	}
-
-	private fun adjustLayoutForFoldableState() { }
+    private fun adjustLayoutForFoldableState() { }
 }
 
 private fun ContentType?.toSearchContentKinds(): Set<SearchContentKind> = when (this) {
-	ContentType.MANGA -> setOf(SearchContentKind.MANGA)
-	ContentType.NOVEL, ContentType.HENTAI_NOVEL -> setOf(SearchContentKind.NOVEL)
-	ContentType.VIDEO, ContentType.HENTAI_VIDEO -> setOf(SearchContentKind.VIDEO)
-	else -> ALL_SEARCH_CONTENT_KINDS
+    ContentType.MANGA -> setOf(SearchContentKind.MANGA)
+    ContentType.NOVEL, ContentType.HENTAI_NOVEL -> setOf(SearchContentKind.NOVEL)
+    ContentType.VIDEO, ContentType.HENTAI_VIDEO -> setOf(SearchContentKind.VIDEO)
+    else -> ALL_SEARCH_CONTENT_KINDS
 }
 
 private fun allTopBarContentTypes(): Set<ContentType> = setOf(
-	ContentType.MANGA,
-	ContentType.NOVEL,
-	ContentType.VIDEO,
+    ContentType.MANGA,
+    ContentType.NOVEL,
+    ContentType.VIDEO,
 )
 
 private const val STATE_TOP_BAR_QUERY = "main_activity.top_bar_query"

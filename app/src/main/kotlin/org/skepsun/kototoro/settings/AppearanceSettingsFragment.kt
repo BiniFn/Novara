@@ -117,7 +117,6 @@ class AppearanceSettingsFragment : Fragment() {
             val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
             val isNavLabelsVisible = settings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }.value
             val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
-            val blurMode = settings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }.value
             val isNavFloating = settings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }.value
             val navHeight = settings.observeAsState(AppSettings.KEY_NAV_HEIGHT) { navHeight }.value
             val navFloatingHeight = settings.observeAsState(AppSettings.KEY_NAV_FLOATING_HEIGHT) { navFloatingHeight }.value
@@ -151,7 +150,6 @@ class AppearanceSettingsFragment : Fragment() {
                 languagePresets = languagePresetOptions,
                 contentTypes = buildContentTypeOptions(),
                 sourceTags = buildSourceTagOptions(),
-                blurModes = buildBlurModeOptions(),
                 screenshotsPolicies = buildScreenshotsPolicyOptions(),
             )
 
@@ -187,7 +185,6 @@ class AppearanceSettingsFragment : Fragment() {
                 isMainFabEnabled = isMainFabEnabled,
                 isNavLabelsVisible = isNavLabelsVisible,
                 isNavBarPinned = isNavBarPinned,
-                blurMode = blurMode,
                 isNavFloating = isNavFloating,
                 navHeight = navHeight,
                 navFloatingHeight = navFloatingHeight,
@@ -237,7 +234,6 @@ class AppearanceSettingsFragment : Fragment() {
                     onMainFabChange = { settings.isMainFabEnabled = it },
                     onNavLabelsVisibleChange = { settings.isNavLabelsVisible = it },
                     onNavBarPinnedChange = { settings.isNavBarPinned = it },
-                    onBlurModeChange = { updateAndRestart { settings.blurMode = it } },
                     onNavFloatingChange = { settings.isNavFloating = it },
                     onNavHeightChange = { settings.navHeight = it },
                     onNavFloatingHeightChange = { settings.navFloatingHeight = it },

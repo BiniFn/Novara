@@ -3,6 +3,7 @@ package org.skepsun.kototoro.details.ui
 import android.app.Activity
 import android.app.assist.AssistContent
 import android.content.Context
+import android.graphics.Outline
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -109,6 +110,12 @@ class DetailsActivity :
             val manga = viewModel.getContentOrNull()
             if (manga != null) {
                 androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
+                viewBinding.imageViewCover.outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, resources.displayMetrics.density * 22f)
+                    }
+                }
+                viewBinding.imageViewCover.clipToOutline = true
                 supportPostponeEnterTransition()
                 window.decorView.postDelayed({ supportStartPostponedEnterTransition() }, 1200L)
             }
@@ -124,6 +131,7 @@ class DetailsActivity :
                     pagesViewModel = pagesViewModel,
                     bookmarksViewModel = bookmarksViewModel,
                     settings = settings,
+                    appRouter = router,
                     pageSaveHelper = pageSaveHelper,
                     onBackClick = { onBackPressedDispatcher.onBackPressed() },
                     onCoverBoundsSync = { rect, alpha ->
@@ -229,6 +237,27 @@ class DetailsActivity :
 
                             DetailsAction.OpenInBrowser -> {
                                 viewModel.getContentOrNull()?.let(this@DetailsActivity.router::openBrowser)
+                            }
+
+                            is DetailsAction.OpenTrackingDetails -> {
+                                router.openTrackingSiteDetails(action.service, action.remoteId, action.url)
+                            }
+
+                            is DetailsAction.ManageTrackingBinding -> {
+                                router.openScrobblerBinding(
+                                    scrobbler = action.service,
+                                    remoteId = action.remoteId,
+                                    title = action.title,
+                                    url = action.url,
+                                )
+                            }
+
+                            is DetailsAction.BindTrackingMatch -> {
+                                viewModel.bindTrackingMatch(action.match)
+                            }
+
+                            is DetailsAction.RemoveTrackingMatch -> {
+                                viewModel.removeTrackingMatch(action.match)
                             }
 
                             DetailsAction.Download -> {

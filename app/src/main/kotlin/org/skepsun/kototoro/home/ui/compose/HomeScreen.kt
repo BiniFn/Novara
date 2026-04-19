@@ -23,8 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -35,19 +35,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
@@ -56,20 +50,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
-import org.skepsun.kototoro.core.ui.compose.HeroBackdropCard
-import org.skepsun.kototoro.core.ui.compose.HeroBackdropScrim
-import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
-import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.home.ui.HomeSummaryState
 import org.skepsun.kototoro.parsers.model.Content
-import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -131,39 +118,22 @@ fun HomeScreen(
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (historyItems.isNotEmpty()) {
-            HomeContentCarouselCard(
-                title = stringResource(R.string.recent_history),
-                iconRes = R.drawable.ic_history,
-                items = historyItems,
-                count = state.recentHistoryCount,
+        val hasHighlights = historyItems.isNotEmpty() || updateItems.isNotEmpty() || recommendationItems.isNotEmpty()
+        if (hasHighlights) {
+            HomeHighlightsCard(
+                historyItems = historyItems,
+                recentHistoryCount = state.recentHistoryCount,
+                updateItems = updateItems,
+                unreadUpdatesCount = state.unreadUpdatesCount,
+                recommendationItems = recommendationItems,
+                recommendationsCount = state.recommendationsCount,
                 onItemClick = onContentClick,
-                onMoreClick = onViewAllRecentClick,
+                onViewAllRecentClick = onViewAllRecentClick,
+                onViewAllUpdatesClick = onViewAllUpdatesClick,
+                onViewAllRecommendationsClick = onViewAllRecommendationsClick,
             )
         }
-        if (updateItems.isNotEmpty()) {
-            HomeContentCarouselCard(
-                title = stringResource(R.string.home_recent_updates),
-                iconRes = R.drawable.ic_updated,
-                items = updateItems,
-                count = state.unreadUpdatesCount,
-                onItemClick = onContentClick,
-                onMoreClick = onViewAllUpdatesClick,
-            )
-        }
-        if (recommendationItems.isNotEmpty()) {
-            HomeContentCarouselCard(
-                title = stringResource(R.string.suggestions),
-                iconRes = R.drawable.ic_feed,
-                items = recommendationItems,
-                count = state.recommendationsCount,
-                onItemClick = onContentClick,
-                onMoreClick = onViewAllRecommendationsClick,
-            )
-        }
-        val hasNoCarousel = historyItems.isEmpty() && updateItems.isEmpty() &&
-            recommendationItems.isEmpty()
-        if (hasNoCarousel) {
+        if (!hasHighlights) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -179,139 +149,140 @@ fun HomeScreen(
 }
 
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HomeContentCarouselCard(
-    title: String,
-    iconRes: Int,
-    items: List<Content>,
-    count: Int,
+private fun HomeHighlightsCard(
+    historyItems: List<Content>,
+    recentHistoryCount: Int,
+    updateItems: List<Content>,
+    unreadUpdatesCount: Int,
+    recommendationItems: List<Content>,
+    recommendationsCount: Int,
     onItemClick: (Content) -> Unit,
-    onMoreClick: () -> Unit,
+    onViewAllRecentClick: () -> Unit,
+    onViewAllUpdatesClick: () -> Unit,
+    onViewAllRecommendationsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (items.isEmpty()) return
+    DashboardCard(modifier) {
+        var firstSection = true
 
-    val pageCount = items.size.coerceAtMost(8)
-    val pagerState = rememberPagerState(pageCount = { pageCount })
-    val selectedIndex by remember(items, pagerState) {
-        derivedStateOf { pagerState.currentPage.coerceIn(0, pageCount - 1) }
-    }
-    val selectedItem = items.getOrNull(selectedIndex) ?: items.first()
-    val context = LocalContext.current
-    val backgroundRequest = remember(selectedItem.coverUrl, selectedItem.id) {
-        ImageRequest.Builder(context)
-            .data(selectedItem.coverUrl)
-            .crossfade(true)
-            .apply { mangaExtra(selectedItem) }
-            .build()
-    }
-
-    HeroAutoAdvanceEffect(
-        pagerState = pagerState,
-        pageCount = pageCount,
-    )
-
-    HeroBackdropCard(
-        modifier = modifier.height(184.dp),
-        minHeight = 184.dp,
-        shape = RoundedCornerShape(26.dp),
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        elevation = 4.dp,
-        background = {
-            AsyncImage(
-                model = backgroundRequest,
-                contentDescription = selectedItem.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(22.dp)
-                    .alpha(0.72f),
+        if (historyItems.isNotEmpty()) {
+            HomeContentRowSection(
+                title = stringResource(R.string.recent_history),
+                iconRes = R.drawable.ic_history,
+                items = historyItems,
+                count = recentHistoryCount,
+                onItemClick = onItemClick,
+                onMoreClick = onViewAllRecentClick,
+                addTopSpacing = !firstSection,
             )
-            HeroBackdropScrim(
-                verticalColors = listOf(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-                ),
-                horizontalColors = listOf(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
-                    Color.Transparent,
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.44f),
-                ),
+            firstSection = false
+        }
+        if (updateItems.isNotEmpty()) {
+            HomeContentRowSection(
+                title = stringResource(R.string.home_recent_updates),
+                iconRes = R.drawable.ic_updated,
+                items = updateItems,
+                count = unreadUpdatesCount,
+                onItemClick = onItemClick,
+                onMoreClick = onViewAllUpdatesClick,
+                addTopSpacing = !firstSection,
             )
-        },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    HomeBadge(
-                        text = count.toHeroCountLabel(),
-                        iconRes = iconRes,
-                    )
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                TextButton(onClick = onMoreClick) {
-                    Text(stringResource(R.string.more))
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
-            ) {
-                HorizontalPager(
-                    state = pagerState,
-                    pageSpacing = 8.dp,
-                    contentPadding = PaddingValues(horizontal = 2.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                    ContentCarouselPoster(
-                        content = items[page],
-                        pageOffset = pageOffset,
-                        onClick = { onItemClick(items[page]) },
-                    )
-                }
-            }
-            HeroPagerIndicator(
-                pageCount = pageCount,
-                currentPage = selectedIndex,
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
+            firstSection = false
+        }
+        if (recommendationItems.isNotEmpty()) {
+            HomeContentRowSection(
+                title = stringResource(R.string.suggestions),
+                iconRes = R.drawable.ic_feed,
+                items = recommendationItems,
+                count = recommendationsCount,
+                onItemClick = onItemClick,
+                onMoreClick = onViewAllRecommendationsClick,
+                addTopSpacing = !firstSection,
             )
         }
     }
 }
 
 @Composable
-private fun ContentCarouselPoster(
+private fun HomeContentRowSection(
+    title: String,
+    iconRes: Int,
+    items: List<Content>,
+    count: Int,
+    onItemClick: (Content) -> Unit,
+    onMoreClick: () -> Unit,
+    addTopSpacing: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (items.isEmpty()) return
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = if (addTopSpacing) 14.dp else 0.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (addTopSpacing) {
+            androidx.compose.material3.HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        HomeBadge(
+                            text = count.toHeroCountLabel(),
+                            iconRes = iconRes,
+                        )
+                    }
+            }
+            TextButton(onClick = onMoreClick) {
+                Text(stringResource(R.string.more))
+            }
+        }
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp),
+        ) {
+            items(
+                items = items.take(12),
+                key = { it.id },
+            ) { item ->
+                HomeCoverRowItem(
+                    content = item,
+                    onClick = { onItemClick(item) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCoverRowItem(
     content: Content,
-    pageOffset: Float,
     onClick: () -> Unit,
 ) {
-    val offsetFraction = pageOffset.absoluteValue.coerceIn(0f, 1f)
-    val posterWidth = lerp(72.dp, 66.dp, offsetFraction)
-    val posterHeight = lerp(100.dp, 92.dp, offsetFraction)
     val context = LocalContext.current
     val imageRequest = remember(content.coverUrl, content.id) {
         ImageRequest.Builder(context)
@@ -320,72 +291,32 @@ private fun ContentCarouselPoster(
             .apply { mangaExtra(content) }
             .build()
     }
-    val sourceTitle = rememberResolvedSourceTitle(content.source)
 
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = Color.Transparent,
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val scale = 0.94f + ((1f - offsetFraction) * 0.06f)
-                scaleX = scale
-                scaleY = scale
-                alpha = 0.74f + ((1f - offsetFraction) * 0.26f)
-                translationX = pageOffset * -18f
-            }
+            .width(88.dp)
             .clickable(onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxWidth()
+                .height(124.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            Box(
-                modifier = Modifier
-                    .width(posterWidth)
-                    .height(posterHeight)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = content.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.38f)),
-                            ),
-                        ),
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    text = content.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = sourceTitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = content.title,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
+        Text(
+            text = content.title,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -436,7 +367,7 @@ private fun DashboardCard(
         shape = RoundedCornerShape(26.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(modifier = Modifier.padding(16.dp), content = content)
+        Column(modifier = Modifier.padding(14.dp), content = content)
     }
 }
 

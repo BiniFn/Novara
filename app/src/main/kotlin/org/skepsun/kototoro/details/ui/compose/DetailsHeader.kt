@@ -48,6 +48,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +64,7 @@ import org.skepsun.kototoro.core.model.iconResId
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
+import org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import kotlin.math.roundToInt
@@ -74,6 +76,8 @@ fun DetailsHeader(
     mangaDetails: ContentDetails?,
     historyInfo: HistoryInfo,
     favouriteCategories: Set<FavouriteCategory>,
+    linkedTrackingItems: List<LinkedTrackingItemUiModel>,
+    trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
     translatedTitle: String?,
     translatedDescription: String?,
     isShowingTranslation: Boolean,
@@ -89,6 +93,11 @@ fun DetailsHeader(
     onTagClick: (ContentTag) -> Unit,
     onTranslateClick: () -> Unit,
     onToggleTranslationClick: () -> Unit,
+    onOpenLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
+    onManageLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
+    onRemoveLinkedTracking: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
+    onBindTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
+    onManageTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
 ) {
     val content = mangaDetails?.toContent()
     val resolvedSource = content?.source?.let { rememberResolvedContentSource(it) }
@@ -96,6 +105,7 @@ fun DetailsHeader(
     val displayTitle = translatedTitle ?: originalTitle
     val displayDescription = translatedDescription ?: mangaDetails?.description?.toString().orEmpty()
     val fallbackDescription = stringResource(R.string.no_description)
+    val scrobblingStatuses = stringArrayResource(R.array.scrobbling_statuses)
     val defaultLocale = Locale.getDefault()
     val author = content?.authors
         ?.firstOrNull()
@@ -316,6 +326,47 @@ fun DetailsHeader(
             }
         }
 
+        linkedTrackingItems.firstOrNull()?.let { linked ->
+            DetailsBindingCard(
+                badge = stringResource(linked.service.titleResId),
+                badgeIconRes = linked.service.iconResId,
+                title = linked.title,
+                subtitle = buildString {
+                    append(stringResource(R.string.discover_local_linked))
+                    linked.status?.let {
+                        append(" · ")
+                        append(scrobblingStatuses.getOrNull(it.ordinal).orEmpty())
+                    }
+                    linked.rating?.takeIf { it > 0f }?.let {
+                        append(" · ")
+                        append(String.format(defaultLocale, "%.1f", it * 10f))
+                    }
+                },
+                supportingText = linked.summary,
+                coverUrl = linked.coverUrl,
+                primaryActionLabel = stringResource(R.string.open_in_browser),
+                onPrimaryAction = { onOpenLinkedTracking(linked) },
+                secondaryActionLabel = stringResource(R.string.discover_manage_binding),
+                onSecondaryAction = { onManageLinkedTracking(linked) },
+                tertiaryActionLabel = if (trackingSuggestion?.isLinked == true) stringResource(R.string.remove) else null,
+                onTertiaryAction = trackingSuggestion?.takeIf { it.isLinked }?.let { match -> { onRemoveLinkedTracking(match) } },
+            )
+        }
+
+        trackingSuggestion?.takeIf { !it.isLinked }?.let { suggestion ->
+            DetailsBindingCard(
+                badge = stringResource(suggestion.service.titleResId),
+                badgeIconRes = suggestion.service.iconResId,
+                title = suggestion.title,
+                subtitle = stringResource(R.string.suggestions),
+                supportingText = suggestion.reason,
+                primaryActionLabel = stringResource(R.string.add),
+                onPrimaryAction = { onBindTrackingSuggestion(suggestion) },
+                secondaryActionLabel = stringResource(R.string.discover_manage_binding),
+                onSecondaryAction = { onManageTrackingSuggestion(suggestion) },
+            )
+        }
+
         if (infoItems.isNotEmpty()) {
             GlassSurface(
                 modifier = Modifier
@@ -417,205 +468,4 @@ fun DetailsHeader(
     }
 }
 
-@Composable
-private fun DetailsCoverFrame(
-    coverUrl: String?,
-    contentDescription: String,
-    onCoverBoundsSync: (Rect, Float) -> Unit,
-    alpha: Float,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var coverBounds by remember { mutableStateOf(Rect.Zero) }
-    LaunchedEffect(coverBounds, alpha) {
-        if (coverBounds.width > 0f && coverBounds.height > 0f) {
-            onCoverBoundsSync(coverBounds, alpha)
-        }
-    }
 
-    Box(
-        modifier = modifier
-            .width(132.dp)
-            .shadow(
-                elevation = 18.dp,
-                shape = RoundedCornerShape(26.dp),
-                ambientColor = Color.Black.copy(alpha = 0.22f),
-                spotColor = Color.Black.copy(alpha = 0.28f),
-            )
-            .clickable(onClick = onClick)
-            .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
-                shape = RoundedCornerShape(26.dp),
-            )
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(26.dp),
-            )
-            .padding(4.dp),
-    ) {
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(13f / 18f)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
-                        shape = RoundedCornerShape(22.dp),
-                    )
-                    .onGloballyPositioned { coordinates ->
-                        coverBounds = coordinates.boundsInRoot()
-                    },
-            )
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = contentDescription,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(13f / 18f)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
-                        shape = RoundedCornerShape(22.dp),
-                    ),
-                contentScale = ContentScale.Crop,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DetailsHeaderIconButton(
-    @DrawableRes iconRes: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    filled: Boolean = false,
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = if (filled) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.76f)
-        },
-        contentColor = if (filled) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        },
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
-    ) {
-        Box(
-            modifier = Modifier
-                .clickable(enabled = enabled, onClick = onClick)
-                .padding(12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun MetadataItem(
-    label: String,
-    value: String,
-    @DrawableRes iconRes: Int? = null,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-) {
-    Column(
-        modifier = modifier
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            iconRes?.let {
-                Icon(
-                    painter = painterResource(it),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun DetailsHeroBadge(
-    text: String,
-    @DrawableRes iconRes: Int? = null,
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            iconRes?.let {
-                Icon(
-                    painter = painterResource(it),
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-private data class DetailsInfoItem(
-    val label: String,
-    val value: String,
-    @DrawableRes val iconRes: Int? = null,
-    val onClick: (() -> Unit)? = null,
-)
-
-private data class DetailsHeroBadgeSpec(
-    val text: String,
-    @DrawableRes val iconRes: Int? = null,
-)

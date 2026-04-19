@@ -25,6 +25,7 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.details.ui.model.toListItem
+import org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
@@ -103,6 +104,8 @@ class DetailsViewModel @Inject constructor(
 	private val trackingSiteMatcher: TrackingSiteMatcher,
 	private val dataRepository: org.skepsun.kototoro.core.parser.ContentDataRepository,
 	private val detailsTranslationCache: DetailsTranslationCache,
+	private val db: org.skepsun.kototoro.core.db.MangaDatabase,
+	private val trackingSiteCacheRepository: org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -222,6 +225,31 @@ class DetailsViewModel @Inject constructor(
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
 	val trackingMatchSuggestion = MutableStateFlow<TrackingSiteMatchResult?>(null)
+
+	val linkedTrackingItems: StateFlow<List<LinkedTrackingItemUiModel>> = db.getTrackingSiteDao()
+		.observeLinksByManga(mangaId)
+		.mapLatest { links ->
+			links.mapNotNull { link ->
+				val service = org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService.entries
+					.firstOrNull { it.id == link.service }
+					?: return@mapNotNull null
+				val cached = trackingSiteCacheRepository.readDetails(service, link.remoteId)
+				val scrobbling = scrobblingInfo.value.firstOrNull {
+					it.scrobbler == service && it.targetId == link.remoteId
+				}
+				LinkedTrackingItemUiModel(
+					service = service,
+					remoteId = link.remoteId,
+					title = cached?.title ?: scrobbling?.title ?: contentTitleFallback(service),
+					coverUrl = cached?.coverUrl ?: scrobbling?.coverUrl,
+					summary = cached?.description ?: scrobbling?.description?.toString(),
+					url = cached?.url ?: scrobbling?.externalUrl,
+					status = scrobbling?.status,
+					rating = scrobbling?.rating,
+					isPreferred = service == settings.preferredTrackingSite,
+				)
+			}
+		}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
 	val relatedContent: StateFlow<List<ContentListModel>> = manga.mapLatest {
 		if (it != null && settings.isRelatedContentEnabled) {
@@ -417,6 +445,10 @@ class DetailsViewModel @Inject constructor(
 				
 					mangaDetails.value = finalDetails
 				}
+	}
+
+	private fun contentTitleFallback(service: org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService): String {
+		return service.name
 	}
 
 	private fun refreshTrackingMatchSuggestion() {

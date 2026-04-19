@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -17,12 +18,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DockedSearchBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,11 +40,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import org.skepsun.kototoro.R
@@ -66,7 +72,10 @@ fun KototoroTopBar(
     onAuthorSuggestionClick: (String) -> Unit = {},
     onDeleteQuery: (String) -> Unit = {},
     onVoiceInput: () -> Unit = {},
-    onMoreClick: (android.view.View?) -> Unit = {},
+    onOpenListOptions: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    isAppUpdateAvailable: Boolean = false,
+    onAppUpdateClick: () -> Unit = {},
     isLanguagePresetFilterVisible: Boolean = false,
     hasActiveLanguagePreset: Boolean = false,
     onLanguagePresetFilterClick: (android.view.View?) -> Boolean = { false },
@@ -80,11 +89,15 @@ fun KototoroTopBar(
     isSourceTagFilterVisible: Boolean = true,
     onSourceTagFilterClick: (android.view.View?) -> Boolean = { false },
     onSourceTagSelected: (SourceTag?) -> Unit = {},
+    isIncognitoModeEnabled: Boolean = false,
+    onIncognitoToggle: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var isMoreMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
+    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
 
     Box(
         modifier = modifier
@@ -130,65 +143,116 @@ fun KototoroTopBar(
                             }
                         },
                         trailingIcon = {
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                if (expanded && query.isNotEmpty()) {
-                                    IconButton(onClick = {
-                                        onQueryChanged("")
-                                    }) {
-                                        Icon(
-                                            Icons.Filled.Clear,
-                                            contentDescription = stringResource(R.string.clear)
-                                        )
-                                    }
-                                }
-                                if (!expanded && isLanguagePresetFilterVisible) {
-                                    TopBarAnchorIconButton(onClick = onLanguagePresetFilterClick) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_language),
-                                            contentDescription = stringResource(R.string.show_language_preset_filter),
-                                            tint = if (hasActiveLanguagePreset) {
-                                                androidx.compose.material3.MaterialTheme.colorScheme.primary
-                                            } else {
-                                                androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                        )
-                                    }
-                                }
-                                if (!expanded && isContentTypeFilterVisible) {
-                                    SwipeableFilterChip(
-                                        selectedType = selectedContentType,
-                                        enabledTypes = enabledContentTypes,
-                                        onTypeSelected = onContentTypeSelected,
-                                        modifier = Modifier.zIndex(1f)
-                                    )
-                                }
-                                if (!expanded && isSourceTagFilterVisible) {
-                                    SourceTagDropdown(
-                                        selectedTags = selectedSourceTags,
-                                        entries = sourceTagEntries,
-                                        enabledTags = enabledSourceTags,
-                                        onButtonClickIntercept = onSourceTagFilterClick,
-                                        onTagSelected = onSourceTagSelected,
-                                    )
-                                }
-                                if (expanded) {
-                                    IconButton(onClick = onVoiceInput) {
-                                        Icon(
-                                            painterResource(R.drawable.ic_voice_input),
-                                            contentDescription = stringResource(R.string.voice_search)
-                                        )
-                                    }
-                                }
-                                TopBarAnchorIconButton(
-                                    onClick = { anchorView ->
-                                        onMoreClick(anchorView)
-                                        true
-                                    },
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.CenterEnd,
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                        Icon(
-                                            painterResource(R.drawable.ic_more_vert),
-                                            contentDescription = stringResource(R.string.more)
+                                    if (expanded && query.isNotEmpty()) {
+                                        IconButton(onClick = {
+                                            onQueryChanged("")
+                                        }) {
+                                            Icon(
+                                                Icons.Filled.Clear,
+                                                contentDescription = stringResource(R.string.clear)
+                                            )
+                                        }
+                                    }
+                                    if (!expanded && isLanguagePresetFilterVisible) {
+                                        TopBarAnchorIconButton(onClick = onLanguagePresetFilterClick) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_language),
+                                                contentDescription = stringResource(R.string.show_language_preset_filter),
+                                                tint = if (hasActiveLanguagePreset) {
+                                                    androidx.compose.material3.MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                                },
+                                            )
+                                        }
+                                    }
+                                    if (!expanded && isContentTypeFilterVisible) {
+                                        SwipeableFilterChip(
+                                            selectedType = selectedContentType,
+                                            enabledTypes = enabledContentTypes,
+                                            onTypeSelected = onContentTypeSelected,
+                                            modifier = Modifier.zIndex(1f)
                                         )
+                                    }
+                                    if (!expanded && isSourceTagFilterVisible) {
+                                        SourceTagDropdown(
+                                            selectedTags = selectedSourceTags,
+                                            entries = sourceTagEntries,
+                                            enabledTags = enabledSourceTags,
+                                            onButtonClickIntercept = onSourceTagFilterClick,
+                                            onTagSelected = onSourceTagSelected,
+                                        )
+                                    }
+                                    if (expanded) {
+                                        IconButton(onClick = onVoiceInput) {
+                                            Icon(
+                                                painterResource(R.drawable.ic_voice_input),
+                                                contentDescription = stringResource(R.string.voice_search)
+                                            )
+                                        }
+                                    }
+                                    Box {
+                                        IconButton(onClick = { isMoreMenuExpanded = true }) {
+                                            Icon(
+                                                painterResource(R.drawable.ic_more_vert),
+                                                contentDescription = stringResource(R.string.more)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = isMoreMenuExpanded,
+                                            onDismissRequest = { isMoreMenuExpanded = false },
+                                        ) {
+                                            if (isAppUpdateAvailable) {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.app_update_available)) },
+                                                    onClick = {
+                                                        isMoreMenuExpanded = false
+                                                        onAppUpdateClick()
+                                                    },
+                                                )
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.list_options)) },
+                                                onClick = {
+                                                    isMoreMenuExpanded = false
+                                                    onOpenListOptions()
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.incognito_mode)) },
+                                                onClick = {
+                                                    isMoreMenuExpanded = false
+                                                    onIncognitoToggle()
+                                                },
+                                                leadingIcon = if (isIncognitoModeEnabled) {
+                                                    {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.Check,
+                                                            contentDescription = null,
+                                                        )
+                                                    }
+                                                } else {
+                                                    null
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.settings)) },
+                                                onClick = {
+                                                    isMoreMenuExpanded = false
+                                                    onSettingsClick()
+                                                },
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         },
@@ -204,6 +268,7 @@ fun KototoroTopBar(
             ) {
                 SuggestionList(
                     suggestions = suggestions,
+                    bottomPadding = navigationBarPadding.calculateBottomPadding(),
                     onRecentQueryClick = { recentQuery ->
                         onQueryChanged(recentQuery)
                         onSearch(recentQuery)
@@ -253,6 +318,7 @@ private fun TopBarAnchorIconButton(
 @Composable
 private fun SuggestionList(
     suggestions: List<SearchSuggestionItem>,
+    bottomPadding: Dp,
     onRecentQueryClick: (String) -> Unit,
     onHintClick: (String) -> Unit,
     onAuthorSuggestionClick: (String) -> Unit,
@@ -263,7 +329,7 @@ private fun SuggestionList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding + 8.dp),
     ) {
         items(
             items = suggestions,

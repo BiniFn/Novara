@@ -1,105 +1,46 @@
 package org.skepsun.kototoro.settings
 
-import android.content.SharedPreferences
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.View
-import androidx.preference.ListPreference
-import androidx.preference.MultiSelectListPreference
-import androidx.preference.Preference
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.model.ZoomMode
-import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.ReaderAnimation
-import org.skepsun.kototoro.core.prefs.ReaderBackground
-import org.skepsun.kototoro.core.prefs.ReaderControl
-import org.skepsun.kototoro.core.prefs.ReaderMode
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
-import org.skepsun.kototoro.parsers.util.mapToSet
-import org.skepsun.kototoro.parsers.util.names
-import org.skepsun.kototoro.settings.utils.MultiSummaryProvider
-import org.skepsun.kototoro.settings.utils.PercentSummaryProvider
-import org.skepsun.kototoro.settings.utils.SliderPreference
+import org.skepsun.kototoro.settings.compose.ReaderSettingsScreen
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 
 @AndroidEntryPoint
-class ReaderSettingsFragment :
-	BasePreferenceFragment(R.string.reader_settings),
-	SharedPreferences.OnSharedPreferenceChangeListener {
+class ReaderSettingsFragment : Fragment() {
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_reader)
+    private val settings: AppSettings by lazy { AppSettings(requireContext()) }
 
-		findPreference<ListPreference>(AppSettings.KEY_READER_MODE)?.run {
-			entryValues = ReaderMode.entries.names()
-			setDefaultValueCompat(ReaderMode.STANDARD.name)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_ORIENTATION)?.run {
-			entryValues = arrayOf(
-				ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED.toString(),
-				ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR.toString(),
-				ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT.toString(),
-				ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE.toString(),
-			)
-			setDefaultValueCompat(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED.toString())
-		}
-		findPreference<MultiSelectListPreference>(AppSettings.KEY_READER_CONTROLS)?.run {
-			entryValues = ReaderControl.entries.names()
-			setDefaultValueCompat(ReaderControl.DEFAULT.mapToSet { it.name })
-			summaryProvider = MultiSummaryProvider(R.string.none)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_BACKGROUND)?.run {
-			entryValues = ReaderBackground.entries.names()
-			setDefaultValueCompat(ReaderBackground.DEFAULT.name)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_ANIMATION)?.run {
-			entryValues = ReaderAnimation.entries.names()
-			setDefaultValueCompat(ReaderAnimation.DEFAULT.name)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_ZOOM_MODE)?.run {
-			entryValues = ZoomMode.entries.names()
-			setDefaultValueCompat(ZoomMode.FIT_CENTER.name)
-		}
-		findPreference<MultiSelectListPreference>(AppSettings.KEY_READER_CROP)?.run {
-			summaryProvider = MultiSummaryProvider(R.string.disabled)
-		}
-		findPreference<SliderPreference>(AppSettings.KEY_WEBTOON_ZOOM_OUT)?.summaryProvider =
-			PercentSummaryProvider()
+    override fun onCreateView(
+        inflater: android.view.LayoutInflater,
+        container: android.view.ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-		updateReaderModeDependency()
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                ReaderSettingsScreen(
+                    settings = settings,
+                    onReaderTapActionsClick = { startActivity(android.content.Intent(requireContext(), org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity::class.java)) },
+                    onReaderAiSettingsEntryClick = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.AISettingsFragment::class.java, null, false) },
+                )
+            }
+        }
+    }
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		settings.subscribe(this)
-	}
-
-	override fun onDestroyView() {
-		settings.unsubscribe(this)
-		super.onDestroyView()
-	}
-
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			AppSettings.KEY_READER_TAP_ACTIONS -> {
-				router.openReaderTapGridSettings()
-				true
-			}
-			else -> super.onPreferenceTreeClick(preference)
-		}
-	}
-
-	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-		if (key == AppSettings.KEY_READER_MODE) {
-			updateReaderModeDependency()
-		}
-	}
-
-	private fun updateReaderModeDependency() {
-		findPreference<Preference>(AppSettings.KEY_READER_MODE_DETECT)?.run {
-			isEnabled = settings.defaultReaderMode != ReaderMode.WEBTOON
-		}
-	}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.reader_settings))
+    }
 }

@@ -55,7 +55,6 @@ data class AppearanceSettingsUiState(
     val isMainFabEnabled: Boolean,
     val isNavLabelsVisible: Boolean,
     val isNavBarPinned: Boolean,
-    val blurMode: AppSettings.BlurMode,
     val isNavFloating: Boolean,
     val navHeight: Int,
     val navFloatingHeight: Int,
@@ -82,7 +81,6 @@ data class AppearanceSettingsOptions(
     val languagePresets: List<SettingsChoiceOption<String>>,
     val contentTypes: List<SettingsChoiceOption<String>>,
     val sourceTags: List<SettingsChoiceOption<String>>,
-    val blurModes: List<SettingsChoiceOption<AppSettings.BlurMode>>,
     val screenshotsPolicies: List<SettingsChoiceOption<ScreenshotsPolicy>>,
 )
 
@@ -122,7 +120,6 @@ fun AppearanceSettingsScreen(
     onMainFabChange: (Boolean) -> Unit,
     onNavLabelsVisibleChange: (Boolean) -> Unit,
     onNavBarPinnedChange: (Boolean) -> Unit,
-    onBlurModeChange: (AppSettings.BlurMode) -> Unit,
     onNavFloatingChange: (Boolean) -> Unit,
     onNavHeightChange: (Int) -> Unit,
     onNavFloatingHeightChange: (Int) -> Unit,
@@ -357,14 +354,6 @@ fun AppearanceSettingsScreen(
                     onCheckedChange = onNavBarPinnedChange,
                 )
                 SettingsSectionDivider()
-                SettingsChoicePreference(
-                    title = stringResource(R.string.pref_blur_mode),
-                    value = state.blurMode,
-                    options = options.blurModes,
-                    summary = stringResource(R.string.pref_blur_mode_summary),
-                    onValueChange = onBlurModeChange,
-                )
-                SettingsSectionDivider()
                 SettingsSwitchPreference(
                     title = stringResource(R.string.pref_nav_floating),
                     checked = state.isNavFloating,
@@ -447,53 +436,49 @@ private fun SearchBarFiltersBlock(
     onShowSourceTagFilterChange: (Boolean) -> Unit,
     onHiddenSourceTagChange: (String) -> Unit,
 ) {
-    SettingsPreferenceSection(
-        title = stringResource(R.string.search_bar_filters),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        SettingsSwitchPreference(
-            title = stringResource(R.string.show_language_preset_filter),
-            checked = state.isShowLanguagePresetFilter,
-            onCheckedChange = onShowLanguagePresetFilterChange,
-        )
-        if (!state.isShowLanguagePresetFilter) {
-            SettingsSectionDivider()
-            SettingsChoicePreference(
-                title = stringResource(R.string.fixed_language_preset),
-                value = state.hiddenLanguagePreset,
-                options = options.languagePresets,
-                onValueChange = onHiddenLanguagePresetChange,
-            )
-        }
+    SettingsGroupLabel(text = stringResource(R.string.search_bar_filters))
+    SettingsSwitchPreference(
+        title = stringResource(R.string.show_language_preset_filter),
+        checked = state.isShowLanguagePresetFilter,
+        onCheckedChange = onShowLanguagePresetFilterChange,
+    )
+    if (!state.isShowLanguagePresetFilter) {
         SettingsSectionDivider()
-        SettingsSwitchPreference(
-            title = stringResource(R.string.show_content_type_filter),
-            checked = state.isShowContentTypeFilter,
-            onCheckedChange = onShowContentTypeFilterChange,
+        SettingsChoicePreference(
+            title = stringResource(R.string.fixed_language_preset),
+            value = state.hiddenLanguagePreset,
+            options = options.languagePresets,
+            onValueChange = onHiddenLanguagePresetChange,
         )
-        if (!state.isShowContentTypeFilter) {
-            SettingsSectionDivider()
-            SettingsChoicePreference(
-                title = stringResource(R.string.fixed_content_type),
-                value = state.hiddenContentType,
-                options = options.contentTypes,
-                onValueChange = onHiddenContentTypeChange,
-            )
-        }
+    }
+    SettingsSectionDivider()
+    SettingsSwitchPreference(
+        title = stringResource(R.string.show_content_type_filter),
+        checked = state.isShowContentTypeFilter,
+        onCheckedChange = onShowContentTypeFilterChange,
+    )
+    if (!state.isShowContentTypeFilter) {
         SettingsSectionDivider()
-        SettingsSwitchPreference(
-            title = stringResource(R.string.show_source_tag_filter),
-            checked = state.isShowSourceTagFilter,
-            onCheckedChange = onShowSourceTagFilterChange,
+        SettingsChoicePreference(
+            title = stringResource(R.string.fixed_content_type),
+            value = state.hiddenContentType,
+            options = options.contentTypes,
+            onValueChange = onHiddenContentTypeChange,
         )
-        if (!state.isShowSourceTagFilter) {
-            SettingsSectionDivider()
-            SettingsChoicePreference(
-                title = stringResource(R.string.fixed_source_tag),
-                value = state.hiddenSourceTag,
-                options = options.sourceTags,
-                onValueChange = onHiddenSourceTagChange,
-            )
-        }
+    }
+    SettingsSectionDivider()
+    SettingsSwitchPreference(
+        title = stringResource(R.string.show_source_tag_filter),
+        checked = state.isShowSourceTagFilter,
+        onCheckedChange = onShowSourceTagFilterChange,
+    )
+    if (!state.isShowSourceTagFilter) {
+        SettingsSectionDivider()
+        SettingsChoicePreference(
+            title = stringResource(R.string.fixed_source_tag),
+            value = state.hiddenSourceTag,
+            options = options.sourceTags,
+            onValueChange = onHiddenSourceTagChange,
+        )
     }
 }

@@ -1,65 +1,56 @@
 package org.skepsun.kototoro.settings
 
 import android.os.Bundle
-import androidx.preference.ListPreference
-import androidx.preference.Preference
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.ReaderBackground
-import org.skepsun.kototoro.core.prefs.VideoDecoderMode
-import org.skepsun.kototoro.core.prefs.VideoRendererMode
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
-import org.skepsun.kototoro.parsers.util.names
-import org.skepsun.kototoro.settings.utils.SliderPreference
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.settings.compose.PlaybackSettingsScreen
+
 
 @AndroidEntryPoint
-class PlaybackSettingsFragment : BasePreferenceFragment(R.string.playback_settings) {
+class PlaybackSettingsFragment : Fragment() {
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_playback)
+    @Inject
+    lateinit var settings: AppSettings
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_DECODER_MODE)?.run {
-			entryValues = VideoDecoderMode.entries.names()
-			setDefaultValueCompat(VideoDecoderMode.HARDWARE.name)
-		}
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_RENDERER_MODE)?.run {
-			entryValues = VideoRendererMode.entries.names()
-			setDefaultValueCompat(VideoRendererMode.AUTO.name)
-		}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                PlaybackSettingsScreen(
+                    settings = settings,
+                    onMpvConfClick = {
+                        org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(requireContext(), view)
+                    },
+                    onAiSettingsClick = {
+                        (activity as? SettingsActivity)?.openFragment(AISettingsFragment::class.java, null, false)
+                    }
+                )
+            }
+        }
+    }
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_BACKGROUND)?.run {
-			entryValues = ReaderBackground.entries.names()
-			setDefaultValueCompat(ReaderBackground.DEFAULT.name)
-		}
-
-		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_CACHE_MB)?.run {
-			summaryProvider = Preference.SummaryProvider<SliderPreference> { pref ->
-				val valueMb = pref.value.toInt()
-				getString(R.string.video_cache_size_summary, valueMb)
-			}
-		}
-
-		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_CONTROLS_ALPHA)?.run {
-			summaryProvider = Preference.SummaryProvider<SliderPreference> { pref ->
-				"${pref.value.toInt()}%"
-			}
-		}
-
-		findPreference<SliderPreference>(AppSettings.KEY_VIDEO_GRADIENT_ALPHA)?.run {
-			summaryProvider = Preference.SummaryProvider<SliderPreference> { pref ->
-				"${pref.value.toInt()}%"
-			}
-		}
-	}
-
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		if (preference.key == "video_mpv_conf_trigger") {
-			org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(requireContext(), view)
-			return true
-		}
-		return super.onPreferenceTreeClick(preference)
-	}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.playback_settings))
+    }
 }
+

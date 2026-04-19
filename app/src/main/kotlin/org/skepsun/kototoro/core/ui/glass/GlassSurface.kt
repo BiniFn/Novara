@@ -8,14 +8,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalAbsoluteTonalElevation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 
 @Immutable
 data class GlassStyle(
@@ -67,26 +67,24 @@ fun GlassSurface(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val containerColor = when {
+    val baseColor = when {
         style.containerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
         style.containerAlpha >= 0.80f -> colorScheme.surfaceContainer
         else -> colorScheme.surfaceContainerLow
     }
     val border = BorderStroke(
         width = 1.dp,
-        color = colorScheme.outlineVariant.copy(alpha = style.borderAlpha.coerceAtMost(0.12f)),
+        color = colorScheme.outlineVariant.copy(alpha = style.borderAlpha.coerceAtMost(0.18f)),
     )
 
-    // Temporary fallback: while haze-backed glass is not wired through the main shell,
-    // degrade glass containers to stable opaque cards instead of stacking translucent shells.
     CompositionLocalProvider(LocalAbsoluteTonalElevation provides 0.dp) {
         Surface(
             modifier = modifier,
             shape = shape,
-            color = containerColor,
+            color = baseColor.copy(alpha = style.containerAlpha),
             contentColor = colorScheme.onSurface,
             tonalElevation = style.tonalElevation,
-            shadowElevation = 0.dp,
+            shadowElevation = style.shadowElevation,
             border = border,
         ) {
             Box(modifier = Modifier.fillMaxWidth(), content = content)

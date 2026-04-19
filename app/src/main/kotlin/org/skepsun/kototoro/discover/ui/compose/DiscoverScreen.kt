@@ -34,6 +34,7 @@ import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,11 +45,14 @@ fun DiscoverScreen(
 	isRefreshing: Boolean,
 	isCarousel: Boolean,
 	isLoadingOnly: Boolean,
-	gridSpanCount: Int,
+	activeService: ScrobblerService? = null,
+	availableServices: List<ScrobblerService> = emptyList(),
 	onRefresh: () -> Unit,
 	onLoadMore: () -> Unit,
 	onItemClick: (ContentListModel) -> Unit,
+	onSelectService: (ScrobblerService) -> Unit = {},
 	onCategoryMoreClick: (TrackingSiteCategory) -> Unit,
+	gridSpanCount: Int,
 	modifier: Modifier = Modifier
 ) {
 	if (isLoadingOnly) {
@@ -100,7 +104,10 @@ fun DiscoverScreen(
 						DiscoverHeroCarousel(
 							title = stringResource(heroRow.category.nameResId),
 							items = heroItems,
+							activeService = activeService,
+							availableServices = availableServices,
 							onItemClick = onItemClick,
+							onSelectService = onSelectService,
 							modifier = Modifier.padding(bottom = 4.dp)
 						)
 					}

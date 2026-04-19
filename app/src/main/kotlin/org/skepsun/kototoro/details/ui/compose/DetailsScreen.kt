@@ -84,6 +84,7 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
@@ -113,6 +114,7 @@ fun DetailsScreen(
     pagesViewModel: PagesViewModel,
     bookmarksViewModel: BookmarksViewModel,
     settings: AppSettings,
+    appRouter: AppRouter,
     pageSaveHelper: PageSaveHelper,
     onBackClick: () -> Unit,
     onCoverBoundsSync: (Rect, Float) -> Unit,
@@ -129,6 +131,8 @@ fun DetailsScreen(
     val hasTranslationCache by viewModel.hasTranslationCache.collectAsState()
     val isTranslating by viewModel.isTranslating.collectAsState()
     val isStatsAvailable by viewModel.isStatsAvailable.collectAsState()
+    val trackingSuggestion by viewModel.trackingMatchSuggestion.collectAsState()
+    val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     val context = LocalContext.current
@@ -353,6 +357,8 @@ fun DetailsScreen(
                     mangaDetails = mangaDetails,
                     favouriteCategories = favouriteCategories,
                     historyInfo = historyInfo,
+                    linkedTrackingItems = linkedTrackingItems,
+                    trackingSuggestion = trackingSuggestion,
                     translatedTitle = translatedTitle,
                     translatedDescription = translatedDescription,
                     isShowingTranslation = isShowingTranslation,
@@ -375,6 +381,11 @@ fun DetailsScreen(
                     onTagClick = { pendingTagSearch = it },
                     onTranslateClick = { handleActionClick(DetailsAction.Translate) },
                     onToggleTranslationClick = { handleActionClick(DetailsAction.ToggleTranslation) },
+                    onOpenLinkedTracking = { linked -> handleActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url)) },
+                    onManageLinkedTracking = { linked -> handleActionClick(DetailsAction.ManageTrackingBinding(linked.service, linked.remoteId, linked.title, linked.url)) },
+                    onRemoveLinkedTracking = { match -> handleActionClick(DetailsAction.RemoveTrackingMatch(match)) },
+                    onBindTrackingSuggestion = { match -> handleActionClick(DetailsAction.BindTrackingMatch(match)) },
+                    onManageTrackingSuggestion = { match -> handleActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url)) },
                 )
                 Spacer(modifier = Modifier.height(240.dp))
             }
@@ -385,6 +396,9 @@ fun DetailsScreen(
             ModalBottomSheet(
                 onDismissRequest = { showPaneSheet = false },
                 sheetState = paneSheetState,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = null,
                 modifier = Modifier.fillMaxHeight(0.92f),
             ) {
                 ChaptersPagesTabsContent(
@@ -392,6 +406,7 @@ fun DetailsScreen(
                     pagesViewModel = pagesViewModel,
                     bookmarksViewModel = bookmarksViewModel,
                     settings = settings,
+                    appRouter = appRouter,
                     pageSaveHelper = pageSaveHelper,
                     selectedTabId = sheetTabSelection,
                     onSelectedTabIdChange = { tabId ->
@@ -639,6 +654,23 @@ sealed interface DetailsAction {
     data object Resume : DetailsAction
     data object ResumeIncognito : DetailsAction
     data object ForgetHistory : DetailsAction
+    data class OpenTrackingDetails(
+        val service: org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService,
+        val remoteId: Long,
+        val url: String?,
+    ) : DetailsAction
+    data class ManageTrackingBinding(
+        val service: org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService,
+        val remoteId: Long,
+        val title: String,
+        val url: String?,
+    ) : DetailsAction
+    data class BindTrackingMatch(
+        val match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult,
+    ) : DetailsAction
+    data class RemoveTrackingMatch(
+        val match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult,
+    ) : DetailsAction
 }
 
 @Composable
@@ -1115,7 +1147,7 @@ private fun resolveDetailsTabSelection(
 }
 
 @Composable
-private fun DetailsChromeButton(
+fun DetailsChromeButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,

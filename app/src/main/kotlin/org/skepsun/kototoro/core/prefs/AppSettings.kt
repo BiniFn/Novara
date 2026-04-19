@@ -55,7 +55,7 @@ import javax.inject.Singleton
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext private val context: Context) {
 
-	private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+	val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 	private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 	private val mangaListBadgesDefault = ArraySet(context.resources.getStringArray(R.array.values_list_badges))
 
