@@ -184,3 +184,12 @@
 ### 编译验证
 
 - 所有四个任务均通过 `./gradlew :app:compileDebugKotlin --no-daemon`。**Phase 2 全部完成。**
+
+## 2026-04-19：Phase 3 职责归拢与架构收口
+
+### 任务 9：Home / Browse 职责拆分与明确
+
+- **决策**：Home 与 Browse 采取“弱合并 + 明确分工”：Home 保留历史/更新/个人快捷操作（个人仪表盘），Browse（对应为 Explore/Discover 模块）保留每日推荐 Hero、Tracking 搜索与 Source 入口（探索发现职责）。
+- **执行**：从 `HomeScreen.kt` 中整体移除了 `HomeTrackingHeroSection` 等负责渲染 Tracking 的卡片组件。
+- 引申从 `HomeViewModel.kt` 中清除了与 `TrackingSiteDiscoveryService`、`TrackingSiteCacheRepository`、`PreferredTrackingSiteProvider` 相关的注入及 Flow 处理，使 View 层与 Model 层完全解耦对于追踪站点推荐内容的加载。探索职责完全由 `ExploreHostScreen` + `DiscoverViewModel` 承载。
+- 更新 `AppNavGraph.kt` 中 `HomeScreen` 路由移除与 Tracking 项点击相关回调，达成架构与代码量上的**收敛**。**Phase 3 全量完成。**

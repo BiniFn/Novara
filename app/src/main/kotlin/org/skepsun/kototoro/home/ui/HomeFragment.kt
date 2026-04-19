@@ -79,18 +79,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 					onDownloadsClick = { router.openDownloads() },
 					onRandomClick = { viewModel.openRandom() },
 					onAutoTranslateClick = { router.openTranslationSettings() },
-					onTrackingItemClick = { item ->
-						if (item.supportsDetails) {
-							router.openTrackingSiteDetails(item.service, item.remoteId, item.url)
-						} else if (!item.url.isNullOrBlank()) {
-							router.openExternalBrowser(item.url)
-						}
-					},
-					onTrackingSectionMoreClick = { section ->
-						if (section.categoryId != null) {
-							router.openTrackingDiscoveryCategory(section.service, section.categoryId, section.titleResId)
-						}
-					},
 					isRandomLoading = isRandomLoading
 				)
 			}

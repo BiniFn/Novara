@@ -67,8 +67,6 @@ import org.skepsun.kototoro.core.ui.compose.HeroBackdropScrim
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.util.ext.mangaExtra
-import org.skepsun.kototoro.home.ui.HomeTrackingSection
-import org.skepsun.kototoro.home.ui.HomeTrackingSpotlightItem
 import org.skepsun.kototoro.home.ui.HomeSummaryState
 import org.skepsun.kototoro.parsers.model.Content
 import kotlin.math.absoluteValue
@@ -92,8 +90,6 @@ fun HomeScreen(
     onDownloadsClick: () -> Unit,
     onRandomClick: () -> Unit,
     onAutoTranslateClick: () -> Unit,
-    onTrackingItemClick: (HomeTrackingSpotlightItem) -> Unit,
-    onTrackingSectionMoreClick: (HomeTrackingSection) -> Unit,
     isRandomLoading: Boolean,
 ) {
     val scrollState = rememberScrollState()
@@ -114,7 +110,6 @@ fun HomeScreen(
         HomeQuickAction(stringResource(R.string.reader_settings), R.drawable.ic_read, onReaderSettingsClick),
         HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, onSettingsClick),
     )
-    val heroTrackingSection = state.trackingSections.firstOrNull()
     val historyItems = remember(state.resumeState.content, recentItems) {
         buildList {
             state.resumeState.content?.let(::add)
@@ -166,17 +161,8 @@ fun HomeScreen(
                 onMoreClick = onViewAllRecommendationsClick,
             )
         }
-
-        heroTrackingSection?.let { section ->
-            HomeTrackingHeroSection(
-                section = section,
-                onItemClick = onTrackingItemClick,
-                onMoreClick = { onTrackingSectionMoreClick(section) },
-            )
-        }
-
         val hasNoCarousel = historyItems.isEmpty() && updateItems.isEmpty() &&
-            recommendationItems.isEmpty() && heroTrackingSection == null
+            recommendationItems.isEmpty()
         if (hasNoCarousel) {
             Box(
                 modifier = Modifier
@@ -192,139 +178,6 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun HomeTrackingHeroSection(
-    section: HomeTrackingSection,
-    onItemClick: (HomeTrackingSpotlightItem) -> Unit,
-    onMoreClick: () -> Unit,
-) {
-    val items = section.items
-    if (items.isEmpty()) {
-        return
-    }
-
-    val pagerState = rememberPagerState(pageCount = { items.size })
-    val selectedIndex by remember(items, pagerState) {
-        derivedStateOf { pagerState.currentPage.coerceIn(0, items.lastIndex) }
-    }
-    val selectedItem = items[selectedIndex]
-    val context = LocalContext.current
-    val backgroundRequest = remember(selectedItem.coverUrl, selectedItem.remoteId, selectedItem.service) {
-        ImageRequest.Builder(context)
-            .data(selectedItem.coverUrl)
-            .crossfade(true)
-            .build()
-    }
-
-    HeroAutoAdvanceEffect(
-        pagerState = pagerState,
-        pageCount = items.size,
-    )
-
-    HeroBackdropCard(
-        modifier = Modifier.height(184.dp),
-        minHeight = 184.dp,
-        shape = RoundedCornerShape(26.dp),
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        elevation = 4.dp,
-        background = {
-            AsyncImage(
-                model = backgroundRequest,
-                contentDescription = selectedItem.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(22.dp)
-                    .alpha(0.72f),
-            )
-            HeroBackdropScrim(
-                verticalColors = listOf(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-                ),
-                horizontalColors = listOf(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
-                    Color.Transparent,
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.44f),
-                ),
-            )
-        },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    HomeBadge(
-                        text = stringResource(section.service.titleResId),
-                        iconRes = section.service.iconResId,
-                    )
-                    Text(
-                        text = stringResource(section.titleResId),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                TextButton(onClick = onMoreClick) {
-                    Text(stringResource(R.string.more))
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
-            ) {
-                HorizontalPager(
-                    state = pagerState,
-                    pageSpacing = 8.dp,
-                    contentPadding = PaddingValues(horizontal = 2.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                    TrackingHeroPoster(
-                        item = items[page],
-                        pageOffset = pageOffset,
-                        onClick = { onItemClick(items[page]) },
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 8.dp, end = 8.dp, top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                HeroPagerIndicator(
-                    pageCount = items.size,
-                    currentPage = selectedIndex,
-                )
-                selectedItem.score?.takeIf { it > 0f }?.let { score ->
-                    HomeStatPill(
-                        label = stringResource(R.string.rating),
-                        value = String.format("%.1f", score * 10f),
-                    )
-                } ?: Spacer(modifier = Modifier.width(1.dp))
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -536,106 +389,6 @@ private fun ContentCarouselPoster(
     }
 }
 
-@Composable
-private fun TrackingHeroPoster(
-    item: HomeTrackingSpotlightItem,
-    pageOffset: Float,
-    onClick: () -> Unit,
-) {
-    val offsetFraction = pageOffset.absoluteValue.coerceIn(0f, 1f)
-    val posterWidth = lerp(72.dp, 66.dp, offsetFraction)
-    val posterHeight = lerp(100.dp, 92.dp, offsetFraction)
-    val context = LocalContext.current
-    val imageRequest = remember(item.coverUrl, item.remoteId, item.service) {
-        ImageRequest.Builder(context)
-            .data(item.coverUrl)
-            .crossfade(true)
-            .build()
-    }
-
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = Color.Transparent,
-        modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val scale = 0.94f + ((1f - offsetFraction) * 0.06f)
-                scaleX = scale
-                scaleY = scale
-                alpha = 0.74f + ((1f - offsetFraction) * 0.26f)
-                translationX = pageOffset * -18f
-            }
-            .clickable(onClick = onClick),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(posterWidth)
-                    .height(posterHeight)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.38f)),
-                            ),
-                        ),
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = item.subtitle ?: item.altTitle ?: stringResource(item.service.titleResId),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    HomeBadge(
-                        text = stringResource(item.service.titleResId),
-                        iconRes = item.service.iconResId,
-                    )
-                    item.score?.takeIf { it > 0f }?.let { score ->
-                        Text(
-                            text = String.format("%.1f", score * 10f),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun QuickActionsCard(

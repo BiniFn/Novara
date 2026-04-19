@@ -65,9 +65,10 @@
 ### Home — **L2**
 
 - 通过 Compose NavHost 路由（`"home"` → `HomeScreen`）
-- 三个 `HomeContentCarouselCard`（历史/更新/推荐）+ `HomeTrackingHeroSection` + `QuickActionsCard`
+- 三个 `HomeContentCarouselCard`（历史/更新/推荐）+ `QuickActionsCard`
+- Home 重点被确认为个人仪表盘，不再承载任何与 Tracking、发现相关的推荐及聚合轮播（Phase 3 职责归拢结果）
 - Home → History / Favorites / Local 导航走 `navController.navigate`，不再绕 Activity
-- `HomeScreen.kt` 已清掉 ~1900 行未引用死代码，仅保留主体 ~650 行
+- `HomeScreen.kt` 已清掉 ~1900 行未引用死代码，并于 Phase 3 期间进一步移除了追踪组件与状态，剩余 ~500 余行
 - **Phase 2**：`QuickActionsCard` 从 `GlassSurface` 改为 `Surface(surfaceContainerLow)`，移除 subtitle、button border 和 CircleShape icon 容器，FlowRow 间距收紧至 8dp
 
 ### Discover (Merged into Explore)
@@ -87,9 +88,10 @@
 
 ### Explore — **L2**
 
-- `ExploreHostScreen` 为统一发现页：Hero 轮播置顶 + Sources FlowRow 快捷卡 + 追踪类别 LazyRow 紧凑卡片
+- `ExploreHostScreen` 为统一发现页：Hero 轮播置顶 + Sources FlowRow 快捷卡 + 追踪类别 LazyRow 紧凑卡片，完全接管 Browse 及 Tracking 相关全部呈现
 - 与旧 Discover 的 Hero / Carousel 结构合并
 - **Phase 2**：`DiscoverHeroCarousel` 从 470dp 大卡重写为 280dp 边到边紧凑布局（poster 100×140dp + 信息列）；`SourcesQuickAccessCard` 从 LazyRow 改为 FlowRow chip 风格；`TrackingCategoryCarouselCard` 从 HorizontalPager 改为 LazyRow + 小封面列表
+- **Phase 3**：承接了由 Home 移出的与 `TrackingSiteDiscoveryService` 等 Tracking Discoverability 数据流。完全确立探索发现的模块界限。
 
 ### Feed — **L2**
 
@@ -129,9 +131,9 @@
 
 ### 当前已识别的 UI 回归（待修）
 
-- 主页面搜索栏过滤器接线不一致：`KototoroTopBar` 已支持语言预设 / 内容类型 / 源类型，但只有部分页面正确桥接了 `SearchBarFilterViewController`
+- ~~主页面搜索栏过滤器接线不一致：`KototoroTopBar` 已支持语言预设 / 内容类型 / 源类型，但只有部分页面正确桥接了 `SearchBarFilterViewController`~~（**已修复**：统一默认展示所有过滤器按钮以防突兀消失）
 - ~~收藏页 grid 模式下，单个内容卡片可能被前置非 `ContentGridModel` 项挤到第二列~~（**已修复**：`LazyVerticalGrid` 的 `items` 添加 `span` 参数，非 `ContentGridModel` 项占满整行）
-- Home / Browse / Discover 的 hero/backdrop 在封面为空时仍可能出现割裂的白色矩形占位
+- ~~Home / Browse / Discover 的 hero/backdrop 在封面为空时仍可能出现割裂的白色矩形占位~~（**已修复**：添加深色 fallback 背景层级）
 
 ---
 

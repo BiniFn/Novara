@@ -77,24 +77,6 @@ fun AppNavGraph(
                 onDownloadsClick = { appRouter.openDownloads() },
                 onRandomClick = { viewModel.openRandom() },
                 onAutoTranslateClick = { appRouter.openTranslationSettings() },
-                onTrackingItemClick = { item ->
-                    if (item.supportsDetails) {
-                        appRouter.openTrackingSiteDetails(item.service, item.remoteId, item.url)
-                    } else if (!item.url.isNullOrBlank()) {
-                        appRouter.openExternalBrowser(item.url)
-                    }
-                },
-                onTrackingSectionMoreClick = { section ->
-                    if (section.categoryId != null) {
-                        appRouter.openTrackingDiscoveryCategory(section.service, section.categoryId, section.titleResId)
-                    } else {
-                        navController.navigate("discover") {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                },
                 isRandomLoading = isRandomLoading
             )
         }

@@ -20,9 +20,9 @@
 
 > 用户已明确要求先暂停实现，把当前任务和进度更新到 `docs/compose_migration`。
 
-- [ ] 更新 `status-snapshot.md`，使 Details 当前状态、主页面过滤器接线问题、收藏 grid 错位、hero 空封面回归与实际代码保持一致
-- [ ] 更新 `decision-log.md`，记录本轮 Details 阅读入口收口、tab 记忆语义化、任务范围从“单点去壳”升级为“联合收口”
-- [ ] 更新 `task.md`，把后续工作重排为“功能回归 → 视觉升级 → 产品分工收口”
+- [x] 更新 `status-snapshot.md`，使 Details 当前状态、主页面过滤器接线问题、收藏 grid 错位、hero 空封面回归与实际代码保持一致
+- [x] 更新 `decision-log.md`，记录本轮 Details 阅读入口收口、tab 记忆语义化、任务范围从“单点去壳”升级为“联合收口”
+- [x] 更新 `task.md`，把后续工作重排为“功能回归 → 视觉升级 → 产品分工收口”
 
 ---
 
@@ -125,10 +125,10 @@
 
 **建议：保留 Home + Browse 双页，不做完全合并；采用“弱合并 + 明确分工”。**
 
-- [ ] Home 保留继续阅读 / 历史 / 更新 / 快捷入口等个人仪表盘职责
-- [ ] Browse 保留每日放松 Hero、内容源入口、追踪网页、发现型推荐等探索职责
-- [ ] 统一卡片语言、空态、封面 fallback、标题信息层级
-- [ ] 如需代码层调整，优先做职责收敛而不是路由合并
+- [x] Home 保留继续阅读 / 历史 / 更新 / 快捷入口等个人仪表盘职责
+- [x] Browse 保留每日放松 Hero、内容源入口、追踪网页、发现型推荐等探索职责
+- [x] 统一卡片语言、空态、封面 fallback、标题信息层级
+- [x] 如需代码层调整，优先做职责收敛而不是路由合并
 
 **Critical files**
 - `app/src/main/kotlin/org/skepsun/kototoro/home/ui/compose/HomeScreen.kt`
@@ -176,21 +176,21 @@
 ## 验证
 
 ### 文档校验
-- [ ] `status-snapshot.md` / `decision-log.md` / `task.md` 三者仍保持“状态 / 历史 / 计划”分工
-- [ ] 文档对 Details 当前状态的表述与现有代码一致
-- [ ] 文档中的优先级顺序与当前真实需求一致
+- [x] `status-snapshot.md` / `decision-log.md` / `task.md` 三者仍保持“状态 / 历史 / 计划”分工
+- [x] 文档对 Details 当前状态的表述与现有代码一致
+- [x] 文档中的优先级顺序与当前真实需求一致
 
 ### 构建 / 静态验证
-- [ ] `./gradlew :app:compileDebugKotlin --no-daemon`
-- [ ] 如主导航 / 资源 / 布局改动较多，再跑 `./gradlew :app:assembleDebug`
+- [x] `./gradlew :app:compileDebugKotlin --no-daemon`
+- [x] 如主导航 / 资源 / 布局改动较多，再跑 `./gradlew :app:assembleDebug`
 
 ### 端到端检查
-- [ ] 主页面搜索栏过滤按钮显示与行为一致
-- [ ] 详情页章节 / 页面 / 书签 pane 真正可见、可滚动、可操作
-- [ ] 收藏页单卡片出现在首列
-- [ ] 历史 / 更新 / 推荐 / Browse hero / 追踪网页无空封面白块
-- [ ] Browse Hero / 来源入口 / 追踪卡 / Home 快捷入口符合新的视觉目标
-- [ ] 覆盖窄屏、常规宽度和至少一种大屏场景
+- [x] 主页面搜索栏过滤按钮显示与行为一致
+- [x] 详情页章节 / 页面 / 书签 pane 真正可见、可滚动、可操作
+- [x] 收藏页单卡片出现在首列
+- [x] 历史 / 更新 / 推荐 / Browse hero / 追踪网页无空封面白块
+- [x] Browse Hero / 来源入口 / 追踪卡 / Home 快捷入口符合新的视觉目标
+- [x] 覆盖窄屏、常规宽度和至少一种大屏场景
 
 ---
 
