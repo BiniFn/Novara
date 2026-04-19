@@ -102,7 +102,7 @@ class SearchV2Helper @AssistedInject constructor(
 			}.toSet()
 			
 			val titleQuery = if (filterCapabilities.isSearchSupported)
-				advanced?.title?.takeIf { it.isNotEmpty() } ?: advanced?.query
+				advanced?.title?.takeIf { it.isNotEmpty() } ?: advanced?.query?.takeIf { it.isNotEmpty() }
 			else null
 			val authorQuery = if (filterCapabilities.isAuthorSearchSupported) advanced?.author else null
 
@@ -139,13 +139,23 @@ class SearchV2Helper @AssistedInject constructor(
 			SearchKind.ADVANCED -> retainAll { m ->
 				var title: Boolean? = null
 				var author: Boolean? = null
+				var tagsMatch: Boolean? = null
 				if (advanced?.title?.isNotEmpty() == true) {
 					title = m.matches(advanced.title, MATCH_THRESHOLD_DEFAULT)
 				}
 				if (advanced?.author?.isNotEmpty() == true) {
 					author = m.authors.isEmpty() || m.authors.contains(advanced.author, ignoreCase = true)		
 				}
-				title != false && author != false
+				if (advanced?.tags?.isNotEmpty() == true) {
+					val queryExcludeTagsStr = advanced.tags.split(",").map { it.trim() }.filter { it.isNotEmpty() && it[0] == '-' }
+					val queryTagsStr = advanced.tags.split(",").map { it.trim() }.filter { it.isNotEmpty() && it[0] != '-' }
+					
+					val hasAllIncluded = queryTagsStr.all { q -> m.tags.any { tag -> tag.title.equals(q, ignoreCase = true) } }
+					val hasAnyExcluded = queryExcludeTagsStr.any { q -> m.tags.any { tag -> tag.title.equals(q.substring(1), ignoreCase = true) } }
+					
+					tagsMatch = hasAllIncluded && !hasAnyExcluded
+				}
+				title != false && author != false && tagsMatch != false
 			}
 		}
 	}

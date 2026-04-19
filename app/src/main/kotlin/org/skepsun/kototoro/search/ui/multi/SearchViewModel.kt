@@ -57,6 +57,7 @@ import org.skepsun.kototoro.search.domain.matches
 import org.skepsun.kototoro.search.domain.searchContentKindsFromNames
 import org.skepsun.kototoro.search.domain.sourceTypesFromNames
 import org.skepsun.kototoro.search.domain.sourceTypesFromTags
+import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import java.util.Locale
 import javax.inject.Inject
 
@@ -266,7 +267,7 @@ class SearchViewModel @Inject constructor(
 
 	private suspend fun searchSource(source: ContentSource): SearchResultsListModel? = runCatchingCancellable {
 		val searchHelper = searchHelperFactory.create(source)
-		searchHelper(query, kind)
+		searchHelper(query, kind, advancedQuery)
 	}.fold(
 		onSuccess = { result ->
 			if (result == null || result.manga.isEmpty()) {
@@ -296,7 +297,7 @@ class SearchViewModel @Inject constructor(
 		historyRepository.search(query, kind, Int.MAX_VALUE)
 	}.fold(
 		onSuccess = { result ->
-			val filtered = filterContentBySourceType(result)
+			val filtered = filterContentBySourceType(result).applyAdvancedFilter()
 			if (filtered.isNotEmpty()) {
 				SearchResultsListModel(
 					titleResId = R.string.history,
@@ -326,7 +327,7 @@ class SearchViewModel @Inject constructor(
 		favouritesRepository.search(query, kind, Int.MAX_VALUE)
 	}.fold(
 		onSuccess = { result ->
-			val filtered = filterContentBySourceType(result)
+			val filtered = filterContentBySourceType(result).applyAdvancedFilter()
 			if (filtered.isNotEmpty()) {
 				SearchResultsListModel(
 					titleResId = R.string.favourites,
@@ -420,6 +421,46 @@ class SearchViewModel @Inject constructor(
 	private fun isSourceTypeAllowed(source: ContentSource): Boolean {
 		return sourceTypeIdentifier.getSourceType(source.name) in sourceTypes.value &&
 			contentKinds.value.any { it.matches(source) }
+	}
+
+	
+	private fun List<Content>.applyAdvancedFilter(): List<Content> {
+		val advanced = advancedQuery ?: return this
+		if (kind != SearchKind.ADVANCED) return this
+		return filter { m ->
+			var titleMatch: Boolean? = null
+			var authorMatch: Boolean? = null
+			var tagsMatch: Boolean? = null
+			if (advanced.title.isNotEmpty()) {
+				val threshold = 0.2f
+				val titleDist = minOf(
+					m.title.levenshteinDistance(advanced.title),
+					m.altTitle?.levenshteinDistance(advanced.title) ?: Int.MAX_VALUE,
+				)
+				val titleLen = maxOf(
+					maxOf(m.title.length, advanced.title.length),
+					m.altTitle?.let { maxOf(it.length, advanced.title.length) } ?: 0,
+				)
+				titleMatch = titleLen > 0 && titleDist.toFloat() / titleLen <= threshold
+			}
+			if (advanced.author.isNotEmpty()) {
+				authorMatch = m.authors.isEmpty() ||
+					m.authors.any { it.contains(advanced.author, ignoreCase = true) }
+			}
+			if (advanced.tags.isNotEmpty()) {
+				val parts = advanced.tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+				val includeTags = parts.filter { it[0] != '-' }
+				val excludeTags = parts.filter { it[0] == '-' }.map { it.substring(1) }
+				val hasAllIncluded = includeTags.all { q ->
+					m.tags.any { tag -> tag.title.equals(q, ignoreCase = true) }
+				}
+				val hasAnyExcluded = excludeTags.any { q ->
+					m.tags.any { tag -> tag.title.equals(q, ignoreCase = true) }
+				}
+				tagsMatch = hasAllIncluded && !hasAnyExcluded
+			}
+			titleMatch != false && authorMatch != false && tagsMatch != false
+		}
 	}
 
 	private fun ContentSource.priority(): Int {
