@@ -89,8 +89,8 @@ fun DiscoverHeroCarousel(
     var isServiceMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "discover_hero_background")
     val backgroundScale by infiniteTransition.animateFloat(
-        initialValue = 1.08f,
-        targetValue = 1.16f,
+        initialValue = 1.15f,
+        targetValue = 1.22f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 14000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
@@ -174,12 +174,13 @@ fun DiscoverHeroCarousel(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(124.dp)
+                .height(160.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.55f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
                             MaterialTheme.colorScheme.background,
                         ),
                     ),

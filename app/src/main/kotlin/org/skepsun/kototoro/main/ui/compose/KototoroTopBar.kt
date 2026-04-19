@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.DropdownMenu
@@ -32,7 +33,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,8 +53,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.ui.glass.GlassDefaults
-import org.skepsun.kototoro.core.ui.glass.GlassTopBarContainer
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -104,11 +105,14 @@ fun KototoroTopBar(
             .fillMaxWidth()
             .padding(top = statusBarPadding.calculateTopPadding())
     ) {
-        GlassTopBarContainer(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = if (expanded) 0.dp else 16.dp),
-            style = if (expanded) GlassDefaults.regularStyle() else GlassDefaults.prominentStyle(),
+                .padding(horizontal = if (expanded) 0.dp else 12.dp),
+            shape = RoundedCornerShape(if (expanded) 0.dp else 28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (expanded) 1f else 0.92f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
         ) {
             DockedSearchBar(
                 inputField = {

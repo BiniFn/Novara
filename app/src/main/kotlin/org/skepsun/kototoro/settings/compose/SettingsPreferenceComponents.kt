@@ -56,24 +56,18 @@ fun SettingsPreferenceSection(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 6.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-            )
-            content()
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+        )
+        content()
     }
 }
 

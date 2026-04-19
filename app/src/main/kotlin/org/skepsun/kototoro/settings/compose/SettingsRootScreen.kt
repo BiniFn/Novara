@@ -22,7 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,8 +33,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.skepsun.kototoro.core.ui.glass.GlassDefaults
-import org.skepsun.kototoro.core.ui.glass.GlassSurface
 
 data class SettingsRootSection(
     val title: String,
@@ -82,24 +82,22 @@ private fun SettingsHeroCard(
     title: String,
     subtitle: String,
 ) {
-    GlassSurface(
-        style = GlassDefaults.prominentStyle(),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -107,8 +105,10 @@ private fun SettingsHeroCard(
 private fun SettingsSectionCard(
     section: SettingsRootSection,
 ) {
-    GlassSurface(
-        style = GlassDefaults.regularStyle(),
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier.padding(vertical = 8.dp),
@@ -116,7 +116,7 @@ private fun SettingsSectionCard(
             Text(
                 text = section.title,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
             section.items.forEachIndexed { index, item ->
