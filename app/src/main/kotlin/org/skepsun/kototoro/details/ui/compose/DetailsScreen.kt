@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -68,7 +67,6 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,6 +85,10 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
@@ -141,6 +143,9 @@ fun DetailsScreen(
     val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
         panoramaBottomGradientAlpha
     }
+    val statsViewModel: ContentStatsViewModel = hiltViewModel()
+    val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
+    val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
     val contentType = content?.source?.getContentType()
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
@@ -165,6 +170,7 @@ fun DetailsScreen(
     }
     val density = LocalDensity.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val hazeState = LocalHazeState.current
     val toolbarGapPx = with(density) { 12.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -224,7 +230,9 @@ fun DetailsScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+    ) {
         if (settings.isPanoramaCoverEnabled) {
             val request = remember(mangaDetails) {
                 ImageRequest.Builder(context)
@@ -304,7 +312,7 @@ fun DetailsScreen(
                             showDownloadDialog = true
                         }) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_download),
+                                painter = rememberSafePainter(R.drawable.ic_download),
                                 contentDescription = stringResource(R.string.download),
                             )
                         }
@@ -513,12 +521,12 @@ fun DetailsScreen(
             DownloadDialog(
                 mangaList = listOf(content),
                 snackbarHostState = snackbarHostState,
+                viewModel = downloadDialogViewModel,
                 onDismiss = { showDownloadDialog = false },
             )
         }
 
         if (showStatsDialog && content != null) {
-            val statsViewModel: ContentStatsViewModel = hiltViewModel()
             ContentStatsDialog(
                 viewModel = statsViewModel,
                 onDismissRequest = { showStatsDialog = false },
@@ -529,7 +537,6 @@ fun DetailsScreen(
         }
 
         if (showScrobblingDialog && content != null) {
-            val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
             ScrobblingSelectorDialog(
                 viewModel = scrobblingViewModel,
                 onDismissRequest = { showScrobblingDialog = false },
@@ -552,12 +559,9 @@ private fun DetailsBottomBar(
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
-            tonalElevation = 6.dp,
-            shadowElevation = 18.dp,
+        GlassBottomBarContainer(
             modifier = Modifier.fillMaxWidth(),
+            style = GlassDefaults.prominentStyle(),
         ) {
             Row(
                 modifier = Modifier
@@ -608,17 +612,14 @@ private fun DetailsDockActionButton(
     contentDescription: String,
     onClick: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
-        modifier = Modifier.padding(end = 8.dp),
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.padding(end = 4.dp),
     ) {
-        IconButton(onClick = onClick) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = contentDescription,
-            )
-        }
+        Icon(
+            painter = rememberSafePainter(iconRes),
+            contentDescription = contentDescription,
+        )
     }
 }
 
@@ -1017,7 +1018,7 @@ private fun SearchTargetDialog(
         onDismissRequest = onDismissRequest,
         icon = {
             Icon(
-                painter = painterResource(iconRes),
+                painter = rememberSafePainter(iconRes),
                 contentDescription = null,
             )
         },
@@ -1152,25 +1153,10 @@ fun DetailsChromeButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = modifier
-            .padding(horizontal = 2.dp)
-            .shadow(
-                elevation = 12.dp,
-                shape = CircleShape,
-                ambientColor = Color.Black.copy(alpha = 0.18f),
-                spotColor = Color.Black.copy(alpha = 0.24f),
-            ),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
-        tonalElevation = 2.dp,
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-        ),
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.padding(horizontal = 2.dp),
     ) {
-        IconButton(onClick = onClick) {
-            content()
-        }
+        content()
     }
 }

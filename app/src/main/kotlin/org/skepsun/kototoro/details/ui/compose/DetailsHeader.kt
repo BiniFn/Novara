@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -40,13 +41,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -255,19 +256,16 @@ fun DetailsHeader(
                 onCoverBoundsSync = onCoverBoundsSync,
                 alpha = coverAlpha,
                 onClick = onCoverClick,
-                modifier = Modifier.graphicsLayer {
-                    alpha = coverAlpha
-                    translationX = -48f * coverCollapseProgress
-                },
+                modifier = Modifier
+                    .alpha(coverAlpha)
+                    .offsetX((-48).dp, coverCollapseProgress),
             )
 
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .graphicsLayer {
-                        alpha = 1f - textCollapseProgress
-                        translationX = -32f * textCollapseProgress
-                    },
+                    .alpha(1f - textCollapseProgress)
+                    .offsetX((-32).dp, textCollapseProgress),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
@@ -300,10 +298,9 @@ fun DetailsHeader(
                 }
 
                 Row(
-                    modifier = Modifier.graphicsLayer {
-                        alpha = 1f - actionsCollapseProgress
-                        translationX = -18f * actionsCollapseProgress
-                    },
+                    modifier = Modifier
+                        .alpha(1f - actionsCollapseProgress)
+                        .offsetX((-18).dp, actionsCollapseProgress),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DetailsHeaderIconButton(
@@ -374,7 +371,7 @@ fun DetailsHeader(
                     .onGloballyPositioned { coordinates ->
                         onInfoCardTopSync(coordinates.boundsInRoot().top)
                     },
-                style = GlassDefaults.regularStyle(),
+                style = GlassDefaults.subtleStyle(),
                 shape = RoundedCornerShape(24.dp),
             ) {
                 Column(
@@ -413,7 +410,7 @@ fun DetailsHeader(
 
         GlassSurface(
             modifier = Modifier.fillMaxWidth(),
-            style = GlassDefaults.regularStyle(),
+            style = GlassDefaults.subtleStyle(),
             shape = RoundedCornerShape(24.dp),
         ) {
             Column(
@@ -467,5 +464,12 @@ fun DetailsHeader(
         }
     }
 }
+
+private fun Modifier.offsetX(
+    maxOffset: Dp,
+    progress: Float,
+): Modifier = this.then(
+    Modifier.offset(x = maxOffset * progress),
+)
 
 

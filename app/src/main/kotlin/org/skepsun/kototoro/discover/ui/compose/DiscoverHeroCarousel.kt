@@ -33,7 +33,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -43,6 +42,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -50,21 +50,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
-private val DiscoverHeroHeight = 392.dp
+private val DiscoverHeroHeight = 340.dp
+private val DiscoverHeroBottomBlendHeight = 160.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -77,6 +80,7 @@ fun DiscoverHeroCarousel(
     onSelectService: (ScrobblerService) -> Unit,
     topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
+    bottomContent: (@Composable () -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
 
@@ -124,12 +128,38 @@ fun DiscoverHeroCarousel(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(DiscoverHeroHeight),
+            .then(
+                if (bottomContent == null) Modifier.height(DiscoverHeroHeight + topContentInset)
+                else Modifier
+            ),
     ) {
-        Crossfade(targetState = selectedItem.id, label = "discover_hero_background") { currentId ->
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.82f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.52f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.90f),
+                            MaterialTheme.colorScheme.background,
+                        ),
+                    ),
+                ),
+        )
+        Crossfade(
+            targetState = selectedItem.id,
+            label = "discover_hero_background",
+            modifier = Modifier.matchParentSize(),
+        ) { currentId ->
             val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
+            val backgroundRequest = remember(currentId, backgroundItem.coverUrl) {
+                ImageRequest.Builder(context)
+                    .data(backgroundItem.coverUrl)
+                    .build()
+            }
             AsyncImage(
-                model = backgroundItem.coverUrl,
+                model = backgroundRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -140,18 +170,20 @@ fun DiscoverHeroCarousel(
                         translationX = backgroundTranslationX
                         translationY = backgroundTranslationY
                     }
-                    .blur(28.dp),
+                    .blur(32.dp)
+                    .alpha(0.94f),
             )
         }
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.04f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.06f),
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.68f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.84f),
                             MaterialTheme.colorScheme.background,
                         ),
                     ),
@@ -159,13 +191,13 @@ fun DiscoverHeroCarousel(
         )
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.60f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.68f),
                             Color.Transparent,
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.24f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.30f),
                         ),
                     ),
                 ),
@@ -174,12 +206,13 @@ fun DiscoverHeroCarousel(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(160.dp)
+                .height(DiscoverHeroBottomBlendHeight)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.55f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.28f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
                             MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
                             MaterialTheme.colorScheme.background,
                         ),
@@ -189,8 +222,12 @@ fun DiscoverHeroCarousel(
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = topContentInset + 12.dp, bottom = 14.dp),
+                .fillMaxWidth()
+                .then(
+                    if (bottomContent == null) Modifier.fillMaxSize()
+                    else Modifier
+                )
+                .padding(top = topContentInset + 12.dp, bottom = if (bottomContent == null) 14.dp else 0.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -199,64 +236,58 @@ fun DiscoverHeroCarousel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    activeService?.let { service ->
-                        Box {
-                            AssistChip(
-                                onClick = {
-                                    isServiceMenuExpanded = true
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(service.iconResId),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                },
-                                trailingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Filled.ArrowDropDown,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                },
-                                label = {
-                                    Text(stringResource(service.titleResId))
-                                },
-                            )
-                            DropdownMenu(
-                                expanded = isServiceMenuExpanded,
-                                onDismissRequest = { isServiceMenuExpanded = false },
-                            ) {
-                                availableServices.forEach { candidate ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(candidate.titleResId)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                painter = painterResource(candidate.iconResId),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        },
-                                        onClick = {
-                                            isServiceMenuExpanded = false
-                                            onSelectService(candidate)
-                                        },
-                                    )
-                                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                activeService?.let { service ->
+                    Box {
+                        AssistChip(
+                            onClick = {
+                                isServiceMenuExpanded = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = rememberSafePainter(service.iconResId),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            label = {
+                                Text(stringResource(service.titleResId))
+                            },
+                        )
+                        DropdownMenu(
+                            expanded = isServiceMenuExpanded,
+                            onDismissRequest = { isServiceMenuExpanded = false },
+                        ) {
+                            availableServices.forEach { candidate ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(candidate.titleResId)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = rememberSafePainter(candidate.iconResId),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                    onClick = {
+                                        isServiceMenuExpanded = false
+                                        onSelectService(candidate)
+                                    },
+                                )
                             }
                         }
                     }
-                }
-                TextButton(onClick = { onItemClick(selectedItem) }) {
-                    Text(text = stringResource(R.string.more))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -267,6 +298,12 @@ fun DiscoverHeroCarousel(
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
                 val item = items[page]
+                val posterRequest = remember(item.id, item.coverUrl) {
+                    ImageRequest.Builder(context)
+                        .data(item.coverUrl)
+                        .crossfade(true)
+                        .build()
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -276,7 +313,7 @@ fun DiscoverHeroCarousel(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AsyncImage(
-                        model = item.coverUrl,
+                        model = posterRequest,
                         contentDescription = item.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -305,6 +342,10 @@ fun DiscoverHeroCarousel(
                 currentPage = selectedIndex,
                 modifier = Modifier.padding(horizontal = 20.dp),
             )
+            if (bottomContent != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                bottomContent()
+            }
         }
     }
 }

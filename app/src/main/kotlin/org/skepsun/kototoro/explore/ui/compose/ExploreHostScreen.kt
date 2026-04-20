@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -52,11 +52,15 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest.Builder
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.parser.favicon.faviconUri
+import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
 import org.skepsun.kototoro.discover.ui.compose.DiscoverHeroCarousel
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
@@ -149,13 +153,7 @@ fun KototoroExploreHostRoute(
                         openTrackingItem(appRouter, discoverViewModel, availableServices, item)
                     },
                     onSourceClick = { source -> appRouter.openList(source.source, null, null) },
-                    onManageSourcesClick = {
-                        if (exploreViewModel.isAllSourcesEnabled.value) {
-                            appRouter.openManageSources()
-                        } else {
-                            appRouter.openSourcesCatalog()
-                        }
-                    },
+                    onManageSourcesClick = appRouter::openManageSources,
                 )
             }
 
@@ -265,79 +263,69 @@ private fun BrowseHeroBlock(
     onSourceClick: (ContentSourceItem) -> Unit,
     onManageSourcesClick: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-    ) {
-        if (heroItems.isNotEmpty()) {
-            DiscoverHeroCarousel(
-                title = title,
-                items = heroItems,
-                activeService = activeService,
-                availableServices = availableServices,
-                onSelectService = onSelectService,
-                onItemClick = onHeroItemClick,
-                topContentInset = topContentInset,
+    val sourcesContent: (@Composable () -> Unit)? = when {
+        sources.isNotEmpty() -> ({
+            SourcesQuickAccessSection(
+                sources = sources,
+                onSourceClick = onSourceClick,
+                onManageClick = onManageSourcesClick,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 22.dp),
             )
-        } else {
+        })
+        isLoadingOnly -> ({
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(topContentInset + 220.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.22f),
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
-                                MaterialTheme.colorScheme.background,
-                            ),
-                        ),
-                    )
-                    .padding(top = topContentInset + 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 36.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (isLoadingOnly) {
-                    CircularProgressIndicator()
-                }
+                CircularProgressIndicator()
             }
-        }
+        })
+        else -> null
+    }
 
+    if (heroItems.isNotEmpty()) {
+        DiscoverHeroCarousel(
+            title = title,
+            items = heroItems,
+            activeService = activeService,
+            availableServices = availableServices,
+            onSelectService = onSelectService,
+            onItemClick = onHeroItemClick,
+            topContentInset = topContentInset,
+            bottomContent = sourcesContent,
+        )
+    } else {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(topContentInset + 220.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.22f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
                             MaterialTheme.colorScheme.background,
                         ),
                     ),
-                ),
+                )
+                .padding(top = topContentInset + 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            if (sources.isNotEmpty()) {
-                SourcesQuickAccessSection(
-                    sources = sources,
-                    onSourceClick = onSourceClick,
-                    onManageClick = onManageSourcesClick,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                )
-            } else if (isLoadingOnly) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 18.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
-            } else {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(12.dp),
-                )
+            if (isLoadingOnly) {
+                CircularProgressIndicator()
             }
+        }
+        if (sources.isNotEmpty()) {
+            SourcesQuickAccessSection(
+                sources = sources,
+                onSourceClick = onSourceClick,
+                onManageClick = onManageSourcesClick,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 22.dp),
+            )
+        } else {
+            Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
         }
     }
 }
@@ -352,7 +340,7 @@ private fun SourcesQuickAccessSection(
     val context = LocalContext.current
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -376,41 +364,85 @@ private fun SourcesQuickAccessSection(
                 )
             }
             TextButton(onClick = onManageClick) {
-                Text(stringResource(R.string.more))
+                Text(stringResource(R.string.manage))
             }
         }
-        FlowRow(
+        LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp),
         ) {
-            sources.take(12).forEach { source ->
-                val title = source.source.getTitle(context)
-                Surface(
-                    modifier = Modifier.clickable { onSourceClick(source) },
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
-                    tonalElevation = 1.dp,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_storage),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+            items(
+                items = sources.take(16),
+                key = { it.id },
+            ) { source ->
+                SourceQuickAccessCard(
+                    source = source,
+                    onClick = { onSourceClick(source) },
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun SourceQuickAccessCard(
+    source: ContentSourceItem,
+    onClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val actualSource = source.source.mangaSource
+    val title = actualSource.getTitle(context)
+    val faviconRequest = remember(source.id, actualSource.name) {
+        val fallback = sourceFallbackImage(
+            context = context,
+            styleResId = R.style.FaviconDrawable,
+            source = actualSource,
+            animated = false,
+        )
+        Builder(context)
+            .data(actualSource.faviconUri())
+            .crossfade(true)
+            .mangaSourceExtra(actualSource)
+            .placeholder(fallback)
+            .fallback(fallback)
+            .error(fallback)
+            .build()
+    }
+
+    Surface(
+        modifier = Modifier
+            .width(68.dp)
+            .clickable(onClick = onClick),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+            ) {
+                AsyncImage(
+                    model = faviconRequest,
+                    contentDescription = title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .padding(4.dp),
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

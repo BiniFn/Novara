@@ -33,11 +33,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 
 @Composable
 fun DetailsCoverFrame(
@@ -117,30 +119,40 @@ fun DetailsHeaderIconButton(
     enabled: Boolean = true,
     filled: Boolean = false,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = if (filled) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.76f)
-        },
-        contentColor = if (filled) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        },
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
-    ) {
+    if (filled) {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f),
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            tonalElevation = 2.dp,
+            shadowElevation = 2.dp,
+        ) {
+            Box(
+                modifier = Modifier
+                    .clickable(enabled = enabled, onClick = onClick)
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = rememberSafePainter(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    } else {
         Box(
-            modifier = Modifier
+            modifier = modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.38f))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f), RoundedCornerShape(16.dp))
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(12.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(iconRes),
+                painter = rememberSafePainter(iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
             )
@@ -174,7 +186,7 @@ fun MetadataItem(
         ) {
             iconRes?.let {
                 Icon(
-                    painter = painterResource(it),
+                    painter = rememberSafePainter(it),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp),
@@ -201,12 +213,9 @@ fun DetailsHeroBadge(
     text: String,
     @DrawableRes iconRes: Int? = null,
 ) {
-    Surface(
+    GlassSurface(
+        style = GlassDefaults.subtleStyle(),
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -215,7 +224,7 @@ fun DetailsHeroBadge(
         ) {
             iconRes?.let {
                 Icon(
-                    painter = painterResource(it),
+                    painter = rememberSafePainter(it),
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
                 )
