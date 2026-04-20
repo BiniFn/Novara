@@ -32,8 +32,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +45,10 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -87,6 +93,21 @@ fun KototoroExploreHostRoute(
     val activeService by discoverViewModel.activeService.collectAsStateWithLifecycle()
     val query by discoverViewModel.query.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    var heroPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val heroHeightDp by remember(heroPx, density) {
+        derivedStateOf { with(density) { heroPx.toDp() } }
+    }
+    // 实时读取 LazyColumn 第一个 item 的滚动偏移，驱动 Hero 跟随滚动
+    val heroScrollOffsetPx by remember(listState) {
+        derivedStateOf {
+            if (listState.firstVisibleItemIndex == 0) {
+                -listState.firstVisibleItemScrollOffset.toFloat()
+            } else {
+                -heroPx.toFloat()
+            }
+        }
+    }
 
     val sources = remember(sourceItems) {
         sourceItems.filterIsInstance<ContentSourceItem>()
@@ -129,91 +150,103 @@ fun KototoroExploreHostRoute(
         onRefresh = { discoverViewModel.refresh() },
         modifier = Modifier.fillMaxSize(),
     ) {
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(
-                top = 0.dp,
-                bottom = contentPadding.calculateBottomPadding() + 120.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "discover_hero_block") {
-                BrowseHeroBlock(
-                    title = heroRow?.category?.let { stringResource(it.nameResId) }
-                        ?: stringResource(R.string.discover),
-                    heroItems = heroItems,
-                    sources = sources,
-                    activeService = activeService,
-                    availableServices = availableServices,
-                    isLoadingOnly = isLoadingOnly,
-                    topContentInset = contentPadding.calculateTopPadding(),
-                    onSelectService = discoverViewModel::selectService,
-                    onHeroItemClick = { item ->
-                        openTrackingItem(appRouter, discoverViewModel, availableServices, item)
-                    },
-                    onSourceClick = { source -> appRouter.openList(source.source, null, null) },
-                    onManageSourcesClick = appRouter::openManageSources,
-                )
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
+            // ===== 内容流 =====
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(
+                    top = 0.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 120.dp,
+                ),
+                verticalArrangement = Arrangement.Top,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                // 占位 Spacer，给 Hero Overlay 留空间
+                item(key = "discover_hero_spacer") {
+                    Spacer(modifier = Modifier.height(heroHeightDp))
+                }
 
-            items(
-                items = showcaseRows,
-                key = { "showcase_${it.category.id}" },
-            ) { row ->
-                val rowContentItems = remember(row) {
-                    row.items.filterIsInstance<ContentListModel>().take(12)
-                }
-                if (rowContentItems.isNotEmpty()) {
-                    TrackingCategoryRow(
-                        title = stringResource(row.category.nameResId),
-                        items = rowContentItems,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        onItemClick = { item ->
-                            openTrackingItem(appRouter, discoverViewModel, availableServices, item)
-                        },
-                        onMoreClick = {
-                            activeService?.let { service ->
-                                appRouter.openTrackingDiscoveryCategory(service, row.category.id, row.category.nameResId)
-                            }
-                        },
-                    )
-                }
-            }
-
-            if (popularItems.isNotEmpty()) {
-                item(key = "popular_header") {
-                    BrowsePopularHeader(
-                        title = stringResource(R.string.popular),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
                 items(
-                    items = popularItems,
-                    key = { "popular_${it.id}" },
-                ) { item ->
-                    BrowsePopularListItem(
-                        item = item,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        onClick = {
-                            openTrackingItem(appRouter, discoverViewModel, availableServices, item)
-                        },
-                    )
+                    items = showcaseRows,
+                    key = { "showcase_${it.category.id}" },
+                ) { row ->
+                    val rowContentItems = remember(row) {
+                        row.items.filterIsInstance<ContentListModel>().take(12)
+                    }
+                    if (rowContentItems.isNotEmpty()) {
+                        TrackingCategoryRow(
+                            title = stringResource(row.category.nameResId),
+                            items = rowContentItems,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            onItemClick = { item ->
+                                openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                            },
+                            onMoreClick = {
+                                activeService?.let { service ->
+                                    appRouter.openTrackingDiscoveryCategory(service, row.category.id, row.category.nameResId)
+                                }
+                            },
+                        )
+                    }
                 }
-            }
 
-            if (isDiscoverLoading && popularItems.isNotEmpty()) {
-                item(key = "popular_loading") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
+                if (popularItems.isNotEmpty()) {
+                    item(key = "popular_header") {
+                        BrowsePopularHeader(
+                            title = stringResource(R.string.popular),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                        )
+                    }
+                    items(
+                        items = popularItems,
+                        key = { "popular_${it.id}" },
+                    ) { item ->
+                        BrowsePopularListItem(
+                            item = item,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            onClick = {
+                                openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                            },
+                        )
+                    }
+                }
+
+                if (isDiscoverLoading && popularItems.isNotEmpty()) {
+                    item(key = "popular_loading") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
+
+            // ===== Hero Overlay（跟随滚动，无 spacing 污染）=====
+            BrowseHeroBlock(
+                title = heroRow?.category?.let { stringResource(it.nameResId) }
+                    ?: stringResource(R.string.discover),
+                heroItems = heroItems,
+                sources = sources,
+                activeService = activeService,
+                availableServices = availableServices,
+                isLoadingOnly = isLoadingOnly,
+                topContentInset = contentPadding.calculateTopPadding(),
+                onSelectService = discoverViewModel::selectService,
+                onHeroItemClick = { item ->
+                    openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                },
+                onSourceClick = { source -> appRouter.openList(source.source, null, null) },
+                onManageSourcesClick = appRouter::openManageSources,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopStart)
+                    .onSizeChanged { heroPx = it.height }
+                    .graphicsLayer { translationY = heroScrollOffsetPx },
+            )
         }
     }
 }
@@ -262,6 +295,7 @@ private fun BrowseHeroBlock(
     onHeroItemClick: (ContentListModel) -> Unit,
     onSourceClick: (ContentSourceItem) -> Unit,
     onManageSourcesClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val sourcesContent: (@Composable () -> Unit)? = when {
         sources.isNotEmpty() -> ({
@@ -295,6 +329,7 @@ private fun BrowseHeroBlock(
             onItemClick = onHeroItemClick,
             topContentInset = topContentInset,
             bottomContent = sourcesContent,
+            modifier = modifier,
         )
     } else {
         Box(
@@ -412,6 +447,7 @@ private fun SourceQuickAccessCard(
     Surface(
         modifier = Modifier
             .width(68.dp)
+            .height(96.dp)
             .clickable(onClick = onClick),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -419,10 +455,10 @@ private fun SourceQuickAccessCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(horizontal = 6.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
             Surface(
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
@@ -634,6 +670,7 @@ private fun TrackingCompactPoster(
     Column(
         modifier = Modifier
             .width(76.dp)
+            .height(138.dp)
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

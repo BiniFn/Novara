@@ -45,10 +45,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +69,7 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 private val DiscoverHeroHeight = 340.dp
+private val DiscoverHeroHeightLandscape = 220.dp
 private val DiscoverHeroBottomBlendHeight = 160.dp
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -83,6 +86,10 @@ fun DiscoverHeroCarousel(
     bottomContent: (@Composable () -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
+
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val heroHeight = if (isLandscape) DiscoverHeroHeightLandscape else DiscoverHeroHeight
 
     val context = LocalContext.current
     val pagerState = rememberPagerState(pageCount = { items.size })
@@ -129,13 +136,18 @@ fun DiscoverHeroCarousel(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (bottomContent == null) Modifier.height(DiscoverHeroHeight + topContentInset)
+                if (bottomContent == null) Modifier.height(heroHeight + topContentInset)
                 else Modifier
             ),
     ) {
+        // 背景层限制在 hero 图片高度内，不延伸到 bottomContent
+        val heroImageModifier = if (bottomContent != null)
+            Modifier.fillMaxWidth().height(heroHeight + topContentInset).clipToBounds()
+        else
+            Modifier.matchParentSize()
+
         Box(
-            modifier = Modifier
-                .matchParentSize()
+            modifier = heroImageModifier
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
@@ -150,7 +162,7 @@ fun DiscoverHeroCarousel(
         Crossfade(
             targetState = selectedItem.id,
             label = "discover_hero_background",
-            modifier = Modifier.matchParentSize(),
+            modifier = heroImageModifier,
         ) { currentId ->
             val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
             val backgroundRequest = remember(currentId, backgroundItem.coverUrl) {
@@ -175,8 +187,7 @@ fun DiscoverHeroCarousel(
             )
         }
         Box(
-            modifier = Modifier
-                .matchParentSize()
+            modifier = heroImageModifier
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
@@ -190,8 +201,7 @@ fun DiscoverHeroCarousel(
                 ),
         )
         Box(
-            modifier = Modifier
-                .matchParentSize()
+            modifier = heroImageModifier
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
@@ -202,10 +212,12 @@ fun DiscoverHeroCarousel(
                     ),
                 ),
         )
+        // 底部渐变固定在 hero 图片区域底部，不随 bottomContent 延伸
         Spacer(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
+                .padding(top = topContentInset + heroHeight - DiscoverHeroBottomBlendHeight)
                 .height(DiscoverHeroBottomBlendHeight)
                 .background(
                     Brush.verticalGradient(
