@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import org.skepsun.kototoro.core.util.ext.getThemeColor
@@ -78,6 +79,12 @@ private fun android.content.Context.resolveComposeColorScheme(
     )
 
     return if (darkTheme) {
+        val liftedSurfaceContainerLowest = common.surfaceContainerLowest.liftForDarkContrast(0.10f)
+        val liftedSurfaceContainerLow = common.surfaceContainerLow.liftForDarkContrast(0.14f)
+        val liftedSurfaceContainer = common.surfaceContainer.liftForDarkContrast(0.16f)
+        val liftedSurfaceContainerHigh = common.surfaceContainerHigh.liftForDarkContrast(0.18f)
+        val liftedSurfaceContainerHighest = common.surfaceContainerHighest.liftForDarkContrast(0.20f)
+
         darkColorScheme(
             primary = common.primary,
             onPrimary = common.onPrimary,
@@ -110,11 +117,11 @@ private fun android.content.Context.resolveComposeColorScheme(
             scrim = Color.Black,
             surfaceBright = common.surfaceBright,
             surfaceDim = common.surfaceDim,
-            surfaceContainerLowest = common.surfaceContainerLowest,
-            surfaceContainerLow = common.surfaceContainerLow,
-            surfaceContainer = common.surfaceContainer,
-            surfaceContainerHigh = common.surfaceContainerHigh,
-            surfaceContainerHighest = common.surfaceContainerHighest,
+            surfaceContainerLowest = liftedSurfaceContainerLowest,
+            surfaceContainerLow = liftedSurfaceContainerLow,
+            surfaceContainer = liftedSurfaceContainer,
+            surfaceContainerHigh = liftedSurfaceContainerHigh,
+            surfaceContainerHighest = liftedSurfaceContainerHighest,
         )
     } else {
         lightColorScheme(
@@ -181,6 +188,10 @@ private fun android.content.Context.themeColor(
 ): Color {
     val fallbackArgb = if (fallback.isSpecified) fallback.toArgb() else android.graphics.Color.TRANSPARENT
     return Color(getThemeColor(attr, fallbackArgb))
+}
+
+private fun Color.liftForDarkContrast(amount: Float): Color {
+    return lerp(this, Color.White, amount.coerceIn(0f, 1f))
 }
 
 private data class ThemeColorSnapshot(

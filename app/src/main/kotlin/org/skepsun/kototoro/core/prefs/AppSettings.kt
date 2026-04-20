@@ -189,6 +189,14 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getInt(KEY_PANORAMA_BLUR, 35)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_BLUR, value) }
 
+	var isPanoramaCoverAnimationEnabled: Boolean
+		get() = prefs.getBoolean(KEY_PANORAMA_ANIMATION_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ANIMATION_ENABLED, value) }
+
+	var panoramaAnimationSpeed: Int
+		get() = prefs.getInt(KEY_PANORAMA_ANIMATION_SPEED, 100)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_ANIMATION_SPEED, value.coerceIn(50, 200)) }
+
 	var panoramaCoverExtraHeight: Int
 		get() = prefs.getInt(KEY_PANORAMA_EXTRA_HEIGHT, 50)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_EXTRA_HEIGHT, value) }
@@ -1880,6 +1888,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
 		const val KEY_PANORAMA_ENABLED = "panorama_enabled"
 		const val KEY_PANORAMA_BLUR = "panorama_blur"
+		const val KEY_PANORAMA_ANIMATION_ENABLED = "panorama_animation_enabled"
+		const val KEY_PANORAMA_ANIMATION_SPEED = "panorama_animation_speed"
 		const val KEY_PANORAMA_EXTRA_HEIGHT = "panorama_extra_height"
 		const val KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA = "panorama_bottom_gradient_alpha"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"

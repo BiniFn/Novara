@@ -42,6 +42,8 @@ data class AppearanceSettingsUiState(
     val isDescriptionExpanded: Boolean,
     val isPanoramaCoverEnabled: Boolean,
     val panoramaCoverBlur: Int,
+    val isPanoramaCoverAnimationEnabled: Boolean,
+    val panoramaAnimationSpeed: Int,
     val panoramaCoverExtraHeight: Int,
     val panoramaBottomGradientAlpha: Int,
     val isPagesTabEnabled: Boolean,
@@ -109,6 +111,8 @@ fun AppearanceSettingsScreen(
     onDescriptionExpandedChange: (Boolean) -> Unit,
     onPanoramaCoverEnabledChange: (Boolean) -> Unit,
     onPanoramaBlurChange: (Int) -> Unit,
+    onPanoramaAnimationEnabledChange: (Boolean) -> Unit,
+    onPanoramaAnimationSpeedChange: (Int) -> Unit,
     onPanoramaExtraHeightChange: (Int) -> Unit,
     onPanoramaGradientAlphaChange: (Int) -> Unit,
     onPagesTabEnabledChange: (Boolean) -> Unit,
@@ -284,6 +288,24 @@ fun AppearanceSettingsScreen(
                         valueText = { "$it%" },
                         onValueChange = onPanoramaBlurChange,
                     )
+                    SettingsSectionDivider()
+                    SettingsSwitchPreference(
+                        title = stringResource(R.string.pref_panorama_animation),
+                        checked = state.isPanoramaCoverAnimationEnabled,
+                        summary = stringResource(R.string.pref_panorama_animation_summary),
+                        onCheckedChange = onPanoramaAnimationEnabledChange,
+                    )
+                    if (state.isPanoramaCoverAnimationEnabled) {
+                        SettingsSectionDivider()
+                        SettingsSliderPreference(
+                            title = stringResource(R.string.pref_panorama_animation_speed),
+                            value = state.panoramaAnimationSpeed,
+                            valueRange = 50..200,
+                            step = 5,
+                            valueText = { "${it}%" },
+                            onValueChange = onPanoramaAnimationSpeedChange,
+                        )
+                    }
                     SettingsSectionDivider()
                     SettingsSliderPreference(
                         title = stringResource(R.string.pref_panorama_extra_height),

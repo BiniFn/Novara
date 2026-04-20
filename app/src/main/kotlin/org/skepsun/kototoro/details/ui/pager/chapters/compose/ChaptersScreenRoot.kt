@@ -48,6 +48,7 @@ fun ChaptersScreenRoot(
 	val quickFilter by viewModel.quickFilter.collectAsState(initial = emptyList())
 	val emptyReason by viewModel.emptyReason.collectAsState(initial = null)
 	val chapters by viewModel.chapters.collectAsState(initial = emptyList())
+	val selectedBranch by viewModel.selectedBranch.collectAsState(initial = null)
 	var qualityProbeResult by remember { mutableStateOf<ChaptersPagesViewModel.QualityProbeResult?>(null) }
 	
 	val chaptersWithHeaders = remember(chapters) {
@@ -71,6 +72,18 @@ fun ChaptersScreenRoot(
 		onDispose {}
 	}
 
+	LaunchedEffect(chapters, quickFilter, selectedBranch) {
+		if (chapters.isNotEmpty()) {
+			return@LaunchedEffect
+		}
+		val branches = quickFilter.mapNotNull { chip ->
+			(chip.data as? org.skepsun.kototoro.list.domain.ListFilterOption.Branch)?.titleText
+		}
+		if (branches.isNotEmpty() && selectedBranch !in branches) {
+			viewModel.setSelectedBranch(branches.first())
+		}
+	}
+
 	qualityProbeResult?.let { result ->
 		VideoQualityDialog(
 			qualities = result.qualities,
@@ -89,7 +102,7 @@ fun ChaptersScreenRoot(
 		isGridView = isGridView,
 		gridSpanCount = 2,
 		selectedItemIds = selectedItemIds.toSet(),
-		filterChips = quickFilter,
+		filterChips = emptyList(),
 		isLoading = isLoading,
 		emptyMessageResId = emptyReason?.msgResId,
 		onItemClick = { item ->

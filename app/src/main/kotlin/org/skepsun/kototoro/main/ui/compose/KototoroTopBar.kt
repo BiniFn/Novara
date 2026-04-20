@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,17 +15,18 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.DropdownMenu
@@ -37,7 +39,9 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -48,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,8 +60,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -87,8 +94,9 @@ fun KototoroTopBar(
     isAppUpdateAvailable: Boolean = false,
     onAppUpdateClick: () -> Unit = {},
     isLanguagePresetFilterVisible: Boolean = false,
-    hasActiveLanguagePreset: Boolean = false,
-    onLanguagePresetFilterClick: (android.view.View?) -> Boolean = { false },
+    languagePresetEntries: List<SourcePreset> = emptyList(),
+    activeLanguagePresetId: Long = -1L,
+    onLanguagePresetSelected: (Long) -> Unit = {},
     selectedContentType: ContentType? = null,
     enabledContentTypes: Set<ContentType> = setOf(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
     isContentTypeFilterVisible: Boolean = true,
@@ -99,8 +107,15 @@ fun KototoroTopBar(
     isSourceTagFilterVisible: Boolean = true,
     onSourceTagFilterClick: (android.view.View?) -> Boolean = { false },
     onSourceTagSelected: (SourceTag?) -> Unit = {},
+    supportsDisplayModeMenu: Boolean = false,
+    currentListMode: ListMode = ListMode.GRID,
+    onListModeSelected: (ListMode) -> Unit = {},
+    supportsGridSizeSlider: Boolean = false,
+    gridSize: Int = 100,
+    onGridSizeChange: (Int) -> Unit = {},
     isIncognitoModeEnabled: Boolean = false,
     onIncognitoToggle: () -> Unit = {},
+    isCollapsedFullyTransparent: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -109,6 +124,15 @@ fun KototoroTopBar(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
     val searchBarHeight = if (expanded) ExpandedSearchBarHeight else CollapsedSearchBarHeight
+    val collapsedContainerAlpha by animateFloatAsState(
+        targetValue = if (expanded) 0.94f else if (isCollapsedFullyTransparent) 0f else 0.84f,
+        label = "top_bar_container_alpha",
+    )
+    val collapsedBorderAlpha by animateFloatAsState(
+        targetValue = if (expanded) 0.12f else if (isCollapsedFullyTransparent) 0f else 0.10f,
+        label = "top_bar_border_alpha",
+    )
+    val showMoreActions = true
 
     Box(
         modifier = modifier
@@ -121,9 +145,13 @@ fun KototoroTopBar(
                 .padding(horizontal = if (expanded) 0.dp else 10.dp),
             shape = RoundedCornerShape(if (expanded) 0.dp else 24.dp),
             style = if (expanded) {
-                GlassDefaults.regularStyle().copy(containerAlpha = 0.94f, borderAlpha = 0.12f)
+                GlassDefaults.regularStyle().copy(containerAlpha = collapsedContainerAlpha, borderAlpha = collapsedBorderAlpha)
             } else {
-                GlassDefaults.prominentStyle().copy(containerAlpha = 0.80f, borderAlpha = 0.16f, shadowElevation = 4.dp)
+                GlassDefaults.prominentStyle().copy(
+                    containerAlpha = collapsedContainerAlpha,
+                    borderAlpha = collapsedBorderAlpha,
+                    shadowElevation = 0.dp,
+                )
             },
         ) {
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
@@ -192,18 +220,11 @@ fun KototoroTopBar(
                                             }
                                         }
                                         if (!expanded && isLanguagePresetFilterVisible) {
-                                            TopBarAnchorIconButton(onClick = onLanguagePresetFilterClick) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.ic_language),
-                                                    contentDescription = stringResource(R.string.show_language_preset_filter),
-                                                    modifier = Modifier.size(CompactTopBarIconSize),
-                                                    tint = if (hasActiveLanguagePreset) {
-                                                        MaterialTheme.colorScheme.primary
-                                                    } else {
-                                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                                    },
-                                                )
-                                            }
+                                            LanguagePresetDropdownButton(
+                                                presets = languagePresetEntries,
+                                                activePresetId = activeLanguagePresetId,
+                                                onPresetSelected = onLanguagePresetSelected,
+                                            )
                                         }
                                         if (!expanded && isContentTypeFilterVisible) {
                                             SwipeableFilterChip(
@@ -234,61 +255,88 @@ fun KototoroTopBar(
                                                 )
                                             }
                                         }
-                                        Box {
-                                            IconButton(
-                                                onClick = { isMoreMenuExpanded = true },
-                                                modifier = Modifier.size(CompactTopBarActionSize),
-                                            ) {
-                                                Icon(
-                                                    painterResource(R.drawable.ic_more_vert),
-                                                    contentDescription = stringResource(R.string.more),
-                                                    modifier = Modifier.size(CompactTopBarIconSize),
-                                                )
-                                            }
-                                            DropdownMenu(
-                                                expanded = isMoreMenuExpanded,
-                                                onDismissRequest = { isMoreMenuExpanded = false },
-                                            ) {
-                                                if (isAppUpdateAvailable) {
+                                        if (showMoreActions) {
+                                            Box {
+                                                IconButton(
+                                                    onClick = { isMoreMenuExpanded = true },
+                                                    modifier = Modifier.size(CompactTopBarActionSize),
+                                                ) {
+                                                    Icon(
+                                                        painterResource(R.drawable.ic_more_vert),
+                                                        contentDescription = stringResource(R.string.more),
+                                                        modifier = Modifier.size(CompactTopBarIconSize),
+                                                    )
+                                                }
+                                                DropdownMenu(
+                                                    expanded = isMoreMenuExpanded,
+                                                    onDismissRequest = { isMoreMenuExpanded = false },
+                                                ) {
+                                                    if (supportsDisplayModeMenu) {
+                                                        TopBarMenuSectionLabel(
+                                                            text = stringResource(R.string.list_mode),
+                                                        )
+                                                        TopBarListModeItem(
+                                                            iconRes = R.drawable.ic_list,
+                                                            label = stringResource(R.string.list),
+                                                            selected = currentListMode == ListMode.LIST,
+                                                            onClick = {
+                                                                isMoreMenuExpanded = false
+                                                                onListModeSelected(ListMode.LIST)
+                                                            },
+                                                        )
+                                                        TopBarListModeItem(
+                                                            iconRes = R.drawable.ic_list_detailed,
+                                                            label = stringResource(R.string.detailed_list),
+                                                            selected = currentListMode == ListMode.DETAILED_LIST,
+                                                            onClick = {
+                                                                isMoreMenuExpanded = false
+                                                                onListModeSelected(ListMode.DETAILED_LIST)
+                                                            },
+                                                        )
+                                                        TopBarListModeItem(
+                                                            iconRes = R.drawable.ic_grid,
+                                                            label = stringResource(R.string.grid),
+                                                            selected = currentListMode == ListMode.GRID,
+                                                            onClick = {
+                                                                isMoreMenuExpanded = false
+                                                                onListModeSelected(ListMode.GRID)
+                                                            },
+                                                        )
+                                                    }
+                                                    if (supportsGridSizeSlider) {
+                                                        if (supportsDisplayModeMenu) {
+                                                            HorizontalDivider()
+                                                        }
+                                                        TopBarGridSizeItem(
+                                                            title = stringResource(R.string.grid_size),
+                                                            value = gridSize,
+                                                            onValueChange = onGridSizeChange,
+                                                        )
+                                                    }
+                                                    if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                                                        HorizontalDivider()
+                                                    }
                                                     DropdownMenuItem(
-                                                        text = { Text(stringResource(R.string.app_update_available)) },
+                                                        text = { Text(stringResource(R.string.settings)) },
                                                         onClick = {
                                                             isMoreMenuExpanded = false
-                                                            onAppUpdateClick()
+                                                            onSettingsClick()
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.incognito_mode)) },
+                                                        trailingIcon = {
+                                                            Checkbox(
+                                                                checked = isIncognitoModeEnabled,
+                                                                onCheckedChange = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            isMoreMenuExpanded = false
+                                                            onIncognitoToggle()
                                                         },
                                                     )
                                                 }
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.list_options)) },
-                                                    onClick = {
-                                                        isMoreMenuExpanded = false
-                                                        onOpenListOptions()
-                                                    },
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.incognito_mode)) },
-                                                    onClick = {
-                                                        isMoreMenuExpanded = false
-                                                        onIncognitoToggle()
-                                                    },
-                                                    leadingIcon = if (isIncognitoModeEnabled) {
-                                                        {
-                                                            Icon(
-                                                                imageVector = Icons.Filled.Check,
-                                                                contentDescription = null,
-                                                            )
-                                                        }
-                                                    } else {
-                                                        null
-                                                    },
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.settings)) },
-                                                    onClick = {
-                                                        isMoreMenuExpanded = false
-                                                        onSettingsClick()
-                                                    },
-                                                )
                                             }
                                         }
                                     }
@@ -347,16 +395,144 @@ fun KototoroTopBar(
 }
 
 @Composable
-private fun TopBarAnchorIconButton(
-    onClick: (android.view.View?) -> Boolean,
-    content: @Composable () -> Unit,
+private fun TopBarMenuSectionLabel(
+    text: String,
 ) {
-    val anchor = androidx.compose.ui.platform.LocalView.current
-    IconButton(
-        onClick = { onClick(anchor) },
-        modifier = Modifier.size(CompactTopBarActionSize),
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+}
+
+@Composable
+private fun TopBarListModeItem(
+    iconRes: Int,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        onClick = onClick,
+        leadingIcon = {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+            )
+        },
+        trailingIcon = {
+            if (selected) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_check),
+                    contentDescription = null,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun TopBarGridSizeItem(
+    title: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    var sliderValue by remember(value) { mutableStateOf(value.toFloat()) }
+    val currentValue = sliderValue.toInt().coerceIn(50, 150)
+
+    Column(
+        modifier = Modifier
+            .width(264.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        content()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "$currentValue%",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = sliderValue,
+            onValueChange = {
+                sliderValue = it
+                onValueChange(it.toInt().coerceIn(50, 150))
+            },
+            valueRange = 50f..150f,
+            steps = 19,
+        )
+    }
+}
+
+@Composable
+private fun LanguagePresetDropdownButton(
+    presets: List<SourcePreset>,
+    activePresetId: Long,
+    onPresetSelected: (Long) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier.size(CompactTopBarActionSize),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_language),
+                contentDescription = stringResource(R.string.show_language_preset_filter),
+                modifier = Modifier.size(CompactTopBarIconSize),
+                tint = if (activePresetId > 0L) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            offset = DpOffset(x = 0.dp, y = 4.dp),
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.all)) },
+                onClick = {
+                    onPresetSelected(-1L)
+                    expanded = false
+                },
+                leadingIcon = {
+                    Checkbox(
+                        checked = activePresetId <= 0L,
+                        onCheckedChange = null,
+                    )
+                },
+            )
+            presets.forEach { preset ->
+                DropdownMenuItem(
+                    text = { Text(preset.title) },
+                    onClick = {
+                        onPresetSelected(preset.id)
+                        expanded = false
+                    },
+                    leadingIcon = {
+                        Checkbox(
+                            checked = activePresetId == preset.id,
+                            onCheckedChange = null,
+                        )
+                    },
+                )
+            }
+        }
     }
 }
 

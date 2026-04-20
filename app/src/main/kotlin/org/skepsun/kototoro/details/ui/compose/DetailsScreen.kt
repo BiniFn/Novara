@@ -1,29 +1,38 @@
 package org.skepsun.kototoro.details.ui.compose
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -34,9 +43,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -45,6 +54,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,17 +66,21 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -73,7 +89,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
@@ -86,10 +101,10 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
-import org.skepsun.kototoro.core.ui.glass.LocalHazeState
-import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.DetailsViewModel
@@ -108,6 +123,9 @@ import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.ui.selector.compose.ScrobblingSelectorDialog
 import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorViewModel
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,22 +151,23 @@ fun DetailsScreen(
     val hasTranslationCache by viewModel.hasTranslationCache.collectAsState()
     val isTranslating by viewModel.isTranslating.collectAsState()
     val isStatsAvailable by viewModel.isStatsAvailable.collectAsState()
+    val isChaptersReversed by viewModel.isChaptersReversed.collectAsState(initial = false)
+    val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsState(initial = false)
+    val isDownloadedOnly by viewModel.isDownloadedOnly.collectAsState(initial = false)
+    val chapterEmptyReason by viewModel.emptyReason.collectAsState(initial = null)
     val trackingSuggestion by viewModel.trackingMatchSuggestion.collectAsState()
     val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     val context = LocalContext.current
-    val panoramaBlur by settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
     val panoramaExtraHeight by settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
-    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
-        panoramaBottomGradientAlpha
-    }
     val statsViewModel: ContentStatsViewModel = hiltViewModel()
     val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
     val contentType = content?.source?.getContentType()
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
+    val configuration = LocalConfiguration.current
     val scrollState = rememberScrollState()
     var showDeleteLocalDialog by remember { mutableStateOf(false) }
     var showShareOptions by remember { mutableStateOf(false) }
@@ -158,20 +177,38 @@ fun DetailsScreen(
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showScrobblingDialog by remember { mutableStateOf(false) }
+    var chapterQuery by rememberSaveable { mutableStateOf("") }
+    var isChapterSearchVisible by rememberSaveable { mutableStateOf(false) }
     val availableTabIds = remember(contentType, settings.isPagesTabEnabled) {
         resolveAvailableDetailsTabIds(contentType, settings)
     }
-    var showPaneSheet by remember { mutableStateOf(false) }
-    var selectedPaneTabId by remember {
+    var selectedPaneTabId by rememberSaveable {
         mutableStateOf(resolveDetailsTabSelection(settings.defaultDetailsTab, availableTabIds))
     }
     val sheetTabSelection = remember(selectedPaneTabId, availableTabIds) {
         resolveDetailsTabSelection(selectedPaneTabId, availableTabIds)
     }
+    val isWideAdaptiveLayout = remember(configuration.orientation, configuration.screenWidthDp) {
+        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE || configuration.screenWidthDp >= 720
+    }
+    val compactSheetPeekHeight = 88.dp
+    val compactPaneHeight = remember(configuration.screenHeightDp) {
+        (configuration.screenHeightDp.dp + 32.dp).coerceAtLeast(520.dp)
+    }
+    val compactBottomSheetState = rememberStandardBottomSheetState(
+        initialValue = SheetValue.PartiallyExpanded,
+        skipHiddenState = true,
+    )
+    val compactBottomSheetScaffoldState = rememberBottomSheetScaffoldState(
+        bottomSheetState = compactBottomSheetState,
+    )
+    val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val hazeState = LocalHazeState.current
     val toolbarGapPx = with(density) { 12.dp.toPx() }
+    val compactSheetPeekHeightPx = with(density) { compactSheetPeekHeight.toPx() }
+    val compactPaneHeightPx = with(density) { compactPaneHeight.toPx() }
+    val estimatedCompactHostHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
     var initialInfoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -206,27 +243,102 @@ fun DetailsScreen(
             }
         }
     }
-    val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
-    val handleActionClick: (DetailsAction) -> Unit = remember(onActionClick, availableTabIds) {
-        { action ->
-            when (action) {
-                DetailsAction.ToggleList -> {
-                    selectedPaneTabId = DETAILS_TAB_CHAPTERS
-                    showPaneSheet = true
+    val compactSheetExpansionProgress by remember(
+        compactBottomSheetState,
+        compactSheetPeekHeightPx,
+        compactPaneHeightPx,
+        estimatedCompactHostHeightPx,
+    ) {
+        derivedStateOf {
+            val currentOffset = runCatching { compactBottomSheetState.requireOffset() }.getOrNull()
+            if (currentOffset == null) {
+                when (compactBottomSheetState.currentValue) {
+                    SheetValue.Expanded -> 1f
+                    else -> 0f
                 }
-                DetailsAction.ToggleGrid -> {
-                    selectedPaneTabId = resolveDetailsTabSelection(DETAILS_TAB_PAGES, availableTabIds)
-                    showPaneSheet = true
-                }
-                DetailsAction.ToggleBookmarkView -> {
-                    selectedPaneTabId = resolveDetailsTabSelection(DETAILS_TAB_BOOKMARKS, availableTabIds)
-                    showPaneSheet = true
-                }
-                DetailsAction.Download -> {
-                    showDownloadDialog = true
-                }
-                else -> onActionClick(action)
+            } else {
+                val expandedOffset = (estimatedCompactHostHeightPx - compactPaneHeightPx).coerceAtLeast(0f)
+                val partiallyExpandedOffset = (estimatedCompactHostHeightPx - compactSheetPeekHeightPx)
+                    .coerceAtLeast(expandedOffset + 1f)
+                ((partiallyExpandedOffset - currentOffset) / (partiallyExpandedOffset - expandedOffset))
+                    .coerceIn(0f, 1f)
             }
+        }
+    }
+    val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
+    val isCompactPaneFullyExpanded = !isWideAdaptiveLayout && compactBottomSheetState.currentValue == SheetValue.Expanded
+    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val overlayTopBarInset = remember(isWideAdaptiveLayout, toolbarBottomPx, density, statusBarTopPadding) {
+        if (isWideAdaptiveLayout) {
+            0.dp
+        } else {
+            with(density) {
+                if (toolbarBottomPx.isFinite() && toolbarBottomPx > 0f) {
+                    toolbarBottomPx.toDp()
+                } else {
+                    statusBarTopPadding + 64.dp
+                }
+            }
+        }
+    }
+    val panoramaExtraHeightDp = ((panoramaExtraHeight ?: 0).coerceAtLeast(0)).dp
+    val detailsHeaderTopSpacing = overlayTopBarInset + if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp
+    val compactTopBarAlpha by animateFloatAsState(
+        targetValue = if (isWideAdaptiveLayout) 1f else (1f - compactSheetExpansionProgress).coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 180),
+        label = "details_compact_top_bar_alpha",
+    )
+
+    LaunchedEffect(sheetTabSelection, isCompactPaneFullyExpanded) {
+        if (sheetTabSelection != DETAILS_TAB_CHAPTERS || !isCompactPaneFullyExpanded) {
+            if (chapterQuery.isNotEmpty()) {
+                viewModel.performChapterSearch(null)
+                chapterQuery = ""
+            }
+            isChapterSearchVisible = false
+        }
+    }
+
+    val updateChapterQuery: (String) -> Unit = remember(viewModel) {
+        { query ->
+            chapterQuery = query
+            viewModel.performChapterSearch(query.ifBlank { null })
+        }
+    }
+
+    val openPaneTab: (Int) -> Unit = remember(
+        availableTabIds,
+        compactBottomSheetState,
+        coroutineScope,
+        isWideAdaptiveLayout,
+        settings,
+    ) {
+        { requestedTabId ->
+            val resolvedTab = resolveDetailsTabSelection(requestedTabId, availableTabIds)
+            selectedPaneTabId = resolvedTab
+            settings.lastDetailsTab = resolvedTab
+            if (!isWideAdaptiveLayout) {
+                coroutineScope.launch {
+                    compactBottomSheetState.expand()
+                }
+            }
+        }
+    }
+    val handleActionClick: (DetailsAction) -> Unit = { action ->
+        when (action) {
+            DetailsAction.ToggleList -> {
+                openPaneTab(DETAILS_TAB_CHAPTERS)
+            }
+            DetailsAction.ToggleGrid -> {
+                openPaneTab(DETAILS_TAB_PAGES)
+            }
+            DetailsAction.ToggleBookmarkView -> {
+                openPaneTab(DETAILS_TAB_BOOKMARKS)
+            }
+            DetailsAction.Download -> {
+                showDownloadDialog = true
+            }
+            else -> onActionClick(action)
         }
     }
 
@@ -240,128 +352,249 @@ fun DetailsScreen(
                     .apply { mangaDetails?.toContent()?.let { mangaExtra(it) } }
                     .build()
             }
-            AsyncImage(
+            AnimatedPanoramaBackdrop(
+                settings = settings,
                 model = request,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentAlpha = 0.6f * (1f - collapseProgress),
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(radius = (((panoramaBlur ?: 35) / 100f) * 20f).dp)
-                    .alpha(0.6f * (1f - collapseProgress)),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.surface.copy(
-                                    alpha = ((panoramaBottomAlpha ?: 100) / 100f).coerceIn(0f, 1f),
-                                ),
-                            ),
-                        ),
-                    ),
             )
         }
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                DetailsBottomBar(
-                    contentType = contentType,
-                    historyInfo = historyInfo,
-                    branches = branches,
-                    isLoading = isLoading,
-                    onActionClick = handleActionClick,
-                )
-            },
-            topBar = {
-                TopAppBar(
-                    title = {
-                        if (collapseProgress > 0.92f) {
-                            Text(
-                                text = toolbarTitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        DetailsChromeButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.back),
-                            )
-                        }
-                    },
-                    actions = {
-                        DetailsChromeButton(
-                            onClick = {
-                                showShareOptions = true
-                            },
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = stringResource(R.string.share),
-                            )
-                        }
-                        DetailsChromeButton(onClick = {
-                            handleActionClick(DetailsAction.Download)
-                            showDownloadDialog = true
-                        }) {
-                            Icon(
-                                painter = rememberSafePainter(R.drawable.ic_download),
-                                contentDescription = stringResource(R.string.download),
-                            )
-                        }
-                        DetailsOverflowMenu(
-                            contentTitle = content?.title,
-                            hasTranslationCache = hasTranslationCache,
-                            isShowingTranslation = isShowingTranslation,
-                            isTranslating = isTranslating,
-                            isScrobblingAvailable = viewModel.isScrobblingAvailable,
-                            isStatsAvailable = isStatsAvailable,
-                            isBrowserAvailable = content?.publicUrl?.isHttpUrl() == true,
-                            isAlternativesAvailable = content?.isLocal == false,
-                            hasOnlineVariant = remoteContent != null,
-                            isDeleteLocalAvailable = content?.source == LocalMangaSource,
-                            isEditOverrideAvailable = content != null,
-                            isShortcutSupported = isShortcutSupported && content != null,
-                            isNsfw = content?.isNsfw() == true,
-                            onDeleteLocalRequest = { handleActionClick(DetailsAction.DeleteLocal) },
-                            onActionClick = { action ->
-                                when (action) {
-                                    DetailsAction.OpenTracking -> {
-                                        showScrobblingDialog = true
-                                    }
-                                    DetailsAction.OpenStatistics -> {
-                                        showStatsDialog = true
-                                    }
-                                    else -> handleActionClick(action)
-                                }
-                            },
+        val commonTopBar: @Composable () -> Unit = {
+            TopAppBar(
+                title = {
+                    if (collapseProgress > 0.92f) {
+                        Text(
+                            text = toolbarTitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f * collapseProgress),
-                    ),
-                    modifier = Modifier.onGloballyPositioned { coordinates ->
-                        toolbarBottomPx = coordinates.boundsInRoot().bottom
-                    },
-                )
-            },
-        ) { paddingValues ->
-            val source = content?.source
+                    }
+                },
+                navigationIcon = {
+                    DetailsChromeButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                        )
+                    }
+                },
+                actions = {
+                    DetailsChromeButton(
+                        onClick = {
+                            showShareOptions = true
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(R.string.share),
+                        )
+                    }
+                    DetailsChromeButton(onClick = {
+                        handleActionClick(DetailsAction.Download)
+                        showDownloadDialog = true
+                    }) {
+                        Icon(
+                            painter = rememberSafePainter(R.drawable.ic_download),
+                            contentDescription = stringResource(R.string.download),
+                        )
+                    }
+                    DetailsOverflowMenu(
+                        contentTitle = content?.title,
+                        hasTranslationCache = hasTranslationCache,
+                        isShowingTranslation = isShowingTranslation,
+                        isTranslating = isTranslating,
+                        isScrobblingAvailable = viewModel.isScrobblingAvailable,
+                        isStatsAvailable = isStatsAvailable,
+                        isBrowserAvailable = content?.publicUrl?.isHttpUrl() == true,
+                        isAlternativesAvailable = content?.isLocal == false,
+                        hasOnlineVariant = remoteContent != null,
+                        isDeleteLocalAvailable = content?.source == LocalMangaSource,
+                        isEditOverrideAvailable = content != null,
+                        isShortcutSupported = isShortcutSupported && content != null,
+                        isNsfw = content?.isNsfw() == true,
+                        onDeleteLocalRequest = { handleActionClick(DetailsAction.DeleteLocal) },
+                        onActionClick = { action ->
+                            when (action) {
+                                DetailsAction.OpenTracking -> {
+                                    showScrobblingDialog = true
+                                }
+                                DetailsAction.OpenStatistics -> {
+                                    showStatsDialog = true
+                                }
+                                else -> handleActionClick(action)
+                            }
+                        },
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f * collapseProgress),
+                ),
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    toolbarBottomPx = coordinates.boundsInRoot().bottom
+                },
+            )
+        }
 
-            Column(
+        if (isWideAdaptiveLayout) {
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(scrollState),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                DetailsHeader(
+                Scaffold(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    containerColor = Color.Transparent,
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
+                    topBar = commonTopBar,
+                ) { paddingValues ->
+                    DetailsScrollableContent(
+                        modifier = Modifier.fillMaxSize(),
+                        scrollState = scrollState,
+                        contentPadding = paddingValues,
+                        headerTopSpacing = if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp,
+                        bottomSpacerHeight = 40.dp,
+                        mangaDetails = mangaDetails,
+                        favouriteCategories = favouriteCategories,
+                        historyInfo = historyInfo,
+                        linkedTrackingItems = linkedTrackingItems,
+                        trackingSuggestion = trackingSuggestion,
+                        translatedTitle = translatedTitle,
+                        translatedDescription = translatedDescription,
+                        isShowingTranslation = isShowingTranslation,
+                        hasTranslationCache = hasTranslationCache,
+                        isTranslating = isTranslating,
+                        collapseProgress = collapseProgress,
+                        content = content,
+                        pendingTagSearch = { pendingTagSearch = it },
+                        pendingAuthorSearch = { author, source ->
+                            pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
+                        },
+                        onCoverBoundsSync = onCoverBoundsSync,
+                        onInfoCardTopSync = { top -> infoCardTopPx = top },
+                        onFavoriteClick = { showFavoriteDialog = true },
+                        onActionClick = handleActionClick,
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .widthIn(min = 360.dp, max = 440.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    shape = RoundedCornerShape(28.dp),
+                    tonalElevation = 4.dp,
+                ) {
+                    DetailsPaneContent(
+                        contentType = contentType,
+                        historyInfo = historyInfo,
+                        branches = branches,
+                        isLoading = isLoading,
+                        viewModel = viewModel,
+                        pagesViewModel = pagesViewModel,
+                        bookmarksViewModel = bookmarksViewModel,
+                        settings = settings,
+                        appRouter = appRouter,
+                        pageSaveHelper = pageSaveHelper,
+                        selectedTabId = sheetTabSelection,
+                        availableTabIds = availableTabIds,
+                        isSheetFullyExpanded = false,
+                        sheetExpansionProgress = 0f,
+                        chapterQuery = chapterQuery,
+                        isChapterSearchVisible = isChapterSearchVisible,
+                        isChapterSearchAvailable = chapterEmptyReason == null,
+                        isChaptersReversed = isChaptersReversed,
+                        isChaptersInGridView = isChaptersInGridView,
+                        isDownloadedOnly = isDownloadedOnly,
+                        isDownloadedFilterVisible = mangaDetails?.local != null,
+                        onChapterQueryChange = updateChapterQuery,
+                        onChapterSearchToggle = {
+                            val nextVisible = !isChapterSearchVisible
+                            isChapterSearchVisible = nextVisible
+                            if (!nextVisible && chapterQuery.isNotEmpty()) {
+                                updateChapterQuery("")
+                            }
+                        },
+                        onToggleChaptersReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
+                        onToggleChaptersGrid = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
+                        onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
+                        showCollapsedHandle = false,
+                        onSelectedTabIdChange = { resolvedTab ->
+                            selectedPaneTabId = resolvedTab
+                            settings.lastDetailsTab = resolvedTab
+                        },
+                        onActionClick = handleActionClick,
+                    )
+                }
+            }
+        } else {
+            BottomSheetScaffold(
+                scaffoldState = compactBottomSheetScaffoldState,
+                containerColor = Color.Transparent,
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                sheetPeekHeight = compactSheetPeekHeight,
+                sheetDragHandle = null,
+                sheetSwipeEnabled = true,
+                sheetContainerColor = Color.Transparent,
+                sheetShape = if (compactSheetExpansionProgress >= 0.96f) {
+                    RoundedCornerShape(0.dp)
+                } else {
+                    RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                },
+                sheetContent = {
+                    DetailsPaneContent(
+                        modifier = Modifier.height(compactPaneHeight),
+                        contentType = contentType,
+                        historyInfo = historyInfo,
+                        branches = branches,
+                        isLoading = isLoading,
+                        viewModel = viewModel,
+                        pagesViewModel = pagesViewModel,
+                        bookmarksViewModel = bookmarksViewModel,
+                        settings = settings,
+                        appRouter = appRouter,
+                        pageSaveHelper = pageSaveHelper,
+                        selectedTabId = sheetTabSelection,
+                        availableTabIds = availableTabIds,
+                        isSheetFullyExpanded = isCompactPaneFullyExpanded,
+                        sheetExpansionProgress = compactSheetExpansionProgress,
+                        chapterQuery = chapterQuery,
+                        isChapterSearchVisible = isChapterSearchVisible,
+                        isChapterSearchAvailable = chapterEmptyReason == null,
+                        isChaptersReversed = isChaptersReversed,
+                        isChaptersInGridView = isChaptersInGridView,
+                        isDownloadedOnly = isDownloadedOnly,
+                        isDownloadedFilterVisible = mangaDetails?.local != null,
+                        onChapterQueryChange = updateChapterQuery,
+                        onChapterSearchToggle = {
+                            val nextVisible = !isChapterSearchVisible
+                            isChapterSearchVisible = nextVisible
+                            if (!nextVisible && chapterQuery.isNotEmpty()) {
+                                updateChapterQuery("")
+                            }
+                        },
+                        onToggleChaptersReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
+                        onToggleChaptersGrid = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
+                        onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
+                        showCollapsedHandle = true,
+                        onSelectedTabIdChange = { resolvedTab ->
+                            selectedPaneTabId = resolvedTab
+                            settings.lastDetailsTab = resolvedTab
+                        },
+                        onActionClick = handleActionClick,
+                    )
+                },
+            ) { paddingValues ->
+                DetailsScrollableContent(
+                    modifier = Modifier.fillMaxSize(),
+                    scrollState = scrollState,
+                    contentPadding = paddingValues,
+                    headerTopSpacing = detailsHeaderTopSpacing,
+                    bottomSpacerHeight = compactSheetPeekHeight + 28.dp,
                     mangaDetails = mangaDetails,
                     favouriteCategories = favouriteCategories,
                     historyInfo = historyInfo,
@@ -373,56 +606,25 @@ fun DetailsScreen(
                     hasTranslationCache = hasTranslationCache,
                     isTranslating = isTranslating,
                     collapseProgress = collapseProgress,
+                    content = content,
+                    pendingTagSearch = { pendingTagSearch = it },
+                    pendingAuthorSearch = { author, source ->
+                        pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
+                    },
                     onCoverBoundsSync = onCoverBoundsSync,
                     onInfoCardTopSync = { top -> infoCardTopPx = top },
-                    onCoverClick = { handleActionClick(DetailsAction.OpenCover) },
                     onFavoriteClick = { showFavoriteDialog = true },
-                    onSourceClick = { handleActionClick(DetailsAction.OpenSource(it)) },
-                    onAuthorClick = { author ->
-                        source?.let { currentSource ->
-                            pendingAuthorSearch = PendingAuthorSearch(
-                                author = author,
-                                source = currentSource,
-                            )
-                        }
-                    },
-                    onTagClick = { pendingTagSearch = it },
-                    onTranslateClick = { handleActionClick(DetailsAction.Translate) },
-                    onToggleTranslationClick = { handleActionClick(DetailsAction.ToggleTranslation) },
-                    onOpenLinkedTracking = { linked -> handleActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url)) },
-                    onManageLinkedTracking = { linked -> handleActionClick(DetailsAction.ManageTrackingBinding(linked.service, linked.remoteId, linked.title, linked.url)) },
-                    onRemoveLinkedTracking = { match -> handleActionClick(DetailsAction.RemoveTrackingMatch(match)) },
-                    onBindTrackingSuggestion = { match -> handleActionClick(DetailsAction.BindTrackingMatch(match)) },
-                    onManageTrackingSuggestion = { match -> handleActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url)) },
+                    onActionClick = handleActionClick,
                 )
-                Spacer(modifier = Modifier.height(240.dp))
             }
-        }
-
-        if (showPaneSheet) {
-            val paneSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ModalBottomSheet(
-                onDismissRequest = { showPaneSheet = false },
-                sheetState = paneSheetState,
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                dragHandle = null,
-                modifier = Modifier.fillMaxHeight(0.92f),
-            ) {
-                ChaptersPagesTabsContent(
-                    viewModel = viewModel,
-                    pagesViewModel = pagesViewModel,
-                    bookmarksViewModel = bookmarksViewModel,
-                    settings = settings,
-                    appRouter = appRouter,
-                    pageSaveHelper = pageSaveHelper,
-                    selectedTabId = sheetTabSelection,
-                    onSelectedTabIdChange = { tabId ->
-                        val resolvedTab = resolveDetailsTabSelection(tabId, availableTabIds)
-                        selectedPaneTabId = resolvedTab
-                        settings.lastDetailsTab = resolvedTab
-                    },
-                )
+            if (compactTopBarAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .alpha(compactTopBarAlpha),
+                ) {
+                    commonTopBar()
+                }
             }
         }
 
@@ -546,60 +748,445 @@ fun DetailsScreen(
 }
 
 @Composable
-private fun DetailsBottomBar(
+private fun DetailsScrollableContent(
+    mangaDetails: org.skepsun.kototoro.details.data.ContentDetails?,
+    historyInfo: HistoryInfo,
+    favouriteCategories: Set<org.skepsun.kototoro.core.model.FavouriteCategory>,
+    linkedTrackingItems: List<org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel>,
+    trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
+    translatedTitle: String?,
+    translatedDescription: String?,
+    isShowingTranslation: Boolean,
+    hasTranslationCache: Boolean,
+    isTranslating: Boolean,
+    collapseProgress: Float,
+    content: org.skepsun.kototoro.parsers.model.Content?,
+    scrollState: androidx.compose.foundation.ScrollState,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    headerTopSpacing: androidx.compose.ui.unit.Dp = 0.dp,
+    bottomSpacerHeight: androidx.compose.ui.unit.Dp,
+    pendingTagSearch: (ContentTag) -> Unit,
+    pendingAuthorSearch: (String, ContentSource) -> Unit,
+    onCoverBoundsSync: (Rect, Float) -> Unit,
+    onInfoCardTopSync: (Float) -> Unit,
+    onFavoriteClick: () -> Unit,
+    onActionClick: (DetailsAction) -> Unit,
+) {
+    val source = content?.source
+    Column(
+        modifier = modifier
+            .padding(contentPadding)
+            .verticalScroll(scrollState),
+    ) {
+        if (headerTopSpacing > 0.dp) {
+            Spacer(modifier = Modifier.height(headerTopSpacing))
+        }
+        DetailsHeader(
+            mangaDetails = mangaDetails,
+            favouriteCategories = favouriteCategories,
+            historyInfo = historyInfo,
+            linkedTrackingItems = linkedTrackingItems,
+            trackingSuggestion = trackingSuggestion,
+            translatedTitle = translatedTitle,
+            translatedDescription = translatedDescription,
+            isShowingTranslation = isShowingTranslation,
+            hasTranslationCache = hasTranslationCache,
+            isTranslating = isTranslating,
+            collapseProgress = collapseProgress,
+            onCoverBoundsSync = onCoverBoundsSync,
+            onInfoCardTopSync = onInfoCardTopSync,
+            onCoverClick = { onActionClick(DetailsAction.OpenCover) },
+            onFavoriteClick = onFavoriteClick,
+            onSourceClick = { onActionClick(DetailsAction.OpenSource(it)) },
+            onAuthorClick = { author ->
+                source?.let { currentSource ->
+                    pendingAuthorSearch(author, currentSource)
+                }
+            },
+            onTagClick = pendingTagSearch,
+            onTranslateClick = { onActionClick(DetailsAction.Translate) },
+            onToggleTranslationClick = { onActionClick(DetailsAction.ToggleTranslation) },
+            onOpenLinkedTracking = { linked ->
+                onActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url))
+            },
+            onManageLinkedTracking = { linked ->
+                onActionClick(DetailsAction.ManageTrackingBinding(linked.service, linked.remoteId, linked.title, linked.url))
+            },
+            onRemoveLinkedTracking = { match -> onActionClick(DetailsAction.RemoveTrackingMatch(match)) },
+            onBindTrackingSuggestion = { match -> onActionClick(DetailsAction.BindTrackingMatch(match)) },
+            onManageTrackingSuggestion = { match ->
+                onActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url))
+            },
+        )
+        Spacer(modifier = Modifier.height(bottomSpacerHeight))
+    }
+}
+
+@Composable
+private fun DetailsPaneContent(
+    contentType: ContentType?,
+    historyInfo: HistoryInfo,
+    branches: List<ContentBranch>,
+    isLoading: Boolean,
+    viewModel: DetailsViewModel,
+    pagesViewModel: PagesViewModel,
+    bookmarksViewModel: BookmarksViewModel,
+    settings: AppSettings,
+    appRouter: AppRouter,
+    pageSaveHelper: PageSaveHelper,
+    selectedTabId: Int,
+    availableTabIds: List<Int>,
+    isSheetFullyExpanded: Boolean,
+    sheetExpansionProgress: Float,
+    chapterQuery: String,
+    isChapterSearchVisible: Boolean,
+    isChapterSearchAvailable: Boolean,
+    isChaptersReversed: Boolean,
+    isChaptersInGridView: Boolean,
+    isDownloadedOnly: Boolean,
+    isDownloadedFilterVisible: Boolean,
+    onChapterQueryChange: (String) -> Unit,
+    onChapterSearchToggle: () -> Unit,
+    onToggleChaptersReversed: () -> Unit,
+    onToggleChaptersGrid: () -> Unit,
+    onToggleDownloadedOnly: () -> Unit,
+    showCollapsedHandle: Boolean,
+    onSelectedTabIdChange: (Int) -> Unit,
+    onActionClick: (DetailsAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val paneOpacityProgress = easedOpacityProgress(sheetExpansionProgress)
+    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val isStatusBarHandleVisible = showCollapsedHandle && isSheetFullyExpanded
+    val opaquePaneOverlayAlpha = if (showCollapsedHandle && isSheetFullyExpanded) {
+        ((paneOpacityProgress - 0.74f) / 0.26f).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val paneShape = if (showCollapsedHandle && isSheetFullyExpanded && paneOpacityProgress >= 0.96f) {
+        RoundedCornerShape(0.dp)
+    } else {
+        RoundedCornerShape(28.dp)
+    }
+    val paneModifier = Modifier
+        .fillMaxWidth()
+        .then(modifier)
+    GlassSurface(
+        modifier = paneModifier,
+        style = if (showCollapsedHandle) {
+            GlassDefaults.prominentStyle().copy(
+                containerAlpha = lerpFloat(0.18f, 1f, paneOpacityProgress),
+                borderAlpha = lerpFloat(0.10f, 0f, paneOpacityProgress),
+                shadowElevation = 0.dp,
+            )
+        } else {
+            GlassDefaults.prominentStyle().copy(
+                containerAlpha = 0.94f,
+                borderAlpha = 0.06f,
+                shadowElevation = 0.dp,
+            )
+        },
+        shape = paneShape,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+        ) {
+            if (opaquePaneOverlayAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = opaquePaneOverlayAlpha)),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = if (isStatusBarHandleVisible) statusBarTopPadding + 8.dp else 0.dp),
+            ) {
+                DetailsPaneActionsRow(
+                    selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
+                    isSheetFullyExpanded = isSheetFullyExpanded,
+                    sheetExpansionProgress = sheetExpansionProgress,
+                    isChapterSearchVisible = isChapterSearchVisible,
+                    isChapterSearchAvailable = isChapterSearchAvailable,
+                    isChaptersReversed = isChaptersReversed,
+                    isChaptersInGridView = isChaptersInGridView,
+                    isDownloadedOnly = isDownloadedOnly,
+                    isDownloadedFilterVisible = isDownloadedFilterVisible,
+                    onChapterSearchToggle = onChapterSearchToggle,
+                    onToggleChaptersReversed = onToggleChaptersReversed,
+                    onToggleChaptersGrid = onToggleChaptersGrid,
+                    onToggleDownloadedOnly = onToggleDownloadedOnly,
+                    showCollapsedHandle = showCollapsedHandle && !isStatusBarHandleVisible,
+                    contentType = contentType,
+                    historyInfo = historyInfo,
+                    branches = branches,
+                    isLoading = isLoading,
+                    onActionClick = onActionClick,
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) {
+                    ChaptersPagesTabsContent(
+                        viewModel = viewModel,
+                        pagesViewModel = pagesViewModel,
+                        bookmarksViewModel = bookmarksViewModel,
+                        settings = settings,
+                        appRouter = appRouter,
+                        pageSaveHelper = pageSaveHelper,
+                        selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
+                        showTabStrip = false,
+                        chapterQuery = chapterQuery,
+                        isChapterSearchVisible = isChapterSearchVisible,
+                        onChapterQueryChange = onChapterQueryChange,
+                        onSelectedTabIdChange = { tabId ->
+                            val resolvedTab = resolveDetailsTabSelection(tabId, availableTabIds)
+                            onSelectedTabIdChange(resolvedTab)
+                        },
+                    )
+                }
+            }
+            if (isStatusBarHandleVisible) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = (statusBarTopPadding * 0.5f).coerceAtLeast(8.dp)),
+                ) {
+                    DetailsPaneDragHandle(
+                        modifier = Modifier.alpha(lerpFloat(0.68f, 1f, paneOpacityProgress)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsPaneActionsRow(
+    selectedTabId: Int,
+    isSheetFullyExpanded: Boolean,
+    sheetExpansionProgress: Float,
+    isChapterSearchVisible: Boolean,
+    isChapterSearchAvailable: Boolean,
+    isChaptersReversed: Boolean,
+    isChaptersInGridView: Boolean,
+    isDownloadedOnly: Boolean,
+    isDownloadedFilterVisible: Boolean,
+    onChapterSearchToggle: () -> Unit,
+    onToggleChaptersReversed: () -> Unit,
+    onToggleChaptersGrid: () -> Unit,
+    onToggleDownloadedOnly: () -> Unit,
+    showCollapsedHandle: Boolean,
     contentType: ContentType?,
     historyInfo: HistoryInfo,
     branches: List<ContentBranch>,
     isLoading: Boolean,
     onActionClick: (DetailsAction) -> Unit,
 ) {
-    Box(
+    val paneOpacityProgress = easedOpacityProgress(sheetExpansionProgress)
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
-        GlassBottomBarContainer(
-            modifier = Modifier.fillMaxWidth(),
-            style = GlassDefaults.prominentStyle(),
+        if (showCollapsedHandle) {
+            DetailsPaneDragHandle()
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                ),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
                 DetailsDockActionButton(
                     iconRes = R.drawable.ic_list,
                     contentDescription = stringResource(R.string.chapters),
+                    isSelected = selectedTabId == DETAILS_TAB_CHAPTERS,
                     onClick = { onActionClick(DetailsAction.ToggleList) },
                 )
                 DetailsDockActionButton(
                     iconRes = R.drawable.ic_grid,
                     contentDescription = stringResource(R.string.pages),
+                    isSelected = selectedTabId == DETAILS_TAB_PAGES,
                     onClick = { onActionClick(DetailsAction.ToggleGrid) },
                 )
                 DetailsDockActionButton(
                     iconRes = R.drawable.ic_bookmark,
                     contentDescription = stringResource(R.string.bookmarks),
+                    isSelected = selectedTabId == DETAILS_TAB_BOOKMARKS,
                     onClick = { onActionClick(DetailsAction.ToggleBookmarkView) },
                 )
-                Spacer(modifier = Modifier.weight(1f))
-                ReadDock(
-                    readLabel = resolveReadActionLabel(
-                        contentType = contentType,
+                Spacer(modifier = Modifier.width(4.dp))
+                if (isSheetFullyExpanded && selectedTabId == DETAILS_TAB_CHAPTERS) {
+                    ExpandedPaneUtilityDock(
+                        modifier = Modifier.weight(1f),
+                        sheetExpansionProgress = paneOpacityProgress,
+                        isSearchEnabled = isChapterSearchAvailable,
+                        isSearchActive = isChapterSearchVisible,
+                        isChaptersReversed = isChaptersReversed,
+                        isChaptersInGridView = isChaptersInGridView,
+                        isDownloadedOnly = isDownloadedOnly,
+                        isDownloadedFilterVisible = isDownloadedFilterVisible,
+                        onSearchClick = onChapterSearchToggle,
+                        onToggleChaptersReversed = onToggleChaptersReversed,
+                        onToggleChaptersGrid = onToggleChaptersGrid,
+                        onToggleDownloadedOnly = onToggleDownloadedOnly,
+                    )
+                } else {
+                    ReadDock(
+                        modifier = Modifier.weight(1f),
+                        sheetExpansionProgress = paneOpacityProgress,
+                        readLabel = resolveReadActionLabel(
+                            contentType = contentType,
+                            historyInfo = historyInfo,
+                            isLoading = isLoading,
+                        ),
+                        branches = branches,
                         historyInfo = historyInfo,
-                        isLoading = isLoading,
-                    ),
-                    branches = branches,
-                    historyInfo = historyInfo,
-                    isDownloadAvailable = historyInfo.canDownload,
-                    isEnabled = !isLoading && historyInfo.isValid,
-                    onReadClick = { onActionClick(DetailsAction.Resume) },
-                    onIncognitoClick = { onActionClick(DetailsAction.ResumeIncognito) },
-                    onForgetClick = { onActionClick(DetailsAction.ForgetHistory) },
-                    onDownloadClick = { onActionClick(DetailsAction.Download) },
-                    onBranchSelected = { onActionClick(DetailsAction.SelectBranch(it)) },
+                        isDownloadAvailable = historyInfo.canDownload,
+                        isEnabled = !isLoading && historyInfo.isValid,
+                        onReadClick = { onActionClick(DetailsAction.Resume) },
+                        onIncognitoClick = { onActionClick(DetailsAction.ResumeIncognito) },
+                        onForgetClick = { onActionClick(DetailsAction.ForgetHistory) },
+                        onDownloadClick = { onActionClick(DetailsAction.Download) },
+                        onBranchSelected = { onActionClick(DetailsAction.SelectBranch(it)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsPaneDragHandle(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .width(28.dp)
+            .height(4.dp)
+            .background(
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+                shape = RoundedCornerShape(999.dp),
+            ),
+    )
+}
+
+@Composable
+private fun ExpandedPaneUtilityDock(
+    modifier: Modifier = Modifier,
+    sheetExpansionProgress: Float,
+    isSearchEnabled: Boolean,
+    isSearchActive: Boolean,
+    isChaptersReversed: Boolean,
+    isChaptersInGridView: Boolean,
+    isDownloadedOnly: Boolean,
+    isDownloadedFilterVisible: Boolean,
+    onSearchClick: () -> Unit,
+    onToggleChaptersReversed: () -> Unit,
+    onToggleChaptersGrid: () -> Unit,
+    onToggleDownloadedOnly: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        GlassBottomBarContainer(
+            modifier = Modifier.height(52.dp),
+            style = GlassDefaults.prominentStyle().copy(
+                containerAlpha = lerpFloat(0.22f, 1f, sheetExpansionProgress),
+                borderAlpha = lerpFloat(0.10f, 0f, sheetExpansionProgress),
+                shadowElevation = 0.dp,
+            ),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = onSearchClick,
+                    enabled = isSearchEnabled,
+                    modifier = Modifier
+                        .width(42.dp)
+                        .height(42.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = stringResource(R.string.search_chapters),
+                        tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                IconButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier
+                        .width(42.dp)
+                        .height(42.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.options),
+                    )
+                }
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.reverse)) },
+                leadingIcon = {
+                    if (isChaptersReversed) {
+                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onToggleChaptersReversed()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chapters_grid_view)) },
+                leadingIcon = {
+                    if (isChaptersInGridView) {
+                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onToggleChaptersGrid()
+                },
+            )
+            if (isDownloadedFilterVisible) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.downloaded)) },
+                    leadingIcon = {
+                        if (isDownloadedOnly) {
+                            Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onToggleDownloadedOnly()
+                    },
                 )
             }
         }
@@ -610,16 +1197,31 @@ private fun DetailsBottomBar(
 private fun DetailsDockActionButton(
     iconRes: Int,
     contentDescription: String,
+    isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    IconButton(
-        onClick = onClick,
+    Surface(
         modifier = Modifier.padding(end = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent,
+        tonalElevation = 0.dp,
     ) {
-        Icon(
-            painter = rememberSafePainter(iconRes),
-            contentDescription = contentDescription,
-        )
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .width(42.dp)
+                .height(42.dp),
+        ) {
+            Icon(
+                painter = rememberSafePainter(iconRes),
+                contentDescription = contentDescription,
+                tint = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
     }
 }
 
@@ -676,6 +1278,8 @@ sealed interface DetailsAction {
 
 @Composable
 private fun ReadDock(
+    modifier: Modifier = Modifier,
+    sheetExpansionProgress: Float,
     readLabel: String,
     branches: List<ContentBranch>,
     historyInfo: HistoryInfo,
@@ -700,37 +1304,39 @@ private fun ReadDock(
         stringResource(R.string.options)
     }
 
-    Surface(
-        modifier = Modifier.height(56.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 4.dp,
-        shadowElevation = 8.dp,
+    GlassBottomBarContainer(
+        modifier = modifier.height(52.dp),
+        style = GlassDefaults.prominentStyle().copy(
+            containerAlpha = lerpFloat(0.22f, 1f, sheetExpansionProgress),
+            borderAlpha = lerpFloat(0.10f, 0f, sheetExpansionProgress),
+            shadowElevation = 0.dp,
+        ),
     ) {
         Box {
             Row {
                 TextButton(
                     onClick = onReadClick,
                     enabled = isEnabled,
-                    modifier = Modifier.height(56.dp),
+                    modifier = Modifier.height(52.dp),
                 ) {
                     Text(
                         text = readLabel,
-                        modifier = Modifier.padding(horizontal = 10.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 6.dp),
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .padding(vertical = 12.dp)
+                        .padding(vertical = 10.dp)
                         .width(1.dp)
-                        .height(32.dp)
-                        .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f)),
+                        .height(30.dp)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)),
                 )
                 TextButton(
                     onClick = { expanded = true },
                     enabled = hasMenuActions,
-                    modifier = Modifier.height(56.dp),
+                    modifier = Modifier.height(52.dp),
                 ) {
                     Text(
                         text = menuLabel,
@@ -806,6 +1412,15 @@ private fun ReadDock(
             }
         }
     }
+}
+
+private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float {
+    return start + (stop - start) * fraction.coerceIn(0f, 1f)
+}
+
+private fun easedOpacityProgress(progress: Float): Float {
+    val clamped = progress.coerceIn(0f, 1f)
+    return clamped * clamped * (3f - 2f * clamped)
 }
 
 @Composable

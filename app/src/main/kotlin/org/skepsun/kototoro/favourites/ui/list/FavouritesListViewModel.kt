@@ -95,8 +95,8 @@ class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
 	override val availableCategories = flowOf(emptyList<FavouriteCategory>())
 		.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.favoritesListMode)
+	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE) { this.listMode }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.listMode)
 
 	val sortOrder: StateFlow<ListSortOrder?> = if (categoryId == NO_ID) {
 		settings.observeAsFlow(AppSettings.KEY_FAVORITES_ORDER) {

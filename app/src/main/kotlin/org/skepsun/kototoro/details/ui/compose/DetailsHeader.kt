@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -241,7 +240,6 @@ fun DetailsHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
@@ -371,24 +369,23 @@ fun DetailsHeader(
                     .onGloballyPositioned { coordinates ->
                         onInfoCardTopSync(coordinates.boundsInRoot().top)
                     },
-                style = GlassDefaults.subtleStyle(),
+                style = GlassDefaults.prominentStyle().copy(
+                    containerAlpha = 0.60f,
+                    borderAlpha = 0.08f,
+                    shadowElevation = 0.dp,
+                ),
                 shape = RoundedCornerShape(24.dp),
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.basic_info),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                     infoItems.chunked(2).forEach { rowItems ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             rowItems.forEach { item ->
                                 MetadataItem(
@@ -408,30 +405,22 @@ fun DetailsHeader(
             }
         }
 
-        GlassSurface(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            style = GlassDefaults.subtleStyle(),
-            shape = RoundedCornerShape(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            Text(
+                text = stringResource(R.string.description),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            SelectionContainer {
                 Text(
-                    text = stringResource(R.string.description),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = displayDescription.ifBlank { fallbackDescription },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                SelectionContainer {
-                    Text(
-                        text = displayDescription.ifBlank { fallbackDescription },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
             }
         }
 
@@ -471,5 +460,3 @@ private fun Modifier.offsetX(
 ): Modifier = this.then(
     Modifier.offset(x = maxOffset * progress),
 )
-
-

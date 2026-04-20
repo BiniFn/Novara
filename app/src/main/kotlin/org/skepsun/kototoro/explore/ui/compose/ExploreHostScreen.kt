@@ -1,10 +1,12 @@
 package org.skepsun.kototoro.explore.ui.compose
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,8 +17,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,6 +29,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,7 +40,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -55,6 +62,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -64,9 +72,9 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.core.parser.favicon.faviconUri
-import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
-import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
 import org.skepsun.kototoro.discover.ui.compose.DiscoverHeroCarousel
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
@@ -75,8 +83,26 @@ import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.parsers.model.ContentType
 
 private const val BrowseLoadMoreBuffer = 4
+private val BrowseHeroContentOverlap = 56.dp
+
+private data class SourceQuickAccessMetrics(
+    val columns: Int,
+    val cardHeight: androidx.compose.ui.unit.Dp,
+    val gridSpacing: androidx.compose.ui.unit.Dp,
+)
+
+private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics {
+    val normalized = ((gridScale.coerceIn(0.75f, 1.4f) - 0.75f) / (1.4f - 0.75f)).coerceIn(0f, 1f)
+    val interpolatedColumns = 5f + ((3f - 5f) * normalized)
+    return SourceQuickAccessMetrics(
+        columns = interpolatedColumns.toInt().coerceIn(3, 5),
+        cardHeight = lerp(30.dp, 36.dp, normalized),
+        gridSpacing = lerp(4.dp, 6.dp, normalized),
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -95,9 +121,10 @@ fun KototoroExploreHostRoute(
     val listState = rememberLazyListState()
     var heroPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    val heroHeightDp by remember(heroPx, density) {
-        derivedStateOf { with(density) { heroPx.toDp() } }
-    }
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
+    val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     // 实时读取 LazyColumn 第一个 item 的滚动偏移，驱动 Hero 跟随滚动
     val heroScrollOffsetPx by remember(listState) {
         derivedStateOf {
@@ -133,6 +160,14 @@ fun KototoroExploreHostRoute(
             .distinctBy { it.id }
     }
     val isLoadingOnly = discoverItems.size <= 1 && discoverItems.any { it is LoadingState }
+    val heroOverlapDp = if (sources.isNotEmpty() || isLoadingOnly) BrowseHeroContentOverlap else 0.dp
+    val heroHeightDp by remember(heroPx, density, heroOverlapDp) {
+        derivedStateOf {
+            with(density) {
+                (heroPx - heroOverlapDp.roundToPx()).coerceAtLeast(0).toDp()
+            }
+        }
+    }
 
     LaunchedEffect(listState, query, popularItems.size, isDiscoverLoading) {
         if (query.isNotBlank() || popularItems.isEmpty()) {
@@ -166,6 +201,19 @@ fun KototoroExploreHostRoute(
                     Spacer(modifier = Modifier.height(heroHeightDp))
                 }
 
+                if (sources.isNotEmpty() || isLoadingOnly) {
+                    item(key = "discover_sources") {
+                        DetachedBottomContent(
+                            sources = sources,
+                            isLoadingOnly = isLoadingOnly,
+                            metrics = sourceQuickAccessMetrics(gridScale),
+                            onSourceClick = { source -> appRouter.openList(source.source, null, null) },
+                            onManageSourcesClick = appRouter::openManageSources,
+                            topBackgroundOverlap = heroOverlapDp,
+                        )
+                    }
+                }
+
                 items(
                     items = showcaseRows,
                     key = { "showcase_${it.category.id}" },
@@ -177,7 +225,8 @@ fun KototoroExploreHostRoute(
                         TrackingCategoryRow(
                             title = stringResource(row.category.nameResId),
                             items = rowContentItems,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            posterStyle = posterStyle,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                             onItemClick = { item ->
                                 openTrackingItem(appRouter, discoverViewModel, availableServices, item)
                             },
@@ -194,7 +243,7 @@ fun KototoroExploreHostRoute(
                     item(key = "popular_header") {
                         BrowsePopularHeader(
                             title = stringResource(R.string.popular),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                         )
                     }
                     items(
@@ -203,7 +252,8 @@ fun KototoroExploreHostRoute(
                     ) { item ->
                         BrowsePopularListItem(
                             item = item,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            posterStyle = posterStyle,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                             onClick = {
                                 openTrackingItem(appRouter, discoverViewModel, availableServices, item)
                             },
@@ -230,7 +280,6 @@ fun KototoroExploreHostRoute(
                 title = heroRow?.category?.let { stringResource(it.nameResId) }
                     ?: stringResource(R.string.discover),
                 heroItems = heroItems,
-                sources = sources,
                 activeService = activeService,
                 availableServices = availableServices,
                 isLoadingOnly = isLoadingOnly,
@@ -239,8 +288,6 @@ fun KototoroExploreHostRoute(
                 onHeroItemClick = { item ->
                     openTrackingItem(appRouter, discoverViewModel, availableServices, item)
                 },
-                onSourceClick = { source -> appRouter.openList(source.source, null, null) },
-                onManageSourcesClick = appRouter::openManageSources,
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopStart)
@@ -286,39 +333,14 @@ private fun openTrackingItem(
 private fun BrowseHeroBlock(
     title: String,
     heroItems: List<ContentListModel>,
-    sources: List<ContentSourceItem>,
     activeService: ScrobblerService?,
     availableServices: List<ScrobblerService>,
     isLoadingOnly: Boolean,
     topContentInset: androidx.compose.ui.unit.Dp,
     onSelectService: (ScrobblerService) -> Unit,
     onHeroItemClick: (ContentListModel) -> Unit,
-    onSourceClick: (ContentSourceItem) -> Unit,
-    onManageSourcesClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sourcesContent: (@Composable () -> Unit)? = when {
-        sources.isNotEmpty() -> ({
-            SourcesQuickAccessSection(
-                sources = sources,
-                onSourceClick = onSourceClick,
-                onManageClick = onManageSourcesClick,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 22.dp),
-            )
-        })
-        isLoadingOnly -> ({
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 36.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-        })
-        else -> null
-    }
-
     if (heroItems.isNotEmpty()) {
         DiscoverHeroCarousel(
             title = title,
@@ -328,12 +350,12 @@ private fun BrowseHeroBlock(
             onSelectService = onSelectService,
             onItemClick = onHeroItemClick,
             topContentInset = topContentInset,
-            bottomContent = sourcesContent,
+            detachedBottomContent = true,
             modifier = modifier,
         )
     } else {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .height(topContentInset + 220.dp)
                 .background(
@@ -352,15 +374,54 @@ private fun BrowseHeroBlock(
                 CircularProgressIndicator()
             }
         }
-        if (sources.isNotEmpty()) {
-            SourcesQuickAccessSection(
-                sources = sources,
-                onSourceClick = onSourceClick,
-                onManageClick = onManageSourcesClick,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 22.dp),
-            )
-        } else {
-            Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
+    }
+}
+
+@Composable
+private fun DetachedBottomContent(
+    sources: List<ContentSourceItem>,
+    isLoadingOnly: Boolean,
+    metrics: SourceQuickAccessMetrics,
+    onSourceClick: (ContentSourceItem) -> Unit,
+    onManageSourcesClick: () -> Unit,
+    topBackgroundOverlap: androidx.compose.ui.unit.Dp = 0.dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        when {
+            sources.isNotEmpty() -> {
+                SourcesQuickAccessSection(
+                    sources = sources,
+                    metrics = metrics,
+                    onSourceClick = onSourceClick,
+                    onManageClick = onManageSourcesClick,
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = topBackgroundOverlap,
+                        bottom = 8.dp,
+                    ),
+                )
+            }
+            isLoadingOnly -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = topBackgroundOverlap + 36.dp,
+                            bottom = 36.dp,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
     }
 }
@@ -368,14 +429,14 @@ private fun BrowseHeroBlock(
 @Composable
 private fun SourcesQuickAccessSection(
     sources: List<ContentSourceItem>,
+    metrics: SourceQuickAccessMetrics,
     onSourceClick: (ContentSourceItem) -> Unit,
     onManageClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -396,24 +457,77 @@ private fun SourcesQuickAccessSection(
                     text = stringResource(R.string.explore_tab_sources),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            TextButton(onClick = onManageClick) {
-                Text(stringResource(R.string.manage))
+            IconButton(onClick = onManageClick, modifier = Modifier.size(34.dp)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_more_vert),
+                    contentDescription = stringResource(R.string.manage),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 2.dp),
-        ) {
-            items(
-                items = sources.take(16),
-                key = { it.id },
-            ) { source ->
-                SourceQuickAccessCard(
-                    source = source,
-                    onClick = { onSourceClick(source) },
-                )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            var isExpanded by rememberSaveable(sources.size) { mutableStateOf(false) }
+            val columns = remember(metrics) {
+                metrics.columns
+            }
+            val collapsedRowCount = if (maxWidth < 520.dp) 5 else 4
+            val collapsedVisibleCount = columns * collapsedRowCount
+            val visibleSources = remember(sources, collapsedVisibleCount, isExpanded) {
+                if (isExpanded) sources else sources.take(collapsedVisibleCount)
+            }
+            val visibleRowCount = remember(visibleSources.size, columns, collapsedRowCount, isExpanded) {
+                if (!isExpanded) {
+                    collapsedRowCount
+                } else {
+                    ((visibleSources.size + columns - 1) / columns).coerceAtLeast(1)
+                }
+            }
+            val gridHeight = remember(visibleRowCount, metrics) {
+                (metrics.cardHeight * visibleRowCount) + (metrics.gridSpacing * (visibleRowCount - 1))
+            }
+            val hasMoreSources = sources.size > collapsedVisibleCount
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(gridHeight),
+                    userScrollEnabled = false,
+                    horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+                    verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+                ) {
+                    gridItems(
+                        items = visibleSources,
+                        key = { it.id },
+                    ) { source ->
+                        SourceQuickAccessCard(
+                            metrics = metrics,
+                            source = source,
+                            onClick = { onSourceClick(source) },
+                        )
+                    }
+                }
+                if (hasMoreSources) {
+                    TextButton(
+                        onClick = { isExpanded = !isExpanded },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    ) {
+                        Text(
+                            text = if (isExpanded) {
+                                stringResource(R.string.show_less)
+                            } else {
+                                "${stringResource(R.string.show_more)} (${sources.size - collapsedVisibleCount})"
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
         }
     }
@@ -421,62 +535,44 @@ private fun SourcesQuickAccessSection(
 
 @Composable
 private fun SourceQuickAccessCard(
+    metrics: SourceQuickAccessMetrics,
     source: ContentSourceItem,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val actualSource = source.source.mangaSource
     val title = actualSource.getTitle(context)
-    val faviconRequest = remember(source.id, actualSource.name) {
-        val fallback = sourceFallbackImage(
-            context = context,
-            styleResId = R.style.FaviconDrawable,
-            source = actualSource,
-            animated = false,
-        )
-        Builder(context)
-            .data(actualSource.faviconUri())
-            .crossfade(true)
-            .mangaSourceExtra(actualSource)
-            .placeholder(fallback)
-            .fallback(fallback)
-            .error(fallback)
-            .build()
-    }
 
     Surface(
         modifier = Modifier
-            .width(68.dp)
-            .height(96.dp)
+            .fillMaxWidth()
+            .height(metrics.cardHeight)
             .clickable(onClick = onClick),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 1.dp,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.background,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        tonalElevation = 0.dp,
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .padding(horizontal = 6.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Surface(
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-            ) {
-                AsyncImage(
-                    model = faviconRequest,
-                    contentDescription = title,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .size(34.dp)
-                        .padding(4.dp),
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(14.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                    .background(sourceTypeAccent(actualSource.contentType)),
+            )
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelSmall,
-                maxLines = 2,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -484,9 +580,17 @@ private fun SourceQuickAccessCard(
 }
 
 @Composable
+private fun sourceTypeAccent(contentType: ContentType): Color = when (contentType) {
+    ContentType.VIDEO -> MaterialTheme.colorScheme.tertiary
+    ContentType.NOVEL -> MaterialTheme.colorScheme.secondary
+    else -> MaterialTheme.colorScheme.primary
+}
+
+@Composable
 private fun TrackingCategoryRow(
     title: String,
     items: List<ContentListModel>,
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onItemClick: (ContentListModel) -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -506,6 +610,7 @@ private fun TrackingCategoryRow(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -524,6 +629,7 @@ private fun TrackingCategoryRow(
             ) { item ->
                 TrackingCompactPoster(
                     item = item,
+                    posterStyle = posterStyle,
                     onClick = { onItemClick(item) },
                 )
             }
@@ -540,6 +646,7 @@ private fun BrowsePopularHeader(
         text = title,
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.fillMaxWidth(),
     )
 }
@@ -547,6 +654,7 @@ private fun BrowsePopularHeader(
 @Composable
 private fun BrowsePopularListItem(
     item: ContentListModel,
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -569,7 +677,7 @@ private fun BrowsePopularListItem(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(158.dp),
+                .height(152.dp),
         ) {
             AsyncImage(
                 model = backgroundRequest,
@@ -610,14 +718,15 @@ private fun BrowsePopularListItem(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
-                        .size(width = 88.dp, height = 124.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                        .width(posterStyle.itemWidth)
+                        .height(posterStyle.posterHeight)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(posterStyle.cornerRadius))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
                     AsyncImage(
@@ -635,6 +744,7 @@ private fun BrowsePopularListItem(
                         text = item.title,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -645,6 +755,7 @@ private fun BrowsePopularListItem(
                         Text(
                             text = item.source.getTitle(context),
                             style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         )
                     }
@@ -657,6 +768,7 @@ private fun BrowsePopularListItem(
 @Composable
 private fun TrackingCompactPoster(
     item: ContentListModel,
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -669,15 +781,16 @@ private fun TrackingCompactPoster(
 
     Column(
         modifier = Modifier
-            .width(76.dp)
-            .height(138.dp)
+            .width(posterStyle.itemWidth)
+            .height(posterStyle.posterHeight + 32.dp)
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(width = 76.dp, height = 106.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                .width(posterStyle.itemWidth)
+                .height(posterStyle.posterHeight)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(posterStyle.cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             AsyncImage(
@@ -691,6 +804,7 @@ private fun TrackingCompactPoster(
         Text(
             text = item.title,
             style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),

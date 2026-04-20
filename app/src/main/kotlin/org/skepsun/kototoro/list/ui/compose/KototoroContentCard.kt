@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
@@ -26,18 +30,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.parser.favicon.faviconUri
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
+import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.list.domain.ReadingProgress
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import java.util.Locale
 
 @Composable
 fun KototoroContentCard(
@@ -85,30 +97,34 @@ fun KototoroContentCard(
 fun KototoroContentCardGrid(
     item: ContentGridModel,
     isSelected: Boolean = false,
+    showSourceInfo: Boolean = false,
+    gridScale: Float = 1f,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val manga = item.manga
     val coverUrl = manga.coverUrl
+    val posterStyle = compactPosterCardStyle(gridScale)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(2.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .padding(horizontal = 2.dp, vertical = 4.dp)
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            .padding(6.dp)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
+                .widthIn(max = posterStyle.itemWidth)
                 .fillMaxWidth()
-                .aspectRatio(2f / 3f) // Typical cover aspect ratio
-                .clip(RoundedCornerShape(6.dp))
+                .height(posterStyle.posterHeight)
+                .clip(RoundedCornerShape(posterStyle.cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             AsyncImage(
@@ -117,7 +133,7 @@ fun KototoroContentCardGrid(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize()
             )
-            
+
             if (isSelected) {
                 Box(modifier = Modifier.matchParentSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)))
                 Icon(
@@ -128,7 +144,14 @@ fun KototoroContentCardGrid(
                 )
             }
 
-            // Top Right Badge (Unread updates)
+            CardStateIcons(
+                isFavorite = item.isFavorite,
+                isSaved = item.isSaved,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp),
+            )
+
             if (item.counter > 0) {
                 BadgedBox(
                     badge = {
@@ -154,55 +177,29 @@ fun KototoroContentCardGrid(
                         .size(16.dp),
                     color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 2.dp,
-                )
+                    )
             }
 
-            // Bottom Left Tags (Source favicon & features)
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(4.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (item.isFavorite) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_heart_outline),
-                        contentDescription = "Favourite",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-                if (item.isSaved) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_storage),
-                        contentDescription = "Local/Saved",
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-                
-                // Add language tag if source supports it
-                Text(
-                    text = "EN", // Placeholder for actual language tag logic
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 2.dp)
+            if (showSourceInfo) {
+                SourceInfoPill(
+                    source = manga.source,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp),
                 )
             }
         }
 
         Text(
             text = manga.title,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
+                .widthIn(max = posterStyle.itemWidth)
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(top = 8.dp)
         )
     }
 }
@@ -268,6 +265,107 @@ fun KototoroContentCardList(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CardStateIcons(
+    isFavorite: Boolean,
+    isSaved: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (!isFavorite && !isSaved) return
+
+    Row(
+        modifier = modifier
+            .background(
+                color = Color.Black.copy(alpha = 0.48f),
+                shape = RoundedCornerShape(999.dp),
+            )
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isSaved) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_storage),
+                contentDescription = "Local/Saved",
+                tint = Color.White,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        if (isFavorite) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_heart_outline),
+                contentDescription = "Favourite",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(start = if (isSaved) 4.dp else 0.dp)
+                    .size(14.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SourceInfoPill(
+    source: org.skepsun.kototoro.parsers.model.ContentSource,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val langText = remember(source.name, source.locale) {
+        source.getLocale()
+            ?.language
+            ?.uppercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() }
+    }
+    val sourceIconRequest = remember(source.name, source.locale) {
+        val fallback = sourceFallbackImage(
+            context = context,
+            styleResId = R.style.FaviconDrawable_Small,
+            source = source,
+            animated = false,
+        )
+        ImageRequest.Builder(context)
+            .data(source.faviconUri())
+            .crossfade(true)
+            .mangaSourceExtra(source)
+            .placeholder(fallback)
+            .fallback(fallback)
+            .error(fallback)
+            .build()
+    }
+
+    Row(
+        modifier = modifier
+            .background(
+                color = Color.Black.copy(alpha = 0.56f),
+                shape = RoundedCornerShape(
+                    topStart = 10.dp,
+                    topEnd = 12.dp,
+                    bottomStart = 18.dp,
+                    bottomEnd = 12.dp,
+                ),
+            )
+            .padding(start = 6.dp, end = 8.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = sourceIconRequest,
+            contentDescription = source.name,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(14.dp)
+                .clip(RoundedCornerShape(4.dp)),
+        )
+        if (!langText.isNullOrBlank()) {
+            Text(
+                text = langText,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp),
+            )
         }
     }
 }

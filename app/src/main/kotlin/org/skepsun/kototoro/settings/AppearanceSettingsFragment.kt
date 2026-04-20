@@ -92,6 +92,10 @@ class AppearanceSettingsFragment : Fragment() {
             val isDescriptionExpanded = settings.observeAsState(AppSettings.KEY_COLLAPSE_DESCRIPTION) { isDescriptionExpanded }.value
             val isPanoramaCoverEnabled = settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }.value
             val panoramaCoverBlur = settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }.value
+            val isPanoramaCoverAnimationEnabled =
+                settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) { isPanoramaCoverAnimationEnabled }.value
+            val panoramaAnimationSpeed =
+                settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_SPEED) { panoramaAnimationSpeed }.value
             val panoramaCoverExtraHeight =
                 settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }.value
             val panoramaBottomGradientAlpha =
@@ -175,6 +179,8 @@ class AppearanceSettingsFragment : Fragment() {
                 isDescriptionExpanded = isDescriptionExpanded,
                 isPanoramaCoverEnabled = isPanoramaCoverEnabled,
                 panoramaCoverBlur = panoramaCoverBlur,
+                isPanoramaCoverAnimationEnabled = isPanoramaCoverAnimationEnabled,
+                panoramaAnimationSpeed = panoramaAnimationSpeed,
                 panoramaCoverExtraHeight = panoramaCoverExtraHeight,
                 panoramaBottomGradientAlpha = panoramaBottomGradientAlpha,
                 isPagesTabEnabled = isPagesTabEnabled,
@@ -223,6 +229,8 @@ class AppearanceSettingsFragment : Fragment() {
                     onDescriptionExpandedChange = { settings.isDescriptionExpanded = it },
                     onPanoramaCoverEnabledChange = { settings.isPanoramaCoverEnabled = it },
                     onPanoramaBlurChange = { settings.panoramaCoverBlur = it },
+                    onPanoramaAnimationEnabledChange = { settings.isPanoramaCoverAnimationEnabled = it },
+                    onPanoramaAnimationSpeedChange = { settings.panoramaAnimationSpeed = it },
                     onPanoramaExtraHeightChange = { settings.panoramaCoverExtraHeight = it },
                     onPanoramaGradientAlphaChange = { settings.panoramaBottomGradientAlpha = it },
                     onPagesTabEnabledChange = { settings.isPagesTabEnabled = it },

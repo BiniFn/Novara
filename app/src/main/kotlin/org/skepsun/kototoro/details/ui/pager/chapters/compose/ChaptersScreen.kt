@@ -85,18 +85,19 @@ fun ChaptersScreen(
 						modifier = Modifier.fillMaxSize()
 					) {
 						items(
-							items = items,
-							key = { item ->
-								when (item) {
-									is ChapterListItem -> item.chapter.id
-									is CollapsibleListHeader -> "header_${item.groupId}"
-									else -> item.hashCode()
+							count = items.size,
+							key = { index ->
+								when (val item = items[index]) {
+									is ChapterListItem -> "chapter_${item.chapter.id}_${item.chapter.url}_${index}"
+									is CollapsibleListHeader -> "header_${item.groupId}_${index}"
+									else -> "item_${item::class.java.simpleName}_${index}"
 								}
 							},
-							span = { item ->
-								if (item is CollapsibleListHeader) GridItemSpan(maxLineSpan) else GridItemSpan(1)
-							}
-						) { item ->
+							span = { index ->
+								if (items[index] is CollapsibleListHeader) GridItemSpan(maxLineSpan) else GridItemSpan(1)
+							},
+						) { index ->
+							val item = items[index]
 							when (item) {
 								is ChapterListItem -> {
 									ChapterGridCard(
@@ -118,15 +119,16 @@ fun ChaptersScreen(
 						modifier = Modifier.fillMaxSize()
 					) {
 						items(
-							items = items,
-							key = { item ->
-								when (item) {
-									is ChapterListItem -> item.chapter.id
-									is CollapsibleListHeader -> "header_${item.groupId}"
-									else -> item.hashCode()
+							count = items.size,
+							key = { index ->
+								when (val item = items[index]) {
+									is ChapterListItem -> "chapter_${item.chapter.id}_${item.chapter.url}_${index}"
+									is CollapsibleListHeader -> "header_${item.groupId}_${index}"
+									else -> "item_${item::class.java.simpleName}_${index}"
 								}
-							}
-						) { item ->
+							},
+						) { index ->
+							val item = items[index]
 							when (item) {
 								is ChapterListItem -> {
 									ChapterListCard(

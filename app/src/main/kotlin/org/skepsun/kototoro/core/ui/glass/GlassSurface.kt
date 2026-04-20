@@ -14,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,10 +62,22 @@ object GlassDefaults {
     )
 
     @Composable
-    fun nestedCardColor(): Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f)
+    fun nestedCardColor(): Color {
+        val colorScheme = MaterialTheme.colorScheme
+        val isDarkTheme = colorScheme.background.luminance() < 0.5f
+        return if (isDarkTheme) {
+            colorScheme.surfaceContainerHigh.copy(alpha = 0.78f)
+        } else {
+            colorScheme.surface.copy(alpha = 0.42f)
+        }
+    }
 
     @Composable
-    fun nestedCardBorderColor(): Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+    fun nestedCardBorderColor(): Color {
+        val colorScheme = MaterialTheme.colorScheme
+        val isDarkTheme = colorScheme.background.luminance() < 0.5f
+        return colorScheme.outlineVariant.copy(alpha = if (isDarkTheme) 0.28f else 0.18f)
+    }
 }
 
 @Composable
@@ -81,6 +95,7 @@ fun GlassSurface(
     val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
     val hazeState = LocalHazeState.current
     val colorScheme = MaterialTheme.colorScheme
+    val isDarkTheme = colorScheme.background.luminance() < 0.5f
     val opacityFactor = (hazeOpacityPercent.coerceIn(45, 100)) / 100f
     val effectiveContainerAlpha = when (blurMode) {
         AppSettings.BlurMode.STANDARD -> (style.containerAlpha * opacityFactor + 0.06f).coerceAtMost(0.94f)
@@ -91,6 +106,12 @@ fun GlassSurface(
         effectiveContainerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
         effectiveContainerAlpha >= 0.80f -> colorScheme.surfaceContainer
         else -> colorScheme.surfaceContainerLow
+    }.let { candidate ->
+        if (isDarkTheme) {
+            lerp(candidate, colorScheme.surfaceBright, 0.08f)
+        } else {
+            candidate
+        }
     }
     val baseBlurRadius = when {
         style.shadowElevation >= 10.dp -> 28.dp
@@ -106,6 +127,12 @@ fun GlassSurface(
         AppSettings.BlurMode.STANDARD -> (effectiveContainerAlpha * 0.44f).coerceIn(0.22f, 0.42f)
         AppSettings.BlurMode.IMMERSIVE -> (effectiveContainerAlpha * 0.32f).coerceIn(0.18f, 0.34f)
         AppSettings.BlurMode.ENHANCED -> (effectiveContainerAlpha * 0.24f).coerceIn(0.12f, 0.28f)
+    }.let { alpha ->
+        if (isDarkTheme) {
+            (alpha + 0.06f).coerceAtMost(0.46f)
+        } else {
+            alpha
+        }
     }
     val hazeStyle = HazeBlurDefaults.style(
         Color.Transparent,
@@ -116,7 +143,13 @@ fun GlassSurface(
     val useRuntimeHaze = supportsRuntimeHaze()
     val border = BorderStroke(
         width = 1.dp,
-        color = colorScheme.outlineVariant.copy(alpha = style.borderAlpha.coerceAtMost(0.18f)),
+        color = colorScheme.outlineVariant.copy(
+            alpha = if (isDarkTheme) {
+                style.borderAlpha.coerceIn(0.16f, 0.28f)
+            } else {
+                style.borderAlpha.coerceAtMost(0.18f)
+            },
+        ),
     )
 
     CompositionLocalProvider(LocalAbsoluteTonalElevation provides 0.dp) {

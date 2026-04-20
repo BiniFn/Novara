@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -15,11 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
@@ -44,7 +43,6 @@ fun SourceTagDropdown(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var anchorView by remember { mutableStateOf<android.view.View?>(null) }
 
     val iconRes = if (selectedTags.size == 1) {
         selectedTags.first().iconRes
@@ -57,79 +55,71 @@ fun SourceTagDropdown(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    IconButton(
-        onClick = {
-            if (!onButtonClickIntercept(anchorView)) {
-                expanded = true
-            }
-        },
-        modifier = modifier.size(CompactSourceTagButtonSize),
-    ) {
-        androidx.compose.ui.viewinterop.AndroidView(
-            factory = { context ->
-                android.view.View(context).apply {
-                    layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+    Box(modifier = modifier) {
+        IconButton(
+            onClick = {
+                if (!onButtonClickIntercept(null)) {
+                    expanded = true
                 }
             },
-            update = { anchorView = it },
-        )
-        Icon(
-            painter = rememberSafePainter(iconRes),
-            contentDescription = stringResource(R.string.filter),
-            modifier = Modifier.size(CompactSourceTagIconSize),
-            tint = tint,
-        )
-    }
+            modifier = Modifier.size(CompactSourceTagButtonSize),
+        ) {
+            Icon(
+                painter = rememberSafePainter(iconRes),
+                contentDescription = stringResource(R.string.filter),
+                modifier = Modifier.size(CompactSourceTagIconSize),
+                tint = tint,
+            )
+        }
 
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = { expanded = false },
-    ) {
-        // "All" option
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.all)) },
-            onClick = {
-                onTagSelected(null)
-                expanded = false
-            },
-            leadingIcon = {
-                Checkbox(
-                    checked = selectedTags.isEmpty(),
-                    onCheckedChange = null,
-                    modifier = Modifier.size(24.dp),
-                )
-            },
-        )
-
-        // Individual tag entries
-        entries.forEach { tag ->
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            offset = DpOffset(x = 0.dp, y = 4.dp),
+        ) {
             DropdownMenuItem(
-                text = { Text(stringResource(tag.titleRes)) },
+                text = { Text(stringResource(R.string.all)) },
                 onClick = {
-                    onTagSelected(tag)
+                    onTagSelected(null)
                     expanded = false
                 },
-                enabled = tag in enabledTags,
                 leadingIcon = {
-                    Icon(
-                        painter = rememberSafePainter(tag.iconRes),
-                        contentDescription = null,
+                    Checkbox(
+                        checked = selectedTags.isEmpty(),
+                        onCheckedChange = null,
                         modifier = Modifier.size(24.dp),
-                        tint = Color.Unspecified,
                     )
                 },
-                trailingIcon = {
-                    if (tag in selectedTags) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_check),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                },
             )
+
+            entries.forEach { tag ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(tag.titleRes)) },
+                    onClick = {
+                        onTagSelected(tag)
+                        expanded = false
+                    },
+                    enabled = tag in enabledTags,
+                    leadingIcon = {
+                        Icon(
+                            painter = rememberSafePainter(tag.iconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified,
+                        )
+                    },
+                    trailingIcon = {
+                        if (tag in selectedTags) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_check),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    },
+                )
+            }
         }
     }
 }
-

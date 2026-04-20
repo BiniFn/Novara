@@ -10,7 +10,13 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.MaterialTheme
@@ -19,18 +25,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ErrorState
+import org.skepsun.kototoro.list.ui.model.InfoModel
 import org.skepsun.kototoro.list.ui.model.ListModel
-import kotlin.math.roundToInt
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.list.ui.model.QuickFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,11 +65,18 @@ fun KototoroContentListScreen(
     onItemLongClick: (ContentListModel) -> Unit,
     onClearSelection: () -> Unit,
     onSelectionAction: (SelectionAction) -> Unit,
+    onQuickFilterOptionClick: (ListFilterOption) -> Unit = {},
+    onEmptyActionClick: () -> Unit = {},
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     listHeader: (@Composable () -> Unit)? = null
 ) {
     val pullRefreshState = rememberPullToRefreshState()
+    val lastContentItem = items.lastOrNull { it is ContentListModel }
+    val context = LocalContext.current
+    val settings = androidx.compose.runtime.remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val showSourceOnCards = settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }.value
 
     Box(modifier = modifier.fillMaxSize()) {
         PullToRefreshBox(
@@ -70,12 +95,14 @@ fun KototoroContentListScreen(
                 } else {
                 when (listMode) {
                     ListMode.GRID -> {
-                        // Compute adaptive span count using screen width and gridScale multiplier
                         val configuration = LocalConfiguration.current
                         val screenWidthDp = configuration.screenWidthDp
-                        val baseGridWidthDp = 110f // Matches typical preferred_grid_width
-                        val scaledGridWidthDp = baseGridWidthDp * (1f / gridScale.coerceAtLeast(0.1f))
-                        val computedColumns = (screenWidthDp / scaledGridWidthDp).roundToInt().coerceAtLeast(1)
+                        val posterStyle = compactPosterCardStyle(gridScale)
+                        val estimatedCellWidthDp = posterStyle.itemWidth.value + 14f
+                        val gridSpacingDp = 8f
+                        val computedColumns = (((screenWidthDp + gridSpacingDp) / (estimatedCellWidthDp + gridSpacingDp))
+                            .toInt())
+                            .coerceAtLeast(1)
 
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(computedColumns),
@@ -102,11 +129,20 @@ fun KototoroContentListScreen(
                                         item = listModel,
                                         isSelected = listModel.manga.id in selectedItemsIds,
                                         onClick = { onItemClick(listModel) },
-                                        onLongClick = { onItemLongClick(listModel) }
+                                        onLongClick = { onItemLongClick(listModel) },
+                                        showSourceInfo = showSourceOnCards,
+                                        gridScale = gridScale,
+                                    )
+                                } else {
+                                    SupplementaryListItem(
+                                        item = listModel,
+                                        onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                        onEmptyActionClick = onEmptyActionClick,
+                                        onRetry = onRetry,
                                     )
                                 }
 
-                                if (listModel == items.lastOrNull()) {
+                                if (listModel == lastContentItem) {
                                     LaunchedEffect(listModel) {
                                         onLoadMore()
                                     }
@@ -132,8 +168,15 @@ fun KototoroContentListScreen(
                                         onClick = { onItemClick(listModel) },
                                         onLongClick = { onItemLongClick(listModel) }
                                     )
+                                } else {
+                                    SupplementaryListItem(
+                                        item = listModel,
+                                        onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                        onEmptyActionClick = onEmptyActionClick,
+                                        onRetry = onRetry,
+                                    )
                                 }
-                                if (listModel == items.lastOrNull()) {
+                                if (listModel == lastContentItem) {
                                     LaunchedEffect(listModel) {
                                         onLoadMore()
                                     }
@@ -159,8 +202,15 @@ fun KototoroContentListScreen(
                                         onClick = { onItemClick(listModel) },
                                         onLongClick = { onItemLongClick(listModel) }
                                     )
+                                } else {
+                                    SupplementaryListItem(
+                                        item = listModel,
+                                        onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                        onEmptyActionClick = onEmptyActionClick,
+                                        onRetry = onRetry,
+                                    )
                                 }
-                                if (listModel == items.lastOrNull()) {
+                                if (listModel == lastContentItem) {
                                     LaunchedEffect(listModel) {
                                         onLoadMore()
                                     }
@@ -191,5 +241,195 @@ fun KototoroContentListScreen(
                 onActionClick = onSelectionAction
             )
         }
+    }
+}
+
+@Composable
+private fun SupplementaryListItem(
+    item: ListModel,
+    onQuickFilterOptionClick: (ListFilterOption) -> Unit,
+    onEmptyActionClick: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    when (item) {
+        is QuickFilter -> QuickFilterSection(
+            quickFilter = item,
+            onQuickFilterOptionClick = onQuickFilterOptionClick,
+        )
+        is InfoModel -> InfoCard(item)
+        is EmptyState -> EmptyStateCard(item, onEmptyActionClick)
+        is ErrorState -> ErrorStateCard(item, onRetry)
+        LoadingState -> LoadingStateItem()
+    }
+}
+
+@Composable
+private fun QuickFilterSection(
+    quickFilter: QuickFilter,
+    onQuickFilterOptionClick: (ListFilterOption) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items(quickFilter.items) { chip ->
+            val option = chip.data as? ListFilterOption
+            FilterChip(
+                selected = chip.isChecked,
+                onClick = {
+                    if (option != null) {
+                        onQuickFilterOptionClick(option)
+                    }
+                },
+                enabled = option != null,
+                leadingIcon = chipIcon(chip),
+                label = {
+                    Text(
+                        text = buildChipLabel(chip),
+                        maxLines = 1,
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoCard(item: InfoModel) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                painter = painterResource(item.icon),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(item.title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = stringResource(item.text),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyStateCard(
+    item: EmptyState,
+    onEmptyActionClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(item.textPrimary),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        if (item.textSecondary != 0) {
+            Text(
+                text = stringResource(item.textSecondary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (item.actionStringRes != 0) {
+            Button(onClick = onEmptyActionClick) {
+                Text(stringResource(item.actionStringRes))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ErrorStateCard(
+    item: ErrorState,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            painter = painterResource(if (item.icon != 0) item.icon else R.drawable.ic_error_large),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+        )
+        Text(
+            text = stringResource(R.string.error_occurred),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = item.exception.localizedMessage ?: item.exception.javaClass.simpleName.orEmpty(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (item.canRetry) {
+            Button(onClick = onRetry) {
+                Text(stringResource(item.buttonText.takeIf { it != 0 } ?: R.string.retry))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingStateItem() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun chipIcon(chip: ChipsView.ChipModel): (@Composable () -> Unit)? {
+    if (chip.icon == 0) {
+        return null
+    }
+    return {
+        Icon(
+            painter = painterResource(chip.icon),
+            contentDescription = null,
+            tint = if (chip.tint == 0) Color.Unspecified else MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun buildChipLabel(chip: ChipsView.ChipModel): String {
+    val title = when {
+        chip.titleResId != 0 -> stringResource(chip.titleResId)
+        chip.title != null -> chip.title.toString()
+        else -> ""
+    }
+    return if (chip.counter > 0) {
+        "$title ${chip.counter}"
+    } else {
+        title
     }
 }

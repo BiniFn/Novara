@@ -9,11 +9,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.graphicsLayer
-import org.skepsun.kototoro.core.prefs.observeAsState
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -43,20 +41,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import org.skepsun.kototoro.details.ui.compose.AnimatedPanoramaBackdrop
 import org.skepsun.kototoro.details.ui.compose.DetailsBindingCard
 import org.skepsun.kototoro.details.ui.compose.DetailsChromeButton
 import org.skepsun.kototoro.details.ui.compose.DetailsHeader
@@ -94,11 +90,6 @@ fun TrackingSiteDetailsScreen(
     val defaultLocale = Locale.getDefault()
 
     val context = LocalContext.current
-    val panoramaBlur by settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
-    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
-        panoramaBottomGradientAlpha
-    }
-    
     val density = LocalDensity.current
     val toolbarGapPx = with(density) { 12.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -140,28 +131,13 @@ fun TrackingSiteDetailsScreen(
                     .data(details?.coverUrl)
                     .build()
             }
-            AsyncImage(
+            AnimatedPanoramaBackdrop(
+                settings = settings,
                 model = request,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentAlpha = 0.6f * (1f - collapseProgress),
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(radius = (((panoramaBlur ?: 35) / 100f) * 20f).dp)
-                    .alpha(0.6f * (1f - collapseProgress)),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.surface.copy(
-                                    alpha = ((panoramaBottomAlpha ?: 100) / 100f).coerceIn(0f, 1f),
-                                ),
-                            ),
-                        ),
-                    ),
             )
         }
 

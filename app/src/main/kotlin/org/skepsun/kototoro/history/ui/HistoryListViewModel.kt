@@ -90,8 +90,8 @@ class HistoryListViewModel @Inject constructor(
 
 	override val listMode = settings.observeAsStateFlow(
 		scope = viewModelScope + Dispatchers.Default,
-		key = AppSettings.KEY_LIST_MODE_HISTORY,
-		valueProducer = { historyListMode },
+		key = AppSettings.KEY_LIST_MODE,
+		valueProducer = { settings.listMode },
 	)
 
 	private val isGroupingEnabled = settings.observeAsFlow(

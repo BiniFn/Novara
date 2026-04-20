@@ -175,7 +175,12 @@ abstract class ContentListFragment :
 							handleSelectionAction(action, composeSelectionIds)
 						}
 						composeSelectionIds = emptySet()
-					}
+					},
+					onQuickFilterOptionClick = { option ->
+						(viewModel as? QuickFilterListener)?.toggleFilterOption(option)
+					},
+					onEmptyActionClick = ::onEmptyActionClick,
+					onRetry = viewModel::onRetry,
 				)
 			}
 		}

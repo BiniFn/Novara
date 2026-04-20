@@ -37,6 +37,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.ActivityMainBinding
 import org.skepsun.kototoro.details.service.ContentPrefetchService
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.local.ui.LocalIndexUpdateService
@@ -63,6 +64,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 
     @Inject
     lateinit var backupStartupCoordinator: BackupStartupCoordinator
+
+    @Inject
+    lateinit var sourcePresetsRepository: SourcePresetsRepository
 
     private val viewModel by viewModels<MainViewModel>()
     private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
@@ -162,6 +166,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
             val suggestions by searchSuggestionViewModel.suggestion.collectAsState(initial = emptyList())
             val appUpdate by viewModel.appUpdate.collectAsState(initial = null)
             val isIncognitoModeEnabled by viewModel.isIncognitoModeEnabled.collectAsState()
+            val sourcePresets by sourcePresetsRepository.observeAll().collectAsState(initial = emptyList())
 
             KototoroApp(
                 appSettings = settings,
@@ -228,7 +233,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                     composeNavBarDelegator.handleItemSelected(itemId)
                 },
                 isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
-                onLanguagePresetFilterClick = ::onLanguagePresetFilterClick,
+                languagePresetEntries = sourcePresets,
+                onLanguagePresetSelected = { presetId ->
+                    settings.activeSourcePresetId = presetId
+                },
                 selectedContentType = activeFilterContentType,
                 enabledContentTypes = enabledContentTypes,
                 isContentTypeFilterVisible = isContentTypeFilterVisible,
@@ -252,7 +260,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 onSourceTagFilterClick = ::onSourceTagFilterClick,
                 onSourceTagSelected = { tag ->
                     if (tag == null || tag in enabledSourceTags) {
-                        activeFilterSourceTags = if (tag != null) setOf(tag) else emptySet()
+                        activeFilterSourceTags = if (tag == null) {
+                            emptySet()
+                        } else {
+                            activeFilterSourceTags.toMutableSet().apply {
+                                if (!add(tag)) {
+                                    remove(tag)
+                                }
+                            }
+                        }
                         syncSearchSuggestionFilters()
                         currentFilterCallback?.onSourceTagSelected(tag)
                     }
@@ -353,15 +369,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     }
 
     private fun setNavbarPinned(isPinned: Boolean) = Unit
-
-    private fun onLanguagePresetFilterClick(anchorView: View?): Boolean {
-        val anchor = anchorView ?: viewBinding.composeRoot
-        if (currentFilterCallback?.onLanguagePresetClicked(anchor) == true) {
-            return true
-        }
-        this.router.openSourcePresets()
-        return true
-    }
 
     private fun onSourceTagFilterClick(anchorView: View?): Boolean {
         val anchor = anchorView ?: viewBinding.composeRoot

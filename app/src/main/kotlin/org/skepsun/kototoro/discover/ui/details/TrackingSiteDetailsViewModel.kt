@@ -96,15 +96,17 @@ class TrackingSiteDetailsViewModel @Inject constructor(
 
     init {
         launchJob {
-            runCatching { cacheRepository.readDetails(service, remoteId) }
+            val cachedDetails = runCatching { cacheRepository.readDetails(service, remoteId) }
                 .getOrNull()
-                ?.let { cached ->
-                    if (_details.value == null) {
-                        _details.value = cached
-                    }
+            cachedDetails?.let { cached ->
+                if (_details.value == null) {
+                    _details.value = cached
                 }
+            }
+            if (cachedDetails == null) {
+                refresh()
+            }
         }
-        refresh()
     }
 
     fun refresh() {

@@ -42,6 +42,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 	private var isPageLoading = false
 	private var currentService: ScrobblerService? = null
 	private var currentCategory: String? = null
+	private var isFilterObserverPrimed = false
 
 	fun initialize(serviceName: String, categoryId: String) {
 		val service = ScrobblerService.entries.find { it.name == serviceName } ?: return
@@ -63,10 +64,15 @@ class DiscoverCategoryViewModel @Inject constructor(
 	init {
 		viewModelScope.launch {
 			filterCoordinator.observe()
-				// Only trigger refresh if properties objectively mutate (exclude default initialization event traps)
 				.distinctUntilChanged()
-				.collect { _ ->
-					if (currentService != null) refresh()
+				.collect {
+					if (!isFilterObserverPrimed) {
+						isFilterObserverPrimed = true
+						return@collect
+					}
+					if (currentService != null) {
+						refresh()
+					}
 				}
 		}
 	}

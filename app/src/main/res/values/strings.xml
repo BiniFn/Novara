@@ -1992,6 +1992,9 @@
     <string name="pref_panorama_cover">Panorama cover</string>
     <string name="pref_panorama_cover_summary">Show the item cover as a background banner spanning the top of the screen</string>
     <string name="pref_panorama_blur">Cover blur intensity</string>
+    <string name="pref_panorama_animation">Panorama cover animation</string>
+    <string name="pref_panorama_animation_summary">Enable subtle motion for animated panorama cover backgrounds</string>
+    <string name="pref_panorama_animation_speed">Panorama animation speed</string>
     <string name="pref_panorama_extra_height">Extra cover height (dp)</string>
     <string name="pref_panorama_gradient_alpha">Edge gradient intensity</string>
 	<string name="reader_translation_ocr_model_selection_not_downloaded_suffix">" (⚠️ Not Downloaded)"</string>

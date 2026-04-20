@@ -265,6 +265,12 @@ class DetailsActivity :
 
                             DetailsAction.OpenTracking,
                             DetailsAction.OpenStatistics,
+                            DetailsAction.OpenStatistics -> {
+                            }
+
+                            DetailsAction.OpenTracking -> {
+                            }
+
                             DetailsAction.ToggleList,
                             DetailsAction.ToggleGrid,
                             DetailsAction.ToggleBookmarkView -> {

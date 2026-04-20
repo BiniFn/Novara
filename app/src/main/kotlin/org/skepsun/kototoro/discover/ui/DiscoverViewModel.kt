@@ -110,6 +110,7 @@ class DiscoverViewModel @Inject constructor(
 	private val _page = MutableStateFlow(0)
 	private val _contentState = MutableStateFlow<List<ListModel>>(listOf(LoadingState))
 	private var isPageLoading = false
+	private var lastHandledRefreshVersion = 0
 
 	val content: StateFlow<List<ListModel>> = _contentState.asStateFlow()
 
@@ -117,19 +118,29 @@ class DiscoverViewModel @Inject constructor(
 
 	init {
 		viewModelScope.launch {
-			combine(activeService, activeCategory, refreshTrigger, searchQuery) { service, category, _, query ->
-				Triple(service, category, query.trim())
+			combine(activeService, activeCategory, refreshTrigger, searchQuery) { service, category, refreshVersion, query ->
+				DiscoverRequest(
+					service = service,
+					category = category,
+					query = query.trim(),
+					refreshVersion = refreshVersion,
+				)
 			}
 				.debounce(200) // Wait for all StateFlows to settle
 				.distinctUntilChanged()
-				.collect { payload: Triple<ScrobblerService, String?, String> ->
-					val service = payload.first
-					val category = payload.second
-					val query = payload.third
-					
+				.collect { request ->
+					val service = request.service
+					val category = request.category
+					val query = request.query
+					val forceRefresh = request.refreshVersion != lastHandledRefreshVersion
+					lastHandledRefreshVersion = request.refreshVersion
+
 					loadJob?.cancel()
 					_items.value = emptyList()
 					_page.value = 0
+					if (query.isBlank() && !forceRefresh && tryShowCachedDiscoverContent(service)) {
+						return@collect
+					}
 					loadJob = viewModelScope.launch {
 						loadData(service, category, query, 0)
 					}
@@ -180,6 +191,44 @@ class DiscoverViewModel @Inject constructor(
 				}
 			}
 		}
+	}
+
+	private suspend fun tryShowCachedDiscoverContent(service: ScrobblerService): Boolean {
+		val currentTabId = settings.getSelectedGroupTab()
+		val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) }
+			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+		val caps = discoveryService.getCapabilities(service)
+		if (caps.discoveryCategories.isEmpty()) {
+			val cached = cacheRepository.readCategoryCache(service, "root_trending") ?: return false
+			val flat = cached.toDiscoverModels()
+			_contentState.value = flat.ifEmpty {
+				listOf(
+					EmptyState(
+						icon = R.drawable.ic_bangumi_outline,
+						textPrimary = R.string.discover_empty_title,
+						textSecondary = R.string.discover_empty_text,
+						actionStringRes = 0,
+					),
+				)
+			}
+			return true
+		}
+
+		val rows = caps.discoveryCategories.mapNotNull { cat ->
+			if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
+				return@mapNotNull null
+			}
+			val cached = cacheRepository.readCategoryCache(service, cat.id)
+			if (cached.isNullOrEmpty()) {
+				return@mapNotNull null
+			}
+			DiscoverCarouselRow(category = cat, items = cached.toDiscoverModels())
+		}
+		if (rows.isEmpty()) {
+			return false
+		}
+		_contentState.value = rows
+		return true
 	}
 
 	private fun isCategoryVisibleInTab(categoryId: String, service: ScrobblerService, currentTab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab): Boolean {
@@ -414,4 +463,11 @@ class DiscoverViewModel @Inject constructor(
 		val mode = settings.listMode
 		return contentListMapper.toListModelList(proxyContents, mode)
 	}
+
+	private data class DiscoverRequest(
+		val service: ScrobblerService,
+		val category: String?,
+		val query: String,
+		val refreshVersion: Int,
+	)
 }

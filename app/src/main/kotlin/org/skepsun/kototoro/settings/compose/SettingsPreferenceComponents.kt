@@ -37,13 +37,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import kotlin.math.roundToInt
 
 data class SettingsChoiceOption<T>(
@@ -104,7 +104,7 @@ fun SettingsActionPreference(
     ) {
         if (iconRes != null) {
             Icon(
-                painter = painterResource(id = iconRes),
+                painter = rememberSafePainter(iconRes),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -168,7 +168,7 @@ fun SettingsSplitSwitchPreference(
         ) {
             if (iconRes != null) {
                 Icon(
-                    painter = painterResource(id = iconRes),
+                    painter = rememberSafePainter(iconRes),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -213,7 +213,7 @@ fun SettingsInfoPreference(
     ) {
         if (iconRes != null) {
             Icon(
-                painter = painterResource(id = iconRes),
+                painter = rememberSafePainter(iconRes),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )

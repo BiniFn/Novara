@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.plus
 import okio.FileNotFoundException
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.toChipModel
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -198,6 +199,18 @@ abstract class ChaptersPagesViewModel(
 		launchJob(Dispatchers.Default) {
 			localStorageChanges
 				.collect { onDownloadComplete(it) }
+		}
+		launchJob(Dispatchers.Default) {
+			mangaDetails.collect { details ->
+				val content = details?.toContent() ?: return@collect
+				if (content.chapters.isNullOrEmpty()) {
+					return@collect
+				}
+				val currentBranch = selectedBranch.value
+				if (currentBranch == null || details.chapters[currentBranch].isNullOrEmpty()) {
+					selectedBranch.value = content.getPreferredBranch(null)
+				}
+			}
 		}
 	}
 

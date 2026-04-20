@@ -54,6 +54,9 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.home.ui.HomeSummaryState
 import org.skepsun.kototoro.parsers.model.Content
@@ -82,6 +85,10 @@ fun HomeScreen(
     val scrollState = rememberScrollState()
     val layoutDirection = LocalLayoutDirection.current
     val systemBarsPadding = WindowInsets.systemBars.asPaddingValues()
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
+    val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     val recentItems = remember(state.recentHistoryItems) { state.recentHistoryItems.map { it.content } }
     val updateItems = remember(state.recentUpdates) { state.recentUpdates.map { it.content } }
     val recommendationItems = remember(state.recommendations) { state.recommendations.map { it.content } }
@@ -127,6 +134,7 @@ fun HomeScreen(
                 unreadUpdatesCount = state.unreadUpdatesCount,
                 recommendationItems = recommendationItems,
                 recommendationsCount = state.recommendationsCount,
+                posterStyle = posterStyle,
                 onItemClick = onContentClick,
                 onViewAllRecentClick = onViewAllRecentClick,
                 onViewAllUpdatesClick = onViewAllUpdatesClick,
@@ -157,6 +165,7 @@ private fun HomeHighlightsCard(
     unreadUpdatesCount: Int,
     recommendationItems: List<Content>,
     recommendationsCount: Int,
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onItemClick: (Content) -> Unit,
     onViewAllRecentClick: () -> Unit,
     onViewAllUpdatesClick: () -> Unit,
@@ -172,6 +181,7 @@ private fun HomeHighlightsCard(
                 iconRes = R.drawable.ic_history,
                 items = historyItems,
                 count = recentHistoryCount,
+                posterStyle = posterStyle,
                 onItemClick = onItemClick,
                 onMoreClick = onViewAllRecentClick,
                 addTopSpacing = !firstSection,
@@ -184,6 +194,7 @@ private fun HomeHighlightsCard(
                 iconRes = R.drawable.ic_updated,
                 items = updateItems,
                 count = unreadUpdatesCount,
+                posterStyle = posterStyle,
                 onItemClick = onItemClick,
                 onMoreClick = onViewAllUpdatesClick,
                 addTopSpacing = !firstSection,
@@ -196,6 +207,7 @@ private fun HomeHighlightsCard(
                 iconRes = R.drawable.ic_feed,
                 items = recommendationItems,
                 count = recommendationsCount,
+                posterStyle = posterStyle,
                 onItemClick = onItemClick,
                 onMoreClick = onViewAllRecommendationsClick,
                 addTopSpacing = !firstSection,
@@ -210,6 +222,7 @@ private fun HomeContentRowSection(
     iconRes: Int,
     items: List<Content>,
     count: Int,
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onItemClick: (Content) -> Unit,
     onMoreClick: () -> Unit,
     addTopSpacing: Boolean,
@@ -271,6 +284,7 @@ private fun HomeContentRowSection(
             ) { item ->
                 HomeCoverRowItem(
                     content = item,
+                    posterStyle = posterStyle,
                     onClick = { onItemClick(item) },
                 )
             }
@@ -281,6 +295,7 @@ private fun HomeContentRowSection(
 @Composable
 private fun HomeCoverRowItem(
     content: Content,
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -294,15 +309,15 @@ private fun HomeCoverRowItem(
 
     Column(
         modifier = Modifier
-            .width(88.dp)
+            .width(posterStyle.itemWidth)
             .clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(124.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .height(posterStyle.posterHeight)
+                .clip(RoundedCornerShape(posterStyle.cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             AsyncImage(
@@ -506,6 +521,5 @@ private fun HomeStatPill(
 private fun Int.toHeroCountLabel(): String = when {
     this >= 10_000 -> "${this / 1000}k+"
     this >= 1_000 -> "${this / 1000}k"
-    this >= 100 -> "999+"
     else -> toString()
 }

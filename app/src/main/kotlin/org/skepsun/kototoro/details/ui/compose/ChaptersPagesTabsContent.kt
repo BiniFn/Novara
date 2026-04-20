@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -73,14 +73,15 @@ fun ChaptersPagesTabsContent(
 	pageSaveHelper: PageSaveHelper,
 	initialPage: Int = 0,
 	selectedTabId: Int? = null,
+	showTabStrip: Boolean = true,
+    chapterQuery: String = "",
+    isChapterSearchVisible: Boolean = false,
+    onChapterQueryChange: ((String) -> Unit)? = null,
 	onSelectedTabIdChange: ((Int) -> Unit)? = null,
 ) {
 	val mangaDetails by viewModel.mangaDetails.collectAsState()
 	val source = mangaDetails?.toContent()?.source
 	val contentType = source?.getContentType()
-	val isChaptersReversed by viewModel.isChaptersReversed.collectAsState(initial = false)
-	val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsState(initial = false)
-	val isDownloadedOnly by viewModel.isDownloadedOnly.collectAsState(initial = false)
 	val emptyReason by viewModel.emptyReason.collectAsState(initial = null)
 	val pagesGridScale by pagesViewModel.gridScale.collectAsState(initial = settings.gridSizePages / 100f)
 
@@ -108,14 +109,16 @@ fun ChaptersPagesTabsContent(
 	val viewForSnackbar = LocalView.current
 	val lifecycleOwner = LocalLifecycleOwner.current
 	val coroutineScope = rememberCoroutineScope()
-	var chapterQuery by rememberSaveable { mutableStateOf("") }
 	var gridSizeValue by remember { mutableFloatStateOf(settings.gridSizePages.toFloat()) }
 
 	LaunchedEffect(pagesGridScale) {
 		gridSizeValue = (pagesGridScale * 100f).coerceIn(50f, 150f)
 	}
 
-	Surface(modifier = Modifier.fillMaxSize()) {
+	Surface(
+		modifier = Modifier.fillMaxSize(),
+		color = Color.Transparent,
+	) {
 		Column(modifier = Modifier.fillMaxSize()) {
 			if (tabsList.isEmpty()) return@Column
 
@@ -145,12 +148,11 @@ fun ChaptersPagesTabsContent(
 
 			LaunchedEffect(currentTabId) {
 				if (currentTabId != DETAILS_TAB_CHAPTERS && chapterQuery.isNotEmpty()) {
-					chapterQuery = ""
-					viewModel.performChapterSearch(null)
+					onChapterQueryChange?.invoke("")
 				}
 			}
 
-			if (tabsList.size > 1) {
+			if (showTabStrip && tabsList.size > 1) {
 				TabRow(
 					selectedTabIndex = pagerState.currentPage,
 					containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp).copy(alpha = 0.72f),
@@ -177,18 +179,9 @@ fun ChaptersPagesTabsContent(
 			ChaptersPagesToolbar(
 				currentTabId = currentTabId,
 				chapterQuery = chapterQuery,
-				onChapterQueryChange = { query ->
-					chapterQuery = query
-					viewModel.performChapterSearch(query.ifBlank { null })
-				},
+				onChapterQueryChange = onChapterQueryChange ?: {},
+				isChapterSearchVisible = isChapterSearchVisible,
 				isSearchVisible = emptyReason == null,
-				isChaptersReversed = isChaptersReversed,
-				onToggleReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
-				isChaptersInGridView = isChaptersInGridView,
-				onToggleGridView = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
-				isDownloadedFilterVisible = isDownloadedFilterVisible,
-				isDownloadedOnly = isDownloadedOnly,
-				onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
 				gridSizeValue = gridSizeValue,
 				onGridSizeChange = { value ->
 					gridSizeValue = value
@@ -236,21 +229,15 @@ private fun ChaptersPagesToolbar(
 	currentTabId: Int,
 	chapterQuery: String,
 	onChapterQueryChange: (String) -> Unit,
+	isChapterSearchVisible: Boolean,
 	isSearchVisible: Boolean,
-	isChaptersReversed: Boolean,
-	onToggleReversed: () -> Unit,
-	isChaptersInGridView: Boolean,
-	onToggleGridView: () -> Unit,
-	isDownloadedFilterVisible: Boolean,
-	isDownloadedOnly: Boolean,
-	onToggleDownloadedOnly: () -> Unit,
 	gridSizeValue: Float,
 	onGridSizeChange: (Float) -> Unit,
 ) {
 	Column(modifier = Modifier.fillMaxWidth()) {
 		when (currentTabId) {
 			DETAILS_TAB_CHAPTERS -> {
-				if (isSearchVisible) {
+				if (isSearchVisible && isChapterSearchVisible) {
 					OutlinedTextField(
 						value = chapterQuery,
 						onValueChange = onChapterQueryChange,
@@ -260,30 +247,6 @@ private fun ChaptersPagesToolbar(
 						singleLine = true,
 						label = { Text(stringResource(R.string.search_chapters)) },
 					)
-				}
-				Row(
-					modifier = Modifier
-						.fillMaxWidth()
-						.padding(horizontal = 16.dp, vertical = 8.dp),
-					horizontalArrangement = Arrangement.spacedBy(8.dp),
-				) {
-					FilterChip(
-						selected = isChaptersReversed,
-						onClick = onToggleReversed,
-						label = { Text(stringResource(R.string.reverse)) },
-					)
-					FilterChip(
-						selected = isChaptersInGridView,
-						onClick = onToggleGridView,
-						label = { Text(stringResource(R.string.chapters_grid_view)) },
-					)
-					if (isDownloadedFilterVisible) {
-						FilterChip(
-							selected = isDownloadedOnly,
-							onClick = onToggleDownloadedOnly,
-							label = { Text(stringResource(R.string.downloaded)) },
-						)
-					}
 				}
 			}
 
@@ -307,6 +270,8 @@ private fun ChaptersPagesToolbar(
 				}
 			}
 		}
-		HorizontalDivider()
+		if (currentTabId != DETAILS_TAB_CHAPTERS || (isSearchVisible && isChapterSearchVisible)) {
+			HorizontalDivider()
+		}
 	}
 }

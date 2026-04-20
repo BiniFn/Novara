@@ -17,11 +17,16 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -35,6 +40,10 @@ fun DiscoverCarousel(
 	modifier: Modifier = Modifier
 ) {
 	val listState = rememberLazyListState()
+	val context = LocalContext.current
+	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
+	val posterStyle = remember(gridScale) { compactPosterCardStyle(gridScale) }
 
 	Column(modifier = modifier.fillMaxWidth()) {
 		Row(
@@ -73,7 +82,7 @@ fun DiscoverCarousel(
 						onLongClick = { },
 						isSelected = false,
 						selectionModeActive = false,
-						modifier = Modifier.width(124.dp)
+						modifier = Modifier.width(posterStyle.itemWidth)
 					)
 				}
 			}

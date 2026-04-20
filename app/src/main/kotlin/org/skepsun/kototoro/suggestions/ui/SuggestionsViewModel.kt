@@ -53,8 +53,8 @@ class SuggestionsViewModel @Inject constructor(
 
 	override val isFilterBarVisible = MutableStateFlow(true)
 
-	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_SUGGESTIONS) { suggestionsListMode }
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.suggestionsListMode)
+	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE) { this.listMode }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.listMode)
 
 	override val currentGroupTab = globalFavoritesState.selectedGroupTab
 	override val currentSourceTags = globalFavoritesState.selectedSourceTags

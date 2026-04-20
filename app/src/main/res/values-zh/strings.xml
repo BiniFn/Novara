@@ -254,6 +254,8 @@
     <string name="discover_manage_binding">管理绑定</string>
     <string name="discover_local_linked">已关联本地作品</string>
     <string name="discover_local_unlinked">尚未关联本地作品</string>
+    <string name="pref_panorama_animation">全景封面动画</string>
+    <string name="pref_panorama_animation_summary">为启用全景封面的背景添加轻微动态效果</string>
     <string name="reader_translation_pipeline_mode">翻译流水线工作模式</string>
     <string name="reader_translation_pipeline_mode_two_stage">阶段式 (本地OCR + API翻译)</string>
     <string name="reader_translation_pipeline_mode_end_to_end_api">端到端 (Gemini原生多模态)</string>

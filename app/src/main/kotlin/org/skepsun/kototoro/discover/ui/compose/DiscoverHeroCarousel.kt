@@ -62,6 +62,8 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
@@ -69,8 +71,12 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 private val DiscoverHeroHeight = 340.dp
+private val DiscoverHeroHeightDetached = 232.dp
 private val DiscoverHeroHeightLandscape = 220.dp
-private val DiscoverHeroBottomBlendHeight = 160.dp
+private val DiscoverHeroBottomBlendHeight = 156.dp
+private val DiscoverHeroBottomBlendHeightLandscape = 128.dp
+private val DiscoverHeroBottomBlendHeightDetached = 84.dp
+private val DiscoverHeroBottomBlendHeightDetachedLandscape = 64.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -84,14 +90,44 @@ fun DiscoverHeroCarousel(
     topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
     bottomContent: (@Composable () -> Unit)? = null,
+    detachedBottomContent: Boolean = false,
 ) {
     if (items.isEmpty()) return
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val heroHeight = if (isLandscape) DiscoverHeroHeightLandscape else DiscoverHeroHeight
+    val heroHeight = when {
+        isLandscape -> DiscoverHeroHeightLandscape
+        detachedBottomContent -> DiscoverHeroHeightDetached
+        else -> DiscoverHeroHeight
+    }
+    val heroBottomBlendHeight = when {
+        detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
+        detachedBottomContent -> DiscoverHeroBottomBlendHeightDetached
+        isLandscape -> DiscoverHeroBottomBlendHeightLandscape
+        else -> DiscoverHeroBottomBlendHeight
+    }
+    val pageBackground = MaterialTheme.colorScheme.background
 
     val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val isPanoramaCoverEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }
+    val panoramaBlur by settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
+    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
+        panoramaBottomGradientAlpha
+    }
+    val isPanoramaCoverAnimationEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) {
+        isPanoramaCoverAnimationEnabled
+    }
+    val panoramaAnimationSpeed by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_SPEED) {
+        panoramaAnimationSpeed
+    }
+    val panoramaBlurDp = (((panoramaBlur / 100f).coerceIn(0f, 1f)) * 20f).dp
+    val panoramaGradientAlphaFactor = (panoramaBottomAlpha / 100f).coerceIn(0f, 1f)
+    val panoramaAnimationSpeedFactor = (panoramaAnimationSpeed.coerceIn(50, 200)) / 100f
+    val scaleAnimationDuration = (14000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4000)
+    val horizontalPanAnimationDuration = (16000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4500)
+    val verticalPanAnimationDuration = (12000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(3500)
     val pagerState = rememberPagerState(pageCount = { items.size })
     val selectedIndex by remember(items, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, items.lastIndex) }
@@ -100,28 +136,28 @@ fun DiscoverHeroCarousel(
     var isServiceMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "discover_hero_background")
     val backgroundScale by infiniteTransition.animateFloat(
-        initialValue = 1.15f,
-        targetValue = 1.22f,
+        initialValue = if (isPanoramaCoverAnimationEnabled) 1.15f else 1f,
+        targetValue = if (isPanoramaCoverAnimationEnabled) 1.22f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 14000, easing = LinearEasing),
+            animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "discover_hero_background_scale",
     )
     val backgroundTranslationX by infiniteTransition.animateFloat(
-        initialValue = -18f,
-        targetValue = 18f,
+        initialValue = if (isPanoramaCoverAnimationEnabled) -18f else 0f,
+        targetValue = if (isPanoramaCoverAnimationEnabled) 18f else 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 16000, easing = LinearEasing),
+            animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "discover_hero_background_translation_x",
     )
     val backgroundTranslationY by infiniteTransition.animateFloat(
-        initialValue = -12f,
-        targetValue = 12f,
+        initialValue = if (isPanoramaCoverAnimationEnabled) -12f else 0f,
+        targetValue = if (isPanoramaCoverAnimationEnabled) 12f else 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 12000, easing = LinearEasing),
+            animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "discover_hero_background_translation_y",
@@ -136,68 +172,79 @@ fun DiscoverHeroCarousel(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (bottomContent == null) Modifier.height(heroHeight + topContentInset)
-                else Modifier
+                if (bottomContent == null || detachedBottomContent) {
+                    Modifier.height(heroHeight + topContentInset)
+                } else {
+                    Modifier
+                }
             ),
     ) {
         // 背景层限制在 hero 图片高度内，不延伸到 bottomContent
-        val heroImageModifier = if (bottomContent != null)
-            Modifier.fillMaxWidth().height(heroHeight + topContentInset).clipToBounds()
-        else
-            Modifier.matchParentSize()
+        val heroImageModifier = Modifier
+            .fillMaxWidth()
+            .height(heroHeight + topContentInset)
+            .clipToBounds()
 
         Box(
             modifier = heroImageModifier
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.82f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.52f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.90f),
-                            MaterialTheme.colorScheme.background,
-                        ),
-                    ),
-                ),
+                .background(pageBackground),
         )
-        Crossfade(
-            targetState = selectedItem.id,
-            label = "discover_hero_background",
-            modifier = heroImageModifier,
-        ) { currentId ->
-            val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
-            val backgroundRequest = remember(currentId, backgroundItem.coverUrl) {
-                ImageRequest.Builder(context)
-                    .data(backgroundItem.coverUrl)
-                    .build()
+        if (isPanoramaCoverEnabled) {
+            Crossfade(
+                targetState = selectedItem.id,
+                label = "discover_hero_background",
+                modifier = heroImageModifier,
+            ) { currentId ->
+                val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
+                val backgroundRequest = remember(currentId, backgroundItem.coverUrl) {
+                    ImageRequest.Builder(context)
+                        .data(backgroundItem.coverUrl)
+                        .build()
+                }
+                AsyncImage(
+                    model = backgroundRequest,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = backgroundScale
+                            scaleY = backgroundScale
+                            translationX = backgroundTranslationX
+                            translationY = backgroundTranslationY
+                        }
+                        .blur(panoramaBlurDp)
+                        .alpha(0.94f),
+                )
             }
-            AsyncImage(
-                model = backgroundRequest,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = backgroundScale
-                        scaleY = backgroundScale
-                        translationX = backgroundTranslationX
-                        translationY = backgroundTranslationY
-                    }
-                    .blur(32.dp)
-                    .alpha(0.94f),
-            )
         }
         Box(
             modifier = heroImageModifier
                 .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.06f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.84f),
-                            MaterialTheme.colorScheme.background,
-                        ),
-                    ),
+                    if (detachedBottomContent) {
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.42f to Color.Transparent,
+                                0.62f to pageBackground.copy(alpha = 0.10f * panoramaGradientAlphaFactor),
+                                0.80f to pageBackground.copy(alpha = 0.28f * panoramaGradientAlphaFactor),
+                                0.92f to pageBackground.copy(alpha = 0.54f * panoramaGradientAlphaFactor),
+                                1.0f to pageBackground.copy(alpha = 0.72f * panoramaGradientAlphaFactor),
+                            ),
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.36f to Color.Transparent,
+                                0.54f to pageBackground.copy(alpha = 0.08f * panoramaGradientAlphaFactor),
+                                0.70f to pageBackground.copy(alpha = 0.22f * panoramaGradientAlphaFactor),
+                                0.84f to pageBackground.copy(alpha = 0.52f * panoramaGradientAlphaFactor),
+                                0.94f to pageBackground.copy(alpha = 0.82f * panoramaGradientAlphaFactor),
+                                1.0f to pageBackground,
+                            ),
+                        )
+                    },
                 ),
         )
         Box(
@@ -205,9 +252,9 @@ fun DiscoverHeroCarousel(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.68f),
+                            pageBackground.copy(alpha = 0.24f),
                             Color.Transparent,
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.30f),
+                            pageBackground.copy(alpha = 0.14f),
                         ),
                     ),
                 ),
@@ -217,18 +264,32 @@ fun DiscoverHeroCarousel(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(top = topContentInset + heroHeight - DiscoverHeroBottomBlendHeight)
-                .height(DiscoverHeroBottomBlendHeight)
+                .padding(top = topContentInset + heroHeight - heroBottomBlendHeight)
+                .height(heroBottomBlendHeight)
                 .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.28f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
-                            MaterialTheme.colorScheme.background,
-                        ),
-                    ),
+                    if (detachedBottomContent) {
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.16f to pageBackground.copy(alpha = 0.06f * panoramaGradientAlphaFactor),
+                                0.42f to pageBackground.copy(alpha = 0.18f * panoramaGradientAlphaFactor),
+                                0.72f to pageBackground.copy(alpha = 0.56f * panoramaGradientAlphaFactor),
+                                0.90f to pageBackground.copy(alpha = 0.86f * panoramaGradientAlphaFactor),
+                                1.0f to pageBackground,
+                            ),
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.14f to pageBackground.copy(alpha = 0.06f * panoramaGradientAlphaFactor),
+                                0.36f to pageBackground.copy(alpha = 0.22f * panoramaGradientAlphaFactor),
+                                0.64f to pageBackground.copy(alpha = 0.58f * panoramaGradientAlphaFactor),
+                                0.84f to pageBackground.copy(alpha = 0.86f * panoramaGradientAlphaFactor),
+                                1.0f to pageBackground,
+                            ),
+                        )
+                    },
                 ),
         )
 
@@ -236,10 +297,20 @@ fun DiscoverHeroCarousel(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (bottomContent == null) Modifier.fillMaxSize()
-                    else Modifier
+                    if (bottomContent == null || detachedBottomContent) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier
+                    }
                 )
-                .padding(top = topContentInset + 12.dp, bottom = if (bottomContent == null) 14.dp else 0.dp),
+                .padding(
+                    top = topContentInset + 12.dp,
+                    bottom = when {
+                        detachedBottomContent -> 44.dp
+                        bottomContent == null -> 14.dp
+                        else -> 0.dp
+                    },
+                ),
         ) {
             Row(
                 modifier = Modifier
@@ -349,15 +420,28 @@ fun DiscoverHeroCarousel(
                     }
                 }
             }
+            if (!detachedBottomContent) {
+                HeroPagerIndicator(
+                    pageCount = items.size,
+                    currentPage = selectedIndex,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+            }
+            if (bottomContent != null) {
+                if (!detachedBottomContent) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+                bottomContent()
+            }
+        }
+        if (detachedBottomContent) {
             HeroPagerIndicator(
                 pageCount = items.size,
                 currentPage = selectedIndex,
-                modifier = Modifier.padding(horizontal = 20.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
             )
-            if (bottomContent != null) {
-                Spacer(modifier = Modifier.height(14.dp))
-                bottomContent()
-            }
         }
     }
 }

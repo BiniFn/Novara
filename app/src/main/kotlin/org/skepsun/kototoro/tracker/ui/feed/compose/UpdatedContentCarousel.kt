@@ -15,11 +15,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
@@ -31,6 +36,11 @@ fun UpdatedContentCarousel(
 	onMoreClick: () -> Unit,
 	modifier: Modifier = Modifier
 ) {
+	val context = LocalContext.current
+	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
+	val posterStyle = remember(gridScale) { compactPosterCardStyle(gridScale) }
+
 	Column(modifier = modifier.fillMaxWidth()) {
 		// Header row
 		Row(
@@ -68,7 +78,7 @@ fun UpdatedContentCarousel(
 					onLongClick = { },
 					isSelected = false,
 					selectionModeActive = false,
-					modifier = Modifier.width(112.dp) // standard smaller grid width in Kototoro
+					modifier = Modifier.width(posterStyle.itemWidth)
 				)
 			}
 		}

@@ -56,8 +56,8 @@ class FavouritesContainerViewModel @Inject constructor(
 	private val sourceGroupManager: SourceGroupManager,
 ) : BaseViewModel() {
 
-	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.favoritesListMode)
+	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE) { this.listMode }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.listMode)
 
 	val currentGroupTab = globalFavoritesState.selectedGroupTab
 	val selectedSourceTags = globalFavoritesState.selectedSourceTags

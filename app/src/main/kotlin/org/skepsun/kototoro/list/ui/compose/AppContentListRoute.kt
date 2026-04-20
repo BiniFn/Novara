@@ -139,6 +139,13 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                 }
                 else -> {}
             }
-        }
+        },
+        onQuickFilterOptionClick = { option ->
+            (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
+        },
+        onEmptyActionClick = {
+            onEmptyActionClick?.invoke() ?: viewModel.onRetry()
+        },
+        onRetry = viewModel::onRetry,
     )
 }

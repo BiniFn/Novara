@@ -1,7 +1,9 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -15,14 +17,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
 import org.skepsun.kototoro.core.ui.widgets.KototoroBottomNav
 import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
+import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -56,7 +62,8 @@ fun KototoroApp(
     isIncognitoModeEnabled: Boolean = false,
     onIncognitoToggle: () -> Unit = {},
     isLanguagePresetFilterVisible: Boolean = false,
-    onLanguagePresetFilterClick: (android.view.View?) -> Boolean = { false },
+    languagePresetEntries: List<SourcePreset> = emptyList(),
+    onLanguagePresetSelected: (Long) -> Unit = {},
     selectedContentType: ContentType? = null,
     enabledContentTypes: Set<ContentType> = setOf(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
     isContentTypeFilterVisible: Boolean = true,
@@ -75,9 +82,13 @@ fun KototoroApp(
     onResumeClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
     val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
     val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+    val listMode by appSettings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }
+    val gridSize by appSettings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }
+    val isLandscapeNavigation = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
@@ -100,19 +111,21 @@ fun KototoroApp(
         }
     }
 
-    val visibleTopInsetPx = (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
-    val visibleBottomInsetPx = if (isFloating) {
-        0
-    } else {
-        (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt()
-    }
-
-    LaunchedEffect(visibleTopInsetPx, visibleBottomInsetPx) {
-        onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
-    }
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val isBrowseRoute = currentRoute == "explore"
+    val supportsDisplayModeMenu = currentRoute in setOf("history", "favorites", "suggestions", "updated")
+    val supportsGridSizeSlider = currentRoute in setOf(
+        "home",
+        "discover",
+        "explore",
+        "feed",
+        "history",
+        "favorites",
+        "suggestions",
+        "updated",
+    )
 
     LaunchedEffect(currentRoute) {
         val mappedId = when (currentRoute) {
@@ -134,6 +147,28 @@ fun KototoroApp(
     }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
+    val visibleTopInsetPx = (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
+    val extraPinnedBottomInsetPx = with(density) {
+        if (isNavBarPinned && !isFloating) 12.dp.roundToPx() else 0
+    }
+    val visibleBottomInsetPx = if (isLandscapeNavigation) {
+        0
+    } else if (!isNavBarPinned && isFloating) {
+        0
+    } else {
+        (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
+    }
+    val visibleStartInsetDp = with(density) {
+        if (isLandscapeNavigation) {
+            (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toDp()
+        } else {
+            0.dp
+        }
+    }
+
+    LaunchedEffect(visibleTopInsetPx, visibleBottomInsetPx) {
+        onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
+    }
     val contentPadding = remember(visibleTopInsetPx, visibleBottomInsetPx, density) {
         with(density) {
             androidx.compose.foundation.layout.PaddingValues(
@@ -153,6 +188,7 @@ fun KototoroApp(
                     contentPadding = contentPadding,
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(start = visibleStartInsetDp)
                         .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
                 )
 
@@ -174,8 +210,9 @@ fun KototoroApp(
                     isIncognitoModeEnabled = isIncognitoModeEnabled,
                     onIncognitoToggle = onIncognitoToggle,
                     isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
-                    hasActiveLanguagePreset = activeSourcePresetId > 0L,
-                    onLanguagePresetFilterClick = onLanguagePresetFilterClick,
+                    languagePresetEntries = languagePresetEntries,
+                    activeLanguagePresetId = activeSourcePresetId,
+                    onLanguagePresetSelected = onLanguagePresetSelected,
                     selectedContentType = selectedContentType,
                     enabledContentTypes = enabledContentTypes,
                     isContentTypeFilterVisible = isContentTypeFilterVisible,
@@ -186,8 +223,16 @@ fun KototoroApp(
                     isSourceTagFilterVisible = isSourceTagFilterVisible,
                     onSourceTagFilterClick = onSourceTagFilterClick,
                     onSourceTagSelected = onSourceTagSelected,
+                    supportsDisplayModeMenu = supportsDisplayModeMenu,
+                    currentListMode = listMode,
+                    onListModeSelected = { appSettings.listMode = it },
+                    supportsGridSizeSlider = supportsGridSizeSlider,
+                    gridSize = gridSize,
+                    onGridSizeChange = { appSettings.gridSize = it },
+                    isCollapsedFullyTransparent = isBrowseRoute,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
+                        .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                        .padding(start = visibleStartInsetDp)
                         .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
                         .onGloballyPositioned { coords ->
                             val newHeight = coords.size.height
@@ -200,10 +245,16 @@ fun KototoroApp(
 
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .offset { androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt()) }
+                        .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
+                        .offset {
+                            if (isLandscapeNavigation) {
+                                androidx.compose.ui.unit.IntOffset((-bottomNavOffset).toInt(), 0)
+                            } else {
+                                androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
+                            }
+                        }
                         .onGloballyPositioned { coords ->
-                            val newHeight = coords.size.height
+                            val newHeight = if (isLandscapeNavigation) coords.size.width else coords.size.height
                             if (bottomNavHeightPx != newHeight) {
                                 bottomNavHeightPx = newHeight
                                 onBottomNavHeightChanged(newHeight)
