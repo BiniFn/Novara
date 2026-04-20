@@ -2,142 +2,91 @@ package org.skepsun.kototoro.settings.discord
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import android.view.inputmethod.EditorInfo
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebStorage
-import androidx.appcompat.app.AlertDialog
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.preference.EditTextPreference
-import androidx.preference.EditTextPreferenceDialogFragmentCompat
-import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.util.ext.observe
-import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordAuthActivity
+import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.compose.DiscordSettingsScreen
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class DiscordSettingsFragment : BasePreferenceFragment(R.string.discord) {
+class DiscordSettingsFragment : Fragment() {
 
-	private val viewModel by viewModels<DiscordSettingsViewModel>()
+    private val viewModel by viewModels<DiscordSettingsViewModel>()
 
-	@Inject
-	lateinit var appSettings: AppSettings
+    @Inject
+    lateinit var appSettings: AppSettings
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_discord)
-		findPreference<EditTextPreference>(AppSettings.KEY_DISCORD_TOKEN)?.let { pref ->
-			pref.dialogMessage = pref.context.getString(
-				R.string.discord_token_description,
-				pref.context.getString(R.string.sign_in),
-			)
-			pref.setOnBindEditTextListener {
-				it.setHint(R.string.discord_token_hint)
-				it.inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-			}
-		}
-		findPreference<Preference>(KEY_DISCORD_LOGOUT)?.setOnPreferenceClickListener {
-			logoutDiscord()
-			true
-		}
-	}
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        return ComposeView(requireContext()).apply {
+            setContent {
+                val tokenStatePair by viewModel.tokenState.collectAsState(initial = Pair(TokenState.EMPTY, null))
+                val (state, token) = tokenStatePair
+                
+                val tokenSummary = when (state) {
+                    TokenState.EMPTY -> getString(R.string.discord_token_summary)
+                    TokenState.REQUIRED -> getString(R.string.discord_token_summary)
+                    TokenState.INVALID -> getString(R.string.invalid_token, token)
+                    TokenState.VALID -> token
+                    TokenState.CHECKING -> getString(R.string.loading_)
+                }
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		viewModel.tokenState.observe(viewLifecycleOwner) { (state, token) ->
-			bindTokenPreference(state, token)
-		}
-	}
+                KototoroTheme {
+                    DiscordSettingsScreen(
+                        settings = appSettings,
+                        tokenSummary = tokenSummary,
+                        isLogoutVisible = appSettings.isDiscordRpcEnabled && state == TokenState.VALID,
+                        onTokenClick = {
+                            openSignIn()
+                        },
+                        onLogoutClick = {
+                            logoutDiscord()
+                        },
+                    )
+                }
+            }
+        }
+    }
 
-	override fun onDisplayPreferenceDialog(preference: Preference) {
-		if (preference is EditTextPreference && preference.key == AppSettings.KEY_DISCORD_TOKEN) {
-			if (parentFragmentManager.findFragmentByTag(TokenDialogFragment.DIALOG_FRAGMENT_TAG) != null) {
-				return
-			}
-			val f = TokenDialogFragment.newInstance(preference.key)
-			@Suppress("DEPRECATION")
-			f.setTargetFragment(this, 0)
-			f.show(parentFragmentManager, TokenDialogFragment.DIALOG_FRAGMENT_TAG)
-			return
-		}
-		super.onDisplayPreferenceDialog(preference)
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.discord))
+    }
 
-	private fun bindTokenPreference(state: TokenState, token: String?) {
-		val pref = findPreference<EditTextPreference>(AppSettings.KEY_DISCORD_TOKEN) ?: return
-		findPreference<Preference>(KEY_DISCORD_LOGOUT)?.isVisible = appSettings.isDiscordRpcEnabled
-		when (state) {
-			TokenState.EMPTY -> {
-				pref.icon = null
-				pref.setSummary(R.string.discord_token_summary)
-			}
+    private fun logoutDiscord() {
+        appSettings.discordToken = null
+        val webStorage = WebStorage.getInstance()
+        runCatching { webStorage.deleteOrigin(DISCORD_ORIGIN) }
+        runCatching { webStorage.deleteOrigin(DISCORD_WWW_ORIGIN) }
 
-			TokenState.REQUIRED -> {
-				pref.icon = getWarningIcon()
-				pref.setSummary(R.string.discord_token_summary)
-			}
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.removeSessionCookies(null)
+        cookieManager.removeAllCookies(null)
+        cookieManager.flush()
+    }
 
-			TokenState.INVALID -> {
-				pref.icon = getWarningIcon()
-				pref.summary = getString(R.string.invalid_token, token)
-			}
+    private fun openSignIn() {
+        activity?.run {
+            startActivity(Intent(this, DiscordAuthActivity::class.java))
+        }
+    }
 
-			TokenState.VALID -> {
-				pref.icon = null
-				pref.summary = token
-			}
-
-			TokenState.CHECKING -> {
-				pref.icon = null
-				pref.setSummary(R.string.loading_)
-			}
-		}
-	}
-
-	private fun logoutDiscord() {
-		appSettings.discordToken = null
-		val webStorage = WebStorage.getInstance()
-		runCatching { webStorage.deleteOrigin(DISCORD_ORIGIN) }
-		runCatching { webStorage.deleteOrigin(DISCORD_WWW_ORIGIN) }
-
-		val cookieManager = CookieManager.getInstance()
-		cookieManager.removeSessionCookies(null)
-		cookieManager.removeAllCookies(null)
-		cookieManager.flush()
-	}
-
-	class TokenDialogFragment : EditTextPreferenceDialogFragmentCompat() {
-
-		override fun onPrepareDialogBuilder(builder: AlertDialog.Builder) {
-			super.onPrepareDialogBuilder(builder)
-			builder.setNeutralButton(R.string.sign_in) { _, _ ->
-				openSignIn()
-			}
-		}
-
-		private fun openSignIn() {
-			activity?.run {
-				startActivity(Intent(this, DiscordAuthActivity::class.java))
-			}
-		}
-
-		companion object {
-
-			const val DIALOG_FRAGMENT_TAG: String = "androidx.preference.PreferenceFragment.DIALOG"
-
-			fun newInstance(key: String) = TokenDialogFragment().withArgs(1) {
-				putString(ARG_KEY, key)
-			}
-		}
-	}
-
-	private companion object {
-		private const val KEY_DISCORD_LOGOUT = "discord_logout"
-		private const val DISCORD_ORIGIN = "https://discord.com"
-		private const val DISCORD_WWW_ORIGIN = "https://www.discord.com"
-	}
+    private companion object {
+        private const val KEY_DISCORD_LOGOUT = "discord_logout"
+        private const val DISCORD_ORIGIN = "https://discord.com"
+        private const val DISCORD_WWW_ORIGIN = "https://www.discord.com"
+    }
 }

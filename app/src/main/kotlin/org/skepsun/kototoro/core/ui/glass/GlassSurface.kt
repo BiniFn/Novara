@@ -3,7 +3,6 @@ package org.skepsun.kototoro.core.ui.glass
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalAbsoluteTonalElevation
 import androidx.compose.material3.MaterialTheme
@@ -11,11 +10,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dagger.hilt.android.EntryPointAccessors
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
+import dev.chrisbanes.haze.HazeDefaults as HazeBlurDefaults
+import dev.chrisbanes.haze.hazeChild
 
 @Immutable
 data class GlassStyle(
@@ -66,12 +73,47 @@ fun GlassSurface(
     shape: Shape = GlassDefaults.shape,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) {
+        EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(context.applicationContext).settings
+    }
+    val blurMode = settings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }.value
+    val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
+    val hazeState = LocalHazeState.current
     val colorScheme = MaterialTheme.colorScheme
+    val opacityFactor = (hazeOpacityPercent.coerceIn(45, 100)) / 100f
+    val effectiveContainerAlpha = when (blurMode) {
+        AppSettings.BlurMode.STANDARD -> (style.containerAlpha * opacityFactor + 0.06f).coerceAtMost(0.94f)
+        AppSettings.BlurMode.IMMERSIVE -> style.containerAlpha * opacityFactor
+        AppSettings.BlurMode.ENHANCED -> (style.containerAlpha * opacityFactor - 0.04f).coerceAtLeast(0.20f)
+    }
     val baseColor = when {
-        style.containerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
-        style.containerAlpha >= 0.80f -> colorScheme.surfaceContainer
+        effectiveContainerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
+        effectiveContainerAlpha >= 0.80f -> colorScheme.surfaceContainer
         else -> colorScheme.surfaceContainerLow
     }
+    val baseBlurRadius = when {
+        style.shadowElevation >= 10.dp -> 28.dp
+        style.shadowElevation >= 6.dp -> 24.dp
+        else -> 18.dp
+    }
+    val blurRadius = when (blurMode) {
+        AppSettings.BlurMode.STANDARD -> baseBlurRadius * 0.78f
+        AppSettings.BlurMode.IMMERSIVE -> baseBlurRadius
+        AppSettings.BlurMode.ENHANCED -> baseBlurRadius * 1.24f
+    }
+    val tintAlpha = when (blurMode) {
+        AppSettings.BlurMode.STANDARD -> (effectiveContainerAlpha * 0.44f).coerceIn(0.22f, 0.42f)
+        AppSettings.BlurMode.IMMERSIVE -> (effectiveContainerAlpha * 0.32f).coerceIn(0.18f, 0.34f)
+        AppSettings.BlurMode.ENHANCED -> (effectiveContainerAlpha * 0.24f).coerceIn(0.12f, 0.28f)
+    }
+    val hazeStyle = HazeBlurDefaults.style(
+        Color.Transparent,
+        HazeBlurDefaults.tint(baseColor.copy(alpha = tintAlpha)),
+        blurRadius,
+        0.12f,
+    )
+    val useRuntimeHaze = supportsRuntimeHaze()
     val border = BorderStroke(
         width = 1.dp,
         color = colorScheme.outlineVariant.copy(alpha = style.borderAlpha.coerceAtMost(0.18f)),
@@ -79,15 +121,19 @@ fun GlassSurface(
 
     CompositionLocalProvider(LocalAbsoluteTonalElevation provides 0.dp) {
         Surface(
-            modifier = modifier,
+            modifier = if (useRuntimeHaze) {
+                modifier.hazeChild(hazeState, shape, hazeStyle)
+            } else {
+                modifier
+            },
             shape = shape,
-            color = baseColor.copy(alpha = style.containerAlpha),
+            color = baseColor.copy(alpha = effectiveContainerAlpha),
             contentColor = colorScheme.onSurface,
             tonalElevation = style.tonalElevation,
             shadowElevation = style.shadowElevation,
             border = border,
         ) {
-            Box(modifier = Modifier.fillMaxWidth(), content = content)
+            Box(content = content)
         }
     }
 }

@@ -9,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -20,6 +19,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -124,7 +124,7 @@ private fun ScrobblerHeader(
                             overflow = TextOverflow.Ellipsis
                         ) 
                     },
-                    icon = { Icon(painterResource(iconRes), contentDescription = null) }
+                    icon = { Icon(rememberSafePainter(iconRes), contentDescription = null) }
                 )
             }
         }
@@ -299,7 +299,7 @@ private fun HintItem(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            painter = painterResource(item.icon),
+            painter = rememberSafePainter(item.icon),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant

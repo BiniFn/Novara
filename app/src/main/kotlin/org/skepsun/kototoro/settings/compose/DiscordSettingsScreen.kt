@@ -1,0 +1,63 @@
+package org.skepsun.kototoro.settings.compose
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+
+@Composable
+fun DiscordSettingsScreen(
+    settings: AppSettings,
+    tokenSummary: String?,
+    isLogoutVisible: Boolean,
+    onTokenClick: () -> Unit,
+    onLogoutClick: () -> Unit,
+) {
+    val isEnabled = settings.isDiscordRpcEnabled
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        SettingsSwitchPreference(
+            title = stringResource(R.string.discord_rpc),
+            checked = isEnabled,
+            onCheckedChange = { checked ->
+                settings.prefs.edit().putBoolean(AppSettings.KEY_DISCORD_RPC, checked).apply()
+            },
+        )
+        SettingsActionPreference(
+            title = stringResource(R.string.discord_token),
+            summary = tokenSummary ?: stringResource(R.string.discord_token_summary),
+            enabled = isEnabled,
+            onClick = onTokenClick,
+        )
+        if (isLogoutVisible) {
+            SettingsActionPreference(
+                title = stringResource(R.string.logout),
+                summary = stringResource(R.string.discord_logout_summary),
+                enabled = isEnabled,
+                onClick = onLogoutClick,
+            )
+        }
+        SettingsSwitchPreference(
+            title = stringResource(R.string.disable_nsfw),
+            summary = stringResource(R.string.rpc_skip_nsfw_summary),
+            checked = settings.prefs.getBoolean("discord_rpc_skip_nsfw", false),
+            enabled = isEnabled,
+            onCheckedChange = { checked ->
+                settings.prefs.edit().putBoolean("discord_rpc_skip_nsfw", checked).apply()
+            },
+        )
+    }
+}

@@ -91,14 +91,21 @@
 
 - [ ] 背景真正从状态栏顶部开始渲染，而不是仍被限制在搜索栏下方
 - [ ] 统一 Hero 总高度，避免下半部分出现明显空白
-- [ ] Hero 下边缘增加平滑渐变，过渡到当前主题背景色（浅色 / 深色）
-- [ ] 在“每日放送”区域补上追踪网站切换按钮
+- [x] Hero 下边缘已改为连续 scrim / 兜底底色过渡，并移除背景双重 crossfade，减少轮播切换后再次露出的割裂带
+- [x] 在“每日放送”区域补上追踪网站切换按钮，并移动到标题行右侧
+- [x] 将追踪站点图标改走 `rememberSafePainter()`，修复 MangaUpdates 等 bitmap-wrapper xml 图标在 Compose DropdownMenu 中闪退
 
 ### 6. Browse 追踪卡片背景与高度修正
 
 - [ ] 其他追踪卡片补齐下边缘渐变过渡，避免生硬截断到主背景
 - [ ] 整体高度继续压缩，避免信息密度不足和大面积空白
 - [ ] 保持封面 / 标题信息在窄屏与常规宽度下都不过度拉伸
+
+### 6.1 Browse 内容源入口收口
+
+- [x] “内容源”右侧动作固定进入内容源管理页，不再按条件跳去未激活源目录
+- [x] 内容源入口改为 favicon 方卡样式（图标上、标题下）
+- [x] 内容源图标改走真实 `faviconUri()` 获取路径，而非统一 storage 占位图标
 
 ### 7. 主页面搜索栏过滤器真正一致
 
@@ -109,7 +116,7 @@
 
 ### 8. Details 首帧与 pane 交互回归
 
-- [ ] 详情页首次进入时封面即保持圆角，避免先直角后圆角
+- [x] 详情页首次进入时封面即保持圆角，避免先直角后圆角
 - [ ] 统一底部工具栏与弹出控件的交互模型，避免悬浮工具栏却弹出可拖拽 sheet 的割裂感
 - [ ] 修复章节 / 页面 / 书签 pane 的实际内容显示，确保真正出现章节列表而非空白或错误内容
 - [ ] 继续保持 Reader / Video 入口不被本轮修复回归影响
@@ -151,6 +158,9 @@
   - 已开始接入“已绑定 tracking 卡片”和“推荐绑定卡片”
   - 仍需校正解绑语义，不应把已绑定卡片的移除动作继续绑在 `trackingSuggestion?.isLinked`
   - 仍需确认多绑定场景是否展示首个卡片还是支持多卡片
+- [x] 详情页首轮真实 glass/haze 收口
+  - `DetailsScreen` 根层已提供 `HazeState`
+  - 底栏、顶部圆按钮、header badge、tracking 绑定卡片图标已切到统一 glass / safe painter 路径
 - [x] 将 tracking 详情页正式 Compose 化并与普通详情页视觉对齐
   - `TrackingSiteDetailsActivity` 已改为 `AppCompatActivity` + `setContent {}` 纯 Compose host
   - `TrackingSiteDetailsScreen` 已实现 collapseProgress / panorama blur / graphicsLayer 动画
@@ -165,8 +175,8 @@
 
 ### 12. 文档交接要求
 
-- [ ] 在 `status-snapshot.md` 中持续维护 details/tracking 的真实迁移状态与当前阻塞
-- [ ] 在 `decision-log.md` 中记录“追踪详情页必须 Compose 化”和共享绑定卡片方案的后续决策
+- [x] 在 `status-snapshot.md` 中持续维护 details/tracking 的真实迁移状态与当前阻塞
+- [x] 在 `decision-log.md` 中记录“追踪详情页必须 Compose 化”和共享绑定卡片方案的后续决策
 - [ ] 所有后续推进者在继续实现前，先以 `./gradlew :app:compileDebugKotlin --no-daemon` 作为最小校验基线
 
 ---
@@ -191,21 +201,29 @@
 ### 14. 路由、存储层桥接与搜索源替换
 - [x] AI/翻译模块：将 `pref_ai.xml`, `pref_ai_image.xml`, `pref_translation.xml`, `pref_translation_api.xml` 改为纯 Kotlin Key Lists
 - [x] 利用 `observeAsState` + `SharedPreferences.edit {}` 搭建设置数据持久化绑定桥
-- [ ] 彻底重写 `SettingsSearchHelper`，改变其从零散 XML 提取搜索提示的历史路径（已部分完成：AI/翻译模块）
+- [ ] 彻底重写 `SettingsSearchHelper`，改变其从零散 XML 提取搜索提示的历史路径（已部分完成：AI/翻译/TTS/OCR/E2E 模块；深层 SourceSettings 仍未接入搜索索引）
 
 ### 15. 各大子设置页面的重写映射
 - [x] `AISettingsScreen` — 纯路由页，导航到各子页面
 - [x] `TranslationSettingsScreen` — 完整 Compose 化，含 OCR/Bubble/Pipeline 全部设置项
 - [x] `TranslationApiSettingsScreen` — 含 endpoint/key/model/custom headers 输入
+- [x] `TranslationE2ESettingsScreen` — Compose 化，含 provider preset / endpoint / key / model / fetch models
 - [x] `AIImageEnhancementSettingsScreen` — 含引擎/模式/模型/缓存设置项
+- [x] `TtsSettingsFragment` — 改为 Compose host，保留系统语音枚举、Legado 导入/管理与试听逻辑
+- [x] `OcrModelsFragment` — 改为 Compose host，支持分组展示、下载进度与删除模型
 - [ ] 核心单页（Storage, Downloads, Tracking, Sync 等）映射翻译为 Compose DSL
 - [ ] 多子页与深层源管理（ExtensionsRoot, JsonSources 等）的纯 Compose 化跳转
+- [ ] 深层源设置 `SourceSettingsFragment` 从动态 `PreferenceFragmentCompat` 迁到 Compose Screen/DSL
+  - [x] 标准 `ParserContentRepository` / `KotatsuParserRepository` / `EmptyContentRepository` 已通过 `SourceSettingsHostFragment` 切到 Compose `SourceSettingsScreen`
+  - [ ] JS / Legado / TVBox / Mihon / Aniyomi 等复杂来源仍保留 legacy `PreferenceFragmentCompat`
 - [ ] 将相关入口整合至主 `NavHost` 结构中
 
 ### 16. 历史包袱最终清理
 - [x] 清理 `pref_ai.xml`, `pref_ai_image.xml`, `pref_translation.xml`, `pref_translation_api.xml`
 - [ ] 清理剩余 `preference_*.xml`（`pref_ai_video.xml` 等）与 `fragment_settings_sources.xml`
+  - `pref_tts_settings.xml` 已删除
 - [ ] 删除不再需要的各种设置 `Fragment` 基类和实现
+  - `SourceSettingsFragment` 已先完成 `BasePreferenceFragment` 脱钩，剩余工作是清理旧 `PreferenceFragmentCompat`/XML 依赖
 - [ ] 清理 `build.gradle` 内的传统 AndroidX Preference 依赖项
 
 ---
@@ -220,7 +238,10 @@
 - [ ] `ScrobblingSelectorSheet` 随上层 Compose 化一并移除
 
 ### Liquid Glass 组件补齐
-- [ ] 为 `GlassSurface` 接入真实 haze / blur 后端
+- [x] 为 `GlassSurface` 接入真实 haze / blur 后端
+- [x] 外观设置页补入 Haze 模糊风格与玻璃不透明度设置
+- [x] Compose `KototoroTheme` 改为跟随当前 Activity 主题属性，而不是仅使用默认 `lightColorScheme()/darkColorScheme()`
+- [x] 为旧系统设备补入 Haze 降级路径，避免详情页进入时在 `HazeNode.draw` 链路崩溃
 - [ ] 实现 `GlassCard`
 - [ ] 实现 `GlassSheet`
 
@@ -239,14 +260,14 @@
 - [x] 已将“已完成但仍存在回归/未收口”的事项重新打开
 
 ### 构建 / 静态验证
-- [ ] `./gradlew :app:compileDebugKotlin --no-daemon`
+- [x] `./gradlew :app:compileDebugKotlin --no-daemon`
 - [ ] 如主导航 / 资源 / 布局改动较多，再跑 `./gradlew :app:assembleDebug`
 
 ### 端到端检查
 - [ ] Browse Hero 真正延伸到状态栏，且底部过渡自然
 - [ ] 追踪卡片高度压缩且下边缘过渡自然
 - [ ] 各主页面搜索栏都有语言预设按钮，横屏按钮组靠右，“更多”按钮可点击
-- [ ] 详情页封面首帧即圆角
+- [x] 详情页封面首帧即圆角
 - [ ] 详情页章节 / 页面 / 书签 pane 显示真实内容，且交互模型统一
 - [ ] Home 的历史 / 更新 / 推荐支持横向拖拽卡片列表
 - [ ] 开启固定导航栏 UI 后，底部内容不再被导航栏遮挡

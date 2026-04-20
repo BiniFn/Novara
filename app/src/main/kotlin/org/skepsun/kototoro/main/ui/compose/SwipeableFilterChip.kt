@@ -38,6 +38,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.parsers.model.ContentType
+
+private val CompactFilterChipSize = 40.dp
+private val CompactFilterChipCellSize = 32.dp
+
 @Composable
 fun SwipeableFilterChip(
     selectedType: ContentType?,
@@ -52,8 +56,8 @@ fun SwipeableFilterChip(
     val currentSelectedType by rememberUpdatedState(selectedType)
     val currentOnTypeSelected by rememberUpdatedState(onTypeSelected)
 
-    val cellSizePx = with(density) { 36.dp.toPx() }
-    val swipeThresholdPx = with(density) { 28.dp.toPx() }
+    val cellSizePx = with(density) { CompactFilterChipCellSize.toPx() }
+    val swipeThresholdPx = with(density) { 24.dp.toPx() }
 
     // 0 = collapsed, 1 = fully expanded
     val expansion = remember { Animatable(0f) }
@@ -80,7 +84,7 @@ fun SwipeableFilterChip(
 
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(CompactFilterChipSize)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

@@ -78,6 +78,8 @@ class AppearanceSettingsFragment : Fragment() {
             val colorScheme = settings.observeAsState(AppSettings.KEY_COLOR_THEME) { colorScheme }.value
             val theme = settings.observeAsState(AppSettings.KEY_THEME) { theme }.value
             val isAmoledTheme = settings.observeAsState(AppSettings.KEY_THEME_AMOLED) { isAmoledTheme }.value
+            val blurMode = settings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }.value
+            val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
             val tabletUiMode = settings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }.value
             val appLocale = settings.observeAsState(AppSettings.KEY_APP_LOCALE) { appLocales.toLanguageTags() }.value
             val loadingCircleStyle = settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }.value
@@ -138,6 +140,7 @@ class AppearanceSettingsFragment : Fragment() {
             val options = AppearanceSettingsOptions(
                 colorSchemes = buildColorSchemeOptions(),
                 themes = buildThemeOptions(),
+                blurModes = buildBlurModeOptions(),
                 tabletUiModes = buildTabletUiModeOptions(),
                 appLocales = buildLocaleOptions(),
                 loadingCircleStyles = buildLoadingCircleStyleOptions(),
@@ -158,6 +161,8 @@ class AppearanceSettingsFragment : Fragment() {
                 colorScheme = colorScheme,
                 theme = theme,
                 isAmoledTheme = isAmoledTheme,
+                blurMode = blurMode,
+                hazeOpacityPercent = hazeOpacityPercent,
                 tabletUiMode = tabletUiMode,
                 appLocale = appLocale,
                 loadingCircleStyle = loadingCircleStyle,
@@ -204,6 +209,8 @@ class AppearanceSettingsFragment : Fragment() {
                     onColorSchemeChange = { updateAndRestart { settings.colorScheme = it } },
                     onThemeChange = ::updateTheme,
                     onAmoledThemeChange = { updateAndRestart { settings.isAmoledTheme = it } },
+                    onBlurModeChange = { settings.blurMode = it },
+                    onHazeOpacityChange = { settings.hazeOpacityPercent = it },
                     onTabletUiModeChange = { settings.tabletUiMode = it },
                     onAppLocaleChange = ::updateAppLocale,
                     onLoadingCircleStyleChange = { updateAndRestart { settings.loadingCircleStyle = it } },

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
 import kotlin.math.roundToInt
 
 data class SettingsChoiceOption<T>(
@@ -87,9 +88,10 @@ fun SettingsGroupLabel(
 @Composable
 fun SettingsActionPreference(
     title: String,
-    summary: String,
+    summary: String? = null,
     @DrawableRes iconRes: Int? = null,
     enabled: Boolean = true,
+    showChevron: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
@@ -116,18 +118,22 @@ fun SettingsActionPreference(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
             )
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (showChevron) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -569,6 +575,103 @@ fun SettingsTextInputPreference(
                 PasswordVisualTransformation()
             } else {
                 VisualTransformation.None
+            },
+        )
+    }
+}
+
+@Composable
+fun SettingsDialogTextPreference(
+    title: String,
+    value: String,
+    summary: String? = null,
+    placeholder: String? = null,
+    isPassword: Boolean = false,
+    enabled: Boolean = true,
+    onValueChange: (String) -> Unit,
+) {
+    var isDialogVisible by remember { mutableStateOf(false) }
+    var pendingValue by remember(value) { mutableStateOf(value) }
+    val displayValue = when {
+        isPassword && value.isNotEmpty() -> "\u2022".repeat(value.length.coerceAtMost(8))
+        value.isNotBlank() -> value
+        !placeholder.isNullOrBlank() -> placeholder
+        else -> stringResource(R.string.not_specified)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) {
+                pendingValue = value
+                isDialogVisible = true
+            }
+            .alpha(if (enabled) 1f else 0.5f)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = displayValue,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (isDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isDialogVisible = false },
+            title = { Text(text = title) },
+            text = {
+                OutlinedTextField(
+                    value = pendingValue,
+                    onValueChange = { pendingValue = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = placeholder?.let { { Text(text = it) } },
+                    visualTransformation = if (isPassword) {
+                        PasswordVisualTransformation()
+                    } else {
+                        VisualTransformation.None
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onValueChange(pendingValue)
+                        isDialogVisible = false
+                    },
+                ) {
+                    Text(text = stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isDialogVisible = false }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
             },
         )
     }

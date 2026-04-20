@@ -124,8 +124,8 @@ fun TranslationSettingsScreen(
                 }
                 if (showE2eApi) {
                     SettingsActionPreference(
-                        title = "End-to-End API Settings",
-                        summary = "Configure API keys and Endpoint for End-to-End Multimodal OCR",
+                        title = stringResource(R.string.reader_translation_e2e_api_settings_title),
+                        summary = stringResource(R.string.reader_translation_e2e_api_settings_summary),
                         onClick = onOpenE2eApiSettings
                     )
                 }

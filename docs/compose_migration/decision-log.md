@@ -233,3 +233,111 @@
 1. **Fragment 层仍保留**：虽然 Screen 已 Compose 化，但 Fragment 宿主仍保留以兼容 `SettingsActivity` 的 Fragment 导航架构。完全去 Fragment 化需等 `SettingsActivity` 整体重构。
 2. **模型选项列表在 Fragment 构建**：`TranslationSettingsFragment` 中 ONNX 模型选项列表在 `onViewCreated` 中通过 `OnnxModelManager` 构建后传入 Compose Screen，而非在 Compose 中直接注入 Manager（避免 Compose 层对 Hilt 注入的直接依赖）。
 3. **数据绑定模式**：采用 `settings.observeAsState(KEY) { getter }` + `settings.prefs.edit { putX(KEY, value) }` 模式，与已有的 Reader/Playback 设置 Screen 保持一致。
+
+## 2026-04-19（续²）：Settings Batch 2 — TTS / OCR Models 收口
+
+- `TtsSettingsFragment` 从 `BasePreferenceFragment + pref_tts_settings.xml` 改为 `Fragment + ComposeView` 宿主，并新增 `TtsSettingsScreen`
+- TTS 页面保留了原有能力边界：
+  - 系统 TTS 异步初始化与语音枚举
+  - OEM 设备 `availableLanguages` 回退
+  - Legado JSON 从剪贴板 / URL 导入
+  - 已导入音源批量删除
+  - 本地 / Legado 引擎试听
+- `OcrModelsFragment` 从运行时构造 `PreferenceScreen` 改为 `Fragment + ComposeView` 宿主，并新增 `OcrModelsSettingsScreen`
+- OCR Models 页面现在以分组列表承载 ONNX 翻译 / OCR / 气泡检测 / 超分模型，支持：
+  - 已下载 / 未下载状态展示
+  - 下载过程中的进度摘要
+  - 已下载模型删除确认
+- 为减少 Settings DSL 分叉，`SettingsActionPreference` 增加了 `showChevron` 开关，允许“动作行”复用同一组件而不强行表现成跳转
+- `AISettingsScreen` 现已接入 TTS 资源化标题与摘要，AI 子树入口文案不再继续硬编码
+- `./gradlew :app:compileDebugKotlin --no-daemon` 已通过
+- 用户已明确确认后，`pref_tts_settings.xml` 已物理删除
+- 随后继续收口了 `End-to-End API` 分支：
+  - `AISettingsScreen` / `TranslationSettingsScreen` 的 E2E 入口标题与摘要改为资源化
+  - `TranslationE2ESettingsScreen` 去掉硬编码文案，并切回 `observeAsState + SharedPreferences.edit` 绑定模式
+  - 修复 `reader_e2e_api_concurrency` 持久化类型错误：从错误的 `putInt(...)` 改为与 `AppSettings` getter 一致的字符串存储
+  - `SettingsSearchHelper` 删除失效的 `PreferenceScreen.inflateTo` 桥接，并补齐 TTS / OCR Models / End-to-End API 的索引项
+
+## 2026-04-19（续³）：Settings 深层源页去 BasePreferenceFragment
+
+- **目标变化**：在继续推进 Settings Compose 化前，先清掉设置系统中最后一个真实继承 `BasePreferenceFragment` 的页面，避免公共基类继续绑住迁移边界。
+- **实现策略**：不做一次性全 Compose 重写，采用低风险过渡路径，让 `SourceSettingsFragment` 先从 `BasePreferenceFragment` 改为直接继承 `PreferenceFragmentCompat`，保留现有动态 `Preference` 生成、Mihon/Aniyomi 扩展配置注入、JS/Legado/TVBox 特殊项等业务逻辑。
+- **迁移内容**：
+  - 在 `SourceSettingsFragment` 内联原来由 `BasePreferenceFragment` 提供的最小能力集：`exceptionResolver` 注入、`SettingsActivity.setSectionTitle(...)` 标题同步、window insets/padding 处理、`ARG_PREF_KEY` 搜索定位与高亮。
+  - 保持 `SnackbarErrorObserver(listView, this, exceptionResolver)` 与 `ReversibleActionObserver(listView)` 现有交互路径不变，避免牵连 source 设置业务。
+- **结果**：
+  1. Settings 系统里已无页面直接继承 `BasePreferenceFragment`。
+  2. `SourceSettingsFragment` 仍是旧 `PreferenceFragmentCompat` 动态树，而不是 Compose Screen；这次只完成“去公共基类依赖”，未完成“深层源设置 Compose 化”。
+  3. `./gradlew :app:compileDebugKotlin --no-daemon` 已通过，说明该过渡没有破坏现有设置页编译基线。
+
+## 2026-04-19（续⁴）：SourceSettings 分流到首批 Compose 路径
+
+- **问题拆解**：深层 SourceSettings 全量 Compose 化的真实难点不在标准 parser 源，而在 Mihon / Aniyomi 的 `setupPreferenceScreen(screen)` 外部注入，以及 JS / Legado / TVBox 的高耦合动态偏好构造。一次性重写整页风险过高。
+- **实现策略**：新增 `SourceSettingsHostFragment` 作为路由分流宿主，先将标准 `ParserContentRepository` / `KotatsuParserRepository` / `EmptyContentRepository` 切到新的 `SourceComposeSettingsFragment + SourceSettingsScreen`，其它复杂来源继续自动回退旧 `SourceSettingsFragment`。
+- **新增能力**：
+  - 新增 `SourceSettingsScreen` 与 `SourceSettings*RowUiState`，为 source 设置页补上通用的 Compose DSL。
+  - 在 `SettingsPreferenceComponents` 新增 `SettingsDialogTextPreference`，用于 domain / user-agent / 账号密码等对话式文本输入。
+  - 标准 parser/kotatsu Compose 页已覆盖：启用开关、验证码通知、限速、配置项（domain/text/user-agent/toggle/list）、认证、浏览器打开、清理 cookies、unsupported 占位提示。
+- **显式保留**：JS / Legado / TVBox / Mihon / Aniyomi 仍走 legacy 页面；这是有意的增量分治，不是遗漏。
+- **验证**：`./gradlew :app:compileDebugKotlin --no-daemon` 已通过。
+
+## 2026-04-19（续⁵）：主壳真实 Haze 启用 + 搜索栏厚度收紧
+
+- **Haze 接线**：
+  - `KototoroApp` 在主壳根层创建并提供 `HazeState`
+  - `AppNavGraph` 主内容层增加 `Modifier.haze(hazeState)` 作为采样源
+  - `GlassSurface` 改为 `Surface + Modifier.hazeChild(...)`，保留边框与 tint fallback，避免无背景时直接透明失真
+- **顶栏策略**：
+  - 主壳顶栏不再使用普通 `Surface` 包裹，改为 `GlassSurface + DockedSearchBar`
+  - 搜索栏厚度从默认 Material3 规格收紧为 collapsed `48dp` / expanded `52dp`
+  - 顶栏 action button、语言按钮、来源按钮、内容类型筛选 chip 统一压到 `40dp` 级别，直接针对用户反馈的“太厚”问题，而不是改顶部位置
+- **验证**：`./gradlew :app:compileDebugKotlin --no-daemon` 已通过。
+
+## 2026-04-19（续⁶）：Haze 进入可配置阶段 + Tracking Compose 崩溃修复
+
+- **外观设置页补强**：
+  - `AppSettings` 新增 `hazeOpacityPercent / KEY_HAZE_OPACITY`
+  - `AppearanceSettingsScreen` / `AppearanceSettingsFragment` 增加 Haze 模糊风格与玻璃不透明度入口
+  - `SettingsSearchHelper` 补入 `haze_opacity`
+  - `pref_blur_mode*` 文案改写为 Haze 语义，而不再沿用模糊等级的旧 View 时代描述
+- **Compose 主题决议**：
+  - `KototoroTheme` 不再依赖默认 `lightColorScheme()/darkColorScheme()` 静态方案
+  - 改为根据当前 Activity 已应用的主题 overlay 动态解析 `colorSurface` / `colorPrimary` / `colorSurfaceContainer*` / `colorError` 等属性名，构造 Compose `ColorScheme`
+  - 这样“设置 → 外观”中的配色主题、夜间模式、AMOLED 等旧主题设置终于能真实影响 Compose UI
+- **Tracking Compose 闪退根因确认**：
+  - 根因并非 DropdownMenu 逻辑，而是 `ScrobblerService.iconResId` 中存在 bitmap-wrapper XML（如 `ic_shikimori.xml`），Compose `painterResource()` 无法直接加载
+  - 新增 `rememberSafePainter()` 基础设施，通过 `ContextCompat.getDrawable()` 统一兼容 VectorDrawable 与 bitmap-wrapped xml
+  - `DiscoverHeroCarousel`、`ScrobblingSelectorDialog`、详情页 tracking 绑定卡片与 badge 已切到安全 painter 路径
+  - 用户报告的 MangaUpdates 站点切换闪退因此被纳入同一类问题收口
+- **详情页 glass 收口决议**：
+  - `DetailsScreen` 根层增加 `HazeState`
+  - 底部工具栏、顶部圆按钮、header badge 和 tracking 绑定卡片的图标入口统一切入真实 glass / haze 渲染路径
+- **Browse Hero 衔接**：
+  - `DiscoverHeroCarousel` 补强底部渐变并对背景图增加 crossfade
+  - `ExploreHostScreen` 的 sources 区块向上压接 Hero，减少 Hero 底部与 sources 区之间的割裂带
+- **验证**：`./gradlew :app:compileDebugKotlin --no-daemon` 已通过（Kotlin daemon 因缓存目录删除失败回退到非 daemon 编译，但最终构建成功）。
+
+## 2026-04-19（续⁷）：Browse Hero 连续过渡二次收口
+
+- **背景切换策略调整**：
+  - `DiscoverHeroCarousel` 不再同时叠加 Compose `Crossfade` 和 Coil `crossfade(true)` 处理同一层背景图，避免切换完成后再出现第二次视觉断层
+  - 改为保留单层 Compose `Crossfade`，并在 Hero 根层增加持续存在的兜底底色与 scrim
+- **过渡层连续化**：
+  - Hero 根层新增 `surfaceContainerHighest → background` 的常驻底色，避免封面加载/切换过程中露出不稳定底层
+  - 底部 blend 高度继续加深，sources 区块背景改为 `Transparent → background` 连续渐变，并进一步向上压接 Hero
+- **现阶段结论**：
+  - 本轮修复目标是消除“轮播切换最开始正常、随后又出现割裂”的结构性诱因
+  - 是否完全消除设备端割裂仍需真机验收，暂不记为 Browse Hero 全部完成
+
+## 2026-04-19（续⁸）：Browse 源入口改 favicon 方卡 + Details Haze 降级
+
+- **Browse 顶部控件重排**：
+  - `DiscoverHeroCarousel` 移除右上角多余的 “more” 按钮
+  - 追踪站点切换按钮提升到右上角，Hero 标题留在同一行左侧
+- **内容源入口决议**：
+  - `ExploreHostScreen` 的 sources 区块从横向文字 chip 改为更接近方形的统一卡片，使用 “图标在上、标题在下” 的结构
+  - 图标来源改走 `faviconUri()` 与 `sourceFallbackImage(...)`，不再统一显示 storage 占位图标
+  - 右上角动作固定进入 `openManageSources()`，不再根据 `isAllSourcesEnabled` 条件跳去 `openSourcesCatalog()`
+- **详情页稳定性决议**：
+  - 用户真机反馈普通详情页进入即在 `dev.chrisbanes.haze.HazeNode.draw` 链路崩溃
+  - 当前采用保守策略：`DetailsScreen`、主壳 `AppNavGraph` 的 `.haze(...)` 和 `GlassSurface.hazeChild(...)` 仅在 **Android 12+** 启用；旧系统自动退回普通 glass tint fallback，优先保证稳定性

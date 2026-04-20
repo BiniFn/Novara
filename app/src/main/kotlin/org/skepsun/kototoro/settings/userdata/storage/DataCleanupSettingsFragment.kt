@@ -1,123 +1,127 @@
 package org.skepsun.kototoro.settings.userdata.storage
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.preference.Preference
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.util.FileSize
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
-import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.local.data.CacheDir
+import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.compose.DataCleanupSettingsScreen
+import javax.inject.Inject
 
 @AndroidEntryPoint
-class DataCleanupSettingsFragment : BasePreferenceFragment(R.string.data_removal) {
+class DataCleanupSettingsFragment : Fragment() {
 
     private val viewModel by viewModels<DataCleanupSettingsViewModel>()
-    private val loadingPrefs = HashSet<String>()
 
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        addPreferencesFromResource(R.xml.pref_data_cleanup)
+    @Inject
+    lateinit var appSettings: AppSettings
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        return ComposeView(requireContext()).apply {
+            setContent {
+                val searchHistoryCount by viewModel.searchHistoryCount.collectAsState(initial = -1)
+                val searchHistorySummary = if (searchHistoryCount < 0) {
+                    getString(R.string.loading_)
+                } else {
+                    resources.getQuantityStringSafe(R.plurals.items, searchHistoryCount, searchHistoryCount)
+                }
+
+                val feedItemsCount by viewModel.feedItemsCount.collectAsState(initial = -1)
+                val updatesFeedSummary = if (feedItemsCount < 0) {
+                    getString(R.string.loading_)
+                } else {
+                    resources.getQuantityStringSafe(R.plurals.items, feedItemsCount, feedItemsCount)
+                }
+
+                val thumbsCacheSize by viewModel.cacheSizes[CacheDir.THUMBS]!!.collectAsState(initial = -1L)
+                val thumbsCacheSummary = if (thumbsCacheSize < 0) {
+                    getString(R.string.computing_)
+                } else {
+                    FileSize.BYTES.format(requireContext(), thumbsCacheSize)
+                }
+
+                val pagesCacheSize by viewModel.cacheSizes[CacheDir.PAGES]!!.collectAsState(initial = -1L)
+                val pagesCacheSummary = if (pagesCacheSize < 0) {
+                    getString(R.string.computing_)
+                } else {
+                    FileSize.BYTES.format(requireContext(), pagesCacheSize)
+                }
+
+                val videoCacheSize by viewModel.cacheSizes[CacheDir.VIDEO]!!.collectAsState(initial = -1L)
+                val videoCacheSummary = if (videoCacheSize < 0) {
+                    getString(R.string.computing_)
+                } else {
+                    FileSize.BYTES.format(requireContext(), videoCacheSize)
+                }
+
+                val httpCacheSize by viewModel.httpCacheSize.collectAsState(initial = -1L)
+                val networkCacheSummary = if (httpCacheSize < 0) {
+                    getString(R.string.computing_)
+                } else {
+                    FileSize.BYTES.format(requireContext(), httpCacheSize)
+                }
+
+                val loadingKeys by viewModel.loadingKeys.collectAsState(initial = emptySet())
+
+                KototoroTheme {
+                    DataCleanupSettingsScreen(
+                        settings = appSettings,
+                        searchHistorySummary = searchHistorySummary,
+                        updatesFeedSummary = updatesFeedSummary,
+                        thumbsCacheSummary = thumbsCacheSummary,
+                        pagesCacheSummary = pagesCacheSummary,
+                        videoCacheSummary = videoCacheSummary,
+                        networkCacheSummary = networkCacheSummary,
+                        isBrowserVisible = viewModel.isBrowserDataCleanupEnabled,
+                        isSearchHistoryEnabled = AppSettings.KEY_SEARCH_HISTORY_CLEAR !in loadingKeys,
+                        isUpdatesFeedEnabled = AppSettings.KEY_UPDATES_FEED_CLEAR !in loadingKeys,
+                        isThumbsCacheEnabled = AppSettings.KEY_THUMBS_CACHE_CLEAR !in loadingKeys,
+                        isPagesCacheEnabled = AppSettings.KEY_PAGES_CACHE_CLEAR !in loadingKeys,
+                        isVideoCacheEnabled = AppSettings.KEY_VIDEO_CACHE_CLEAR !in loadingKeys,
+                        isNetworkCacheEnabled = AppSettings.KEY_HTTP_CACHE_CLEAR !in loadingKeys,
+                        isChaptersClearEnabled = AppSettings.KEY_CHAPTERS_CLEAR !in loadingKeys,
+                        isWebviewClearEnabled = AppSettings.KEY_WEBVIEW_CLEAR !in loadingKeys,
+                        isMangaDataEnabled = AppSettings.KEY_CLEAR_MANGA_DATA !in loadingKeys,
+                        onClearSearchHistory = { clearSearchHistory() },
+                        onClearUpdatesFeed = { viewModel.clearUpdatesFeed() },
+                        onClearThumbsCache = { viewModel.clearCache(AppSettings.KEY_THUMBS_CACHE_CLEAR, CacheDir.THUMBS, CacheDir.FAVICONS) },
+                        onClearPagesCache = { viewModel.clearCache(AppSettings.KEY_PAGES_CACHE_CLEAR, CacheDir.PAGES) },
+                        onClearVideoCache = { viewModel.clearCache(AppSettings.KEY_VIDEO_CACHE_CLEAR, CacheDir.VIDEO) },
+                        onClearNetworkCache = { viewModel.clearHttpCache() },
+                        onClearDatabase = { viewModel.clearContentData() },
+                        onClearCookies = { clearCookies() },
+                        onClearBrowserData = { viewModel.clearBrowserData() },
+                        onDeleteReadChapters = { cleanupChapters() },
+                    )
+                }
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        findPreference<Preference>(AppSettings.KEY_PAGES_CACHE_CLEAR)?.bindBytesSizeSummary(checkNotNull(viewModel.cacheSizes[CacheDir.PAGES]))
-        findPreference<Preference>(AppSettings.KEY_THUMBS_CACHE_CLEAR)?.bindBytesSizeSummary(checkNotNull(viewModel.cacheSizes[CacheDir.THUMBS]))
-        findPreference<Preference>(AppSettings.KEY_VIDEO_CACHE_CLEAR)?.bindBytesSizeSummary(checkNotNull(viewModel.cacheSizes[CacheDir.VIDEO]))
-        findPreference<Preference>(AppSettings.KEY_HTTP_CACHE_CLEAR)?.bindBytesSizeSummary(viewModel.httpCacheSize)
-        findPreference<Preference>(AppSettings.KEY_SEARCH_HISTORY_CLEAR)?.let { pref ->
-            viewModel.searchHistoryCount.observe(viewLifecycleOwner) {
-                pref.summary = if (it < 0) {
-                    view.context.getString(R.string.loading_)
-                } else {
-                    pref.context.resources.getQuantityStringSafe(R.plurals.items, it, it)
-                }
-            }
-        }
-        findPreference<Preference>(AppSettings.KEY_UPDATES_FEED_CLEAR)?.let { pref ->
-            viewModel.feedItemsCount.observe(viewLifecycleOwner) {
-                pref.summary = if (it < 0) {
-                    view.context.getString(R.string.loading_)
-                } else {
-                    pref.context.resources.getQuantityStringSafe(R.plurals.items, it, it)
-                }
-            }
-        }
-        findPreference<Preference>(AppSettings.KEY_WEBVIEW_CLEAR)?.isVisible = viewModel.isBrowserDataCleanupEnabled
-
-        viewModel.loadingKeys.observe(viewLifecycleOwner) { keys ->
-            loadingPrefs.addAll(keys)
-            loadingPrefs.forEach { prefKey ->
-                findPreference<Preference>(prefKey)?.isEnabled = prefKey !in keys
-            }
-        }
-        viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(listView, this))
-        viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(listView))
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.data_removal))
+        
+        viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(view, this))
+        viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(view))
         viewModel.onChaptersCleanedUp.observeEvent(viewLifecycleOwner, ::onChaptersCleanedUp)
-    }
-
-    override fun onPreferenceTreeClick(preference: Preference): Boolean = when (preference.key) {
-        AppSettings.KEY_COOKIES_CLEAR -> {
-            clearCookies()
-            true
-        }
-
-        AppSettings.KEY_SEARCH_HISTORY_CLEAR -> {
-            clearSearchHistory()
-            true
-        }
-
-        AppSettings.KEY_PAGES_CACHE_CLEAR -> {
-            viewModel.clearCache(preference.key, CacheDir.PAGES)
-            true
-        }
-
-        AppSettings.KEY_THUMBS_CACHE_CLEAR -> {
-            viewModel.clearCache(preference.key, CacheDir.THUMBS, CacheDir.FAVICONS)
-            true
-        }
-
-        AppSettings.KEY_VIDEO_CACHE_CLEAR -> {
-            viewModel.clearCache(preference.key, CacheDir.VIDEO)
-            true
-        }
-
-        AppSettings.KEY_HTTP_CACHE_CLEAR -> {
-            viewModel.clearHttpCache()
-            true
-        }
-
-        AppSettings.KEY_CHAPTERS_CLEAR -> {
-            cleanupChapters()
-            true
-        }
-
-        AppSettings.KEY_WEBVIEW_CLEAR -> {
-            viewModel.clearBrowserData()
-            true
-        }
-
-        AppSettings.KEY_CLEAR_MANGA_DATA -> {
-            viewModel.clearContentData()
-            true
-        }
-
-        AppSettings.KEY_UPDATES_FEED_CLEAR -> {
-            viewModel.clearUpdatesFeed()
-            true
-        }
-
-        else -> super.onPreferenceTreeClick(preference)
     }
 
     private fun onChaptersCleanedUp(result: Pair<Int, Long>) {
@@ -131,17 +135,7 @@ class DataCleanupSettingsFragment : BasePreferenceFragment(R.string.data_removal
                 FileSize.BYTES.format(c, result.second),
             )
         }
-        Snackbar.make(listView, text, Snackbar.LENGTH_SHORT).show()
-    }
-
-    private fun Preference.bindBytesSizeSummary(stateFlow: StateFlow<Long>) {
-        stateFlow.observe(viewLifecycleOwner) { size ->
-            summary = if (size < 0) {
-                context.getString(R.string.computing_)
-            } else {
-                FileSize.BYTES.format(context, size)
-            }
-        }
+        view?.let { Snackbar.make(it, text, Snackbar.LENGTH_SHORT).show() }
     }
 
     private fun clearSearchHistory() {

@@ -1,31 +1,27 @@
 package org.skepsun.kototoro.settings.search
 
-import android.annotation.SuppressLint
 import android.content.Context
-import androidx.annotation.XmlRes
-import androidx.fragment.app.Fragment
-import androidx.preference.PreferenceManager
-import androidx.preference.PreferenceScreen
-import androidx.preference.get
 import dagger.Reusable
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.LocalizedAppContext
-import org.skepsun.kototoro.settings.AISettingsFragment
-import org.skepsun.kototoro.settings.AppearanceSettingsFragment
 import org.skepsun.kototoro.settings.AIImageEnhancementSettingsFragment
+import org.skepsun.kototoro.settings.AISettingsFragment
+import org.skepsun.kototoro.settings.AIVideoEnhancementSettingsFragment
+import org.skepsun.kototoro.settings.AppearanceSettingsFragment
 import org.skepsun.kototoro.settings.DownloadsSettingsFragment
 import org.skepsun.kototoro.settings.NotificationSettingsLegacyFragment
+import org.skepsun.kototoro.settings.OcrModelsFragment
+import org.skepsun.kototoro.settings.PlaybackSettingsFragment
 import org.skepsun.kototoro.settings.ProxySettingsFragment
 import org.skepsun.kototoro.settings.ReaderSettingsFragment
-import org.skepsun.kototoro.settings.RootSettingsFragment
-import org.skepsun.kototoro.settings.PlaybackSettingsFragment
 import org.skepsun.kototoro.settings.ServicesSettingsFragment
 import org.skepsun.kototoro.settings.StorageAndNetworkSettingsFragment
 import org.skepsun.kototoro.settings.SuggestionsSettingsFragment
 import org.skepsun.kototoro.settings.SyncSettingsFragment
 import org.skepsun.kototoro.settings.TranslationApiSettingsFragment
+import org.skepsun.kototoro.settings.TranslationEndToEndApiSettingsFragment
 import org.skepsun.kototoro.settings.TranslationSettingsFragment
-import org.skepsun.kototoro.settings.AIVideoEnhancementSettingsFragment
+import org.skepsun.kototoro.settings.TtsSettingsFragment
 import org.skepsun.kototoro.settings.about.AboutSettingsFragment
 import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
@@ -36,13 +32,11 @@ import org.skepsun.kototoro.settings.userdata.storage.DataCleanupSettingsFragmen
 import javax.inject.Inject
 
 @Reusable
-@SuppressLint("RestrictedApi")
 class SettingsSearchHelper @Inject constructor(
     @LocalizedAppContext private val context: Context,
 ) {
 
     fun inflatePreferences(): List<SettingsItem> {
-        val preferenceManager = PreferenceManager(context)
 		val result = ArrayList<SettingsItem>()
 		
 		val appearanceBreadcrumbs = listOf(context.getString(R.string.appearance))
@@ -50,6 +44,7 @@ class SettingsSearchHelper @Inject constructor(
 			"color_theme" to R.string.color_theme,
 			"theme" to R.string.theme,
 			"amoled_theme" to R.string.black_dark_theme,
+			"haze_opacity" to R.string.pref_haze_opacity,
 			"tablet_ui_mode" to R.string.tablet_ui_mode,
 			"app_locale" to R.string.language,
 			"loading_circle_style" to R.string.pref_loading_circle_style,
@@ -105,9 +100,10 @@ class SettingsSearchHelper @Inject constructor(
 		val aiKeys = listOf(
 			"ai_models" to R.string.reader_translation_manage_ocr_models,
 			"ai_api" to R.string.ai_api_settings,
+			"ai_e2e_api" to R.string.reader_translation_e2e_api_settings_title,
 			"ai_translation" to R.string.translation_settings,
 			"ai_image" to R.string.ai_image_enhancement_settings,
-			"ai_tts" to R.string.ai_settings,
+			"ai_tts" to R.string.tts_settings_title,
 			"ai_video" to R.string.ai_video_enhancement_settings,
 		)
 		aiKeys.forEach { (key, titleRes) ->
@@ -123,8 +119,41 @@ class SettingsSearchHelper @Inject constructor(
 		aiImageKeys.forEach { (key, titleRes) ->
 			result.add(SettingsItem(key, context.getString(titleRes), aiBreadcrumbs, AIImageEnhancementSettingsFragment::class.java))
 		}
-
-		preferenceManager.inflateTo(result, R.xml.pref_ai_video, listOf(context.getString(R.string.ai_settings)), AIVideoEnhancementSettingsFragment::class.java)
+		val aiVideoKeys = listOf(
+			"video_super_resolution_mode" to R.string.video_super_resolution_mode,
+			"video_super_resolution_quality_shader" to R.string.video_super_resolution_submode_quality,
+			"video_super_resolution_balanced_shader" to R.string.video_super_resolution_submode_balanced,
+			"video_super_resolution_performance_shader" to R.string.video_super_resolution_submode_performance,
+			"video_super_resolution_advanced_settings_button" to R.string.video_super_resolution_advanced_settings
+		)
+		aiVideoKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), listOf(context.getString(R.string.ai_settings)), AIVideoEnhancementSettingsFragment::class.java))
+		}
+		val ttsBreadcrumbs = listOf(context.getString(R.string.ai_settings), context.getString(R.string.tts_settings_title))
+		val ttsKeys = listOf(
+			"tts_enabled" to R.string.tts_enable,
+			"tts_engine_type" to R.string.tts_engine_type,
+			"tts_test" to R.string.tts_test,
+			"tts_system_voice" to R.string.tts_system_voice,
+			"tts_legado_voice" to R.string.tts_legado_voice,
+			"tts_import_legado_clipboard" to R.string.tts_legado_import_clipboard,
+			"tts_import_legado_url" to R.string.tts_legado_import_url,
+			"tts_manage_legado" to R.string.tts_legado_manage_sources,
+		)
+		ttsKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), ttsBreadcrumbs, TtsSettingsFragment::class.java))
+		}
+		val ocrModelsBreadcrumbs = listOf(context.getString(R.string.ai_settings), context.getString(R.string.reader_translation_ocr_models_title))
+		val ocrModelsKeys = listOf(
+			"reader_translation_onnx_models" to R.string.reader_translation_onnx_models_title,
+			"reader_translation_ocr_detector_models" to R.string.reader_translation_ocr_detector_models_title,
+			"reader_translation_ocr_recognizer_models" to R.string.reader_translation_ocr_recognizer_models_title,
+			"reader_translation_onnx_bubble_detector_models" to R.string.reader_translation_onnx_bubble_detector_models_title,
+			"reader_translation_onnx_super_resolution_models" to R.string.reader_translation_onnx_super_resolution_models_title,
+		)
+		ocrModelsKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), ocrModelsBreadcrumbs, OcrModelsFragment::class.java))
+		}
 
 		val sourcesBreadcrumbs = listOf(context.getString(R.string.remote_sources))
 		val sourcesKeys = listOf(
@@ -189,6 +218,7 @@ class SettingsSearchHelper @Inject constructor(
 		readerKeys.forEach { (key, titleRes) ->
 			result.add(SettingsItem(key, context.getString(titleRes), readerBreadcrumbs, ReaderSettingsFragment::class.java))
 		}
+		val translationBreadcrumbs = listOf(context.getString(R.string.ai_settings), context.getString(R.string.translation_settings))
 		val translationKeys = listOf(
 			"reader_translation_debug_logs" to R.string.reader_translation_debug_logs,
 			"reader_translation_quality_filter_enabled" to R.string.reader_translation_quality_filter_enabled,
@@ -198,8 +228,9 @@ class SettingsSearchHelper @Inject constructor(
 			"reader_translation_target_lang" to R.string.reader_translation_target_lang,
 		)
 		translationKeys.forEach { (key, titleRes) ->
-			result.add(SettingsItem(key, context.getString(titleRes), emptyList(), TranslationSettingsFragment::class.java))
+			result.add(SettingsItem(key, context.getString(titleRes), translationBreadcrumbs, TranslationSettingsFragment::class.java))
 		}
+		val translationApiBreadcrumbs = translationBreadcrumbs + context.getString(R.string.ai_api_settings)
 		val translationApiKeys = listOf(
 			"reader_translation_api_provider_preset" to R.string.reader_translation_api_provider_preset,
 			"reader_translation_api_endpoint" to R.string.reader_translation_api_endpoint,
@@ -208,7 +239,20 @@ class SettingsSearchHelper @Inject constructor(
 			"reader_translation_api_fetch_models" to R.string.reader_translation_api_models_fetch,
 		)
 		translationApiKeys.forEach { (key, titleRes) ->
-			result.add(SettingsItem(key, context.getString(titleRes), listOf(context.getString(R.string.ai_settings)), TranslationApiSettingsFragment::class.java))
+			result.add(SettingsItem(key, context.getString(titleRes), translationApiBreadcrumbs, TranslationApiSettingsFragment::class.java))
+		}
+		val translationE2eBreadcrumbs = translationBreadcrumbs + context.getString(R.string.reader_translation_e2e_api_settings_title)
+		val translationE2eKeys = listOf(
+			"reader_e2e_api_provider_preset" to R.string.reader_translation_api_provider_preset,
+			"reader_e2e_api_endpoint" to R.string.reader_translation_api_endpoint,
+			"reader_e2e_api_key" to R.string.reader_translation_api_key,
+			"reader_e2e_api_model" to R.string.reader_translation_api_model,
+			"reader_e2e_api_custom_headers" to R.string.reader_translation_api_custom_headers,
+			"reader_e2e_api_concurrency" to R.string.reader_translation_e2e_api_concurrency,
+			"reader_e2e_api_fetch_models" to R.string.reader_translation_api_models_fetch,
+		)
+		translationE2eKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), translationE2eBreadcrumbs, TranslationEndToEndApiSettingsFragment::class.java))
 		}
 		val networkStorageBreadcrumbs = listOf(context.getString(R.string.network))
 		val networkStorageKeys = listOf(
@@ -254,12 +298,23 @@ class SettingsSearchHelper @Inject constructor(
 			result.add(SettingsItem(key, context.getString(titleRes), backupsBreadcrumbs, BackupsSettingsFragment::class.java))
 		}
 
-		preferenceManager.inflateTo(
-			result,
-			R.xml.pref_data_cleanup,
-			listOf(context.getString(R.string.storage_and_network)),
-			DataCleanupSettingsFragment::class.java,
+		val dataCleanupBreadcrumbs = listOf(context.getString(R.string.storage_and_network))
+		val dataCleanupKeys = listOf(
+			"search_history_clear" to R.string.clear_search_history,
+			"updates_feed_clear" to R.string.clear_updates_feed,
+			"thumbs_cache_clear" to R.string.clear_thumbs_cache,
+			"pages_cache_clear" to R.string.clear_pages_cache,
+			"video_cache_clear" to R.string.clear_video_cache,
+			"http_cache_clear" to R.string.clear_network_cache,
+			"manga_data_clear" to R.string.clear_database,
+			"cookies_clear" to R.string.clear_cookies,
+			"webview_clear" to R.string.clear_browser_data,
+			"chapters_clear" to R.string.delete_read_chapters,
+			"chapters_clear_auto" to R.string.delete_read_chapters_auto
 		)
+		dataCleanupKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), dataCleanupBreadcrumbs, DataCleanupSettingsFragment::class.java))
+		}
 		val downloadsBreadcrumbs = listOf(context.getString(R.string.downloads))
 		val downloadsKeys = listOf(
 			"downloads_format" to R.string.preferred_download_format,
@@ -311,25 +366,59 @@ class SettingsSearchHelper @Inject constructor(
 			result.add(SettingsItem(key, context.getString(titleRes), servicesBreadcrumbs, ServicesSettingsFragment::class.java))
 		}
 
-		preferenceManager.inflateTo(result, R.xml.pref_about, emptyList(), AboutSettingsFragment::class.java)
-		preferenceManager.inflateTo(
-			result,
-			R.xml.pref_proxy,
-			listOf(context.getString(R.string.storage_and_network)),
-			ProxySettingsFragment::class.java,
+		val aboutKeys = listOf(
+			"app_version" to R.string.check_for_updates,
+			"updates_unstable" to R.string.allow_unstable_updates,
+			"changelog" to R.string.changelog,
+			"about_help" to R.string.user_manual,
+			"about_github" to R.string.source_code,
+			"about_donate" to R.string.about_donate,
+			"about_app_translation" to R.string.about_app_translation_summary,
+			"about_discord" to R.string.about_discord,
+			"crash_logs" to R.string.crash_logs
 		)
-		preferenceManager.inflateTo(
-			result,
-			R.xml.pref_suggestions,
-			listOf(context.getString(R.string.services)),
-			SuggestionsSettingsFragment::class.java,
+		aboutKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), emptyList(), AboutSettingsFragment::class.java))
+		}
+
+		val proxyBreadcrumbs = listOf(context.getString(R.string.storage_and_network))
+		val proxyKeys = listOf(
+			"proxy_type_2" to R.string.type,
+			"proxy_address" to R.string.address,
+			"proxy_port" to R.string.port,
+			"proxy_auth" to R.string.authorization_optional,
+			"proxy_login" to R.string.username,
+			"proxy_password" to R.string.password,
+			"proxy_test" to R.string.test_connection
 		)
-		preferenceManager.inflateTo(
-			result,
-			R.xml.pref_discord,
-			listOf(context.getString(R.string.services)),
-			DiscordSettingsFragment::class.java,
+		proxyKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), proxyBreadcrumbs, ProxySettingsFragment::class.java))
+		}
+
+		val suggestionsBreadcrumbs = listOf(context.getString(R.string.services))
+		val suggestionsKeys = listOf(
+			"suggestions" to R.string.suggestions_enable,
+			"suggestions_wifi" to R.string.only_using_wifi,
+			"suggestions_disabled_sources" to R.string.include_disabled_sources,
+			"suggestions_notifications" to R.string.notifications_enable,
+			"suggestions_exclude_tags" to R.string.suggestions_excluded_genres,
+			"suggestions_preferred_tags" to R.string.suggestions_preferred_genres,
+			"track_warning" to R.string.suggestions_info
 		)
+		suggestionsKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), suggestionsBreadcrumbs, SuggestionsSettingsFragment::class.java))
+		}
+
+		val discordBreadcrumbs = listOf(context.getString(R.string.services))
+		val discordKeys = listOf(
+			"discord_rpc" to R.string.discord_rpc,
+			"discord_token" to R.string.discord_token,
+			"discord_logout" to R.string.logout,
+			"discord_rpc_skip_nsfw" to R.string.disable_nsfw
+		)
+		discordKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), discordBreadcrumbs, DiscordSettingsFragment::class.java))
+		}
 
 		val notificationBreadcrumbs = listOf(context.getString(R.string.notifications_settings))
 		val notificationKeys = listOf(
@@ -349,48 +438,14 @@ class SettingsSearchHelper @Inject constructor(
 			result.add(SettingsItem(key, context.getString(titleRes), extensionBreadcrumbs, ExtensionsRootFragment::class.java))
 		}
 
-		preferenceManager.inflateTo(result, R.xml.pref_sync, emptyList(), SyncSettingsFragment::class.java)
+		val syncBreadcrumbs = listOf(context.getString(R.string.services), context.getString(R.string.sync_settings))
+		val syncKeys = listOf(
+			"host" to R.string.server_address
+		)
+		syncKeys.forEach { (key, titleRes) ->
+			result.add(SettingsItem(key, context.getString(titleRes), syncBreadcrumbs, SyncSettingsFragment::class.java))
+		}
 
 		return result
-    }
-
-    private fun PreferenceManager.inflateTo(
-        result: MutableList<SettingsItem>,
-        @XmlRes resId: Int,
-        breadcrumbs: List<String>,
-        fragmentClass: Class<out Fragment>
-    ) {
-        val screen = inflateFromResource(context, resId, null)
-        val screenTitle = screen.title?.toString()
-        screen.inflateTo(
-            result = result,
-            breadcrumbs = if (screenTitle.isNullOrEmpty()) breadcrumbs else breadcrumbs + screenTitle,
-            fragmentClass = fragmentClass,
-        )
-    }
-
-    private fun PreferenceScreen.inflateTo(
-        result: MutableList<SettingsItem>,
-        breadcrumbs: List<String>,
-        fragmentClass: Class<out Fragment>
-    ): Unit = repeat(preferenceCount) { i ->
-        val pref = this[i]
-        if (pref is PreferenceScreen) {
-            val screenTitle = pref.title?.toString()
-            pref.inflateTo(
-                result = result,
-                breadcrumbs = if (screenTitle.isNullOrEmpty()) breadcrumbs else breadcrumbs + screenTitle,
-                fragmentClass = fragmentClass,
-            )
-        } else {
-            result.add(
-                SettingsItem(
-                    key = pref.key ?: return@repeat,
-                    title = pref.title ?: return@repeat,
-                    breadcrumbs = breadcrumbs,
-                    fragmentClass = fragmentClass,
-                ),
-            )
-        }
     }
 }

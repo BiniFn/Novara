@@ -37,7 +37,7 @@ import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
 import org.skepsun.kototoro.databinding.FragmentSettingsSourcesBinding
 import org.skepsun.kototoro.settings.SettingsActivity
-import org.skepsun.kototoro.settings.sources.SourceSettingsFragment
+import org.skepsun.kototoro.settings.sources.SourceSettingsHostFragment
 import org.skepsun.kototoro.settings.sources.adapter.SourceConfigAdapter
 import org.skepsun.kototoro.settings.sources.adapter.SourceConfigListener
 import org.skepsun.kototoro.settings.sources.model.SourceConfigItem
@@ -141,7 +141,7 @@ class SourcesManageFragment :
 
 	override fun onItemSettingsClick(item: SourceConfigItem.SourceItem) {
 		(activity as? SettingsActivity)?.openFragment(
-			fragmentClass = SourceSettingsFragment::class.java,
+			fragmentClass = SourceSettingsHostFragment::class.java,
 			args = Bundle(1).apply { putString(AppRouter.KEY_SOURCE, item.source.name) },
 			isFromRoot = false,
 		)

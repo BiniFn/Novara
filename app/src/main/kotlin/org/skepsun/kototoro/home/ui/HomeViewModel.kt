@@ -125,6 +125,7 @@ data class HomeSummaryState(
 	val sourceBreakdown: List<HomeSourceBreakdown> = emptyList(),
 	val syncState: HomeSyncState = HomeSyncState(),
 	val selectedSourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = emptySet(),
+	val isInitialized: Boolean = false,
 )
 
 @HiltViewModel
@@ -317,6 +318,7 @@ class HomeViewModel @Inject constructor(
 			sourceBreakdown = sourceBreakdown,
 			syncState = syncState,
 			selectedSourceTags = selectedSourceTags,
+			isInitialized = true,
 		)
 	}.flowOn(Dispatchers.Default).stateIn(
 		scope = viewModelScope,

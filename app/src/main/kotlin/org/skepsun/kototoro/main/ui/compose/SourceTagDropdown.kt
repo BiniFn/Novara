@@ -14,25 +14,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.asAndroidColorFilter
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.painter.Painter
-
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
-import kotlin.math.roundToInt
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+
+private val CompactSourceTagButtonSize = 40.dp
+private val CompactSourceTagIconSize = 20.dp
 
 /**
  * Icon button + dropdown menu for selecting a single [SourceTag].
@@ -69,7 +63,7 @@ fun SourceTagDropdown(
                 expanded = true
             }
         },
-        modifier = modifier,
+        modifier = modifier.size(CompactSourceTagButtonSize),
     ) {
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { context ->
@@ -82,6 +76,7 @@ fun SourceTagDropdown(
         Icon(
             painter = rememberSafePainter(iconRes),
             contentDescription = stringResource(R.string.filter),
+            modifier = Modifier.size(CompactSourceTagIconSize),
             tint = tint,
         )
     }
@@ -138,41 +133,3 @@ fun SourceTagDropdown(
     }
 }
 
-@Composable
-private fun rememberSafePainter(id: Int): Painter {
-    val context = LocalContext.current
-    return remember(id) {
-        val drawable = ContextCompat.getDrawable(context, id)
-        if (drawable != null) {
-            // Accompanist native drawable painter implementation directly inside Compose
-            DrawablePainter(drawable.mutate()) // Mutate so alpha/tint states don't share
-        } else {
-            ColorPainter(Color.Transparent)
-        }
-    }
-}
-
-private class DrawablePainter(private val drawable: android.graphics.drawable.Drawable) : Painter() {
-    override val intrinsicSize: Size
-        get() = Size(
-            width = drawable.intrinsicWidth.toFloat().takeIf { it >= 0 } ?: Size.Unspecified.width,
-            height = drawable.intrinsicHeight.toFloat().takeIf { it >= 0 } ?: Size.Unspecified.height
-        )
-
-    override fun DrawScope.onDraw() {
-        drawIntoCanvas { canvas ->
-            drawable.setBounds(0, 0, size.width.toInt(), size.height.toInt())
-            drawable.draw(canvas.nativeCanvas)
-        }
-    }
-
-    override fun applyAlpha(alpha: Float): Boolean {
-        drawable.alpha = (alpha * 255).roundToInt().coerceIn(0, 255)
-        return true
-    }
-
-    override fun applyColorFilter(colorFilter: ColorFilter?): Boolean {
-        drawable.colorFilter = colorFilter?.asAndroidColorFilter()
-        return true
-    }
-}

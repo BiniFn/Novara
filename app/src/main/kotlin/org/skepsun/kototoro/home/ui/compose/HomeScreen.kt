@@ -133,7 +133,7 @@ fun HomeScreen(
                 onViewAllRecommendationsClick = onViewAllRecommendationsClick,
             )
         }
-        if (!hasHighlights) {
+        if (!hasHighlights && !state.isInitialized) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

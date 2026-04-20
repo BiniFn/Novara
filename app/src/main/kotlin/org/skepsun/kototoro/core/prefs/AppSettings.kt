@@ -647,6 +647,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = BlurMode.fromValue(prefs.getString(KEY_BLUR_MODE, BlurMode.STANDARD.value))
 		set(value) = prefs.edit { putString(KEY_BLUR_MODE, value.value) }
 
+	var hazeOpacityPercent: Int
+		get() = prefs.getInt(KEY_HAZE_OPACITY, 82)
+		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(45, 100)) }
+
 	var incognitoModeForNsfw: TriStateOption
 		get() = prefs.getEnumValue(KEY_INCOGNITO_NSFW, TriStateOption.ASK)
 		set(value) = prefs.edit { putEnumValue(KEY_INCOGNITO_NSFW, value) }
@@ -1844,6 +1848,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
 		const val KEY_POPUP_RADIUS = "popup_radius"
 		const val KEY_BLUR_MODE = "blur_mode"
+		const val KEY_HAZE_OPACITY = "haze_opacity"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"
 		const val KEY_SOURCES_ORDER = "sources_sort_order"

@@ -1,49 +1,60 @@
 package org.skepsun.kototoro.settings
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentResultListener
-import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.settings.compose.SyncSettingsScreen
 import org.skepsun.kototoro.sync.data.SyncSettings
 import org.skepsun.kototoro.sync.ui.SyncHostDialogFragment
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class SyncSettingsFragment : BasePreferenceFragment(R.string.sync_settings), FragmentResultListener {
+class SyncSettingsFragment : Fragment(), FragmentResultListener {
 
-	@Inject
-	lateinit var syncSettings: SyncSettings
+    @Inject
+    lateinit var appSettings: AppSettings
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_sync)
-		bindHostSummary()
-	}
+    @Inject
+    lateinit var syncSettings: SyncSettings
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		childFragmentManager.setFragmentResultListener(SyncHostDialogFragment.REQUEST_KEY, viewLifecycleOwner, this)
-	}
+    private val syncUrlFlow = MutableStateFlow("")
 
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			SyncSettings.KEY_SYNC_URL -> {
-				SyncHostDialogFragment.show(childFragmentManager, null)
-				true
-			}
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        syncUrlFlow.value = syncSettings.syncUrl ?: ""
+        return ComposeView(requireContext()).apply {
+            setContent {
+                val syncUrl by syncUrlFlow.collectAsState()
+                KototoroTheme {
+                    SyncSettingsScreen(
+                        settings = appSettings,
+                        syncUrl = syncUrl,
+                        onSyncUrlClick = {
+                            SyncHostDialogFragment.show(childFragmentManager, null)
+                        },
+                    )
+                }
+            }
+        }
+    }
 
-			else -> super.onPreferenceTreeClick(preference)
-		}
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.sync_settings))
+        childFragmentManager.setFragmentResultListener(SyncHostDialogFragment.REQUEST_KEY, viewLifecycleOwner, this)
+    }
 
-	override fun onFragmentResult(requestKey: String, result: Bundle) {
-		bindHostSummary()
-	}
-
-	private fun bindHostSummary() {
-		val preference = findPreference<Preference>(SyncSettings.KEY_SYNC_URL) ?: return
-		preference.summary = syncSettings.syncUrl
-	}
+    override fun onFragmentResult(requestKey: String, result: Bundle) {
+        syncUrlFlow.value = syncSettings.syncUrl ?: ""
+    }
 }

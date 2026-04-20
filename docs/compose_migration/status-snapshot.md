@@ -56,11 +56,11 @@
 | API 设置 | `TranslationApiSettingsScreen` Compose 化，含 text input / fetch models（已删除 `pref_translation_api.xml`） |
 | 图像增强 | `AIImageEnhancementSettingsScreen` Compose 化（已删除 `pref_ai_image.xml`） |
 | 导航 | 仍复用 `SettingsActivity` + Fragment 跳转 |
-| 搜索索引 | `SettingsSearchHelper` AI/翻译模块已改用 Kotlin key lists，剩余模块仍解析 `pref_*.xml` |
+| 搜索索引 | `SettingsSearchHelper` AI/翻译/TTS/OCR/E2E 模块已改用 Kotlin key lists，深层 SourceSettings 仍未纳入设置搜索索引 |
 | 子页宿主 | `SettingsTabbedFragmentsScreen` 仍用 `AndroidView + FragmentContainerView` 承载子 Fragment |
-| 仍使用 BasePreferenceFragment 的页面 | AIVideo / TTS / E2E API / OCR Models / Sync / Suggestions / Sources / Proxy / Discord / About / DataCleanup |
+| 仍使用 BasePreferenceFragment 的页面 | 无 |
 
-**关键事实**：AI/翻译相关 4 个 XML preference 文件已全部删除并替换为 Compose 屏幕。其余模块渲染层已 Compose 化但语义模型仍绑定老 Preference XML 体系。
+**关键事实**：AI/翻译相关 4 个 XML preference 文件已全部删除并替换为 Compose 屏幕；`TtsSettingsFragment`、`OcrModelsFragment`、`TranslationEndToEndApiSettingsFragment` 已迁到 `Fragment + ComposeView` 宿主，且 `SettingsSearchHelper` 已补齐 AI 子树的 TTS / OCR / E2E 搜索索引。`pref_tts_settings.xml` 已确认删除。`SourceSettingsFragment` 现已从 `BasePreferenceFragment` 脱钩，改为直接继承 `PreferenceFragmentCompat` 并自行承接标题、异常解析、insets 与搜索定位逻辑，因此设置系统里已无页面直接依赖 `BasePreferenceFragment`。在此基础上，新增了 `SourceSettingsHostFragment` 分流：标准 `ParserContentRepository` / `KotatsuParserRepository` / `EmptyContentRepository` 已进入 Compose `SourceSettingsScreen` 路径；JS / Legado / TVBox / Mihon / Aniyomi 等复杂来源仍自动回退旧动态 `Preference` 页面。
 
 ---
 
@@ -113,7 +113,7 @@
 
 `ContentListActivity` 已迁移为 Compose 路由。
 
-### Details — **L1（正在向 L2 推进，但当前 working tree 尚未编译通过）**
+### Details — **L1（持续向 L2 推进，当前编译基线已恢复）**
 
 | 方面 | 状态 |
 |------|------|
@@ -127,8 +127,8 @@
 | tab 记忆 | `ChaptersPagesSheet` 已改为持久化语义 tab id（chapters / pages / bookmarks），避免把 pager index 写回 `lastDetailsTab` |
 | 绑定体验（进行中） | working tree 中已新增"已绑定 tracking 卡片"数据流和共享 `DetailsBindingCard` 组件，并开始把推荐绑定卡片接入普通详情页 header |
 | 当前阻塞 | ~~details/tracking 新增代码编译错误~~（**已修复**）。自动推荐绑定仍仅对 `content.isLocal` 生效 |
-| 当前回归 | ~~详情页 Compose pane 内容区高度分配异常~~（**高度挤压已修复**），但根据 2026-04-19 用户验收反馈，仍存在 **首帧封面先直角后圆角**、**底部工具栏与弹出控件交互模型不一致**、**章节 / 页面 / 书签 pane 未稳定显示真实列表内容** |
-| 转场 | 依赖 XML `imageViewCover` 做共享元素转场；**已去除 350 ms 硬编码启动**，仅保留图片加载回调 + 1200 ms fallback，但当前首帧圆角观感仍未完全收口 |
+| 当前回归 | ~~详情页 Compose pane 内容区高度分配异常~~（**高度挤压已修复**），当前已补上 `HazeState` 根采样、底栏/顶部圆按钮/绑定卡片徽章的真实 glass 化；根据 2026-04-19 最新反馈，**首帧封面先直角后圆角** 已收口，后续仍需继续验证 **章节 / 页面 / 书签 pane 未稳定显示真实列表内容** |
+| 转场 | 依赖 XML `imageViewCover` 做共享元素转场；**已去除 350 ms 硬编码启动**，仅保留图片加载回调 + 1200 ms fallback，当前首帧圆角问题已不再作为阻塞项 |
 | 删除确认 | Compose `AlertDialog` |
 | `DetailsMenuProvider` | 已删除（171 行未被引用） |
 | `OpenTracking/OpenStatistics` Action | Activity 端死分支已删除，仅由 Compose 内 dialog state 驱动 |
@@ -148,10 +148,14 @@
 
 ### 当前已识别的 UI 回归（待修）
 
-- 2026-04-19 用户验收反馈显示：**Browse 顶部“每日放送” Hero 仍未真正延伸到状态栏顶部**，视觉上仍被搜索栏下沿截断；同时 Hero 总高度偏高，下半部分存在明显空白，底部也缺少向主题背景的平滑渐变过渡。
+- 2026-04-19 用户验收反馈显示：**Browse 顶部“每日放送” Hero 仍未真正延伸到状态栏顶部**，视觉上仍被搜索栏下沿截断；当前除补强底部渐变、压缩 Hero 与 sources 区块之间的割裂带外，又进一步将 Hero 背景改为**单层 Crossfade + 持续兜底底色/scrim**，sources 区块改成更深的上压接与更长的透明到背景渐变，并将标题与追踪站点切换按钮并排放在同一行；但仍需设备端继续确认轮播切换完成后是否彻底无割裂。
+- Browse 的 **内容源入口** 已从文字 chip 改为更接近方形的 favicon 卡片（图标上、标题下），且右侧动作固定进入 **内容源管理页**，不再按条件跳到未激活源目录；favicon 现在走 `faviconUri()` + fallback 路径，而不再统一使用占位 storage 图标。
 - **Browse 其他追踪卡片** 当前仍缺少下边缘背景过渡，且整体高度偏高，信息密度与视觉重心仍未收口。
 - ~~主页面搜索栏过滤器接线不一致：`KototoroTopBar` 已支持语言预设 / 内容类型 / 源类型，但只有部分页面正确桥接了 `SearchBarFilterViewController`~~（此前的“统一默认展示”只能避免按钮整体消失）；**根据最新验收，除 Favorites 外其余主页面仍缺语言预设按钮**，且横屏时按钮组会居中，“更多”按钮点击无响应。
-- **Browse 顶部“每日放送”区域当前缺少追踪网站切换按钮**，站点切换能力未回到首屏主视觉入口。
+- **主壳搜索栏厚度** 已于 2026-04-19 收紧一轮：`SearchBarDefaults.InputField` 压到 collapsed `48dp` / expanded `52dp`，右侧 action button 与筛选 chip 统一收紧到 `40dp` 级别；若后续验收仍嫌厚，应继续从 text field 内边距而非顶端 offset 入手。
+- ~~Browse 顶部“每日放送”区域当前缺少追踪网站切换按钮~~（**已恢复切换入口**），并已将 Compose 中追踪站点图标的 `painterResource()` 替换为 `rememberSafePainter()`，修复 MangaUpdates 等 bitmap-wrapper xml 图标导致的弹出菜单闪退；仍需真机回归确认菜单定位与交互体验。
+- **设置 → 外观** 已新增 Haze 模糊风格与玻璃不透明度入口，`KototoroTheme` 也已改为读取当前 Activity 实际主题属性，Compose UI 不再只吃默认 Material3 配色；仍需继续验收旧 View 页与 Compose 页在主题切换时的一致性。
+- 为避免普通详情页在旧系统设备上因 `HazeNode.draw` 路径崩溃，`DetailsScreen` 与 `GlassSurface` 现已对 **Android 12 以下** 自动降级为非 Haze fallback；新系统继续保留真实 Haze。
 - ~~收藏页 grid 模式下，单个内容卡片可能被前置非 `ContentGridModel` 项挤到第二列~~（**已修复**：`LazyVerticalGrid` 的 `items` 添加 `span` 参数，非 `ContentGridModel` 项占满整行）
 - ~~Home / Browse / Discover 的 hero/backdrop 在封面为空时仍可能出现割裂的白色矩形占位~~（**基础 fallback 已修复**），但 Hero / Tracking 卡片底部的主题过渡处理仍未全部完成。
 - **Home 的历史 / 更新 / 推荐** 目前虽已合并为更紧凑的三合一卡片，但用户期望的最终形态仍是可左右拖拽的封面卡片列表。
@@ -195,9 +199,10 @@
 
 | 组件 | 状态 |
 |------|------|
-| `GlassSurface` | ✅ 已实现，但注释标注 "Temporary fallback"，退化为稳定不透明容器 |
-| `GlassTopBarContainer` | ✅ 主壳顶栏使用 |
-| `GlassBottomBarContainer` | ✅ 主壳底栏使用 |
+| `GlassSurface` | ✅ 已接入真实 `hazeChild` 后端；在无可采样背景时仍由 `Surface + tint` 提供稳定 fallback |
+| `GlassTopBarContainer` | ✅ 组件存在；主壳顶栏当前直接使用 `GlassSurface + DockedSearchBar` |
+| `GlassBottomBarContainer` | ✅ 主壳底栏使用，且已可从主内容层采样真实 blur |
+| 详情页 Glass 化 | ✅ `DetailsScreen` 根层已提供 `HazeState`，底栏 / 顶部圆按钮 / 绑定卡片 badge / header badge 已切到真实 glass 路径 |
 | `GlassCard` | ❌ 文档规划中，代码不存在 |
 | `GlassSheet` | ❌ 文档规划中，代码不存在 |
 

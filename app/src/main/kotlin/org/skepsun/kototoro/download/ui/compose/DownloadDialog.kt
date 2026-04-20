@@ -67,11 +67,10 @@ private enum class SelectedMode {
 fun DownloadDialog(
     mangaList: List<Content>,
     snackbarHostState: SnackbarHostState? = null,
+    viewModel: DownloadDialogViewModel = hiltViewModel(),
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val viewModel: DownloadDialogViewModel = hiltViewModel()
-
     LaunchedEffect(mangaList) {
         viewModel.initialize(mangaList)
     }

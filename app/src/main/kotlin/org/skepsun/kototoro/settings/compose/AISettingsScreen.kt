@@ -41,8 +41,8 @@ fun AISettingsScreen(
                     onClick = onOpenApiSettings
                 )
                 SettingsActionPreference(
-                    title = "End-to-End API Settings",
-                    summary = "Configure API keys and Endpoint for End-to-End Multimodal OCR",
+                    title = stringResource(R.string.reader_translation_e2e_api_settings_title),
+                    summary = stringResource(R.string.reader_translation_e2e_api_settings_summary),
                     onClick = onOpenE2eApiSettings
                 )
             }
@@ -63,10 +63,10 @@ fun AISettingsScreen(
                 )
             }
             
-            SettingsPreferenceSection(title = "Voice & Subtitle (TTS)") {
+            SettingsPreferenceSection(title = stringResource(R.string.tts_section_voice_subtitle)) {
                 SettingsActionPreference(
-                    title = "TTS Settings",
-                    summary = "Configure TTS Engines, Voice, and Web Sources",
+                    title = stringResource(R.string.tts_settings_title),
+                    summary = stringResource(R.string.tts_settings_summary),
                     onClick = onOpenTtsSettings
                 )
             }

@@ -37,7 +37,7 @@ import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.settings.search.SettingsItem
 import org.skepsun.kototoro.settings.search.SettingsSearchFragment
 import org.skepsun.kototoro.settings.search.SettingsSearchViewModel
-import org.skepsun.kototoro.settings.sources.SourceSettingsFragment
+import org.skepsun.kototoro.settings.sources.SourceSettingsHostFragment
 import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
 import org.skepsun.kototoro.settings.sources.manage.SourcesManageFragment
 import org.skepsun.kototoro.settings.tracker.TrackerSettingsFragment
@@ -172,7 +172,7 @@ class SettingsActivity :
 			AppRouter.ACTION_MANAGE_DISCORD -> DiscordSettingsFragment()
 			AppRouter.ACTION_PROXY -> ProxySettingsFragment()
 			AppRouter.ACTION_MANAGE_DOWNLOADS -> DownloadsSettingsFragment()
-			AppRouter.ACTION_SOURCE -> SourceSettingsFragment.newInstance(
+			AppRouter.ACTION_SOURCE -> SourceSettingsHostFragment.newInstance(
 				ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
 			)
 

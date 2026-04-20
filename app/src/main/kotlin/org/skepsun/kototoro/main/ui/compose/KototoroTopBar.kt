@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,13 +32,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,12 +55,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
+
+private val CollapsedSearchBarHeight = 48.dp
+private val ExpandedSearchBarHeight = 52.dp
+private val CompactTopBarActionSize = 40.dp
+private val CompactTopBarIconSize = 20.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,210 +108,239 @@ fun KototoroTopBar(
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
+    val searchBarHeight = if (expanded) ExpandedSearchBarHeight else CollapsedSearchBarHeight
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(top = statusBarPadding.calculateTopPadding())
     ) {
-        Surface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = if (expanded) 0.dp else 12.dp),
-            shape = RoundedCornerShape(if (expanded) 0.dp else 28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (expanded) 1f else 0.92f),
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
+                .padding(horizontal = if (expanded) 0.dp else 10.dp),
+            shape = RoundedCornerShape(if (expanded) 0.dp else 24.dp),
+            style = if (expanded) {
+                GlassDefaults.regularStyle().copy(containerAlpha = 0.94f, borderAlpha = 0.12f)
+            } else {
+                GlassDefaults.prominentStyle().copy(containerAlpha = 0.80f, borderAlpha = 0.16f, shadowElevation = 4.dp)
+            },
         ) {
-            DockedSearchBar(
-                inputField = {
-                    SearchBarDefaults.InputField(
-                        query = query,
-                        onQueryChange = { newQuery ->
-                            onQueryChanged(newQuery)
-                        },
-                        onSearch = { searchQuery ->
-                            onSearch(searchQuery)
-                            expanded = false
-                        },
-                        expanded = expanded,
-                        onExpandedChange = { expanded = it },
-                        placeholder = { Text(stringResource(R.string.search_content)) },
-                        leadingIcon = {
-                            if (expanded) {
-                                IconButton(onClick = {
-                                    expanded = false
-                                    onQueryChanged("")
-                                }) {
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
+                DockedSearchBar(
+                    inputField = {
+                        SearchBarDefaults.InputField(
+                            query = query,
+                            onQueryChange = { newQuery ->
+                                onQueryChanged(newQuery)
+                            },
+                            onSearch = { searchQuery ->
+                                onSearch(searchQuery)
+                                expanded = false
+                            },
+                            expanded = expanded,
+                            onExpandedChange = { expanded = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(searchBarHeight),
+                            placeholder = { Text(stringResource(R.string.search_content)) },
+                            leadingIcon = {
+                                if (expanded) {
+                                    IconButton(
+                                        onClick = {
+                                            expanded = false
+                                            onQueryChanged("")
+                                        },
+                                        modifier = Modifier.size(CompactTopBarActionSize),
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = stringResource(R.string.back),
+                                            modifier = Modifier.size(CompactTopBarIconSize),
+                                        )
+                                    }
+                                } else {
                                     Icon(
-                                        Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = stringResource(R.string.back)
+                                        Icons.Filled.Search,
+                                        contentDescription = stringResource(R.string.search),
+                                        modifier = Modifier.size(CompactTopBarIconSize),
                                     )
                                 }
-                            } else {
-                                Icon(
-                                    Icons.Filled.Search,
-                                    contentDescription = stringResource(R.string.search)
-                                )
-                            }
-                        },
-                        trailingIcon = {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.CenterEnd,
-                            ) {
-                                Row(
+                            },
+                            trailingIcon = {
+                                Box(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    contentAlignment = Alignment.CenterEnd,
                                 ) {
-                                    if (expanded && query.isNotEmpty()) {
-                                        IconButton(onClick = {
-                                            onQueryChanged("")
-                                        }) {
-                                            Icon(
-                                                Icons.Filled.Clear,
-                                                contentDescription = stringResource(R.string.clear)
-                                            )
-                                        }
-                                    }
-                                    if (!expanded && isLanguagePresetFilterVisible) {
-                                        TopBarAnchorIconButton(onClick = onLanguagePresetFilterClick) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_language),
-                                                contentDescription = stringResource(R.string.show_language_preset_filter),
-                                                tint = if (hasActiveLanguagePreset) {
-                                                    androidx.compose.material3.MaterialTheme.colorScheme.primary
-                                                } else {
-                                                    androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        if (expanded && query.isNotEmpty()) {
+                                            IconButton(
+                                                onClick = {
+                                                    onQueryChanged("")
                                                 },
-                                            )
+                                                modifier = Modifier.size(CompactTopBarActionSize),
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.Clear,
+                                                    contentDescription = stringResource(R.string.clear),
+                                                    modifier = Modifier.size(CompactTopBarIconSize),
+                                                )
+                                            }
                                         }
-                                    }
-                                    if (!expanded && isContentTypeFilterVisible) {
-                                        SwipeableFilterChip(
-                                            selectedType = selectedContentType,
-                                            enabledTypes = enabledContentTypes,
-                                            onTypeSelected = onContentTypeSelected,
-                                            modifier = Modifier.zIndex(1f)
-                                        )
-                                    }
-                                    if (!expanded && isSourceTagFilterVisible) {
-                                        SourceTagDropdown(
-                                            selectedTags = selectedSourceTags,
-                                            entries = sourceTagEntries,
-                                            enabledTags = enabledSourceTags,
-                                            onButtonClickIntercept = onSourceTagFilterClick,
-                                            onTagSelected = onSourceTagSelected,
-                                        )
-                                    }
-                                    if (expanded) {
-                                        IconButton(onClick = onVoiceInput) {
-                                            Icon(
-                                                painterResource(R.drawable.ic_voice_input),
-                                                contentDescription = stringResource(R.string.voice_search)
-                                            )
-                                        }
-                                    }
-                                    Box {
-                                        IconButton(onClick = { isMoreMenuExpanded = true }) {
-                                            Icon(
-                                                painterResource(R.drawable.ic_more_vert),
-                                                contentDescription = stringResource(R.string.more)
-                                            )
-                                        }
-                                        DropdownMenu(
-                                            expanded = isMoreMenuExpanded,
-                                            onDismissRequest = { isMoreMenuExpanded = false },
-                                        ) {
-                                            if (isAppUpdateAvailable) {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.app_update_available)) },
-                                                    onClick = {
-                                                        isMoreMenuExpanded = false
-                                                        onAppUpdateClick()
+                                        if (!expanded && isLanguagePresetFilterVisible) {
+                                            TopBarAnchorIconButton(onClick = onLanguagePresetFilterClick) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.ic_language),
+                                                    contentDescription = stringResource(R.string.show_language_preset_filter),
+                                                    modifier = Modifier.size(CompactTopBarIconSize),
+                                                    tint = if (hasActiveLanguagePreset) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
                                                     },
                                                 )
                                             }
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.list_options)) },
-                                                onClick = {
-                                                    isMoreMenuExpanded = false
-                                                    onOpenListOptions()
-                                                },
+                                        }
+                                        if (!expanded && isContentTypeFilterVisible) {
+                                            SwipeableFilterChip(
+                                                selectedType = selectedContentType,
+                                                enabledTypes = enabledContentTypes,
+                                                onTypeSelected = onContentTypeSelected,
+                                                modifier = Modifier.zIndex(1f)
                                             )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.incognito_mode)) },
-                                                onClick = {
-                                                    isMoreMenuExpanded = false
-                                                    onIncognitoToggle()
-                                                },
-                                                leadingIcon = if (isIncognitoModeEnabled) {
-                                                    {
-                                                        Icon(
-                                                            imageVector = Icons.Filled.Check,
-                                                            contentDescription = null,
-                                                        )
-                                                    }
-                                                } else {
-                                                    null
-                                                },
+                                        }
+                                        if (!expanded && isSourceTagFilterVisible) {
+                                            SourceTagDropdown(
+                                                selectedTags = selectedSourceTags,
+                                                entries = sourceTagEntries,
+                                                enabledTags = enabledSourceTags,
+                                                onButtonClickIntercept = onSourceTagFilterClick,
+                                                onTagSelected = onSourceTagSelected,
                                             )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.settings)) },
-                                                onClick = {
-                                                    isMoreMenuExpanded = false
-                                                    onSettingsClick()
-                                                },
-                                            )
+                                        }
+                                        if (expanded) {
+                                            IconButton(
+                                                onClick = onVoiceInput,
+                                                modifier = Modifier.size(CompactTopBarActionSize),
+                                            ) {
+                                                Icon(
+                                                    painterResource(R.drawable.ic_voice_input),
+                                                    contentDescription = stringResource(R.string.voice_search),
+                                                    modifier = Modifier.size(CompactTopBarIconSize),
+                                                )
+                                            }
+                                        }
+                                        Box {
+                                            IconButton(
+                                                onClick = { isMoreMenuExpanded = true },
+                                                modifier = Modifier.size(CompactTopBarActionSize),
+                                            ) {
+                                                Icon(
+                                                    painterResource(R.drawable.ic_more_vert),
+                                                    contentDescription = stringResource(R.string.more),
+                                                    modifier = Modifier.size(CompactTopBarIconSize),
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = isMoreMenuExpanded,
+                                                onDismissRequest = { isMoreMenuExpanded = false },
+                                            ) {
+                                                if (isAppUpdateAvailable) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.app_update_available)) },
+                                                        onClick = {
+                                                            isMoreMenuExpanded = false
+                                                            onAppUpdateClick()
+                                                        },
+                                                    )
+                                                }
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.list_options)) },
+                                                    onClick = {
+                                                        isMoreMenuExpanded = false
+                                                        onOpenListOptions()
+                                                    },
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.incognito_mode)) },
+                                                    onClick = {
+                                                        isMoreMenuExpanded = false
+                                                        onIncognitoToggle()
+                                                    },
+                                                    leadingIcon = if (isIncognitoModeEnabled) {
+                                                        {
+                                                            Icon(
+                                                                imageVector = Icons.Filled.Check,
+                                                                contentDescription = null,
+                                                            )
+                                                        }
+                                                    } else {
+                                                        null
+                                                    },
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.settings)) },
+                                                    onClick = {
+                                                        isMoreMenuExpanded = false
+                                                        onSettingsClick()
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            }
+                            },
+                        )
+                    },
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(if (expanded) 0.dp else 24.dp),
+                    colors = SearchBarDefaults.colors(
+                        containerColor = Color.Transparent,
+                        dividerColor = Color.Transparent,
+                    ),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                ) {
+                    SuggestionList(
+                        suggestions = suggestions,
+                        bottomPadding = navigationBarPadding.calculateBottomPadding(),
+                        onRecentQueryClick = { recentQuery ->
+                            onQueryChanged(recentQuery)
+                            onSearch(recentQuery)
+                            expanded = false
                         },
+                        onHintClick = { hint ->
+                            onQueryChanged(hint)
+                            onSearch(hint)
+                            expanded = false
+                        },
+                        onAuthorSuggestionClick = { author ->
+                            onQueryChanged(author)
+                            onAuthorSuggestionClick(author)
+                            expanded = false
+                        },
+                        onContentSuggestionClick = { content ->
+                            onContentSuggestionClick(content)
+                            expanded = false
+                        },
+                        onTagSuggestionClick = { tag ->
+                            onQueryChanged(tag.title)
+                            onTagSuggestionClick(tag)
+                            expanded = false
+                        },
+                        onSourceSuggestionClick = { source ->
+                            onSourceSuggestionClick(source)
+                            expanded = false
+                        },
+                        onDeleteQuery = onDeleteQuery,
                     )
-                },
-                expanded = expanded,
-                onExpandedChange = { expanded = it },
-                modifier = Modifier.fillMaxWidth(),
-                colors = SearchBarDefaults.colors(
-                    containerColor = Color.Transparent,
-                    dividerColor = Color.Transparent,
-                ),
-            ) {
-                SuggestionList(
-                    suggestions = suggestions,
-                    bottomPadding = navigationBarPadding.calculateBottomPadding(),
-                    onRecentQueryClick = { recentQuery ->
-                        onQueryChanged(recentQuery)
-                        onSearch(recentQuery)
-                        expanded = false
-                    },
-                    onHintClick = { hint ->
-                        onQueryChanged(hint)
-                        onSearch(hint)
-                        expanded = false
-                    },
-                    onAuthorSuggestionClick = { author ->
-                        onQueryChanged(author)
-                        onAuthorSuggestionClick(author)
-                        expanded = false
-                    },
-                    onContentSuggestionClick = { content ->
-                        onContentSuggestionClick(content)
-                        expanded = false
-                    },
-                    onTagSuggestionClick = { tag ->
-                        onQueryChanged(tag.title)
-                        onTagSuggestionClick(tag)
-                        expanded = false
-                    },
-                    onSourceSuggestionClick = { source ->
-                        onSourceSuggestionClick(source)
-                        expanded = false
-                    },
-                    onDeleteQuery = onDeleteQuery,
-                )
+                }
             }
         }
     }
@@ -314,7 +352,10 @@ private fun TopBarAnchorIconButton(
     content: @Composable () -> Unit,
 ) {
     val anchor = androidx.compose.ui.platform.LocalView.current
-    IconButton(onClick = { onClick(anchor) }) {
+    IconButton(
+        onClick = { onClick(anchor) },
+        modifier = Modifier.size(CompactTopBarActionSize),
+    ) {
         content()
     }
 }
