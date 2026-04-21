@@ -71,6 +71,7 @@ import org.skepsun.kototoro.favourites.ui.FavouritesActivity
 import org.skepsun.kototoro.favourites.ui.categories.FavouriteCategoriesActivity
 import org.skepsun.kototoro.favourites.ui.categories.edit.FavouritesCategoryEditActivity
 import org.skepsun.kototoro.favourites.ui.categories.select.FavoriteDialog
+import org.skepsun.kototoro.entitygraph.ui.details.EntityDetailsActivity
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
 import org.skepsun.kototoro.filter.ui.tags.TagsCatalogSheet
@@ -197,7 +198,23 @@ class AppRouter private constructor(
         )
     }
 
+    fun openEntityDetails(entityId: Long) {
+        startActivity(
+            Intent(contextOrNull() ?: return, EntityDetailsActivity::class.java)
+                .putExtra(KEY_ENTITY_ID, entityId),
+        )
+    }
+
     fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
+        startActivity(
+            Intent(contextOrNull() ?: return, EntityDetailsActivity::class.java)
+                .putExtra(KEY_ID, service.id)
+                .putExtra(KEY_REMOTE_ID, remoteId)
+                .putExtra(KEY_URL, url),
+        )
+    }
+
+    fun openTrackingSiteRawDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
         startActivity(
             Intent(contextOrNull() ?: return, TrackingSiteDetailsActivity::class.java)
                 .putExtra(KEY_ID, service.id)
@@ -1157,6 +1174,7 @@ class AppRouter private constructor(
         }
 
         const val KEY_DATA = "data"
+        const val KEY_ENTITY_ID = "entity_id"
         const val KEY_ENTRIES = "entries"
         const val KEY_ERROR = "error"
         const val KEY_EPUB_FILE_PATH = "epub_file_path"
