@@ -60,6 +60,7 @@ class HistoryRepository @Inject constructor(
 
 			SearchKind.AUTHOR -> dao.searchByAuthor(q, limit)
 			SearchKind.TAG -> dao.searchByTag(q, limit)
+			SearchKind.ADVANCED -> dao.searchByTitle(q, limit)
 		}
 		return entities.toContentList()
 	}

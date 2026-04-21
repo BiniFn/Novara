@@ -69,6 +69,7 @@ class SearchActivity :
 			)
 
 			SearchKind.TAG -> getString(R.string.inline_preference_pattern, getString(R.string.genre), viewModel.query)
+			SearchKind.ADVANCED -> getString(R.string.advanced_search)
 		}
 
 		val itemClickListener = OnListItemClickListener<SearchResultsListModel> { item, view ->
@@ -99,15 +100,19 @@ class SearchActivity :
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 		supportActionBar?.setSubtitle(R.string.search_results)
 		viewBinding.editQueryInput.setText(viewModel.query)
-		viewBinding.editQueryInput.setOnEditorActionListener { _, actionId, event ->
+		val onSubmit: (View, Int, KeyEvent?) -> Boolean = { _, actionId, event ->
 			val isSubmit = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
 				actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
 				(event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
-			if (!isSubmit) return@setOnEditorActionListener false
-			submitEditedQuery()
-			true
+			if (isSubmit) {
+				submitEditedQuery()
+				true
+			} else {
+				false
+			}
 		}
-		viewBinding.editQueryInput.setOnKeyListener { _, keyCode, event ->
+
+		val onKey: (View, Int, KeyEvent) -> Boolean = { _, keyCode, event ->
 			if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN) {
 				submitEditedQuery()
 				true
@@ -115,6 +120,20 @@ class SearchActivity :
 				false
 			}
 		}
+
+		viewBinding.editQueryInput.setOnEditorActionListener(onSubmit)
+		viewBinding.editQueryInput.setOnKeyListener(onKey)
+
+		viewBinding.editAdvancedTitle.setOnEditorActionListener(onSubmit)
+		viewBinding.editAdvancedTitle.setOnKeyListener(onKey)
+
+		viewBinding.editAdvancedTags.setOnEditorActionListener(onSubmit)
+		viewBinding.editAdvancedTags.setOnKeyListener(onKey)
+
+		viewBinding.editAdvancedAuthor.setOnEditorActionListener(onSubmit)
+		viewBinding.editAdvancedAuthor.setOnKeyListener(onKey)
+
+		setupAdvancedSearchPanel()
 
 		addMenuProvider(SearchMenuProvider(this, viewModel))
 
@@ -236,16 +255,60 @@ class SearchActivity :
 		return viewModel.getItems(selectionController.peekCheckedIds())
 	}
 
+	private fun setupAdvancedSearchPanel() {
+		val advancedQuery = viewModel.advancedQuery
+		if (advancedQuery != null) {
+			viewBinding.layoutAdvancedSearch.visibility = View.VISIBLE
+			viewBinding.iconAdvancedToggle.rotation = 180f
+			viewBinding.editAdvancedTitle.setText(advancedQuery.title)
+			viewBinding.editAdvancedTags.setText(advancedQuery.tags)
+			viewBinding.editAdvancedAuthor.setText(advancedQuery.author)
+		}
+
+		viewBinding.buttonAdvancedToggle.setOnClickListener {
+			val isExpanded = viewBinding.layoutAdvancedSearch.visibility == View.VISIBLE
+			if (isExpanded) {
+				viewBinding.layoutAdvancedSearch.visibility = View.GONE
+				viewBinding.iconAdvancedToggle.animate().rotation(0f).start()
+			} else {
+				viewBinding.layoutAdvancedSearch.visibility = View.VISIBLE
+				viewBinding.iconAdvancedToggle.animate().rotation(180f).start()
+			}
+		}
+	}
+
 	private fun submitEditedQuery() {
 		val newQuery = viewBinding.editQueryInput.text?.toString()?.trim().orEmpty()
-		if (newQuery.isEmpty() || newQuery == viewModel.query) {
+		val advancedTitle = viewBinding.editAdvancedTitle.text?.toString()?.trim()
+		val advancedTags = viewBinding.editAdvancedTags.text?.toString()?.trim()
+		val advancedAuthor = viewBinding.editAdvancedAuthor.text?.toString()?.trim()
+
+		val isAdvancedChanged = viewModel.advancedQuery?.title.orEmpty() != advancedTitle.orEmpty() ||
+			viewModel.advancedQuery?.tags.orEmpty() != advancedTags.orEmpty() ||
+			viewModel.advancedQuery?.author.orEmpty() != advancedAuthor.orEmpty()
+
+		if (newQuery.isEmpty() && advancedTitle.isNullOrEmpty() && advancedTags.isNullOrEmpty() && advancedAuthor.isNullOrEmpty()) {
 			return
 		}
+
+		if (newQuery == viewModel.query && !isAdvancedChanged) {
+			return
+		}
+
+		val kind = if (!advancedTitle.isNullOrEmpty() || !advancedTags.isNullOrEmpty() || !advancedAuthor.isNullOrEmpty()) {
+			SearchKind.ADVANCED
+		} else {
+			viewModel.kind
+		}
+
 		router.openSearch(
 			query = newQuery,
-			kind = viewModel.kind,
+			kind = kind,
 			sourceTypes = viewModel.getSourceTypes(),
 			contentKinds = viewModel.getContentKinds(),
+			advancedTitle = advancedTitle,
+			advancedTags = advancedTags,
+			advancedAuthor = advancedAuthor,
 		)
 		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
 			overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out, 0)

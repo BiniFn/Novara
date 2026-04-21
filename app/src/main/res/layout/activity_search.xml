@@ -42,6 +42,104 @@
 
 		</com.google.android.material.textfield.TextInputLayout>
 
+		<LinearLayout
+			android:id="@+id/button_advanced_toggle"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="@dimen/list_spacing_normal"
+			android:layout_marginEnd="@dimen/list_spacing_normal"
+			android:layout_marginBottom="@dimen/list_spacing_small"
+			android:orientation="horizontal"
+			android:gravity="center_vertical"
+			android:clickable="true"
+			android:focusable="true"
+			android:background="?attr/selectableItemBackground"
+			app:layout_scrollFlags="scroll|enterAlways">
+
+			<TextView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1"
+				android:text="@string/advanced_search"
+				android:textAppearance="?attr/textAppearanceLabelMedium"
+				android:textColor="?android:attr/textColorSecondary" />
+
+			<ImageView
+				android:id="@+id/icon_advanced_toggle"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:src="@drawable/ic_expand_more"
+				android:contentDescription="@null" />
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/layout_advanced_search"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="@dimen/list_spacing_normal"
+			android:layout_marginEnd="@dimen/list_spacing_normal"
+			android:layout_marginBottom="@dimen/list_spacing_small"
+			android:orientation="vertical"
+			android:visibility="gone"
+			app:layout_scrollFlags="scroll|enterAlways"
+			tools:visibility="visible">
+
+			<com.google.android.material.textfield.TextInputLayout
+				android:id="@+id/layout_advanced_title"
+				style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginBottom="@dimen/list_spacing_small"
+				android:hint="@string/title">
+
+				<com.google.android.material.textfield.TextInputEditText
+					android:id="@+id/edit_advanced_title"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:singleLine="true"
+					android:imeOptions="actionSearch"
+					android:inputType="text" />
+
+			</com.google.android.material.textfield.TextInputLayout>
+
+			<com.google.android.material.textfield.TextInputLayout
+				android:id="@+id/layout_advanced_tags"
+				style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginBottom="@dimen/list_spacing_small"
+				android:hint="@string/tags">
+
+				<com.google.android.material.textfield.TextInputEditText
+					android:id="@+id/edit_advanced_tags"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:singleLine="true"
+					android:imeOptions="actionSearch"
+					android:inputType="text" />
+
+			</com.google.android.material.textfield.TextInputLayout>
+
+			<com.google.android.material.textfield.TextInputLayout
+				android:id="@+id/layout_advanced_author"
+				style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:hint="@string/author">
+
+				<com.google.android.material.textfield.TextInputEditText
+					android:id="@+id/edit_advanced_author"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:singleLine="true"
+					android:imeOptions="actionSearch"
+					android:inputType="text" />
+
+			</com.google.android.material.textfield.TextInputLayout>
+
+		</LinearLayout>
+
 		<TextView
 			android:id="@+id/textView_tvbox_repository"
 			android:layout_width="match_parent"

@@ -158,10 +158,16 @@ class AppRouter private constructor(
         kind: SearchKind = SearchKind.SIMPLE,
         sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
         contentKinds: Set<SearchContentKind>? = null,
+        advancedTitle: String? = null,
+        advancedTags: String? = null,
+        advancedAuthor: String? = null,
     ) {
         val intent = Intent(contextOrNull() ?: return, SearchActivity::class.java)
             .putExtra(KEY_QUERY, query)
             .putExtra(KEY_KIND, kind)
+            .putExtra(KEY_ADVANCED_TITLE, advancedTitle)
+            .putExtra(KEY_ADVANCED_TAGS, advancedTags)
+            .putExtra(KEY_ADVANCED_AUTHOR, advancedAuthor)
         if (!sourceTypes.isNullOrEmpty()) {
             intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
         }
@@ -1157,11 +1163,17 @@ class AppRouter private constructor(
             sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>? = null,
             contentKinds: Set<SearchContentKind>? = null,
             pickMode: Boolean = false,
+            advancedTitle: String? = null,
+            advancedTags: String? = null,
+            advancedAuthor: String? = null,
         ): Intent {
             val intent = Intent(context, SearchActivity::class.java)
                 .putExtra(KEY_QUERY, query)
                 .putExtra(KEY_KIND, kind)
                 .putExtra(KEY_PICK_MODE, pickMode)
+                .putExtra(KEY_ADVANCED_TITLE, advancedTitle)
+                .putExtra(KEY_ADVANCED_TAGS, advancedTags)
+                .putExtra(KEY_ADVANCED_AUTHOR, advancedAuthor)
             if (!sourceTypes.isNullOrEmpty()) {
                 intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
             }
@@ -1191,6 +1203,9 @@ class AppRouter private constructor(
         const val KEY_PREVIEW = "preview"
         const val KEY_PICK_MODE = "pick_mode"
         const val KEY_QUERY = "query"
+        const val KEY_ADVANCED_TITLE = "advanced_title"
+        const val KEY_ADVANCED_TAGS = "advanced_tags"
+        const val KEY_ADVANCED_AUTHOR = "advanced_author"
         const val KEY_REMOTE_ID = "remote_id"
         const val KEY_READER_MODE = "reader_mode"
         const val KEY_SORT_ORDER = "sort_order"
