@@ -26,6 +26,7 @@ import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
+import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.explore.ui.ExploreViewModel
 import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
@@ -314,16 +315,14 @@ fun KototoroSourceCard(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // AsyncImage or placeholder for source icon
             Box(
                 modifier = Modifier.size(if (isGrid) 48.dp else 64.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+                ContentSourceIcon(
+                    source = item.source,
+                    modifier = Modifier.size(if (isGrid) 30.dp else 40.dp),
+                    contentDescription = title,
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))

@@ -46,10 +46,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -85,7 +88,7 @@ fun DiscoverHeroCarousel(
     items: List<ContentListModel>,
     activeService: ScrobblerService?,
     availableServices: List<ScrobblerService>,
-    onItemClick: (ContentListModel) -> Unit,
+    onItemClick: (ContentListModel, Rect?) -> Unit,
     onSelectService: (ScrobblerService) -> Unit,
     topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
@@ -199,6 +202,7 @@ fun DiscoverHeroCarousel(
                 val backgroundRequest = remember(currentId, backgroundItem.coverUrl) {
                     ImageRequest.Builder(context)
                         .data(backgroundItem.coverUrl)
+                        .size(250) // drastically reduces GPU workload for blurring
                         .build()
                 }
                 AsyncImage(
@@ -245,10 +249,7 @@ fun DiscoverHeroCarousel(
                             ),
                         )
                     },
-                ),
-        )
-        Box(
-            modifier = heroImageModifier
+                )
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
@@ -381,6 +382,7 @@ fun DiscoverHeroCarousel(
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
                 val item = items[page]
+                var coverBounds by remember(item.id) { mutableStateOf<Rect?>(null) }
                 val posterRequest = remember(item.id, item.coverUrl) {
                     ImageRequest.Builder(context)
                         .data(item.coverUrl)
@@ -390,7 +392,7 @@ fun DiscoverHeroCarousel(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onItemClick(item) }
+                        .clickable { onItemClick(item, coverBounds) }
                         .padding(horizontal = 20.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -401,6 +403,9 @@ fun DiscoverHeroCarousel(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(width = 96.dp, height = 132.dp)
+                            .onGloballyPositioned { coordinates ->
+                                coverBounds = coordinates.boundsInRoot()
+                            }
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     )

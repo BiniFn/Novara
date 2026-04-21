@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -77,6 +78,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +97,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
+import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
@@ -135,6 +138,7 @@ fun AppSearchContentListRoute(
     val authorsProperty by viewModel.filterCoordinator.authors.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    val rootView = LocalView.current
     val configuration = LocalConfiguration.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
@@ -167,7 +171,7 @@ fun AppSearchContentListRoute(
     LaunchedEffect(viewModel.onOpenContent) {
         viewModel.onOpenContent.collect { event ->
             event?.consume { content ->
-                appRouter.openDetails(content, null)
+                appRouter.openDetails(content, rootView)
             }
         }
     }
@@ -195,6 +199,7 @@ fun AppSearchContentListRoute(
         SearchTopActionsHeight.toPx()
     }
     val maxCollapsePx = topActionsHeightPx
+    val isWideSplitLayout = isWideAdaptiveLayout && showFilterPanel
     val nestedScrollConnection = remember(maxCollapsePx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -209,88 +214,104 @@ fun AppSearchContentListRoute(
         }
     }
 
+    val topBarContent: @Composable () -> Unit = {
+        SearchContentTopBar(
+            searchMode = searchMode,
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            onSearchOpen = { searchMode = true },
+            onSearchClose = { searchMode = false },
+            onSearchSubmit = {
+                viewModel.filterCoordinator.setQuery(searchQuery.takeIf { it.isNotBlank() })
+                searchMode = false
+            },
+            focusRequester = focusRequester,
+            sourceTitle = resolvedSourceTitle,
+            activeQuery = filterSnapshot.listFilter.query,
+            currentSortLabel = stringResource(filterSnapshot.sortOrder.titleRes),
+            isFilterApplied = viewModel.filterCoordinator.isFilterApplied,
+            quickFilter = quickFilter,
+            contentItems = contentItems.filterIsInstance<ContentListModel>(),
+            selectedTags = filterSnapshot.listFilter.tags,
+            availableTags = tagsProperty.availableItems.flatMap { it.tags },
+            listMode = listMode,
+            gridSize = gridSize,
+            topActionsHeight = SearchTopActionsHeight,
+            collapseOffsetPx = collapseOffsetPx,
+            isRandomLoading = isRandomLoading,
+            onBackClick = { (context as? Activity)?.finish() },
+            onRandomClick = viewModel::openRandom,
+            onFilterClick = {
+                if (isWideAdaptiveLayout) {
+                    when {
+                        sidePaneMode == SearchSidePaneMode.Preview -> {
+                            sidePaneMode = SearchSidePaneMode.Filter
+                            showFilterPanel = true
+                        }
+                        else -> showFilterPanel = !showFilterPanel
+                    }
+                } else {
+                    showFilterPanel = !showFilterPanel
+                }
+            },
+            onResetFilterClick = viewModel.filterCoordinator::reset,
+            onSettingsClick = { appRouter.openSourceSettings(viewModel.source) },
+            onListModeChange = { settings.listMode = it },
+            onGridSizeChange = { delta ->
+                settings.gridSize = (settings.gridSize + delta).coerceIn(50, 150)
+            },
+            onQuickFilterOptionClick = { option ->
+                (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
+            },
+            onToggleTag = { tag, selected -> viewModel.filterCoordinator.toggleTag(tag, selected) },
+        )
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets.navigationBars,
         topBar = {
-            SearchContentTopBar(
-                searchMode = searchMode,
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                onSearchOpen = { searchMode = true },
-                onSearchClose = { searchMode = false },
-                onSearchSubmit = {
-                    viewModel.filterCoordinator.setQuery(searchQuery.takeIf { it.isNotBlank() })
-                    searchMode = false
-                },
-                focusRequester = focusRequester,
-                sourceTitle = resolvedSourceTitle,
-                activeQuery = filterSnapshot.listFilter.query,
-                currentSortLabel = stringResource(filterSnapshot.sortOrder.titleRes),
-                isFilterApplied = viewModel.filterCoordinator.isFilterApplied,
-                quickFilter = quickFilter,
-                contentItems = contentItems.filterIsInstance<ContentListModel>(),
-                selectedTags = filterSnapshot.listFilter.tags,
-                availableTags = tagsProperty.availableItems.flatMap { it.tags },
-                listMode = listMode,
-                gridSize = gridSize,
-                topActionsHeight = SearchTopActionsHeight,
-                collapseOffsetPx = collapseOffsetPx,
-                isRandomLoading = isRandomLoading,
-                onBackClick = { (context as? Activity)?.finish() },
-                onRandomClick = viewModel::openRandom,
-                onFilterClick = {
-                    if (isWideAdaptiveLayout) {
-                        when {
-                            sidePaneMode == SearchSidePaneMode.Preview -> {
-                                sidePaneMode = SearchSidePaneMode.Filter
-                                showFilterPanel = true
-                            }
-                            else -> showFilterPanel = !showFilterPanel
-                        }
-                    } else {
-                        showFilterPanel = !showFilterPanel
-                    }
-                },
-                onResetFilterClick = viewModel.filterCoordinator::reset,
-                onSettingsClick = { appRouter.openSourceSettings(viewModel.source) },
-                onListModeChange = { settings.listMode = it },
-                onGridSizeChange = { delta ->
-                    settings.gridSize = (settings.gridSize + delta).coerceIn(50, 150)
-                },
-                onQuickFilterOptionClick = { option ->
-                    (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
-                },
-                onToggleTag = { tag, selected -> viewModel.filterCoordinator.toggleTag(tag, selected) },
-            )
+            if (!isWideSplitLayout) {
+                topBarContent()
+            }
         },
     ) { paddingValues ->
-        if (isWideAdaptiveLayout && showFilterPanel) {
+        if (isWideSplitLayout) {
             Row(
                 modifier = Modifier
-                    .fillMaxHeight()
+                    .fillMaxSize()
                     .padding(paddingValues),
             ) {
-                KototoroContentListScreen(
-                    items = contentItems,
-                    gridScale = gridScale,
-                    listMode = listMode,
-                    isRefreshing = false,
-                    contentPadding = PaddingValues(0.dp),
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .nestedScroll(nestedScrollConnection),
-                    onItemClick = { item ->
-                        previewContent = item.toContentWithOverride()
-                        sidePaneMode = SearchSidePaneMode.Preview
-                    },
-                    onItemLongClick = { },
-                    onLoadMore = { viewModel.loadNextPage() },
-                    onRefresh = { viewModel.onRefresh() },
-                    onClearSelection = { },
-                    onSelectionAction = { false },
-                    selectedItemsIds = emptySet(),
-                    onRetry = viewModel::onRetry,
-                )
+                        .fillMaxHeight(),
+                ) {
+                    topBarContent()
+                    KototoroContentListScreen(
+                        items = contentItems,
+                        gridScale = gridScale,
+                        listMode = listMode,
+                        isRefreshing = false,
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .nestedScroll(nestedScrollConnection),
+                        onPrepareItemTransition = { item, coverBounds ->
+                            DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
+                        },
+                        onItemClick = { item ->
+                            previewContent = item.toContentWithOverride()
+                            sidePaneMode = SearchSidePaneMode.Preview
+                        },
+                        onItemLongClick = { },
+                        onLoadMore = { viewModel.loadNextPage() },
+                        onRefresh = { viewModel.onRefresh() },
+                        onClearSelection = { },
+                        onSelectionAction = { false },
+                        selectedItemsIds = emptySet(),
+                        onRetry = viewModel::onRetry,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -306,7 +327,7 @@ fun AppSearchContentListRoute(
                         SearchPreviewPane(
                             content = requireNotNull(previewContent),
                             onBackToFilters = { sidePaneMode = SearchSidePaneMode.Filter },
-                            onOpenDetails = { appRouter.openDetails(requireNotNull(previewContent), null) },
+                            onOpenDetails = { appRouter.openDetails(requireNotNull(previewContent), rootView) },
                         )
                     } else {
                         SearchFilterPanel(
@@ -341,7 +362,10 @@ fun AppSearchContentListRoute(
                 isRefreshing = false,
                 contentPadding = paddingValues,
                 modifier = Modifier.nestedScroll(nestedScrollConnection),
-                onItemClick = { item -> appRouter.openDetails(item.manga, null) },
+                onPrepareItemTransition = { item, coverBounds ->
+                    DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
+                },
+                onItemClick = { item -> appRouter.openDetails(item.manga, rootView) },
                 onItemLongClick = { },
                 onLoadMore = { viewModel.loadNextPage() },
                 onRefresh = { viewModel.onRefresh() },

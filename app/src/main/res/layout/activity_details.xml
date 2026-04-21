@@ -6,11 +6,22 @@
 	android:id="@+id/root_layout"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
+	android:background="?attr/colorSurface"
 	tools:context=".details.ui.DetailsActivity">
 
 	<androidx.constraintlayout.widget.ConstraintLayout
 		android:layout_width="match_parent"
-		android:layout_height="match_parent">
+		android:layout_height="match_parent"
+		android:background="?attr/colorSurface">
+
+		<ImageView
+			android:id="@+id/imageView_transition_background"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:contentDescription="@null"
+			android:scaleType="centerCrop"
+			android:visibility="gone"
+			tools:background="@tools:sample/backgrounds/scenic[7]" />
 
 		<androidx.compose.ui.platform.ComposeView
 			android:id="@+id/compose_view"

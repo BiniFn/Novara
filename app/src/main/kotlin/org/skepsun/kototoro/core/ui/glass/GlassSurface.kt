@@ -85,6 +85,7 @@ fun GlassSurface(
     modifier: Modifier = Modifier,
     style: GlassStyle = GlassDefaults.regularStyle(),
     shape: Shape = GlassDefaults.shape,
+    allowRuntimeHaze: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val context = LocalContext.current
@@ -145,7 +146,7 @@ fun GlassSurface(
         blurRadius,
         0.12f,
     )
-    val useRuntimeHaze = supportsRuntimeHaze()
+    val useRuntimeHaze = allowRuntimeHaze && supportsRuntimeHaze()
     val border = BorderStroke(
         width = 1.dp,
         color = colorScheme.outlineVariant.copy(

@@ -13,10 +13,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,13 +37,15 @@ import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 @Composable
 fun FeedItemCard(
 	item: FeedItem,
-	onClick: () -> Unit,
+	onClick: (Rect?) -> Unit,
 	modifier: Modifier = Modifier
 ) {
+	var coverBounds by remember(item.id) { mutableStateOf<Rect?>(null) }
+
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
-			.clickable(onClick = onClick)
+			.clickable { onClick(coverBounds) }
 			.padding(horizontal = 16.dp, vertical = 16.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
@@ -49,6 +58,9 @@ fun FeedItemCard(
 			contentScale = ContentScale.Crop,
 			modifier = Modifier
 				.size(40.dp)
+				.onGloballyPositioned { coordinates ->
+					coverBounds = coordinates.boundsInRoot()
+				}
 				.clip(MaterialTheme.shapes.medium)
 		)
 

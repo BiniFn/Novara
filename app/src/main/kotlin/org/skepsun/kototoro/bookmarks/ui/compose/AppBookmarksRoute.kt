@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ fun AppBookmarksRoute(
     var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
+    val rootView = LocalView.current
 
     LaunchedEffect(viewModel.onError) {
         val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
@@ -97,7 +99,7 @@ fun AppBookmarksRoute(
                                     .clickable {
                                         val manga = listModel.payload as? Content
                                         if (manga != null) {
-                                            appRouter.openDetails(manga)
+                                            appRouter.openDetails(manga, rootView)
                                         }
                                     }
                                     .padding(horizontal = 16.dp, vertical = 24.dp),

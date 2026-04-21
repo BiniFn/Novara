@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +55,7 @@ fun AppDownloadsRoute(
 
     var selectionIds by rememberSaveable { mutableStateOf<Set<Long>>(emptySet()) }
     val inSelectionMode = selectionIds.isNotEmpty()
+    val rootView = LocalView.current
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
@@ -241,7 +243,7 @@ fun AppDownloadsRoute(
                                 if (inSelectionMode) {
                                     selectionIds = if (isSelected) selectionIds - item.id.mostSignificantBits else selectionIds + item.id.mostSignificantBits
                                 } else {
-                                    if (item.manga != null) appRouter.openDetails(item.manga)
+                                    if (item.manga != null) appRouter.openDetails(item.manga, rootView)
                                 }
                             },
                             onItemLongClick = {

@@ -1,17 +1,30 @@
 package org.skepsun.kototoro.core.ui.compose
 
 import android.content.Context
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.BaseApp
+import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler.Companion.suppressCaptchaErrors
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.parser.favicon.faviconUri
+import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.Locale
 
@@ -86,6 +99,44 @@ fun rememberSourceChipMeta(source: ContentSource): ContentSourceChipMeta? {
             )
         }
     }
+}
+
+@Composable
+fun ContentSourceIcon(
+    source: ContentSource,
+    modifier: Modifier = Modifier,
+    styleResId: Int = R.style.FaviconDrawable_Small,
+    animated: Boolean = false,
+    contentDescription: String? = null,
+) {
+    val context = LocalContext.current
+    val resolvedSource = rememberResolvedContentSource(source)
+    val request = remember(resolvedSource.name, resolvedSource.locale, styleResId, animated) {
+        val fallback = sourceFallbackImage(
+            context = context,
+            styleResId = styleResId,
+            source = resolvedSource,
+            animated = false,
+        )
+        ImageRequest.Builder(context)
+            .data(resolvedSource.faviconUri())
+            .crossfade(animated)
+            .mangaSourceExtra(resolvedSource)
+            .suppressCaptchaErrors()
+            .placeholder(fallback)
+            .fallback(fallback)
+            .error(fallback)
+            .build()
+    }
+
+    AsyncImage(
+        model = request,
+        contentDescription = contentDescription,
+        contentScale = ContentScale.Fit,
+        modifier = modifier
+            .size(16.dp)
+            .clip(RoundedCornerShape(4.dp)),
+    )
 }
 
 private fun resolveDynamicContentSource(

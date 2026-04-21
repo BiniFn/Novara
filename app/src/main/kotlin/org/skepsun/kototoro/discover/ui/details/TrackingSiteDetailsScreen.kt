@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -108,6 +109,7 @@ fun TrackingSiteDetailsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val context = LocalContext.current
+    val rootView = LocalView.current
     val density = LocalDensity.current
     val toolbarGapPx = with(density) { 12.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -187,10 +189,10 @@ fun TrackingSiteDetailsScreen(
                     canTranslate = details != null,
                     isShowingTranslation = isShowingTranslation,
                     isTranslating = isTranslating,
-                    onOpenLinked = { linkedContent?.let { appRouter.openDetails(it) } },
+                    onOpenLinked = { linkedContent?.let { appRouter.openDetails(it, rootView) } },
                     onOpenLinkedTab = { tab ->
                         // Currently opens the local details regardless of tab, but provides the UI mirroring requested
-                        linkedContent?.let { appRouter.openDetails(it) }
+                        linkedContent?.let { appRouter.openDetails(it, rootView) }
                     },
                     onManageBinding = {
                         val d = details ?: return@TrackingBottomBar
@@ -227,10 +229,11 @@ fun TrackingSiteDetailsScreen(
                         verticalAlignment = Alignment.Top,
                     ) {
                         DetailsCoverFrame(
-                            coverUrl = currentDetails.coverUrl,
+                            coverModel = currentDetails.coverUrl,
                             contentDescription = currentDetails.title,
                             onCoverBoundsSync = { _, _ -> },
-                            alpha = coverAlpha,
+                            syncAlpha = coverAlpha,
+                            showNsfwBadge = false,
                             onClick = null,
                             modifier = Modifier.graphicsLayer {
                                 alpha = coverAlpha
@@ -336,11 +339,11 @@ fun TrackingSiteDetailsScreen(
                             onCandidateClick = { candidate ->
                                 coroutineScope.launch {
                                     viewModel.bindLocalContent(candidate)
-                                    appRouter.openDetails(candidate)
+                                    appRouter.openDetails(candidate, rootView)
                                 }
                             },
                             onRetry = { viewModel.retryLocalSearch(it) },
-                            onOpenLinked = { linkedContent?.let { appRouter.openDetails(it) } },
+                            onOpenLinked = { linkedContent?.let { appRouter.openDetails(it, rootView) } },
                             onUnlinkClick = {
                                 val d = details ?: return@TrackingLocalSourcesPanel
                                 appRouter.openScrobblerBinding(d.service, d.remoteId, d.title, d.url)

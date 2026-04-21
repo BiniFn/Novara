@@ -24,26 +24,30 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedContentSource
 import org.skepsun.kototoro.core.model.getLocale
-import org.skepsun.kototoro.core.parser.favicon.faviconUri
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
-import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
-import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.list.domain.ReadingProgress
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -57,7 +61,7 @@ fun KototoroContentCard(
     isListLayout: Boolean = false,
     isSelected: Boolean = false,
     selectionModeActive: Boolean = false,
-    onClick: () -> Unit,
+    onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -99,13 +103,14 @@ fun KototoroContentCardGrid(
     isSelected: Boolean = false,
     showSourceInfo: Boolean = false,
     gridScale: Float = 1f,
-    onClick: () -> Unit,
+    onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val manga = item.manga
     val coverUrl = manga.coverUrl
     val posterStyle = compactPosterCardStyle(gridScale)
+    var coverBounds by remember { mutableStateOf<Rect?>(null) }
 
     Column(
         modifier = modifier
@@ -113,7 +118,7 @@ fun KototoroContentCardGrid(
             .padding(horizontal = 2.dp, vertical = 4.dp)
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
             .combinedClickable(
-                onClick = onClick,
+                onClick = { onClick(coverBounds) },
                 onLongClick = onLongClick,
             )
             .padding(horizontal = 4.dp, vertical = 4.dp),
@@ -124,6 +129,9 @@ fun KototoroContentCardGrid(
                 .widthIn(max = posterStyle.itemWidth)
                 .fillMaxWidth()
                 .height(posterStyle.posterHeight)
+                .onGloballyPositioned { coordinates ->
+                    coverBounds = coordinates.boundsInRoot()
+                }
                 .clip(RoundedCornerShape(posterStyle.cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
@@ -183,9 +191,7 @@ fun KototoroContentCardGrid(
             if (showSourceInfo) {
                 SourceInfoPill(
                     source = manga.source,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(6.dp),
+                    modifier = Modifier.align(Alignment.BottomStart),
                 )
             }
         }
@@ -209,21 +215,25 @@ fun KototoroContentCardGrid(
 fun KototoroContentCardList(
     item: org.skepsun.kototoro.list.ui.model.ContentCompactListModel,
     isSelected: Boolean = false,
-    onClick: () -> Unit,
+    onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var coverBounds by remember { mutableStateOf<Rect?>(null) }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(onClick = { onClick(coverBounds) }, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(48.dp, 72.dp)
+                .onGloballyPositioned { coordinates ->
+                    coverBounds = coordinates.boundsInRoot()
+                }
                 .clip(RoundedCornerShape(4.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
@@ -312,57 +322,36 @@ private fun SourceInfoPill(
     source: org.skepsun.kototoro.parsers.model.ContentSource,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val langText = remember(source.name, source.locale) {
-        source.getLocale()
+    val resolvedSource = rememberResolvedContentSource(source)
+    val langText = remember(resolvedSource.name, resolvedSource.locale) {
+        resolvedSource.getLocale()
             ?.language
             ?.uppercase(Locale.ROOT)
             ?.takeIf { it.isNotBlank() }
-    }
-    val sourceIconRequest = remember(source.name, source.locale) {
-        val fallback = sourceFallbackImage(
-            context = context,
-            styleResId = R.style.FaviconDrawable_Small,
-            source = source,
-            animated = false,
-        )
-        ImageRequest.Builder(context)
-            .data(source.faviconUri())
-            .crossfade(true)
-            .mangaSourceExtra(source)
-            .placeholder(fallback)
-            .fallback(fallback)
-            .error(fallback)
-            .build()
     }
 
     Row(
         modifier = modifier
             .background(
-                color = Color.Black.copy(alpha = 0.56f),
-                shape = RoundedCornerShape(
-                    topStart = 10.dp,
-                    topEnd = 12.dp,
-                    bottomStart = 18.dp,
-                    bottomEnd = 12.dp,
-                ),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                shape = RoundedCornerShape(topEnd = 10.dp),
             )
-            .padding(start = 6.dp, end = 8.dp, top = 5.dp, bottom = 5.dp),
+            .padding(start = 5.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = sourceIconRequest,
-            contentDescription = source.name,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .size(14.dp)
-                .clip(RoundedCornerShape(4.dp)),
+        ContentSourceIcon(
+            source = resolvedSource,
+            contentDescription = resolvedSource.name,
+            modifier = Modifier.size(13.dp),
         )
         if (!langText.isNullOrBlank()) {
             Text(
                 text = langText,
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    lineHeight = 9.sp,
+                ),
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 4.dp),
             )
@@ -375,20 +364,24 @@ private fun SourceInfoPill(
 fun KototoroContentCardDetailedList(
     item: org.skepsun.kototoro.list.ui.model.ContentDetailedListModel,
     isSelected: Boolean = false,
-    onClick: () -> Unit,
+    onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var coverBounds by remember { mutableStateOf<Rect?>(null) }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(onClick = { onClick(coverBounds) }, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(80.dp, 120.dp)
+                .onGloballyPositioned { coordinates ->
+                    coverBounds = coordinates.boundsInRoot()
+                }
                 .clip(RoundedCornerShape(6.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {

@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,23 +38,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 
 @Composable
 fun DetailsCoverFrame(
-    coverUrl: String?,
+    coverModel: Any?,
     contentDescription: String,
     onCoverBoundsSync: (Rect, Float) -> Unit,
-    alpha: Float,
+    syncAlpha: Float,
+    showNsfwBadge: Boolean,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var coverBounds by remember { mutableStateOf(Rect.Zero) }
-    LaunchedEffect(coverBounds, alpha) {
+    LaunchedEffect(coverBounds, syncAlpha) {
         if (coverBounds.width > 0f && coverBounds.height > 0f) {
-            onCoverBoundsSync(coverBounds, alpha)
+            onCoverBoundsSync(coverBounds, syncAlpha)
         }
     }
 
@@ -95,7 +98,7 @@ fun DetailsCoverFrame(
                     },
             )
             AsyncImage(
-                model = coverUrl,
+                model = coverModel,
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,9 +107,28 @@ fun DetailsCoverFrame(
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
                         shape = RoundedCornerShape(22.dp),
-                    ),
+                ),
                 contentScale = ContentScale.Crop,
             )
+            if (showNsfwBadge) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFD4322C),
+                    contentColor = Color.White,
+                    shadowElevation = 0.dp,
+                    tonalElevation = 0.dp,
+                ) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(R.string.nsfw),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -118,6 +140,7 @@ fun DetailsHeaderIconButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     filled: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     if (filled) {
         Surface(
@@ -130,7 +153,11 @@ fun DetailsHeaderIconButton(
         ) {
             Box(
                 modifier = Modifier
-                    .clickable(enabled = enabled, onClick = onClick)
+                    .combinedClickable(
+                        enabled = enabled,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
                     .padding(12.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -138,6 +165,7 @@ fun DetailsHeaderIconButton(
                     painter = rememberSafePainter(iconRes),
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }
@@ -145,9 +173,13 @@ fun DetailsHeaderIconButton(
         Box(
             modifier = modifier
                 .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.38f))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f))
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f), RoundedCornerShape(16.dp))
-                .clickable(enabled = enabled, onClick = onClick)
+                .combinedClickable(
+                    enabled = enabled,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
                 .padding(12.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -155,6 +187,7 @@ fun DetailsHeaderIconButton(
                 painter = rememberSafePainter(iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
             )
         }
     }

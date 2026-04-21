@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -33,8 +34,8 @@ fun FeedScreen(
 	isRefreshing: Boolean,
 	onRefresh: () -> Unit,
 	onLoadMore: () -> Unit,
-	onFeedItemClick: (FeedItem) -> Unit,
-	onUpdatedContentItemClick: (ContentListModel) -> Unit,
+	onFeedItemClick: (FeedItem, Rect?) -> Unit,
+	onUpdatedContentItemClick: (ContentListModel, Rect?) -> Unit,
 	onUpdatedContentMoreClick: (UpdatedContentHeader) -> Unit,
 	modifier: Modifier = Modifier
 ) {
@@ -87,7 +88,7 @@ fun FeedScreen(
 					is FeedItem -> {
 						FeedItemCard(
 							item = item,
-							onClick = { onFeedItemClick(item) }
+							onClick = { coverBounds -> onFeedItemClick(item, coverBounds) }
 						)
 					}
 					is UpdatedContentHeader -> {

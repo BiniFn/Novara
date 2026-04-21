@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -35,7 +36,7 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 @Composable
 fun DiscoverCarousel(
 	row: DiscoverCarouselRow,
-	onItemClick: (ContentListModel) -> Unit,
+	onItemClick: (ContentListModel, Rect?) -> Unit,
 	onMoreClick: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory) -> Unit,
 	modifier: Modifier = Modifier
 ) {
@@ -78,7 +79,7 @@ fun DiscoverCarousel(
 					KototoroContentCard(
 						model = model,
 						isListLayout = false,
-						onClick = { onItemClick(model) },
+						onClick = { coverBounds -> onItemClick(model, coverBounds) },
 						onLongClick = { },
 						isSelected = false,
 						selectionModeActive = false,

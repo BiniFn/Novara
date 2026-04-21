@@ -83,6 +83,7 @@
     <string name="webtoon">Webtoon</string>
     <string name="read_mode">Read mode</string>
     <string name="grid_size">Grid size</string>
+    <string name="display_options">Display options</string>
     <string name="search_on_s">Search on %s</string>
     <string name="delete_manga">Delete manga</string>
     <string name="text_delete_local_manga">Permanently delete \"%s\" from device?</string>
@@ -2258,6 +2259,7 @@
     <string name="copy">Copy</string>
     <!-- Title translation (#133) -->
     <string name="translate_title">Translate title</string>
+    <string name="details_translate_title_and_description_hint">Translate title and description</string>
     <string name="translating">Translating…</string>
     <string name="translation_failed">Translation failed</string>
     <string name="clear_translation">Clear translation</string>

@@ -1,11 +1,15 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import android.content.res.Configuration
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +22,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -32,7 +38,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -43,9 +48,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -54,10 +57,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -105,6 +110,7 @@ import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.DetailsViewModel
@@ -123,9 +129,12 @@ import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.ui.selector.compose.ScrobblingSelectorDialog
 import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorViewModel
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,6 +147,7 @@ fun DetailsScreen(
     pageSaveHelper: PageSaveHelper,
     onBackClick: () -> Unit,
     onCoverBoundsSync: (Rect, Float) -> Unit,
+    isHeroOverlayVisible: Boolean = false,
     onActionClick: (DetailsAction) -> Unit = {},
 ) {
     val mangaDetails by viewModel.mangaDetails.collectAsState()
@@ -166,6 +176,35 @@ fun DetailsScreen(
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
     val contentType = content?.source?.getContentType()
+    var retainedCoverUrl by rememberSaveable(content?.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(mangaDetails?.coverUrl) {
+        mangaDetails?.coverUrl
+            ?.takeIf { it.isNotBlank() }
+            ?.let { retainedCoverUrl = it }
+    }
+    val resolvedCoverUrl = mangaDetails?.coverUrl
+        ?.takeIf { it.isNotBlank() }
+        ?: retainedCoverUrl
+        ?: content?.largeCoverUrl
+        ?: content?.coverUrl
+    val targetTranslationLanguage = remember(settings.readerTranslationTargetLanguage) {
+        settings.readerTranslationTargetLanguage
+            .substringBefore('-')
+            .substringBefore('_')
+            .lowercase(Locale.ROOT)
+    }
+    val contentLanguage = remember(mangaDetails) {
+        mangaDetails?.getLocale()
+            ?.language
+            ?.substringBefore('-')
+            ?.substringBefore('_')
+            ?.lowercase(Locale.ROOT)
+    }
+    val showTranslateAction = remember(contentLanguage, targetTranslationLanguage) {
+        contentLanguage != null &&
+            targetTranslationLanguage.isNotBlank() &&
+            contentLanguage != targetTranslationLanguage
+    }
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
     val configuration = LocalConfiguration.current
     val scrollState = rememberScrollState()
@@ -192,24 +231,86 @@ fun DetailsScreen(
     val isWideAdaptiveLayout = remember(configuration.orientation, configuration.screenWidthDp) {
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE || configuration.screenWidthDp >= 720
     }
-    val compactSheetPeekHeight = 88.dp
+    val compactPaneCollapsedHeight = 88.dp
     val compactPaneHeight = remember(configuration.screenHeightDp) {
         (configuration.screenHeightDp.dp + 32.dp).coerceAtLeast(520.dp)
     }
-    val compactBottomSheetState = rememberStandardBottomSheetState(
-        initialValue = SheetValue.PartiallyExpanded,
-        skipHiddenState = true,
-    )
-    val compactBottomSheetScaffoldState = rememberBottomSheetScaffoldState(
-        bottomSheetState = compactBottomSheetState,
-    )
-    val coroutineScope = rememberCoroutineScope()
+    val compactPaneHoveredHeight = remember(configuration.screenHeightDp, compactPaneHeight) {
+        (configuration.screenHeightDp.dp * 0.52f)
+            .coerceAtLeast(360.dp)
+            .coerceAtMost(compactPaneHeight - 96.dp)
+    }
     val density = LocalDensity.current
+    var compactPaneAnchor by rememberSaveable {
+        mutableStateOf(CompactDetailsPaneAnchor.Collapsed)
+    }
+    var compactPaneOffsetPx by remember { mutableFloatStateOf(Float.NaN) }
+    val compactPaneOffsetAnimator = remember { Animatable(0f) }
+    var compactPaneHostHeightPx by remember { mutableFloatStateOf(0f) }
+    var isCompactPaneDragging by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val compactPaneHeightPx = with(density) { compactPaneHeight.toPx() }
+    val compactPaneCollapsedHeightPx = with(density) { compactPaneCollapsedHeight.toPx() }
+    val compactPaneHoveredHeightPx = with(density) { compactPaneHoveredHeight.toPx() }
+    val compactPaneFullOffsetPx = remember(compactPaneHostHeightPx, compactPaneHeightPx) {
+        compactPaneFullOffsetPx(
+            hostHeightPx = compactPaneHostHeightPx,
+            paneHeightPx = compactPaneHeightPx,
+        )
+    }
+    val compactPaneCollapsedOffsetPx = remember(compactPaneHostHeightPx, compactPaneCollapsedHeightPx) {
+        compactPaneCollapsedOffsetPx(
+            hostHeightPx = compactPaneHostHeightPx,
+            collapsedHeightPx = compactPaneCollapsedHeightPx,
+        )
+    }
+    val compactPaneHoveredOffsetPx = remember(
+        compactPaneHostHeightPx,
+        compactPaneHoveredHeightPx,
+        compactPaneFullOffsetPx,
+        compactPaneCollapsedOffsetPx,
+    ) {
+        compactPaneHoveredOffsetPx(
+            hostHeightPx = compactPaneHostHeightPx,
+            hoveredHeightPx = compactPaneHoveredHeightPx,
+            fullOffset = compactPaneFullOffsetPx,
+            collapsedOffset = compactPaneCollapsedOffsetPx,
+        )
+    }
+    val compactPaneDragState = rememberDraggableState { delta ->
+        val fallbackOffset = compactPaneOffsetForAnchor(
+            anchor = compactPaneAnchor,
+            fullOffset = compactPaneFullOffsetPx,
+            hoveredOffset = compactPaneHoveredOffsetPx,
+            collapsedOffset = compactPaneCollapsedOffsetPx,
+        )
+        val fullOffset = compactPaneFullOffsetPx
+        val collapsedOffset = compactPaneCollapsedOffsetPx
+        val nextOffset = ((compactPaneOffsetPx.takeIf(Float::isFinite) ?: fallbackOffset) + delta)
+            .coerceIn(fullOffset, collapsedOffset)
+        compactPaneOffsetPx = nextOffset
+        coroutineScope.launch {
+            compactPaneOffsetAnimator.stop()
+            compactPaneOffsetAnimator.snapTo(nextOffset)
+        }
+        isCompactPaneDragging = true
+    }
+    val compactPaneDragModifier = Modifier.draggable(
+        state = compactPaneDragState,
+        orientation = Orientation.Vertical,
+        onDragStopped = { velocity ->
+            compactPaneAnchor = resolveCompactPaneAnchor(
+                currentOffset = compactPaneOffsetPx.takeIf(Float::isFinite) ?: compactPaneCollapsedOffsetPx,
+                velocity = velocity,
+                fullOffset = compactPaneFullOffsetPx,
+                hoveredOffset = compactPaneHoveredOffsetPx,
+                collapsedOffset = compactPaneCollapsedOffsetPx,
+            )
+            isCompactPaneDragging = false
+        },
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val toolbarGapPx = with(density) { 12.dp.toPx() }
-    val compactSheetPeekHeightPx = with(density) { compactSheetPeekHeight.toPx() }
-    val compactPaneHeightPx = with(density) { compactPaneHeight.toPx() }
-    val estimatedCompactHostHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var lastToolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -233,8 +334,43 @@ fun DetailsScreen(
             landscapeLeftScrollState.scrollTo(0)
         }
     }
+    LaunchedEffect(
+        isWideAdaptiveLayout,
+        compactPaneAnchor,
+        compactPaneHostHeightPx,
+        compactPaneFullOffsetPx,
+        compactPaneHoveredOffsetPx,
+        compactPaneCollapsedOffsetPx,
+        isCompactPaneDragging,
+    ) {
+        if (isWideAdaptiveLayout || compactPaneHostHeightPx <= 0f || isCompactPaneDragging) {
+            return@LaunchedEffect
+        }
+        val targetOffset = compactPaneOffsetForAnchor(
+            anchor = compactPaneAnchor,
+            fullOffset = compactPaneFullOffsetPx,
+            hoveredOffset = compactPaneHoveredOffsetPx,
+            collapsedOffset = compactPaneCollapsedOffsetPx,
+        )
+        if (!compactPaneOffsetPx.isFinite()) {
+            compactPaneOffsetPx = targetOffset
+            compactPaneOffsetAnimator.snapTo(targetOffset)
+            return@LaunchedEffect
+        }
+        compactPaneOffsetAnimator.stop()
+        compactPaneOffsetAnimator.animateTo(
+            targetValue = targetOffset,
+            animationSpec = tween(
+                durationMillis = compactPaneAnimationDurationMillis(compactPaneAnchor),
+                easing = FastOutSlowInEasing,
+            ),
+        ) {
+            compactPaneOffsetPx = value
+        }
+    }
     val collapseProgress by remember(
         scrollState,
+        landscapeLeftScrollState,
         toolbarBottomPx,
         infoCardTopPx,
         initialInfoCardTopPx,
@@ -254,30 +390,50 @@ fun DetailsScreen(
             }
         }
     }
-    val compactSheetExpansionProgress by remember(
-        compactBottomSheetState,
-        compactSheetPeekHeightPx,
-        compactPaneHeightPx,
-        estimatedCompactHostHeightPx,
+    val toolbarTitleProgress by remember(
+        scrollState,
+        landscapeLeftScrollState,
+        toolbarBottomPx,
+        infoCardTopPx,
+        initialInfoCardTopPx,
+        toolbarGapPx,
+        isWideAdaptiveLayout,
     ) {
         derivedStateOf {
-            val currentOffset = runCatching { compactBottomSheetState.requireOffset() }.getOrNull()
-            if (currentOffset == null) {
-                when (compactBottomSheetState.currentValue) {
-                    SheetValue.Expanded -> 1f
-                    else -> 0f
-                }
+            val targetTop = toolbarBottomPx + toolbarGapPx
+            if (toolbarBottomPx.isFinite() && infoCardTopPx.isFinite() && initialInfoCardTopPx.isFinite()) {
+                val travelDistance = (initialInfoCardTopPx - targetTop).coerceAtLeast(1f)
+                ((initialInfoCardTopPx - infoCardTopPx) / travelDistance).coerceIn(0f, 1f)
             } else {
-                val expandedOffset = (estimatedCompactHostHeightPx - compactPaneHeightPx).coerceAtLeast(0f)
-                val partiallyExpandedOffset = (estimatedCompactHostHeightPx - compactSheetPeekHeightPx)
-                    .coerceAtLeast(expandedOffset + 1f)
-                ((partiallyExpandedOffset - currentOffset) / (partiallyExpandedOffset - expandedOffset))
-                    .coerceIn(0f, 1f)
+                val fallbackScroll = if (isWideAdaptiveLayout) {
+                    landscapeLeftScrollState.value
+                } else {
+                    scrollState.value
+                }
+                (fallbackScroll / 360f).coerceIn(0f, 1f)
             }
         }
     }
+    val compactSheetExpansionProgress by remember(
+        compactPaneOffsetPx,
+        compactPaneFullOffsetPx,
+        compactPaneCollapsedOffsetPx,
+    ) {
+        derivedStateOf {
+            val currentOffset = compactPaneOffsetPx
+                .takeIf(Float::isFinite)
+                ?: compactPaneOffsetForAnchor(
+                    anchor = compactPaneAnchor,
+                    fullOffset = compactPaneFullOffsetPx,
+                    hoveredOffset = compactPaneHoveredOffsetPx,
+                    collapsedOffset = compactPaneCollapsedOffsetPx,
+                )
+            val travelDistance = (compactPaneCollapsedOffsetPx - compactPaneFullOffsetPx).coerceAtLeast(1f)
+            ((compactPaneCollapsedOffsetPx - currentOffset) / travelDistance).coerceIn(0f, 1f)
+        }
+    }
     val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
-    val isCompactPaneFullyExpanded = !isWideAdaptiveLayout && compactBottomSheetState.currentValue == SheetValue.Expanded
+    val isCompactPaneFullyExpanded = !isWideAdaptiveLayout && compactPaneAnchor == CompactDetailsPaneAnchor.Full
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val overlayTopBarInset = remember(isWideAdaptiveLayout, toolbarBottomPx, lastToolbarBottomPx, density, statusBarTopPadding) {
         if (isWideAdaptiveLayout) {
@@ -299,6 +455,38 @@ fun DetailsScreen(
         animationSpec = tween(durationMillis = 180),
         label = "details_compact_top_bar_alpha",
     )
+    val animatedHeaderCoverVisualAlpha by animateFloatAsState(
+        targetValue = if (isWideAdaptiveLayout) {
+            1f
+        } else {
+            (1f - compactSheetExpansionProgress).coerceIn(0f, 1f)
+        },
+        animationSpec = tween(durationMillis = 220),
+        label = "details_header_cover_visual_alpha",
+    )
+    val headerCoverVisualAlpha = if (isHeroOverlayVisible) {
+        0f
+    } else {
+        animatedHeaderCoverVisualAlpha
+    }
+
+    val handleBackPress = remember(isWideAdaptiveLayout, compactPaneAnchor, onBackClick) {
+        {
+            if (isWideAdaptiveLayout) {
+                onBackClick()
+            } else {
+                when (compactPaneAnchor) {
+                    CompactDetailsPaneAnchor.Full -> compactPaneAnchor = CompactDetailsPaneAnchor.Hovered
+                    CompactDetailsPaneAnchor.Hovered -> compactPaneAnchor = CompactDetailsPaneAnchor.Collapsed
+                    CompactDetailsPaneAnchor.Collapsed -> onBackClick()
+                }
+            }
+        }
+    }
+
+    BackHandler(enabled = !isWideAdaptiveLayout && compactPaneAnchor != CompactDetailsPaneAnchor.Collapsed) {
+        handleBackPress()
+    }
 
     LaunchedEffect(sheetTabSelection, isCompactPaneFullyExpanded) {
         if (sheetTabSelection != DETAILS_TAB_CHAPTERS || !isCompactPaneFullyExpanded) {
@@ -319,8 +507,7 @@ fun DetailsScreen(
 
     val openPaneTab: (Int) -> Unit = remember(
         availableTabIds,
-        compactBottomSheetState,
-        coroutineScope,
+        compactPaneAnchor,
         isWideAdaptiveLayout,
         settings,
     ) {
@@ -329,8 +516,10 @@ fun DetailsScreen(
             selectedPaneTabId = resolvedTab
             settings.lastDetailsTab = resolvedTab
             if (!isWideAdaptiveLayout) {
-                coroutineScope.launch {
-                    compactBottomSheetState.expand()
+                compactPaneAnchor = if (compactPaneAnchor == CompactDetailsPaneAnchor.Full) {
+                    CompactDetailsPaneAnchor.Full
+                } else {
+                    CompactDetailsPaneAnchor.Hovered
                 }
             }
         }
@@ -353,31 +542,44 @@ fun DetailsScreen(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        if (settings.isPanoramaCoverEnabled) {
-            val coverUrl = mangaDetails?.toContent()?.coverUrl
-            val request = remember(coverUrl) {
-                ImageRequest.Builder(context)
-                    .data(coverUrl)
-                    .apply { mangaDetails?.toContent()?.let { mangaExtra(it) } }
-                    .build()
-            }
-            AnimatedPanoramaBackdrop(
-                settings = settings,
-                model = request,
-                contentAlpha = 0.6f * (1f - collapseProgress),
-                backgroundColor = MaterialTheme.colorScheme.surface,
+    val detailsHazeState = remember { HazeState() }
+    val useBackgroundHaze = remember { Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
+
+    CompositionLocalProvider(LocalHazeState provides detailsHazeState) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-            )
-        }
+                    .then(if (useBackgroundHaze) Modifier.haze(detailsHazeState) else Modifier),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(MaterialTheme.colorScheme.surface),
+                )
+                if (settings.isPanoramaCoverEnabled) {
+                    val request = remember(content?.source?.name, content?.url, resolvedCoverUrl) {
+                        ImageRequest.Builder(context)
+                            .data(resolvedCoverUrl)
+                            .apply { content?.let { mangaExtra(it) } }
+                            .build()
+                    }
+                    AnimatedPanoramaBackdrop(
+                        settings = settings,
+                        model = request,
+                        contentAlpha = 0.6f * (1f - collapseProgress),
+                        backgroundColor = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
 
-        val commonTopBar: @Composable () -> Unit = {
+            val commonTopBar: @Composable () -> Unit = {
             TopAppBar(
                 title = {
-                    if (collapseProgress > 0.92f) {
+                    if (toolbarTitleProgress > 0.92f) {
                         Text(
                             text = toolbarTitle,
                             maxLines = 1,
@@ -385,8 +587,8 @@ fun DetailsScreen(
                         )
                     }
                 },
-                navigationIcon = {
-                    DetailsChromeButton(onClick = onBackClick) {
+                    navigationIcon = {
+                    DetailsChromeButton(onClick = handleBackPress) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back),
@@ -415,6 +617,7 @@ fun DetailsScreen(
                     }
                     DetailsOverflowMenu(
                         contentTitle = content?.title,
+                        showTranslateAction = showTranslateAction,
                         hasTranslationCache = hasTranslationCache,
                         isShowingTranslation = isShowingTranslation,
                         isTranslating = isTranslating,
@@ -452,9 +655,9 @@ fun DetailsScreen(
                     }
                 },
             )
-        }
+            }
 
-        if (isWideAdaptiveLayout) {
+            if (isWideAdaptiveLayout) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -485,14 +688,17 @@ fun DetailsScreen(
                         isShowingTranslation = isShowingTranslation,
                         hasTranslationCache = hasTranslationCache,
                         isTranslating = isTranslating,
+                        showTranslateAction = showTranslateAction,
                         collapseProgress = 0f,
+                        coverVisualAlpha = if (isHeroOverlayVisible) 0f else 1f,
+                        coverUrl = resolvedCoverUrl,
                         content = content,
                         pendingTagSearch = { pendingTagSearch = it },
                         pendingAuthorSearch = { author, source ->
                             pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                         },
                         onCoverBoundsSync = onCoverBoundsSync,
-                        onInfoCardTopSync = { /* no-op in landscape */ },
+                        onInfoCardTopSync = { infoCardTopPx = it },
                         onFavoriteClick = { showFavoriteDialog = true },
                         onActionClick = handleActionClick,
                     )
@@ -547,23 +753,68 @@ fun DetailsScreen(
                     )
                 }
             }
-        } else {
-            BottomSheetScaffold(
-                scaffoldState = compactBottomSheetScaffoldState,
-                containerColor = Color.Transparent,
-                snackbarHost = { SnackbarHost(snackbarHostState) },
-                sheetPeekHeight = compactSheetPeekHeight,
-                sheetDragHandle = null,
-                sheetSwipeEnabled = true,
-                sheetContainerColor = Color.Transparent,
-                sheetShape = if (compactSheetExpansionProgress >= 0.96f) {
-                    RoundedCornerShape(0.dp)
-                } else {
-                    RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-                },
-                sheetContent = {
+            } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { size ->
+                        compactPaneHostHeightPx = size.height.toFloat()
+                    },
+            ) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = Color.Transparent,
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
+                ) { paddingValues ->
+                    DetailsScrollableContent(
+                        modifier = Modifier.fillMaxSize(),
+                        scrollState = scrollState,
+                        contentPadding = paddingValues,
+                        headerTopSpacing = detailsHeaderTopSpacing,
+                        bottomSpacerHeight = compactPaneCollapsedHeight + 28.dp,
+                        mangaDetails = mangaDetails,
+                        favouriteCategories = favouriteCategories,
+                        historyInfo = historyInfo,
+                        linkedTrackingItems = linkedTrackingItems,
+                        trackingSuggestion = trackingSuggestion,
+                        translatedTitle = translatedTitle,
+                        translatedDescription = translatedDescription,
+                        isShowingTranslation = isShowingTranslation,
+                        hasTranslationCache = hasTranslationCache,
+                        isTranslating = isTranslating,
+                        showTranslateAction = showTranslateAction,
+                        collapseProgress = collapseProgress,
+                        coverVisualAlpha = headerCoverVisualAlpha,
+                        coverUrl = resolvedCoverUrl,
+                        content = content,
+                        pendingTagSearch = { pendingTagSearch = it },
+                        pendingAuthorSearch = { author, source ->
+                            pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
+                        },
+                        onCoverBoundsSync = onCoverBoundsSync,
+                        onInfoCardTopSync = { top -> infoCardTopPx = top },
+                        onFavoriteClick = { showFavoriteDialog = true },
+                        onActionClick = handleActionClick,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .offset {
+                            IntOffset(
+                                x = 0,
+                                y = compactPaneOffsetPx
+                                    .takeIf(Float::isFinite)
+                                    ?.roundToInt()
+                                    ?: compactPaneCollapsedOffsetPx.roundToInt(),
+                            )
+                        },
+                ) {
                     DetailsPaneContent(
-                        modifier = Modifier.height(compactPaneHeight),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(compactPaneHeight),
                         contentType = contentType,
                         historyInfo = historyInfo,
                         branches = branches,
@@ -602,38 +853,11 @@ fun DetailsScreen(
                             settings.lastDetailsTab = resolvedTab
                         },
                         onActionClick = handleActionClick,
+                        paneDragModifier = compactPaneDragModifier,
                     )
-                },
-            ) { paddingValues ->
-                DetailsScrollableContent(
-                    modifier = Modifier.fillMaxSize(),
-                    scrollState = scrollState,
-                    contentPadding = paddingValues,
-                    headerTopSpacing = detailsHeaderTopSpacing,
-                    bottomSpacerHeight = compactSheetPeekHeight + 28.dp,
-                    mangaDetails = mangaDetails,
-                    favouriteCategories = favouriteCategories,
-                    historyInfo = historyInfo,
-                    linkedTrackingItems = linkedTrackingItems,
-                    trackingSuggestion = trackingSuggestion,
-                    translatedTitle = translatedTitle,
-                    translatedDescription = translatedDescription,
-                    isShowingTranslation = isShowingTranslation,
-                    hasTranslationCache = hasTranslationCache,
-                    isTranslating = isTranslating,
-                    collapseProgress = collapseProgress,
-                    content = content,
-                    pendingTagSearch = { pendingTagSearch = it },
-                    pendingAuthorSearch = { author, source ->
-                        pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
-                    },
-                    onCoverBoundsSync = onCoverBoundsSync,
-                    onInfoCardTopSync = { top -> infoCardTopPx = top },
-                    onFavoriteClick = { showFavoriteDialog = true },
-                    onActionClick = handleActionClick,
-                )
+                }
             }
-            if (compactTopBarAlpha > 0.01f) {
+                if (compactTopBarAlpha > 0.01f) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -641,10 +865,10 @@ fun DetailsScreen(
                 ) {
                     commonTopBar()
                 }
+                }
             }
-        }
 
-        pendingAuthorSearch?.let { pending ->
+            pendingAuthorSearch?.let { pending ->
             SearchTargetDialog(
                 iconRes = R.drawable.ic_user,
                 title = pending.author,
@@ -659,9 +883,9 @@ fun DetailsScreen(
                     handleActionClick(DetailsAction.SearchAuthorEverywhere(pending.author))
                 },
             )
-        }
+            }
 
-        pendingTagSearch?.let { tag ->
+            pendingTagSearch?.let { tag ->
             SearchTargetDialog(
                 iconRes = R.drawable.ic_tag,
                 title = tag.title,
@@ -676,9 +900,9 @@ fun DetailsScreen(
                     handleActionClick(DetailsAction.SearchTagEverywhere(tag.title))
                 },
             )
-        }
+            }
 
-        if (showShareOptions && content != null) {
+            if (showShareOptions && content != null) {
             ShareOptionsDialog(
                 title = content.title,
                 sourceTitle = rememberResolvedSourceTitle(content.source),
@@ -702,9 +926,9 @@ fun DetailsScreen(
                     )
                 },
             )
-        }
+            }
 
-        if (showDeleteLocalDialog && content != null) {
+            if (showDeleteLocalDialog && content != null) {
             DeleteLocalDialog(
                 title = content.title,
                 onDismissRequest = { showDeleteLocalDialog = false },
@@ -713,9 +937,9 @@ fun DetailsScreen(
                     handleActionClick(DetailsAction.DeleteLocal)
                 },
             )
-        }
+            }
 
-        if (showFavoriteDialog && content != null) {
+            if (showFavoriteDialog && content != null) {
             val allCategories by viewModel.allCategories.collectAsState()
             val memberCategoryIds = remember(favouriteCategories) {
                 favouriteCategories.mapTo(mutableSetOf()) { it.id }
@@ -733,18 +957,18 @@ fun DetailsScreen(
                 },
                 onDismiss = { showFavoriteDialog = false },
             )
-        }
+            }
 
-        if (showDownloadDialog && content != null) {
+            if (showDownloadDialog && content != null) {
             DownloadDialog(
                 mangaList = listOf(content),
                 snackbarHostState = snackbarHostState,
                 viewModel = downloadDialogViewModel,
                 onDismiss = { showDownloadDialog = false },
             )
-        }
+            }
 
-        if (showStatsDialog && content != null) {
+            if (showStatsDialog && content != null) {
             ContentStatsDialog(
                 viewModel = statsViewModel,
                 onDismissRequest = { showStatsDialog = false },
@@ -752,13 +976,14 @@ fun DetailsScreen(
                     showStatsDialog = false
                 },
             )
-        }
+            }
 
-        if (showScrobblingDialog && content != null) {
+            if (showScrobblingDialog && content != null) {
             ScrobblingSelectorDialog(
                 viewModel = scrobblingViewModel,
                 onDismissRequest = { showScrobblingDialog = false },
             )
+            }
         }
     }
 }
@@ -775,7 +1000,10 @@ private fun DetailsScrollableContent(
     isShowingTranslation: Boolean,
     hasTranslationCache: Boolean,
     isTranslating: Boolean,
+    showTranslateAction: Boolean,
     collapseProgress: Float,
+    coverVisualAlpha: Float,
+    coverUrl: String?,
     content: org.skepsun.kototoro.parsers.model.Content?,
     scrollState: androidx.compose.foundation.ScrollState,
     modifier: Modifier = Modifier,
@@ -789,6 +1017,7 @@ private fun DetailsScrollableContent(
     onFavoriteClick: () -> Unit,
     onActionClick: (DetailsAction) -> Unit,
 ) {
+    val context = LocalContext.current
     val source = content?.source
     Column(
         modifier = modifier
@@ -809,7 +1038,10 @@ private fun DetailsScrollableContent(
             isShowingTranslation = isShowingTranslation,
             hasTranslationCache = hasTranslationCache,
             isTranslating = isTranslating,
+            showTranslateAction = showTranslateAction,
             collapseProgress = collapseProgress,
+            coverVisualAlpha = coverVisualAlpha,
+            coverUrl = coverUrl,
             onCoverBoundsSync = onCoverBoundsSync,
             onInfoCardTopSync = onInfoCardTopSync,
             onCoverClick = { onActionClick(DetailsAction.OpenCover) },
@@ -822,6 +1054,13 @@ private fun DetailsScrollableContent(
             },
             onTagClick = pendingTagSearch,
             onTranslateClick = { onActionClick(DetailsAction.Translate) },
+            onTranslateLongClick = {
+                Toast.makeText(
+                    context,
+                    R.string.details_translate_title_and_description_hint,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            },
             onToggleTranslationClick = { onActionClick(DetailsAction.ToggleTranslation) },
             onOpenLinkedTracking = { linked ->
                 onActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url))
@@ -871,12 +1110,13 @@ private fun DetailsPaneContent(
     onSelectedTabIdChange: (Int) -> Unit,
     onActionClick: (DetailsAction) -> Unit,
     modifier: Modifier = Modifier,
+    paneDragModifier: Modifier = Modifier,
 ) {
     val paneOpacityProgress = easedOpacityProgress(sheetExpansionProgress)
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isStatusBarHandleVisible = showCollapsedHandle && isSheetFullyExpanded
-    val opaquePaneOverlayAlpha = if (showCollapsedHandle && isSheetFullyExpanded) {
-        ((paneOpacityProgress - 0.74f) / 0.26f).coerceIn(0f, 1f)
+    val opaquePaneOverlayAlpha = if (showCollapsedHandle) {
+        lerpFloat(0f, 0.14f, paneOpacityProgress)
     } else {
         0f
     }
@@ -885,96 +1125,102 @@ private fun DetailsPaneContent(
     } else {
         RoundedCornerShape(28.dp)
     }
-    val paneModifier = Modifier
-        .fillMaxWidth()
-        .then(modifier)
-    GlassSurface(
-        modifier = paneModifier,
-        style = if (showCollapsedHandle) {
-            GlassDefaults.prominentStyle().copy(
-                containerAlpha = lerpFloat(0.18f, 1f, paneOpacityProgress),
-                borderAlpha = lerpFloat(0.10f, 0f, paneOpacityProgress),
-                shadowElevation = 0.dp,
-            )
-        } else {
-            GlassDefaults.prominentStyle().copy(
-                containerAlpha = 0.94f,
-                borderAlpha = 0.06f,
-                shadowElevation = 0.dp,
-            )
-        },
-        shape = paneShape,
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        Box(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-        ) {
-            if (opaquePaneOverlayAlpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = opaquePaneOverlayAlpha)),
+                .then(modifier),
+            style = if (showCollapsedHandle) {
+                GlassDefaults.prominentStyle().copy(
+                    containerAlpha = lerpFloat(0.24f, 0.90f, paneOpacityProgress),
+                    borderAlpha = lerpFloat(0.12f, 0.04f, paneOpacityProgress),
+                    shadowElevation = 0.dp,
                 )
-            }
-            Column(
+            } else {
+                GlassDefaults.prominentStyle().copy(
+                    containerAlpha = 0.94f,
+                    borderAlpha = 0.06f,
+                    shadowElevation = 0.dp,
+                )
+            },
+            shape = paneShape,
+        ) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = if (isStatusBarHandleVisible) statusBarTopPadding + 8.dp else 0.dp),
             ) {
-                DetailsPaneActionsRow(
-                    selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
-                    isSheetFullyExpanded = isSheetFullyExpanded,
-                    sheetExpansionProgress = sheetExpansionProgress,
-                    isChapterSearchVisible = isChapterSearchVisible,
-                    isChapterSearchAvailable = isChapterSearchAvailable,
-                    isChaptersReversed = isChaptersReversed,
-                    isChaptersInGridView = isChaptersInGridView,
-                    isDownloadedOnly = isDownloadedOnly,
-                    isDownloadedFilterVisible = isDownloadedFilterVisible,
-                    onChapterSearchToggle = onChapterSearchToggle,
-                    onToggleChaptersReversed = onToggleChaptersReversed,
-                    onToggleChaptersGrid = onToggleChaptersGrid,
-                    onToggleDownloadedOnly = onToggleDownloadedOnly,
-                    showCollapsedHandle = showCollapsedHandle && !isStatusBarHandleVisible,
-                    contentType = contentType,
-                    historyInfo = historyInfo,
-                    branches = branches,
-                    isLoading = isLoading,
-                    onActionClick = onActionClick,
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                ) {
-                    ChaptersPagesTabsContent(
-                        viewModel = viewModel,
-                        pagesViewModel = pagesViewModel,
-                        bookmarksViewModel = bookmarksViewModel,
-                        settings = settings,
-                        appRouter = appRouter,
-                        pageSaveHelper = pageSaveHelper,
-                        selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
-                        showTabStrip = false,
-                        chapterQuery = chapterQuery,
-                        isChapterSearchVisible = isChapterSearchVisible,
-                        onChapterQueryChange = onChapterQueryChange,
-                        onSelectedTabIdChange = { tabId ->
-                            val resolvedTab = resolveDetailsTabSelection(tabId, availableTabIds)
-                            onSelectedTabIdChange(resolvedTab)
-                        },
+                if (opaquePaneOverlayAlpha > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = opaquePaneOverlayAlpha)),
                     )
                 }
-            }
-            if (isStatusBarHandleVisible) {
-                Box(
+                Column(
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = (statusBarTopPadding * 0.5f).coerceAtLeast(8.dp)),
+                        .fillMaxWidth()
+                        .padding(top = if (isStatusBarHandleVisible) statusBarTopPadding + 8.dp else 0.dp),
                 ) {
-                    DetailsPaneDragHandle(
-                        modifier = Modifier.alpha(lerpFloat(0.68f, 1f, paneOpacityProgress)),
+                    DetailsPaneActionsRow(
+                        modifier = paneDragModifier,
+                        selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
+                        isSheetFullyExpanded = isSheetFullyExpanded,
+                        sheetExpansionProgress = sheetExpansionProgress,
+                        isChapterSearchVisible = isChapterSearchVisible,
+                        isChapterSearchAvailable = isChapterSearchAvailable,
+                        isChaptersReversed = isChaptersReversed,
+                        isChaptersInGridView = isChaptersInGridView,
+                        isDownloadedOnly = isDownloadedOnly,
+                        isDownloadedFilterVisible = isDownloadedFilterVisible,
+                        onChapterSearchToggle = onChapterSearchToggle,
+                        onToggleChaptersReversed = onToggleChaptersReversed,
+                        onToggleChaptersGrid = onToggleChaptersGrid,
+                        onToggleDownloadedOnly = onToggleDownloadedOnly,
+                        showCollapsedHandle = showCollapsedHandle && !isStatusBarHandleVisible,
+                        contentType = contentType,
+                        historyInfo = historyInfo,
+                        branches = branches,
+                        isLoading = isLoading,
+                        onActionClick = onActionClick,
                     )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    ) {
+                        ChaptersPagesTabsContent(
+                            viewModel = viewModel,
+                            pagesViewModel = pagesViewModel,
+                            bookmarksViewModel = bookmarksViewModel,
+                            settings = settings,
+                            appRouter = appRouter,
+                            pageSaveHelper = pageSaveHelper,
+                            selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
+                            showTabStrip = false,
+                            chapterQuery = chapterQuery,
+                            isChapterSearchVisible = isChapterSearchVisible,
+                            onChapterQueryChange = onChapterQueryChange,
+                            onSelectedTabIdChange = { tabId ->
+                                val resolvedTab = resolveDetailsTabSelection(tabId, availableTabIds)
+                                onSelectedTabIdChange(resolvedTab)
+                            },
+                        )
+                    }
+                }
+                if (isStatusBarHandleVisible) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = (statusBarTopPadding * 0.5f).coerceAtLeast(8.dp))
+                            .then(paneDragModifier),
+                    ) {
+                        DetailsPaneDragHandle(
+                            modifier = Modifier.alpha(lerpFloat(0.68f, 1f, paneOpacityProgress)),
+                        )
+                    }
                 }
             }
         }
@@ -983,6 +1229,7 @@ private fun DetailsPaneContent(
 
 @Composable
 private fun DetailsPaneActionsRow(
+    modifier: Modifier = Modifier,
     selectedTabId: Int,
     isSheetFullyExpanded: Boolean,
     sheetExpansionProgress: Float,
@@ -1006,6 +1253,7 @@ private fun DetailsPaneActionsRow(
     val paneOpacityProgress = easedOpacityProgress(sheetExpansionProgress)
     Column(
         modifier = Modifier
+            .then(modifier)
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1170,9 +1418,7 @@ private fun ExpandedPaneUtilityDock(
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.reverse)) },
                 leadingIcon = {
-                    if (isChaptersReversed) {
-                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                    }
+                    MenuSelectionIndicator(selected = isChaptersReversed)
                 },
                 onClick = {
                     expanded = false
@@ -1182,9 +1428,7 @@ private fun ExpandedPaneUtilityDock(
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.chapters_grid_view)) },
                 leadingIcon = {
-                    if (isChaptersInGridView) {
-                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                    }
+                    MenuSelectionIndicator(selected = isChaptersInGridView)
                 },
                 onClick = {
                     expanded = false
@@ -1195,9 +1439,7 @@ private fun ExpandedPaneUtilityDock(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.downloaded)) },
                     leadingIcon = {
-                        if (isDownloadedOnly) {
-                            Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                        }
+                        MenuSelectionIndicator(selected = isDownloadedOnly)
                     },
                     onClick = {
                         expanded = false
@@ -1205,6 +1447,36 @@ private fun ExpandedPaneUtilityDock(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun MenuSelectionIndicator(
+    selected: Boolean,
+) {
+    val strokeColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.48f)
+    }
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .border(
+                width = 1.5.dp,
+                color = strokeColor,
+                shape = RoundedCornerShape(5.dp),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = strokeColor,
+                modifier = Modifier.size(12.dp),
+            )
         }
     }
 }
@@ -1308,32 +1580,30 @@ private fun ReadDock(
     onBranchSelected: (String?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedBranch = branches.firstOrNull { it.isSelected } ?: branches.firstOrNull()
     val hasBranchOptions = branches.size > 1
     val canOpenIncognito = !historyInfo.isIncognitoMode
     val canForgetHistory = historyInfo.history != null
     val hasQuickActions = canOpenIncognito || canForgetHistory || isDownloadAvailable
     val hasMenuActions = hasQuickActions || hasBranchOptions
-    val menuLabel = if (hasBranchOptions) {
-        selectedBranch?.name ?: stringResource(R.string.system_default)
-    } else {
-        stringResource(R.string.options)
-    }
 
     GlassBottomBarContainer(
         modifier = modifier.height(52.dp),
         style = GlassDefaults.prominentStyle().copy(
-            containerAlpha = lerpFloat(0.22f, 1f, sheetExpansionProgress),
-            borderAlpha = lerpFloat(0.10f, 0f, sheetExpansionProgress),
+            containerAlpha = lerpFloat(0.48f, 0.96f, sheetExpansionProgress),
+            borderAlpha = lerpFloat(0.12f, 0.03f, sheetExpansionProgress),
             shadowElevation = 0.dp,
         ),
     ) {
         Box {
-            Row {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 TextButton(
                     onClick = onReadClick,
                     enabled = isEnabled,
-                    modifier = Modifier.height(52.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
                 ) {
                     Text(
                         text = readLabel,
@@ -1352,17 +1622,17 @@ private fun ReadDock(
                 TextButton(
                     onClick = { expanded = true },
                     enabled = hasMenuActions,
-                    modifier = Modifier.height(52.dp),
+                    modifier = Modifier
+                        .width(52.dp)
+                        .height(52.dp),
                 ) {
-                    Text(
-                        text = menuLabel,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = stringResource(R.string.options),
-                        modifier = Modifier.padding(start = 4.dp),
+                        contentDescription = if (hasBranchOptions) {
+                            stringResource(R.string.system_default)
+                        } else {
+                            stringResource(R.string.options)
+                        },
                     )
                 }
             }
@@ -1430,6 +1700,92 @@ private fun ReadDock(
     }
 }
 
+private enum class CompactDetailsPaneAnchor {
+    Collapsed,
+    Hovered,
+    Full,
+}
+
+private fun compactPaneFullOffsetPx(
+    hostHeightPx: Float,
+    paneHeightPx: Float,
+): Float {
+    if (hostHeightPx <= 0f) return 0f
+    return (hostHeightPx - paneHeightPx).coerceAtLeast(0f)
+}
+
+private fun compactPaneCollapsedOffsetPx(
+    hostHeightPx: Float,
+    collapsedHeightPx: Float,
+): Float {
+    if (hostHeightPx <= 0f) return 0f
+    return (hostHeightPx - collapsedHeightPx).coerceAtLeast(0f)
+}
+
+private fun compactPaneHoveredOffsetPx(
+    hostHeightPx: Float,
+    hoveredHeightPx: Float,
+    fullOffset: Float,
+    collapsedOffset: Float,
+): Float {
+    if (hostHeightPx <= 0f || collapsedOffset <= fullOffset) {
+        return fullOffset
+    }
+    val rawOffset = (hostHeightPx - hoveredHeightPx).coerceAtLeast(0f)
+    val edgePadding = minOf(28f, (collapsedOffset - fullOffset) / 3f)
+    return rawOffset.coerceIn(fullOffset + edgePadding, collapsedOffset - edgePadding)
+}
+
+private fun compactPaneOffsetForAnchor(
+    anchor: CompactDetailsPaneAnchor,
+    fullOffset: Float,
+    hoveredOffset: Float,
+    collapsedOffset: Float,
+): Float {
+    return when (anchor) {
+        CompactDetailsPaneAnchor.Collapsed -> collapsedOffset
+        CompactDetailsPaneAnchor.Hovered -> hoveredOffset
+        CompactDetailsPaneAnchor.Full -> fullOffset
+    }
+}
+
+private fun compactPaneAnimationDurationMillis(
+    anchor: CompactDetailsPaneAnchor,
+): Int {
+    return when (anchor) {
+        CompactDetailsPaneAnchor.Collapsed -> 420
+        CompactDetailsPaneAnchor.Hovered -> 440
+        CompactDetailsPaneAnchor.Full -> 480
+    }
+}
+
+private fun resolveCompactPaneAnchor(
+    currentOffset: Float,
+    velocity: Float,
+    fullOffset: Float,
+    hoveredOffset: Float,
+    collapsedOffset: Float,
+): CompactDetailsPaneAnchor {
+    val fastSwipeThreshold = 1200f
+    return when {
+        velocity <= -fastSwipeThreshold -> when {
+            currentOffset <= hoveredOffset -> CompactDetailsPaneAnchor.Full
+            else -> CompactDetailsPaneAnchor.Hovered
+        }
+
+        velocity >= fastSwipeThreshold -> when {
+            currentOffset >= hoveredOffset -> CompactDetailsPaneAnchor.Collapsed
+            else -> CompactDetailsPaneAnchor.Hovered
+        }
+
+        else -> listOf(
+            CompactDetailsPaneAnchor.Full to abs(currentOffset - fullOffset),
+            CompactDetailsPaneAnchor.Hovered to abs(currentOffset - hoveredOffset),
+            CompactDetailsPaneAnchor.Collapsed to abs(currentOffset - collapsedOffset),
+        ).minBy { it.second }.first
+    }
+}
+
 private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float {
     return start + (stop - start) * fraction.coerceIn(0f, 1f)
 }
@@ -1467,6 +1823,7 @@ private fun resolveReadActionLabel(
 @Composable
 private fun DetailsOverflowMenu(
     contentTitle: String?,
+    showTranslateAction: Boolean,
     hasTranslationCache: Boolean,
     isShowingTranslation: Boolean,
     isTranslating: Boolean,
@@ -1495,32 +1852,34 @@ private fun DetailsOverflowMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        stringResource(
-                            if (hasTranslationCache && isShowingTranslation) {
-                                R.string.details_show_original
-                            } else if (hasTranslationCache) {
-                                R.string.details_show_translation
+            if (showTranslateAction) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                if (hasTranslationCache && isShowingTranslation) {
+                                    R.string.details_show_original
+                                } else if (hasTranslationCache) {
+                                    R.string.details_show_translation
+                                } else {
+                                    R.string.translate_title
+                                },
+                            ),
+                        )
+                    },
+                    enabled = !isTranslating,
+                    onClick = {
+                        expanded = false
+                        onActionClick(
+                            if (hasTranslationCache) {
+                                DetailsAction.ToggleTranslation
                             } else {
-                                R.string.translate_title
+                                DetailsAction.Translate
                             },
-                        ),
-                    )
-                },
-                enabled = !isTranslating,
-                onClick = {
-                    expanded = false
-                    onActionClick(
-                        if (hasTranslationCache) {
-                            DetailsAction.ToggleTranslation
-                        } else {
-                            DetailsAction.Translate
-                        },
-                    )
-                },
-            )
+                        )
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(if (isNsfw) R.string.mark_as_safe else R.string.mark_as_nsfw)) },
                 onClick = {

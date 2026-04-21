@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -61,6 +62,7 @@ fun KototoroContentListScreen(
     onLoadMore: () -> Unit,
     gridScale: Float,
     selectedItemsIds: Set<Long>,
+    onPrepareItemTransition: (ContentListModel, Rect?) -> Unit = { _, _ -> },
     onItemClick: (ContentListModel) -> Unit,
     onItemLongClick: (ContentListModel) -> Unit,
     onClearSelection: () -> Unit,
@@ -128,7 +130,10 @@ fun KototoroContentListScreen(
                                     KototoroContentCardGrid(
                                         item = listModel,
                                         isSelected = listModel.manga.id in selectedItemsIds,
-                                        onClick = { onItemClick(listModel) },
+                                        onClick = { coverBounds ->
+                                            onPrepareItemTransition(listModel, coverBounds)
+                                            onItemClick(listModel)
+                                        },
                                         onLongClick = { onItemLongClick(listModel) },
                                         showSourceInfo = showSourceOnCards,
                                         gridScale = gridScale,
@@ -165,7 +170,10 @@ fun KototoroContentListScreen(
                                     KototoroContentCardList(
                                         item = listModel,
                                         isSelected = listModel.manga.id in selectedItemsIds,
-                                        onClick = { onItemClick(listModel) },
+                                        onClick = { coverBounds ->
+                                            onPrepareItemTransition(listModel, coverBounds)
+                                            onItemClick(listModel)
+                                        },
                                         onLongClick = { onItemLongClick(listModel) }
                                     )
                                 } else {
@@ -199,7 +207,10 @@ fun KototoroContentListScreen(
                                     KototoroContentCardDetailedList(
                                         item = listModel,
                                         isSelected = listModel.manga.id in selectedItemsIds,
-                                        onClick = { onItemClick(listModel) },
+                                        onClick = { coverBounds ->
+                                            onPrepareItemTransition(listModel, coverBounds)
+                                            onItemClick(listModel)
+                                        },
                                         onLongClick = { onItemLongClick(listModel) }
                                     )
                                 } else {

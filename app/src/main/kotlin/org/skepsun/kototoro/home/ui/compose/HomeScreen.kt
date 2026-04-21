@@ -36,12 +36,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
@@ -50,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -66,7 +72,7 @@ import org.skepsun.kototoro.parsers.model.Content
 fun HomeScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: HomeSummaryState,
-    onContentClick: (Content) -> Unit,
+    onContentClick: (Content, Rect?) -> Unit,
     onSettingsClick: () -> Unit,
     onReaderSettingsClick: () -> Unit,
     onSyncSettingsClick: () -> Unit,
@@ -166,7 +172,7 @@ private fun HomeHighlightsSections(
     recommendationItems: List<Content>,
     recommendationsCount: Int,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onItemClick: (Content) -> Unit,
+    onItemClick: (Content, Rect?) -> Unit,
     onViewAllRecentClick: () -> Unit,
     onViewAllUpdatesClick: () -> Unit,
     onViewAllRecommendationsClick: () -> Unit,
@@ -176,11 +182,12 @@ private fun HomeHighlightsSections(
         modifier = modifier.fillMaxWidth(),
         style = org.skepsun.kototoro.core.ui.glass.GlassDefaults.subtleStyle(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        allowRuntimeHaze = false,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             var firstSection = true
@@ -201,7 +208,7 @@ private fun HomeHighlightsSections(
             if (updateItems.isNotEmpty()) {
                 if (!firstSection) {
                     androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 2.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
                     )
                 }
@@ -220,7 +227,7 @@ private fun HomeHighlightsSections(
             if (recommendationItems.isNotEmpty()) {
                 if (!firstSection) {
                     androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 2.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
                     )
                 }
@@ -246,7 +253,7 @@ private fun HomeContentRowSection(
     items: List<Content>,
     count: Int,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onItemClick: (Content) -> Unit,
+    onItemClick: (Content, Rect?) -> Unit,
     onMoreClick: () -> Unit,
     addTopSpacing: Boolean,
     modifier: Modifier = Modifier,
@@ -305,7 +312,7 @@ private fun HomeContentRowSection(
                 HomeCoverRowItem(
                     content = item,
                     posterStyle = posterStyle,
-                    onClick = { onItemClick(item) },
+                    onClick = { coverBounds -> onItemClick(item, coverBounds) },
                 )
             }
         }
@@ -316,7 +323,7 @@ private fun HomeContentRowSection(
 private fun HomeCoverRowItem(
     content: Content,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onClick: () -> Unit,
+    onClick: (Rect?) -> Unit,
 ) {
     val context = LocalContext.current
     val imageRequest = remember(content.coverUrl, content.id) {
@@ -326,17 +333,21 @@ private fun HomeCoverRowItem(
             .apply { mangaExtra(content) }
             .build()
     }
+    var coverBounds by remember(content.id) { mutableStateOf<Rect?>(null) }
 
     Column(
         modifier = Modifier
             .width(posterStyle.itemWidth)
-            .clickable(onClick = onClick),
+            .clickable { onClick(coverBounds) },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(posterStyle.posterHeight)
+                .onGloballyPositioned { coordinates ->
+                    coverBounds = coordinates.boundsInRoot()
+                }
                 .clip(RoundedCornerShape(posterStyle.cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
@@ -344,6 +355,7 @@ private fun HomeCoverRowItem(
                 model = imageRequest,
                 contentDescription = content.title,
                 modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
             )
         }
         Text(

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,6 +44,7 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -120,6 +123,7 @@ fun KototoroTopBar(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var isMoreMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var isDisplayOptionsExpanded by rememberSaveable { mutableStateOf(false) }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
@@ -133,6 +137,12 @@ fun KototoroTopBar(
         label = "top_bar_border_alpha",
     )
     val showMoreActions = true
+
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            isDisplayOptionsExpanded = false
+        }
+    }
 
     Box(
         modifier = modifier
@@ -271,49 +281,20 @@ fun KototoroTopBar(
                                                     expanded = isMoreMenuExpanded,
                                                     onDismissRequest = { isMoreMenuExpanded = false },
                                                 ) {
-                                                    if (supportsDisplayModeMenu) {
-                                                        TopBarMenuSectionLabel(
-                                                            text = stringResource(R.string.list_mode),
-                                                        )
-                                                        TopBarListModeItem(
-                                                            iconRes = R.drawable.ic_list,
-                                                            label = stringResource(R.string.list),
-                                                            selected = currentListMode == ListMode.LIST,
-                                                            onClick = {
-                                                                isMoreMenuExpanded = false
-                                                                onListModeSelected(ListMode.LIST)
-                                                            },
-                                                        )
-                                                        TopBarListModeItem(
-                                                            iconRes = R.drawable.ic_list_detailed,
-                                                            label = stringResource(R.string.detailed_list),
-                                                            selected = currentListMode == ListMode.DETAILED_LIST,
-                                                            onClick = {
-                                                                isMoreMenuExpanded = false
-                                                                onListModeSelected(ListMode.DETAILED_LIST)
-                                                            },
-                                                        )
-                                                        TopBarListModeItem(
-                                                            iconRes = R.drawable.ic_grid,
-                                                            label = stringResource(R.string.grid),
-                                                            selected = currentListMode == ListMode.GRID,
-                                                            onClick = {
-                                                                isMoreMenuExpanded = false
-                                                                onListModeSelected(ListMode.GRID)
-                                                            },
-                                                        )
-                                                    }
-                                                    if (supportsGridSizeSlider) {
-                                                        if (supportsDisplayModeMenu) {
-                                                            HorizontalDivider()
-                                                        }
-                                                        TopBarGridSizeItem(
-                                                            title = stringResource(R.string.grid_size),
-                                                            value = gridSize,
-                                                            onValueChange = onGridSizeChange,
-                                                        )
-                                                    }
                                                     if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                                                        DropdownMenuItem(
+                                                            text = { Text(stringResource(R.string.display_options)) },
+                                                            leadingIcon = {
+                                                                Icon(
+                                                                    painter = painterResource(R.drawable.ic_grid),
+                                                                    contentDescription = null,
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                isMoreMenuExpanded = false
+                                                                isDisplayOptionsExpanded = true
+                                                            },
+                                                        )
                                                         HorizontalDivider()
                                                     }
                                                     DropdownMenuItem(
@@ -391,45 +372,161 @@ fun KototoroTopBar(
                 }
             }
         }
+        if (!expanded && isDisplayOptionsExpanded && (supportsDisplayModeMenu || supportsGridSizeSlider)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = CollapsedSearchBarHeight + 8.dp, start = 10.dp, end = 10.dp),
+            ) {
+                TopBarDisplayOptionsPanel(
+                    supportsDisplayModeMenu = supportsDisplayModeMenu,
+                    currentListMode = currentListMode,
+                    onListModeSelected = onListModeSelected,
+                    supportsGridSizeSlider = supportsGridSizeSlider,
+                    gridSize = gridSize,
+                    onGridSizeChange = onGridSizeChange,
+                    onDismiss = { isDisplayOptionsExpanded = false },
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun TopBarMenuSectionLabel(
-    text: String,
+private fun TopBarDisplayOptionsPanel(
+    supportsDisplayModeMenu: Boolean,
+    currentListMode: ListMode,
+    onListModeSelected: (ListMode) -> Unit,
+    supportsGridSizeSlider: Boolean,
+    gridSize: Int,
+    onGridSizeChange: (Int) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-    )
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        style = GlassDefaults.prominentStyle().copy(
+            containerAlpha = 0.94f,
+            borderAlpha = 0.10f,
+            shadowElevation = 0.dp,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_grid),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.display_options),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 10.dp),
+                )
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(CompactTopBarActionSize),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.close),
+                        modifier = Modifier.size(CompactTopBarIconSize),
+                    )
+                }
+            }
+
+            if (supportsDisplayModeMenu) {
+                Text(
+                    text = stringResource(R.string.list_mode),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentWidth(Alignment.Start),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TopBarDisplayModeChip(
+                        iconRes = R.drawable.ic_list,
+                        label = stringResource(R.string.list),
+                        selected = currentListMode == ListMode.LIST,
+                        onClick = { onListModeSelected(ListMode.LIST) },
+                    )
+                    TopBarDisplayModeChip(
+                        iconRes = R.drawable.ic_list_detailed,
+                        label = stringResource(R.string.detailed_list),
+                        selected = currentListMode == ListMode.DETAILED_LIST,
+                        onClick = { onListModeSelected(ListMode.DETAILED_LIST) },
+                    )
+                    TopBarDisplayModeChip(
+                        iconRes = R.drawable.ic_grid,
+                        label = stringResource(R.string.grid),
+                        selected = currentListMode == ListMode.GRID,
+                        onClick = { onListModeSelected(ListMode.GRID) },
+                    )
+                }
+            }
+
+            if (supportsGridSizeSlider) {
+                if (supportsDisplayModeMenu) {
+                    HorizontalDivider()
+                }
+                TopBarGridSizeItem(
+                    title = stringResource(R.string.grid_size),
+                    value = gridSize,
+                    onValueChange = onGridSizeChange,
+                )
+            }
+        }
+    }
 }
 
 @Composable
-private fun TopBarListModeItem(
+private fun TopBarDisplayModeChip(
     iconRes: Int,
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    DropdownMenuItem(
-        text = { Text(label) },
+    AssistChip(
         onClick = onClick,
+        label = { Text(label, maxLines = 1) },
         leadingIcon = {
             Icon(
-                painter = painterResource(iconRes),
+                painter = painterResource(if (selected) R.drawable.ic_check else iconRes),
                 contentDescription = null,
             )
         },
-        trailingIcon = {
-            if (selected) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_check),
-                    contentDescription = null,
-                )
-            }
-        },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+            },
+            labelColor = if (selected) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            leadingIconContentColor = if (selected) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        ),
     )
 }
 
@@ -444,8 +541,8 @@ private fun TopBarGridSizeItem(
 
     Column(
         modifier = Modifier
-            .width(264.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(

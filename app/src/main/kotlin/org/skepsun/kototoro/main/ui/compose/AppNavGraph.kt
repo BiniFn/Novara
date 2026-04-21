@@ -22,10 +22,11 @@ import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
 import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
-
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.fragment.app.FragmentActivity
 
 @Composable
@@ -37,6 +38,7 @@ fun AppNavGraph(
     val activity = LocalContext.current as FragmentActivity
     val appRouter = activity.router
     val mainActivity = activity as? MainActivity
+    val rootView = LocalView.current
 
     NavHost(
         navController = navController,
@@ -90,7 +92,10 @@ fun AppNavGraph(
             HomeScreen(
                 contentPadding = contentPadding,
                 state = state,
-                onContentClick = { content -> appRouter.openDetails(content, null) },
+                onContentClick = { content, coverBounds ->
+                    DetailsCoverTransitionStore.set(content, coverBounds)
+                    appRouter.openDetails(content, rootView)
+                },
                 onSettingsClick = { appRouter.openSettings() },
                 onReaderSettingsClick = { appRouter.openReaderSettings() },
                 onSyncSettingsClick = { appRouter.openSyncSettings() },
@@ -209,11 +214,16 @@ fun AppNavGraph(
                 selectedItemsIds = selectedItemsIds,
                 onRefresh = { viewModel.onRefresh() },
                 onLoadMore = { viewModel.requestMoreItems() },
+                onPrepareItemTransition = { item, coverBounds ->
+                    if (selectedItemsIds.isEmpty()) {
+                        DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
+                    }
+                },
                 onItemClick = { item ->
                     if (selectedItemsIds.isNotEmpty()) {
                         selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                     } else {
-                        appRouter.openDetails(item.toContentWithOverride(), null)
+                        appRouter.openDetails(item.toContentWithOverride(), rootView)
                     }
                 },
                 onItemLongClick = { item ->
@@ -346,12 +356,14 @@ fun AppNavGraph(
                 isRefreshing = isRunning,
                 onRefresh = { viewModel.update() },
                 onLoadMore = { viewModel.requestMoreItems() },
-                onFeedItemClick = { item ->
+                onFeedItemClick = { item, coverBounds ->
+                    DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
                     viewModel.onItemClick(item)
-                    appRouter.openDetails(item.toContentWithOverride(), null)
+                    appRouter.openDetails(item.toContentWithOverride(), rootView)
                 },
-                onUpdatedContentItemClick = { contentItem ->
-                    appRouter.openDetails(contentItem.toContentWithOverride(), null)
+                onUpdatedContentItemClick = { contentItem, coverBounds ->
+                    DetailsCoverTransitionStore.set(contentItem.toContentWithOverride(), coverBounds)
+                    appRouter.openDetails(contentItem.toContentWithOverride(), rootView)
                 },
                 onUpdatedContentMoreClick = {
                     navController.navigate("updated")

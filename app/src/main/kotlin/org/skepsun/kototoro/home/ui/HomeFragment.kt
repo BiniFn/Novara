@@ -17,6 +17,7 @@ import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 
@@ -53,7 +54,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 		showHomeChrome()
 
 		viewModel.onOpenContent.observeEvent(viewLifecycleOwner) { manga ->
-			router.openDetails(manga)
+			router.openDetails(manga, binding.root)
 		}
 
 		binding.composeView.setContent {
@@ -65,7 +66,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 			KototoroTheme {
 				HomeScreen(
 					state = state,
-					onContentClick = { content -> router.openDetails(content, null) },
+					onContentClick = { content, coverBounds ->
+						DetailsCoverTransitionStore.set(content, coverBounds)
+						router.openDetails(content, binding.root)
+					},
 					onSettingsClick = { router.openSettings() },
 					onReaderSettingsClick = { router.openReaderSettings() },
 					onSyncSettingsClick = { router.openSyncSettings() },

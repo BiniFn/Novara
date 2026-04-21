@@ -65,6 +65,7 @@ open class BaseApp : App(), Configuration.Provider {
 		if (ACRA.isACRASenderServiceProcess()) {
 			return
 		}
+		entryPoint.settings().reconcileAfterAppUpgrade(BuildConfig.VERSION_CODE)
 		AppCompatDelegate.setDefaultNightMode(entryPoint.settings().theme)
 		// TLS 1.3 support for Android < 10
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {

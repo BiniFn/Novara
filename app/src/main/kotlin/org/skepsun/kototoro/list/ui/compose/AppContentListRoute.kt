@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
@@ -12,6 +13,7 @@ import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.main.ui.MainActivity
 import androidx.compose.runtime.saveable.rememberSaveable
+import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 
 @Composable
 fun <VM : ContentListViewModel> AppContentListRoute(
@@ -36,6 +38,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
+    val rootView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // Error observation
@@ -113,11 +116,16 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         onLoadMore = onLoadMore,
         gridScale = gridScale,
         selectedItemsIds = composeSelectionIds,
+        onPrepareItemTransition = { item, coverBounds ->
+            if (composeSelectionIds.isEmpty()) {
+                DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
+            }
+        },
         onItemClick = { item ->
             if (composeSelectionIds.isNotEmpty()) {
                 composeSelectionIds = if (item.id in composeSelectionIds) composeSelectionIds - item.id else composeSelectionIds + item.id
             } else {
-                appRouter.openDetails(item.toContentWithOverride(), null)
+                appRouter.openDetails(item.toContentWithOverride(), rootView)
             }
         },
         onItemLongClick = { item ->

@@ -348,7 +348,7 @@ private fun BrowseHeroBlock(
             activeService = activeService,
             availableServices = availableServices,
             onSelectService = onSelectService,
-            onItemClick = onHeroItemClick,
+            onItemClick = { item, _ -> onHeroItemClick(item) },
             topContentInset = topContentInset,
             detachedBottomContent = true,
             modifier = modifier,
@@ -662,6 +662,13 @@ private fun BrowsePopularListItem(
     val backgroundRequest = remember(item.coverUrl, item.id) {
         ImageRequest.Builder(context)
             .data(item.coverUrl)
+            .size(150)
+            .crossfade(true)
+            .build()
+    }
+    val posterRequest = remember(item.coverUrl, item.id) {
+        ImageRequest.Builder(context)
+            .data(item.coverUrl)
             .crossfade(true)
             .build()
     }
@@ -699,11 +706,7 @@ private fun BrowsePopularListItem(
                                 MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
                             ),
                         ),
-                    ),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
+                    )
                     .background(
                         Brush.horizontalGradient(
                             colors = listOf(
@@ -730,7 +733,7 @@ private fun BrowsePopularListItem(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
                     AsyncImage(
-                        model = backgroundRequest,
+                        model = posterRequest,
                         contentDescription = item.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),

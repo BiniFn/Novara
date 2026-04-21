@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.details.ui
 
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.assist.AssistContent
 import android.content.Context
@@ -8,10 +9,16 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.ui.geometry.Rect
+import androidx.core.view.doOnLayout
 import androidx.core.view.updateLayoutParams
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.Flow
@@ -62,6 +69,37 @@ class DetailsActivity :
 
     private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
     private var shouldRenderTransitionCover = true
+    private var pendingCoverStartBounds: Rect? = null
+    private var entryCoverStartBounds: Rect? = null
+    private var latestCoverBounds: Rect? = null
+    private var latestCoverAlpha: Float = 1f
+    private var hasPlayedPendingCoverIntro = false
+    private var hasPlayedContentEnterMotion = false
+    private var isExitHeroRunning = false
+    private var isFadeOutQueued = false
+    private var isHeroOverlayVisible by mutableStateOf(false)
+    private val pendingIntroStarter = Runnable {
+        val startBounds = pendingCoverStartBounds ?: return@Runnable
+        val endBounds = latestCoverBounds ?: return@Runnable
+        pendingCoverStartBounds = null
+        hasPlayedPendingCoverIntro = true
+        animateCoverIntro(
+            startBounds = startBounds,
+            endBounds = endBounds,
+            endAlpha = latestCoverAlpha,
+        ) {
+            if (isFadeOutQueued) {
+                isFadeOutQueued = false
+                scheduleTransitionCoverFadeOutInternal()
+            }
+        }
+    }
+    private val transitionCoverFadeOutRunnable = Runnable {
+        shouldRenderTransitionCover = false
+        isHeroOverlayVisible = false
+        viewBinding.imageViewCover.alpha = 0f
+        viewBinding.imageViewCover.visibility = View.GONE
+    }
     private val overrideEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             viewModel.reload()
@@ -78,6 +116,7 @@ class DetailsActivity :
         if (savedInstanceState != null) {
             shouldRenderTransitionCover = savedInstanceState.getBoolean(KEY_SHOULD_RENDER_TRANSITION_COVER, true)
         }
+        isHeroOverlayVisible = false
 
         pageSaveHelper = pageSaveHelperFactory.create(this)
 
@@ -114,6 +153,18 @@ class DetailsActivity :
         if (settings.isSharedElementTransitionsEnabled) {
             val manga = viewModel.getContentOrNull()
             if (manga != null) {
+                val pendingTransition = DetailsCoverTransitionStore.consume(manga)
+                pendingCoverStartBounds = pendingTransition?.bounds
+                entryCoverStartBounds = pendingCoverStartBounds
+                viewBinding.imageViewTransitionBackground.apply {
+                    if (pendingTransition?.backgroundSnapshot != null) {
+                        setImageBitmap(pendingTransition.backgroundSnapshot)
+                        visibility = View.VISIBLE
+                    } else {
+                        setImageDrawable(null)
+                        visibility = View.GONE
+                    }
+                }
                 androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
                 viewBinding.imageViewCover.outlineProvider = object : android.view.ViewOutlineProvider() {
                     override fun getOutline(view: View, outline: Outline) {
@@ -121,10 +172,34 @@ class DetailsActivity :
                     }
                 }
                 viewBinding.imageViewCover.clipToOutline = true
+                pendingCoverStartBounds?.let { startBounds ->
+                    applyCoverBounds(startBounds, alpha = 1f)
+                }
+                isHeroOverlayVisible = pendingCoverStartBounds != null && shouldRenderTransitionCover
+                if (savedInstanceState == null) {
+                    viewBinding.composeView.doOnLayout {
+                        playContentEnterMotionIfNeeded()
+                    }
+                }
                 supportPostponeEnterTransition()
                 window.decorView.postDelayed({ supportStartPostponedEnterTransition() }, 1200L)
             }
+        } else {
+            viewBinding.imageViewTransitionBackground.setImageDrawable(null)
+            viewBinding.imageViewTransitionBackground.visibility = View.GONE
         }
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (!playExitHeroIfNeeded()) {
+                        isEnabled = false
+                        finishAfterTransition()
+                    }
+                }
+            },
+        )
 
         setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
         supportActionBar?.setDisplayShowTitleEnabled(false)
@@ -142,6 +217,7 @@ class DetailsActivity :
                     onCoverBoundsSync = { rect, alpha ->
                         syncCoverBounds(rect, alpha)
                     },
+                    isHeroOverlayVisible = isHeroOverlayVisible,
                     onActionClick = { action ->
                         when (action) {
                             DetailsAction.OpenCover -> {
@@ -356,11 +432,22 @@ class DetailsActivity :
     }
 
     private fun syncCoverBounds(rect: Rect, alpha: Float) {
+        latestCoverBounds = rect
+        latestCoverAlpha = alpha.coerceIn(0f, 1f)
         if (!shouldRenderTransitionCover) {
             // Transition is done — keep the XML cover fully hidden to prevent flashes
             viewBinding.imageViewCover.visibility = View.GONE
             return
         }
+        if (pendingCoverStartBounds != null && !hasPlayedPendingCoverIntro) {
+            viewBinding.imageViewCover.removeCallbacks(pendingIntroStarter)
+            viewBinding.imageViewCover.postDelayed(pendingIntroStarter, 32L)
+            return
+        }
+        applyCoverBounds(rect, alpha)
+    }
+
+    private fun applyCoverBounds(rect: Rect, alpha: Float) {
         if (rect.width > 0 && rect.height > 0) {
             viewBinding.imageViewCover.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 width = rect.width.toInt()
@@ -373,16 +460,133 @@ class DetailsActivity :
         viewBinding.imageViewCover.visibility = View.VISIBLE
     }
 
+    private fun animateCoverIntro(
+        startBounds: Rect,
+        endBounds: Rect,
+        endAlpha: Float,
+        onEnd: (() -> Unit)? = null,
+    ) {
+        applyCoverBounds(startBounds, alpha = 1f)
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 320L
+            interpolator = FastOutSlowInInterpolator()
+            addUpdateListener { animator ->
+                val fraction = animator.animatedValue as Float
+                applyCoverBounds(
+                    rect = Rect(
+                        left = lerp(startBounds.left, endBounds.left, fraction),
+                        top = lerp(startBounds.top, endBounds.top, fraction),
+                        right = lerp(startBounds.right, endBounds.right, fraction),
+                        bottom = lerp(startBounds.bottom, endBounds.bottom, fraction),
+                    ),
+                    alpha = lerp(1f, endAlpha.coerceIn(0f, 1f), fraction),
+                )
+            }
+            doOnAnimationEndCompat(onEnd)
+            start()
+        }
+    }
+
+    private fun playContentEnterMotionIfNeeded() {
+        if (!settings.isSharedElementTransitionsEnabled || hasPlayedContentEnterMotion) {
+            return
+        }
+        if (entryCoverStartBounds == null) {
+            return
+        }
+        val contentView = viewBinding.composeView
+        val travelDistance = resolveContentTravelDistancePx()
+        if (travelDistance <= 0f) {
+            return
+        }
+        hasPlayedContentEnterMotion = true
+        contentView.animate().cancel()
+        contentView.translationX = travelDistance
+        contentView.alpha = 0.92f
+        contentView.animate()
+            .translationX(0f)
+            .alpha(1f)
+            .setDuration(320L)
+            .setInterpolator(FastOutSlowInInterpolator())
+            .start()
+    }
+
+    private fun resolveContentTravelDistancePx(): Float {
+        val widthPx = viewBinding.root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        if (widthPx <= 0) {
+            return 0f
+        }
+        return widthPx.toFloat()
+    }
+
     private fun scheduleTransitionCoverFadeOut() {
         if (!shouldRenderTransitionCover) {
             return
         }
+        if (pendingCoverStartBounds != null && !hasPlayedPendingCoverIntro) {
+            isFadeOutQueued = true
+            return
+        }
+        scheduleTransitionCoverFadeOutInternal()
+    }
+
+    private fun scheduleTransitionCoverFadeOutInternal() {
+        viewBinding.imageViewCover.removeCallbacks(transitionCoverFadeOutRunnable)
         val delayMs = if (settings.isSharedElementTransitionsEnabled) 380L else 0L
         viewBinding.imageViewCover.postDelayed({
-            shouldRenderTransitionCover = false
-            viewBinding.imageViewCover.alpha = 0f
-            viewBinding.imageViewCover.visibility = View.GONE
+            transitionCoverFadeOutRunnable.run()
         }, delayMs)
+    }
+
+    private fun playExitHeroIfNeeded(): Boolean {
+        if (!settings.isSharedElementTransitionsEnabled || isExitHeroRunning) {
+            return false
+        }
+        val startBounds = entryCoverStartBounds ?: return false
+        val currentBounds = latestCoverBounds ?: return false
+        if (latestCoverAlpha < 0.35f) {
+            return false
+        }
+        isExitHeroRunning = true
+        shouldRenderTransitionCover = true
+        isHeroOverlayVisible = true
+        viewBinding.imageViewCover.removeCallbacks(pendingIntroStarter)
+        viewBinding.imageViewCover.removeCallbacks(transitionCoverFadeOutRunnable)
+        viewBinding.imageViewCover.visibility = View.VISIBLE
+        applyCoverBounds(currentBounds, alpha = 1f)
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 280L
+            interpolator = FastOutSlowInInterpolator()
+            val contentTravelDistance = resolveContentTravelDistancePx()
+            addUpdateListener { animator ->
+                val fraction = animator.animatedValue as Float
+                viewBinding.composeView.translationX = contentTravelDistance * fraction
+                viewBinding.composeView.alpha = lerp(1f, 0.88f, fraction)
+                applyCoverBounds(
+                    rect = Rect(
+                        left = lerp(currentBounds.left, startBounds.left, fraction),
+                        top = lerp(currentBounds.top, startBounds.top, fraction),
+                        right = lerp(currentBounds.right, startBounds.right, fraction),
+                        bottom = lerp(currentBounds.bottom, startBounds.bottom, fraction),
+                    ),
+                    alpha = 1f,
+                )
+            }
+            doOnAnimationEndCompat {
+                window.returnTransition = null
+                window.sharedElementReturnTransition = null
+                finish()
+                overridePendingTransition(0, 0)
+            }
+            start()
+        }
+        return true
+    }
+
+    override fun dispatchNavigateUp() {
+        if (!playExitHeroIfNeeded()) {
+            super.dispatchNavigateUp()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -409,4 +613,20 @@ class DetailsActivity :
     private companion object {
         private const val KEY_SHOULD_RENDER_TRANSITION_COVER = "should_render_transition_cover"
     }
+}
+
+private fun lerp(start: Float, stop: Float, fraction: Float): Float {
+    return start + (stop - start) * fraction.coerceIn(0f, 1f)
+}
+
+private fun ValueAnimator.doOnAnimationEndCompat(onEnd: (() -> Unit)?) {
+    if (onEnd == null) {
+        return
+    }
+    addListener(object : android.animation.Animator.AnimatorListener {
+        override fun onAnimationStart(animation: android.animation.Animator) = Unit
+        override fun onAnimationEnd(animation: android.animation.Animator) = onEnd()
+        override fun onAnimationCancel(animation: android.animation.Animator) = onEnd()
+        override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
+    })
 }

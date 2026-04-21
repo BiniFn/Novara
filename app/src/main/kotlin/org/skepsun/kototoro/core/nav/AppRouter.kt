@@ -60,6 +60,7 @@ import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.details.ui.DetailsActivity
+import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
 import org.skepsun.kototoro.details.ui.related.RelatedContentActivity
 import org.skepsun.kototoro.details.ui.scrobbling.ScrobblingInfoSheet
@@ -176,6 +177,9 @@ class AppRouter private constructor(
     }
 
     fun openDetails(manga: Content, anchor: View? = null) {
+        if (settings.isSharedElementTransitionsEnabled) {
+            DetailsCoverTransitionStore.captureBackground(manga, anchor)
+        }
         startActivity(
             detailsIntent(contextOrNull() ?: return, manga),
             if (settings.isSharedElementTransitionsEnabled) anchor?.let { sceneTransitionOptionsOf(it) } else null

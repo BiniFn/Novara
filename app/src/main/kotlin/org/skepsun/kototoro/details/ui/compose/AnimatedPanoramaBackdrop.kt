@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import androidx.compose.ui.platform.LocalContext
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 
@@ -81,8 +84,17 @@ fun AnimatedPanoramaBackdrop(
         label = "details_panorama_background_translation_y",
     )
 
+    val context = LocalContext.current
+    val backgroundRequest = androidx.compose.runtime.remember(model) {
+        ImageRequest.Builder(context)
+            .data(model)
+            .size(250)
+            .crossfade(true)
+            .build()
+    }
+
     AsyncImage(
-        model = model,
+        model = backgroundRequest,
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier

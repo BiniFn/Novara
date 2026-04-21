@@ -10,6 +10,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -32,6 +33,7 @@ fun HistoryScreen(
     selectedItemsIds: Set<Long>,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
+    onPrepareItemTransition: (ContentListModel, Rect?) -> Unit,
     onItemClick: (ContentListModel) -> Unit,
     onItemLongClick: (ContentListModel) -> Unit,
     onClearSelection: () -> Unit,
@@ -51,6 +53,7 @@ fun HistoryScreen(
             onLoadMore = onLoadMore,
             gridScale = gridScale,
             selectedItemsIds = selectedItemsIds,
+            onPrepareItemTransition = onPrepareItemTransition,
             onItemClick = onItemClick,
             onItemLongClick = onItemLongClick,
             onClearSelection = onClearSelection,

@@ -50,12 +50,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedContentSource
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
@@ -83,7 +86,10 @@ fun DetailsHeader(
     isShowingTranslation: Boolean,
     hasTranslationCache: Boolean,
     isTranslating: Boolean,
+    showTranslateAction: Boolean,
     collapseProgress: Float,
+    coverVisualAlpha: Float,
+    coverUrl: String?,
     onCoverBoundsSync: (Rect, Float) -> Unit,
     onInfoCardTopSync: (Float) -> Unit,
     onCoverClick: () -> Unit,
@@ -92,6 +98,7 @@ fun DetailsHeader(
     onAuthorClick: (String) -> Unit,
     onTagClick: (ContentTag) -> Unit,
     onTranslateClick: () -> Unit,
+    onTranslateLongClick: () -> Unit,
     onToggleTranslationClick: () -> Unit,
     onOpenLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
     onManageLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
@@ -99,6 +106,7 @@ fun DetailsHeader(
     onBindTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onManageTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
 ) {
+    val context = LocalContext.current
     val content = mangaDetails?.toContent()
     val resolvedSource = content?.source?.let { rememberResolvedContentSource(it) }
     val originalTitle = content?.title.orEmpty()
@@ -138,8 +146,16 @@ fun DetailsHeader(
         "-"
     }
     val sourceTitle = content?.source?.let { rememberResolvedSourceTitle(it) }.orEmpty()
+    val coverModel = remember(content?.source?.name, content?.url, coverUrl) {
+        ImageRequest.Builder(context)
+            .data(coverUrl)
+            .apply { content?.let { mangaExtra(it) } }
+            .build()
+    }
+    val isNsfw = content?.isNsfw() == true
     val coverCollapseProgress = (collapseProgress / 0.48f).coerceIn(0f, 1f)
-    val coverAlpha = 1f - coverCollapseProgress
+    val coverSyncAlpha = 1f - coverCollapseProgress
+    val coverAlpha = coverSyncAlpha * coverVisualAlpha.coerceIn(0f, 1f)
     val textCollapseProgress = ((collapseProgress - 0.08f) / 0.44f).coerceIn(0f, 1f)
     val actionsCollapseProgress = ((collapseProgress - 0.18f) / 0.36f).coerceIn(0f, 1f)
     val infoItems = buildList {
@@ -204,34 +220,11 @@ fun DetailsHeader(
         }
     }
     val heroBadges = buildList {
-        state?.let {
-            add(
-                DetailsHeroBadgeSpec(
-                    text = stringResource(it.titleResId),
-                    iconRes = it.iconResId,
-                ),
-            )
-        }
-        language.takeIf { it.isNotBlank() }?.let {
-            add(
-                DetailsHeroBadgeSpec(
-                    text = it,
-                    iconRes = R.drawable.ic_language,
-                ),
-            )
-        }
         ratingLabel?.let {
             add(
                 DetailsHeroBadgeSpec(
                     text = it,
                     iconRes = R.drawable.ic_star_small,
-                ),
-            )
-        }
-        if (contentRating != null) {
-            add(
-                DetailsHeroBadgeSpec(
-                    text = stringResource(contentRating.titleResId),
                 ),
             )
         }
@@ -249,10 +242,11 @@ fun DetailsHeader(
             verticalAlignment = Alignment.Top,
         ) {
             DetailsCoverFrame(
-                coverUrl = mangaDetails?.coverUrl,
+                coverModel = coverModel,
                 contentDescription = displayTitle,
                 onCoverBoundsSync = onCoverBoundsSync,
-                alpha = coverAlpha,
+                syncAlpha = coverSyncAlpha,
+                showNsfwBadge = isNsfw,
                 onClick = onCoverClick,
                 modifier = Modifier
                     .alpha(coverAlpha)
@@ -269,6 +263,7 @@ fun DetailsHeader(
                 Text(
                     text = displayTitle,
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -306,17 +301,20 @@ fun DetailsHeader(
                         onClick = onFavoriteClick,
                         filled = isFavourite,
                     )
-                    DetailsHeaderIconButton(
-                        iconRes = R.drawable.ic_translate,
-                        onClick = {
-                            if (hasTranslationCache) {
-                                onToggleTranslationClick()
-                            } else {
-                                onTranslateClick()
-                            }
-                        },
-                        enabled = !isTranslating,
-                    )
+                    if (showTranslateAction) {
+                        DetailsHeaderIconButton(
+                            iconRes = R.drawable.ic_translate,
+                            onClick = {
+                                if (hasTranslationCache) {
+                                    onToggleTranslationClick()
+                                } else {
+                                    onTranslateClick()
+                                }
+                            },
+                            onLongClick = onTranslateLongClick,
+                            enabled = !isTranslating,
+                        )
+                    }
                 }
             }
         }

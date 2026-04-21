@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,7 +33,7 @@ import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 @Composable
 fun UpdatedContentCarousel(
 	header: UpdatedContentHeader,
-	onItemClick: (ContentListModel) -> Unit,
+	onItemClick: (ContentListModel, Rect?) -> Unit,
 	onMoreClick: () -> Unit,
 	modifier: Modifier = Modifier
 ) {
@@ -74,7 +75,7 @@ fun UpdatedContentCarousel(
 				KototoroContentCard(
 					model = contentModel,
 					isListLayout = false,
-					onClick = { onItemClick(contentModel) },
+					onClick = { coverBounds -> onItemClick(contentModel, coverBounds) },
 					onLongClick = { },
 					isSelected = false,
 					selectionModeActive = false,
