@@ -552,34 +552,16 @@ class DetailsActivity :
         isHeroOverlayVisible = true
         viewBinding.imageViewCover.removeCallbacks(pendingIntroStarter)
         viewBinding.imageViewCover.removeCallbacks(transitionCoverFadeOutRunnable)
-        viewBinding.imageViewCover.visibility = View.VISIBLE
+        
         applyCoverBounds(currentBounds, alpha = 1f)
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 280L
-            interpolator = FastOutSlowInInterpolator()
-            val contentTravelDistance = resolveContentTravelDistancePx()
-            addUpdateListener { animator ->
-                val fraction = animator.animatedValue as Float
-                viewBinding.composeView.translationX = contentTravelDistance * fraction
-                viewBinding.composeView.alpha = lerp(1f, 0.88f, fraction)
-                applyCoverBounds(
-                    rect = Rect(
-                        left = lerp(currentBounds.left, startBounds.left, fraction),
-                        top = lerp(currentBounds.top, startBounds.top, fraction),
-                        right = lerp(currentBounds.right, startBounds.right, fraction),
-                        bottom = lerp(currentBounds.bottom, startBounds.bottom, fraction),
-                    ),
-                    alpha = 1f,
-                )
-            }
-            doOnAnimationEndCompat {
-                window.returnTransition = null
-                window.sharedElementReturnTransition = null
-                finish()
-                overridePendingTransition(0, 0)
-            }
-            start()
+        viewBinding.imageViewCover.visibility = View.VISIBLE
+        
+        // Use framework transition to get proper window translucency return effects
+        window.returnTransition = android.transition.Fade(android.transition.Fade.OUT).apply {
+            duration = 200L
         }
+        
+        finishAfterTransition()
         return true
     }
 

@@ -29,6 +29,7 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 fun ChaptersScreen(
 	items: List<ListModel>,
 	isGridView: Boolean,
+	isScrollEnabled: Boolean = true,
 	gridSpanCount: Int,
 	selectedItemIds: Set<Long>,
 	filterChips: List<ChipModel>,
@@ -80,9 +81,10 @@ fun ChaptersScreen(
 					LazyVerticalGrid(
 						columns = GridCells.Fixed(gridSpanCount),
 						contentPadding = PaddingValues(16.dp),
-						horizontalArrangement = Arrangement.spacedBy(8.dp),
-						verticalArrangement = Arrangement.spacedBy(8.dp),
-						modifier = Modifier.fillMaxSize()
+						verticalArrangement = Arrangement.spacedBy(4.dp),
+						horizontalArrangement = Arrangement.spacedBy(4.dp),
+						userScrollEnabled = isScrollEnabled,
+						modifier = Modifier.fillMaxSize(),
 					) {
 						items(
 							count = items.size,
@@ -115,8 +117,9 @@ fun ChaptersScreen(
 					}
 				} else {
 					LazyColumn(
-						contentPadding = PaddingValues(bottom = 16.dp),
-						modifier = Modifier.fillMaxSize()
+						contentPadding = PaddingValues(16.dp),
+						userScrollEnabled = isScrollEnabled,
+						modifier = Modifier.fillMaxSize(),
 					) {
 						items(
 							count = items.size,

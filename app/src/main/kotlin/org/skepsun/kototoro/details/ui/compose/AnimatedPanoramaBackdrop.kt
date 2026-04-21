@@ -86,11 +86,17 @@ fun AnimatedPanoramaBackdrop(
 
     val context = LocalContext.current
     val backgroundRequest = androidx.compose.runtime.remember(model) {
-        ImageRequest.Builder(context)
-            .data(model)
-            .size(250)
-            .crossfade(true)
-            .build()
+        when (model) {
+            is ImageRequest -> model.newBuilder()
+                .size(400)
+                .crossfade(true)
+                .build()
+            else -> ImageRequest.Builder(context)
+                .data(model)
+                .size(400)
+                .crossfade(true)
+                .build()
+        }
     }
 
     AsyncImage(

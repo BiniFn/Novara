@@ -52,6 +52,7 @@ fun DetailsCoverFrame(
     showNsfwBadge: Boolean,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onState: ((coil3.compose.AsyncImagePainter.State) -> Unit)? = null,
 ) {
     var coverBounds by remember { mutableStateOf(Rect.Zero) }
     LaunchedEffect(coverBounds, syncAlpha) {
@@ -109,6 +110,7 @@ fun DetailsCoverFrame(
                         shape = RoundedCornerShape(22.dp),
                 ),
                 contentScale = ContentScale.Crop,
+                onState = { state -> onState?.invoke(state) },
             )
             if (showNsfwBadge) {
                 Surface(

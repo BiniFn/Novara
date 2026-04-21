@@ -41,7 +41,8 @@ fun ChaptersScreenRoot(
 	router: AppRouter,
 	context: Context,
 	viewForSnackbar: View,
-	lifecycleOwner: LifecycleOwner
+	lifecycleOwner: LifecycleOwner,
+	isScrollEnabled: Boolean = true,
 ) {
 	val isGridView by viewModel.isChaptersInGridView.collectAsState(initial = false)
 	val isLoading by viewModel.isLoading.collectAsState(initial = false)
@@ -100,6 +101,7 @@ fun ChaptersScreenRoot(
 	ChaptersScreen(
 		items = collapsedChapters,
 		isGridView = isGridView,
+        isScrollEnabled = isScrollEnabled,
 		gridSpanCount = 2,
 		selectedItemIds = selectedItemIds.toSet(),
 		filterChips = emptyList(),

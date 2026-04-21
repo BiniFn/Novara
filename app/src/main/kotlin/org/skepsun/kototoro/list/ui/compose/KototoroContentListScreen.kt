@@ -27,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -97,17 +96,9 @@ fun KototoroContentListScreen(
                 } else {
                 when (listMode) {
                     ListMode.GRID -> {
-                        val configuration = LocalConfiguration.current
-                        val screenWidthDp = configuration.screenWidthDp
                         val posterStyle = compactPosterCardStyle(gridScale)
-                        val estimatedCellWidthDp = posterStyle.itemWidth.value + 14f
-                        val gridSpacingDp = 8f
-                        val computedColumns = (((screenWidthDp + gridSpacingDp) / (estimatedCellWidthDp + gridSpacingDp))
-                            .toInt())
-                            .coerceAtLeast(1)
-
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(computedColumns),
+                            columns = GridCells.Adaptive(minSize = posterStyle.itemWidth + 12.dp),
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {

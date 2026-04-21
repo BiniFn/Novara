@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory
@@ -90,9 +91,10 @@ fun DetailsHeader(
     collapseProgress: Float,
     coverVisualAlpha: Float,
     coverUrl: String?,
+    fallbackCoverUrl: String?,
     onCoverBoundsSync: (Rect, Float) -> Unit,
     onInfoCardTopSync: (Float) -> Unit,
-    onCoverClick: () -> Unit,
+    onCoverClick: (String?) -> Unit,
     onFavoriteClick: () -> Unit,
     onSourceClick: (ContentSource) -> Unit,
     onAuthorClick: (String) -> Unit,
@@ -146,9 +148,18 @@ fun DetailsHeader(
         "-"
     }
     val sourceTitle = content?.source?.let { rememberResolvedSourceTitle(it) }.orEmpty()
-    val coverModel = remember(content?.source?.name, content?.url, coverUrl) {
+    
+    var hasCoverLoadFailed by remember(coverUrl) { mutableStateOf(false) }
+    val currentCoverUrl = if (hasCoverLoadFailed && fallbackCoverUrl != null) {
+        fallbackCoverUrl
+    } else {
+        coverUrl
+    }
+
+    val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
         ImageRequest.Builder(context)
-            .data(coverUrl)
+            .data(currentCoverUrl)
+            .crossfade(true)
             .apply { content?.let { mangaExtra(it) } }
             .build()
     }
@@ -247,17 +258,20 @@ fun DetailsHeader(
                 onCoverBoundsSync = onCoverBoundsSync,
                 syncAlpha = coverSyncAlpha,
                 showNsfwBadge = isNsfw,
-                onClick = onCoverClick,
+                onClick = { onCoverClick(currentCoverUrl) },
+                onState = { state ->
+                    if (state is coil3.compose.AsyncImagePainter.State.Error) {
+                        hasCoverLoadFailed = true
+                    }
+                },
                 modifier = Modifier
-                    .alpha(coverAlpha)
-                    .offsetX((-48).dp, coverCollapseProgress),
+                    .alpha(coverAlpha),
             )
 
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .alpha(1f - textCollapseProgress)
-                    .offsetX((-32).dp, textCollapseProgress),
+                    .alpha(1f - textCollapseProgress),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
@@ -361,17 +375,13 @@ fun DetailsHeader(
         }
 
         if (infoItems.isNotEmpty()) {
-            GlassSurface(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .onGloballyPositioned { coordinates ->
                         onInfoCardTopSync(coordinates.boundsInRoot().top)
                     },
-                style = GlassDefaults.prominentStyle().copy(
-                    containerAlpha = 0.60f,
-                    borderAlpha = 0.08f,
-                    shadowElevation = 0.dp,
-                ),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
                 shape = RoundedCornerShape(24.dp),
             ) {
                 Column(

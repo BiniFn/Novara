@@ -74,6 +74,7 @@ fun ChaptersPagesTabsContent(
 	initialPage: Int = 0,
 	selectedTabId: Int? = null,
 	showTabStrip: Boolean = true,
+	isSheetFullyExpanded: Boolean = true,
     chapterQuery: String = "",
     isChapterSearchVisible: Boolean = false,
     onChapterQueryChange: ((String) -> Unit)? = null,
@@ -202,6 +203,7 @@ fun ChaptersPagesTabsContent(
 						context = context,
 						viewForSnackbar = viewForSnackbar,
 						lifecycleOwner = lifecycleOwner,
+						isScrollEnabled = isSheetFullyExpanded,
 					)
 					DETAILS_TAB_PAGES -> PagesScreenRoot(
 						activityViewModel = viewModel,

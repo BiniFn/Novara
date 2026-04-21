@@ -43,6 +43,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -81,10 +83,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -176,17 +185,7 @@ fun DetailsScreen(
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
     val contentType = content?.source?.getContentType()
-    var retainedCoverUrl by rememberSaveable(content?.id) { mutableStateOf<String?>(null) }
-    LaunchedEffect(mangaDetails?.coverUrl) {
-        mangaDetails?.coverUrl
-            ?.takeIf { it.isNotBlank() }
-            ?.let { retainedCoverUrl = it }
-    }
-    val resolvedCoverUrl = mangaDetails?.coverUrl
-        ?.takeIf { it.isNotBlank() }
-        ?: retainedCoverUrl
-        ?: content?.largeCoverUrl
-        ?: content?.coverUrl
+
     val targetTranslationLanguage = remember(settings.readerTranslationTargetLanguage) {
         settings.readerTranslationTargetLanguage
             .substringBefore('-')
@@ -286,7 +285,7 @@ fun DetailsScreen(
         )
         val fullOffset = compactPaneFullOffsetPx
         val collapsedOffset = compactPaneCollapsedOffsetPx
-        val nextOffset = ((compactPaneOffsetPx.takeIf(Float::isFinite) ?: fallbackOffset) + delta)
+        val nextOffset = ((compactPaneOffsetPx.takeIf { it.isFinite() } ?: fallbackOffset) + delta)
             .coerceIn(fullOffset, collapsedOffset)
         compactPaneOffsetPx = nextOffset
         coroutineScope.launch {
@@ -300,7 +299,7 @@ fun DetailsScreen(
         orientation = Orientation.Vertical,
         onDragStopped = { velocity ->
             compactPaneAnchor = resolveCompactPaneAnchor(
-                currentOffset = compactPaneOffsetPx.takeIf(Float::isFinite) ?: compactPaneCollapsedOffsetPx,
+                currentOffset = compactPaneOffsetPx.takeIf { it.isFinite() } ?: compactPaneCollapsedOffsetPx,
                 velocity = velocity,
                 fullOffset = compactPaneFullOffsetPx,
                 hoveredOffset = compactPaneHoveredOffsetPx,
@@ -309,6 +308,39 @@ fun DetailsScreen(
             isCompactPaneDragging = false
         },
     )
+    val paneNestedScrollConnection = remember(compactPaneCollapsedOffsetPx, compactPaneFullOffsetPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val offset = compactPaneOffsetPx.takeIf { it.isFinite() } ?: compactPaneCollapsedOffsetPx
+                if (available.y < 0 && offset > compactPaneFullOffsetPx) {
+                    val consumedY = available.y.coerceAtLeast(compactPaneFullOffsetPx - offset)
+                    compactPaneOffsetPx = offset + consumedY
+                    return Offset(0f, consumedY)
+                }
+                return Offset.Zero
+            }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                val offset = compactPaneOffsetPx.takeIf { it.isFinite() } ?: compactPaneCollapsedOffsetPx
+                if (available.y > 0 && offset < compactPaneCollapsedOffsetPx) {
+                    val consumedY = available.y.coerceAtMost(compactPaneCollapsedOffsetPx - offset)
+                    compactPaneOffsetPx = offset + consumedY
+                    return Offset(0f, consumedY)
+                }
+                return Offset.Zero
+            }
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                val offset = compactPaneOffsetPx.takeIf { it.isFinite() } ?: compactPaneCollapsedOffsetPx
+                compactPaneAnchor = resolveCompactPaneAnchor(
+                    currentOffset = offset,
+                    velocity = available.y,
+                    fullOffset = compactPaneFullOffsetPx,
+                    hoveredOffset = compactPaneHoveredOffsetPx,
+                    collapsedOffset = compactPaneCollapsedOffsetPx,
+                )
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val toolbarGapPx = with(density) { 12.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
@@ -421,7 +453,7 @@ fun DetailsScreen(
     ) {
         derivedStateOf {
             val currentOffset = compactPaneOffsetPx
-                .takeIf(Float::isFinite)
+                .takeIf { it.isFinite() }
                 ?: compactPaneOffsetForAnchor(
                     anchor = compactPaneAnchor,
                     fullOffset = compactPaneFullOffsetPx,
@@ -560,9 +592,9 @@ fun DetailsScreen(
                         .background(MaterialTheme.colorScheme.surface),
                 )
                 if (settings.isPanoramaCoverEnabled) {
-                    val request = remember(content?.source?.name, content?.url, resolvedCoverUrl) {
+                    val request = remember(content?.source?.name, content?.url, content?.coverUrl) {
                         ImageRequest.Builder(context)
-                            .data(resolvedCoverUrl)
+                            .data(content?.coverUrl)
                             .apply { content?.let { mangaExtra(it) } }
                             .build()
                     }
@@ -672,36 +704,44 @@ fun DetailsScreen(
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = commonTopBar,
                 ) { paddingValues ->
-                    DetailsScrollableContent(
+                    PullToRefreshBox(
+                        isRefreshing = isLoading,
+                        onRefresh = { viewModel.reload() },
                         modifier = Modifier.fillMaxSize(),
-                        scrollState = landscapeLeftScrollState,
-                        contentPadding = paddingValues,
-                        headerTopSpacing = if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp,
-                        bottomSpacerHeight = 40.dp,
-                        mangaDetails = mangaDetails,
-                        favouriteCategories = favouriteCategories,
-                        historyInfo = historyInfo,
-                        linkedTrackingItems = linkedTrackingItems,
-                        trackingSuggestion = trackingSuggestion,
-                        translatedTitle = translatedTitle,
-                        translatedDescription = translatedDescription,
-                        isShowingTranslation = isShowingTranslation,
-                        hasTranslationCache = hasTranslationCache,
-                        isTranslating = isTranslating,
-                        showTranslateAction = showTranslateAction,
-                        collapseProgress = 0f,
-                        coverVisualAlpha = if (isHeroOverlayVisible) 0f else 1f,
-                        coverUrl = resolvedCoverUrl,
-                        content = content,
-                        pendingTagSearch = { pendingTagSearch = it },
-                        pendingAuthorSearch = { author, source ->
-                            pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
-                        },
+                    ) {
+                        DetailsScrollableContent(
+                            modifier = Modifier.fillMaxSize(),
+                            scrollState = landscapeLeftScrollState,
+                            contentPadding = paddingValues,
+                            headerTopSpacing = if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp,
+                            bottomSpacerHeight = 40.dp,
+                            mangaDetails = mangaDetails,
+                            favouriteCategories = favouriteCategories,
+                            historyInfo = historyInfo,
+                            linkedTrackingItems = linkedTrackingItems,
+                            trackingSuggestion = trackingSuggestion,
+                            translatedTitle = translatedTitle,
+                            translatedDescription = translatedDescription,
+                            isShowingTranslation = isShowingTranslation,
+                            hasTranslationCache = hasTranslationCache,
+                            isTranslating = isTranslating,
+                            showTranslateAction = showTranslateAction,
+                            collapseProgress = 0f,
+                            coverVisualAlpha = if (isHeroOverlayVisible) 0f else 1f,
+                            coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
+                            fallbackCoverUrl = content?.coverUrl,
+                            content = content,
+                            pendingTagSearch = { pendingTagSearch = it },
+                            pendingAuthorSearch = { author, source ->
+                                pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
+                            },
                         onCoverBoundsSync = onCoverBoundsSync,
                         onInfoCardTopSync = { infoCardTopPx = it },
                         onFavoriteClick = { showFavoriteDialog = true },
                         onActionClick = handleActionClick,
                     )
+                    }
+
                 }
                 Surface(
                     modifier = Modifier
@@ -766,36 +806,54 @@ fun DetailsScreen(
                     containerColor = Color.Transparent,
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                 ) { paddingValues ->
-                    DetailsScrollableContent(
-                        modifier = Modifier.fillMaxSize(),
-                        scrollState = scrollState,
-                        contentPadding = paddingValues,
-                        headerTopSpacing = detailsHeaderTopSpacing,
-                        bottomSpacerHeight = compactPaneCollapsedHeight + 28.dp,
-                        mangaDetails = mangaDetails,
-                        favouriteCategories = favouriteCategories,
-                        historyInfo = historyInfo,
-                        linkedTrackingItems = linkedTrackingItems,
-                        trackingSuggestion = trackingSuggestion,
-                        translatedTitle = translatedTitle,
-                        translatedDescription = translatedDescription,
-                        isShowingTranslation = isShowingTranslation,
-                        hasTranslationCache = hasTranslationCache,
-                        isTranslating = isTranslating,
-                        showTranslateAction = showTranslateAction,
-                        collapseProgress = collapseProgress,
-                        coverVisualAlpha = headerCoverVisualAlpha,
-                        coverUrl = resolvedCoverUrl,
-                        content = content,
-                        pendingTagSearch = { pendingTagSearch = it },
-                        pendingAuthorSearch = { author, source ->
-                            pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
-                        },
+                    PullToRefreshBox(
+                        isRefreshing = isLoading,
+                        onRefresh = { viewModel.reload() },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawWithContent {
+                                val offset = compactPaneOffsetPx
+                                if (offset.isFinite() && offset >= 0f) {
+                                    clipRect(bottom = offset) {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                } else {
+                                    this@drawWithContent.drawContent()
+                                }
+                            },
+                    ) {
+                        DetailsScrollableContent(
+                            modifier = Modifier.fillMaxSize(),
+                            scrollState = scrollState,
+                            contentPadding = paddingValues,
+                            headerTopSpacing = detailsHeaderTopSpacing,
+                            bottomSpacerHeight = compactPaneCollapsedHeight + 28.dp,
+                            mangaDetails = mangaDetails,
+                            favouriteCategories = favouriteCategories,
+                            historyInfo = historyInfo,
+                            linkedTrackingItems = linkedTrackingItems,
+                            trackingSuggestion = trackingSuggestion,
+                            translatedTitle = translatedTitle,
+                            translatedDescription = translatedDescription,
+                            isShowingTranslation = isShowingTranslation,
+                            hasTranslationCache = hasTranslationCache,
+                            isTranslating = isTranslating,
+                            showTranslateAction = showTranslateAction,
+                            collapseProgress = collapseProgress,
+                            coverVisualAlpha = headerCoverVisualAlpha,
+                            coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
+                            fallbackCoverUrl = content?.coverUrl,
+                            content = content,
+                            pendingTagSearch = { pendingTagSearch = it },
+                            pendingAuthorSearch = { author, source ->
+                                pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
+                            },
                         onCoverBoundsSync = onCoverBoundsSync,
                         onInfoCardTopSync = { top -> infoCardTopPx = top },
                         onFavoriteClick = { showFavoriteDialog = true },
                         onActionClick = handleActionClick,
                     )
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -805,11 +863,13 @@ fun DetailsScreen(
                             IntOffset(
                                 x = 0,
                                 y = compactPaneOffsetPx
-                                    .takeIf(Float::isFinite)
+                                    .takeIf { it.isFinite() }
                                     ?.roundToInt()
                                     ?: compactPaneCollapsedOffsetPx.roundToInt(),
                             )
-                        },
+                        }
+                        .then(compactPaneDragModifier)
+                        .nestedScroll(paneNestedScrollConnection),
                 ) {
                     DetailsPaneContent(
                         modifier = Modifier
@@ -1004,6 +1064,7 @@ private fun DetailsScrollableContent(
     collapseProgress: Float,
     coverVisualAlpha: Float,
     coverUrl: String?,
+    fallbackCoverUrl: String?,
     content: org.skepsun.kototoro.parsers.model.Content?,
     scrollState: androidx.compose.foundation.ScrollState,
     modifier: Modifier = Modifier,
@@ -1042,6 +1103,8 @@ private fun DetailsScrollableContent(
             collapseProgress = collapseProgress,
             coverVisualAlpha = coverVisualAlpha,
             coverUrl = coverUrl,
+            fallbackCoverUrl = fallbackCoverUrl,
+
             onCoverBoundsSync = onCoverBoundsSync,
             onInfoCardTopSync = onInfoCardTopSync,
             onCoverClick = { onActionClick(DetailsAction.OpenCover) },
@@ -1129,23 +1192,13 @@ private fun DetailsPaneContent(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
     ) {
-        GlassSurface(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(modifier),
-            style = if (showCollapsedHandle) {
-                GlassDefaults.prominentStyle().copy(
-                    containerAlpha = lerpFloat(0.24f, 0.90f, paneOpacityProgress),
-                    borderAlpha = lerpFloat(0.12f, 0.04f, paneOpacityProgress),
-                    shadowElevation = 0.dp,
-                )
-            } else {
-                GlassDefaults.prominentStyle().copy(
-                    containerAlpha = 0.94f,
-                    borderAlpha = 0.06f,
-                    shadowElevation = 0.dp,
-                )
-            },
+            color = MaterialTheme.colorScheme.surface.copy(
+                alpha = if (showCollapsedHandle) lerpFloat(0.12f, 0.85f, paneOpacityProgress) else 0.85f
+            ),
             shape = paneShape,
         ) {
             Box(
@@ -1200,6 +1253,7 @@ private fun DetailsPaneContent(
                             pageSaveHelper = pageSaveHelper,
                             selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
                             showTabStrip = false,
+                            isSheetFullyExpanded = isSheetFullyExpanded,
                             chapterQuery = chapterQuery,
                             isChapterSearchVisible = isChapterSearchVisible,
                             onChapterQueryChange = onChapterQueryChange,
@@ -1373,12 +1427,10 @@ private fun ExpandedPaneUtilityDock(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        GlassBottomBarContainer(
+        Surface(
             modifier = Modifier.height(52.dp),
-            style = GlassDefaults.prominentStyle().copy(
-                containerAlpha = lerpFloat(0.22f, 1f, sheetExpansionProgress),
-                borderAlpha = lerpFloat(0.10f, 0f, sheetExpansionProgress),
-                shadowElevation = 0.dp,
+            color = MaterialTheme.colorScheme.surface.copy(
+                alpha = lerpFloat(0.12f, 0.90f, sheetExpansionProgress)
             ),
         ) {
             Row(
@@ -1586,55 +1638,65 @@ private fun ReadDock(
     val hasQuickActions = canOpenIncognito || canForgetHistory || isDownloadAvailable
     val hasMenuActions = hasQuickActions || hasBranchOptions
 
-    GlassBottomBarContainer(
+    val shapeRadiusPercent by androidx.compose.animation.core.animateIntAsState(targetValue = if (expanded) 50 else 0)
+    val optionGap by androidx.compose.animation.core.animateDpAsState(targetValue = if (expanded) 8.dp else 2.dp)
+
+    Row(
         modifier = modifier.height(52.dp),
-        style = GlassDefaults.prominentStyle().copy(
-            containerAlpha = lerpFloat(0.48f, 0.96f, sheetExpansionProgress),
-            borderAlpha = lerpFloat(0.12f, 0.03f, sheetExpansionProgress),
-            shadowElevation = 0.dp,
-        ),
+        horizontalArrangement = Arrangement.spacedBy(optionGap)
     ) {
+        androidx.compose.material3.Button(
+            onClick = onReadClick,
+            enabled = isEnabled,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                topStartPercent = 50,
+                bottomStartPercent = 50,
+                topEndPercent = shapeRadiusPercent,
+                bottomEndPercent = shapeRadiusPercent
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = lerpFloat(0.9f, 1f, sheetExpansionProgress)),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) {
+            Text(
+                text = readLabel,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
         Box {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                TextButton(
-                    onClick = onReadClick,
-                    enabled = isEnabled,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp),
-                ) {
-                    Text(
-                        text = readLabel,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 6.dp),
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .padding(vertical = 10.dp)
-                        .width(1.dp)
-                        .height(30.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)),
+            androidx.compose.material3.Button(
+                onClick = { expanded = true },
+                enabled = hasMenuActions,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                    topEndPercent = 50,
+                    bottomEndPercent = 50,
+                    topStartPercent = shapeRadiusPercent,
+                    bottomStartPercent = shapeRadiusPercent
+                ),
+                modifier = Modifier
+                    .width(52.dp)
+                    .fillMaxHeight(),
+                contentPadding = PaddingValues(0.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = lerpFloat(0.9f, 1f, sheetExpansionProgress)),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
-                TextButton(
-                    onClick = { expanded = true },
-                    enabled = hasMenuActions,
-                    modifier = Modifier
-                        .width(52.dp)
-                        .height(52.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (hasBranchOptions) {
-                            stringResource(R.string.system_default)
-                        } else {
-                            stringResource(R.string.options)
-                        },
-                    )
-                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (hasBranchOptions) {
+                        stringResource(R.string.system_default)
+                    } else {
+                        stringResource(R.string.options)
+                    },
+                )
             }
             DropdownMenu(
                 expanded = expanded,
