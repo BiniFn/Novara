@@ -52,6 +52,16 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private fun SharedPreferences.getSafeInt(key: String, defValue: Int): Int {
+	return try {
+		getInt(key, defValue)
+	} catch (_: ClassCastException) {
+		getLong(key, defValue.toLong()).toInt().also {
+			edit { putInt(key, it) }
+		}
+	}
+}
+
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext private val context: Context) {
 
@@ -120,19 +130,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
 
 	var navHeight: Int
-		get() = try {
-			prefs.getInt(KEY_NAV_HEIGHT, 80)
-		} catch (_: ClassCastException) {
-			prefs.getLong(KEY_NAV_HEIGHT, 80L).toInt().also { navHeight = it }
-		}
+		get() = prefs.getSafeInt(KEY_NAV_HEIGHT, 80)
 		set(value) = prefs.edit { putInt(KEY_NAV_HEIGHT, value) }
 
 	var navFloatingHeight: Int
-		get() = try {
-			prefs.getInt(KEY_NAV_FLOATING_HEIGHT, 64)
-		} catch (_: ClassCastException) {
-			prefs.getLong(KEY_NAV_FLOATING_HEIGHT, 64L).toInt().also { navFloatingHeight = it }
-		}
+		get() = prefs.getSafeInt(KEY_NAV_FLOATING_HEIGHT, 64)
 		set(value) = prefs.edit { putInt(KEY_NAV_FLOATING_HEIGHT, value) }
 
 	var isMainFabEnabled: Boolean
@@ -140,11 +142,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_MAIN_FAB, value) }
 
 	var gridSize: Int
-		get() = prefs.getInt(KEY_GRID_SIZE, 100)
+		get() = prefs.getSafeInt(KEY_GRID_SIZE, 100)
 		set(value) = prefs.edit { putInt(KEY_GRID_SIZE, value) }
 
 	var gridSizePages: Int
-		get() = prefs.getInt(KEY_GRID_SIZE_PAGES, 100)
+		get() = prefs.getSafeInt(KEY_GRID_SIZE_PAGES, 100)
 		set(value) = prefs.edit { putInt(KEY_GRID_SIZE_PAGES, value) }
 
 	var isQuickFilterEnabled: Boolean
@@ -194,7 +196,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ENABLED, value) }
 
 	var panoramaCoverBlur: Int
-		get() = prefs.getInt(KEY_PANORAMA_BLUR, 35)
+		get() = prefs.getSafeInt(KEY_PANORAMA_BLUR, 35)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_BLUR, value) }
 
 	var isPanoramaCoverAnimationEnabled: Boolean
@@ -202,15 +204,15 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ANIMATION_ENABLED, value) }
 
 	var panoramaAnimationSpeed: Int
-		get() = prefs.getInt(KEY_PANORAMA_ANIMATION_SPEED, 100)
+		get() = prefs.getSafeInt(KEY_PANORAMA_ANIMATION_SPEED, 100)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_ANIMATION_SPEED, value.coerceIn(50, 200)) }
 
 	var panoramaCoverExtraHeight: Int
-		get() = prefs.getInt(KEY_PANORAMA_EXTRA_HEIGHT, 50)
+		get() = prefs.getSafeInt(KEY_PANORAMA_EXTRA_HEIGHT, 50)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_EXTRA_HEIGHT, value) }
 
 	var panoramaBottomGradientAlpha: Int
-		get() = prefs.getInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100)
+		get() = prefs.getSafeInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, value) }
 
 	var historyListMode: ListMode
@@ -461,19 +463,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_ENABLED, value) }
 
 	var videoDanmakuSizePercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_SIZE, 100)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_SIZE, 100)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_SIZE, value) }
 
 	var videoDanmakuSpeedPercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_SPEED, 100)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_SPEED, 100)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_SPEED, value) }
 
 	var videoDanmakuOpacityPercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_OPACITY, 100)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_OPACITY, 100)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_OPACITY, value) }
 
 	var videoDanmakuStrokePercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_STROKE, 50)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_STROKE, 50)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_STROKE, value) }
 
 	var videoDanmakuShowScroll: Boolean
@@ -489,19 +491,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SHOW_BOTTOM, value) }
 
 	var videoDanmakuMaxScrollLines: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, value) }
 
 	var videoDanmakuMaxTopLines: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, value) }
 
 	var videoDanmakuMaxBottomLines: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, value) }
 
 	var videoDanmakuMaxScreenNum: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, value) }
 
 	var videoDanmakuSourceDanDan: Boolean
@@ -517,19 +519,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SOURCE_QQ, value) }
 
 	var videoPlaybackSpeed: Float
-		get() = prefs.getInt(KEY_VIDEO_PLAYBACK_SPEED, 100) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_PLAYBACK_SPEED, 100) / 100f
 		set(value) = prefs.edit { putInt(KEY_VIDEO_PLAYBACK_SPEED, (value * 100).toInt()) }
 
 	var videoDefaultSpeed: Float
-		get() = prefs.getInt(KEY_VIDEO_DEFAULT_SPEED, 100) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_DEFAULT_SPEED, 100) / 100f
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DEFAULT_SPEED, (value * 100).toInt()) }
 
 	var videoSeekForwardMs: Int
-		get() = prefs.getInt(KEY_VIDEO_SEEK_FORWARD_MS, 10_000)
+		get() = prefs.getSafeInt(KEY_VIDEO_SEEK_FORWARD_MS, 10_000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_FORWARD_MS, value) }
 
 	var videoSeekBackwardMs: Int
-		get() = prefs.getInt(KEY_VIDEO_SEEK_BACKWARD_MS, 10_000)
+		get() = prefs.getSafeInt(KEY_VIDEO_SEEK_BACKWARD_MS, 10_000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_BACKWARD_MS, value) }
 
 	var videoVolumeBoostEnabled: Boolean
@@ -545,11 +547,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_LANDSCAPE_SENSOR, value) }
 
 	var videoCacheSizeMb: Int
-		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
+		get() = prefs.getSafeInt(KEY_VIDEO_CACHE_MB, 1024)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
 
 	var videoAspectRatio: Int
-		get() = prefs.getInt(KEY_VIDEO_ASPECT_RATIO, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_ASPECT_RATIO, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_ASPECT_RATIO, value) }
 
 	var videoDoubleTapSeekEnabled: Boolean
@@ -569,11 +571,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_SUBTITLE_ITALIC, value) }
 
 	var videoSubtitleTextColor: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, android.graphics.Color.WHITE)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, android.graphics.Color.WHITE)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, value) }
 
 	var videoSubtitleBorderColor: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, android.graphics.Color.BLACK)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, android.graphics.Color.BLACK)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, value) }
 
 	var videoSubtitleBorderSize: Float
@@ -581,20 +583,20 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putFloat(KEY_VIDEO_SUBTITLE_BORDER_SIZE, value) }
 
 	var videoSubtitleBgColor: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_BG_COLOR, 0x66000000)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_BG_COLOR, 0x66000000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_BG_COLOR, value) }
 
 	var videoSubtitleAlignX: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_ALIGN_X, 1) // 0=left, 1=center, 2=right
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_ALIGN_X, 1) // 0=left, 1=center, 2=right
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_ALIGN_X, value) }
 
 	var videoSubtitlePosition: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_POSITION, 80)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_POSITION, 80)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_POSITION, value) }
 
 	@get:FloatRange(0.3, 1.0)
 	var videoControlsAlpha: Float
-		get() = prefs.getInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
 		set(@FloatRange(0.3, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_CONTROLS_ALPHA, (value * 100).toInt()) }
 
 	var preferredVideoQuality: String
@@ -603,7 +605,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	@get:FloatRange(0.0, 1.0)
 	var videoGradientAlpha: Float
-		get() = prefs.getInt(KEY_VIDEO_GRADIENT_ALPHA, 70) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_GRADIENT_ALPHA, 70) / 100f
 		set(@FloatRange(0.0, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_GRADIENT_ALPHA, (value * 100).toInt()) }
 
 	val defaultReaderMode: ReaderMode
@@ -664,7 +666,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putString(KEY_BLUR_MODE, value.value) }
 
 	var hazeOpacityPercent: Int
-		get() = prefs.getInt(KEY_HAZE_OPACITY, 82)
+		get() = prefs.getSafeInt(KEY_HAZE_OPACITY, 82)
 		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(45, 100)) }
 
 	var incognitoModeForNsfw: TriStateOption
@@ -748,7 +750,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putString(KEY_DETAILS_TAB, value.toString()) }
 
 	var lastDetailsTab: Int
-		get() = prefs.getInt(KEY_DETAILS_LAST_TAB, 0)
+		get() = prefs.getSafeInt(KEY_DETAILS_LAST_TAB, 0)
 		set(value) = prefs.edit { putInt(KEY_DETAILS_LAST_TAB, value) }
 
 	val isContentPrefetchEnabled: Boolean
@@ -796,7 +798,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		}
 
 	var sourcesVersion: Int
-		get() = prefs.getInt(KEY_SOURCES_VERSION, 0)
+		get() = prefs.getSafeInt(KEY_SOURCES_VERSION, 0)
 		set(value) = prefs.edit { putInt(KEY_SOURCES_VERSION, value) }
 
 	var isAllSourcesEnabled: Boolean
@@ -967,7 +969,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	fun getBubbleDetectorNms(modelId: String, defaultIsDetr: Boolean): Float {
 		val key = getReaderTranslationBubbleDetectorNmsKey(modelId)
 		val defaultVal = if (defaultIsDetr) 85 else 45
-		return prefs.getInt(key, defaultVal) / 100f
+		return prefs.getSafeInt(key, defaultVal) / 100f
 	}
 
 	fun setBubbleDetectorNms(modelId: String, value: Float) {
@@ -976,11 +978,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	}
 
 	var readerThreads: Int
-		get() = prefs.getInt(KEY_READER_THREADS, 3)
+		get() = prefs.getSafeInt(KEY_READER_THREADS, 3)
 		set(value) = prefs.edit { putInt(KEY_READER_THREADS, value.coerceIn(1, 10)) }
 
 	var readerPrefetchLimit: Int
-		get() = prefs.getInt(KEY_READER_PREFETCH_LIMIT, 6)
+		get() = prefs.getSafeInt(KEY_READER_PREFETCH_LIMIT, 6)
 		set(value) = prefs.edit { putInt(KEY_READER_PREFETCH_LIMIT, value.coerceIn(1, 20)) }
 
 	var screenshotsPolicy: ScreenshotsPolicy
@@ -1058,23 +1060,23 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_DOWNLOADS_AUTO_RETRY, value) }
 
 	var downloadThreads: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_THREADS, readerThreads).coerceIn(1, 10)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_THREADS, readerThreads).coerceIn(1, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_THREADS, value.coerceIn(1, 10)) }
 
 	var downloadRequestDelayMs: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_REQUEST_DELAY, DOWNLOADS_REQUEST_DELAY_DEFAULT).coerceIn(0, 5000)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_REQUEST_DELAY, DOWNLOADS_REQUEST_DELAY_DEFAULT).coerceIn(0, 5000)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_REQUEST_DELAY, value.coerceIn(0, 5000)) }
 
 	var downloadRetryCount: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_RETRY_COUNT, DOWNLOADS_RETRY_COUNT_DEFAULT).coerceIn(1, 10)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_RETRY_COUNT, DOWNLOADS_RETRY_COUNT_DEFAULT).coerceIn(1, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_RETRY_COUNT, value.coerceIn(1, 10)) }
 
 	var downloadRetryDelayMs: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_RETRY_DELAY, DOWNLOADS_RETRY_DELAY_DEFAULT).coerceIn(500, 10_000)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_RETRY_DELAY, DOWNLOADS_RETRY_DELAY_DEFAULT).coerceIn(500, 10_000)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_RETRY_DELAY, value.coerceIn(500, 10_000)) }
 
 	var downloadChapterDelay: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_CHAPTER_DELAY, 0).coerceIn(0, 10)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_CHAPTER_DELAY, 0).coerceIn(0, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_CHAPTER_DELAY, value.coerceIn(0, 10)) }
 
 	var isSuggestionsEnabled: Boolean
@@ -1242,7 +1244,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	@get:FloatRange(from = 0.0, to = 0.5)
 	val defaultWebtoonZoomOut: Float
-		get() = prefs.getInt(KEY_WEBTOON_ZOOM_OUT, 0).coerceIn(0, 50) / 100f
+		get() = prefs.getSafeInt(KEY_WEBTOON_ZOOM_OUT, 0).coerceIn(0, 50) / 100f
 
 	@get:FloatRange(from = 0.0, to = 1.0)
 	var readerAutoscrollSpeed: Float
@@ -1308,7 +1310,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_BACKUP_PERIODICAL_TRIM, value) }
 
 	var periodicalBackupCount: Int
-		get() = prefs.getInt(KEY_BACKUP_PERIODICAL_COUNT, 10)
+		get() = prefs.getSafeInt(KEY_BACKUP_PERIODICAL_COUNT, 10)
 		set(value) = prefs.edit { putInt(KEY_BACKUP_PERIODICAL_COUNT, value) }
 
 	val periodicalBackupMaxCount: Int
@@ -1361,7 +1363,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	// 数据版本号（用于版本化命名与兼容性判断）
 	var backupWebDavDataVersion: Int
-		get() = prefs.getInt(KEY_BACKUP_WEBDAV_DATA_VERSION, 1)
+		get() = prefs.getSafeInt(KEY_BACKUP_WEBDAV_DATA_VERSION, 1)
 		set(value) = prefs.edit { putInt(KEY_BACKUP_WEBDAV_DATA_VERSION, value) }
 
 	var isBackupWebDavAutoRestoreEnabled: Boolean
