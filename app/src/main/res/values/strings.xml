@@ -1451,6 +1451,9 @@
     <string name="captcha_required_message">This source requires solving a captcha to continue</string>
     <string name="assembling_apk">Assembling incremental update. Please wait…</string>
     <string name="author">Author</string>
+    <string name="tags">Tags</string>
+    <string name="title">Title</string>
+    <string name="advanced_search">Advanced search</string>
     <string name="rating">Rating</string>
     <string name="source">Source</string>
     <string name="translation">Translation</string>
