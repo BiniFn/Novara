@@ -120,11 +120,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
 
 	var navHeight: Int
-		get() = prefs.getInt(KEY_NAV_HEIGHT, 80)
+		get() = try {
+			prefs.getInt(KEY_NAV_HEIGHT, 80)
+		} catch (_: ClassCastException) {
+			prefs.getLong(KEY_NAV_HEIGHT, 80L).toInt().also { navHeight = it }
+		}
 		set(value) = prefs.edit { putInt(KEY_NAV_HEIGHT, value) }
 
 	var navFloatingHeight: Int
-		get() = prefs.getInt(KEY_NAV_FLOATING_HEIGHT, 64)
+		get() = try {
+			prefs.getInt(KEY_NAV_FLOATING_HEIGHT, 64)
+		} catch (_: ClassCastException) {
+			prefs.getLong(KEY_NAV_FLOATING_HEIGHT, 64L).toInt().also { navFloatingHeight = it }
+		}
 		set(value) = prefs.edit { putInt(KEY_NAV_FLOATING_HEIGHT, value) }
 
 	var isMainFabEnabled: Boolean
