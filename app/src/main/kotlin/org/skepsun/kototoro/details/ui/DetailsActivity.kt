@@ -74,6 +74,11 @@ class DetailsActivity :
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Restore transition cover state across configuration changes
+        if (savedInstanceState != null) {
+            shouldRenderTransitionCover = savedInstanceState.getBoolean(KEY_SHOULD_RENDER_TRANSITION_COVER, true)
+        }
+
         pageSaveHelper = pageSaveHelperFactory.create(this)
 
         if (settings.isSharedElementTransitionsEnabled) {
@@ -351,6 +356,11 @@ class DetailsActivity :
     }
 
     private fun syncCoverBounds(rect: Rect, alpha: Float) {
+        if (!shouldRenderTransitionCover) {
+            // Transition is done — keep the XML cover fully hidden to prevent flashes
+            viewBinding.imageViewCover.visibility = View.GONE
+            return
+        }
         if (rect.width > 0 && rect.height > 0) {
             viewBinding.imageViewCover.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 width = rect.width.toInt()
@@ -359,11 +369,7 @@ class DetailsActivity :
                 leftMargin = rect.left.toInt()
             }
         }
-        viewBinding.imageViewCover.alpha = if (shouldRenderTransitionCover) {
-            alpha.coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+        viewBinding.imageViewCover.alpha = alpha.coerceIn(0f, 1f)
         viewBinding.imageViewCover.visibility = View.VISIBLE
     }
 
@@ -375,7 +381,13 @@ class DetailsActivity :
         viewBinding.imageViewCover.postDelayed({
             shouldRenderTransitionCover = false
             viewBinding.imageViewCover.alpha = 0f
+            viewBinding.imageViewCover.visibility = View.GONE
         }, delayMs)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_SHOULD_RENDER_TRANSITION_COVER, shouldRenderTransitionCover)
     }
 
     override fun onProvideAssistContent(outContent: AssistContent) {
@@ -392,5 +404,9 @@ class DetailsActivity :
             Toast.LENGTH_SHORT,
         ).show()
         finishAfterTransition()
+    }
+
+    private companion object {
+        private const val KEY_SHOULD_RENDER_TRANSITION_COVER = "should_render_transition_cover"
     }
 }

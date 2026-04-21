@@ -27,6 +27,7 @@ fun KototoroFavoritesListScreen(
         contentPadding = contentPadding,
         appRouter = appRouter,
         showRemoveOption = true,
+        registerFilterCallback = false, // Parent FavoritesHostScreen manages the centralized callback
         onLoadMore = { viewModel.requestMoreItems() },
         onRemoveSelection = { ids ->
             viewModel.removeFromFavourites(ids)

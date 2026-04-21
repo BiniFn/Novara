@@ -516,6 +516,10 @@
 	<string name="tracking_manage_binding_action">Manage binding</string>
 	<string name="tracking_bind_suggestion_action">Bind suggested match</string>
 	<string name="tracking_remove_binding_action">Remove association</string>
+	<string name="tracking_source">Tracking Source</string>
+	<string name="score">Score</string>
+	<string name="status">Status</string>
+	<string name="total_chapters">Total Chapters</string>
 	    <string name="empty_favourite_categories">No favorite categories</string>
     <string name="logout">Log out</string>
     <string name="bookmark_add">Add bookmark</string>

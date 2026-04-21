@@ -52,7 +52,7 @@ class FavouritesContainerViewModel @Inject constructor(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 	mangaDataRepository: ContentDataRepository,
 	networkState: NetworkState,
-	private val globalFavoritesState: GlobalFavoritesState,
+	internal val globalFavoritesState: GlobalFavoritesState,
 	private val sourceGroupManager: SourceGroupManager,
 ) : BaseViewModel() {
 

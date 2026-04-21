@@ -3,6 +3,7 @@ package org.skepsun.kototoro.main.ui.compose
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
@@ -232,6 +233,7 @@ fun KototoroApp(
                     isCollapsedFullyTransparent = isBrowseRoute,
                     modifier = Modifier
                         .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                        .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                         .padding(start = visibleStartInsetDp)
                         .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
                         .onGloballyPositioned { coords ->

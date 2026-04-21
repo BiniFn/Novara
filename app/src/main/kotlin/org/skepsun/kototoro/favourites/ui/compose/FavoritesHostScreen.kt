@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -15,9 +16,13 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.list.ui.compose.AppContentListRoute
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.main.ui.MainActivity
+import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +33,40 @@ fun KototoroFavoritesHostRoute(
 ) {
     val categories by viewModel.categories.collectAsStateWithLifecycle(emptyList())
     val isEmpty by viewModel.isEmpty.collectAsStateWithLifecycle(false)
+
+    // Centralized filter callback for the entire favorites route.
+    // This prevents multiple per-category AppContentListRoute instances
+    // inside HorizontalPager from competing for the active callback.
+    val mainActivity = LocalContext.current as? MainActivity
+    val globalState = viewModel.globalFavoritesState
+    val selectedGroupTab by globalState.selectedGroupTab.collectAsStateWithLifecycle()
+    val selectedSourceTags by globalState.selectedSourceTags.collectAsStateWithLifecycle()
+
+    DisposableEffect(mainActivity, globalState, selectedGroupTab, selectedSourceTags) {
+        val callback = object : SearchBarFilterViewController.Callback {
+            override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+            override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                globalState.setSelectedGroupTab(
+                    if (selectedGroupTab == tab) BrowseGroupTab.All else tab
+                )
+            }
+
+            override fun getSelectedSourceTags(): Set<SourceTag> = selectedSourceTags
+
+            override fun onSourceTagSelected(tag: SourceTag?) {
+                when {
+                    tag == null -> globalState.clearSourceTags()
+                    tag in selectedSourceTags -> globalState.setSelectedSourceTags(selectedSourceTags - tag)
+                    else -> globalState.setSelectedSourceTags(selectedSourceTags + tag)
+                }
+            }
+        }
+        mainActivity?.setActiveFilterCallback(callback)
+        onDispose {
+            mainActivity?.clearActiveFilterCallback(callback)
+        }
+    }
 
     if (categories.isEmpty() && !isEmpty) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -77,7 +116,7 @@ fun KototoroFavoritesHostRoute(
             selectedTabIndex = pagerState.currentPage,
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
-            edgePadding = 8.dp,
+            edgePadding = 12.dp,
             indicator = { tabPositions ->
                 TabRowDefaults.SecondaryIndicator(
                     Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),

@@ -120,6 +120,8 @@ class RestoreService : BaseBackupRestoreService() {
 			val intent = Intent(context, RestoreService::class.java)
 			intent.putExtra(AppRouter.KEY_DATA, uri.toString())
 			intent.putExtra(AppRouter.KEY_ENTRIES, sections.toTypedArray())
+			intent.setData(uri)
+			intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 			ContextCompat.startForegroundService(context, intent)
 			true
 		} catch (e: Exception) {

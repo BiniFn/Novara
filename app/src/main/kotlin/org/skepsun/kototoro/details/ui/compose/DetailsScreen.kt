@@ -169,6 +169,7 @@ fun DetailsScreen(
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
     val configuration = LocalConfiguration.current
     val scrollState = rememberScrollState()
+    val landscapeLeftScrollState = rememberScrollState()
     var showDeleteLocalDialog by remember { mutableStateOf(false) }
     var showShareOptions by remember { mutableStateOf(false) }
     var pendingAuthorSearch by remember { mutableStateOf<PendingAuthorSearch?>(null) }
@@ -210,6 +211,7 @@ fun DetailsScreen(
     val compactPaneHeightPx = with(density) { compactPaneHeight.toPx() }
     val estimatedCompactHostHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     var toolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
+    var lastToolbarBottomPx by remember { mutableFloatStateOf(Float.NaN) }
     var infoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
     var initialInfoCardTopPx by remember { mutableFloatStateOf(Float.NaN) }
 
@@ -226,14 +228,23 @@ fun DetailsScreen(
             initialInfoCardTopPx = infoCardTopPx
         }
     }
+    LaunchedEffect(isWideAdaptiveLayout) {
+        if (isWideAdaptiveLayout) {
+            landscapeLeftScrollState.scrollTo(0)
+        }
+    }
     val collapseProgress by remember(
         scrollState,
         toolbarBottomPx,
         infoCardTopPx,
         initialInfoCardTopPx,
         toolbarGapPx,
+        isWideAdaptiveLayout,
     ) {
         derivedStateOf {
+            if (isWideAdaptiveLayout) {
+                return@derivedStateOf 0f
+            }
             val targetTop = toolbarBottomPx + toolbarGapPx
             if (toolbarBottomPx.isFinite() && infoCardTopPx.isFinite() && initialInfoCardTopPx.isFinite()) {
                 val travelDistance = (initialInfoCardTopPx - targetTop).coerceAtLeast(1f)
@@ -268,15 +279,15 @@ fun DetailsScreen(
     val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
     val isCompactPaneFullyExpanded = !isWideAdaptiveLayout && compactBottomSheetState.currentValue == SheetValue.Expanded
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val overlayTopBarInset = remember(isWideAdaptiveLayout, toolbarBottomPx, density, statusBarTopPadding) {
+    val overlayTopBarInset = remember(isWideAdaptiveLayout, toolbarBottomPx, lastToolbarBottomPx, density, statusBarTopPadding) {
         if (isWideAdaptiveLayout) {
             0.dp
         } else {
             with(density) {
-                if (toolbarBottomPx.isFinite() && toolbarBottomPx > 0f) {
-                    toolbarBottomPx.toDp()
-                } else {
-                    statusBarTopPadding + 64.dp
+                when {
+                    toolbarBottomPx.isFinite() && toolbarBottomPx > 0f -> toolbarBottomPx.toDp()
+                    lastToolbarBottomPx.isFinite() && lastToolbarBottomPx > 0f -> lastToolbarBottomPx.toDp()
+                    else -> statusBarTopPadding + 64.dp
                 }
             }
         }
@@ -346,9 +357,10 @@ fun DetailsScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         if (settings.isPanoramaCoverEnabled) {
-            val request = remember(mangaDetails) {
+            val coverUrl = mangaDetails?.toContent()?.coverUrl
+            val request = remember(coverUrl) {
                 ImageRequest.Builder(context)
-                    .data(mangaDetails?.toContent()?.coverUrl)
+                    .data(coverUrl)
                     .apply { mangaDetails?.toContent()?.let { mangaExtra(it) } }
                     .build()
             }
@@ -433,7 +445,11 @@ fun DetailsScreen(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f * collapseProgress),
                 ),
                 modifier = Modifier.onGloballyPositioned { coordinates ->
-                    toolbarBottomPx = coordinates.boundsInRoot().bottom
+                    val bottom = coordinates.boundsInRoot().bottom
+                    toolbarBottomPx = bottom
+                    if (bottom.isFinite() && bottom > 0f) {
+                        lastToolbarBottomPx = bottom
+                    }
                 },
             )
         }
@@ -455,7 +471,7 @@ fun DetailsScreen(
                 ) { paddingValues ->
                     DetailsScrollableContent(
                         modifier = Modifier.fillMaxSize(),
-                        scrollState = scrollState,
+                        scrollState = landscapeLeftScrollState,
                         contentPadding = paddingValues,
                         headerTopSpacing = if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp,
                         bottomSpacerHeight = 40.dp,
@@ -469,14 +485,14 @@ fun DetailsScreen(
                         isShowingTranslation = isShowingTranslation,
                         hasTranslationCache = hasTranslationCache,
                         isTranslating = isTranslating,
-                        collapseProgress = collapseProgress,
+                        collapseProgress = 0f,
                         content = content,
                         pendingTagSearch = { pendingTagSearch = it },
                         pendingAuthorSearch = { author, source ->
                             pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                         },
                         onCoverBoundsSync = onCoverBoundsSync,
-                        onInfoCardTopSync = { top -> infoCardTopPx = top },
+                        onInfoCardTopSync = { /* no-op in landscape */ },
                         onFavoriteClick = { showFavoriteDialog = true },
                         onActionClick = handleActionClick,
                     )
@@ -1194,7 +1210,7 @@ private fun ExpandedPaneUtilityDock(
 }
 
 @Composable
-private fun DetailsDockActionButton(
+internal fun DetailsDockActionButton(
     iconRes: Int,
     contentDescription: String,
     isSelected: Boolean,

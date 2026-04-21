@@ -21,6 +21,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     showRemoveOption: Boolean = false,
     isContentTypeFilterVisible: Boolean = true,
     isSourceTagFilterVisible: Boolean = true,
+    registerFilterCallback: Boolean = true,
     onRemoveSelection: ((Set<Long>) -> Unit)? = null,
     onShareSelection: ((Set<Long>) -> Unit)? = null,
     onEmptyActionClick: (() -> Unit)? = null,
@@ -62,39 +63,43 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     }
 
     // Filter Coordinator integration via MainActivity callback
-    val mainActivity = activity as? MainActivity
-    DisposableEffect(mainActivity, viewModel) {
-        val callback = object : SearchBarFilterViewController.Callback {
-            override fun isContentTypeFilterVisible(): Boolean = isContentTypeFilterVisible
-            override fun isSourceTagFilterVisible(): Boolean = isSourceTagFilterVisible
-            
-            override fun getSelectedContentType(): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab {
-                return viewModel.currentGroupTab.value ?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
-            }
-            
-            override fun onContentTypeSelected(tab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab) {
-                viewModel.setSelectedGroupTab(if (viewModel.currentGroupTab.value == tab) org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All else tab)
-            }
-            
-            override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> {
-                return viewModel.currentSourceTags.value ?: emptySet()
-            }
-            
-            override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
-                if (tag != null) {
-                    val current = viewModel.currentSourceTags.value ?: emptySet()
-                    viewModel.setSelectedSourceTags(if (tag in current) current - tag else current + tag)
+    // When registerFilterCallback is false, the parent composable manages the callback
+    // (e.g. FavoritesHostScreen centralizes it to avoid HorizontalPager contention)
+    if (registerFilterCallback) {
+        val mainActivity = activity as? MainActivity
+        DisposableEffect(mainActivity, viewModel) {
+            val callback = object : SearchBarFilterViewController.Callback {
+                override fun isContentTypeFilterVisible(): Boolean = isContentTypeFilterVisible
+                override fun isSourceTagFilterVisible(): Boolean = isSourceTagFilterVisible
+                
+                override fun getSelectedContentType(): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab {
+                    return viewModel.currentGroupTab.value ?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+                }
+                
+                override fun onContentTypeSelected(tab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab) {
+                    viewModel.setSelectedGroupTab(if (viewModel.currentGroupTab.value == tab) org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All else tab)
+                }
+                
+                override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> {
+                    return viewModel.currentSourceTags.value ?: emptySet()
+                }
+                
+                override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                    if (tag != null) {
+                        val current = viewModel.currentSourceTags.value ?: emptySet()
+                        viewModel.setSelectedSourceTags(if (tag in current) current - tag else current + tag)
+                    }
+                }
+                
+                override fun getSourceTagEntries(): List<org.skepsun.kototoro.explore.ui.model.SourceTag> {
+                    return org.skepsun.kototoro.explore.ui.model.SourceTag.quickFilterEntries
                 }
             }
             
-            override fun getSourceTagEntries(): List<org.skepsun.kototoro.explore.ui.model.SourceTag> {
-                return org.skepsun.kototoro.explore.ui.model.SourceTag.quickFilterEntries
+            mainActivity?.setActiveFilterCallback(callback)
+            onDispose {
+                mainActivity?.clearActiveFilterCallback(callback)
             }
-        }
-        
-        mainActivity?.setActiveFilterCallback(callback)
-        onDispose {
-            mainActivity?.clearActiveFilterCallback(callback)
         }
     }
 

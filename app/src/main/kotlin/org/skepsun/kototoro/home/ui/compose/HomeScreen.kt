@@ -123,11 +123,11 @@ fun HomeScreen(
                 bottom = contentPadding.calculateBottomPadding(),
             )
             .padding(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val hasHighlights = historyItems.isNotEmpty() || updateItems.isNotEmpty() || recommendationItems.isNotEmpty()
         if (hasHighlights) {
-            HomeHighlightsCard(
+            HomeHighlightsSections(
                 historyItems = historyItems,
                 recentHistoryCount = state.recentHistoryCount,
                 updateItems = updateItems,
@@ -158,7 +158,7 @@ fun HomeScreen(
 
 
 @Composable
-private fun HomeHighlightsCard(
+private fun HomeHighlightsSections(
     historyItems: List<Content>,
     recentHistoryCount: Int,
     updateItems: List<Content>,
@@ -172,46 +172,69 @@ private fun HomeHighlightsCard(
     onViewAllRecommendationsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    DashboardCard(modifier) {
-        var firstSection = true
+    org.skepsun.kototoro.core.ui.glass.GlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        style = org.skepsun.kototoro.core.ui.glass.GlassDefaults.subtleStyle(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            var firstSection = true
 
-        if (historyItems.isNotEmpty()) {
-            HomeContentRowSection(
-                title = stringResource(R.string.recent_history),
-                iconRes = R.drawable.ic_history,
-                items = historyItems,
-                count = recentHistoryCount,
-                posterStyle = posterStyle,
-                onItemClick = onItemClick,
-                onMoreClick = onViewAllRecentClick,
-                addTopSpacing = !firstSection,
-            )
-            firstSection = false
-        }
-        if (updateItems.isNotEmpty()) {
-            HomeContentRowSection(
-                title = stringResource(R.string.home_recent_updates),
-                iconRes = R.drawable.ic_updated,
-                items = updateItems,
-                count = unreadUpdatesCount,
-                posterStyle = posterStyle,
-                onItemClick = onItemClick,
-                onMoreClick = onViewAllUpdatesClick,
-                addTopSpacing = !firstSection,
-            )
-            firstSection = false
-        }
-        if (recommendationItems.isNotEmpty()) {
-            HomeContentRowSection(
-                title = stringResource(R.string.suggestions),
-                iconRes = R.drawable.ic_feed,
-                items = recommendationItems,
-                count = recommendationsCount,
-                posterStyle = posterStyle,
-                onItemClick = onItemClick,
-                onMoreClick = onViewAllRecommendationsClick,
-                addTopSpacing = !firstSection,
-            )
+            if (historyItems.isNotEmpty()) {
+                HomeContentRowSection(
+                    title = stringResource(R.string.recent_history),
+                    iconRes = R.drawable.ic_history,
+                    items = historyItems,
+                    count = recentHistoryCount,
+                    posterStyle = posterStyle,
+                    onItemClick = onItemClick,
+                    onMoreClick = onViewAllRecentClick,
+                    addTopSpacing = false,
+                )
+                firstSection = false
+            }
+            if (updateItems.isNotEmpty()) {
+                if (!firstSection) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                    )
+                }
+                HomeContentRowSection(
+                    title = stringResource(R.string.home_recent_updates),
+                    iconRes = R.drawable.ic_updated,
+                    items = updateItems,
+                    count = unreadUpdatesCount,
+                    posterStyle = posterStyle,
+                    onItemClick = onItemClick,
+                    onMoreClick = onViewAllUpdatesClick,
+                    addTopSpacing = false,
+                )
+                firstSection = false
+            }
+            if (recommendationItems.isNotEmpty()) {
+                if (!firstSection) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                    )
+                }
+                HomeContentRowSection(
+                    title = stringResource(R.string.suggestions),
+                    iconRes = R.drawable.ic_feed,
+                    items = recommendationItems,
+                    count = recommendationsCount,
+                    posterStyle = posterStyle,
+                    onItemClick = onItemClick,
+                    onMoreClick = onViewAllRecommendationsClick,
+                    addTopSpacing = false,
+                )
+            }
         }
     }
 }
@@ -233,43 +256,40 @@ private fun HomeContentRowSection(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = if (addTopSpacing) 14.dp else 0.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(top = if (addTopSpacing) 6.dp else 0.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (addTopSpacing) {
-            androidx.compose.material3.HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
+            Row(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        HomeBadge(
-                            text = count.toHeroCountLabel(),
-                            iconRes = iconRes,
-                        )
-                    }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                HomeBadge(
+                    text = count.toHeroCountLabel(),
+                    iconRes = iconRes,
+                )
             }
-            TextButton(onClick = onMoreClick) {
-                Text(stringResource(R.string.more))
+            TextButton(
+                onClick = onMoreClick,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.more),
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
         }
 
@@ -329,6 +349,7 @@ private fun HomeCoverRowItem(
         Text(
             text = content.title,
             style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
@@ -469,18 +490,20 @@ private fun HomeBadge(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(12.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -508,6 +531,7 @@ private fun HomeStatPill(
                 text = value,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = label,

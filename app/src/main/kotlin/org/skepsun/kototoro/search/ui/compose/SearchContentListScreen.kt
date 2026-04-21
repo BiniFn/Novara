@@ -109,7 +109,6 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import java.util.Locale
 
 private val SearchTopActionsHeight = 56.dp
-private val SearchTitleRowHeight = 72.dp
 
 private enum class SearchSidePaneMode {
     Filter,
@@ -154,7 +153,7 @@ fun AppSearchContentListRoute(
     var searchMode by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf(filterSnapshot.listFilter.query.orEmpty()) }
     var collapseOffsetPx by rememberSaveable { mutableStateOf(0f) }
-    var showFilterPanel by rememberSaveable(isWideAdaptiveLayout) { mutableStateOf(false) }
+    var showFilterPanel by rememberSaveable(isWideAdaptiveLayout) { mutableStateOf(isWideAdaptiveLayout) }
     var sidePaneMode by rememberSaveable(isWideAdaptiveLayout) { mutableStateOf(SearchSidePaneMode.Filter) }
     var previewContent by remember { mutableStateOf<Content?>(null) }
     val focusRequester = remember { FocusRequester() }
@@ -176,6 +175,7 @@ fun AppSearchContentListRoute(
     LaunchedEffect(isWideAdaptiveLayout) {
         if (isWideAdaptiveLayout) {
             sidePaneMode = SearchSidePaneMode.Filter
+            showFilterPanel = true
         } else {
             previewContent = null
             sidePaneMode = SearchSidePaneMode.Filter
@@ -194,10 +194,7 @@ fun AppSearchContentListRoute(
     val topActionsHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
         SearchTopActionsHeight.toPx()
     }
-    val titleRowHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
-        SearchTitleRowHeight.toPx()
-    }
-    val maxCollapsePx = topActionsHeightPx + titleRowHeightPx
+    val maxCollapsePx = topActionsHeightPx
     val nestedScrollConnection = remember(maxCollapsePx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -237,14 +234,19 @@ fun AppSearchContentListRoute(
                 listMode = listMode,
                 gridSize = gridSize,
                 topActionsHeight = SearchTopActionsHeight,
-                titleRowHeight = SearchTitleRowHeight,
                 collapseOffsetPx = collapseOffsetPx,
                 isRandomLoading = isRandomLoading,
                 onBackClick = { (context as? Activity)?.finish() },
                 onRandomClick = viewModel::openRandom,
                 onFilterClick = {
                     if (isWideAdaptiveLayout) {
-                        sidePaneMode = SearchSidePaneMode.Filter
+                        when {
+                            sidePaneMode == SearchSidePaneMode.Preview -> {
+                                sidePaneMode = SearchSidePaneMode.Filter
+                                showFilterPanel = true
+                            }
+                            else -> showFilterPanel = !showFilterPanel
+                        }
                     } else {
                         showFilterPanel = !showFilterPanel
                     }
@@ -545,7 +547,6 @@ private fun SearchContentTopBar(
     listMode: ListMode,
     gridSize: Int,
     topActionsHeight: Dp,
-    titleRowHeight: Dp,
     collapseOffsetPx: Float,
     isRandomLoading: Boolean,
     onBackClick: () -> Unit,
@@ -566,13 +567,9 @@ private fun SearchContentTopBar(
         )
     }
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val titleRowHeightPx = with(density) { titleRowHeight.toPx() }
     val topActionsHeightPx = with(density) { topActionsHeight.toPx() }
-    val titleCollapsedPx = collapseOffsetPx.coerceIn(0f, titleRowHeightPx)
-    val topActionsCollapsedPx = (collapseOffsetPx - titleRowHeightPx).coerceIn(0f, topActionsHeightPx)
-    val titleVisibleHeight = with(density) { (titleRowHeightPx - titleCollapsedPx).coerceAtLeast(0f).toDp() }
+    val topActionsCollapsedPx = collapseOffsetPx.coerceIn(0f, topActionsHeightPx)
     val topActionsVisibleHeight = with(density) { (topActionsHeightPx - topActionsCollapsedPx).coerceAtLeast(0f).toDp() }
-    val compactTitleAlpha = (titleCollapsedPx / titleRowHeightPx).coerceIn(0f, 1f)
     val compactTopBarAlpha = if (topActionsHeightPx == 0f) 1f else {
         ((topActionsHeightPx - topActionsCollapsedPx) / topActionsHeightPx).coerceIn(0f, 1f)
     }
@@ -604,7 +601,9 @@ private fun SearchContentTopBar(
                 ) {
                     SourceListTopActionsRow(
                         title = sourceTitle,
-                        compactTitleAlpha = compactTitleAlpha * compactTopBarAlpha,
+                        activeQuery = activeQuery,
+                        currentSortLabel = currentSortLabel,
+                        topBarAlpha = compactTopBarAlpha,
                         listMode = listMode,
                         gridSize = gridSize,
                         isFilterApplied = isFilterApplied,
@@ -612,22 +611,11 @@ private fun SearchContentTopBar(
                         onBackClick = onBackClick,
                         onSearchClick = onSearchOpen,
                         onRandomClick = onRandomClick,
+                        onFilterClick = onFilterClick,
                         onResetFilterClick = onResetFilterClick,
                         onSettingsClick = onSettingsClick,
                         onListModeChange = onListModeChange,
                         onGridSizeChange = onGridSizeChange,
-                    )
-                }
-                CollapsingBarSlot(
-                    visibleHeight = titleVisibleHeight,
-                    fullHeight = titleRowHeight,
-                ) {
-                    SourceListTitleRow(
-                        sourceTitle = sourceTitle,
-                        activeQuery = activeQuery,
-                        currentSortLabel = currentSortLabel,
-                        isFilterApplied = isFilterApplied,
-                        onFilterClick = onFilterClick,
                     )
                 }
             }
@@ -750,7 +738,9 @@ private fun SearchInputRow(
 @Composable
 private fun SourceListTopActionsRow(
     title: String,
-    compactTitleAlpha: Float,
+    activeQuery: String?,
+    currentSortLabel: String,
+    topBarAlpha: Float,
     listMode: ListMode,
     gridSize: Int,
     isFilterApplied: Boolean,
@@ -758,6 +748,7 @@ private fun SourceListTopActionsRow(
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit,
     onRandomClick: () -> Unit,
+    onFilterClick: () -> Unit,
     onResetFilterClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onListModeChange: (ListMode) -> Unit,
@@ -767,9 +758,9 @@ private fun SourceListTopActionsRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         val maxWidthDp = maxWidth.value
-        val showRandomDirect = maxWidthDp >= 356f
-        val showDisplayDirect = maxWidthDp >= 412f
-        val showSettingsDirect = maxWidthDp >= 468f
+        val showRandomDirect = maxWidthDp >= 420f
+        val showDisplayDirect = maxWidthDp >= 476f
+        val showSettingsDirect = maxWidthDp >= 532f
         val shouldShowOverflow = !showRandomDirect || !showDisplayDirect || !showSettingsDirect || isFilterApplied
 
         Row(
@@ -786,16 +777,58 @@ private fun SourceListTopActionsRow(
                 )
             }
 
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .alpha(compactTitleAlpha),
-            )
+                    .alpha(topBarAlpha),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!activeQuery.isNullOrBlank()) {
+                    Text(
+                        text = activeQuery,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            BadgedBox(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                badge = {
+                    if (isFilterApplied) {
+                        Badge()
+                    }
+                },
+            ) {
+                TextButton(
+                    onClick = onFilterClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = currentSortLabel,
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        painter = painterResource(R.drawable.ic_filter_menu),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             IconButton(onClick = onSearchClick) {
                 Icon(
@@ -845,73 +878,6 @@ private fun SourceListTopActionsRow(
                     onSettingsClick = onSettingsClick,
                     onListModeChange = onListModeChange,
                     onGridSizeChange = onGridSizeChange,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SourceListTitleRow(
-    sourceTitle: String,
-    activeQuery: String?,
-    currentSortLabel: String,
-    isFilterApplied: Boolean,
-    onFilterClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(SearchTitleRowHeight)
-            .padding(start = 16.dp, end = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = sourceTitle,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (!activeQuery.isNullOrBlank()) {
-                Text(
-                    text = activeQuery,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        BadgedBox(
-            badge = {
-                if (isFilterApplied) {
-                    Badge()
-                }
-            },
-        ) {
-            TextButton(
-                onClick = onFilterClick,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    text = currentSortLabel,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Icon(
-                    painter = painterResource(R.drawable.ic_filter_menu),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .padding(start = 6.dp)
-                        .size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -1176,8 +1142,8 @@ private fun QuickFilterPinnedRow(
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
 ) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         items(quickFilter.items) { chip ->
@@ -1226,8 +1192,8 @@ private fun SourceTagsPinnedRow(
 ) {
     if (tags.isEmpty()) return
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         items(tags, key = { it.key }) { tag ->
@@ -1248,8 +1214,8 @@ private fun SourceTagsPinnedRow(
 @Composable
 private fun ActiveQueryRow(query: String) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         item {

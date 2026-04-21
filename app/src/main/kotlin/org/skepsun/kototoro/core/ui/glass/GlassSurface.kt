@@ -97,10 +97,13 @@ fun GlassSurface(
     val colorScheme = MaterialTheme.colorScheme
     val isDarkTheme = colorScheme.background.luminance() < 0.5f
     val opacityFactor = (hazeOpacityPercent.coerceIn(45, 100)) / 100f
-    val effectiveContainerAlpha = when (blurMode) {
+    val effectiveContainerAlpha = (when (blurMode) {
         AppSettings.BlurMode.STANDARD -> (style.containerAlpha * opacityFactor + 0.06f).coerceAtMost(0.94f)
         AppSettings.BlurMode.IMMERSIVE -> style.containerAlpha * opacityFactor
         AppSettings.BlurMode.ENHANCED -> (style.containerAlpha * opacityFactor - 0.04f).coerceAtLeast(0.20f)
+    }).let { alpha ->
+        // In dark mode, reduce opacity slightly for more transparency / brighter feel
+        if (isDarkTheme) (alpha - 0.04f).coerceAtLeast(0.18f) else alpha
     }
     val baseColor = when {
         effectiveContainerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
@@ -108,7 +111,8 @@ fun GlassSurface(
         else -> colorScheme.surfaceContainerLow
     }.let { candidate ->
         if (isDarkTheme) {
-            lerp(candidate, colorScheme.surfaceBright, 0.08f)
+            // Increased lerp factor for brighter glass surfaces in dark mode
+            lerp(candidate, colorScheme.surfaceBright, 0.16f)
         } else {
             candidate
         }
@@ -129,7 +133,8 @@ fun GlassSurface(
         AppSettings.BlurMode.ENHANCED -> (effectiveContainerAlpha * 0.24f).coerceIn(0.12f, 0.28f)
     }.let { alpha ->
         if (isDarkTheme) {
-            (alpha + 0.06f).coerceAtMost(0.46f)
+            // Higher tint offset in dark mode for better backdrop definition
+            (alpha + 0.10f).coerceAtMost(0.50f)
         } else {
             alpha
         }
