@@ -817,8 +817,21 @@ class DetailsViewModel @Inject constructor(
 					url = origin.url,
 				)
 			}
+		// Keep the currently-selected tracking candidate visible even if the new
+		// active local manga has no tracking link yet. Otherwise switching the
+		// active local source would silently drop the user's tracking metadata
+		// selection from the UI and appear as an auto-switch back to local.
+		val selectedCandidate = (selectedMetadataSource.value as? MetadataSourceSelection.Tracking)
+			?.let { selection ->
+				TrackingMetadataCandidate(
+					service = selection.service,
+					remoteId = selection.remoteId,
+					url = selection.url,
+				)
+			}
 		return buildList {
 			originCandidate?.let(::add)
+			selectedCandidate?.let(::add)
 			addAll(candidates)
 		}.distinctBy { trackingMetadataKey(it.service, it.remoteId) }
 	}
@@ -944,28 +957,33 @@ class DetailsViewModel @Inject constructor(
 	): ContentDetails {
 		val trackingContent = trackingDetailsToSyntheticContent(trackingDetails)
 		val baseContent = base?.toContent()
-		val mergedChapters = mergeActualAndMetadataChapters(
-			metadataChapters = trackingContent.chapters.orEmpty(),
-			actualChapters = baseContent?.chapters.orEmpty(),
-		)
-		val mergedSource = if (baseContent != null) {
-			syntheticSource(
-				name = baseContent.source.name,
-				contentType = baseContent.source.getContentType(),
-				locale = trackingContent.source.locale,
+		if (baseContent == null) {
+			return ContentDetails(
+				manga = trackingContent,
+				localContent = null,
+				override = null,
+				description = trackingDetails.description ?: trackingContent.description,
+				isLoaded = true,
 			)
-		} else {
-			trackingContent.source
 		}
+		// IMPORTANT: keep baseContent's identity (id, url, publicUrl, source, chapters)
+		// so the reader/downloader can still resolve pages from the real reading source.
+		// Only override display-only fields from tracking metadata.
+		val mergedManga = baseContent.copy(
+			title = trackingContent.title.ifBlank { baseContent.title },
+			altTitles = (baseContent.altTitles + trackingContent.altTitles).toSet(),
+			coverUrl = trackingContent.coverUrl.normalizedImageUrl() ?: baseContent.coverUrl,
+			rating = if (trackingContent.rating > 0f) trackingContent.rating else baseContent.rating,
+			tags = if (trackingContent.tags.isNotEmpty()) trackingContent.tags else baseContent.tags,
+			state = trackingContent.state ?: baseContent.state,
+			authors = if (trackingContent.authors.isNotEmpty()) trackingContent.authors else baseContent.authors,
+			description = trackingContent.description?.takeIf { it.isNotBlank() } ?: baseContent.description,
+		)
 		return ContentDetails(
-			manga = trackingContent.copy(
-				contentRating = baseContent?.contentRating,
-				chapters = mergedChapters.ifEmpty { null },
-				source = mergedSource,
-			),
-			localContent = base?.local,
+			manga = mergedManga,
+			localContent = base.local,
 			override = null,
-			description = trackingDetails.description ?: base?.description ?: trackingContent.description,
+			description = trackingDetails.description ?: base.description ?: trackingContent.description,
 			isLoaded = true,
 		)
 	}
@@ -1788,17 +1806,37 @@ class DetailsViewModel @Inject constructor(
 		}
 	}
 
-	fun bindReadingCandidateToTracking(content: Content) {
-		val selection = selectedMetadataSource.value as? MetadataSourceSelection.Tracking ?: return
-		launchJob(Dispatchers.IO) {
-			trackingSiteMatcher.confirmMatch(selection.service, content.id, selection.remoteId)
-			dataRepository.setMetadataSourceSelection(
-				mangaId = content.id,
-				selection = PersistedMetadataSourceSelection.Tracking(
-					serviceId = selection.service.id,
-					remoteId = selection.remoteId,
-				),
-			)
+	fun bindReadingCandidateToTracking(content: Content, onComplete: (() -> Unit)? = null) {
+		val selection = selectedMetadataSource.value as? MetadataSourceSelection.Tracking
+		if (selection == null) {
+			onComplete?.invoke()
+			return
+		}
+		launchJob(Dispatchers.IO + SkipErrors) {
+			try {
+				// MangaPrefsEntity has a FK to MangaEntity; persist the candidate first
+				// so setMetadataSourceSelection can't fail with a foreign key constraint
+				// on a brand-new candidate that has never been opened.
+				runCatchingCancellable {
+					dataRepository.storeContent(content, replaceExisting = false)
+				}
+				runCatchingCancellable {
+					trackingSiteMatcher.confirmMatch(selection.service, content.id, selection.remoteId)
+				}
+				runCatchingCancellable {
+					dataRepository.setMetadataSourceSelection(
+						mangaId = content.id,
+						selection = PersistedMetadataSourceSelection.Tracking(
+							serviceId = selection.service.id,
+							remoteId = selection.remoteId,
+						),
+					)
+				}
+			} finally {
+				withContext(Dispatchers.Main) {
+					onComplete?.invoke()
+				}
+			}
 		}
 	}
 

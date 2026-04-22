@@ -152,12 +152,12 @@ fun KototoroContentCardGrid(
                 )
             }
 
-            CardStateIcons(
+            CardTopStartBadges(
                 isFavorite = item.isFavorite,
                 isSaved = item.isSaved,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp),
+                trackingService = item.metadataTrackingService,
+                cardCornerRadius = posterStyle.cornerRadius,
+                modifier = Modifier.align(Alignment.TopStart),
             )
 
             if (item.counter > 0) {
@@ -180,8 +180,8 @@ fun KototoroContentCardGrid(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .size(32.dp)
+                        .padding(6.dp)
+                        .size(26.dp)
                         .background(
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
                             shape = androidx.compose.foundation.shape.CircleShape
@@ -193,11 +193,11 @@ fun KototoroContentCardGrid(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        strokeWidth = 2.5.dp,
+                        strokeWidth = 2.dp,
                     )
                     Text(
                         text = "${(item.progress.percent * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
@@ -206,6 +206,7 @@ fun KototoroContentCardGrid(
             if (showSourceInfo) {
                 SourceInfoPill(
                     source = manga.source,
+                    cardCornerRadius = posterStyle.cornerRadius,
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
             }
@@ -295,6 +296,62 @@ fun KototoroContentCardList(
 }
 
 @Composable
+private fun CardTopStartBadges(
+    isFavorite: Boolean,
+    isSaved: Boolean,
+    trackingService: org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService?,
+    cardCornerRadius: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+) {
+    if (!isFavorite && !isSaved && trackingService == null) return
+    // Match the card's top-left corner, open the opposite corner like the bottom pill.
+    val pillShape = RoundedCornerShape(
+        topStart = cardCornerRadius,
+        topEnd = 0.dp,
+        bottomStart = 0.dp,
+        bottomEnd = 9.dp,
+    )
+    Row(
+        modifier = modifier
+            .background(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                shape = pillShape,
+            )
+            .padding(start = 5.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (trackingService != null) {
+            Icon(
+                painter = painterResource(id = trackingService.iconResId),
+                contentDescription = trackingService.name,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        if (isSaved) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_storage),
+                contentDescription = "Local/Saved",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .padding(start = if (trackingService != null) 4.dp else 0.dp)
+                    .size(13.dp),
+            )
+        }
+        if (isFavorite) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_heart_outline),
+                contentDescription = "Favourite",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(start = if (trackingService != null || isSaved) 4.dp else 0.dp)
+                    .size(13.dp),
+            )
+        }
+    }
+}
+
+@Composable
 private fun CardStateIcons(
     isFavorite: Boolean,
     isSaved: Boolean,
@@ -336,6 +393,7 @@ private fun CardStateIcons(
 private fun SourceInfoPill(
     source: org.skepsun.kototoro.parsers.model.ContentSource,
     modifier: Modifier = Modifier,
+    cardCornerRadius: androidx.compose.ui.unit.Dp = 10.dp,
 ) {
     val resolvedSource = rememberResolvedContentSource(source)
     val langText = remember(resolvedSource.name, resolvedSource.locale) {
@@ -348,8 +406,13 @@ private fun SourceInfoPill(
     Row(
         modifier = modifier
             .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-                shape = RoundedCornerShape(topEnd = 10.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                shape = RoundedCornerShape(
+                    topStart = 0.dp,
+                    topEnd = 9.dp,
+                    bottomStart = cardCornerRadius,
+                    bottomEnd = 0.dp,
+                ),
             )
             .padding(start = 5.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

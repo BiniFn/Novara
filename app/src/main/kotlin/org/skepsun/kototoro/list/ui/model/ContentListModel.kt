@@ -10,6 +10,7 @@ import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_ANYT
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 sealed class ContentListModel : ListModel {
 
@@ -17,6 +18,7 @@ sealed class ContentListModel : ListModel {
 	abstract val manga: Content
 	abstract val counter: Int
 	open val isPinned: Boolean = false
+	open val metadataTrackingService: ScrobblerService? = null
 
 	val id: Long
 		get() = manga.id

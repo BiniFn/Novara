@@ -23,6 +23,7 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.local.data.index.LocalContentIndex
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
@@ -134,6 +135,7 @@ class ContentListMapper @Inject constructor(
 		isFavorite = isFavorite(manga.id, options),
 		isSaved = isSaved(manga.id, options),
 		isPinned = isPinned(manga.id, options),
+		metadataTrackingService = getMetadataTrackingService(manga.id),
 	)
 
 	private suspend fun toListModelImpl(
@@ -173,6 +175,13 @@ class ContentListMapper @Inject constructor(
 
 	private suspend fun isSaved(mangaId: Long, @Options options: Int): Boolean {
 		return options.isBadgeEnabled(SAVED) && mangaId in localContentIndex
+	}
+
+	private suspend fun getMetadataTrackingService(mangaId: Long): ScrobblerService? {
+		val selection = dataRepository.getMetadataSourceSelection(mangaId)
+			as? ContentDataRepository.MetadataSourceSelection.Tracking
+			?: return null
+		return ScrobblerService.entries.firstOrNull { it.id == selection.serviceId }
 	}
 
 	@ColorRes

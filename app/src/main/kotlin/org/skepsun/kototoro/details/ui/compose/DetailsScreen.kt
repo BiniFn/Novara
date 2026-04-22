@@ -1237,8 +1237,9 @@ fun DetailsScreen(
                     },
                     onSearch = viewModel::searchReadingBindings,
                     onResultClick = { candidate ->
-                        viewModel.bindReadingCandidateToTracking(candidate)
-                        appRouter.openDetails(candidate)
+                        viewModel.bindReadingCandidateToTracking(candidate) {
+                            appRouter.openDetails(candidate)
+                        }
                     },
                     onDismissRequest = { showReadingSourceDialog = false },
                 )

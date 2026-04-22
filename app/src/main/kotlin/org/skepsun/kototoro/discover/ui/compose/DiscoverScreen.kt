@@ -17,11 +17,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -87,6 +91,9 @@ fun DiscoverScreen(
 				DiscoverEmptyState(
 					state = emptyState,
 					contentPadding = contentPadding,
+					activeService = activeService,
+					availableServices = availableServices,
+					onSelectService = onSelectService,
 				)
 				return@PullToRefreshBox
 			}
@@ -151,6 +158,9 @@ fun DiscoverScreen(
 				DiscoverEmptyState(
 					state = emptyState,
 					contentPadding = contentPadding,
+					activeService = activeService,
+					availableServices = availableServices,
+					onSelectService = onSelectService,
 				)
 				return@PullToRefreshBox
 			}
@@ -188,6 +198,9 @@ fun DiscoverScreen(
 private fun DiscoverEmptyState(
 	state: EmptyState,
 	contentPadding: PaddingValues,
+	activeService: ScrobblerService? = null,
+	availableServices: List<ScrobblerService> = emptyList(),
+	onSelectService: (ScrobblerService) -> Unit = {},
 ) {
 	Box(
 		modifier = Modifier
@@ -220,6 +233,61 @@ private fun DiscoverEmptyState(
 				color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
 				textAlign = TextAlign.Center,
 			)
+			if (activeService != null && availableServices.size > 1) {
+				DiscoverServiceSwitcherChip(
+					activeService = activeService,
+					availableServices = availableServices,
+					onSelectService = onSelectService,
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun DiscoverServiceSwitcherChip(
+	activeService: ScrobblerService,
+	availableServices: List<ScrobblerService>,
+	onSelectService: (ScrobblerService) -> Unit,
+) {
+	var expanded by remember { mutableStateOf(false) }
+	Box {
+		androidx.compose.material3.AssistChip(
+			onClick = { expanded = true },
+			leadingIcon = {
+				androidx.compose.material3.Icon(
+					painter = painterResource(activeService.iconResId),
+					contentDescription = null,
+					modifier = Modifier.padding(end = 2.dp),
+				)
+			},
+			trailingIcon = {
+				androidx.compose.material3.Icon(
+					imageVector = Icons.Filled.ArrowDropDown,
+					contentDescription = null,
+				)
+			},
+			label = { androidx.compose.material3.Text(stringResource(activeService.titleResId)) },
+		)
+		androidx.compose.material3.DropdownMenu(
+			expanded = expanded,
+			onDismissRequest = { expanded = false },
+		) {
+			availableServices.forEach { candidate ->
+				androidx.compose.material3.DropdownMenuItem(
+					text = { androidx.compose.material3.Text(stringResource(candidate.titleResId)) },
+					leadingIcon = {
+						androidx.compose.material3.Icon(
+							painter = painterResource(candidate.iconResId),
+							contentDescription = null,
+						)
+					},
+					onClick = {
+						expanded = false
+						onSelectService(candidate)
+					},
+				)
+			}
 		}
 	}
 }
