@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings
 
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -37,6 +38,8 @@ import org.skepsun.kototoro.settings.compose.ServicesSettingsUiState
 import org.skepsun.kototoro.settings.compose.ServicesTrackingItem
 import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.settings.userdata.BackupsSettingsFragment
+import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
+import org.skepsun.kototoro.tracking.animeoffline.work.AnimeOfflineUpdateWorker
 
 @AndroidEntryPoint
 class ServicesSettingsFragment : Fragment() {
@@ -46,6 +49,9 @@ class ServicesSettingsFragment : Fragment() {
 
 	@Inject
 	lateinit var scrobblerAuthHelper: ScrobblerAuthHelper
+
+	@Inject
+	lateinit var animeOfflineRepository: AnimeOfflineRepository
 
 	private val resumeTick = MutableStateFlow(0)
 
@@ -79,6 +85,7 @@ class ServicesSettingsFragment : Fragment() {
 			val kitsuSummary = rememberScrobblerSummary(ScrobblerService.KITSU, refreshKey)
 			val bangumiSummary = rememberScrobblerSummary(ScrobblerService.BANGUMI, refreshKey)
 			val mangaUpdatesSummary = rememberScrobblerSummary(ScrobblerService.MANGAUPDATES, refreshKey)
+			val animeOfflineSummary = rememberAnimeOfflineSummary(refreshKey)
 
 			val state = ServicesSettingsUiState(
 				suggestionsSummary = if (suggestionsEnabled) {
@@ -86,6 +93,7 @@ class ServicesSettingsFragment : Fragment() {
 				} else {
 					getString(R.string.disabled)
 				},
+				animeOfflineSummary = animeOfflineSummary,
 				isRelatedContentEnabled = isRelatedContentEnabled,
 				isStatsEnabled = isStatsEnabled,
 				isReadingTimeEstimationEnabled = isReadingTimeEstimationEnabled,
@@ -148,6 +156,15 @@ class ServicesSettingsFragment : Fragment() {
 					onSyncSettingsClick = {
 						(activity as? SettingsActivity)?.openFragment(BackupsSettingsFragment::class.java, null, false)
 					},
+					onAnimeOfflineClick = {
+						val appContext = requireContext().applicationContext
+						coroutineScope.launch {
+							withContext(Dispatchers.IO) {
+								AnimeOfflineUpdateWorker.enqueue(appContext, force = true)
+							}
+							snackbarHostState.showSnackbar(getString(R.string.anime_offline_database_update_started))
+						}
+					},
 					onSuggestionsClick = {
 						(activity as? SettingsActivity)?.openFragment(SuggestionsSettingsFragment::class.java, null, false)
 					},
@@ -202,6 +219,16 @@ class ServicesSettingsFragment : Fragment() {
 		}
 	}
 
+	@Composable
+	private fun rememberAnimeOfflineSummary(refreshKey: Int): String {
+		return produceState(
+			initialValue = getString(R.string.loading_),
+			key1 = refreshKey,
+		) {
+			value = loadAnimeOfflineSummary()
+		}.value
+	}
+
 	private suspend fun loadScrobblerSummary(service: ScrobblerService): String {
 		if (!scrobblerAuthHelper.isAuthorized(service)) {
 			return getString(R.string.disabled)
@@ -218,6 +245,36 @@ class ServicesSettingsFragment : Fragment() {
 				it.printStackTraceDebug()
 				it.getDisplayMessage(resources)
 			}
+		}
+	}
+
+	private suspend fun loadAnimeOfflineSummary(): String = withContext(Dispatchers.IO) {
+		runCatching {
+			val status = animeOfflineRepository.readStatus()
+			when {
+				status.isInstalled && !status.releaseTag.isNullOrBlank() && status.downloadedAt > 0L -> {
+					getString(
+						R.string.anime_offline_database_summary_installed,
+						status.releaseTag,
+						DateUtils.getRelativeTimeSpanString(status.downloadedAt),
+					)
+				}
+				status.isInstalled -> {
+					getString(R.string.anime_offline_database_summary_installed_unknown)
+				}
+				status.lastCheckedAt > 0L -> {
+					getString(
+						R.string.anime_offline_database_summary_not_installed_checked,
+						DateUtils.getRelativeTimeSpanString(status.lastCheckedAt),
+					)
+				}
+				else -> {
+					getString(R.string.anime_offline_database_summary_not_installed)
+				}
+			}
+		}.getOrElse {
+			it.printStackTraceDebug()
+			it.getDisplayMessage(resources)
 		}
 	}
 }

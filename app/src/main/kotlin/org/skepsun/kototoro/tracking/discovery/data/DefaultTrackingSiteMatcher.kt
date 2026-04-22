@@ -7,8 +7,10 @@ import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.toContent
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult
@@ -22,6 +24,7 @@ private const val SUGGESTION_LIMIT = 5
 class DefaultTrackingSiteMatcher @Inject constructor(
 	private val db: MangaDatabase,
 	private val discoveryService: TrackingSiteDiscoveryService,
+	private val animeOfflineRepository: AnimeOfflineRepository,
 ) : TrackingSiteMatcher {
 
 	override suspend fun matchLocalContent(
@@ -38,6 +41,17 @@ class DefaultTrackingSiteMatcher @Inject constructor(
 		val linked = existing.firstOrNull()
 		if (linked != null) {
 			return@withContext listOf(linked.toMatchResult(content))
+		}
+
+		if (content.source.contentType == ContentType.VIDEO || content.source.contentType == ContentType.HENTAI_VIDEO) {
+			val offlineMatches = animeOfflineRepository.matchLocalVideoContent(
+				service = service,
+				content = content,
+				limit = limit,
+			)
+			if (offlineMatches.isNotEmpty()) {
+				return@withContext offlineMatches
+			}
 		}
 
 		val candidateQueries = buildCandidateQueries(content)

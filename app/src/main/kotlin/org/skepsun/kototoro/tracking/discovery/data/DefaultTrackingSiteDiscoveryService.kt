@@ -486,8 +486,10 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			remoteId = id,
 			title = name,
 			coverUrl = cover,
-			contentType = contentType,
+			contentType = contentType ?: this.contentType,
 			description = descriptionHtml,
+			score = score,
+			rank = rank,
 			tags = tags,
 			authors = authors,
 			url = url,
@@ -497,6 +499,58 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 					number = ep.number,
 					title = ep.title,
 					url = ep.url,
+				)
+			},
+			characters = characters.map { character ->
+				TrackingSiteItemDetails.CharacterInfo(
+					id = character.id,
+					name = character.name,
+					coverUrl = character.coverUrl,
+					role = character.role,
+					url = character.url,
+					voiceActors = character.voiceActors.map { actor ->
+						TrackingSiteItemDetails.PersonInfo(
+							id = actor.id,
+							name = actor.name,
+							avatarUrl = actor.avatarUrl,
+							url = actor.url,
+						)
+					},
+				)
+			},
+			commentThreads = commentThreads.map { thread ->
+				TrackingSiteItemDetails.CommentThread(
+					id = thread.id,
+					userName = thread.userName,
+					userUrl = thread.userUrl,
+					avatarUrl = thread.avatarUrl,
+					rating = thread.rating,
+					status = thread.status,
+					postedAt = thread.postedAt,
+					content = thread.content,
+					replies = thread.replies.map { reply ->
+						TrackingSiteItemDetails.CommentReply(
+							id = reply.id,
+							userName = reply.userName,
+							userUrl = reply.userUrl,
+							avatarUrl = reply.avatarUrl,
+							postedAt = reply.postedAt,
+							content = reply.content,
+						)
+					},
+				)
+			},
+			reviews = reviews.map { review ->
+				TrackingSiteItemDetails.ReviewEntry(
+					id = review.id,
+					title = review.title,
+					authorName = review.authorName,
+					authorUrl = review.authorUrl,
+					avatarUrl = review.avatarUrl,
+					postedAt = review.postedAt,
+					excerpt = review.excerpt,
+					url = review.url,
+					repliesCount = review.repliesCount,
 				)
 			},
 			relatedWorks = relatedWorks.map { rw ->
@@ -514,6 +568,26 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 					title = rec.title,
 					coverUrl = rec.coverUrl,
 					url = rec.url,
+				)
+			},
+			extraSections = extraSections.map { section ->
+				TrackingSiteItemDetails.RelatedSection(
+					title = section.title,
+					items = section.items.map { item ->
+						TrackingSiteItemDetails.RelatedWork(
+							id = item.id,
+							title = item.title,
+							coverUrl = item.coverUrl,
+							relationship = item.relationship,
+							url = item.url,
+						)
+					},
+				)
+			},
+			actions = actions.map { action ->
+				TrackingSiteItemDetails.ExternalAction(
+					title = action.title,
+					url = action.url,
 				)
 			},
 		)

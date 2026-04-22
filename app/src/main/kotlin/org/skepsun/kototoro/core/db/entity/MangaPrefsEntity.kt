@@ -30,4 +30,9 @@ data class MangaPrefsEntity(
 	@ColumnInfo(name = "title_override") val titleOverride: String?,
 	@ColumnInfo(name = "cover_override") val coverUrlOverride: String?,
 	@ColumnInfo(name = "content_rating_override") val contentRatingOverride: String?,
+	@ColumnInfo(name = "metadata_source_kind") val metadataSourceKind: String?,
+	@ColumnInfo(name = "metadata_source_service") val metadataSourceService: Int?,
+	@ColumnInfo(name = "metadata_source_remote_id") val metadataSourceRemoteId: Long?,
+	@ColumnInfo(name = "ignored_tracking_suggestion_service") val ignoredTrackingSuggestionService: Int?,
+	@ColumnInfo(name = "ignored_tracking_suggestion_remote_id") val ignoredTrackingSuggestionRemoteId: Long?,
 )

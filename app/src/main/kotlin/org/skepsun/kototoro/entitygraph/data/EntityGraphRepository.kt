@@ -17,6 +17,10 @@ import org.skepsun.kototoro.entitygraph.domain.TrackingCharacterDto
 import org.skepsun.kototoro.entitygraph.domain.TrackingPersonDto
 import org.skepsun.kototoro.entitygraph.domain.TrackingStaffDto
 import org.skepsun.kototoro.entitygraph.domain.TrackingWorkDto
+import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
+import org.skepsun.kototoro.tracking.malsync.data.MALSyncMappingRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,6 +36,8 @@ private const val STALE_ENTITY_ACCESS_THRESHOLD = 2
 class EntityGraphRepository @Inject constructor(
 	private val db: MangaDatabase,
 	private val bindingMatcher: EntityBindingMatcher,
+	private val animeOfflineRepository: AnimeOfflineRepository,
+	private val malsyncMappingRepository: MALSyncMappingRepository,
 ) {
 
 	suspend fun ingestWorkFromTracking(
@@ -46,6 +52,7 @@ class EntityGraphRepository @Inject constructor(
 				aliases = workDto.aliases,
 				source = source,
 				externalId = workDto.externalId,
+				contentType = workDto.contentType,
 				now = now,
 			)
 
@@ -100,7 +107,7 @@ class EntityGraphRepository @Inject constructor(
 		externalId: String,
 	): Entity? = withContext(Dispatchers.Default) {
 		val dao = db.getEntityGraphDao()
-		val binding = dao.findBinding(source, externalId) ?: return@withContext null
+		val binding = findBindingBySourceKey(source, externalId) ?: return@withContext null
 		dao.touchEntity(binding.entityId, System.currentTimeMillis())
 		dao.findEntity(binding.entityId)?.toModel()
 	}
@@ -215,11 +222,12 @@ class EntityGraphRepository @Inject constructor(
 		aliases: List<String>,
 		source: String?,
 		externalId: String?,
+		contentType: ContentType? = null,
 		now: Long,
 	): Entity {
 		val dao = db.getEntityGraphDao()
 		if (!source.isNullOrBlank() && !externalId.isNullOrBlank()) {
-			val existingBinding = dao.findBinding(source, externalId)
+			val existingBinding = findBindingBySourceKey(source, externalId)
 			if (existingBinding != null) {
 				dao.findEntity(existingBinding.entityId)?.let { record ->
 					val merged = mergeEntityRecord(
@@ -230,11 +238,46 @@ class EntityGraphRepository @Inject constructor(
 					)
 					dao.updateEntity(merged)
 					dao.touchEntity(merged.id, now)
+					dao.upsertBindingForSource(
+						entityId = merged.id,
+						source = source,
+						externalId = externalId,
+						confidence = 1f,
+					)
 					return dao.findEntity(merged.id)?.toModel() ?: merged.toModel()
 				}
 			}
 		}
 
+		val animeOfflineCandidate = resolveAnimeOfflineCandidate(source, externalId, now)
+		if (animeOfflineCandidate != null) {
+			return mergeIntoResolvedEntity(
+				entity = animeOfflineCandidate,
+				primaryName = primaryName,
+				aliases = aliases,
+				source = source,
+				externalId = externalId,
+				confidence = 0.99f,
+				now = now,
+			)
+		}
+		val malsyncCandidate = resolveMalSyncCandidate(
+			source = source,
+			externalId = externalId,
+			contentType = contentType,
+			now = now,
+		)
+		if (malsyncCandidate != null) {
+			return mergeIntoResolvedEntity(
+				entity = malsyncCandidate,
+				primaryName = primaryName,
+				aliases = aliases,
+				source = source,
+				externalId = externalId,
+				confidence = 0.98f,
+				now = now,
+			)
+		}
 		val candidate = pickCandidate(
 			type = type,
 			primaryName = primaryName,
@@ -244,27 +287,15 @@ class EntityGraphRepository @Inject constructor(
 		if (candidate != null) {
 			when (candidate.strength) {
 				EntityBindingStrength.AUTO_BIND -> {
-					val merged = mergeEntityRecord(
-						record = candidate.entity.toRecord(),
+					return mergeIntoResolvedEntity(
+						entity = candidate.entity,
 						primaryName = primaryName,
 						aliases = aliases,
+						source = source,
+						externalId = externalId,
+						confidence = candidate.confidence,
 						now = now,
 					)
-					dao.updateEntity(merged)
-					dao.touchEntity(merged.id, now)
-					if (!source.isNullOrBlank() && !externalId.isNullOrBlank()) {
-						val bindings = dao.findBindingsByEntity(candidate.entity.id)
-						dao.upsertBinding(
-							EntityBindingRecord(
-								entityId = candidate.entity.id,
-								source = source,
-								externalId = externalId,
-								confidence = candidate.confidence,
-								isPrimary = bindings.isEmpty(),
-							),
-						)
-					}
-					return dao.findEntity(candidate.entity.id)?.toModel() ?: candidate.entity
 				}
 
 				EntityBindingStrength.WEAK_BIND -> {
@@ -302,6 +333,110 @@ class EntityGraphRepository @Inject constructor(
 		)
 	}
 
+	private suspend fun resolveAnimeOfflineCandidate(
+		source: String?,
+		externalId: String?,
+		now: Long,
+	): Entity? {
+		val service = source.toScrobblerServiceOrNull() ?: return null
+		val remoteId = externalId?.toLongOrNull() ?: return null
+		val mappings = animeOfflineRepository.resolveMappings(service, remoteId)
+		return resolveMappedCandidate(
+			now = now,
+			mappings = mappings.map { it.service to it.remoteId },
+		)
+	}
+
+	private suspend fun resolveMalSyncCandidate(
+		source: String?,
+		externalId: String?,
+		contentType: ContentType?,
+		now: Long,
+	): Entity? {
+		val service = source.toScrobblerServiceOrNull() ?: return null
+		val remoteId = externalId?.toLongOrNull() ?: return null
+		val kind = contentType.toMalSyncKindOrNull() ?: return null
+		val mappings = malsyncMappingRepository.resolve(service, remoteId, kind)
+		return resolveMappedCandidate(
+			now = now,
+			mappings = mappings.map { it.service to it.remoteId },
+		)
+	}
+
+	private suspend fun resolveMappedCandidate(
+		now: Long,
+		mappings: List<Pair<ScrobblerService, Long>>,
+	): Entity? {
+		if (mappings.isEmpty()) {
+			return null
+		}
+		val dao = db.getEntityGraphDao()
+		for ((service, remoteId) in mappings) {
+			val binding = findBindingBySourceKey(service.id.toString(), remoteId.toString()) ?: continue
+			dao.touchEntity(binding.entityId, now)
+			return dao.findEntity(binding.entityId)?.toModel()
+		}
+		return null
+	}
+
+	private suspend fun mergeIntoResolvedEntity(
+		entity: Entity,
+		primaryName: String,
+		aliases: List<String>,
+		source: String?,
+		externalId: String?,
+		confidence: Float,
+		now: Long,
+	): Entity {
+		val dao = db.getEntityGraphDao()
+		val merged = mergeEntityRecord(
+			record = entity.toRecord(),
+			primaryName = primaryName,
+			aliases = aliases,
+			now = now,
+		)
+		dao.updateEntity(merged)
+		dao.touchEntity(merged.id, now)
+		if (!source.isNullOrBlank() && !externalId.isNullOrBlank()) {
+			dao.upsertBindingForSource(
+				entityId = entity.id,
+				source = source,
+				externalId = externalId,
+				confidence = confidence,
+			)
+		}
+		return dao.findEntity(entity.id)?.toModel() ?: entity
+	}
+
+	private suspend fun findBindingBySourceKey(
+		source: String,
+		externalId: String,
+	): EntityBindingRecord? {
+		val dao = db.getEntityGraphDao()
+		for (candidateSource in source.bindingSourceKeys()) {
+			dao.findBinding(candidateSource, externalId)?.let { return it }
+		}
+		return null
+	}
+
+	private suspend fun EntityGraphDao.upsertBindingForSource(
+		entityId: Long,
+		source: String,
+		externalId: String,
+		confidence: Float,
+	) {
+		val bindings = findBindingsByEntity(entityId)
+		upsertBinding(
+			EntityBindingRecord(
+				entityId = entityId,
+				source = source,
+				externalId = externalId,
+				confidence = confidence,
+				isPrimary = bindings.isEmpty(),
+			),
+		)
+	}
+
 	private suspend fun createEntity(
 		type: EntityType,
 		primaryName: String,
@@ -334,6 +469,52 @@ class EntityGraphRepository @Inject constructor(
 			)
 		}
 		return requireNotNull(dao.findEntity(id)).toModel()
+	}
+
+	private fun String?.toScrobblerServiceOrNull(): ScrobblerService? {
+		val raw = this?.trim().orEmpty()
+		if (raw.isBlank()) {
+			return null
+		}
+		return raw.toIntOrNull()?.let { id ->
+			ScrobblerService.entries.firstOrNull { it.id == id }
+		} ?: ScrobblerService.entries.firstOrNull {
+			it.name.equals(raw, ignoreCase = true)
+		}
+	}
+
+	private fun String.bindingSourceKeys(): List<String> {
+		val raw = trim()
+		if (raw.isBlank()) {
+			return emptyList()
+		}
+		val service = raw.toScrobblerServiceOrNull()
+		return buildList {
+			add(raw)
+			service?.let {
+				add(it.id.toString())
+				add(it.name.lowercase())
+			}
+		}.distinct()
+	}
+
+	private fun ContentType?.toMalSyncKindOrNull(): MALSyncMappingRepository.Kind? = when (this) {
+		ContentType.VIDEO,
+		ContentType.HENTAI_VIDEO,
+		-> MALSyncMappingRepository.Kind.ANIME
+
+		ContentType.MANGA,
+		ContentType.MANHWA,
+		ContentType.MANHUA,
+		ContentType.HENTAI_MANGA,
+		ContentType.HENTAI_NOVEL,
+		ContentType.COMICS,
+		ContentType.NOVEL,
+		ContentType.ONE_SHOT,
+		ContentType.DOUJINSHI,
+		-> MALSyncMappingRepository.Kind.MANGA
+
+		else -> null
 	}
 
 	private suspend fun pickCandidate(

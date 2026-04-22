@@ -237,6 +237,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 onLanguagePresetSelected = { presetId ->
                     settings.activeSourcePresetId = presetId
                 },
+                onManageLanguagePresets = router::openSourcePresets,
                 selectedContentType = activeFilterContentType,
                 enabledContentTypes = enabledContentTypes,
                 isContentTypeFilterVisible = isContentTypeFilterVisible,

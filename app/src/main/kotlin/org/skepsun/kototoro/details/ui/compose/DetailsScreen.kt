@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -54,11 +55,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -79,8 +82,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
@@ -107,7 +112,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.appUrl
@@ -127,8 +134,15 @@ import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.DetailsViewModel
+import org.skepsun.kototoro.details.ui.model.ActiveLocalSourceOption
 import org.skepsun.kototoro.details.ui.model.ContentBranch
+import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
+import org.skepsun.kototoro.details.ui.model.DetailsSourceOption
+import org.skepsun.kototoro.details.ui.model.EntityChapterSourceInfo
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
+import org.skepsun.kototoro.details.ui.model.TrackingDetailsSection
+import org.skepsun.kototoro.details.ui.model.TrackingDetailsAction
+import org.skepsun.kototoro.details.ui.model.TrackingDetailsSectionItem
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationSection
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationItem
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
@@ -144,6 +158,7 @@ import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.ui.selector.compose.ScrobblingSelectorDialog
 import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorViewModel
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
@@ -175,6 +190,7 @@ fun DetailsScreen(
     val isShowingTranslation by viewModel.isShowingTranslation.collectAsState()
     val hasTranslationCache by viewModel.hasTranslationCache.collectAsState()
     val isTranslating by viewModel.isTranslating.collectAsState()
+    val showTranslateAction by viewModel.showTranslateAction.collectAsState()
     val isStatsAvailable by viewModel.isStatsAvailable.collectAsState()
     val isChaptersReversed by viewModel.isChaptersReversed.collectAsState(initial = false)
     val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsState(initial = false)
@@ -184,32 +200,55 @@ fun DetailsScreen(
     val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val entityRelationSections by viewModel.entityRelationSections.collectAsState()
+    val activeLocalSourceOptions by viewModel.activeLocalSourceOptions.collectAsState()
+    val entityChapterSourceInfo by viewModel.entityChapterSourceInfo.collectAsState()
+    val metadataSourceOptions by viewModel.metadataSourceOptions.collectAsState()
+    val readingSourceOptions by viewModel.readingSourceOptions.collectAsState()
+    val metadataChapterTabs by viewModel.metadataChapterTabs.collectAsState()
+    val readingChapterTabs by viewModel.readingChapterTabs.collectAsState()
+    val trackingMetadataProperties by viewModel.trackingMetadataProperties.collectAsState()
+    val trackingDetailsSections by viewModel.trackingDetailsSections.collectAsState()
+    val trackingDetailsActions by viewModel.trackingDetailsActions.collectAsState()
+    val trackingCommentThreads by viewModel.trackingCommentThreads.collectAsState()
+    val trackingCommentsUrl by viewModel.trackingCommentsUrl.collectAsState()
+    val trackingReviews by viewModel.trackingReviews.collectAsState()
+    val trackingReviewsUrl by viewModel.trackingReviewsUrl.collectAsState()
+    val metadataSearchServices by viewModel.metadataSearchServices.collectAsState()
+    val authorizedTrackingServices by viewModel.authorizedTrackingServices.collectAsState()
+    val selectedMetadataSearchService by viewModel.selectedMetadataSearchService.collectAsState()
+    val metadataSearchQuery by viewModel.metadataSearchQuery.collectAsState()
+    val metadataSearchResults by viewModel.metadataSearchResults.collectAsState()
+    val metadataSearchLoading by viewModel.metadataSearchLoading.collectAsState()
+    val metadataSearchError by viewModel.metadataSearchError.collectAsState()
+    val readingSearchSources by viewModel.readingSearchSources.collectAsState()
+    val selectedReadingSearchSource by viewModel.selectedReadingSearchSource.collectAsState()
+    val readingSearchQuery by viewModel.readingSearchQuery.collectAsState()
+    val readingSearchState by viewModel.readingSearchState.collectAsState()
+    val resolvedMetadataContentType by viewModel.resolvedMetadataContentType.collectAsState()
+    val resolvedMetadataLanguage by viewModel.resolvedMetadataLanguage.collectAsState()
+    val resolvedReadingLanguage by viewModel.resolvedReadingLanguage.collectAsState()
+    val activeLocalBrowserContent by viewModel.activeLocalBrowserContent.collectAsState()
 
     val context = LocalContext.current
     val panoramaExtraHeight by settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
-    val statsViewModel: ContentStatsViewModel = hiltViewModel()
-    val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
-    val contentType = content?.source?.getContentType()
-
-    val targetTranslationLanguage = remember(settings.readerTranslationTargetLanguage) {
-        settings.readerTranslationTargetLanguage
-            .substringBefore('-')
-            .substringBefore('_')
-            .lowercase(Locale.ROOT)
+    val contentType = resolvedMetadataContentType
+    val metadataBrowserTarget = remember(content) {
+        content?.takeIf { it.publicUrl.isHttpUrl() }
     }
-    val contentLanguage = remember(mangaDetails) {
-        mangaDetails?.getLocale()
-            ?.language
-            ?.substringBefore('-')
-            ?.substringBefore('_')
-            ?.lowercase(Locale.ROOT)
+    val localBrowserTarget = remember(activeLocalBrowserContent, metadataBrowserTarget) {
+        activeLocalBrowserContent?.takeIf { it.publicUrl.isHttpUrl() }?.takeUnless { local ->
+            local.publicUrl == metadataBrowserTarget?.publicUrl &&
+                local.source == metadataBrowserTarget.source
+        }
     }
-    val showTranslateAction = remember(contentLanguage, targetTranslationLanguage) {
-        contentLanguage != null &&
-            targetTranslationLanguage.isNotBlank() &&
-            contentLanguage != targetTranslationLanguage
+    val readingSourceLabelRes = remember(contentType) {
+        when (contentType) {
+            ContentType.VIDEO,
+            ContentType.HENTAI_VIDEO -> R.string.details_playback_source
+            else -> R.string.details_reading_source
+        }
     }
     val isShortcutSupported = remember(context) { ShortcutManagerCompat.isRequestPinShortcutSupported(context) }
     val configuration = LocalConfiguration.current
@@ -223,8 +262,23 @@ fun DetailsScreen(
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showScrobblingDialog by remember { mutableStateOf(false) }
+    var showCommentsDialog by remember { mutableStateOf(false) }
+    var showReviewsDialog by remember { mutableStateOf(false) }
+    var showMetadataSourceDialog by remember { mutableStateOf(false) }
+    var showReadingSourceDialog by remember { mutableStateOf(false) }
     var chapterQuery by rememberSaveable { mutableStateOf("") }
     var isChapterSearchVisible by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(showMetadataSourceDialog) {
+        if (showMetadataSourceDialog && metadataSearchResults.isEmpty() && !metadataSearchLoading) {
+            viewModel.searchMetadataBindings()
+        }
+    }
+    LaunchedEffect(showReadingSourceDialog) {
+        if (showReadingSourceDialog && readingSearchState == null) {
+            viewModel.searchReadingBindings()
+        }
+    }
     val availableTabIds = remember(contentType, settings.isPagesTabEnabled) {
         resolveAvailableDetailsTabIds(contentType, settings)
     }
@@ -587,6 +641,9 @@ fun DetailsScreen(
             DetailsAction.Download -> {
                 showDownloadDialog = true
             }
+            DetailsAction.OpenAlternatives -> {
+                showReadingSourceDialog = true
+            }
             else -> onActionClick(action)
         }
     }
@@ -609,9 +666,10 @@ fun DetailsScreen(
                         .background(MaterialTheme.colorScheme.surface),
                 )
                 if (settings.isPanoramaCoverEnabled) {
-                    val request = remember(content?.source?.name, content?.url, content?.coverUrl) {
+                    val panoramaCoverUrl = content?.coverUrl?.takeIf { it.isNotBlank() }
+                    val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
                         ImageRequest.Builder(context)
-                            .data(content?.coverUrl)
+                            .data(panoramaCoverUrl)
                             .apply { content?.let { mangaExtra(it) } }
                             .build()
                     }
@@ -672,7 +730,8 @@ fun DetailsScreen(
                         isTranslating = isTranslating,
                         isScrobblingAvailable = viewModel.isScrobblingAvailable,
                         isStatsAvailable = isStatsAvailable,
-                        isBrowserAvailable = content?.publicUrl?.isHttpUrl() == true,
+                        hasMetadataBrowserTarget = metadataBrowserTarget != null,
+                        hasLocalBrowserTarget = localBrowserTarget != null,
                         isAlternativesAvailable = content?.isLocal == false,
                         hasOnlineVariant = remoteContent != null,
                         isDeleteLocalAvailable = content?.source == LocalMangaSource,
@@ -682,6 +741,16 @@ fun DetailsScreen(
                         onDeleteLocalRequest = { handleActionClick(DetailsAction.DeleteLocal) },
                         onActionClick = { action ->
                             when (action) {
+                                is DetailsAction.OpenMetadataInBrowser -> {
+                                    metadataBrowserTarget?.let {
+                                        handleActionClick(DetailsAction.OpenBrowserPage(it.publicUrl, it.source, it.title))
+                                    }
+                                }
+                                is DetailsAction.OpenLocalSourceInBrowser -> {
+                                    localBrowserTarget?.let {
+                                        handleActionClick(DetailsAction.OpenBrowserPage(it.publicUrl, it.source, it.title))
+                                    }
+                                }
                                 DetailsAction.OpenTracking -> {
                                     showScrobblingDialog = true
                                 }
@@ -737,6 +806,17 @@ fun DetailsScreen(
                             historyInfo = historyInfo,
                             linkedTrackingItems = linkedTrackingItems,
                             trackingSuggestion = trackingSuggestion,
+                            metadataSourceOptions = metadataSourceOptions,
+                            readingSourceOptions = readingSourceOptions,
+                            activeLocalSourceOptions = activeLocalSourceOptions,
+                            entityChapterSourceInfo = entityChapterSourceInfo,
+                            trackingMetadataProperties = trackingMetadataProperties,
+                            trackingDetailsSections = trackingDetailsSections,
+                            trackingDetailsActions = trackingDetailsActions,
+                            resolvedContentType = contentType,
+                            resolvedMetadataLanguage = resolvedMetadataLanguage,
+                            resolvedReadingLanguage = resolvedReadingLanguage,
+                            entityRelationSections = entityRelationSections,
                             translatedTitle = translatedTitle,
                             translatedDescription = translatedDescription,
                             isShowingTranslation = isShowingTranslation,
@@ -748,16 +828,25 @@ fun DetailsScreen(
                             coverVisualAlpha = if (isHeroOverlayVisible) 0f else 1f,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
+                            showCommentsAction = trackingCommentThreads.isNotEmpty() || !trackingCommentsUrl.isNullOrBlank(),
+                            showReviewsAction = trackingReviews.isNotEmpty() || !trackingReviewsUrl.isNullOrBlank(),
                             content = content,
                             pendingTagSearch = { pendingTagSearch = it },
                             pendingAuthorSearch = { author, source ->
                                 pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                             },
-                        onCoverBoundsSync = onCoverBoundsSync,
-                        onInfoCardTopSync = { infoCardTopPx = it },
-                        onFavoriteClick = { showFavoriteDialog = true },
-                        onActionClick = handleActionClick,
-                    )
+							onCoverBoundsSync = onCoverBoundsSync,
+							onInfoCardTopSync = { infoCardTopPx = it },
+							onFavoriteClick = { showFavoriteDialog = true },
+							onCommentsClick = { showCommentsDialog = true },
+							onReviewsClick = { showReviewsDialog = true },
+							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
+                            onSelectMetadataSource = viewModel::selectMetadataSource,
+							onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
+							onOpenReadingSourceSheet = { showReadingSourceDialog = true },
+							onEntityClick = appRouter::openEntityDetails,
+							onActionClick = handleActionClick,
+						)
                     }
 
                 }
@@ -780,6 +869,15 @@ fun DetailsScreen(
                         settings = settings,
                         appRouter = appRouter,
                         pageSaveHelper = pageSaveHelper,
+                        metadataChapterTabs = metadataChapterTabs,
+                        readingChapterTabs = readingChapterTabs,
+                        onSelectMetadataChapterTab = { tab ->
+                            val matchingOption = metadataSourceOptions.firstOrNull { option -> option.key == tab.key } ?: return@DetailsPaneContent
+                            viewModel.selectMetadataSource(matchingOption)
+                        },
+                        onSelectReadingChapterTab = { tab ->
+                            tab.targetMangaId?.let(viewModel::selectActiveLocalSource)
+                        },
                         selectedTabId = sheetTabSelection,
                         availableTabIds = availableTabIds,
                         isSheetFullyExpanded = false,
@@ -851,6 +949,17 @@ fun DetailsScreen(
                             historyInfo = historyInfo,
                             linkedTrackingItems = linkedTrackingItems,
                             trackingSuggestion = trackingSuggestion,
+                            metadataSourceOptions = metadataSourceOptions,
+                            readingSourceOptions = readingSourceOptions,
+                            activeLocalSourceOptions = activeLocalSourceOptions,
+                            entityChapterSourceInfo = entityChapterSourceInfo,
+                            trackingMetadataProperties = trackingMetadataProperties,
+                            trackingDetailsSections = trackingDetailsSections,
+                            trackingDetailsActions = trackingDetailsActions,
+                            resolvedContentType = contentType,
+                            resolvedMetadataLanguage = resolvedMetadataLanguage,
+                            resolvedReadingLanguage = resolvedReadingLanguage,
+                            entityRelationSections = entityRelationSections,
                             translatedTitle = translatedTitle,
                             translatedDescription = translatedDescription,
                             isShowingTranslation = isShowingTranslation,
@@ -862,16 +971,25 @@ fun DetailsScreen(
                             coverVisualAlpha = headerCoverVisualAlpha,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
+                            showCommentsAction = trackingCommentThreads.isNotEmpty() || !trackingCommentsUrl.isNullOrBlank(),
+                            showReviewsAction = trackingReviews.isNotEmpty() || !trackingReviewsUrl.isNullOrBlank(),
                             content = content,
                             pendingTagSearch = { pendingTagSearch = it },
                             pendingAuthorSearch = { author, source ->
                                 pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                             },
-                        onCoverBoundsSync = onCoverBoundsSync,
-                        onInfoCardTopSync = { top -> infoCardTopPx = top },
-                        onFavoriteClick = { showFavoriteDialog = true },
-                        onActionClick = handleActionClick,
-                    )
+							onCoverBoundsSync = onCoverBoundsSync,
+							onInfoCardTopSync = { top -> infoCardTopPx = top },
+							onFavoriteClick = { showFavoriteDialog = true },
+							onCommentsClick = { showCommentsDialog = true },
+							onReviewsClick = { showReviewsDialog = true },
+							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
+                            onSelectMetadataSource = viewModel::selectMetadataSource,
+							onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
+							onOpenReadingSourceSheet = { showReadingSourceDialog = true },
+							onEntityClick = appRouter::openEntityDetails,
+							onActionClick = handleActionClick,
+						)
                     }
                 }
                 Box(
@@ -904,6 +1022,15 @@ fun DetailsScreen(
                         settings = settings,
                         appRouter = appRouter,
                         pageSaveHelper = pageSaveHelper,
+                        metadataChapterTabs = metadataChapterTabs,
+                        readingChapterTabs = readingChapterTabs,
+                        onSelectMetadataChapterTab = { tab ->
+                            val matchingOption = metadataSourceOptions.firstOrNull { option -> option.key == tab.key } ?: return@DetailsPaneContent
+                            viewModel.selectMetadataSource(matchingOption)
+                        },
+                        onSelectReadingChapterTab = { tab ->
+                            tab.targetMangaId?.let(viewModel::selectActiveLocalSource)
+                        },
                         selectedTabId = sheetTabSelection,
                         availableTabIds = availableTabIds,
                         isSheetFullyExpanded = isCompactPaneFullyExpanded,
@@ -1048,20 +1175,370 @@ fun DetailsScreen(
             }
 
             if (showStatsDialog && content != null) {
-            ContentStatsDialog(
-                viewModel = statsViewModel,
-                onDismissRequest = { showStatsDialog = false },
-                onOpenDetails = {
-                    showStatsDialog = false
-                },
-            )
+                val statsViewModel: ContentStatsViewModel = hiltViewModel()
+                statsViewModel.initialize(content)
+                ContentStatsDialog(
+                    viewModel = statsViewModel,
+                    onDismissRequest = { showStatsDialog = false },
+                    onOpenDetails = {
+                        showStatsDialog = false
+                    },
+                )
             }
 
             if (showScrobblingDialog && content != null) {
-            ScrobblingSelectorDialog(
-                viewModel = scrobblingViewModel,
-                onDismissRequest = { showScrobblingDialog = false },
-            )
+                val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
+                scrobblingViewModel.initialize(content)
+                ScrobblingSelectorDialog(
+                    viewModel = scrobblingViewModel,
+                    onDismissRequest = { showScrobblingDialog = false },
+                )
+            }
+
+            if (showMetadataSourceDialog) {
+                MetadataSourceSheet(
+                    currentOptions = metadataSourceOptions,
+                    selectedOption = metadataSourceOptions.firstOrNull { it.isSelected },
+                    searchServices = metadataSearchServices,
+                    authorizedServices = authorizedTrackingServices,
+                    selectedService = selectedMetadataSearchService,
+                    searchQuery = metadataSearchQuery,
+                    searchResults = metadataSearchResults,
+                    isLoading = metadataSearchLoading,
+                    errorMessage = metadataSearchError,
+                    unavailableText = stringResource(R.string.details_reading_source_unavailable),
+                    onDismissRequest = { showMetadataSourceDialog = false },
+                    onSelectOption = viewModel::selectMetadataSource,
+                    onSearchQueryChange = viewModel::updateMetadataSearchQuery,
+                    onSelectService = {
+                        viewModel.setMetadataSearchService(it)
+                        viewModel.searchMetadataBindings()
+                    },
+                    onSearch = viewModel::searchMetadataBindings,
+                    onBindResult = viewModel::bindMetadataSource,
+                )
+            }
+
+            if (showReadingSourceDialog) {
+                ReadingSourceSheet(
+                    currentOptions = readingSourceOptions,
+                    selectedOption = readingSourceOptions.firstOrNull { it.isSelected },
+                    label = stringResource(readingSourceLabelRes),
+                    searchSources = readingSearchSources,
+                    selectedSourceName = selectedReadingSearchSource,
+                    searchQuery = readingSearchQuery,
+                    searchState = readingSearchState,
+                    unavailableText = stringResource(R.string.details_reading_source_unavailable),
+                    onSelectOption = { option -> option.targetMangaId?.let(viewModel::selectActiveLocalSource) },
+                    onSearchQueryChange = viewModel::updateReadingSearchQuery,
+                    onSelectSearchSource = {
+                        viewModel.setReadingSearchSource(it)
+                        viewModel.searchReadingBindings()
+                    },
+                    onSearch = viewModel::searchReadingBindings,
+                    onResultClick = { candidate ->
+                        viewModel.bindReadingCandidateToTracking(candidate)
+                        appRouter.openDetails(candidate)
+                    },
+                    onDismissRequest = { showReadingSourceDialog = false },
+                )
+            }
+
+            if (showCommentsDialog) {
+                TrackingCommentsSheet(
+                    threads = trackingCommentThreads,
+                    externalUrl = trackingCommentsUrl,
+                    onDismissRequest = { showCommentsDialog = false },
+                    onOpenExternal = { url ->
+                        showCommentsDialog = false
+                        handleActionClick(DetailsAction.OpenWebUrl(url))
+                    },
+                )
+            }
+
+            if (showReviewsDialog) {
+                TrackingReviewsSheet(
+                    reviews = trackingReviews,
+                    externalUrl = trackingReviewsUrl,
+                    onDismissRequest = { showReviewsDialog = false },
+                    onOpenExternal = { url ->
+                        showReviewsDialog = false
+                        handleActionClick(DetailsAction.OpenWebUrl(url))
+                    },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackingReviewsSheet(
+    reviews: List<org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.ReviewEntry>,
+    externalUrl: String?,
+    onDismissRequest: () -> Unit,
+    onOpenExternal: (String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.details_reviews),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (!externalUrl.isNullOrBlank()) {
+                    TextButton(onClick = { onOpenExternal(externalUrl) }) {
+                        Text(stringResource(R.string.details_more_reviews))
+                    }
+                }
+            }
+            if (reviews.isEmpty()) {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    style = GlassDefaults.subtleStyle(),
+                    shape = RoundedCornerShape(24.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.details_no_reviews),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
+                    )
+                }
+            } else {
+                reviews.forEach { review ->
+                    GlassSurface(
+                        modifier = Modifier.fillMaxWidth(),
+                        style = GlassDefaults.subtleStyle(),
+                        shape = RoundedCornerShape(24.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                AsyncImage(
+                                    model = review.avatarUrl,
+                                    contentDescription = review.authorName,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(14.dp)),
+                                    contentScale = ContentScale.Crop,
+                                    error = rememberSafePainter(R.drawable.ic_placeholder),
+                                    placeholder = rememberSafePainter(R.drawable.ic_placeholder),
+                                )
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = review.title,
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    val metaLine = buildList {
+                                        add(review.authorName)
+                                        review.postedAt?.takeIf { it.isNotBlank() }?.let(::add)
+                                        review.repliesCount?.let { replies ->
+                                            add(stringResource(R.string.details_review_reply_count, replies))
+                                        }
+                                    }.joinToString(" · ")
+                                    Text(
+                                        text = metaLine,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            Text(
+                                text = review.excerpt,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            TextButton(
+                                modifier = Modifier.align(Alignment.End),
+                                onClick = { onOpenExternal(review.url) },
+                            ) {
+                                Text(stringResource(R.string.details_open_review))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackingCommentsSheet(
+    threads: List<org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.CommentThread>,
+    externalUrl: String?,
+    onDismissRequest: () -> Unit,
+    onOpenExternal: (String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.details_comments),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (!externalUrl.isNullOrBlank()) {
+                    TextButton(onClick = { onOpenExternal(externalUrl) }) {
+                        Text(stringResource(R.string.details_more_comments))
+                    }
+                }
+            }
+            if (threads.isEmpty()) {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    style = GlassDefaults.subtleStyle(),
+                    shape = RoundedCornerShape(24.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.details_no_comments),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
+                    )
+                }
+            } else {
+                threads.forEach { thread ->
+                    GlassSurface(
+                        modifier = Modifier.fillMaxWidth(),
+                        style = GlassDefaults.subtleStyle(),
+                        shape = RoundedCornerShape(24.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                AsyncImage(
+                                    model = thread.avatarUrl,
+                                    contentDescription = thread.userName,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(14.dp)),
+                                    contentScale = ContentScale.Crop,
+                                    error = rememberSafePainter(R.drawable.ic_placeholder),
+                                    placeholder = rememberSafePainter(R.drawable.ic_placeholder),
+                                )
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = thread.userName,
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    val metaLine = buildList {
+                                        thread.rating?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
+                                        thread.status?.takeIf { it.isNotBlank() }?.let(::add)
+                                        thread.postedAt?.takeIf { it.isNotBlank() }?.let(::add)
+                                    }.joinToString(" · ")
+                                    if (metaLine.isNotBlank()) {
+                                        Text(
+                                            text = metaLine,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = thread.content,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            if (thread.replies.isNotEmpty()) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                                    thread.replies.forEach { reply ->
+                                        Surface(
+                                            shape = RoundedCornerShape(18.dp),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.26f),
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                            ) {
+                                                Text(
+                                                    text = buildString {
+                                                        append(reply.userName)
+                                                        reply.postedAt?.takeIf { it.isNotBlank() }?.let {
+                                                            append(" · ")
+                                                            append(it)
+                                                        }
+                                                    },
+                                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                )
+                                                Text(
+                                                    text = reply.content,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1074,6 +1551,17 @@ private fun DetailsScrollableContent(
     favouriteCategories: Set<org.skepsun.kototoro.core.model.FavouriteCategory>,
     linkedTrackingItems: List<org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel>,
     trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
+    metadataSourceOptions: List<DetailsSourceOption>,
+    readingSourceOptions: List<DetailsSourceOption>,
+    activeLocalSourceOptions: List<ActiveLocalSourceOption>,
+    entityChapterSourceInfo: EntityChapterSourceInfo?,
+    trackingMetadataProperties: List<Pair<String, String>>,
+    trackingDetailsSections: List<TrackingDetailsSection>,
+    trackingDetailsActions: List<TrackingDetailsAction>,
+    resolvedContentType: ContentType?,
+    resolvedMetadataLanguage: String?,
+    resolvedReadingLanguage: String?,
+    entityRelationSections: List<EntityRelationSection>,
     translatedTitle: String?,
     translatedDescription: String?,
     isShowingTranslation: Boolean,
@@ -1085,6 +1573,8 @@ private fun DetailsScrollableContent(
     coverVisualAlpha: Float,
     coverUrl: String?,
     fallbackCoverUrl: String?,
+    showCommentsAction: Boolean,
+    showReviewsAction: Boolean,
     content: org.skepsun.kototoro.parsers.model.Content?,
     scrollState: androidx.compose.foundation.ScrollState,
     modifier: Modifier = Modifier,
@@ -1096,6 +1586,13 @@ private fun DetailsScrollableContent(
     onCoverBoundsSync: (Rect, Float) -> Unit,
     onInfoCardTopSync: (Float) -> Unit,
     onFavoriteClick: () -> Unit,
+    onCommentsClick: () -> Unit,
+    onReviewsClick: () -> Unit,
+    onSelectActiveLocalSource: (Long) -> Unit,
+    onSelectMetadataSource: (DetailsSourceOption) -> Unit,
+    onOpenMetadataSourceSheet: () -> Unit,
+    onOpenReadingSourceSheet: () -> Unit,
+    onEntityClick: (Long) -> Unit,
     onActionClick: (DetailsAction) -> Unit,
 ) {
     val context = LocalContext.current
@@ -1114,6 +1611,12 @@ private fun DetailsScrollableContent(
             historyInfo = historyInfo,
             linkedTrackingItems = linkedTrackingItems,
             trackingSuggestion = trackingSuggestion,
+            metadataSourceOptions = metadataSourceOptions,
+            readingSourceOptions = readingSourceOptions,
+            trackingDetailsActions = trackingDetailsActions,
+            resolvedContentType = resolvedContentType,
+            metadataLanguageCode = resolvedMetadataLanguage,
+            readingLanguageCode = resolvedReadingLanguage,
             translatedTitle = translatedTitle,
             translatedDescription = translatedDescription,
             isShowingTranslation = isShowingTranslation,
@@ -1125,12 +1628,26 @@ private fun DetailsScrollableContent(
             coverVisualAlpha = coverVisualAlpha,
             coverUrl = coverUrl,
             fallbackCoverUrl = fallbackCoverUrl,
+            showCommentsAction = showCommentsAction,
+            showReviewsAction = showReviewsAction,
 
             onCoverBoundsSync = onCoverBoundsSync,
             onInfoCardTopSync = onInfoCardTopSync,
             onCoverClick = { onActionClick(DetailsAction.OpenCover) },
             onFavoriteClick = onFavoriteClick,
+            onCommentsClick = onCommentsClick,
+            onReviewsClick = onReviewsClick,
+            onSelectActiveLocalSource = onSelectActiveLocalSource,
+            onSelectMetadataSource = onSelectMetadataSource,
             onSourceClick = { onActionClick(DetailsAction.OpenSource(it)) },
+            onOpenTrackingDiscover = { service ->
+                onActionClick(DetailsAction.OpenTrackingDiscover(service))
+            },
+            onOpenMetadataSourceSheet = onOpenMetadataSourceSheet,
+            onOpenReadingSourceSheet = onOpenReadingSourceSheet,
+            onOpenTrackingAction = { action ->
+                onActionClick(DetailsAction.OpenWebUrl(action.url))
+            },
             onAuthorClick = { author ->
                 source?.let { currentSource ->
                     pendingAuthorSearch(author, currentSource)
@@ -1154,11 +1671,31 @@ private fun DetailsScrollableContent(
             },
             onRemoveLinkedTracking = { match -> onActionClick(DetailsAction.RemoveTrackingMatch(match)) },
             onBindTrackingSuggestion = { match -> onActionClick(DetailsAction.BindTrackingMatch(match)) },
+            onOpenTrackingSuggestion = { match ->
+                onActionClick(DetailsAction.OpenTrackingDetails(match.service, match.remoteId, match.url))
+            },
+            onIgnoreTrackingSuggestion = { match -> onActionClick(DetailsAction.IgnoreTrackingSuggestion(match)) },
             onManageTrackingSuggestion = { match ->
                 onActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url))
             },
-            onOpenTrackerSearch = { onActionClick(DetailsAction.OpenTracking) },
         )
+        if (trackingMetadataProperties.isNotEmpty()) {
+            TrackingMetadataCard(properties = trackingMetadataProperties)
+        }
+        if (trackingDetailsSections.isNotEmpty()) {
+            TrackingDetailsSections(
+                sections = trackingDetailsSections,
+                onItemClick = { item ->
+                    onActionClick(DetailsAction.OpenTrackingDetails(item.service, item.remoteId, item.url))
+                },
+            )
+        }
+        if (entityRelationSections.isNotEmpty()) {
+            EntityRelationCarousels(
+                sections = entityRelationSections,
+                onEntityClick = onEntityClick,
+            )
+        }
         Spacer(modifier = Modifier.height(bottomSpacerHeight))
     }
 }
@@ -1175,6 +1712,10 @@ private fun DetailsPaneContent(
     settings: AppSettings,
     appRouter: AppRouter,
     pageSaveHelper: PageSaveHelper,
+    metadataChapterTabs: List<DetailsChapterSourceTab>,
+    readingChapterTabs: List<DetailsChapterSourceTab>,
+    onSelectMetadataChapterTab: (DetailsChapterSourceTab) -> Unit,
+    onSelectReadingChapterTab: (DetailsChapterSourceTab) -> Unit,
     selectedTabId: Int,
     availableTabIds: List<Int>,
     isSheetFullyExpanded: Boolean,
@@ -1273,9 +1814,14 @@ private fun DetailsPaneContent(
                             settings = settings,
                             appRouter = appRouter,
                             pageSaveHelper = pageSaveHelper,
+                            metadataChapterTabs = metadataChapterTabs,
+                            readingChapterTabs = readingChapterTabs,
+                            onSelectMetadataChapterTab = onSelectMetadataChapterTab,
+                            onSelectReadingChapterTab = onSelectReadingChapterTab,
                             selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
                             showTabStrip = false,
                             isSheetFullyExpanded = isSheetFullyExpanded,
+                            isChapterListScrollEnabled = if (showCollapsedHandle) isSheetFullyExpanded else true,
                             chapterQuery = chapterQuery,
                             isChapterSearchVisible = isChapterSearchVisible,
                             onChapterQueryChange = onChapterQueryChange,
@@ -1327,6 +1873,12 @@ private fun DetailsPaneActionsRow(
     onActionClick: (DetailsAction) -> Unit,
 ) {
     val paneOpacityProgress = easedOpacityProgress(sheetExpansionProgress)
+    val showPagesTab = contentType != ContentType.VIDEO &&
+        contentType != ContentType.HENTAI_VIDEO &&
+        contentType != ContentType.NOVEL &&
+        contentType != ContentType.HENTAI_NOVEL
+    val showBookmarksTab = contentType != ContentType.VIDEO &&
+        contentType != ContentType.HENTAI_VIDEO
     Column(
         modifier = Modifier
             .then(modifier)
@@ -1359,18 +1911,22 @@ private fun DetailsPaneActionsRow(
                     isSelected = selectedTabId == DETAILS_TAB_CHAPTERS,
                     onClick = { onActionClick(DetailsAction.ToggleList) },
                 )
-                DetailsDockActionButton(
-                    iconRes = R.drawable.ic_grid,
-                    contentDescription = stringResource(R.string.pages),
-                    isSelected = selectedTabId == DETAILS_TAB_PAGES,
-                    onClick = { onActionClick(DetailsAction.ToggleGrid) },
-                )
-                DetailsDockActionButton(
-                    iconRes = R.drawable.ic_bookmark,
-                    contentDescription = stringResource(R.string.bookmarks),
-                    isSelected = selectedTabId == DETAILS_TAB_BOOKMARKS,
-                    onClick = { onActionClick(DetailsAction.ToggleBookmarkView) },
-                )
+                if (showPagesTab) {
+                    DetailsDockActionButton(
+                        iconRes = R.drawable.ic_grid,
+                        contentDescription = stringResource(R.string.pages),
+                        isSelected = selectedTabId == DETAILS_TAB_PAGES,
+                        onClick = { onActionClick(DetailsAction.ToggleGrid) },
+                    )
+                }
+                if (showBookmarksTab) {
+                    DetailsDockActionButton(
+                        iconRes = R.drawable.ic_bookmark,
+                        contentDescription = stringResource(R.string.bookmarks),
+                        isSelected = selectedTabId == DETAILS_TAB_BOOKMARKS,
+                        onClick = { onActionClick(DetailsAction.ToggleBookmarkView) },
+                    )
+                }
                 Spacer(modifier = Modifier.width(4.dp))
                 if (isSheetFullyExpanded && selectedTabId == DETAILS_TAB_CHAPTERS) {
                     ExpandedPaneUtilityDock(
@@ -1583,10 +2139,12 @@ internal fun DetailsDockActionButton(
 sealed interface DetailsAction {
     data object OpenCover : DetailsAction
     data class OpenSource(val source: ContentSource) : DetailsAction
+    data class OpenTrackingDiscover(val service: ScrobblerService) : DetailsAction
     data class SearchAuthorOnSource(val author: String, val source: ContentSource) : DetailsAction
     data class SearchAuthorEverywhere(val author: String) : DetailsAction
     data class SearchTagOnSource(val tag: ContentTag) : DetailsAction
     data class SearchTagEverywhere(val tagTitle: String) : DetailsAction
+    data class OpenWebUrl(val url: String) : DetailsAction
     data class SelectBranch(val branch: String?) : DetailsAction
     data object ManageCategories : DetailsAction
     data object ManageDownloads : DetailsAction
@@ -1602,7 +2160,13 @@ sealed interface DetailsAction {
     data object FindSimilar : DetailsAction
     data object OpenAlternatives : DetailsAction
     data object OpenOnlineVariant : DetailsAction
-    data object OpenInBrowser : DetailsAction
+    data class OpenBrowserPage(
+        val url: String,
+        val source: ContentSource?,
+        val title: String?,
+    ) : DetailsAction
+    data object OpenMetadataInBrowser : DetailsAction
+    data object OpenLocalSourceInBrowser : DetailsAction
     data object OpenTracking : DetailsAction
     data object OpenStatistics : DetailsAction
     data object ToggleSafe : DetailsAction
@@ -1624,6 +2188,9 @@ sealed interface DetailsAction {
         val url: String?,
     ) : DetailsAction
     data class BindTrackingMatch(
+        val match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult,
+    ) : DetailsAction
+    data class IgnoreTrackingSuggestion(
         val match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult,
     ) : DetailsAction
     data class RemoveTrackingMatch(
@@ -1906,7 +2473,8 @@ private fun DetailsOverflowMenu(
     isTranslating: Boolean,
     isScrobblingAvailable: Boolean,
     isStatsAvailable: Boolean,
-    isBrowserAvailable: Boolean,
+    hasMetadataBrowserTarget: Boolean,
+    hasLocalBrowserTarget: Boolean,
     isAlternativesAvailable: Boolean,
     hasOnlineVariant: Boolean,
     isDeleteLocalAvailable: Boolean,
@@ -2018,12 +2586,21 @@ private fun DetailsOverflowMenu(
                     },
                 )
             }
-            if (isBrowserAvailable) {
+            if (hasMetadataBrowserTarget) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.open_in_browser)) },
+                    text = { Text(stringResource(R.string.open_metadata_in_browser)) },
                     onClick = {
                         expanded = false
-                        onActionClick(DetailsAction.OpenInBrowser)
+                        onActionClick(DetailsAction.OpenMetadataInBrowser)
+                    },
+                )
+            }
+            if (hasLocalBrowserTarget) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.open_local_source_in_browser)) },
+                    onClick = {
+                        expanded = false
+                        onActionClick(DetailsAction.OpenLocalSourceInBrowser)
                     },
                 )
             }
@@ -2237,29 +2814,251 @@ fun EntityRelationCarousels(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(top = 12.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         sections.forEach { section ->
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = stringResource(section.titleRes),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 20.dp),
+            GlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                style = GlassDefaults.regularStyle(),
+                shape = RoundedCornerShape(28.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    items(
-                        items = section.items,
-                        key = { it.entityId }
-                    ) { item ->
-                        EntityRelationCard(item = item, onClick = { onEntityClick(item.entityId) })
+                    EntityRelationSectionHeader(section = section)
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                    ) {
+                        items(
+                            items = section.items,
+                            key = { it.entityId },
+                        ) { item ->
+                            EntityRelationCard(item = item, onClick = { onEntityClick(item.entityId) })
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TrackingMetadataCard(
+    properties: List<Pair<String, String>>,
+) {
+    GlassSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        style = GlassDefaults.subtleStyle(),
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.details_additional_metadata),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            properties.forEach { (label, value) ->
+                if (value.isBlank()) {
+                    return@forEach
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(96.dp),
+                    )
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackingDetailsSections(
+    sections: List<TrackingDetailsSection>,
+    onItemClick: (TrackingDetailsSectionItem) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        sections.forEach { section ->
+            GlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                style = GlassDefaults.regularStyle(),
+                shape = RoundedCornerShape(28.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = section.titleRes?.let { stringResource(it) } ?: section.title.orEmpty(),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                        ) {
+                            Text(
+                                text = section.items.size.toString(),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                    ) {
+                        items(
+                            items = section.items,
+                            key = { "${it.service.id}:${it.remoteId}" },
+                        ) { item ->
+                            TrackingDetailsCard(
+                                item = item,
+                                onClick = { onItemClick(item) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackingDetailsCard(
+    item: TrackingDetailsSectionItem,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .width(132.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.32f),
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(item.coverUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(0.72f)
+                    .clip(RoundedCornerShape(14.dp)),
+                error = rememberSafePainter(R.drawable.ic_placeholder),
+                placeholder = rememberSafePainter(R.drawable.ic_placeholder),
+            )
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            item.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EntityRelationSectionHeader(
+    section: EntityRelationSection,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+        ) {
+            Icon(
+                painter = rememberSafePainter(entityRelationSectionIconRes(section.titleRes)),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(10.dp)
+                    .size(18.dp),
+            )
+        }
+        Text(
+            text = stringResource(section.titleRes),
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+        ) {
+            Text(
+                text = section.items.size.toString(),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            )
         }
     }
 }
@@ -2269,42 +3068,156 @@ fun EntityRelationCard(
     item: EntityRelationItem,
     onClick: () -> Unit,
 ) {
-    Surface(
+    val typeLabel = stringResource(entityRelationTypeLabelRes(item.type))
+    val typeIconRes = entityRelationTypeIconRes(item.type)
+    GlassSurface(
         modifier = Modifier
-            .width(100.dp)
-            .height(132.dp)
+            .width(148.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        style = GlassDefaults.regularStyle(),
+        shape = RoundedCornerShape(22.dp),
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(
+            Surface(
                 modifier = Modifier
-                    .size(56.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(28.dp)),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .aspectRatio(0.76f),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (item.coverUrl.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painter = rememberSafePainter(typeIconRes),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(30.dp),
+                            )
+                        }
+                    } else {
+                        AsyncImage(
+                            model = item.coverUrl,
+                            contentDescription = item.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        MaterialTheme.colorScheme.scrim.copy(alpha = 0.22f),
+                                    ),
+                                ),
+                            ),
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                painter = rememberSafePainter(typeIconRes),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Text(
+                                text = typeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = item.name.firstOrNull()?.toString()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    text = item.name,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painter = rememberSafePainter(typeIconRes),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = typeLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_arrow_forward),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
         }
     }
+}
+
+private fun entityRelationSectionIconRes(titleRes: Int): Int = when (titleRes) {
+    R.string.entity_graph_section_characters -> R.drawable.ic_user
+    R.string.entity_graph_section_creators -> R.drawable.ic_auto_fix
+    R.string.entity_graph_section_parent_work -> R.drawable.ic_content_manga
+    R.string.entity_graph_section_voice_actors -> R.drawable.ic_voice_input
+    R.string.entity_graph_section_created_works -> R.drawable.ic_content_manga
+    R.string.entity_graph_section_voiced_characters -> R.drawable.ic_user
+    R.string.entity_graph_section_related_entities -> R.drawable.ic_select_group
+    else -> R.drawable.ic_select_group
+}
+
+private fun entityRelationTypeLabelRes(type: org.skepsun.kototoro.entitygraph.domain.EntityType): Int = when (type) {
+    org.skepsun.kototoro.entitygraph.domain.EntityType.WORK -> R.string.entity_graph_type_work
+    org.skepsun.kototoro.entitygraph.domain.EntityType.CHARACTER -> R.string.entity_graph_type_character
+    org.skepsun.kototoro.entitygraph.domain.EntityType.PERSON -> R.string.entity_graph_type_person
+    org.skepsun.kototoro.entitygraph.domain.EntityType.ORGANIZATION -> R.string.entity_graph_type_organization
+}
+
+private fun entityRelationTypeIconRes(type: org.skepsun.kototoro.entitygraph.domain.EntityType): Int = when (type) {
+    org.skepsun.kototoro.entitygraph.domain.EntityType.WORK -> R.drawable.ic_content_manga
+    org.skepsun.kototoro.entitygraph.domain.EntityType.CHARACTER -> R.drawable.ic_user
+    org.skepsun.kototoro.entitygraph.domain.EntityType.PERSON -> R.drawable.ic_user
+    org.skepsun.kototoro.entitygraph.domain.EntityType.ORGANIZATION -> R.drawable.ic_select_group
 }

@@ -266,6 +266,10 @@ class DetailsActivity :
                                 this@DetailsActivity.router.openList(action.source, null, null)
                             }
 
+                            is DetailsAction.OpenTrackingDiscover -> {
+                                this@DetailsActivity.router.openTrackingDiscover(action.service)
+                            }
+
                             is DetailsAction.SearchAuthorOnSource -> {
                                 this@DetailsActivity.router.openSearch(action.source, action.author)
                             }
@@ -280,6 +284,10 @@ class DetailsActivity :
 
                             is DetailsAction.SearchTagEverywhere -> {
                                 this@DetailsActivity.router.openSearch(action.tagTitle, SearchKind.TAG)
+                            }
+
+                            is DetailsAction.OpenWebUrl -> {
+                                router.openBrowser(action.url, null, null)
                             }
 
                             is DetailsAction.SelectBranch -> {
@@ -318,8 +326,12 @@ class DetailsActivity :
                                 viewModel.remoteContent.value?.let(this@DetailsActivity.router::openDetails)
                             }
 
-                            DetailsAction.OpenInBrowser -> {
-                                viewModel.getContentOrNull()?.let(this@DetailsActivity.router::openBrowser)
+                            is DetailsAction.OpenBrowserPage -> {
+                                router.openBrowser(action.url, action.source, action.title)
+                            }
+
+                            DetailsAction.OpenMetadataInBrowser,
+                            DetailsAction.OpenLocalSourceInBrowser -> {
                             }
 
                             is DetailsAction.OpenTrackingDetails -> {
@@ -337,6 +349,10 @@ class DetailsActivity :
 
                             is DetailsAction.BindTrackingMatch -> {
                                 viewModel.bindTrackingMatch(action.match)
+                            }
+
+                            is DetailsAction.IgnoreTrackingSuggestion -> {
+                                viewModel.ignoreTrackingSuggestion(action.match)
                             }
 
                             is DetailsAction.RemoveTrackingMatch -> {

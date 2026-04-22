@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,14 +46,22 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
+import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreenRoot
+import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreen
 import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.compose.PagesScreenRoot
+import org.skepsun.kototoro.details.ui.withVolumeHeaders
+import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 const val DETAILS_TAB_CHAPTERS = 0
 const val DETAILS_TAB_PAGES = 1
@@ -71,10 +82,15 @@ fun ChaptersPagesTabsContent(
 	settings: AppSettings,
 	appRouter: AppRouter,
 	pageSaveHelper: PageSaveHelper,
+	metadataChapterTabs: List<DetailsChapterSourceTab> = emptyList(),
+	readingChapterTabs: List<DetailsChapterSourceTab> = emptyList(),
+	onSelectMetadataChapterTab: (DetailsChapterSourceTab) -> Unit = {},
+	onSelectReadingChapterTab: (DetailsChapterSourceTab) -> Unit = {},
 	initialPage: Int = 0,
 	selectedTabId: Int? = null,
 	showTabStrip: Boolean = true,
 	isSheetFullyExpanded: Boolean = true,
+	isChapterListScrollEnabled: Boolean = true,
     chapterQuery: String = "",
     isChapterSearchVisible: Boolean = false,
     onChapterQueryChange: ((String) -> Unit)? = null,
@@ -197,13 +213,18 @@ fun ChaptersPagesTabsContent(
 				if (router == null) return@HorizontalPager
 
 				when (tabsList[page].tabId) {
-					DETAILS_TAB_CHAPTERS -> ChaptersScreenRoot(
+					DETAILS_TAB_CHAPTERS -> DetailsChapterPanels(
 						viewModel = viewModel,
 						router = router,
 						context = context,
 						viewForSnackbar = viewForSnackbar,
 						lifecycleOwner = lifecycleOwner,
-						isScrollEnabled = isSheetFullyExpanded,
+						metadataChapterTabs = metadataChapterTabs,
+						readingChapterTabs = readingChapterTabs,
+						chapterQuery = chapterQuery,
+						onSelectMetadataChapterTab = onSelectMetadataChapterTab,
+						onSelectReadingChapterTab = onSelectReadingChapterTab,
+						isScrollEnabled = isChapterListScrollEnabled,
 					)
 					DETAILS_TAB_PAGES -> PagesScreenRoot(
 						activityViewModel = viewModel,
@@ -224,6 +245,269 @@ fun ChaptersPagesTabsContent(
 			}
 		}
 	}
+}
+
+private enum class ChapterPanelMode {
+	METADATA,
+	READING,
+}
+
+@Composable
+private fun DetailsChapterPanels(
+	viewModel: ChaptersPagesViewModel,
+	router: AppRouter,
+	context: android.content.Context,
+	viewForSnackbar: android.view.View,
+	lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+	metadataChapterTabs: List<DetailsChapterSourceTab>,
+	readingChapterTabs: List<DetailsChapterSourceTab>,
+	chapterQuery: String,
+	onSelectMetadataChapterTab: (DetailsChapterSourceTab) -> Unit,
+	onSelectReadingChapterTab: (DetailsChapterSourceTab) -> Unit,
+	isScrollEnabled: Boolean,
+) {
+	val availableModes = remember(metadataChapterTabs, readingChapterTabs) {
+		buildList {
+			if (metadataChapterTabs.isNotEmpty()) {
+				add(ChapterPanelMode.METADATA)
+			}
+			add(ChapterPanelMode.READING)
+		}
+	}
+	var selectedModeName by rememberSaveable { mutableStateOf(availableModes.first().name) }
+	val selectedMode = availableModes.firstOrNull { it.name == selectedModeName } ?: availableModes.first()
+
+	LaunchedEffect(availableModes) {
+		if (availableModes.none { it.name == selectedModeName }) {
+			selectedModeName = availableModes.first().name
+		}
+	}
+
+	Column(modifier = Modifier.fillMaxSize()) {
+		if (availableModes.size > 1) {
+			TabRow(selectedTabIndex = availableModes.indexOf(selectedMode)) {
+				availableModes.forEachIndexed { index, mode ->
+					Tab(
+						selected = mode == selectedMode,
+						onClick = { selectedModeName = mode.name },
+						text = {
+							Text(
+								stringResource(
+									if (index == 0 && mode == ChapterPanelMode.METADATA) {
+										R.string.details_metadata_chapters
+									} else if (mode == ChapterPanelMode.READING) {
+										R.string.details_reading_chapters
+									} else {
+										R.string.details_metadata_chapters
+									},
+								),
+							)
+						},
+					)
+				}
+			}
+		}
+
+		when (selectedMode) {
+			ChapterPanelMode.METADATA -> MetadataChapterPanel(
+				tabs = metadataChapterTabs,
+				chapterQuery = chapterQuery,
+				onSelectTab = onSelectMetadataChapterTab,
+				onOpenBrowser = { url -> router.openBrowser(url, null, null) },
+				isScrollEnabled = isScrollEnabled,
+			)
+
+			ChapterPanelMode.READING -> {
+				if (readingChapterTabs.size > 1) {
+					ChapterSourceTabsRow(
+						tabs = readingChapterTabs,
+						onSelectTab = onSelectReadingChapterTab,
+					)
+				}
+				ChaptersScreenRoot(
+					viewModel = viewModel,
+					router = router,
+					context = context,
+					viewForSnackbar = viewForSnackbar,
+					lifecycleOwner = lifecycleOwner,
+					isScrollEnabled = isScrollEnabled,
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun MetadataChapterPanel(
+	tabs: List<DetailsChapterSourceTab>,
+	chapterQuery: String,
+	onSelectTab: (DetailsChapterSourceTab) -> Unit,
+	onOpenBrowser: (String) -> Unit,
+	isScrollEnabled: Boolean,
+) {
+	val context = LocalContext.current
+	val viewModel = remember { mutableStateOf<org.skepsun.kototoro.parsers.model.ContentChapter?>(null) }
+	val selectedTab = tabs.firstOrNull { it.isSelected } ?: tabs.firstOrNull()
+	val chapters = selectedTab?.chapters.orEmpty()
+	val isGridView = false
+	val filteredChapters = remember(chapters, chapterQuery) {
+		if (chapterQuery.isBlank()) {
+			chapters
+		} else {
+			chapters.filter { chapter ->
+				chapter.title?.contains(chapterQuery, ignoreCase = true) == true ||
+					chapter.numberString()?.contains(chapterQuery, ignoreCase = true) == true ||
+					chapter.url.contains(chapterQuery, ignoreCase = true)
+			}
+		}
+	}
+	val items = remember(filteredChapters, context) {
+		filteredChapters.map {
+			it.toListItem(
+				isCurrent = false,
+				isUnread = true,
+				isNew = false,
+				isDownloaded = false,
+				isBookmarked = false,
+				isGrid = isGridView,
+			)
+		}.withVolumeHeaders(context)
+	}
+
+	Column(modifier = Modifier.fillMaxSize()) {
+		if (tabs.size > 1) {
+			ChapterSourceTabsRow(
+				tabs = tabs,
+				onSelectTab = onSelectTab,
+			)
+		}
+		ChaptersScreen(
+			items = items,
+			isGridView = isGridView,
+			isScrollEnabled = isScrollEnabled,
+			gridSpanCount = 2,
+			selectedItemIds = emptySet(),
+			filterChips = emptyList(),
+			isLoading = false,
+			emptyMessageResId = R.string.no_chapters,
+			onItemClick = { viewModel.value = it.chapter },
+			onItemLongClick = {},
+			onHeaderClick = {},
+			onFilterChipClick = {},
+			onSelectionActionClick = {},
+			onClearSelection = {},
+		)
+	}
+
+	viewModel.value?.let { chapter ->
+		MetadataChapterDialog(
+			chapter = chapter,
+			sourceTab = selectedTab,
+			onDismissRequest = { viewModel.value = null },
+			onOpenBrowser = {
+				viewModel.value = null
+				onOpenBrowser(chapter.url)
+			},
+		)
+	}
+}
+
+@Composable
+private fun ChapterSourceTabsRow(
+	tabs: List<DetailsChapterSourceTab>,
+	onSelectTab: (DetailsChapterSourceTab) -> Unit,
+) {
+	LazyRow(
+		modifier = Modifier.fillMaxWidth(),
+		contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+		horizontalArrangement = Arrangement.spacedBy(8.dp),
+	) {
+		items(tabs, key = { it.key }) { tab ->
+			val labelText = when {
+				tab.trackingService != null -> stringResource(tab.trackingService.titleResId)
+				tab.source != null -> rememberResolvedSourceTitle(tab.source)
+				else -> tab.key
+			}
+			FilterChip(
+				selected = tab.isSelected,
+				onClick = { onSelectTab(tab) },
+				label = {
+					Text(text = labelText)
+				},
+				leadingIcon = {
+					when {
+						tab.trackingService != null -> {
+							Icon(
+								painter = painterResource(tab.trackingService.iconResId),
+								contentDescription = null,
+							)
+						}
+
+						tab.source != null -> {
+							ContentSourceIcon(source = tab.source)
+						}
+					}
+				},
+			)
+		}
+	}
+}
+
+@Composable
+private fun MetadataChapterDialog(
+	chapter: org.skepsun.kototoro.parsers.model.ContentChapter,
+	sourceTab: DetailsChapterSourceTab?,
+	onDismissRequest: () -> Unit,
+	onOpenBrowser: () -> Unit,
+) {
+	androidx.compose.material3.AlertDialog(
+		onDismissRequest = onDismissRequest,
+		title = {
+			Text(chapter.title ?: stringResource(R.string.chapters))
+		},
+		text = {
+			Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+				sourceTab?.trackingService?.let { service ->
+					Text(
+						text = stringResource(R.string.details_metadata_source_label, stringResource(service.titleResId)),
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+				}
+				chapter.numberString()?.let { number ->
+					Text(
+						text = stringResource(R.string.details_chapter_number_label, number),
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onSurface,
+					)
+				}
+				Text(
+					text = stringResource(R.string.details_metadata_chapter_hint),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+				if (chapter.url.isNotBlank()) {
+					Text(
+						text = chapter.url,
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+				}
+			}
+		},
+		confirmButton = {
+			if (chapter.url.isNotBlank()) {
+				androidx.compose.material3.TextButton(onClick = onOpenBrowser) {
+					Text(stringResource(R.string.open_in_browser))
+				}
+			}
+		},
+		dismissButton = {
+			androidx.compose.material3.TextButton(onClick = onDismissRequest) {
+				Text(stringResource(android.R.string.cancel))
+			}
+		},
+	)
 }
 
 @Composable

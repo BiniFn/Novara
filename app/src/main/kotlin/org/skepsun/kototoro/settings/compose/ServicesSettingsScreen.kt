@@ -31,6 +31,7 @@ data class ServicesTrackingItem(
 
 data class ServicesSettingsUiState(
     val suggestionsSummary: String,
+    val animeOfflineSummary: String,
     val isRelatedContentEnabled: Boolean,
     val isStatsEnabled: Boolean,
     val isReadingTimeEstimationEnabled: Boolean,
@@ -47,6 +48,7 @@ fun ServicesSettingsScreen(
     onDismissAuthPrompt: () -> Unit,
     onConfirmAuthPrompt: (ScrobblerService) -> Unit,
     onSyncSettingsClick: () -> Unit,
+    onAnimeOfflineClick: () -> Unit,
     onSuggestionsClick: () -> Unit,
     onRelatedContentChange: (Boolean) -> Unit,
     onStatsClick: () -> Unit,
@@ -78,6 +80,13 @@ fun ServicesSettingsScreen(
                         title = stringResource(R.string.sync_settings),
                         summary = stringResource(R.string.sync_settings_summary),
                         onClick = onSyncSettingsClick,
+                    )
+                    SettingsSectionDivider()
+                    SettingsActionPreference(
+                        title = stringResource(R.string.anime_offline_database),
+                        summary = state.animeOfflineSummary,
+                        iconRes = R.drawable.ic_content_video,
+                        onClick = onAnimeOfflineClick,
                     )
                     SettingsSectionDivider()
                     SettingsActionPreference(

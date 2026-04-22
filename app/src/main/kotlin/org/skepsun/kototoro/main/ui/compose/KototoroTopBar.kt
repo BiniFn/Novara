@@ -100,6 +100,7 @@ fun KototoroTopBar(
     languagePresetEntries: List<SourcePreset> = emptyList(),
     activeLanguagePresetId: Long = -1L,
     onLanguagePresetSelected: (Long) -> Unit = {},
+    onManageLanguagePresets: () -> Unit = {},
     selectedContentType: ContentType? = null,
     enabledContentTypes: Set<ContentType> = setOf(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
     isContentTypeFilterVisible: Boolean = true,
@@ -234,6 +235,7 @@ fun KototoroTopBar(
                                                 presets = languagePresetEntries,
                                                 activePresetId = activeLanguagePresetId,
                                                 onPresetSelected = onLanguagePresetSelected,
+                                                onManagePresets = onManageLanguagePresets,
                                             )
                                         }
                                         if (!expanded && isContentTypeFilterVisible) {
@@ -391,6 +393,7 @@ private fun LanguagePresetDropdownButton(
     presets: List<SourcePreset>,
     activePresetId: Long,
     onPresetSelected: (Long) -> Unit,
+    onManagePresets: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -443,6 +446,14 @@ private fun LanguagePresetDropdownButton(
                     },
                 )
             }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.manage_language_presets)) },
+                onClick = {
+                    expanded = false
+                    onManagePresets()
+                },
+            )
         }
     }
 }

@@ -43,5 +43,7 @@ class ContentIntent private constructor(
 		const val ID_NONE = 0L
 
 		fun of(manga: Content) = ContentIntent(manga, manga.id, null)
+
+		fun of(mangaId: Long) = ContentIntent(null, mangaId, null)
 	}
 }

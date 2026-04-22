@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +51,8 @@ fun DetailsCoverFrame(
     onCoverBoundsSync: (Rect, Float) -> Unit,
     syncAlpha: Float,
     showNsfwBadge: Boolean,
+    topBadgeText: String? = null,
+    @DrawableRes topBadgeIconRes: Int? = null,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onState: ((coil3.compose.AsyncImagePainter.State) -> Unit)? = null,
@@ -112,6 +115,35 @@ fun DetailsCoverFrame(
                 contentScale = ContentScale.Crop,
                 onState = { state -> onState?.invoke(state) },
             )
+            if (!topBadgeText.isNullOrBlank()) {
+                GlassSurface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    style = GlassDefaults.regularStyle(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        topBadgeIconRes?.let { iconRes ->
+                            Icon(
+                                painter = rememberSafePainter(iconRes),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
+                        Text(
+                            text = topBadgeText,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
             if (showNsfwBadge) {
                 Surface(
                     modifier = Modifier
@@ -131,6 +163,63 @@ fun DetailsCoverFrame(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun DetailsHeaderActionButton(
+    @DrawableRes iconRes: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    filled: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    val containerColor = if (filled) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.94f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f)
+    }
+    val contentColor = if (filled) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = if (filled) 2.dp else 0.dp,
+        shadowElevation = if (filled) 2.dp else 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(shape)
+                .combinedClickable(
+                    enabled = enabled,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = rememberSafePainter(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = contentColor.copy(alpha = if (enabled) 1f else 0.6f),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = contentColor.copy(alpha = if (enabled) 1f else 0.6f),
+                maxLines = 1,
+            )
         }
     }
 }
@@ -203,7 +292,7 @@ fun MetadataItem(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
-    Column(
+    Row(
         modifier = modifier
             .then(
                 if (onClick != null) {
@@ -213,11 +302,13 @@ fun MetadataItem(
                 },
             )
             .padding(horizontal = 6.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.widthIn(min = 56.dp),
         ) {
             iconRes?.let {
                 Icon(
@@ -237,8 +328,9 @@ fun MetadataItem(
             text = value,
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }

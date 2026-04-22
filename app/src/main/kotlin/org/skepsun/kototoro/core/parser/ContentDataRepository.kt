@@ -41,6 +41,19 @@ class ContentDataRepository @Inject constructor(
 	private val appShortcutManagerProvider: Provider<AppShortcutManager>,
 ) {
 
+	sealed interface MetadataSourceSelection {
+		data object Base : MetadataSourceSelection
+		data class Tracking(
+			val serviceId: Int,
+			val remoteId: Long,
+		) : MetadataSourceSelection
+	}
+
+	data class IgnoredTrackingSuggestion(
+		val serviceId: Int,
+		val remoteId: Long,
+	)
+
 	suspend fun saveReaderMode(manga: Content, mode: ReaderMode) {
 		db.withTransaction {
 			storeContent(manga, replaceExisting = false)
@@ -80,6 +93,33 @@ class ContentDataRepository @Inject constructor(
 		return db.getPreferencesDao().find(mangaId)?.getOverrideOrNull()
 	}
 
+	suspend fun getMetadataSourceSelection(mangaId: Long): MetadataSourceSelection? {
+		val entity = db.getPreferencesDao().find(mangaId) ?: return null
+		return when (entity.metadataSourceKind) {
+			null -> null
+			"base" -> MetadataSourceSelection.Base
+			"tracking" -> {
+				val serviceId = entity.metadataSourceService ?: return null
+				val remoteId = entity.metadataSourceRemoteId ?: return null
+				MetadataSourceSelection.Tracking(
+					serviceId = serviceId,
+					remoteId = remoteId,
+				)
+			}
+			else -> null
+		}
+	}
+
+	suspend fun getIgnoredTrackingSuggestion(mangaId: Long): IgnoredTrackingSuggestion? {
+		val entity = db.getPreferencesDao().find(mangaId) ?: return null
+		val serviceId = entity.ignoredTrackingSuggestionService ?: return null
+		val remoteId = entity.ignoredTrackingSuggestionRemoteId ?: return null
+		return IgnoredTrackingSuggestion(
+			serviceId = serviceId,
+			remoteId = remoteId,
+		)
+	}
+
 	suspend fun getOverrides(): LongObjectMap<ContentOverride> {
 		val entities = db.getPreferencesDao().getOverrides()
 		val map = MutableLongObjectMap<ContentOverride>(entities.size)
@@ -106,6 +146,43 @@ class ContentDataRepository @Inject constructor(
 			val effectiveRating = override?.contentRating ?: manga.contentRating
 			val effectiveNsfw = effectiveRating == org.skepsun.kototoro.parsers.model.ContentRating.ADULT
 			db.getMangaDao().updateContentRating(manga.id, effectiveNsfw, effectiveRating?.name)
+		}
+	}
+
+	suspend fun setMetadataSourceSelection(
+		mangaId: Long,
+		selection: MetadataSourceSelection?,
+	) {
+		db.withTransaction {
+			val dao = db.getPreferencesDao()
+			val entity = dao.find(mangaId) ?: newEntity(mangaId)
+			dao.upsert(
+				entity.copy(
+					metadataSourceKind = when (selection) {
+						null -> null
+						MetadataSourceSelection.Base -> "base"
+						is MetadataSourceSelection.Tracking -> "tracking"
+					},
+					metadataSourceService = (selection as? MetadataSourceSelection.Tracking)?.serviceId,
+					metadataSourceRemoteId = (selection as? MetadataSourceSelection.Tracking)?.remoteId,
+				),
+			)
+		}
+	}
+
+	suspend fun setIgnoredTrackingSuggestion(
+		mangaId: Long,
+		suggestion: IgnoredTrackingSuggestion?,
+	) {
+		db.withTransaction {
+			val dao = db.getPreferencesDao()
+			val entity = dao.find(mangaId) ?: newEntity(mangaId)
+			dao.upsert(
+				entity.copy(
+					ignoredTrackingSuggestionService = suggestion?.serviceId,
+					ignoredTrackingSuggestionRemoteId = suggestion?.remoteId,
+				),
+			)
 		}
 	}
 
@@ -250,5 +327,10 @@ class ContentDataRepository @Inject constructor(
 		titleOverride = null,
 		coverUrlOverride = null,
 		contentRatingOverride = null,
+		metadataSourceKind = null,
+		metadataSourceService = null,
+		metadataSourceRemoteId = null,
+		ignoredTrackingSuggestionService = null,
+		ignoredTrackingSuggestionRemoteId = null,
 	)
 }

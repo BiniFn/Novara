@@ -215,6 +215,13 @@ class AppRouter private constructor(
         startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.TrackingItem(service.id.toString(), remoteId, url)))
     }
 
+	fun openTrackingDiscover(service: ScrobblerService) {
+		startActivity(
+			Intent(contextOrNull() ?: return, org.skepsun.kototoro.discover.ui.TrackingDiscoverActivity::class.java)
+				.putExtra(KEY_ID, service.name),
+		)
+	}
+
 	fun openTrackingDiscoveryCategory(service: ScrobblerService, categoryId: String, titleResId: Int) {
 		startActivity(
 			Intent(contextOrNull() ?: return, org.skepsun.kototoro.discover.ui.category.DiscoverCategoryActivity::class.java)

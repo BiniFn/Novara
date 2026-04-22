@@ -202,11 +202,8 @@
 			android:name="org.skepsun.kototoro.details.ui.related.RelatedContentActivity"
 			android:label="@string/related_manga" />
 		<activity
-			android:name="org.skepsun.kototoro.discover.ui.details.TrackingSiteDetailsActivity"
+			android:name="org.skepsun.kototoro.discover.ui.TrackingDiscoverActivity"
 			android:label="@string/discover" />
-		<activity
-			android:name="org.skepsun.kototoro.entitygraph.ui.details.EntityDetailsActivity"
-			android:label="@string/entity_graph_detail_title" />
 		<activity
 			android:name="org.skepsun.kototoro.discover.ui.category.DiscoverCategoryActivity"
 			android:label="@string/discover" />

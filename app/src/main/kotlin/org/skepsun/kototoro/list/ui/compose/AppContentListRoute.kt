@@ -88,10 +88,16 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                 }
                 
                 override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
-                    if (tag != null) {
-                        val current = viewModel.currentSourceTags.value ?: emptySet()
-                        viewModel.setSelectedSourceTags(if (tag in current) current - tag else current + tag)
-                    }
+                    val current = viewModel.currentSourceTags.value ?: emptySet()
+                    viewModel.setSelectedSourceTags(
+                        if (tag == null) {
+                            emptySet()
+                        } else if (tag in current) {
+                            current - tag
+                        } else {
+                            current + tag
+                        }
+                    )
                 }
                 
                 override fun getSourceTagEntries(): List<org.skepsun.kototoro.explore.ui.model.SourceTag> {

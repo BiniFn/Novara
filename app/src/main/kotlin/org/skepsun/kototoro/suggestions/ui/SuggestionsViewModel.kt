@@ -71,8 +71,8 @@ class SuggestionsViewModel @Inject constructor(
 		quickFilter.appliedOptions.combineWithSettings().flatMapLatest { repository.observeAll(0, it) },
 		quickFilter.appliedOptions,
 		observeListModeWithTriggers(),
-		selectedGroupTab,
-		selectedSourceTags,
+		currentGroupTab,
+		currentSourceTags,
 	) { values: Array<Any?> ->
 		val list = values[0] as List<Content>
 		val filters = values[1] as Set<ListFilterOption>

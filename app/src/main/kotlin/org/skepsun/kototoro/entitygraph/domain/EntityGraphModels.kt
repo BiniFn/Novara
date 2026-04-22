@@ -1,5 +1,7 @@
 package org.skepsun.kototoro.entitygraph.domain
 
+import org.skepsun.kototoro.parsers.model.ContentType
+
 enum class EntityType {
 	WORK,
 	CHARACTER,
@@ -45,6 +47,7 @@ data class Relation(
 data class TrackingWorkDto(
 	val externalId: String,
 	val primaryName: String,
+	val contentType: ContentType? = null,
 	val aliases: List<String> = emptyList(),
 	val characters: List<TrackingCharacterDto> = emptyList(),
 	val staff: List<TrackingStaffDto> = emptyList(),
