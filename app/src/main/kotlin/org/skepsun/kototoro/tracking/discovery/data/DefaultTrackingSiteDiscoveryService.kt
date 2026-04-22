@@ -361,9 +361,21 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		if (service == ScrobblerService.SHIKIMORI) {
 			return getShikimoriDetails(remoteId, urlHint)
 		}
-		return repositoryMap[service]
-			.getContentInfo(remoteId)
-			.toTrackingDetails(service)
+		val info = repositoryMap[service].getContentInfo(remoteId)
+		val cachedUrl = urlHint ?: runCatching { cacheRepository.readDetails(service, remoteId)?.url }.getOrNull()
+		val resolvedUrl = info.url ?: cachedUrl
+
+		val contentType = when {
+			service == ScrobblerService.MANGAUPDATES -> org.skepsun.kototoro.parsers.model.ContentType.MANGA
+			service == ScrobblerService.ANILIST && resolvedUrl?.contains("/anime/") == true -> org.skepsun.kototoro.parsers.model.ContentType.VIDEO
+			service == ScrobblerService.ANILIST && resolvedUrl?.contains("/manga/") == true -> org.skepsun.kototoro.parsers.model.ContentType.MANGA
+			else -> null
+		}
+
+		return info.toTrackingDetails(
+			service = service,
+			contentType = contentType,
+		)
 	}
 
 	private suspend fun getMalDetails(remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
@@ -379,7 +391,10 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		} else {
 			malRepository.getContentInfo(remoteId)
 		}
-		return info.toTrackingDetails(ScrobblerService.MAL)
+		return info.toTrackingDetails(
+			service = ScrobblerService.MAL,
+			contentType = if (isAnime) org.skepsun.kototoro.parsers.model.ContentType.VIDEO else org.skepsun.kototoro.parsers.model.ContentType.MANGA,
+		)
 	}
 
 	private suspend fun getKitsuDetails(remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
@@ -394,7 +409,10 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		} else {
 			kitsuRepository.getContentInfo(remoteId)
 		}
-		return info.toTrackingDetails(ScrobblerService.KITSU)
+		return info.toTrackingDetails(
+			service = ScrobblerService.KITSU,
+			contentType = if (isAnime) org.skepsun.kototoro.parsers.model.ContentType.VIDEO else org.skepsun.kototoro.parsers.model.ContentType.MANGA,
+		)
 	}
 
 	// ── Shikimori helpers ────────────────────
@@ -445,7 +463,10 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		} else {
 			shikimoriRepository.getContentInfo(remoteId)
 		}
-		return info.toTrackingDetails(ScrobblerService.SHIKIMORI)
+		return info.toTrackingDetails(
+			service = ScrobblerService.SHIKIMORI,
+			contentType = if (isAnime) org.skepsun.kototoro.parsers.model.ContentType.VIDEO else org.skepsun.kototoro.parsers.model.ContentType.MANGA,
+		)
 	}
 
 	private fun ScrobblerContent.toTrackingListItem(service: ScrobblerService): TrackingSiteItem {
@@ -459,12 +480,13 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		)
 	}
 
-	private fun ScrobblerContentInfo.toTrackingDetails(service: ScrobblerService): TrackingSiteItemDetails {
+	private fun ScrobblerContentInfo.toTrackingDetails(service: ScrobblerService, contentType: org.skepsun.kototoro.parsers.model.ContentType? = null): TrackingSiteItemDetails {
 		return TrackingSiteItemDetails(
 			service = service,
 			remoteId = id,
 			title = name,
 			coverUrl = cover,
+			contentType = contentType,
 			description = descriptionHtml,
 			tags = tags,
 			authors = authors,

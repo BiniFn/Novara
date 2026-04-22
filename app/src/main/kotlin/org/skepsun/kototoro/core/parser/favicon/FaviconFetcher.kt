@@ -67,6 +67,7 @@ class FaviconFetcher(
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
+		android.util.Log.e("DetailsFavicon", "Fetching favicon for uri=$uri")
 		val sourceId = uri.schemeSpecificPart.let {
 			if (it.startsWith("JSON_") && it.endsWith("_json")) {
 				it.removeSuffix("_json")
@@ -287,23 +288,29 @@ class FaviconFetcher(
 			currentCoroutineContext().ensureActive()
 			val icon = favicons.find(sizePx) ?: throwNSEE(lastError)
 			try {
+				android.util.Log.e("DetailsFavicon", "Fetching kotatsu parser URL: ${icon.url}")
 				val result = imageLoader.fetch(icon.url, options)
 				if (result != null) {
+					android.util.Log.e("DetailsFavicon", "Fetched result successfully for kotatsu: ${icon.url}")
 					return if (options.diskCachePolicy.writeEnabled) {
 						writeToCache(cacheKey, result)
 					} else {
 						result
 					}
 				} else {
+					android.util.Log.e("DetailsFavicon", "Result was null for kotatsu: ${icon.url}")
 					favicons -= icon
 				}
 			} catch (e: CloudFlareProtectedException) {
+				android.util.Log.e("DetailsFavicon", "CloudFlareProtectedException: ${e.message}")
 				throw e
 			} catch (e: IOException) {
+				android.util.Log.e("DetailsFavicon", "IOException: ${e.message}")
 				lastError = e
 				favicons -= icon
 			}
 		}
+		android.util.Log.e("DetailsFavicon", "throwNSEE fallback with error: $lastError")
 		throwNSEE(lastError)
 	}
 
@@ -328,23 +335,29 @@ class FaviconFetcher(
 			currentCoroutineContext().ensureActive()
 			val icon = favicons.find(sizePx) ?: throwNSEE(lastError)
 			try {
+				android.util.Log.e("DetailsFavicon", "Fetching parser URL: ${icon.url}")
 				val result = imageLoader.fetch(icon.url, options)
 				if (result != null) {
+					android.util.Log.e("DetailsFavicon", "Fetched result successfully for parser: ${icon.url}")
 					return if (options.diskCachePolicy.writeEnabled) {
 						writeToCache(cacheKey, result)
 					} else {
 						result
 					}
 				} else {
+					android.util.Log.e("DetailsFavicon", "Result was null for parser: ${icon.url}")
 					favicons -= icon
 				}
 			} catch (e: CloudFlareProtectedException) {
+				android.util.Log.e("DetailsFavicon", "CloudFlareProtectedException: ${e.message}")
 				throw e
 			} catch (e: IOException) {
+				android.util.Log.e("DetailsFavicon", "IOException: ${e.message}")
 				lastError = e
 				favicons -= icon
 			}
 		}
+		android.util.Log.e("DetailsFavicon", "throwNSEE fallback with error: $lastError")
 		throwNSEE(lastError)
 	}
 

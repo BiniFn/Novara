@@ -139,6 +139,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_NAV_LABELS, true)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_LABELS, value) }
 
+	var isEntityGraphMigrated: Boolean
+		get() = prefs.getBoolean(KEY_ENTITY_GRAPH_MIGRATED, false)
+		set(value) = prefs.edit { putBoolean(KEY_ENTITY_GRAPH_MIGRATED, value) }
+
 	var isNavBarPinned: Boolean
 		get() = prefs.getBoolean(KEY_NAV_PINNED, false)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_PINNED, value) }
@@ -2015,6 +2019,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SELECTED_SOURCE_FILTER = "selected_source_filter"
 		const val KEY_SELECTED_SOURCE_TAGS = "selected_source_tags"
 		const val KEY_SELECTED_ADULT_FILTER = "selected_adult_filter"
+		const val KEY_ENTITY_GRAPH_MIGRATED = "entity_graph_migrated"
 
 		// keys for non-persistent preferences
 		const val KEY_APP_VERSION = "app_version"

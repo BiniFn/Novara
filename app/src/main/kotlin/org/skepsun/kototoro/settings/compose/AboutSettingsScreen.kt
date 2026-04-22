@@ -10,6 +10,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -28,12 +30,16 @@ fun AboutSettingsScreen(
 ) {
     val isStableVersion = VersionId(BuildConfig.VERSION_NAME).isStable
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color.Transparent,
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
         SettingsActionPreference(
             title = stringResource(R.string.app_version, BuildConfig.VERSION_NAME),
             summary = stringResource(R.string.check_for_updates),
@@ -81,5 +87,6 @@ fun AboutSettingsScreen(
             summary = stringResource(R.string.crash_logs_summary),
             onClick = onCrashLogsClick,
         )
+    }
     }
 }

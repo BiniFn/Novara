@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -33,6 +34,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import androidx.compose.ui.graphics.Color
 
 data class SettingsRootSection(
     val title: String,
@@ -54,14 +58,18 @@ fun SettingsRootScreen(
     subtitle: String,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = 20.dp,
-            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
-        ),
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = Color.Transparent,
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 20.dp,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
+            ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item(key = "hero") {
@@ -74,6 +82,7 @@ fun SettingsRootScreen(
         items(sections, key = { it.title }) { section ->
             SettingsSectionCard(section = section)
         }
+    }
     }
 }
 
@@ -105,10 +114,11 @@ private fun SettingsHeroCard(
 private fun SettingsSectionCard(
     section: SettingsRootSection,
 ) {
-    Surface(
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 0.dp,
+        style = GlassDefaults.subtleStyle(),
+        allowRuntimeHaze = false,
     ) {
         Column(
             modifier = Modifier.padding(vertical = 8.dp),

@@ -43,6 +43,7 @@ data class TrackingSiteItemDetails(
 	val title: String,
 	val altTitle: String? = null,
 	val coverUrl: String? = null,
+	val contentType: ContentType? = null,
 	val description: String? = null,
 	val score: Float? = null,
 	val rank: Int? = null,

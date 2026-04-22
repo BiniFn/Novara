@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
@@ -77,6 +78,9 @@ import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatcher
 import javax.inject.Inject
 import kotlin.experimental.or
 import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationSection
+import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationItem
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
@@ -106,6 +110,8 @@ class DetailsViewModel @Inject constructor(
 	private val detailsTranslationCache: DetailsTranslationCache,
 	private val db: org.skepsun.kototoro.core.db.MangaDatabase,
 	private val trackingSiteCacheRepository: org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository,
+	private val entityGraphRepository: org.skepsun.kototoro.entitygraph.data.EntityGraphRepository,
+	private val trackingSiteDiscoveryService: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -121,10 +127,114 @@ class DetailsViewModel @Inject constructor(
 	private var loadingJob: Job
 	private var translationCacheSourceLang: String? = null
 	private var translationCacheTargetLang: String? = null
-	val mangaId = intent.mangaId
+	val activeExternalOrigin = savedStateHandle.get<org.skepsun.kototoro.details.ui.model.DetailsOrigin>(org.skepsun.kototoro.core.nav.AppRouter.KEY_DETAILS_ORIGIN)
+	private val activeMangaIdFlow = kotlinx.coroutines.flow.MutableStateFlow(intent.mangaId.takeIf { it != 0L })
+	val mangaId: Long get() = activeMangaIdFlow.value ?: intent.mangaId
+
+	val entityRelationSections = MutableStateFlow<List<EntityRelationSection>>(emptyList())
 
 	init {
-		mangaDetails.value = intent.manga?.let { ContentDetails(it) }
+		// Apply instant first paint from Intent or DetailsOrigin
+		val originContent = (activeExternalOrigin as? org.skepsun.kototoro.details.ui.model.DetailsOrigin.LocalMangaContent)?.parcelableContent?.manga
+		mangaDetails.value = (originContent ?: intent.manga)?.let { ContentDetails(it) }
+
+		if (activeExternalOrigin is org.skepsun.kototoro.details.ui.model.DetailsOrigin.EntityGraph) {
+			launchJob(Dispatchers.IO) {
+				val graphGraphId = activeExternalOrigin.entityId
+				val entity = entityGraphRepository.getEntity(graphGraphId) ?: return@launchJob
+				
+				if (mangaDetails.value == null) {
+				    val syntheticContent = Content(
+				        id = graphGraphId,
+				        title = entity.primaryName,
+				        altTitle = null, url = "", publicUrl = "", rating = 0f, isNsfw = false, tags = emptySet(), state = null, author = null,
+				        coverUrl = "",
+				        description = "",
+				        source = object : org.skepsun.kototoro.parsers.model.ContentSource { override val name = "Kototoro Entity" ; override val locale = "" ; override val contentType = org.skepsun.kototoro.parsers.model.ContentType.MANGA }
+				    )
+				    mangaDetails.value = ContentDetails(syntheticContent)
+				}
+				
+				val boundLocalId = entityGraphRepository.getBindings(graphGraphId).firstOrNull { it.source == "0" || it.source == "local_manga" }?.externalId?.toLongOrNull()
+				if (boundLocalId != null) {
+				    activeMangaIdFlow.value = boundLocalId
+				    loadingJob = doLoad(force = false) // Trigger reload locally!
+				}
+				
+				// Fetch Relations
+				val relations = entityGraphRepository.getRelations(graphGraphId)
+				val relatedIds = relations.mapNotNull { it.toEntityId.takeIf { t -> t != graphGraphId } ?: it.fromEntityId.takeIf { f -> f != graphGraphId } }
+				val relatedEntities = entityGraphRepository.getEntitiesByIds(relatedIds).associateBy { it.id }
+				val mappedSections = relations.groupBy { it.type }.mapNotNull { (type, typeRelations) ->
+				    val items = typeRelations.mapNotNull { relation ->
+				        val relatedId = relation.toEntityId.takeIf { it != graphGraphId } ?: relation.fromEntityId.takeIf { it != graphGraphId } ?: return@mapNotNull null
+				        relatedEntities[relatedId]?.let { related ->
+				            EntityRelationItem(
+				                entityId = related.id,
+				                name = related.primaryName,
+				                type = related.type
+				            )
+				        }
+				    }
+                    val typeTitleRes = when (type) {
+                        org.skepsun.kototoro.entitygraph.domain.RelationType.HAS_CHARACTER -> org.skepsun.kototoro.R.string.entity_graph_section_characters
+                        org.skepsun.kototoro.entitygraph.domain.RelationType.CREATED_BY -> org.skepsun.kototoro.R.string.entity_graph_section_creators
+                        org.skepsun.kototoro.entitygraph.domain.RelationType.RELATED_TO -> org.skepsun.kototoro.R.string.entity_graph_section_related_entities
+                        org.skepsun.kototoro.entitygraph.domain.RelationType.VOICED_BY -> org.skepsun.kototoro.R.string.entity_graph_section_voice_actors
+                        org.skepsun.kototoro.entitygraph.domain.RelationType.BELONGS_TO -> org.skepsun.kototoro.R.string.entity_graph_section_parent_work
+                    }
+				    if (items.isEmpty()) null else EntityRelationSection(titleRes = typeTitleRes, items = items)
+				}
+				entityRelationSections.value = mappedSections
+
+			}
+		} else if (activeExternalOrigin is org.skepsun.kototoro.details.ui.model.DetailsOrigin.TrackingItem) {
+			launchJob(Dispatchers.IO) {
+			    val service = ScrobblerService.entries.firstOrNull { it.id == activeExternalOrigin.serviceId.toIntOrNull() } ?: return@launchJob
+			    val cached = trackingSiteCacheRepository.readDetails(service, activeExternalOrigin.remoteId)
+			    
+			    if (mangaDetails.value == null && cached != null) {
+			        val syntheticContent = Content(
+				        id = activeExternalOrigin.remoteId,
+				        title = cached.title ?: "",
+				        altTitle = null, url = "", publicUrl = "", rating = 0f, isNsfw = false, tags = emptySet(), state = null, author = null,
+				        coverUrl = cached.coverUrl,
+				        description = cached.description,
+				        source = object : org.skepsun.kototoro.parsers.model.ContentSource { override val name = "Kototoro Tracker" ; override val locale = "" ; override val contentType = org.skepsun.kototoro.parsers.model.ContentType.MANGA }
+				    )
+				    mangaDetails.value = ContentDetails(syntheticContent)
+			    }
+			    
+			    val remoteDetails = try { trackingSiteDiscoveryService.getDetails(service, activeExternalOrigin.remoteId, activeExternalOrigin.url) } catch (e: Exception) { null }
+			    if (mangaDetails.value == null && remoteDetails != null) {
+			        val syntheticContent = Content(
+				        id = activeExternalOrigin.remoteId,
+				        title = remoteDetails.title ?: "",
+				        altTitle = null, url = "", publicUrl = "", rating = 0f, isNsfw = false, tags = emptySet(), state = null, author = null,
+				        coverUrl = remoteDetails.coverUrl,
+				        description = remoteDetails.description?.toString() ?: "",
+				        source = object : org.skepsun.kototoro.parsers.model.ContentSource { override val name = "Kototoro Tracker" ; override val locale = "" ; override val contentType = org.skepsun.kototoro.parsers.model.ContentType.MANGA }
+				    )
+				    mangaDetails.value = ContentDetails(syntheticContent)
+			    }
+			    
+			    if (remoteDetails != null) {
+			        trackingSiteCacheRepository.saveDetails(remoteDetails)
+			    }
+			    
+			    // Bind local manga if tracked
+			    db.getTrackingSiteDao().observeLinks(service.id, activeExternalOrigin.remoteId).collect { links ->
+			        if (links.isNotEmpty() && activeMangaIdFlow.value == null) {
+			            val trackingMangaId = links.first().mangaId
+			            if (trackingMangaId != 0L) {
+			                activeMangaIdFlow.value = trackingMangaId
+			                loadingJob = doLoad(force = false)
+			            }
+			        }
+			    }
+			}
+		}
+
 		videoDownloadIndex.changes
 			.onEach { changedContentId ->
 				if (changedContentId == mangaId) {
@@ -134,17 +244,20 @@ class DetailsViewModel @Inject constructor(
 			.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0L)
 	}
 
-	val history = historyRepository.observeOne(mangaId)
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val history = activeMangaIdFlow.filterNotNull().flatMapLatest { historyRepository.observeOne(it) }
 		.onEach { h ->
 			readingState.value = h?.let(::ReaderState)
 		}.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
-	val favouriteCategories = interactor.observeFavourite(mangaId)
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val favouriteCategories = activeMangaIdFlow.filterNotNull().flatMapLatest { interactor.observeFavourite(it) }
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptySet())
 
-	val isStatsAvailable = statsRepository.observeHasStats(mangaId)
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val isStatsAvailable = activeMangaIdFlow.filterNotNull().flatMapLatest { statsRepository.observeHasStats(it) }
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
 
@@ -220,14 +333,16 @@ class DetailsViewModel @Inject constructor(
 	val isScrobblingAvailable: Boolean
 		get() = scrobblers.any { it.isEnabled }
 
-	val scrobblingInfo: StateFlow<List<ScrobblingInfo>> = interactor.observeScrobblingInfo(mangaId)
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val scrobblingInfo: StateFlow<List<ScrobblingInfo>> = activeMangaIdFlow.filterNotNull().flatMapLatest { interactor.observeScrobblingInfo(it) }
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
 	val trackingMatchSuggestion = MutableStateFlow<TrackingSiteMatchResult?>(null)
 
-	val linkedTrackingItems: StateFlow<List<LinkedTrackingItemUiModel>> = db.getTrackingSiteDao()
-		.observeLinksByManga(mangaId)
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val linkedTrackingItems: StateFlow<List<LinkedTrackingItemUiModel>> = activeMangaIdFlow.filterNotNull().flatMapLatest { db.getTrackingSiteDao()
+		.observeLinksByManga(it) }
 		.mapLatest { links ->
 			links.mapNotNull { link ->
 				val service = org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService.entries

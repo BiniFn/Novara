@@ -9,6 +9,8 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.room.InvalidationTracker
 import androidx.work.Configuration
 import dagger.hilt.EntryPoint
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
@@ -17,6 +19,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttp
 import org.acra.ACRA
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import org.acra.ReportField
 import org.acra.config.dialog
 import org.acra.config.httpSender
@@ -44,7 +48,7 @@ import org.skepsun.kototoro.settings.work.WorkScheduleManager
 import java.security.Security
 import javax.inject.Provider
 
-open class BaseApp : App(), Configuration.Provider {
+open class BaseApp : App(), Configuration.Provider, SingletonImageLoader.Factory {
 
 	private val entryPoint: BaseAppEntryPoint by lazy(LazyThreadSafetyMode.NONE) {
 		EntryPointAccessors.fromApplication(this, BaseAppEntryPoint::class.java)
@@ -54,6 +58,10 @@ open class BaseApp : App(), Configuration.Provider {
 		get() = Configuration.Builder()
 			.setWorkerFactory(entryPoint.workerFactory())
 			.build()
+
+	override fun newImageLoader(context: Context): ImageLoader {
+		return entryPoint.imageLoader()
+	}
 
 	override fun onCreate() {
 		super.onCreate()
@@ -81,6 +89,11 @@ open class BaseApp : App(), Configuration.Provider {
 				ACRA.errorReporter.putCustomData("isOriginalApp", entryPoint.appValidator().isOriginalApp.getOrNull().toString())
 				ACRA.errorReporter.putCustomData("isMiui", RomCompat.isMiui.getOrNull().toString())
 			}
+		}
+		if (!entryPoint.settings().isEntityGraphMigrated) {
+			val request = OneTimeWorkRequestBuilder<org.skepsun.kototoro.entitygraph.work.EntityGraphMigrationWorker>().build()
+			WorkManager.getInstance(this).enqueue(request)
+			entryPoint.settings().isEntityGraphMigrated = true
 		}
 		processLifecycleScope.launch(Dispatchers.Default) {
 			runCatching {
@@ -187,5 +200,6 @@ open class BaseApp : App(), Configuration.Provider {
 		fun externalExtensionRepoRepository(): org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 		fun extensionInstallService(): org.skepsun.kototoro.extensions.install.ExtensionInstallService
 		fun contentSourcesRepository(): org.skepsun.kototoro.explore.data.ContentSourcesRepository
+		fun imageLoader(): ImageLoader
 	}
 }

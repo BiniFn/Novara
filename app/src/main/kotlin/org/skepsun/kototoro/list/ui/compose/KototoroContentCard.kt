@@ -177,15 +177,30 @@ fun KototoroContentCardGrid(
 
             // Bottom Right Progress (Reading progress)
             if (item.progress != null) {
-                CircularProgressIndicator(
-                    progress = { item.progress.percent },
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(8.dp)
-                        .size(16.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 2.dp,
+                        .size(32.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        progress = { item.progress.percent },
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                        strokeWidth = 2.5.dp,
                     )
+                    Text(
+                        text = "${(item.progress.percent * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
 
             if (showSourceInfo) {
@@ -333,7 +348,7 @@ private fun SourceInfoPill(
     Row(
         modifier = modifier
             .background(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
                 shape = RoundedCornerShape(topEnd = 10.dp),
             )
             .padding(start = 5.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),

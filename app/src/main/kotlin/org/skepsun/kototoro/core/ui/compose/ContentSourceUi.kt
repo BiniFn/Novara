@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,22 +112,31 @@ fun ContentSourceIcon(
 ) {
     val context = LocalContext.current
     val resolvedSource = rememberResolvedContentSource(source)
-    val request = remember(resolvedSource.name, resolvedSource.locale, styleResId, animated) {
-        val fallback = sourceFallbackImage(
+    val fallbackDrawable = remember(resolvedSource.name, resolvedSource.locale, styleResId) {
+        sourceFallbackImage(
             context = context,
             styleResId = styleResId,
             source = resolvedSource,
             animated = false,
         )
-        ImageRequest.Builder(context)
-            .data(resolvedSource.faviconUri())
-            .crossfade(animated)
-            .mangaSourceExtra(resolvedSource)
-            .suppressCaptchaErrors()
-            .placeholder(fallback)
-            .fallback(fallback)
-            .error(fallback)
-            .build()
+    }
+    
+    var hasError by remember(resolvedSource.name) { androidx.compose.runtime.mutableStateOf(false) }
+
+    val request = remember(resolvedSource.name, resolvedSource.locale, styleResId, animated, hasError) {
+        if (hasError) {
+            fallbackDrawable
+        } else {
+            ImageRequest.Builder(context)
+                .data(resolvedSource.faviconUri())
+                .crossfade(animated)
+                .mangaSourceExtra(resolvedSource)
+                .suppressCaptchaErrors()
+                .placeholder(fallbackDrawable)
+                .fallback(fallbackDrawable)
+                .error(fallbackDrawable)
+                .build()
+        }
     }
 
     AsyncImage(
@@ -136,6 +146,10 @@ fun ContentSourceIcon(
         modifier = modifier
             .size(16.dp)
             .clip(RoundedCornerShape(4.dp)),
+        onError = { 
+            android.util.Log.e("DetailsFavicon", "ContentSourceIcon AsyncImage error for model $request. Throwable: ${it.result.throwable}")
+            hasError = true 
+        }
     )
 }
 

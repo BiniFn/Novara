@@ -16,8 +16,10 @@ import androidx.compose.runtime.setValue
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.ui.geometry.Rect
-import androidx.core.view.doOnLayout
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.doOnLayout
+import androidx.core.animation.doOnEnd
+import androidx.core.animation.doOnCancel
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -344,12 +346,13 @@ class DetailsActivity :
                             DetailsAction.Download -> {
                             }
 
-                            DetailsAction.OpenTracking,
-                            DetailsAction.OpenStatistics,
                             DetailsAction.OpenStatistics -> {
                             }
 
                             DetailsAction.OpenTracking -> {
+                                viewModel.getContentOrNull()?.let { manga ->
+                                    router.showScrobblingSelectorSheet(manga, null)
+                                }
                             }
 
                             DetailsAction.ToggleList,
@@ -556,12 +559,41 @@ class DetailsActivity :
         applyCoverBounds(currentBounds, alpha = 1f)
         viewBinding.imageViewCover.visibility = View.VISIBLE
         
-        // Use framework transition to get proper window translucency return effects
-        window.returnTransition = android.transition.Fade(android.transition.Fade.OUT).apply {
-            duration = 200L
+        val travelDistance = resolveContentTravelDistancePx()
+        val contentView = viewBinding.composeView
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 320L
+            interpolator = FastOutSlowInInterpolator()
+            var isFinished = false
+            addUpdateListener { animator ->
+                val fraction = animator.animatedFraction
+                val interpolatedBounds = Rect(
+                    left = lerp(currentBounds.left, startBounds.left, fraction),
+                    top = lerp(currentBounds.top, startBounds.top, fraction),
+                    right = lerp(currentBounds.right, startBounds.right, fraction),
+                    bottom = lerp(currentBounds.bottom, startBounds.bottom, fraction),
+                )
+                applyCoverBounds(interpolatedBounds, alpha = 1f)
+                contentView.translationX = lerp(0f, travelDistance, fraction)
+                contentView.alpha = lerp(1f, 0f, fraction)
+            }
+            doOnEnd {
+                if (!isFinished) {
+                    isFinished = true
+                    finishAfterTransition()
+                    overridePendingTransition(0, 0)
+                }
+            }
+            doOnCancel {
+                if (!isFinished) {
+                    isFinished = true
+                    finishAfterTransition()
+                    overridePendingTransition(0, 0)
+                }
+            }
+            start()
         }
-        
-        finishAfterTransition()
         return true
     }
 

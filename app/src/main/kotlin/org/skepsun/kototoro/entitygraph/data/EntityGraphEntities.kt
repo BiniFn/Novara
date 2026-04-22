@@ -45,7 +45,7 @@ data class EntityBindingRecord(
 	indices = [
 		Index(name = "idx_relation_from", value = ["from_entity_id"]),
 		Index(name = "idx_relation_to", value = ["to_entity_id"]),
-		Index(value = ["from_entity_id", "to_entity_id", "type"], unique = true),
+		Index(name = "idx_relation_unique", value = ["from_entity_id", "to_entity_id", "type"], unique = true),
 	],
 )
 data class RelationRecord(

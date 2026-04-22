@@ -44,6 +44,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import kotlin.math.roundToInt
 
 data class SettingsChoiceOption<T>(
@@ -57,18 +59,27 @@ fun SettingsPreferenceSection(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Column(
+    GlassSurface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        style = GlassDefaults.subtleStyle(),
+        allowRuntimeHaze = false,
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-        )
-        content()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            )
+            content()
+        }
     }
 }
 

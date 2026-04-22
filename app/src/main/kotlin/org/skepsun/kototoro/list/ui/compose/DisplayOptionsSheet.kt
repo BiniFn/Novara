@@ -1,0 +1,175 @@
+package org.skepsun.kototoro.list.ui.compose
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.ListMode
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DisplayOptionsSheet(
+    supportsDisplayModeMenu: Boolean,
+    currentListMode: ListMode,
+    onListModeSelected: (ListMode) -> Unit,
+    supportsGridSizeSlider: Boolean,
+    gridSize: Int,
+    onGridSizeChange: (Int) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.display_options),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            if (supportsDisplayModeMenu) {
+                Text(
+                    text = stringResource(R.string.list_mode),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    DisplayModeChip(
+                        iconRes = R.drawable.ic_list,
+                        label = stringResource(R.string.list),
+                        selected = currentListMode == ListMode.LIST,
+                        onClick = { onListModeSelected(ListMode.LIST) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DisplayModeChip(
+                        iconRes = R.drawable.ic_list_detailed,
+                        label = stringResource(R.string.details),
+                        selected = currentListMode == ListMode.DETAILED_LIST,
+                        onClick = { onListModeSelected(ListMode.DETAILED_LIST) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DisplayModeChip(
+                        iconRes = R.drawable.ic_grid,
+                        label = stringResource(R.string.grid),
+                        selected = currentListMode == ListMode.GRID,
+                        onClick = { onListModeSelected(ListMode.GRID) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            if (supportsGridSizeSlider) {
+                if (supportsDisplayModeMenu) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                }
+                GridSizeSlider(
+                    title = stringResource(R.string.grid_size),
+                    value = gridSize,
+                    onValueChange = onGridSizeChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DisplayModeChip(
+    iconRes: Int,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = {
+            Icon(
+                painter = painterResource(if (selected) R.drawable.ic_check else iconRes),
+                contentDescription = null,
+            )
+        },
+        modifier = modifier,
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            labelColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+            leadingIconContentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    )
+}
+
+@Composable
+private fun GridSizeSlider(
+    title: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    var sliderValue by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    val currentValue = sliderValue.toInt().coerceIn(50, 150)
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "$currentValue%",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = sliderValue,
+            onValueChange = {
+                sliderValue = it
+                onValueChange(it.toInt().coerceIn(50, 150))
+            },
+            valueRange = 50f..150f,
+            steps = 19,
+        )
+    }
+}

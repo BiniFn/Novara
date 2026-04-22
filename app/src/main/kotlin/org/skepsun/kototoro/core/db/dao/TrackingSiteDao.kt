@@ -40,6 +40,12 @@ abstract class TrackingSiteDao {
 	@Query("SELECT * FROM tracking_site_links WHERE service = :service AND manga_id = :mangaId")
 	abstract suspend fun findLinksByManga(service: Int, mangaId: Long): List<TrackingSiteLinkEntity>
 
+	@Query("SELECT * FROM tracking_site_links")
+	abstract suspend fun findAllLinks(): List<TrackingSiteLinkEntity>
+
+	@Query("SELECT * FROM tracking_site_links WHERE service = :service AND remote_id = :remoteId")
+	abstract suspend fun findLinksByRemoteId(service: Int, remoteId: Long): List<TrackingSiteLinkEntity>
+
 	@Query("SELECT * FROM tracking_site_links WHERE service = :service AND remote_id = :remoteId")
 	abstract fun observeLinks(service: Int, remoteId: Long): Flow<List<TrackingSiteLinkEntity>>
 

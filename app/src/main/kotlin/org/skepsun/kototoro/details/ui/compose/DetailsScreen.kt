@@ -76,6 +76,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
@@ -100,6 +102,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -125,6 +129,8 @@ import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.model.ContentBranch
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
+import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationSection
+import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationItem
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogViewModel
@@ -177,6 +183,7 @@ fun DetailsScreen(
     val trackingSuggestion by viewModel.trackingMatchSuggestion.collectAsState()
     val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val entityRelationSections by viewModel.entityRelationSections.collectAsState()
 
     val context = LocalContext.current
     val panoramaExtraHeight by settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
@@ -314,7 +321,12 @@ fun DetailsScreen(
                 val offset = compactPaneOffsetPx.takeIf { it.isFinite() } ?: compactPaneCollapsedOffsetPx
                 if (available.y < 0 && offset > compactPaneFullOffsetPx) {
                     val consumedY = available.y.coerceAtLeast(compactPaneFullOffsetPx - offset)
-                    compactPaneOffsetPx = offset + consumedY
+                    val nextOffset = offset + consumedY
+                    compactPaneOffsetPx = nextOffset
+                    coroutineScope.launch {
+                        compactPaneOffsetAnimator.stop()
+                        compactPaneOffsetAnimator.snapTo(nextOffset)
+                    }
                     return Offset(0f, consumedY)
                 }
                 return Offset.Zero
@@ -323,7 +335,12 @@ fun DetailsScreen(
                 val offset = compactPaneOffsetPx.takeIf { it.isFinite() } ?: compactPaneCollapsedOffsetPx
                 if (available.y > 0 && offset < compactPaneCollapsedOffsetPx) {
                     val consumedY = available.y.coerceAtMost(compactPaneCollapsedOffsetPx - offset)
-                    compactPaneOffsetPx = offset + consumedY
+                    val nextOffset = offset + consumedY
+                    compactPaneOffsetPx = nextOffset
+                    coroutineScope.launch {
+                        compactPaneOffsetAnimator.stop()
+                        compactPaneOffsetAnimator.snapTo(nextOffset)
+                    }
                     return Offset(0f, consumedY)
                 }
                 return Offset.Zero
@@ -726,6 +743,7 @@ fun DetailsScreen(
                             hasTranslationCache = hasTranslationCache,
                             isTranslating = isTranslating,
                             showTranslateAction = showTranslateAction,
+                            settings = settings,
                             collapseProgress = 0f,
                             coverVisualAlpha = if (isHeroOverlayVisible) 0f else 1f,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
@@ -839,6 +857,7 @@ fun DetailsScreen(
                             hasTranslationCache = hasTranslationCache,
                             isTranslating = isTranslating,
                             showTranslateAction = showTranslateAction,
+                            settings = settings,
                             collapseProgress = collapseProgress,
                             coverVisualAlpha = headerCoverVisualAlpha,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
@@ -1061,6 +1080,7 @@ private fun DetailsScrollableContent(
     hasTranslationCache: Boolean,
     isTranslating: Boolean,
     showTranslateAction: Boolean,
+    settings: org.skepsun.kototoro.core.prefs.AppSettings,
     collapseProgress: Float,
     coverVisualAlpha: Float,
     coverUrl: String?,
@@ -1100,6 +1120,7 @@ private fun DetailsScrollableContent(
             hasTranslationCache = hasTranslationCache,
             isTranslating = isTranslating,
             showTranslateAction = showTranslateAction,
+            settings = settings,
             collapseProgress = collapseProgress,
             coverVisualAlpha = coverVisualAlpha,
             coverUrl = coverUrl,
@@ -1136,6 +1157,7 @@ private fun DetailsScrollableContent(
             onManageTrackingSuggestion = { match ->
                 onActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url))
             },
+            onOpenTrackerSearch = { onActionClick(DetailsAction.OpenTracking) },
         )
         Spacer(modifier = Modifier.height(bottomSpacerHeight))
     }
@@ -1427,40 +1449,33 @@ private fun ExpandedPaneUtilityDock(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        Surface(
-            modifier = Modifier.height(52.dp),
-            color = MaterialTheme.colorScheme.surface.copy(
-                alpha = lerpFloat(0.12f, 0.90f, sheetExpansionProgress)
-            ),
+        Row(
+            modifier = Modifier.height(52.dp).padding(horizontal = 4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            IconButton(
+                onClick = onSearchClick,
+                enabled = isSearchEnabled,
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(42.dp),
             ) {
-                IconButton(
-                    onClick = onSearchClick,
-                    enabled = isSearchEnabled,
-                    modifier = Modifier
-                        .width(42.dp)
-                        .height(42.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = stringResource(R.string.search_chapters),
-                        tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                IconButton(
-                    onClick = { expanded = true },
-                    modifier = Modifier
-                        .width(42.dp)
-                        .height(42.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = stringResource(R.string.options),
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = stringResource(R.string.search_chapters),
+                    tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            IconButton(
+                onClick = { expanded = true },
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(42.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.options),
+                )
             }
         }
         DropdownMenu(
@@ -2210,5 +2225,86 @@ fun DetailsChromeButton(
         modifier = modifier.padding(horizontal = 2.dp),
     ) {
         content()
+    }
+}
+
+
+@Composable
+fun EntityRelationCarousels(
+    sections: List<EntityRelationSection>,
+    onEntityClick: (Long) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        sections.forEach { section ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = stringResource(section.titleRes),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                ) {
+                    items(
+                        items = section.items,
+                        key = { it.entityId }
+                    ) { item ->
+                        EntityRelationCard(item = item, onClick = { onEntityClick(item.entityId) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EntityRelationCard(
+    item: EntityRelationItem,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .width(100.dp)
+            .height(132.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(28.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = item.name.firstOrNull()?.toString()?.uppercase() ?: "?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = item.name,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }

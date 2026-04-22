@@ -623,6 +623,8 @@ private fun SearchContentTopBar(
                     visibleHeight = topActionsVisibleHeight,
                     fullHeight = topActionsHeight,
                 ) {
+                    var showDisplayOptionsSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
                     SourceListTopActionsRow(
                         title = sourceTitle,
                         activeQuery = activeQuery,
@@ -640,7 +642,20 @@ private fun SearchContentTopBar(
                         onSettingsClick = onSettingsClick,
                         onListModeChange = onListModeChange,
                         onGridSizeChange = onGridSizeChange,
+                        onShowDisplayOptionsSheet = { showDisplayOptionsSheet = true }
                     )
+
+                    if (showDisplayOptionsSheet) {
+                        org.skepsun.kototoro.list.ui.compose.DisplayOptionsSheet(
+                            supportsDisplayModeMenu = true,
+                            currentListMode = listMode,
+                            onListModeSelected = onListModeChange,
+                            supportsGridSizeSlider = true,
+                            gridSize = gridSize,
+                            onGridSizeChange = onGridSizeChange,
+                            onDismissRequest = { showDisplayOptionsSheet = false },
+                        )
+                    }
                 }
             }
 
@@ -777,6 +792,7 @@ private fun SourceListTopActionsRow(
     onSettingsClick: () -> Unit,
     onListModeChange: (ListMode) -> Unit,
     onGridSizeChange: (Int) -> Unit,
+    onShowDisplayOptionsSheet: () -> Unit,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth(),
@@ -871,12 +887,12 @@ private fun SourceListTopActionsRow(
             }
 
             if (showDisplayDirect) {
-                DisplayOptionsButton(
-                    listMode = listMode,
-                    gridSize = gridSize,
-                    onListModeChange = onListModeChange,
-                    onGridSizeChange = onGridSizeChange,
-                )
+                IconButton(onClick = onShowDisplayOptionsSheet) {
+                    Icon(
+                        painter = painterResource(listMode.iconRes()),
+                        contentDescription = stringResource(R.string.list_options),
+                    )
+                }
             }
 
             if (showSettingsDirect) {
@@ -900,43 +916,13 @@ private fun SourceListTopActionsRow(
                     onRandomClick = onRandomClick,
                     onResetFilterClick = onResetFilterClick,
                     onSettingsClick = onSettingsClick,
-                    onListModeChange = onListModeChange,
-                    onGridSizeChange = onGridSizeChange,
+                    onShowDisplayOptionsSheet = onShowDisplayOptionsSheet,
                 )
             }
         }
     }
 }
 
-@Composable
-private fun DisplayOptionsButton(
-    listMode: ListMode,
-    gridSize: Int,
-    onListModeChange: (ListMode) -> Unit,
-    onGridSizeChange: (Int) -> Unit,
-) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(
-                painter = painterResource(listMode.iconRes()),
-                contentDescription = stringResource(R.string.list_options),
-            )
-        }
-        DisplayOptionsMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            listMode = listMode,
-            gridSize = gridSize,
-            onListModeChange = {
-                expanded = false
-                onListModeChange(it)
-            },
-            onGridSizeChange = onGridSizeChange,
-        )
-    }
-}
 
 @Composable
 private fun MoreActionsButton(
@@ -950,8 +936,7 @@ private fun MoreActionsButton(
     onRandomClick: () -> Unit,
     onResetFilterClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onListModeChange: (ListMode) -> Unit,
-    onGridSizeChange: (Int) -> Unit,
+    onShowDisplayOptionsSheet: () -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
@@ -1001,14 +986,18 @@ private fun MoreActionsButton(
 
             if (showDisplayActions) {
                 HorizontalDivider()
-                DisplayOptionsMenuContent(
-                    listMode = listMode,
-                    gridSize = gridSize,
-                    onListModeChange = {
-                        expanded = false
-                        onListModeChange(it)
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.display_options)) },
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_grid),
+                            contentDescription = null,
+                        )
                     },
-                    onGridSizeChange = onGridSizeChange,
+                    onClick = {
+                        expanded = false
+                        onShowDisplayOptionsSheet()
+                    },
                 )
             }
 
@@ -1029,111 +1018,6 @@ private fun MoreActionsButton(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun DisplayOptionsMenu(
-    expanded: Boolean,
-    onDismissRequest: () -> Unit,
-    listMode: ListMode,
-    gridSize: Int,
-    onListModeChange: (ListMode) -> Unit,
-    onGridSizeChange: (Int) -> Unit,
-) {
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismissRequest,
-    ) {
-        DisplayOptionsMenuContent(
-            listMode = listMode,
-            gridSize = gridSize,
-            onListModeChange = onListModeChange,
-            onGridSizeChange = onGridSizeChange,
-        )
-    }
-}
-
-@Composable
-private fun DisplayOptionsMenuContent(
-    listMode: ListMode,
-    gridSize: Int,
-    onListModeChange: (ListMode) -> Unit,
-    onGridSizeChange: (Int) -> Unit,
-) {
-    DropdownMenuItem(
-        text = { Text(stringResource(R.string.compact)) },
-        leadingIcon = {
-            Icon(
-                painter = painterResource(R.drawable.ic_list),
-                contentDescription = null,
-            )
-        },
-        trailingIcon = {
-            if (listMode == ListMode.LIST) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_check),
-                    contentDescription = null,
-                )
-            }
-        },
-        onClick = { onListModeChange(ListMode.LIST) },
-    )
-    DropdownMenuItem(
-        text = { Text(stringResource(R.string.details)) },
-        leadingIcon = {
-            Icon(
-                painter = painterResource(R.drawable.ic_list_detailed),
-                contentDescription = null,
-            )
-        },
-        trailingIcon = {
-            if (listMode == ListMode.DETAILED_LIST) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_check),
-                    contentDescription = null,
-                )
-            }
-        },
-        onClick = { onListModeChange(ListMode.DETAILED_LIST) },
-    )
-    DropdownMenuItem(
-        text = { Text(stringResource(R.string.grid)) },
-        leadingIcon = {
-            Icon(
-                painter = painterResource(R.drawable.ic_grid),
-                contentDescription = null,
-            )
-        },
-        trailingIcon = {
-            if (listMode == ListMode.GRID) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_check),
-                    contentDescription = null,
-                )
-            }
-        },
-        onClick = { onListModeChange(ListMode.GRID) },
-    )
-    HorizontalDivider()
-    Column(
-        modifier = Modifier
-            .widthIn(min = 240.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = "${stringResource(R.string.grid_size)} ${gridSize}%",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Slider(
-            value = gridSize.toFloat(),
-            onValueChange = { value ->
-                onGridSizeChange(value.toInt() - gridSize)
-            },
-            valueRange = 50f..150f,
-        )
     }
 }
 

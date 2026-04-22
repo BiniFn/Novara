@@ -410,10 +410,11 @@ private fun DashboardCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
+    org.skepsun.kototoro.core.ui.glass.GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(26.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        style = org.skepsun.kototoro.core.ui.glass.GlassDefaults.subtleStyle(),
+        allowRuntimeHaze = false,
     ) {
         Column(modifier = Modifier.padding(14.dp), content = content)
     }
@@ -432,10 +433,13 @@ private fun QuickAccessButton(
     compact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    org.skepsun.kototoro.core.ui.glass.GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+        style = org.skepsun.kototoro.core.ui.glass.GlassDefaults.subtleStyle().copy(
+            containerAlpha = 0.6f
+        ),
+        allowRuntimeHaze = false,
     ) {
         if (compact) {
             Column(

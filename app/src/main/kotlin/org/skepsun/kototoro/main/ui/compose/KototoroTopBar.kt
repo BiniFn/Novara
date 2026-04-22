@@ -123,7 +123,7 @@ fun KototoroTopBar(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var isMoreMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    var isDisplayOptionsExpanded by rememberSaveable { mutableStateOf(false) }
+    var showDisplayOptionsSheet by rememberSaveable { mutableStateOf(false) }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
@@ -140,7 +140,7 @@ fun KototoroTopBar(
 
     LaunchedEffect(expanded) {
         if (expanded) {
-            isDisplayOptionsExpanded = false
+            showDisplayOptionsSheet = false
         }
     }
 
@@ -292,7 +292,7 @@ fun KototoroTopBar(
                                                             },
                                                             onClick = {
                                                                 isMoreMenuExpanded = false
-                                                                isDisplayOptionsExpanded = true
+                                                                showDisplayOptionsSheet = true
                                                             },
                                                         )
                                                         HorizontalDivider()
@@ -372,203 +372,17 @@ fun KototoroTopBar(
                 }
             }
         }
-        if (!expanded && isDisplayOptionsExpanded && (supportsDisplayModeMenu || supportsGridSizeSlider)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = CollapsedSearchBarHeight + 8.dp, start = 10.dp, end = 10.dp),
-            ) {
-                TopBarDisplayOptionsPanel(
-                    supportsDisplayModeMenu = supportsDisplayModeMenu,
-                    currentListMode = currentListMode,
-                    onListModeSelected = onListModeSelected,
-                    supportsGridSizeSlider = supportsGridSizeSlider,
-                    gridSize = gridSize,
-                    onGridSizeChange = onGridSizeChange,
-                    onDismiss = { isDisplayOptionsExpanded = false },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopBarDisplayOptionsPanel(
-    supportsDisplayModeMenu: Boolean,
-    currentListMode: ListMode,
-    onListModeSelected: (ListMode) -> Unit,
-    supportsGridSizeSlider: Boolean,
-    gridSize: Int,
-    onGridSizeChange: (Int) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    GlassSurface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        style = GlassDefaults.prominentStyle().copy(
-            containerAlpha = 0.94f,
-            borderAlpha = 0.10f,
-            shadowElevation = 0.dp,
-        ),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_grid),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = stringResource(R.string.display_options),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 10.dp),
-                )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(CompactTopBarActionSize),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.close),
-                        modifier = Modifier.size(CompactTopBarIconSize),
-                    )
-                }
-            }
-
-            if (supportsDisplayModeMenu) {
-                Text(
-                    text = stringResource(R.string.list_mode),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentWidth(Alignment.Start),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TopBarDisplayModeChip(
-                        iconRes = R.drawable.ic_list,
-                        label = stringResource(R.string.list),
-                        selected = currentListMode == ListMode.LIST,
-                        onClick = { onListModeSelected(ListMode.LIST) },
-                    )
-                    TopBarDisplayModeChip(
-                        iconRes = R.drawable.ic_list_detailed,
-                        label = stringResource(R.string.detailed_list),
-                        selected = currentListMode == ListMode.DETAILED_LIST,
-                        onClick = { onListModeSelected(ListMode.DETAILED_LIST) },
-                    )
-                    TopBarDisplayModeChip(
-                        iconRes = R.drawable.ic_grid,
-                        label = stringResource(R.string.grid),
-                        selected = currentListMode == ListMode.GRID,
-                        onClick = { onListModeSelected(ListMode.GRID) },
-                    )
-                }
-            }
-
-            if (supportsGridSizeSlider) {
-                if (supportsDisplayModeMenu) {
-                    HorizontalDivider()
-                }
-                TopBarGridSizeItem(
-                    title = stringResource(R.string.grid_size),
-                    value = gridSize,
-                    onValueChange = onGridSizeChange,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopBarDisplayModeChip(
-    iconRes: Int,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(label, maxLines = 1) },
-        leadingIcon = {
-            Icon(
-                painter = painterResource(if (selected) R.drawable.ic_check else iconRes),
-                contentDescription = null,
-            )
-        },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-            },
-            labelColor = if (selected) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            leadingIconContentColor = if (selected) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        ),
-    )
-}
-
-@Composable
-private fun TopBarGridSizeItem(
-    title: String,
-    value: Int,
-    onValueChange: (Int) -> Unit,
-) {
-    var sliderValue by remember(value) { mutableStateOf(value.toFloat()) }
-    val currentValue = sliderValue.toInt().coerceIn(50, 150)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = "$currentValue%",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (showDisplayOptionsSheet && (supportsDisplayModeMenu || supportsGridSizeSlider)) {
+            org.skepsun.kototoro.list.ui.compose.DisplayOptionsSheet(
+                supportsDisplayModeMenu = supportsDisplayModeMenu,
+                currentListMode = currentListMode,
+                onListModeSelected = onListModeSelected,
+                supportsGridSizeSlider = supportsGridSizeSlider,
+                gridSize = gridSize,
+                onGridSizeChange = onGridSizeChange,
+                onDismissRequest = { showDisplayOptionsSheet = false },
             )
         }
-        Slider(
-            value = sliderValue,
-            onValueChange = {
-                sliderValue = it
-                onValueChange(it.toInt().coerceIn(50, 150))
-            },
-            valueRange = 50f..150f,
-            steps = 19,
-        )
     }
 }
 

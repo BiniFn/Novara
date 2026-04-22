@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
@@ -58,6 +60,8 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import kotlin.math.roundToInt
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedContentSource
@@ -88,6 +92,7 @@ fun DetailsHeader(
     hasTranslationCache: Boolean,
     isTranslating: Boolean,
     showTranslateAction: Boolean,
+    settings: AppSettings,
     collapseProgress: Float,
     coverVisualAlpha: Float,
     coverUrl: String?,
@@ -107,6 +112,7 @@ fun DetailsHeader(
     onRemoveLinkedTracking: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onBindTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onManageTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
+    onOpenTrackerSearch: () -> Unit,
 ) {
     val context = LocalContext.current
     val content = mangaDetails?.toContent()
@@ -155,6 +161,9 @@ fun DetailsHeader(
     } else {
         coverUrl
     }
+    android.util.Log.e("DetailsCover", "resolving coverModel with currentCoverUrl=$currentCoverUrl (orig=$coverUrl, fallback=$fallbackCoverUrl)")
+
+    var isDescriptionExpanded by remember { mutableStateOf(false) }
 
     val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
         ImageRequest.Builder(context)
@@ -197,13 +206,6 @@ fun DetailsHeader(
                 label = stringResource(R.string.state),
                 value = state?.let { stringResource(it.titleResId) } ?: stringResource(R.string.unknown),
                 iconRes = state?.iconResId ?: R.drawable.ic_info_outline,
-            ),
-        )
-        add(
-            DetailsInfoItem(
-                label = stringResource(R.string.progress),
-                value = progressLabel,
-                iconRes = R.drawable.ic_read,
             ),
         )
         add(
@@ -260,7 +262,9 @@ fun DetailsHeader(
                 showNsfwBadge = isNsfw,
                 onClick = { onCoverClick(currentCoverUrl) },
                 onState = { state ->
+                    android.util.Log.e("DetailsCover", "Cover State: $state")
                     if (state is coil3.compose.AsyncImagePainter.State.Error) {
+                        android.util.Log.e("DetailsCover", "Cover Error: ${state.result.throwable}")
                         hasCoverLoadFailed = true
                     }
                 },
@@ -306,14 +310,17 @@ fun DetailsHeader(
 
                 Row(
                     modifier = Modifier
-                        .alpha(1f - actionsCollapseProgress)
-                        .offsetX((-18).dp, actionsCollapseProgress),
+                        .alpha(1f - actionsCollapseProgress),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DetailsHeaderIconButton(
                         iconRes = if (isFavourite) R.drawable.ic_heart else R.drawable.ic_heart_outline,
                         onClick = onFavoriteClick,
                         filled = isFavourite,
+                    )
+                    DetailsHeaderIconButton(
+                        iconRes = R.drawable.ic_sync,
+                        onClick = onOpenTrackerSearch,
                     )
                     if (showTranslateAction) {
                         DetailsHeaderIconButton(
@@ -409,6 +416,37 @@ fun DetailsHeader(
                             }
                         }
                     }
+                    // Reading progress bar at bottom of info card
+                    if (historyInfo.history != null && historyInfo.percent > 0f) {
+                        val progressPercent = (historyInfo.percent * 100f).roundToInt()
+                        val isThick = settings.loadingCircleStyle == AppSettings.LoadingCircleStyle.THICK_STRAIGHT ||
+                            settings.loadingCircleStyle == AppSettings.LoadingCircleStyle.THICK_WAVY
+                        val barHeight = if (isThick) 6.dp else 3.dp
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { historyInfo.percent.coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(barHeight)
+                                    .clip(RoundedCornerShape(999.dp)),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            )
+                            Text(
+                                text = "$progressPercent%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -427,17 +465,15 @@ fun DetailsHeader(
                     text = displayDescription.ifBlank { fallbackDescription },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clickable { isDescriptionExpanded = !isDescriptionExpanded },
+                    maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
 
         if (!content?.tags.isNullOrEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = stringResource(R.string.genres),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                )
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -18,6 +18,10 @@ import androidx.collection.LongSet
 import androidx.collection.longSetOf
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.getTitle
@@ -300,44 +304,86 @@ fun KototoroSourceCard(
     isGrid: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.padding(4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        val context = LocalContext.current
-        val title = item.source.getTitle(context)
-        val summary = item.source.getSummary(context)
-        
-        Column(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+    val context = LocalContext.current
+    val title = item.source.getTitle(context)
+    val summary = item.source.getSummary(context)
+
+    if (isGrid) {
+        Card(
+            modifier = modifier.padding(4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.size(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ContentSourceIcon(
+                        source = item.source,
+                        modifier = Modifier.size(30.dp),
+                        contentDescription = title,
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    } else {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+                .padding(vertical = 12.dp, horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(if (isGrid) 48.dp else 64.dp),
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 ContentSourceIcon(
                     source = item.source,
-                    modifier = Modifier.size(if (isGrid) 30.dp else 40.dp),
+                    modifier = Modifier.size(28.dp),
                     contentDescription = title,
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
-            if (!summary.isNullOrBlank() && !isGrid) {
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
-                    text = summary,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                    color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                if (!summary.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
