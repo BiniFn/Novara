@@ -128,6 +128,7 @@ fun SettingsActionPreference(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (summary != null) {
                 Text(
@@ -191,6 +192,7 @@ fun SettingsSplitSwitchPreference(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (summary != null) {
                     Text(
@@ -236,6 +238,7 @@ fun SettingsInfoPreference(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = summary,
@@ -268,6 +271,7 @@ fun SettingsSwitchPreference(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (summary != null) {
                 Text(
@@ -313,6 +317,7 @@ fun <T> SettingsChoicePreference(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = selectedLabel,
@@ -415,6 +420,7 @@ fun <T> SettingsMultiChoicePreference(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = selectedLabel,
@@ -520,6 +526,7 @@ fun SettingsSliderPreference(
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = valueText(currentValue),
@@ -566,6 +573,7 @@ fun SettingsTextInputPreference(
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         if (summary != null) {
             Text(
@@ -628,6 +636,7 @@ fun SettingsDialogTextPreference(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = displayValue,

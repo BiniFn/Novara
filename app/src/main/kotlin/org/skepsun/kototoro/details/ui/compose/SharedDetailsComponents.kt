@@ -69,19 +69,19 @@ fun DetailsCoverFrame(
             .width(132.dp)
             .shadow(
                 elevation = 18.dp,
-                shape = RoundedCornerShape(26.dp),
+                shape = MaterialTheme.shapes.large,
                 ambientColor = Color.Black.copy(alpha = 0.22f),
                 spotColor = Color.Black.copy(alpha = 0.28f),
             )
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
-                shape = RoundedCornerShape(26.dp),
+                shape = MaterialTheme.shapes.large,
             )
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(26.dp),
+                shape = MaterialTheme.shapes.large,
             )
             .padding(4.dp),
     ) {
@@ -95,7 +95,7 @@ fun DetailsCoverFrame(
                     .aspectRatio(13f / 18f)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
-                        shape = RoundedCornerShape(22.dp),
+                        shape = MaterialTheme.shapes.medium,
                     )
                     .onGloballyPositioned { coordinates ->
                         coverBounds = coordinates.boundsInRoot()
@@ -107,10 +107,10 @@ fun DetailsCoverFrame(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(13f / 18f)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(MaterialTheme.shapes.medium)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
-                        shape = RoundedCornerShape(22.dp),
+                        shape = MaterialTheme.shapes.medium,
                 ),
                 contentScale = ContentScale.Crop,
                 onState = { state -> onState?.invoke(state) },
@@ -177,7 +177,7 @@ fun DetailsHeaderActionButton(
     filled: Boolean = false,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = MaterialTheme.shapes.medium
     val containerColor = if (filled) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.94f)
     } else {

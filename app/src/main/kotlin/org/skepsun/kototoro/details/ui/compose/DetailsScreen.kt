@@ -2038,7 +2038,9 @@ private fun ExpandedPaneUtilityDock(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-        ) {
+            shape = MaterialTheme.shapes.extraSmall,
+        )
+ {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.reverse)) },
                 leadingIcon = {
@@ -2284,7 +2286,9 @@ private fun ReadDock(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-            ) {
+                shape = MaterialTheme.shapes.extraSmall,
+            )
+ {
                 if (canOpenIncognito) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.incognito_mode)) },
@@ -2497,7 +2501,9 @@ private fun DetailsOverflowMenu(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-        ) {
+            shape = MaterialTheme.shapes.extraSmall,
+        )
+ {
             if (showTranslateAction) {
                 DropdownMenuItem(
                     text = {

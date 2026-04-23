@@ -1,8 +1,10 @@
 package org.skepsun.kototoro.discover.ui.compose
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,19 +19,29 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
-import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
+import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
-import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -44,7 +56,7 @@ fun DiscoverCarousel(
 	val context = LocalContext.current
 	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
 	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
-	val posterStyle = remember(gridScale) { compactPosterCardStyle(gridScale) }
+	val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
 
 	Column(modifier = modifier.fillMaxWidth()) {
 		Row(
@@ -76,19 +88,67 @@ fun DiscoverCarousel(
 				key = { _, item -> "carousel_${row.category.id}_${(item as? ContentListModel)?.manga?.id ?: item.hashCode()}" }
 			) { _, contentModel ->
 				(contentModel as? ContentListModel)?.let { model ->
-					KototoroContentCard(
+					DiscoverPosterCard(
 						model = model,
-						isListLayout = false,
+						posterStyle = posterStyle,
 						onClick = { coverBounds -> onItemClick(model, coverBounds) },
-						onLongClick = { },
-						isSelected = false,
-						selectionModeActive = false,
-						modifier = Modifier.width(posterStyle.itemWidth)
 					)
 				}
 			}
 		}
 
 		Spacer(modifier = Modifier.height(16.dp))
+	}
+}
+
+@Composable
+private fun DiscoverPosterCard(
+	model: ContentListModel,
+	posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+	onClick: (Rect?) -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val context = LocalContext.current
+	val imageRequest = remember(model.id, model.coverUrl) {
+		ImageRequest.Builder(context)
+			.data(model.coverUrl)
+			.crossfade(true)
+			.build()
+	}
+	var coverBounds by remember(model.id) { mutableStateOf<Rect?>(null) }
+
+	Column(
+		modifier = modifier
+			.width(posterStyle.itemWidth)
+			.clickable { onClick(coverBounds) },
+		verticalArrangement = Arrangement.spacedBy(6.dp),
+	) {
+		Box(
+			modifier = Modifier
+				.fillMaxWidth()
+				.height(posterStyle.posterHeight)
+				.onGloballyPositioned { coordinates ->
+					coverBounds = coordinates.boundsInRoot()
+				}
+				.clip(MaterialTheme.shapes.medium)
+				.background(
+					color = MaterialTheme.colorScheme.surfaceVariant,
+					shape = MaterialTheme.shapes.medium,
+				),
+		) {
+			AsyncImage(
+				model = imageRequest,
+				contentDescription = model.title,
+				contentScale = ContentScale.Crop,
+				modifier = Modifier.matchParentSize(),
+			)
+		}
+		Text(
+			text = model.title,
+			style = MaterialTheme.typography.labelMedium,
+			color = MaterialTheme.colorScheme.onSurface,
+			maxLines = 2,
+			overflow = TextOverflow.Ellipsis,
+		)
 	}
 }

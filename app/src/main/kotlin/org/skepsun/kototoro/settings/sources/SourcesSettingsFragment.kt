@@ -58,8 +58,6 @@ class SourcesSettingsFragment : Fragment() {
             val extensionsSummary = viewModel.extensionsSummary.collectAsStateWithLifecycle().value
             val isLinksEnabled = viewModel.isLinksEnabled.collectAsStateWithLifecycle().value
             val sourcesSortOrder = settings.observeAsState(AppSettings.KEY_SOURCES_ORDER) { sourcesSortOrder }.value
-            val isShowSourceOnCards =
-                settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }.value
             val isSourcesGridMode = settings.observeAsState(AppSettings.KEY_SOURCES_GRID) { isSourcesGridMode }.value
             val isSourcesGroupedByLanguage =
                 settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) { isSourcesGroupedByLanguage }.value
@@ -98,7 +96,6 @@ class SourcesSettingsFragment : Fragment() {
 
             val state = SourcesSettingsUiState(
                 sourcesSortOrder = sourcesSortOrder,
-                isShowSourceOnCards = isShowSourceOnCards,
                 isSourcesGridMode = isSourcesGridMode,
                 isSourcesGroupedByLanguage = isSourcesGroupedByLanguage,
                 remoteSourcesSummary = if (enabledSourcesCount >= 0) {
@@ -134,7 +131,6 @@ class SourcesSettingsFragment : Fragment() {
                     sortOrderOptions = sortOrderOptions,
                     incognitoOptions = incognitoOptions,
                     onSourcesSortOrderChange = { settings.sourcesSortOrder = it },
-                    onShowSourceOnCardsChange = { settings.isShowSourceOnCards = it },
                     onSourcesGridModeChange = { settings.isSourcesGridMode = it },
                     onSourcesGroupedByLanguageChange = { settings.isSourcesGroupedByLanguage = it },
                     onSetupWizardClick = { router.showWelcomeSheet() },

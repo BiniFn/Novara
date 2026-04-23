@@ -160,6 +160,8 @@ class AppRouter private constructor(
         advancedTitle: String? = null,
         advancedTags: String? = null,
         advancedAuthor: String? = null,
+        pinnedOnly: Boolean = false,
+        hideEmpty: Boolean = false,
     ) {
         val intent = Intent(contextOrNull() ?: return, SearchActivity::class.java)
             .putExtra(KEY_QUERY, query)
@@ -167,6 +169,8 @@ class AppRouter private constructor(
             .putExtra(KEY_ADVANCED_TITLE, advancedTitle)
             .putExtra(KEY_ADVANCED_TAGS, advancedTags)
             .putExtra(KEY_ADVANCED_AUTHOR, advancedAuthor)
+            .putExtra(KEY_PINNED_ONLY, pinnedOnly)
+            .putExtra(KEY_HIDE_EMPTY, hideEmpty)
         if (!sourceTypes.isNullOrEmpty()) {
             intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
         }
@@ -1158,6 +1162,8 @@ class AppRouter private constructor(
             advancedTitle: String? = null,
             advancedTags: String? = null,
             advancedAuthor: String? = null,
+            pinnedOnly: Boolean = false,
+            hideEmpty: Boolean = false,
         ): Intent {
             val intent = Intent(context, SearchActivity::class.java)
                 .putExtra(KEY_QUERY, query)
@@ -1166,6 +1172,8 @@ class AppRouter private constructor(
                 .putExtra(KEY_ADVANCED_TITLE, advancedTitle)
                 .putExtra(KEY_ADVANCED_TAGS, advancedTags)
                 .putExtra(KEY_ADVANCED_AUTHOR, advancedAuthor)
+                .putExtra(KEY_PINNED_ONLY, pinnedOnly)
+                .putExtra(KEY_HIDE_EMPTY, hideEmpty)
             if (!sourceTypes.isNullOrEmpty()) {
                 intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
             }
@@ -1196,6 +1204,7 @@ class AppRouter private constructor(
         const val KEY_PAGES = "pages"
         const val KEY_PREVIEW = "preview"
         const val KEY_PICK_MODE = "pick_mode"
+        const val KEY_PINNED_ONLY = "pinned_only"
         const val KEY_QUERY = "query"
         const val KEY_ADVANCED_TITLE = "advanced_title"
         const val KEY_ADVANCED_TAGS = "advanced_tags"
@@ -1206,6 +1215,7 @@ class AppRouter private constructor(
         const val KEY_SOURCE = "source"
         const val KEY_SOURCE_TYPES = "source_types"
         const val KEY_CONTENT_KINDS = "content_kinds"
+        const val KEY_HIDE_EMPTY = "hide_empty"
         const val KEY_GROUP_TAB = "group_tab"
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"

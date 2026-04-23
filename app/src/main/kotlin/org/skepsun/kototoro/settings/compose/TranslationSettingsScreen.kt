@@ -2,6 +2,8 @@ package org.skepsun.kototoro.settings.compose
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -10,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -49,9 +52,15 @@ fun TranslationSettingsScreen(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier.verticalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp),
         ) {
-            SettingsPreferenceSection(title = stringResource(R.string.reader_translation_section_general)) {
+            SettingsPreferenceSection(
+                title = stringResource(R.string.reader_translation_section_general),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 SettingsSwitchPreference(
                     title = stringResource(R.string.reader_translation_debug_logs),
                     summary = stringResource(R.string.reader_translation_debug_logs_summary),
@@ -132,7 +141,10 @@ fun TranslationSettingsScreen(
             }
 
             if (currentPipelineMode == ReaderTranslationPipelineMode.TWO_STAGE) {
-                SettingsPreferenceSection(title = stringResource(R.string.reader_translation_section_ocr)) {
+                SettingsPreferenceSection(
+                    title = stringResource(R.string.reader_translation_section_ocr),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     SettingsActionPreference(
                         title = stringResource(R.string.reader_translation_manage_ocr_models),
                         summary = stringResource(R.string.reader_translation_manage_ocr_models_summary),
@@ -163,7 +175,10 @@ fun TranslationSettingsScreen(
                     )
                 }
 
-                SettingsPreferenceSection(title = stringResource(R.string.reader_translation_section_bubble)) {
+                SettingsPreferenceSection(
+                    title = stringResource(R.string.reader_translation_section_bubble),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     if (isBubbleDetectorEnabled) {
                         SettingsChoicePreference(
                             title = stringResource(R.string.reader_translation_onnx_bubble_model_selection),

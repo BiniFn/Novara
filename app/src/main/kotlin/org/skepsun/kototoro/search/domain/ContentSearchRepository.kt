@@ -1,13 +1,22 @@
 package org.skepsun.kototoro.search.domain
 
 import android.app.SearchManager
+import android.database.ContentObserver
 import android.content.Context
 import android.provider.SearchRecentSuggestions
+import android.os.Handler
+import android.os.Looper
 import dagger.Reusable
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
@@ -73,6 +82,39 @@ class ContentSearchRepository @Inject constructor(
 			result
 		}.orEmpty()
 	}
+
+	fun observeRecentQueries(limit: Int): Flow<List<String>> = callbackFlow {
+		val contentResolver = context.contentResolver
+		val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+			override fun onChange(selfChange: Boolean) {
+				refresh()
+			}
+
+			override fun onChange(selfChange: Boolean, uri: android.net.Uri?) {
+				refresh()
+			}
+
+			fun refresh() {
+				launchQuery()
+			}
+
+			private fun launchQuery() {
+				kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+					trySend(
+						getQuerySuggestion("", limit)
+							.distinct()
+							.take(limit),
+					)
+				}
+			}
+		}
+
+		contentResolver.registerContentObserver(ContentSuggestionsProvider.QUERY_URI, true, observer)
+		observer.refresh()
+		awaitClose {
+			contentResolver.unregisterContentObserver(observer)
+		}
+	}.conflate().flowOn(Dispatchers.IO)
 
 	suspend fun getQueryHintSuggestion(
 		query: String,

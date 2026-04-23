@@ -46,9 +46,11 @@ import org.skepsun.kototoro.main.ui.compose.ComposeAppNavBarDelegator
 import org.skepsun.kototoro.main.ui.compose.KototoroApp
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
+import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.domain.sourceTypesFromTags
+import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.suggestion.SearchSuggestionViewModel
 import javax.inject.Inject
 
@@ -85,6 +87,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     private var bottomNavHeightPx = 0
     private var containerTopInsetPx = 0
     private var containerBottomInsetPx = 0
+    private var searchNavigationRequest by mutableStateOf<SearchNavigationRequest?>(null)
+    private var nextSearchRequestId = 0L
     private var searchQuery by mutableStateOf("")
     private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
 
@@ -111,19 +115,35 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 
     fun refreshFilters() {
         val callback = currentFilterCallback ?: return
-        val selectedTab = callback.getSelectedContentType()
-        activeFilterContentType = when (selectedTab) {
-            BrowseGroupTab.Novel -> ContentType.NOVEL
-            BrowseGroupTab.Video -> ContentType.VIDEO
-            BrowseGroupTab.Content -> ContentType.MANGA
-            else -> null
-        }
-        activeFilterSourceTags = callback.getSelectedSourceTags()
-        isLanguagePresetFilterVisible = callback.isLanguagePresetFilterVisible()
-        isContentTypeFilterVisible = callback.isContentTypeFilterVisible()
         val sourceTagEntries = callback.getSourceTagEntries()
         availableSourceTags = sourceTagEntries
-        isSourceTagFilterVisible = callback.isSourceTagFilterVisible() && sourceTagEntries.isNotEmpty()
+        isLanguagePresetFilterVisible = callback.isLanguagePresetFilterVisible() && settings.isShowLanguagePresetFilter
+        isContentTypeFilterVisible = callback.isContentTypeFilterVisible() && settings.isShowContentTypeFilter
+        isSourceTagFilterVisible = callback.isSourceTagFilterVisible() &&
+            settings.isShowSourceTagFilter &&
+            sourceTagEntries.isNotEmpty()
+        applyConfiguredLanguagePreset()
+
+        val selectedTab = if (isContentTypeFilterVisible) {
+            callback.getSelectedContentType()
+        } else {
+            settings.hiddenContentType.toBrowseGroupTab()
+        }
+        if (!isContentTypeFilterVisible) {
+            callback.applyContentTypeSelection(selectedTab)
+        }
+        activeFilterContentType = selectedTab.toContentTypeOrNull()
+
+        val selectedSourceTags = if (isSourceTagFilterVisible) {
+            callback.getSelectedSourceTags()
+        } else {
+            settings.hiddenSourceTag.toSourceTagSelection()
+        }
+        if (!isSourceTagFilterVisible) {
+            callback.applySourceTagSelection(selectedSourceTags)
+        }
+        activeFilterSourceTags = selectedSourceTags
+
         enabledSourceTags = sourceTagEntries.filterTo(linkedSetOf()) { tag ->
             callback.isSourceTagEnabled(tag)
         }
@@ -144,6 +164,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         searchQuery = savedInstanceState?.getString(STATE_TOP_BAR_QUERY).orEmpty()
+        applyConfiguredLanguagePreset()
 
         composeNavBarDelegator = ComposeAppNavBarDelegator(this, navStateFlow)
 
@@ -174,6 +195,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 suggestions = suggestions,
                 onQueryChanged = ::updateSearchQuery,
                 onSearch = { query -> submitSearch(query) },
+                initialSearchKind = SearchKind.SIMPLE,
+                initialSearchSourceTypes = searchSuggestionViewModel.getSourceTypes(),
+                initialSearchContentKinds = searchSuggestionViewModel.getContentKinds(),
+                onSearchWithOptions = ::submitSearchWithOptions,
+                onSearchOverlaySourceTypesChange = searchSuggestionViewModel::setSourceTypes,
+                onSearchOverlayContentKindsChange = searchSuggestionViewModel::setContentKinds,
+                onSearchOverlayDismiss = ::syncSearchSuggestionFilters,
                 query = searchQuery,
                 isResumeEnabled = isResumeEnabledState,
                 onResumeClick = viewModel::openLastReader,
@@ -201,6 +229,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 },
                 onSettingsClick = {
                     this.router.openSettings()
+                },
+                onSourceSettingsClick = {
+                    this.router.openSourcesSettings()
                 },
                 isAppUpdateAvailable = appUpdate != null,
                 onAppUpdateClick = {
@@ -231,6 +262,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 },
                 onNavDestinationChanged = { itemId ->
                     composeNavBarDelegator.handleItemSelected(itemId)
+                },
+                pendingSearchNavigation = searchNavigationRequest,
+                onSearchNavigationHandled = {
+                    searchNavigationRequest = null
                 },
                 isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
                 languagePresetEntries = sourcePresets,
@@ -291,6 +326,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
         outState.putString(STATE_TOP_BAR_QUERY, searchQuery)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (currentFilterCallback != null) {
+            refreshFilters()
+        } else {
+            clearActiveFilters()
+        }
+    }
+
     private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
         if (query.isEmpty()) {
             return
@@ -300,7 +344,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
             this.router.openDetails(query.toUri())
             return
         }
-        this.router.openSearch(
+        openSearchInMain(
             query = query,
             kind = kind,
             sourceTypes = searchSuggestionViewModel.getSourceTypes(),
@@ -309,6 +353,76 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
         if (kind != SearchKind.TAG) {
             searchSuggestionViewModel.saveQuery(query)
         }
+    }
+
+    private fun submitSearchWithOptions(
+        query: String,
+        kind: SearchKind,
+        sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>,
+        contentKinds: Set<SearchContentKind>,
+        advancedQuery: AdvancedSearchParams?,
+        pinnedOnly: Boolean,
+        hideEmpty: Boolean,
+    ) {
+        val resolvedKind = if (
+            !advancedQuery?.title.isNullOrBlank() ||
+            !advancedQuery?.tags.isNullOrBlank() ||
+            !advancedQuery?.author.isNullOrBlank()
+        ) {
+            SearchKind.ADVANCED
+        } else {
+            kind
+        }
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isEmpty() && advancedQuery == null) {
+            return
+        }
+        updateSearchQuery(trimmedQuery)
+        openSearchInMain(
+            query = trimmedQuery,
+            kind = resolvedKind,
+            sourceTypes = sourceTypes,
+            contentKinds = contentKinds,
+            advancedTitle = advancedQuery?.title?.takeIf { it.isNotBlank() },
+            advancedTags = advancedQuery?.tags?.takeIf { it.isNotBlank() },
+            advancedAuthor = advancedQuery?.author?.takeIf { it.isNotBlank() },
+            pinnedOnly = pinnedOnly,
+            hideEmpty = hideEmpty,
+        )
+        if (resolvedKind != SearchKind.TAG && trimmedQuery.isNotBlank()) {
+            searchSuggestionViewModel.saveQuery(trimmedQuery)
+        }
+    }
+
+    private fun openSearchInMain(
+        query: String,
+        kind: SearchKind,
+        sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>,
+        contentKinds: Set<SearchContentKind>,
+        advancedTitle: String? = null,
+        advancedTags: String? = null,
+        advancedAuthor: String? = null,
+        pinnedOnly: Boolean = false,
+        hideEmpty: Boolean = false,
+    ) {
+        nextSearchRequestId += 1
+        searchNavigationRequest = SearchNavigationRequest(
+            query = query,
+            kind = kind,
+            sourceTypes = sourceTypes,
+            contentKinds = contentKinds,
+            advancedQuery = AdvancedSearchParams(
+                query = query,
+                title = advancedTitle.orEmpty(),
+                tags = advancedTags.orEmpty(),
+                author = advancedAuthor.orEmpty(),
+            ).takeIf {
+                it.title.isNotBlank() || it.tags.isNotBlank() || it.author.isNotBlank()
+            },
+            pinnedOnly = pinnedOnly,
+            hideEmpty = hideEmpty,
+            requestId = nextSearchRequestId,
+        )
     }
 
     private fun syncSearchSuggestionFilters() {
@@ -325,15 +439,33 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 
     private fun clearActiveFilters() {
         currentFilterCallback = null
-        activeFilterContentType = null
-        activeFilterSourceTags = emptySet()
-        isLanguagePresetFilterVisible = true
-        isContentTypeFilterVisible = true
-        isSourceTagFilterVisible = true
+        activeFilterContentType = if (settings.isShowContentTypeFilter) {
+            null
+        } else {
+            settings.hiddenContentType.toBrowseGroupTab().toContentTypeOrNull()
+        }
+        activeFilterSourceTags = if (settings.isShowSourceTagFilter) {
+            emptySet()
+        } else {
+            settings.hiddenSourceTag.toSourceTagSelection()
+        }
+        isLanguagePresetFilterVisible = settings.isShowLanguagePresetFilter
+        isContentTypeFilterVisible = settings.isShowContentTypeFilter
+        isSourceTagFilterVisible = settings.isShowSourceTagFilter
         availableSourceTags = SourceTag.quickFilterEntries
         enabledSourceTags = SourceTag.quickFilterEntries.toSet()
         enabledContentTypes = allTopBarContentTypes()
+        applyConfiguredLanguagePreset()
         syncSearchSuggestionFilters()
+    }
+
+    private fun applyConfiguredLanguagePreset() {
+        if (!settings.isShowLanguagePresetFilter) {
+            val presetId = settings.hiddenLanguagePreset.toPresetId()
+            if (settings.activeSourcePresetId != presetId) {
+                settings.activeSourcePresetId = presetId
+            }
+        }
     }
 
     private fun onFirstStart() = try {
@@ -398,6 +530,34 @@ private fun ContentType?.toSearchContentKinds(): Set<SearchContentKind> = when (
     ContentType.VIDEO, ContentType.HENTAI_VIDEO -> setOf(SearchContentKind.VIDEO)
     else -> ALL_SEARCH_CONTENT_KINDS
 }
+
+private fun BrowseGroupTab.toContentTypeOrNull(): ContentType? = when (this) {
+    BrowseGroupTab.Content -> ContentType.MANGA
+    BrowseGroupTab.Novel -> ContentType.NOVEL
+    BrowseGroupTab.Video -> ContentType.VIDEO
+    BrowseGroupTab.All -> null
+}
+
+private fun String?.toBrowseGroupTab(): BrowseGroupTab = BrowseGroupTab.fromId(this ?: BrowseGroupTab.All.id)
+
+private fun String?.toSourceTagSelection(): Set<SourceTag> {
+    if (this.isNullOrBlank() || this == "all") {
+        return emptySet()
+    }
+    return SourceTag.sanitizeQuickFilterSelection(
+        split(',')
+            .asSequence()
+            .map(String::trim)
+            .filter { it.isNotEmpty() && it != "all" }
+            .mapNotNull { raw ->
+                runCatching { SourceTag.valueOf(raw) }.getOrNull()
+                    ?: SourceTag.entries.firstOrNull { it.id == raw }
+            }
+            .toSet(),
+    )
+}
+
+private fun String?.toPresetId(): Long = this?.toLongOrNull()?.takeIf { it > 0L } ?: -1L
 
 private fun allTopBarContentTypes(): Set<ContentType> = setOf(
     ContentType.MANGA,

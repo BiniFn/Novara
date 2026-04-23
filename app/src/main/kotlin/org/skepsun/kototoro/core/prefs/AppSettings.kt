@@ -668,10 +668,26 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = LoadingCircleStyle.fromValue(prefs.getString(KEY_LOADING_CIRCLE_STYLE, LoadingCircleStyle.THICK_STRAIGHT.value))
 		set(value) = prefs.edit { putString(KEY_LOADING_CIRCLE_STYLE, value.value) }
 
-	var popupRadius: Int
+	var cornerRadius: Int
 		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull()
-			?.takeIf { it in POPUP_RADIUS_ALLOWED_VALUES } ?: -1
-		set(value) = prefs.edit { putString(KEY_POPUP_RADIUS, value.takeIf { it in POPUP_RADIUS_ALLOWED_VALUES }?.toString() ?: "-1") }
+			?.takeIf { it in CORNER_RADIUS_ALLOWED_VALUES } ?: -1
+		set(value) = prefs.edit { putString(KEY_POPUP_RADIUS, value.takeIf { it in CORNER_RADIUS_ALLOWED_VALUES }?.toString() ?: "-1") }
+
+	var badgesTopLeft: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_TOP_LEFT, setOf("tracker")) ?: setOf("tracker")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_TOP_LEFT, value) }
+
+	var badgesTopRight: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_TOP_RIGHT, setOf("score")) ?: setOf("score")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_TOP_RIGHT, value) }
+
+	var badgesBottomLeft: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_BOTTOM_LEFT, setOf("favorite", "saved")) ?: setOf("favorite", "saved")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_BOTTOM_LEFT, value) }
+
+	var popupRadius: Int
+		get() = cornerRadius
+		set(value) { cornerRadius = value }
 
 	enum class BlurMode(val value: String) {
 		STANDARD("standard"),
@@ -1661,7 +1677,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	companion object {
 
-		private val POPUP_RADIUS_ALLOWED_VALUES = setOf(-1, 12, 16, 20, 24)
+		private val CORNER_RADIUS_ALLOWED_VALUES = setOf(-1, 12, 16, 20, 24)
 
 
 		const val KEY_SHOW_LANGUAGE_PRESET_FILTER = "show_language_preset_filter"
@@ -2011,6 +2027,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 		const val KEY_BACKUP_WEBDAV_POLICY_NOTE = "backup_periodic_webdav_policy_note"
 		const val KEY_MANGA_LIST_BADGES = "manga_list_badges"
+		const val KEY_BADGES_TOP_LEFT = "badges_top_left"
+		const val KEY_BADGES_TOP_RIGHT = "badges_top_right"
+		const val KEY_BADGES_BOTTOM_LEFT = "badges_bottom_left"
 		const val KEY_TAGS_WARNINGS = "tags_warnings"
 		const val KEY_DISCORD_RPC = "discord_rpc"
 		const val KEY_DISCORD_RPC_SKIP_NSFW = "discord_rpc_skip_nsfw"

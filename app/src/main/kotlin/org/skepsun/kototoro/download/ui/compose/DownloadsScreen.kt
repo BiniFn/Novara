@@ -30,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.work.WorkInfo
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.download.ui.list.DownloadItemModel
@@ -143,7 +144,8 @@ fun AppDownloadsRoute(
                         }
                         DropdownMenu(
                             expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
+                            onDismissRequest = { showMenu = false },
+                            shape = MaterialTheme.shapes.extraSmall,
                         ) {
                             if (hasCancellableWorks) {
                                 DropdownMenuItem(
@@ -208,7 +210,7 @@ fun AppDownloadsRoute(
                 when (item) {
                     is LoadingState -> {
                         Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
+                            KototoroLoadingIndicator()
                         }
                     }
                     is EmptyState -> {
@@ -298,7 +300,7 @@ fun DownloadItemRow(
                     contentDescription = null,
                     modifier = Modifier
                         .size(64.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                 )
                 
                 Spacer(modifier = Modifier.width(16.dp))

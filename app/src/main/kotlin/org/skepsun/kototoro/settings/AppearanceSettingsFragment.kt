@@ -119,7 +119,9 @@ class AppearanceSettingsFragment : Fragment() {
             val isShowSourceTagFilter =
                 settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_TAG_FILTER) { isShowSourceTagFilter }.value
             val hiddenSourceTag =
-                settings.observeAsState(AppSettings.KEY_HIDDEN_SOURCE_TAG) { hiddenSourceTag ?: "all" }.value
+                settings.observeAsState(AppSettings.KEY_HIDDEN_SOURCE_TAG) { hiddenSourceTag }
+                    .value
+                    .let(::parseHiddenSourceTagSelection)
             val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
             val isNavLabelsVisible = settings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }.value
             val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
@@ -151,6 +153,7 @@ class AppearanceSettingsFragment : Fragment() {
                 popupRadii = buildPopupRadiusOptions(),
                 listModes = buildListModeOptions(),
                 progressIndicatorModes = buildProgressIndicatorModeOptions(),
+                badgeOptions = buildBadgeOptions(),
                 mangaListBadges = buildMangaListBadgeOptions(),
                 detailsTabs = buildDetailsTabOptions(),
                 searchSuggestionTypes = buildSearchSuggestionTypeOptions(),
@@ -175,6 +178,9 @@ class AppearanceSettingsFragment : Fragment() {
                 gridSize = gridSize,
                 isQuickFilterEnabled = isQuickFilterEnabled,
                 progressIndicatorMode = progressIndicatorMode,
+                badgesTopLeft = settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value,
+                badgesTopRight = settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }.value,
+                badgesBottomLeft = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value,
                 mangaListBadges = mangaListBadges,
                 isDescriptionExpanded = isDescriptionExpanded,
                 isPanoramaCoverEnabled = isPanoramaCoverEnabled,
@@ -225,6 +231,9 @@ class AppearanceSettingsFragment : Fragment() {
                     onGridSizeChange = { settings.gridSize = it },
                     onQuickFilterChange = { settings.isQuickFilterEnabled = it },
                     onProgressIndicatorModeChange = { settings.progressIndicatorMode = it },
+                    onBadgesTopLeftChange = { settings.badgesTopLeft = it },
+                    onBadgesTopRightChange = { settings.badgesTopRight = it },
+                    onBadgesBottomLeftChange = { settings.badgesBottomLeft = it },
                     onMangaListBadgesChange = { settings.mangaListBadges = it },
                     onDescriptionExpandedChange = { settings.isDescriptionExpanded = it },
                     onPanoramaCoverEnabledChange = { settings.isPanoramaCoverEnabled = it },
@@ -245,7 +254,11 @@ class AppearanceSettingsFragment : Fragment() {
                     onShowContentTypeFilterChange = { settings.isShowContentTypeFilter = it },
                     onHiddenContentTypeChange = { settings.hiddenContentType = it },
                     onShowSourceTagFilterChange = { settings.isShowSourceTagFilter = it },
-                    onHiddenSourceTagChange = { settings.hiddenSourceTag = it },
+                    onHiddenSourceTagChange = { selection ->
+                        settings.hiddenSourceTag = selection
+                            .takeIf { it.isNotEmpty() }
+                            ?.joinToString(",")
+                    },
                     onMainFabChange = { settings.isMainFabEnabled = it },
                     onNavLabelsVisibleChange = { settings.isNavLabelsVisible = it },
                     onNavBarPinnedChange = { settings.isNavBarPinned = it },
@@ -368,6 +381,12 @@ class AppearanceSettingsFragment : Fragment() {
         }
     }
 
+    private fun buildBadgeOptions(): List<SettingsChoiceOption<String>> {
+        val labels = resources.getStringArray(R.array.badge_options)
+        val values = resources.getStringArray(R.array.values_badge_options)
+        return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
+    }
+
     private fun buildMangaListBadgeOptions(): List<SettingsChoiceOption<String>> {
         val labels = resources.getStringArray(R.array.list_badges)
         val values = resources.getStringArray(R.array.values_list_badges)
@@ -409,7 +428,6 @@ class AppearanceSettingsFragment : Fragment() {
 
     private fun buildSourceTagOptions(): List<SettingsChoiceOption<String>> {
         return buildList {
-            add(SettingsChoiceOption("all", getString(R.string.all)))
             SourceTag.quickFilterEntries.forEach { tag ->
                 add(
                     SettingsChoiceOption(
@@ -419,6 +437,25 @@ class AppearanceSettingsFragment : Fragment() {
                 )
             }
         }
+    }
+
+    private fun parseHiddenSourceTagSelection(raw: String?): Set<String> {
+        if (raw.isNullOrBlank() || raw == "all") {
+            return emptySet()
+        }
+        return SourceTag
+            .sanitizeQuickFilterSelection(
+                raw.split(',')
+                    .mapNotNull { raw ->
+                        val trimmed = raw.trim()
+                        when {
+                            trimmed.isEmpty() || trimmed == "all" -> null
+                            else -> SourceTag.entries.firstOrNull { it.name == trimmed || it.id == trimmed }
+                        }
+                    }
+                    .toSet(),
+            )
+            .mapTo(linkedSetOf()) { it.name }
     }
 
     private fun buildBlurModeOptions(): List<SettingsChoiceOption<AppSettings.BlurMode>> {

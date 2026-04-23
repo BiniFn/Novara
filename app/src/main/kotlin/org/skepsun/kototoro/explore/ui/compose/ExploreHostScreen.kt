@@ -1,8 +1,10 @@
 package org.skepsun.kototoro.explore.ui.compose
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -36,7 +39,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -70,11 +75,17 @@ import coil3.request.ImageRequest.Builder
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
 import org.skepsun.kototoro.discover.ui.compose.DiscoverHeroCarousel
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
@@ -82,8 +93,10 @@ import org.skepsun.kototoro.explore.ui.ExploreViewModel
 import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.parsers.model.ContentType
+import java.util.Locale
 
 private const val BrowseLoadMoreBuffer = 4
 private val BrowseHeroContentOverlap = 56.dp
@@ -92,6 +105,17 @@ private data class SourceQuickAccessMetrics(
     val columns: Int,
     val cardHeight: androidx.compose.ui.unit.Dp,
     val gridSpacing: androidx.compose.ui.unit.Dp,
+    val iconContainerSize: androidx.compose.ui.unit.Dp,
+    val iconSize: androidx.compose.ui.unit.Dp,
+)
+
+private data class SourceOriginBadgeInfo(
+    @DrawableRes val iconRes: Int,
+)
+
+private data class SourceQuickAccessGroup(
+    val title: String?,
+    val sources: List<ContentSourceItem>,
 )
 
 private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics {
@@ -99,8 +123,10 @@ private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics
     val interpolatedColumns = 5f + ((3f - 5f) * normalized)
     return SourceQuickAccessMetrics(
         columns = interpolatedColumns.toInt().coerceIn(3, 5),
-        cardHeight = lerp(30.dp, 36.dp, normalized),
-        gridSpacing = lerp(4.dp, 6.dp, normalized),
+        cardHeight = lerp(78.dp, 66.dp, normalized),
+        gridSpacing = lerp(8.dp, 6.dp, normalized),
+        iconContainerSize = lerp(44.dp, 36.dp, normalized),
+        iconSize = lerp(34.dp, 28.dp, normalized),
     )
 }
 
@@ -111,6 +137,7 @@ fun KototoroExploreHostRoute(
     contentPadding: PaddingValues,
     exploreViewModel: ExploreViewModel = hiltViewModel(),
     discoverViewModel: DiscoverViewModel = hiltViewModel(),
+    onSourceSelectionTopBarChanged: (ExploreSourceSelectionTopBarState?) -> Unit = {},
 ) {
     val sourceItems by exploreViewModel.content.collectAsStateWithLifecycle(emptyList())
     val discoverItems by discoverViewModel.content.collectAsStateWithLifecycle(emptyList())
@@ -122,6 +149,7 @@ fun KototoroExploreHostRoute(
     var heroPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val context = LocalContext.current
+    val activity = context as? androidx.activity.ComponentActivity
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
@@ -139,6 +167,7 @@ fun KototoroExploreHostRoute(
     val sources = remember(sourceItems) {
         sourceItems.filterIsInstance<ContentSourceItem>()
     }
+    var selectedSourceIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
     val carouselRows = remember(discoverItems) {
         discoverItems.filterIsInstance<DiscoverCarouselRow>()
     }
@@ -166,6 +195,76 @@ fun KototoroExploreHostRoute(
             with(density) {
                 (heroPx - heroOverlapDp.roundToPx()).coerceAtLeast(0).toDp()
             }
+        }
+    }
+    val selectedSources = remember(sources, selectedSourceIds) {
+        sources
+            .filter { it.id in selectedSourceIds }
+            .map { it.source }
+    }
+
+    SideEffect {
+        if (selectedSourceIds.isNotEmpty()) {
+            val isSingleSelection = selectedSources.size == 1
+            val canPin = selectedSources.isNotEmpty() && selectedSources.all { !it.isPinned }
+            val canUnpin = selectedSources.isNotEmpty() && selectedSources.all { it.isPinned }
+            val canDisable = selectedSources.isNotEmpty() && !exploreViewModel.isAllSourcesEnabled.value && selectedSources.all {
+                val unwrapped = it.mangaSource.unwrap()
+                !unwrapped.isLocal && unwrapped !is ExternalContentSource
+            }
+            val canDelete = selectedSources.isNotEmpty() && selectedSources.all { it.mangaSource is ExternalContentSource }
+
+            onSourceSelectionTopBarChanged(
+                ExploreSourceSelectionTopBarState(
+                    selectedCount = selectedSourceIds.size,
+                    isSingleSelection = isSingleSelection,
+                    canPin = canPin,
+                    canUnpin = canUnpin,
+                    canDisable = canDisable,
+                    canDelete = canDelete,
+                    onClearSelection = { selectedSourceIds = emptySet() },
+                    onSettings = {
+                        selectedSources.singleOrNull()?.let { appRouter.openSourceSettings(it) }
+                        selectedSourceIds = emptySet()
+                    },
+                    onDisable = {
+                        exploreViewModel.disableSources(selectedSources)
+                        selectedSourceIds = emptySet()
+                    },
+                    onDelete = {
+                        selectedSources.forEach { item ->
+                            (item.mangaSource as? ExternalContentSource)?.let { source ->
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_DELETE,
+                                    android.net.Uri.parse("package:${source.packageName}"),
+                                )
+                                activity?.startActivity(intent)
+                            }
+                        }
+                        selectedSourceIds = emptySet()
+                    },
+                    onShortcut = {
+                        selectedSources.singleOrNull()?.let { exploreViewModel.requestPinShortcut(it) }
+                        selectedSourceIds = emptySet()
+                    },
+                    onPin = {
+                        exploreViewModel.setSourcesPinned(selectedSources, isPinned = true)
+                        selectedSourceIds = emptySet()
+                    },
+                    onUnpin = {
+                        exploreViewModel.setSourcesPinned(selectedSources, isPinned = false)
+                        selectedSourceIds = emptySet()
+                    },
+                ),
+            )
+        } else {
+            onSourceSelectionTopBarChanged(null)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onSourceSelectionTopBarChanged(null)
         }
     }
 
@@ -207,7 +306,17 @@ fun KototoroExploreHostRoute(
                             sources = sources,
                             isLoadingOnly = isLoadingOnly,
                             metrics = sourceQuickAccessMetrics(gridScale),
-                            onSourceClick = { source -> appRouter.openList(source.source, null, null) },
+                            selectedSourceIds = selectedSourceIds,
+                            onSourceClick = { source ->
+                                if (selectedSourceIds.isNotEmpty()) {
+                                    selectedSourceIds = selectedSourceIds.toggle(source.id)
+                                } else {
+                                    appRouter.openList(source.source, null, null)
+                                }
+                            },
+                            onSourceLongClick = { source ->
+                                selectedSourceIds = selectedSourceIds.toggle(source.id)
+                            },
                             onManageSourcesClick = appRouter::openManageSources,
                             topBackgroundOverlap = heroOverlapDp,
                         )
@@ -269,7 +378,7 @@ fun KototoroExploreHostRoute(
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            CircularProgressIndicator()
+                            KototoroLoadingIndicator()
                         }
                     }
                 }
@@ -294,6 +403,7 @@ fun KototoroExploreHostRoute(
                     .onSizeChanged { heroPx = it.height }
                     .graphicsLayer { translationY = heroScrollOffsetPx },
             )
+
         }
     }
 }
@@ -382,7 +492,9 @@ private fun DetachedBottomContent(
     sources: List<ContentSourceItem>,
     isLoadingOnly: Boolean,
     metrics: SourceQuickAccessMetrics,
+    selectedSourceIds: Set<Long>,
     onSourceClick: (ContentSourceItem) -> Unit,
+    onSourceLongClick: (ContentSourceItem) -> Unit,
     onManageSourcesClick: () -> Unit,
     topBackgroundOverlap: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier,
@@ -397,7 +509,9 @@ private fun DetachedBottomContent(
                 SourcesQuickAccessSection(
                     sources = sources,
                     metrics = metrics,
+                    selectedSourceIds = selectedSourceIds,
                     onSourceClick = onSourceClick,
+                    onSourceLongClick = onSourceLongClick,
                     onManageClick = onManageSourcesClick,
                     modifier = Modifier.padding(
                         start = 16.dp,
@@ -430,10 +544,17 @@ private fun DetachedBottomContent(
 private fun SourcesQuickAccessSection(
     sources: List<ContentSourceItem>,
     metrics: SourceQuickAccessMetrics,
+    selectedSourceIds: Set<Long>,
     onSourceClick: (ContentSourceItem) -> Unit,
+    onSourceLongClick: (ContentSourceItem) -> Unit,
     onManageClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val isGroupedByLanguage by settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) {
+        isSourcesGroupedByLanguage
+    }
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -475,40 +596,52 @@ private fun SourcesQuickAccessSection(
             }
             val collapsedRowCount = if (maxWidth < 520.dp) 5 else 4
             val collapsedVisibleCount = columns * collapsedRowCount
-            val visibleSources = remember(sources, collapsedVisibleCount, isExpanded) {
-                if (isExpanded) sources else sources.take(collapsedVisibleCount)
+            val groupedSources = remember(sources, isGroupedByLanguage, context) {
+                sources.toQuickAccessGroups(
+                    isGroupedByLanguage = isGroupedByLanguage,
+                    context = context,
+                )
             }
-            val visibleRowCount = remember(visibleSources.size, columns, collapsedRowCount, isExpanded) {
-                if (!isExpanded) {
-                    collapsedRowCount
-                } else {
-                    ((visibleSources.size + columns - 1) / columns).coerceAtLeast(1)
-                }
-            }
-            val gridHeight = remember(visibleRowCount, metrics) {
-                (metrics.cardHeight * visibleRowCount) + (metrics.gridSpacing * (visibleRowCount - 1))
+            val visibleGroups = remember(groupedSources, collapsedVisibleCount, isExpanded) {
+                groupedSources.takeVisibleSourceGroups(
+                    maxSources = if (isExpanded) Int.MAX_VALUE else collapsedVisibleCount,
+                )
             }
             val hasMoreSources = sources.size > collapsedVisibleCount
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(columns),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(gridHeight),
-                    userScrollEnabled = false,
-                    horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
-                    verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
-                ) {
-                    gridItems(
-                        items = visibleSources,
-                        key = { it.id },
-                    ) { source ->
-                        SourceQuickAccessCard(
-                            metrics = metrics,
-                            source = source,
-                            onClick = { onSourceClick(source) },
+                visibleGroups.forEach { group ->
+                    group.title?.let { title ->
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 2.dp),
                         )
+                    }
+                    val rowCount = ((group.sources.size + columns - 1) / columns).coerceAtLeast(1)
+                    val gridHeight = (metrics.cardHeight * rowCount) + (metrics.gridSpacing * (rowCount - 1))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(gridHeight),
+                        userScrollEnabled = false,
+                        horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+                        verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+                    ) {
+                        gridItems(
+                            items = group.sources,
+                            key = { it.id },
+                        ) { source ->
+                            SourceQuickAccessCard(
+                                metrics = metrics,
+                                source = source,
+                                isSelected = source.id in selectedSourceIds,
+                                onClick = { onSourceClick(source) },
+                                onLongClick = { onSourceLongClick(source) },
+                            )
+                        }
                     }
                 }
                 if (hasMoreSources) {
@@ -537,46 +670,110 @@ private fun SourcesQuickAccessSection(
 private fun SourceQuickAccessCard(
     metrics: SourceQuickAccessMetrics,
     source: ContentSourceItem,
+    isSelected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val actualSource = source.source.mangaSource
     val title = actualSource.getTitle(context)
+    val originBadge = remember(actualSource.name) {
+        sourceOriginBadgeInfo(actualSource.name)
+    }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(metrics.cardHeight)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.background,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.background
+        },
         tonalElevation = 0.dp,
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             Box(
                 modifier = Modifier
-                    .width(3.dp)
-                    .height(14.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                    .background(sourceTypeAccent(actualSource.contentType)),
-            )
+                    .size(metrics.iconContainerSize)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .background(
+                        sourceTypeAccent(actualSource.contentType).copy(
+                            alpha = if (isSelected) 0.32f else 0.18f,
+                        ),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                ContentSourceIcon(
+                    source = source.source,
+                    modifier = Modifier.size(metrics.iconSize),
+                    contentDescription = title,
+                )
+                if (originBadge != null) {
+                    SourceOriginBadge(
+                        badge = originBadge,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 2.dp, y = 2.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
         }
     }
+}
+
+@Composable
+private fun SourceOriginBadge(
+    badge: SourceOriginBadgeInfo,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(16.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f),
+                shape = androidx.compose.foundation.shape.CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = rememberSafePainter(badge.iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(10.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun Set<Long>.toggle(id: Long): Set<Long> {
+    return if (id in this) this - id else this + id
 }
 
 @Composable
@@ -584,6 +781,74 @@ private fun sourceTypeAccent(contentType: ContentType): Color = when (contentTyp
     ContentType.VIDEO -> MaterialTheme.colorScheme.tertiary
     ContentType.NOVEL -> MaterialTheme.colorScheme.secondary
     else -> MaterialTheme.colorScheme.primary
+}
+
+private fun sourceOriginBadgeInfo(sourceName: String): SourceOriginBadgeInfo? = when {
+    sourceName.startsWith("MIHON_") -> SourceOriginBadgeInfo(R.drawable.ic_source_mihon)
+    sourceName.startsWith("ANIYOMI_") -> SourceOriginBadgeInfo(R.drawable.ic_source_aniyomi)
+    sourceName.startsWith("JSON_LEGADO_") -> SourceOriginBadgeInfo(R.drawable.ic_source_legado)
+    sourceName.startsWith("JSON_TVBOX_") -> SourceOriginBadgeInfo(R.drawable.ic_source_tvbox)
+    sourceName.startsWith("IREADER_") -> SourceOriginBadgeInfo(R.drawable.ic_source_ireader)
+    sourceName.startsWith("JSON_LNREADER_") -> SourceOriginBadgeInfo(R.drawable.ic_source_lnreader)
+    else -> null
+}
+
+private fun List<ContentSourceItem>.toQuickAccessGroups(
+    isGroupedByLanguage: Boolean,
+    context: android.content.Context,
+): List<SourceQuickAccessGroup> {
+    if (isEmpty()) {
+        return emptyList()
+    }
+    if (!isGroupedByLanguage) {
+        return listOf(SourceQuickAccessGroup(title = null, sources = this))
+    }
+    val result = ArrayList<SourceQuickAccessGroup>()
+    val (pinned, unpinned) = partition { it.source.isPinned }
+    if (pinned.isNotEmpty()) {
+        result += SourceQuickAccessGroup(
+            title = context.getString(R.string.source_pinned),
+            sources = pinned,
+        )
+    }
+    val grouped = unpinned
+        .groupBy { sourceItem ->
+            sourceItem.source.mangaSource.getLocale()
+                ?.getDisplayName(Locale.getDefault())
+                ?.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString()
+                }
+                ?: context.getString(R.string.other)
+        }
+        .toSortedMap()
+    grouped.forEach { (language, sourcesInLanguage) ->
+        if (sourcesInLanguage.isNotEmpty()) {
+            result += SourceQuickAccessGroup(
+                title = language,
+                sources = sourcesInLanguage,
+            )
+        }
+    }
+    return result
+}
+
+private fun List<SourceQuickAccessGroup>.takeVisibleSourceGroups(
+    maxSources: Int,
+): List<SourceQuickAccessGroup> {
+    if (maxSources == Int.MAX_VALUE) {
+        return this
+    }
+    var remaining = maxSources
+    val result = ArrayList<SourceQuickAccessGroup>(size)
+    for (group in this) {
+        if (remaining <= 0) break
+        val visibleSources = group.sources.take(remaining)
+        if (visibleSources.isNotEmpty()) {
+            result += group.copy(sources = visibleSources)
+            remaining -= visibleSources.size
+        }
+    }
+    return result
 }
 
 @Composable

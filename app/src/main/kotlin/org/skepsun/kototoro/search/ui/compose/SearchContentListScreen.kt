@@ -950,7 +950,10 @@ private fun MoreActionsButton(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-        ) {
+            shape = MaterialTheme.shapes.extraSmall,
+            offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+        )
+ {
             if (showRandomAction) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.random)) },

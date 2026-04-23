@@ -38,7 +38,10 @@ data class AppearanceSettingsUiState(
     val gridSize: Int,
     val isQuickFilterEnabled: Boolean,
     val progressIndicatorMode: ProgressIndicatorMode,
-    val mangaListBadges: Set<String>,
+    val badgesTopLeft: Set<String>,
+    val badgesTopRight: Set<String>,
+    val badgesBottomLeft: Set<String>,
+    val mangaListBadges: Set<String>, // Keep for compatibility if needed, but we will use the others
     val isDescriptionExpanded: Boolean,
     val isPanoramaCoverEnabled: Boolean,
     val panoramaCoverBlur: Int,
@@ -55,7 +58,7 @@ data class AppearanceSettingsUiState(
     val isShowContentTypeFilter: Boolean,
     val hiddenContentType: String,
     val isShowSourceTagFilter: Boolean,
-    val hiddenSourceTag: String,
+    val hiddenSourceTag: Set<String>,
     val isMainFabEnabled: Boolean,
     val isNavLabelsVisible: Boolean,
     val isNavBarPinned: Boolean,
@@ -80,6 +83,7 @@ data class AppearanceSettingsOptions(
     val popupRadii: List<SettingsChoiceOption<Int>>,
     val listModes: List<SettingsChoiceOption<ListMode>>,
     val progressIndicatorModes: List<SettingsChoiceOption<ProgressIndicatorMode>>,
+    val badgeOptions: List<SettingsChoiceOption<String>>,
     val mangaListBadges: List<SettingsChoiceOption<String>>,
     val detailsTabs: List<SettingsChoiceOption<Int>>,
     val searchSuggestionTypes: List<SettingsChoiceOption<SearchSuggestionType>>,
@@ -107,6 +111,9 @@ fun AppearanceSettingsScreen(
     onGridSizeChange: (Int) -> Unit,
     onQuickFilterChange: (Boolean) -> Unit,
     onProgressIndicatorModeChange: (ProgressIndicatorMode) -> Unit,
+    onBadgesTopLeftChange: (Set<String>) -> Unit,
+    onBadgesTopRightChange: (Set<String>) -> Unit,
+    onBadgesBottomLeftChange: (Set<String>) -> Unit,
     onMangaListBadgesChange: (Set<String>) -> Unit,
     onDescriptionExpandedChange: (Boolean) -> Unit,
     onPanoramaCoverEnabledChange: (Boolean) -> Unit,
@@ -125,7 +132,7 @@ fun AppearanceSettingsScreen(
     onShowContentTypeFilterChange: (Boolean) -> Unit,
     onHiddenContentTypeChange: (String) -> Unit,
     onShowSourceTagFilterChange: (Boolean) -> Unit,
-    onHiddenSourceTagChange: (String) -> Unit,
+    onHiddenSourceTagChange: (Set<String>) -> Unit,
     onMainFabChange: (Boolean) -> Unit,
     onNavLabelsVisibleChange: (Boolean) -> Unit,
     onNavBarPinnedChange: (Boolean) -> Unit,
@@ -254,12 +261,29 @@ fun AppearanceSettingsScreen(
                     onValueChange = onProgressIndicatorModeChange,
                 )
                 SettingsSectionDivider()
+                SettingsGroupLabel(text = stringResource(R.string.badges_in_lists))
                 SettingsMultiChoicePreference(
-                    title = stringResource(R.string.badges_in_lists),
-                    values = state.mangaListBadges,
-                    options = options.mangaListBadges,
+                    title = stringResource(R.string.badge_top_left),
+                    values = state.badgesTopLeft,
+                    options = options.badgeOptions,
                     emptySelectionText = emptySelectionText,
-                    onValueChange = onMangaListBadgesChange,
+                    onValueChange = onBadgesTopLeftChange,
+                )
+                SettingsSectionDivider()
+                SettingsMultiChoicePreference(
+                    title = stringResource(R.string.badge_top_right),
+                    values = state.badgesTopRight,
+                    options = options.badgeOptions,
+                    emptySelectionText = emptySelectionText,
+                    onValueChange = onBadgesTopRightChange,
+                )
+                SettingsSectionDivider()
+                SettingsMultiChoicePreference(
+                    title = stringResource(R.string.badge_bottom_left),
+                    values = state.badgesBottomLeft,
+                    options = options.badgeOptions,
+                    emptySelectionText = emptySelectionText,
+                    onValueChange = onBadgesBottomLeftChange,
                 )
             }
         }
@@ -370,6 +394,7 @@ fun AppearanceSettingsScreen(
                 SearchBarFiltersBlock(
                     state = state,
                     options = options,
+                    emptySelectionText = emptySelectionText,
                     onShowLanguagePresetFilterChange = onShowLanguagePresetFilterChange,
                     onHiddenLanguagePresetChange = onHiddenLanguagePresetChange,
                     onShowContentTypeFilterChange = onShowContentTypeFilterChange,
@@ -473,12 +498,13 @@ fun AppearanceSettingsScreen(
 private fun SearchBarFiltersBlock(
     state: AppearanceSettingsUiState,
     options: AppearanceSettingsOptions,
+    emptySelectionText: String,
     onShowLanguagePresetFilterChange: (Boolean) -> Unit,
     onHiddenLanguagePresetChange: (String) -> Unit,
     onShowContentTypeFilterChange: (Boolean) -> Unit,
     onHiddenContentTypeChange: (String) -> Unit,
     onShowSourceTagFilterChange: (Boolean) -> Unit,
-    onHiddenSourceTagChange: (String) -> Unit,
+    onHiddenSourceTagChange: (Set<String>) -> Unit,
 ) {
     SettingsGroupLabel(text = stringResource(R.string.search_bar_filters))
     SettingsSwitchPreference(
@@ -518,10 +544,11 @@ private fun SearchBarFiltersBlock(
     )
     if (!state.isShowSourceTagFilter) {
         SettingsSectionDivider()
-        SettingsChoicePreference(
+        SettingsMultiChoicePreference(
             title = stringResource(R.string.fixed_source_tag),
-            value = state.hiddenSourceTag,
+            values = state.hiddenSourceTag,
             options = options.sourceTags,
+            emptySelectionText = emptySelectionText,
             onValueChange = onHiddenSourceTagChange,
         )
     }

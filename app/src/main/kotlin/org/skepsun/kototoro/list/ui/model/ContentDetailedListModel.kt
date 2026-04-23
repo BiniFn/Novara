@@ -12,6 +12,7 @@ data class ContentDetailedListModel(
 	override val override: ContentOverride?,
 	val subtitle: String?,
 	override val counter: Int,
+	override val id: Long = manga.id,
 	val progress: ReadingProgress?,
 	val isFavorite: Boolean,
 	val isSaved: Boolean,

@@ -14,19 +14,34 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import org.skepsun.kototoro.core.util.ext.getThemeColor
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp
+
 @Composable
 fun KototoroTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    cornerRadius: Int = -1,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val colorScheme = remember(context, darkTheme, dynamicColor) {
         context.resolveComposeColorScheme(darkTheme)
     }
+    
+    val radius = if (cornerRadius == -1) 12.dp else cornerRadius.dp
+    val shapes = Shapes(
+        extraSmall = RoundedCornerShape(radius.coerceAtMost(14.dp)),
+        small = RoundedCornerShape(radius.coerceAtMost(18.dp)),
+        medium = RoundedCornerShape(radius),
+        large = RoundedCornerShape(radius * 1.5f),
+        extraLarge = RoundedCornerShape(radius * 2f),
+    )
 
     MaterialTheme(
         colorScheme = colorScheme,
+        shapes = shapes,
         content = content,
     )
 }

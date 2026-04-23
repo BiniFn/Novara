@@ -50,7 +50,11 @@ class SettingsActivity :
 	PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
 
 	private val isMasterDetails
-		get() = viewBinding.containerMaster != null
+		get() = viewBinding.containerMaster != null && if (kototoroAppSettings.tabletUiMode == org.skepsun.kototoro.core.prefs.TabletUiMode.STRICT) {
+			resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+		} else {
+			true
+		}
 
 	private val viewModel: SettingsSearchViewModel by viewModels()
 

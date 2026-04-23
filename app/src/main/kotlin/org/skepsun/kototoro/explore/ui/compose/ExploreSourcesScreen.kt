@@ -252,6 +252,7 @@ fun ExploreSelectionTopBar(
     onShortcut: () -> Unit,
     onPin: () -> Unit,
     onUnpin: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     TopAppBar(
         title = { Text("$selectedCount selected", style = MaterialTheme.typography.titleMedium) },
@@ -293,7 +294,8 @@ fun ExploreSelectionTopBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        ),
+        modifier = modifier,
     )
 }
 

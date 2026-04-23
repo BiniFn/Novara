@@ -71,17 +71,18 @@ fun SourceTagDropdown(
                 tint = tint,
             )
         }
-
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            shape = MaterialTheme.shapes.extraSmall,
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             offset = DpOffset(x = 0.dp, y = 4.dp),
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.all)) },
                 onClick = {
                     onTagSelected(null)
-                    expanded = false
                 },
                 leadingIcon = {
                     Checkbox(
@@ -97,7 +98,6 @@ fun SourceTagDropdown(
                     text = { Text(stringResource(tag.titleRes)) },
                     onClick = {
                         onTagSelected(tag)
-                        expanded = false
                     },
                     enabled = tag in enabledTags,
                     leadingIcon = {

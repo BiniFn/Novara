@@ -101,6 +101,7 @@ private fun SettingsHeroCard(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = subtitle,
@@ -175,6 +176,7 @@ private fun SettingsRootRow(
             Text(
                 text = item.title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

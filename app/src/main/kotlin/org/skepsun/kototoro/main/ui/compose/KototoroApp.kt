@@ -12,7 +12,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +32,8 @@ import org.skepsun.kototoro.core.ui.widgets.KototoroBottomNav
 import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
 import org.skepsun.kototoro.explore.data.SourcePreset
+import org.skepsun.kototoro.explore.ui.compose.ExploreSelectionTopBar
+import org.skepsun.kototoro.explore.ui.compose.ExploreSourceSelectionTopBarState
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -41,6 +45,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.search.domain.SearchContentKind
+import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.domain.AdvancedSearchParams
+import org.skepsun.kototoro.search.ui.compose.SearchNavigation
+import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 
 @Composable
 fun KototoroApp(
@@ -50,6 +60,21 @@ fun KototoroApp(
     suggestions: List<SearchSuggestionItem> = emptyList(),
     onQueryChanged: (String) -> Unit = {},
     onSearch: (String) -> Unit = {},
+    initialSearchKind: SearchKind = SearchKind.SIMPLE,
+    initialSearchSourceTypes: Set<SourceType> = emptySet(),
+    initialSearchContentKinds: Set<SearchContentKind> = emptySet(),
+    onSearchWithOptions: (
+        query: String,
+        kind: SearchKind,
+        sourceTypes: Set<SourceType>,
+        contentKinds: Set<SearchContentKind>,
+        advancedQuery: AdvancedSearchParams?,
+        pinnedOnly: Boolean,
+        hideEmpty: Boolean,
+    ) -> Unit = { _, _, _, _, _, _, _ -> },
+    onSearchOverlaySourceTypesChange: (Set<SourceType>) -> Unit = {},
+    onSearchOverlayContentKindsChange: (Set<SearchContentKind>) -> Unit = {},
+    onSearchOverlayDismiss: () -> Unit = {},
     onContentSuggestionClick: (Content) -> Unit = {},
     onTagSuggestionClick: (ContentTag) -> Unit = {},
     onSourceSuggestionClick: (ContentSource) -> Unit = {},
@@ -58,6 +83,7 @@ fun KototoroApp(
     onVoiceInput: () -> Unit = {},
     onOpenListOptions: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onSourceSettingsClick: () -> Unit = {},
     isAppUpdateAvailable: Boolean = false,
     onAppUpdateClick: () -> Unit = {},
     isIncognitoModeEnabled: Boolean = false,
@@ -80,6 +106,8 @@ fun KototoroApp(
     onBottomNavHeightChanged: (Int) -> Unit = {},
     onContentInsetsChanged: (Int, Int) -> Unit = { _, _ -> },
     onNavDestinationChanged: (Int) -> Unit = {},
+    pendingSearchNavigation: SearchNavigationRequest? = null,
+    onSearchNavigationHandled: () -> Unit = {},
     isResumeEnabled: Boolean = false,
     onResumeClick: () -> Unit = {},
 ) {
@@ -90,16 +118,30 @@ fun KototoroApp(
     val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
     val listMode by appSettings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }
     val gridSize by appSettings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }
+    val cornerRadius by appSettings.observeAsState(AppSettings.KEY_POPUP_RADIUS) { cornerRadius }
     val isLandscapeNavigation = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
+    val isLanguagePresetFilterVisibleSetting by appSettings.observeAsState(AppSettings.KEY_SHOW_LANGUAGE_PRESET_FILTER) { isShowLanguagePresetFilter }
+    val isContentTypeFilterVisibleSetting by appSettings.observeAsState(AppSettings.KEY_SHOW_CONTENT_TYPE_FILTER) { isShowContentTypeFilter }
+    val isSourceTagFilterVisibleSetting by appSettings.observeAsState(AppSettings.KEY_SHOW_SOURCE_TAG_FILTER) { isShowSourceTagFilter }
+    
+    val effectiveLanguagePresetFilterVisible = isLanguagePresetFilterVisible && isLanguagePresetFilterVisibleSetting
+    val effectiveContentTypeFilterVisible = isContentTypeFilterVisible && isContentTypeFilterVisibleSetting
+    val effectiveSourceTagFilterVisible = isSourceTagFilterVisible && isSourceTagFilterVisibleSetting
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
     var topBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
+    var isSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
+    var topBarOverrideState by remember { mutableStateOf<ExploreSourceSelectionTopBarState?>(null) }
 
-    val nestedScrollConnection = remember(isNavBarPinned, topBarHeightPx, bottomNavHeightPx) {
+    val nestedScrollConnection = remember(isNavBarPinned, topBarHeightPx, bottomNavHeightPx, isSearchOverlayVisible) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (isSearchOverlayVisible) {
+                    return androidx.compose.ui.geometry.Offset.Zero
+                }
                 val dy = available.y
                 if (!isNavBarPinned && dy != 0f) {
                     topBarOffset = (topBarOffset + dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
@@ -113,10 +155,20 @@ fun KototoroApp(
         }
     }
 
+    LaunchedEffect(isSearchOverlayVisible) {
+        if (isSearchOverlayVisible) {
+            topBarOffset = 0f
+            bottomNavOffset = 0f
+        }
+    }
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val isSearchRoute = currentRoute?.startsWith(SearchNavigation.baseRoute) == true
+    val shouldShowChrome = !isSearchRoute
     val isBrowseRoute = currentRoute == "explore"
+    val showBrowseSourceSettingsEntry = currentRoute in setOf("explore", "discover")
     val supportsDisplayModeMenu = currentRoute in setOf("history", "favorites", "suggestions", "updated")
     val supportsGridSizeSlider = currentRoute in setOf(
         "home",
@@ -149,11 +201,17 @@ fun KototoroApp(
     }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val visibleTopInsetPx = (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
+    val visibleTopInsetPx = if (shouldShowChrome) {
+        (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
+    } else {
+        0
+    }
     val extraPinnedBottomInsetPx = with(density) {
         if (isNavBarPinned && !isFloating) 12.dp.roundToPx() else 0
     }
-    val visibleBottomInsetPx = if (isLandscapeNavigation) {
+    val visibleBottomInsetPx = if (!shouldShowChrome) {
+        0
+    } else if (isLandscapeNavigation) {
         0
     } else if (!isNavBarPinned && isFloating) {
         0
@@ -161,7 +219,7 @@ fun KototoroApp(
         (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
     }
     val visibleStartInsetDp = with(density) {
-        if (isLandscapeNavigation) {
+        if (isLandscapeNavigation && shouldShowChrome) {
             (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toDp()
         } else {
             0.dp
@@ -180,7 +238,7 @@ fun KototoroApp(
         }
     }
 
-    KototoroTheme {
+    KototoroTheme(cornerRadius = cornerRadius) {
         val hazeState = remember { HazeState() }
         val useRuntimeHaze = remember { supportsRuntimeHaze() }
         CompositionLocalProvider(LocalHazeState provides hazeState) {
@@ -188,109 +246,219 @@ fun KototoroApp(
                 AppNavGraph(
                     navController = navController,
                     contentPadding = contentPadding,
+                    onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
+                    onOpenSearch = { request ->
+                        val route = SearchNavigation.createRoute(request)
+                        if (isSearchRoute) {
+                            navController.navigate(route) {
+                                popUpTo(currentRoute ?: SearchNavigation.routePattern) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } else {
+                            navController.navigate(route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(start = visibleStartInsetDp)
                         .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
                 )
 
-                KototoroTopBar(
-                    query = query,
-                    suggestions = suggestions,
-                    onQueryChanged = onQueryChanged,
-                    onSearch = onSearch,
-                    onContentSuggestionClick = onContentSuggestionClick,
-                    onTagSuggestionClick = onTagSuggestionClick,
-                    onSourceSuggestionClick = onSourceSuggestionClick,
-                    onAuthorSuggestionClick = onAuthorSuggestionClick,
-                    onDeleteQuery = onDeleteQuery,
-                    onVoiceInput = onVoiceInput,
-                    onOpenListOptions = onOpenListOptions,
-                    onSettingsClick = onSettingsClick,
-                    isAppUpdateAvailable = isAppUpdateAvailable,
-                    onAppUpdateClick = onAppUpdateClick,
-                    isIncognitoModeEnabled = isIncognitoModeEnabled,
-                    onIncognitoToggle = onIncognitoToggle,
-                    isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
-                    languagePresetEntries = languagePresetEntries,
-                    activeLanguagePresetId = activeSourcePresetId,
-                    onLanguagePresetSelected = onLanguagePresetSelected,
-                    onManageLanguagePresets = onManageLanguagePresets,
-                    selectedContentType = selectedContentType,
-                    enabledContentTypes = enabledContentTypes,
-                    isContentTypeFilterVisible = isContentTypeFilterVisible,
-                    onContentTypeSelected = onContentTypeSelected,
-                    selectedSourceTags = selectedSourceTags,
-                    sourceTagEntries = sourceTagEntries,
-                    enabledSourceTags = enabledSourceTags,
-                    isSourceTagFilterVisible = isSourceTagFilterVisible,
-                    onSourceTagFilterClick = onSourceTagFilterClick,
-                    onSourceTagSelected = onSourceTagSelected,
-                    supportsDisplayModeMenu = supportsDisplayModeMenu,
-                    currentListMode = listMode,
-                    onListModeSelected = { appSettings.listMode = it },
-                    supportsGridSizeSlider = supportsGridSizeSlider,
-                    gridSize = gridSize,
-                    onGridSizeChange = { appSettings.gridSize = it },
-                    isCollapsedFullyTransparent = isBrowseRoute,
-                    modifier = Modifier
-                        .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
-                        .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
-                        .padding(start = visibleStartInsetDp)
-                        .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
-                        .onGloballyPositioned { coords ->
-                            val newHeight = coords.size.height
-                            if (topBarHeightPx != newHeight) {
-                                topBarHeightPx = newHeight
-                                onTopBarHeightChanged(newHeight)
-                            }
-                        },
-                )
+                if (shouldShowChrome) {
+                    if (topBarOverrideState != null) {
+                        ExploreSelectionTopBar(
+                            selectedCount = topBarOverrideState!!.selectedCount,
+                            isSingleSelection = topBarOverrideState!!.isSingleSelection,
+                            canPin = topBarOverrideState!!.canPin,
+                            canUnpin = topBarOverrideState!!.canUnpin,
+                            canDisable = topBarOverrideState!!.canDisable,
+                            canDelete = topBarOverrideState!!.canDelete,
+                            onClearSelection = topBarOverrideState!!.onClearSelection,
+                            onSettings = topBarOverrideState!!.onSettings,
+                            onDisable = topBarOverrideState!!.onDisable,
+                            onDelete = topBarOverrideState!!.onDelete,
+                            onShortcut = topBarOverrideState!!.onShortcut,
+                            onPin = topBarOverrideState!!.onPin,
+                            onUnpin = topBarOverrideState!!.onUnpin,
+                            modifier = Modifier
+                                .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                                .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
+                                .padding(start = visibleStartInsetDp)
+                                .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                .onGloballyPositioned { coords ->
+                                    val newHeight = coords.size.height
+                                    if (topBarHeightPx != newHeight) {
+                                        topBarHeightPx = newHeight
+                                        onTopBarHeightChanged(newHeight)
+                                    }
+                                },
+                        )
+                    } else {
+                        KototoroTopBar(
+                            query = query,
+                            onSearchClick = { isSearchOverlayVisible = true },
+                            onOpenListOptions = onOpenListOptions,
+                            onSettingsClick = onSettingsClick,
+                            onSourceSettingsClick = onSourceSettingsClick,
+                            isAppUpdateAvailable = isAppUpdateAvailable,
+                            onAppUpdateClick = onAppUpdateClick,
+                            isIncognitoModeEnabled = isIncognitoModeEnabled,
+                            onIncognitoToggle = onIncognitoToggle,
+                            isLanguagePresetFilterVisible = effectiveLanguagePresetFilterVisible,
+                            languagePresetEntries = languagePresetEntries,
+                            activeLanguagePresetId = activeSourcePresetId,
+                            onLanguagePresetSelected = onLanguagePresetSelected,
+                            onManageLanguagePresets = onManageLanguagePresets,
+                            selectedContentType = selectedContentType,
+                            enabledContentTypes = enabledContentTypes,
+                            isContentTypeFilterVisible = effectiveContentTypeFilterVisible,
+                            onContentTypeSelected = onContentTypeSelected,
+                            selectedSourceTags = selectedSourceTags,
+                            sourceTagEntries = sourceTagEntries,
+                            enabledSourceTags = enabledSourceTags,
+                            isSourceTagFilterVisible = effectiveSourceTagFilterVisible,
+                            onSourceTagFilterClick = onSourceTagFilterClick,
+                            onSourceTagSelected = onSourceTagSelected,
+                            supportsDisplayModeMenu = supportsDisplayModeMenu,
+                            currentListMode = listMode,
+                            onListModeSelected = { appSettings.listMode = it },
+                            supportsGridSizeSlider = supportsGridSizeSlider,
+                            gridSize = gridSize,
+                            onGridSizeChange = { appSettings.gridSize = it },
+                            showSourceSettingsEntry = showBrowseSourceSettingsEntry,
+                            isCollapsedFullyTransparent = isBrowseRoute,
+                            modifier = Modifier
+                                .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                                .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
+                                .padding(start = visibleStartInsetDp)
+                                .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                .onGloballyPositioned { coords ->
+                                    val newHeight = coords.size.height
+                                    if (topBarHeightPx != newHeight) {
+                                        topBarHeightPx = newHeight
+                                        onTopBarHeightChanged(newHeight)
+                                    }
+                                },
+                        )
+                    }
 
-                Box(
-                    modifier = Modifier
-                        .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
-                        .offset {
-                            if (isLandscapeNavigation) {
-                                androidx.compose.ui.unit.IntOffset((-bottomNavOffset).toInt(), 0)
-                            } else {
-                                androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
+                    Box(
+                        modifier = Modifier
+                            .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
+                            .offset {
+                                if (isLandscapeNavigation) {
+                                    androidx.compose.ui.unit.IntOffset((-bottomNavOffset).toInt(), 0)
+                                } else {
+                                    androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
+                                }
                             }
-                        }
-                        .onGloballyPositioned { coords ->
-                            val newHeight = if (isLandscapeNavigation) coords.size.width else coords.size.height
-                            if (bottomNavHeightPx != newHeight) {
-                                bottomNavHeightPx = newHeight
-                                onBottomNavHeightChanged(newHeight)
-                            }
+                            .onGloballyPositioned { coords ->
+                                val newHeight = if (isLandscapeNavigation) coords.size.width else coords.size.height
+                                if (bottomNavHeightPx != newHeight) {
+                                    bottomNavHeightPx = newHeight
+                                    onBottomNavHeightChanged(newHeight)
+                                }
+                            },
+                    ) {
+                        KototoroBottomNav(
+                            state = navStateFlow,
+                            onItemSelected = { itemId ->
+                                val route = when (itemId) {
+                                    org.skepsun.kototoro.R.id.nav_home -> "home"
+                                    org.skepsun.kototoro.R.id.nav_history -> "history"
+                                    org.skepsun.kototoro.R.id.nav_favorites -> "favorites"
+                                    org.skepsun.kototoro.R.id.nav_explore -> "explore"
+                                    org.skepsun.kototoro.R.id.nav_discover -> "discover"
+                                    org.skepsun.kototoro.R.id.nav_feed -> "feed"
+                                    org.skepsun.kototoro.R.id.nav_local -> "local"
+                                    org.skepsun.kototoro.R.id.nav_suggestions -> "suggestions"
+                                    org.skepsun.kototoro.R.id.nav_bookmarks -> "bookmarks"
+                                    org.skepsun.kototoro.R.id.nav_updated -> "updated"
+                                    else -> "home"
+                                }
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onItemReselected = { },
+                        )
+                    }
+                }
+
+                if (isSearchOverlayVisible) {
+                    KototoroSearchOverlay(
+                        query = query,
+                        suggestions = suggestions,
+                        initialSearchKind = initialSearchKind,
+                        initialSourceTypes = initialSearchSourceTypes,
+                        initialContentKinds = initialSearchContentKinds,
+                        onQueryChanged = onQueryChanged,
+                        onSearch = {
+                            onSearch(it)
+                            isSearchOverlayVisible = false
                         },
-                ) {
-                    KototoroBottomNav(
-                        state = navStateFlow,
-                        onItemSelected = { itemId ->
-                            val route = when (itemId) {
-                                org.skepsun.kototoro.R.id.nav_home -> "home"
-                                org.skepsun.kototoro.R.id.nav_history -> "history"
-                                org.skepsun.kototoro.R.id.nav_favorites -> "favorites"
-                                org.skepsun.kototoro.R.id.nav_explore -> "explore"
-                                org.skepsun.kototoro.R.id.nav_discover -> "discover"
-                                org.skepsun.kototoro.R.id.nav_feed -> "feed"
-                                org.skepsun.kototoro.R.id.nav_local -> "local"
-                                org.skepsun.kototoro.R.id.nav_suggestions -> "suggestions"
-                                org.skepsun.kototoro.R.id.nav_bookmarks -> "bookmarks"
-                                org.skepsun.kototoro.R.id.nav_updated -> "updated"
-                                else -> "home"
-                            }
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                        onSearchWithOptions = { searchQuery, kind, sourceTypes, contentKinds, advancedQuery, pinnedOnly, hideEmpty ->
+                            onSearchWithOptions(
+                                searchQuery,
+                                kind,
+                                sourceTypes,
+                                contentKinds,
+                                advancedQuery,
+                                pinnedOnly,
+                                hideEmpty,
+                            )
+                            isSearchOverlayVisible = false
                         },
-                        onItemReselected = { },
+                        onDismissRequest = { isSearchOverlayVisible = false },
+                        onSourceTypesChange = onSearchOverlaySourceTypesChange,
+                        onContentKindsChange = onSearchOverlayContentKindsChange,
+                        onContentSuggestionClick = {
+                            onContentSuggestionClick(it)
+                            isSearchOverlayVisible = false
+                        },
+                        onTagSuggestionClick = {
+                            onTagSuggestionClick(it)
+                            isSearchOverlayVisible = false
+                        },
+                        onSourceSuggestionClick = {
+                            onSourceSuggestionClick(it)
+                            isSearchOverlayVisible = false
+                        },
+                        onAuthorSuggestionClick = {
+                            onAuthorSuggestionClick(it)
+                            isSearchOverlayVisible = false
+                        },
+                        onDeleteQuery = onDeleteQuery,
+                        onVoiceInput = onVoiceInput,
                     )
                 }
             }
         }
+    }
+
+    LaunchedEffect(isSearchOverlayVisible) {
+        if (!isSearchOverlayVisible) {
+            onSearchOverlayDismiss()
+        }
+    }
+
+    LaunchedEffect(pendingSearchNavigation?.requestId) {
+        val request = pendingSearchNavigation ?: return@LaunchedEffect
+        val route = SearchNavigation.createRoute(request)
+        if (isSearchRoute) {
+            navController.navigate(route) {
+                popUpTo(currentRoute ?: SearchNavigation.routePattern) { inclusive = true }
+                launchSingleTop = true
+            }
+        } else {
+            navController.navigate(route) {
+                launchSingleTop = true
+            }
+        }
+        onSearchNavigationHandled()
     }
 }

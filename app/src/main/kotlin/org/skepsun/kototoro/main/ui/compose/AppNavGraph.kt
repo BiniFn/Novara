@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
+import org.skepsun.kototoro.explore.ui.compose.ExploreSourceSelectionTopBarState
 import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
@@ -28,12 +29,20 @@ import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.fragment.app.FragmentActivity
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.search.ui.compose.SearchNavigation
+import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
+import org.skepsun.kototoro.search.ui.compose.SearchResultsRoute
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onExploreSourceSelectionTopBarChanged: (ExploreSourceSelectionTopBarState?) -> Unit = {},
+    onOpenSearch: (SearchNavigationRequest) -> Unit = {},
 ) {
     val activity = LocalContext.current as FragmentActivity
     val appRouter = activity.router
@@ -108,6 +117,20 @@ fun AppNavGraph(
                 },
                 onViewAllUpdatesClick = { navController.navigate("updated") },
                 onViewAllRecommendationsClick = { navController.navigate("suggestions") },
+                onRecentSearchClick = { query ->
+                    onOpenSearch(
+                        SearchNavigationRequest(
+                            query = query,
+                            kind = org.skepsun.kototoro.search.domain.SearchKind.SIMPLE,
+                            sourceTypes = org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES,
+                            contentKinds = org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS,
+                            advancedQuery = null,
+                            pinnedOnly = false,
+                            hideEmpty = false,
+                            requestId = System.nanoTime(),
+                        ),
+                    )
+                },
                 onSourceSettingsClick = { appRouter.openSourcesSettings() },
                 onLibraryOpenClick = {
                     navController.navigate("favorites") {
@@ -164,7 +187,8 @@ fun AppNavGraph(
             org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
                 appRouter = appRouter,
                 contentPadding = contentPadding,
-                exploreViewModel = exploreViewModel
+                exploreViewModel = exploreViewModel,
+                onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
             )
         }
         composable("history") {
@@ -294,7 +318,8 @@ fun AppNavGraph(
             org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
                 appRouter = appRouter,
                 contentPadding = contentPadding,
-                exploreViewModel = exploreViewModel
+                exploreViewModel = exploreViewModel,
+                onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
             )
         }
         composable("feed") {
@@ -483,6 +508,88 @@ fun AppNavGraph(
                         }
                     }
                 }
+            )
+        }
+        composable(
+            route = SearchNavigation.routePattern,
+            arguments = listOf(
+                navArgument(AppRouter.KEY_QUERY) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(AppRouter.KEY_KIND) {
+                    type = NavType.StringType
+                    defaultValue = org.skepsun.kototoro.search.domain.SearchKind.SIMPLE.name
+                },
+                navArgument(AppRouter.KEY_SOURCE_TYPES) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(AppRouter.KEY_CONTENT_KINDS) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(AppRouter.KEY_ADVANCED_TITLE) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(AppRouter.KEY_ADVANCED_TAGS) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(AppRouter.KEY_ADVANCED_AUTHOR) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(AppRouter.KEY_PINNED_ONLY) {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+                navArgument(AppRouter.KEY_HIDE_EMPTY) {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+            ),
+        ) {
+            val viewModel = hiltViewModel<org.skepsun.kototoro.search.ui.multi.SearchViewModel>()
+            SearchResultsRoute(
+                viewModel = viewModel,
+                onBackClick = { navController.navigateUp() },
+                onOpenContent = { content ->
+                    appRouter.openDetails(content, rootView)
+                },
+                onPickContent = { },
+                onOpenSourceResults = { item ->
+                    if (item.listFilter == null) {
+                        appRouter.openSearch(item.source, viewModel.query)
+                    } else {
+                        appRouter.openList(item.source, item.listFilter, item.sortOrder)
+                    }
+                },
+                onSubmitSearch = { query, kind, sourceTypes, contentKinds, advancedQuery, pinnedOnly, hideEmpty ->
+                    onOpenSearch(
+                        SearchNavigationRequest(
+                            query = query,
+                            kind = kind,
+                            sourceTypes = sourceTypes,
+                            contentKinds = contentKinds,
+                            advancedQuery = advancedQuery,
+                            pinnedOnly = pinnedOnly,
+                            hideEmpty = hideEmpty,
+                            requestId = System.nanoTime(),
+                        ),
+                    )
+                },
+                onShareSelection = { items ->
+                    ShareHelper(activity).shareContentLinks(items)
+                },
+                onSaveSelection = { items ->
+                    appRouter.showDownloadDialog(items, rootView)
+                },
+                onFavouriteSelection = { items ->
+                    appRouter.showFavoriteDialog(items)
+                },
+                isPickMode = false,
             )
         }
     }

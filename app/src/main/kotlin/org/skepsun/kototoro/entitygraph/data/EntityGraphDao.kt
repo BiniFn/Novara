@@ -58,6 +58,17 @@ abstract class EntityGraphDao {
 	@Query("SELECT * FROM entity_binding WHERE entity_id = :entityId")
 	abstract suspend fun findBindingsByEntity(entityId: Long): List<EntityBindingRecord>
 
+	@Query(
+		"""
+		SELECT * FROM entity_binding
+		WHERE source IN (:sources) AND external_id IN (:externalIds)
+		"""
+	)
+	abstract suspend fun findBindingsBySources(
+		sources: List<String>,
+		externalIds: List<String>,
+	): List<EntityBindingRecord>
+
 	@Upsert
 	abstract suspend fun upsertBinding(binding: EntityBindingRecord)
 

@@ -1,0 +1,822 @@
+package org.skepsun.kototoro.search.ui.compose
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.core.model.UnknownContentSource
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
+import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
+import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
+import org.skepsun.kototoro.list.ui.compose.SelectionAction
+import org.skepsun.kototoro.list.ui.model.ButtonFooter
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingFooter
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
+import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
+import org.skepsun.kototoro.search.domain.AdvancedSearchParams
+import org.skepsun.kototoro.search.domain.SEARCH_CONTENT_KIND_OPTIONS
+import org.skepsun.kototoro.search.domain.SOURCE_TYPE_OPTIONS
+import org.skepsun.kototoro.search.domain.SearchContentKind
+import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
+import org.skepsun.kototoro.search.ui.multi.SearchViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchResultsRoute(
+    viewModel: SearchViewModel,
+    onBackClick: () -> Unit,
+    onOpenContent: (Content) -> Unit,
+    onPickContent: (Content) -> Unit,
+    onOpenSourceResults: (SearchResultsListModel) -> Unit,
+    onSubmitSearch: (
+        query: String,
+        kind: SearchKind,
+        sourceTypes: Set<SourceType>,
+        contentKinds: Set<SearchContentKind>,
+        advancedQuery: AdvancedSearchParams?,
+        pinnedOnly: Boolean,
+        hideEmpty: Boolean,
+    ) -> Unit,
+    onShareSelection: (Set<Content>) -> Unit,
+    onSaveSelection: (Set<Content>) -> Unit,
+    onFavouriteSelection: (Set<Content>) -> Unit,
+    isPickMode: Boolean,
+) {
+    val listModels by viewModel.list.collectAsStateWithLifecycle()
+    val activeTvBoxRepositoryTitle by viewModel.activeTvBoxRepositoryTitle.collectAsStateWithLifecycle()
+    val isTvBoxSourceTypeActive by viewModel.isTvBoxSourceTypeActive.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
+    val gridScale = gridSize / 100f
+
+    var query by rememberSaveable { mutableStateOf(viewModel.query) }
+    var searchKind by rememberSaveable { mutableStateOf(viewModel.kind) }
+    var advancedTitle by rememberSaveable { mutableStateOf(viewModel.advancedQuery?.title.orEmpty()) }
+    var advancedTags by rememberSaveable { mutableStateOf(viewModel.advancedQuery?.tags.orEmpty()) }
+    var advancedAuthor by rememberSaveable { mutableStateOf(viewModel.advancedQuery?.author.orEmpty()) }
+    var isAdvancedExpanded by rememberSaveable {
+        mutableStateOf(
+            viewModel.kind == SearchKind.ADVANCED ||
+                advancedTitle.isNotBlank() ||
+                advancedTags.isNotBlank() ||
+                advancedAuthor.isNotBlank(),
+        )
+    }
+    var showOptionsSheet by remember { mutableStateOf(false) }
+    var selectedSourceTypes by remember { mutableStateOf(viewModel.getSourceTypes()) }
+    var selectedContentKinds by remember { mutableStateOf(viewModel.getContentKinds()) }
+    var pinnedOnly by remember { mutableStateOf(viewModel.isPinnedOnlySelected) }
+    var hideEmpty by remember { mutableStateOf(viewModel.isHideEmptySelected) }
+    var selectedItemsIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+
+    val sections = remember(listModels) { listModels.filterIsInstance<SearchResultsListModel>() }
+    val supplementaryItems = remember(listModels) { listModels.filterNot { it is SearchResultsListModel } }
+    val selectedItems = remember(selectedItemsIds, listModels) {
+        viewModel.getItems(selectedItemsIds)
+    }
+    val isAllNonLocal = selectedItems.none { it.isLocal }
+    val shouldShowTvBoxLabel = isTvBoxSourceTypeActive && !activeTvBoxRepositoryTitle.isNullOrBlank()
+
+    fun submitSearch() {
+        val advancedQuery = AdvancedSearchParams(
+            query = query.trim(),
+            title = advancedTitle.trim(),
+            tags = advancedTags.trim(),
+            author = advancedAuthor.trim(),
+        ).takeIf {
+            it.title.isNotBlank() || it.tags.isNotBlank() || it.author.isNotBlank()
+        }
+        if (query.isBlank() && advancedQuery == null) {
+            return
+        }
+        val resolvedKind = if (advancedQuery != null) SearchKind.ADVANCED else searchKind
+        onSubmitSearch(
+            query.trim(),
+            resolvedKind,
+            selectedSourceTypes,
+            selectedContentKinds,
+            advancedQuery,
+            pinnedOnly,
+            hideEmpty,
+        )
+    }
+
+    Scaffold(
+        contentWindowInsets = WindowInsets.navigationBars,
+        topBar = {
+            if (selectedItemsIds.isEmpty() || isPickMode) {
+                SearchResultsTopBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onBackClick = onBackClick,
+                    onSearchClick = ::submitSearch,
+                    onOptionsClick = { showOptionsSheet = true },
+                    searchKind = searchKind,
+                    selectedSourceTypes = selectedSourceTypes,
+                    selectedContentKinds = selectedContentKinds,
+                    pinnedOnly = pinnedOnly,
+                    hideEmpty = hideEmpty,
+                    isAdvancedExpanded = isAdvancedExpanded,
+                    onAdvancedExpandedChange = { isAdvancedExpanded = it },
+                    advancedTitle = advancedTitle,
+                    onAdvancedTitleChange = { advancedTitle = it },
+                    advancedTags = advancedTags,
+                    onAdvancedTagsChange = { advancedTags = it },
+                    advancedAuthor = advancedAuthor,
+                    onAdvancedAuthorChange = { advancedAuthor = it },
+                    shouldShowTvBoxLabel = shouldShowTvBoxLabel,
+                    activeTvBoxRepositoryTitle = activeTvBoxRepositoryTitle,
+                )
+            } else {
+                KototoroSelectionTopBar(
+                    selectedCount = selectedItemsIds.size,
+                    isAllNonLocal = isAllNonLocal,
+                    isSingleSelection = selectedItemsIds.size == 1,
+                    supportedActions = buildSet {
+                        add(SelectionAction.SHARE)
+                        add(SelectionAction.FAVOURITE)
+                        if (isAllNonLocal) {
+                            add(SelectionAction.SAVE)
+                        }
+                    },
+                    onClearSelection = { selectedItemsIds = emptySet() },
+                    onActionClick = { action ->
+                        when (action) {
+                            SelectionAction.SHARE -> {
+                                onShareSelection(selectedItems)
+                                selectedItemsIds = emptySet()
+                            }
+
+                            SelectionAction.FAVOURITE -> {
+                                onFavouriteSelection(selectedItems)
+                                selectedItemsIds = emptySet()
+                            }
+
+                            SelectionAction.SAVE -> {
+                                if (isAllNonLocal) {
+                                    onSaveSelection(selectedItems)
+                                    selectedItemsIds = emptySet()
+                                }
+                            }
+
+                            else -> Unit
+                        }
+                    },
+                )
+            }
+        },
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 0.dp,
+                top = paddingValues.calculateTopPadding(),
+                end = 0.dp,
+                bottom = paddingValues.calculateBottomPadding() + 12.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(
+                items = sections,
+                key = { section -> "${section.source.name}_${section.titleResId}" },
+            ) { section ->
+                SearchResultsSection(
+                    section = section,
+                    gridScale = gridScale,
+                    selectedItemsIds = selectedItemsIds,
+                    selectionEnabled = selectedItemsIds.isNotEmpty() && !isPickMode,
+                    onSectionClick = { onOpenSourceResults(section) },
+                    onItemClick = { item ->
+                        if (selectedItemsIds.isNotEmpty() && !isPickMode) {
+                            selectedItemsIds = selectedItemsIds.toggle(item.id)
+                        } else if (isPickMode) {
+                            onPickContent(item.toContentWithOverride())
+                        } else {
+                            DetailsCoverTransitionStore.set(item.toContentWithOverride(), null)
+                            onOpenContent(item.toContentWithOverride())
+                        }
+                    },
+                    onItemLongClick = { item ->
+                        if (!isPickMode) {
+                            selectedItemsIds = selectedItemsIds.toggle(item.id)
+                        }
+                    },
+                )
+            }
+
+            items(
+                items = supplementaryItems,
+                key = { item -> "extra_${item.javaClass.simpleName}_${item.hashCode()}" },
+            ) { item ->
+                SearchSupplementaryItem(
+                    item = item,
+                    onContinueSearch = viewModel::continueSearch,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+        }
+    }
+
+    if (showOptionsSheet) {
+        SearchResultsOptionsSheet(
+            searchKind = searchKind,
+            onSearchKindChange = {
+                searchKind = it
+                if (it == SearchKind.ADVANCED) {
+                    isAdvancedExpanded = true
+                }
+            },
+            selectedSourceTypes = selectedSourceTypes,
+            onSourceTypeToggle = { type ->
+                selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
+                viewModel.setSourceTypes(selectedSourceTypes)
+            },
+            selectedContentKinds = selectedContentKinds,
+            onContentKindToggle = { kind ->
+                selectedContentKinds = selectedContentKinds.toggleOrAll(kind, ALL_SEARCH_CONTENT_KINDS)
+                viewModel.setContentKinds(selectedContentKinds)
+            },
+            pinnedOnly = pinnedOnly,
+            onPinnedOnlyChange = {
+                pinnedOnly = it
+                viewModel.setPinnedOnly(it)
+            },
+            hideEmpty = hideEmpty,
+            onHideEmptyChange = {
+                hideEmpty = it
+                viewModel.setHideEmpty(it)
+            },
+            onDismissRequest = { showOptionsSheet = false },
+        )
+    }
+}
+
+@Composable
+private fun SearchResultsTopBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onBackClick: () -> Unit,
+    onSearchClick: () -> Unit,
+    onOptionsClick: () -> Unit,
+    searchKind: SearchKind,
+    selectedSourceTypes: Set<SourceType>,
+    selectedContentKinds: Set<SearchContentKind>,
+    pinnedOnly: Boolean,
+    hideEmpty: Boolean,
+    isAdvancedExpanded: Boolean,
+    onAdvancedExpandedChange: (Boolean) -> Unit,
+    advancedTitle: String,
+    onAdvancedTitleChange: (String) -> Unit,
+    advancedTags: String,
+    onAdvancedTagsChange: (String) -> Unit,
+    advancedAuthor: String,
+    onAdvancedAuthorChange: (String) -> Unit,
+    shouldShowTvBoxLabel: Boolean,
+    activeTvBoxRepositoryTitle: String?,
+) {
+    Surface(shadowElevation = 4.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.search_results),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onOptionsClick) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_filter_menu),
+                        contentDescription = stringResource(R.string.display_options),
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(stringResource(R.string.search)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = null,
+                    )
+                },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { onQueryChange("") }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Clear,
+                                    contentDescription = stringResource(R.string.clear),
+                                )
+                            }
+                        }
+                        IconButton(onClick = onSearchClick) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.search),
+                            )
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearchClick() }),
+            )
+
+            SearchSummaryRow(
+                searchKind = searchKind,
+                selectedSourceTypes = selectedSourceTypes,
+                selectedContentKinds = selectedContentKinds,
+                pinnedOnly = pinnedOnly,
+                hideEmpty = hideEmpty,
+                isAdvancedExpanded = isAdvancedExpanded,
+                onAdvancedExpandedChange = onAdvancedExpandedChange,
+            )
+
+            if (shouldShowTvBoxLabel) {
+                Text(
+                    text = stringResource(
+                        R.string.tvbox_repository_current_label,
+                        activeTvBoxRepositoryTitle.orEmpty(),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (isAdvancedExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = advancedTitle,
+                        onValueChange = onAdvancedTitleChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.title)) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearchClick() }),
+                    )
+                    OutlinedTextField(
+                        value = advancedTags,
+                        onValueChange = onAdvancedTagsChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.tags)) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearchClick() }),
+                    )
+                    OutlinedTextField(
+                        value = advancedAuthor,
+                        onValueChange = onAdvancedAuthorChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.author)) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearchClick() }),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SearchSummaryRow(
+    searchKind: SearchKind,
+    selectedSourceTypes: Set<SourceType>,
+    selectedContentKinds: Set<SearchContentKind>,
+    pinnedOnly: Boolean,
+    hideEmpty: Boolean,
+    isAdvancedExpanded: Boolean,
+    onAdvancedExpandedChange: (Boolean) -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AssistChip(
+            onClick = {},
+            label = { Text(stringResource(searchKind.titleResId)) },
+        )
+        AssistChip(
+            onClick = {},
+            label = {
+                Text(
+                    text = stringResource(R.string.source_type) + " ${selectedSourceTypes.size}",
+                )
+            },
+        )
+        AssistChip(
+            onClick = {},
+            label = {
+                Text(
+                    text = stringResource(R.string.type) + " ${selectedContentKinds.size}",
+                )
+            },
+        )
+        if (pinnedOnly) {
+            AssistChip(
+                onClick = {},
+                label = { Text(stringResource(R.string.pinned_sources_only)) },
+            )
+        }
+        if (hideEmpty) {
+            AssistChip(
+                onClick = {},
+                label = { Text(stringResource(R.string.hide_empty_sources)) },
+            )
+        }
+        AssistChip(
+            onClick = { onAdvancedExpandedChange(!isAdvancedExpanded) },
+            label = {
+                Text(
+                    if (isAdvancedExpanded) {
+                        "${stringResource(R.string.hide)} ${stringResource(R.string.advanced_search)}"
+                    } else {
+                        stringResource(R.string.advanced_search)
+                    },
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun SearchResultsSection(
+    section: SearchResultsListModel,
+    gridScale: Float,
+    selectedItemsIds: Set<Long>,
+    selectionEnabled: Boolean,
+    onSectionClick: () -> Unit,
+    onItemClick: (ContentListModel) -> Unit,
+    onItemLongClick: (ContentListModel) -> Unit,
+) {
+    val context = LocalContext.current
+    val posterStyle = compactPosterCardStyle(gridScale)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = section.getTitle(context),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (section.source !== UnknownContentSource) {
+                Button(
+                    onClick = onSectionClick,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                ) {
+                    Text(stringResource(R.string.show_all))
+                }
+            }
+        }
+
+        if (section.list.isNotEmpty()) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(
+                    items = section.list,
+                    key = { item -> item.id },
+                ) { item ->
+                    Box(
+                        modifier = Modifier.width(posterStyle.itemWidth + 20.dp),
+                    ) {
+                        KototoroContentCard(
+                            model = item,
+                            isSelected = item.id in selectedItemsIds,
+                            selectionModeActive = selectionEnabled,
+                            onClick = { onItemClick(item) },
+                            onLongClick = { onItemLongClick(item) },
+                        )
+                    }
+                }
+            }
+        }
+
+        section.error?.let { error ->
+            Text(
+                text = error.getDisplayMessage(context.resources),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchSupplementaryItem(
+    item: ListModel,
+    onContinueSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (item) {
+        is ButtonFooter -> {
+            Button(
+                onClick = onContinueSearch,
+                modifier = modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(item.textResId))
+            }
+        }
+
+        is EmptyState -> {
+            Surface(
+                modifier = modifier.fillMaxWidth(),
+                tonalElevation = 1.dp,
+                shape = MaterialTheme.shapes.large,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(item.icon),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(36.dp),
+                    )
+                    Text(
+                        text = stringResource(item.textPrimary),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = stringResource(item.textSecondary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (item.actionStringRes != 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Button(onClick = onContinueSearch) {
+                            Text(stringResource(item.actionStringRes))
+                        }
+                    }
+                }
+            }
+        }
+
+        is LoadingFooter,
+        LoadingState -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+
+        else -> Unit
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun SearchResultsOptionsSheet(
+    searchKind: SearchKind,
+    onSearchKindChange: (SearchKind) -> Unit,
+    selectedSourceTypes: Set<SourceType>,
+    onSourceTypeToggle: (SourceType) -> Unit,
+    selectedContentKinds: Set<SearchContentKind>,
+    onContentKindToggle: (SearchContentKind) -> Unit,
+    pinnedOnly: Boolean,
+    onPinnedOnlyChange: (Boolean) -> Unit,
+    hideEmpty: Boolean,
+    onHideEmptyChange: (Boolean) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Text(
+                    text = stringResource(R.string.type),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SearchKind.entries.forEach { kind ->
+                        FilterChip(
+                            selected = searchKind == kind,
+                            onClick = { onSearchKindChange(kind) },
+                            label = { Text(stringResource(kind.titleResId)) },
+                        )
+                    }
+                }
+            }
+            item {
+                Text(
+                    text = stringResource(R.string.source_type),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SOURCE_TYPE_OPTIONS.forEach { option ->
+                        FilterChip(
+                            selected = option.type in selectedSourceTypes,
+                            onClick = { onSourceTypeToggle(option.type) },
+                            label = { Text(stringResource(option.titleRes)) },
+                        )
+                    }
+                }
+            }
+            item {
+                Text(
+                    text = stringResource(R.string.type),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SEARCH_CONTENT_KIND_OPTIONS.forEach { option ->
+                        FilterChip(
+                            selected = option.kind in selectedContentKinds,
+                            onClick = { onContentKindToggle(option.kind) },
+                            label = { Text(stringResource(option.titleRes)) },
+                        )
+                    }
+                }
+            }
+            item {
+                SearchOptionSwitchRow(
+                    title = stringResource(R.string.pinned_sources_only),
+                    checked = pinnedOnly,
+                    onCheckedChange = onPinnedOnlyChange,
+                )
+            }
+            item {
+                SearchOptionSwitchRow(
+                    title = stringResource(R.string.hide_empty_sources),
+                    checked = hideEmpty,
+                    onCheckedChange = onHideEmptyChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchOptionSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
+    }
+}
+
+private fun Set<Long>.toggle(id: Long): Set<Long> {
+    return if (id in this) this - id else this + id
+}
+
+private fun <T> Set<T>.toggleOrAll(item: T, allItems: Set<T>): Set<T> {
+    val updated = toMutableSet().apply {
+        if (!add(item)) {
+            remove(item)
+        }
+    }
+    return updated.ifEmpty { allItems }
+}
+
+private val SearchKind.titleResId: Int
+    get() = when (this) {
+        SearchKind.SIMPLE -> R.string.simple
+        SearchKind.TITLE -> R.string.name
+        SearchKind.AUTHOR -> R.string.author
+        SearchKind.TAG -> R.string.genre
+        SearchKind.ADVANCED -> R.string.advanced_search
+    }

@@ -38,6 +38,7 @@ import org.skepsun.kototoro.core.ui.widgets.ChipsView
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
@@ -120,7 +121,7 @@ fun KototoroContentListScreen(
                                 if (listModel is ContentGridModel) {
                                     KototoroContentCardGrid(
                                         item = listModel,
-                                        isSelected = listModel.manga.id in selectedItemsIds,
+                                        isSelected = listModel.id in selectedItemsIds,
                                         onClick = { coverBounds ->
                                             onPrepareItemTransition(listModel, coverBounds)
                                             onItemClick(listModel)
@@ -160,7 +161,7 @@ fun KototoroContentListScreen(
                                 if (listModel is ContentCompactListModel) {
                                     KototoroContentCardList(
                                         item = listModel,
-                                        isSelected = listModel.manga.id in selectedItemsIds,
+                                        isSelected = listModel.id in selectedItemsIds,
                                         onClick = { coverBounds ->
                                             onPrepareItemTransition(listModel, coverBounds)
                                             onItemClick(listModel)
@@ -197,7 +198,7 @@ fun KototoroContentListScreen(
                                 if (listModel is ContentDetailedListModel) {
                                     KototoroContentCardDetailedList(
                                         item = listModel,
-                                        isSelected = listModel.manga.id in selectedItemsIds,
+                                        isSelected = listModel.id in selectedItemsIds,
                                         onClick = { coverBounds ->
                                             onPrepareItemTransition(listModel, coverBounds)
                                             onItemClick(listModel)
@@ -404,7 +405,7 @@ private fun LoadingStateItem() {
             .padding(vertical = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator()
+        KototoroLoadingIndicator()
     }
 }
 

@@ -135,6 +135,23 @@ class EntityGraphRepository @Inject constructor(
 		db.getEntityGraphDao().findBindingsByEntity(entityId).map { it.toModel() }
 	}
 
+	suspend fun findEntityIdsByLocalMangaIds(localMangaIds: Collection<Long>): Map<Long, Long> = withContext(Dispatchers.Default) {
+		if (localMangaIds.isEmpty()) {
+			return@withContext emptyMap()
+		}
+		val ids = localMangaIds.distinct()
+		buildMap {
+			db.getEntityGraphDao().findBindingsBySources(
+				sources = listOf("local_manga", "0"),
+				externalIds = ids.map(Long::toString),
+			).forEach { binding ->
+				binding.externalId.toLongOrNull()?.let { localMangaId ->
+					put(localMangaId, binding.entityId)
+				}
+			}
+		}
+	}
+
 	suspend fun getRelations(entityId: Long): List<Relation> = withContext(Dispatchers.Default) {
 		db.getEntityGraphDao().findRelationsForEntity(entityId).map { it.toModel() }
 	}

@@ -20,7 +20,7 @@ sealed class ContentListModel : ListModel {
 	open val isPinned: Boolean = false
 	open val metadataTrackingService: ScrobblerService? = null
 
-	val id: Long
+	open val id: Long
 		get() = manga.id
 
 	val title: String

@@ -8,5 +8,6 @@ data class ContentCompactListModel(
 	override val override: ContentOverride?,
 	val subtitle: String,
 	override val counter: Int,
+	override val id: Long = manga.id,
 	override val isPinned: Boolean = false,
 ) : ContentListModel()

@@ -84,6 +84,7 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
@@ -219,7 +220,7 @@ fun DetailsHeader(
         ContentType.HENTAI_VIDEO -> R.string.details_playback_language
         else -> R.string.details_reading_language
     }
-    
+
     val normalizedCoverUrl = coverUrl?.takeIf { it.isNotBlank() }
     val normalizedFallbackCoverUrl = fallbackCoverUrl?.takeIf { it.isNotBlank() }
     var hasCoverLoadFailed by remember(normalizedCoverUrl) { mutableStateOf(false) }
@@ -229,7 +230,9 @@ fun DetailsHeader(
         normalizedCoverUrl
     }
 
-    var isDescriptionExpanded by remember { mutableStateOf(false) }
+    var isDescriptionExpanded by remember(settings.isDescriptionExpanded) { mutableStateOf(settings.isDescriptionExpanded) }
+    val description = displayDescription.ifBlank { fallbackDescription }
+    val canExpandDescription = description.length > 200
 
     val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
         ImageRequest.Builder(context)
@@ -540,17 +543,31 @@ fun DetailsHeader(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = stringResource(R.string.description),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(R.string.description),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (canExpandDescription) {
+                    Text(
+                        text = if (isDescriptionExpanded) stringResource(R.string.show_less) else stringResource(R.string.show_more),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                    )
+                }
+            }
             SelectionContainer {
                 Text(
-                    text = displayDescription.ifBlank { fallbackDescription },
+                    text = description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().clickable { isDescriptionExpanded = !isDescriptionExpanded },
+                    modifier = Modifier.fillMaxWidth().clickable { if (canExpandDescription) isDescriptionExpanded = !isDescriptionExpanded },
                     maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 3,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -939,7 +956,7 @@ fun MetadataSourceSheet(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
                         ) {
-                            CircularProgressIndicator()
+                            KototoroLoadingIndicator()
                         }
                     }
                     errorMessage != null -> {
@@ -1116,7 +1133,7 @@ fun ReadingSourceSheet(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
                         ) {
-                            CircularProgressIndicator()
+                            KototoroLoadingIndicator()
                         }
                     }
                     is LocalSearchState.Error -> {

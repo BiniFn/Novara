@@ -228,6 +228,7 @@
     <string name="home_resume_empty_title">Nothing to resume</string>
     <string name="home_resume_empty_subtitle">Your latest reading progress will appear here</string>
     <string name="home_resume_progress">Progress %1$d%%</string>
+    <string name="home_recent_searches">Recent searches</string>
     <string name="recent_history">History</string>
     <string name="home_recent_open_details">Open details</string>
     <string name="home_recent_empty_subtitle">Start reading to populate this card</string>
@@ -498,6 +499,15 @@
     <string name="canceled">Canceled</string>
     <string name="account_already_exists">Account already exists</string>
     <string name="back">Back</string>
+    <string name="badge_top_left">Top-left badges</string>
+    <string name="badge_top_right">Top-right badges</string>
+    <string name="badge_bottom_left">Bottom-left badges</string>
+    <string name="badge_tracker">Tracking site icons</string>
+    <string name="badge_score">Score (from tracker)</string>
+    <string name="badge_source_icon">Source icon</string>
+    <string name="badge_language">Language</string>
+    <string name="badge_favorite">Favorite</string>
+    <string name="badge_saved">Saved</string>
     <string name="sync">Synchronization</string>
     <string name="sync_title">Sync your data</string>
     <string name="email_enter_hint">Enter your email to continue</string>

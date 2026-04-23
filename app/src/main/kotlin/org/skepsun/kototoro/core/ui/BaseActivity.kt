@@ -49,6 +49,9 @@ abstract class BaseActivity<B : ViewBinding> :
 
 	private lateinit var entryPoint: BaseActivityEntryPoint
 
+	val kototoroAppSettings: org.skepsun.kototoro.core.prefs.AppSettings
+		get() = entryPoint.settings
+
 	override fun attachBaseContext(newBase: Context) {
 		entryPoint = EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(newBase.applicationContext)
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {

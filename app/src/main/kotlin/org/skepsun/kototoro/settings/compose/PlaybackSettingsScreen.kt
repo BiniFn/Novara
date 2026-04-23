@@ -2,6 +2,8 @@ package org.skepsun.kototoro.settings.compose
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
@@ -50,72 +53,76 @@ fun PlaybackSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp),
         ) {
-            SettingsChoicePreference(
-                title = stringResource(R.string.video_decoder_mode),
-                options = decoderModeOptions,
-                value = decoderMode.name,
-                onValueChange = { settings.videoDecoderMode = org.skepsun.kototoro.core.prefs.VideoDecoderMode.valueOf(it) },
-            )
+            SettingsPreferenceSection(
+                title = stringResource(R.string.playback_settings),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                SettingsChoicePreference(
+                    title = stringResource(R.string.video_decoder_mode),
+                    options = decoderModeOptions,
+                    value = decoderMode.name,
+                    onValueChange = { settings.videoDecoderMode = org.skepsun.kototoro.core.prefs.VideoDecoderMode.valueOf(it) },
+                )
 
-            SettingsChoicePreference(
-                title = stringResource(R.string.video_renderer_mode),
-                options = rendererModeOptions,
-                value = rendererMode.name,
-                onValueChange = { settings.videoRendererMode = org.skepsun.kototoro.core.prefs.VideoRendererMode.valueOf(it) },
-            )
+                SettingsChoicePreference(
+                    title = stringResource(R.string.video_renderer_mode),
+                    options = rendererModeOptions,
+                    value = rendererMode.name,
+                    onValueChange = { settings.videoRendererMode = org.skepsun.kototoro.core.prefs.VideoRendererMode.valueOf(it) },
+                )
 
-            SettingsChoicePreference(
-                title = stringResource(R.string.video_background),
-                options = backgroundOptions,
-                value = background.name,
-                onValueChange = { settings.videoBackground = org.skepsun.kototoro.core.prefs.ReaderBackground.valueOf(it) },
-            )
+                SettingsChoicePreference(
+                    title = stringResource(R.string.video_background),
+                    options = backgroundOptions,
+                    value = background.name,
+                    onValueChange = { settings.videoBackground = org.skepsun.kototoro.core.prefs.ReaderBackground.valueOf(it) },
+                )
 
-            SettingsActionPreference(
-                title = stringResource(R.string.video_mpv_conf),
-                summary = stringResource(R.string.video_mpv_conf_hint),
-                onClick = onMpvConfClick
-            )
+                SettingsActionPreference(
+                    title = stringResource(R.string.video_mpv_conf),
+                    summary = stringResource(R.string.video_mpv_conf_hint),
+                    onClick = onMpvConfClick,
+                )
 
+                SettingsActionPreference(
+                    title = stringResource(R.string.ai_settings),
+                    summary = stringResource(R.string.ai_settings_entry_summary),
+                    onClick = onAiSettingsClick,
+                )
 
+                SettingsSliderPreference(
+                    title = stringResource(R.string.video_cache_size),
+                    summary = stringResource(R.string.video_cache_size_summary, cacheMb),
+                    value = cacheMb,
+                    valueRange = 256..4096,
+                    step = 128,
+                    valueText = { "$it MB" },
+                    onValueChange = { settings.videoCacheSizeMb = it },
+                )
 
-            SettingsActionPreference(
-                title = stringResource(R.string.ai_settings),
-                summary = stringResource(R.string.ai_settings_entry_summary),
-                onClick = onAiSettingsClick
-            )
+                SettingsSliderPreference(
+                    title = stringResource(R.string.video_controls_alpha),
+                    summary = "${(controlsAlpha * 100).toInt()}%",
+                    value = (controlsAlpha * 100f).toInt(),
+                    valueRange = 30..100,
+                    step = 1,
+                    valueText = { "$it%" },
+                    onValueChange = { settings.videoControlsAlpha = it / 100f },
+                )
 
-            SettingsSliderPreference(
-                title = stringResource(R.string.video_cache_size),
-                summary = stringResource(R.string.video_cache_size_summary, cacheMb),
-                value = cacheMb,
-                valueRange = 256..4096,
-                step = 128,
-                valueText = { "$it MB" },
-                onValueChange = { settings.videoCacheSizeMb = it }
-            )
-
-            SettingsSliderPreference(
-                title = stringResource(R.string.video_controls_alpha),
-                summary = "${(controlsAlpha * 100).toInt()}%",
-                value = (controlsAlpha * 100f).toInt(),
-                valueRange = 30..100,
-                step = 1,
-                valueText = { "$it%" },
-                onValueChange = { settings.videoControlsAlpha = it / 100f }
-            )
-
-            SettingsSliderPreference(
-                title = stringResource(R.string.video_gradient_alpha),
-                summary = "${(gradientAlpha * 100).toInt()}%",
-                value = (gradientAlpha * 100f).toInt(),
-                valueRange = 0..100,
-                step = 1,
-                valueText = { "$it%" },
-                onValueChange = { settings.videoGradientAlpha = it / 100f }
-            )
+                SettingsSliderPreference(
+                    title = stringResource(R.string.video_gradient_alpha),
+                    summary = "${(gradientAlpha * 100).toInt()}%",
+                    value = (gradientAlpha * 100f).toInt(),
+                    valueRange = 0..100,
+                    step = 1,
+                    valueText = { "$it%" },
+                    onValueChange = { settings.videoGradientAlpha = it / 100f },
+                )
+            }
         }
     }
 }

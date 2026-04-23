@@ -2,13 +2,8 @@ package org.skepsun.kototoro.main.ui
 
 import android.view.View
 import androidx.fragment.app.Fragment
-
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 import org.skepsun.kototoro.explore.ui.model.SourceTag
-import org.skepsun.kototoro.main.ui.MainActivity
 
 /**
  * Controller that bridges fragment filter state to the global Compose TopBar.
@@ -22,6 +17,23 @@ class SearchBarFilterViewController(
 		fun onSourceTagSelected(tag: SourceTag?)
 		fun getSelectedContentType(): BrowseGroupTab
 		fun getSelectedSourceTags(): Set<SourceTag>
+		fun applyContentTypeSelection(tab: BrowseGroupTab) {
+			if (getSelectedContentType() != tab) {
+				onContentTypeSelected(tab)
+			}
+		}
+		fun applySourceTagSelection(tags: Set<SourceTag>) {
+			val current = getSelectedSourceTags()
+			if (current == tags) {
+				return
+			}
+			if (tags.isEmpty()) {
+				onSourceTagSelected(null)
+				return
+			}
+			(current - tags).forEach(::onSourceTagSelected)
+			(tags - current).forEach(::onSourceTagSelected)
+		}
 		fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 		fun isContentTypeFilterVisible(): Boolean = true
 		fun isSourceTagFilterVisible(): Boolean = true

@@ -69,8 +69,7 @@
 			android:layout_height="wrap_content"
 			android:elevation="@dimen/m3_card_elevated_elevation"
 			app:elevation="@dimen/m3_card_elevated_elevation"
-			app:popupTheme="@style/ThemeOverlay.Kototoro"
-			tools:menu="@menu/opt_reader" />
+			app:popupTheme="@style/ThemeOverlay.Kototoro" />
 
 	</com.google.android.material.appbar.AppBarLayout>
 

@@ -23,11 +23,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,15 +48,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,11 +68,23 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
+import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
+import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.util.ext.mangaExtra
+import org.skepsun.kototoro.details.ui.compose.AnimatedPanoramaBackdrop
+import org.skepsun.kototoro.home.ui.HOME_HERO_SECTION_LIMIT
+import org.skepsun.kototoro.home.ui.HOME_HERO_TOTAL_LIMIT
+import org.skepsun.kototoro.home.ui.HomeRecentItem
+import org.skepsun.kototoro.home.ui.HomeRecommendationItem
 import org.skepsun.kototoro.home.ui.HomeSummaryState
+import org.skepsun.kototoro.home.ui.HomeUpdateItem
+import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -79,6 +99,7 @@ fun HomeScreen(
     onViewAllRecentClick: () -> Unit,
     onViewAllUpdatesClick: () -> Unit,
     onViewAllRecommendationsClick: () -> Unit,
+    onRecentSearchClick: (String) -> Unit,
     onSourceSettingsClick: () -> Unit,
     onLibraryOpenClick: () -> Unit,
     onBookmarksClick: () -> Unit,
@@ -95,9 +116,24 @@ fun HomeScreen(
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
-    val recentItems = remember(state.recentHistoryItems) { state.recentHistoryItems.map { it.content } }
-    val updateItems = remember(state.recentUpdates) { state.recentUpdates.map { it.content } }
-    val recommendationItems = remember(state.recommendations) { state.recommendations.map { it.content } }
+    val recentSearches = remember(state.recentSearches) { state.recentSearches.map { it.query } }
+    val heroEntries = remember(
+        state.resumeState.content,
+        state.resumeState.groupKey,
+        state.resumeState.progressPercent,
+        state.recentHistoryItems,
+        state.recentUpdates,
+        state.recommendations,
+    ) {
+        buildHomeHeroEntries(
+            resumeContent = state.resumeState.content,
+            resumeGroupKey = state.resumeState.groupKey,
+            resumeProgressPercent = state.resumeState.progressPercent,
+            historyItems = state.recentHistoryItems,
+            updateItems = state.recentUpdates,
+            recommendationItems = state.recommendations,
+        )
+    }
     val quickActions = listOf(
         HomeQuickAction(stringResource(R.string.favourites), R.drawable.ic_heart, onLibraryOpenClick),
         HomeQuickAction(stringResource(R.string.bookmarks), R.drawable.ic_bookmark, onBookmarksClick),
@@ -110,13 +146,6 @@ fun HomeScreen(
         HomeQuickAction(stringResource(R.string.reader_settings), R.drawable.ic_read, onReaderSettingsClick),
         HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, onSettingsClick),
     )
-    val historyItems = remember(state.resumeState.content, recentItems) {
-        buildList {
-            state.resumeState.content?.let(::add)
-            addAll(recentItems)
-        }.distinctBy(Content::id)
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -131,20 +160,27 @@ fun HomeScreen(
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val hasHighlights = historyItems.isNotEmpty() || updateItems.isNotEmpty() || recommendationItems.isNotEmpty()
+        val hasHighlights = heroEntries.isNotEmpty() ||
+            state.recentHistoryItems.isNotEmpty() ||
+            state.recentUpdates.isNotEmpty() ||
+            state.recommendations.isNotEmpty() ||
+            recentSearches.isNotEmpty()
         if (hasHighlights) {
             HomeHighlightsSections(
-                historyItems = historyItems,
+                heroEntries = heroEntries,
+                historyItems = state.recentHistoryItems,
                 recentHistoryCount = state.recentHistoryCount,
-                updateItems = updateItems,
+                updateItems = state.recentUpdates,
                 unreadUpdatesCount = state.unreadUpdatesCount,
-                recommendationItems = recommendationItems,
+                recommendationItems = state.recommendations,
                 recommendationsCount = state.recommendationsCount,
+                recentSearches = recentSearches,
                 posterStyle = posterStyle,
                 onItemClick = onContentClick,
                 onViewAllRecentClick = onViewAllRecentClick,
                 onViewAllUpdatesClick = onViewAllUpdatesClick,
                 onViewAllRecommendationsClick = onViewAllRecommendationsClick,
+                onRecentSearchClick = onRecentSearchClick,
             )
         }
         if (!hasHighlights && !state.isInitialized) {
@@ -154,7 +190,7 @@ fun HomeScreen(
                     .padding(vertical = 24.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                KototoroLoadingIndicator()
             }
         }
 
@@ -165,19 +201,31 @@ fun HomeScreen(
 
 @Composable
 private fun HomeHighlightsSections(
-    historyItems: List<Content>,
+    heroEntries: List<HomeHeroEntry>,
+    historyItems: List<HomeRecentItem>,
     recentHistoryCount: Int,
-    updateItems: List<Content>,
+    updateItems: List<HomeUpdateItem>,
     unreadUpdatesCount: Int,
-    recommendationItems: List<Content>,
+    recommendationItems: List<HomeRecommendationItem>,
     recommendationsCount: Int,
+    recentSearches: List<String>,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onItemClick: (Content, Rect?) -> Unit,
     onViewAllRecentClick: () -> Unit,
     onViewAllUpdatesClick: () -> Unit,
     onViewAllRecommendationsClick: () -> Unit,
+    onRecentSearchClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val historyDisplayItems = remember(historyItems) {
+        historyItems.map { HomeCoverDisplayItem(content = it.content, cardModel = it.cardModel) }
+    }
+    val updateDisplayItems = remember(updateItems) {
+        updateItems.map { HomeCoverDisplayItem(content = it.content, cardModel = it.cardModel) }
+    }
+    val recommendationDisplayItems = remember(recommendationItems) {
+        recommendationItems.map { HomeCoverDisplayItem(content = it.content, cardModel = it.cardModel) }
+    }
     org.skepsun.kototoro.core.ui.glass.GlassSurface(
         modifier = modifier.fillMaxWidth(),
         style = org.skepsun.kototoro.core.ui.glass.GlassDefaults.subtleStyle(),
@@ -190,13 +238,25 @@ private fun HomeHighlightsSections(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (heroEntries.isNotEmpty()) {
+                HomeHeroCarousel(
+                    entries = heroEntries,
+                    onClick = onItemClick,
+                )
+                if (historyItems.isNotEmpty() || updateItems.isNotEmpty() || recommendationItems.isNotEmpty() || recentSearches.isNotEmpty()) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 6.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                    )
+                }
+            }
             var firstSection = true
 
             if (historyItems.isNotEmpty()) {
                 HomeContentRowSection(
                     title = stringResource(R.string.recent_history),
                     iconRes = R.drawable.ic_history,
-                    items = historyItems,
+                    items = historyDisplayItems,
                     count = recentHistoryCount,
                     posterStyle = posterStyle,
                     onItemClick = onItemClick,
@@ -215,7 +275,7 @@ private fun HomeHighlightsSections(
                 HomeContentRowSection(
                     title = stringResource(R.string.home_recent_updates),
                     iconRes = R.drawable.ic_updated,
-                    items = updateItems,
+                    items = updateDisplayItems,
                     count = unreadUpdatesCount,
                     posterStyle = posterStyle,
                     onItemClick = onItemClick,
@@ -234,12 +294,263 @@ private fun HomeHighlightsSections(
                 HomeContentRowSection(
                     title = stringResource(R.string.suggestions),
                     iconRes = R.drawable.ic_feed,
-                    items = recommendationItems,
+                    items = recommendationDisplayItems,
                     count = recommendationsCount,
                     posterStyle = posterStyle,
                     onItemClick = onItemClick,
                     onMoreClick = onViewAllRecommendationsClick,
                     addTopSpacing = false,
+                )
+            }
+            if (recentSearches.isNotEmpty()) {
+                if (!firstSection) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 2.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                    )
+                }
+                HomeRecentSearchSection(
+                    queries = recentSearches,
+                    onQueryClick = onRecentSearchClick,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHeroCarousel(
+    entries: List<HomeHeroEntry>,
+    onClick: (Content, Rect?) -> Unit,
+) {
+    val pagerState = rememberPagerState(pageCount = { entries.size })
+    val hasPagerIndicator = entries.size > 1
+    val selectedIndex by remember(entries, pagerState) {
+        derivedStateOf { pagerState.currentPage.coerceIn(0, entries.lastIndex) }
+    }
+
+    HeroAutoAdvanceEffect(
+        pagerState = pagerState,
+        pageCount = entries.size,
+        intervalMillis = 5200L,
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp),
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+        ) { page ->
+            HomeHeroCard(
+                entry = entries[page],
+                bottomInset = if (hasPagerIndicator) 42.dp else 16.dp,
+                onClick = onClick,
+            )
+        }
+        if (hasPagerIndicator) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HeroPagerIndicator(
+                    pageCount = entries.size,
+                    currentPage = selectedIndex,
+                )
+                HomeBadge(
+                    text = "${selectedIndex + 1}/${entries.size}",
+                    iconRes = entries[selectedIndex].kind.iconRes,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHeroCard(
+    entry: HomeHeroEntry,
+    bottomInset: androidx.compose.ui.unit.Dp,
+    onClick: (Content, Rect?) -> Unit,
+) {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val isPanoramaCoverEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }
+    val content = entry.content
+    val imageRequest = remember(content.coverUrl, content.id) {
+        ImageRequest.Builder(context)
+            .data(content.coverUrl)
+            .crossfade(true)
+            .apply { mangaExtra(content) }
+            .build()
+    }
+    var coverBounds by remember(entry.kind, content.id) { mutableStateOf<Rect?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(216.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick(content, coverBounds) },
+    ) {
+        if (isPanoramaCoverEnabled) {
+            AnimatedPanoramaBackdrop(
+                settings = settings,
+                model = imageRequest,
+                contentAlpha = 0.94f,
+                backgroundColor = MaterialTheme.colorScheme.surface,
+            )
+        } else {
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = content.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.14f),
+                            Color.Black.copy(alpha = 0.70f),
+                        ),
+                    ),
+                ),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomInset),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 96.dp, height = 132.dp)
+                    .onGloballyPositioned { coordinates ->
+                        coverBounds = coordinates.boundsInRoot()
+                    }
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.28f)),
+            ) {
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = content.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val supportingText = when (entry.kind) {
+                    HomeHeroKind.RESUME -> entry.progressPercent
+                        ?.takeIf { it > 0 }
+                        ?.let { stringResource(R.string.home_resume_progress, it) }
+                    HomeHeroKind.UPDATE -> entry.newChapters
+                        .takeIf { it > 0 }
+                        ?.let { value ->
+                            stringResource(
+                                R.string.new_chapters_pattern,
+                                stringResource(R.string.new_chapters),
+                                value,
+                            )
+                        }
+                    HomeHeroKind.HISTORY,
+                    HomeHeroKind.RECOMMENDATION -> null
+                }
+                HomeBadge(
+                    text = stringResource(entry.kind.labelRes),
+                    iconRes = entry.kind.iconRes,
+                )
+                Text(
+                    text = content.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = content.source.getTitle(context),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.86f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                supportingText?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White.copy(alpha = 0.92f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeRecentSearchSection(
+    queries: List<String>,
+    onQueryClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.home_recent_searches),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            HomeBadge(
+                text = queries.size.toHeroCountLabel(),
+                iconRes = R.drawable.ic_history,
+            )
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            queries.forEach { query ->
+                AssistChip(
+                    onClick = { onQueryClick(query) },
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_history),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = query,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                 )
             }
         }
@@ -250,7 +561,7 @@ private fun HomeHighlightsSections(
 private fun HomeContentRowSection(
     title: String,
     iconRes: Int,
-    items: List<Content>,
+    items: List<HomeCoverDisplayItem>,
     count: Int,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onItemClick: (Content, Rect?) -> Unit,
@@ -307,12 +618,12 @@ private fun HomeContentRowSection(
         ) {
             items(
                 items = items.take(12),
-                key = { it.id },
+                key = { it.content.id },
             ) { item ->
                 HomeCoverRowItem(
-                    content = item,
+                    item = item,
                     posterStyle = posterStyle,
-                    onClick = { coverBounds -> onItemClick(item, coverBounds) },
+                    onClick = { coverBounds -> onItemClick(item.content, coverBounds) },
                 )
             }
         }
@@ -321,11 +632,19 @@ private fun HomeContentRowSection(
 
 @Composable
 private fun HomeCoverRowItem(
-    content: Content,
+    item: HomeCoverDisplayItem,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onClick: (Rect?) -> Unit,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
+    val cardShape = MaterialTheme.shapes.medium
+    val cardRadius = remember(cardShape, density) {
+        (cardShape as? RoundedCornerShape)?.topStart?.toPx(Size.Unspecified, density)?.let {
+            with(density) { it.toDp() }
+        } ?: 12.dp
+    }
+    val content = item.content
     val imageRequest = remember(content.coverUrl, content.id) {
         ImageRequest.Builder(context)
             .data(content.coverUrl)
@@ -348,7 +667,7 @@ private fun HomeCoverRowItem(
                 .onGloballyPositioned { coordinates ->
                     coverBounds = coordinates.boundsInRoot()
                 }
-                .clip(RoundedCornerShape(posterStyle.cornerRadius))
+                .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             AsyncImage(
@@ -357,6 +676,29 @@ private fun HomeCoverRowItem(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
+            item.cardModel?.let { cardModel ->
+                ContentCardCornerBadges(
+                    badges = rememberHomeBadgesTopLeft(),
+                    item = cardModel,
+                    corner = Alignment.TopStart,
+                    cardRadius = cardRadius,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+                ContentCardCornerBadges(
+                    badges = rememberHomeBadgesTopRight(cardModel),
+                    item = cardModel,
+                    corner = Alignment.TopEnd,
+                    cardRadius = cardRadius,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+                ContentCardCornerBadges(
+                    badges = rememberHomeBadgesBottomLeft(),
+                    item = cardModel,
+                    corner = Alignment.BottomStart,
+                    cardRadius = cardRadius,
+                    modifier = Modifier.align(Alignment.BottomStart),
+                )
+            }
         }
         Text(
             text = content.title,
@@ -365,6 +707,39 @@ private fun HomeCoverRowItem(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+private data class HomeCoverDisplayItem(
+    val content: Content,
+    val cardModel: ContentGridModel?,
+)
+
+@Composable
+private fun rememberHomeBadgesTopLeft(): Set<String> {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    return settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value
+}
+
+@Composable
+private fun rememberHomeBadgesBottomLeft(): Set<String> {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    return settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value
+}
+
+@Composable
+private fun rememberHomeBadgesTopRight(item: ContentGridModel): Set<String> {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val badgesTopRight = settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }.value
+    return remember(badgesTopRight, item.counter) {
+        if (item.counter > 0 && "counter" !in badgesTopRight) {
+            badgesTopRight + "counter"
+        } else {
+            badgesTopRight
+        }
     }
 }
 
@@ -562,4 +937,92 @@ private fun Int.toHeroCountLabel(): String = when {
     this >= 10_000 -> "${this / 1000}k+"
     this >= 1_000 -> "${this / 1000}k"
     else -> toString()
+}
+
+private enum class HomeHeroKind(val labelRes: Int, val iconRes: Int) {
+    RESUME(R.string.home_resume_title, R.drawable.ic_read),
+    HISTORY(R.string.recent_history, R.drawable.ic_history),
+    UPDATE(R.string.home_recent_updates, R.drawable.ic_updated),
+    RECOMMENDATION(R.string.suggestions, R.drawable.ic_feed),
+}
+
+private data class HomeHeroEntry(
+    val kind: HomeHeroKind,
+    val content: Content,
+    val groupKey: Long,
+    val progressPercent: Int? = null,
+    val newChapters: Int = 0,
+)
+
+private fun buildHomeHeroEntries(
+    resumeContent: Content?,
+    resumeGroupKey: Long?,
+    resumeProgressPercent: Int?,
+    historyItems: List<org.skepsun.kototoro.home.ui.HomeRecentItem>,
+    updateItems: List<org.skepsun.kototoro.home.ui.HomeUpdateItem>,
+    recommendationItems: List<org.skepsun.kototoro.home.ui.HomeRecommendationItem>,
+): List<HomeHeroEntry> {
+    val entries = ArrayList<HomeHeroEntry>(HOME_HERO_TOTAL_LIMIT)
+    val seenIds = LinkedHashSet<Long>()
+
+    fun addEntry(entry: HomeHeroEntry) {
+        if (entries.size >= HOME_HERO_TOTAL_LIMIT) return
+        if (seenIds.add(entry.groupKey)) {
+            entries += entry
+        }
+    }
+
+    resumeContent?.let { content ->
+        addEntry(
+                HomeHeroEntry(
+                    kind = HomeHeroKind.RESUME,
+                    content = content,
+                    groupKey = resumeGroupKey ?: content.id,
+                    progressPercent = resumeProgressPercent,
+                ),
+            )
+        }
+
+    historyItems
+        .asSequence()
+        .filterNot { it.groupKey == resumeGroupKey }
+        .take(HOME_HERO_SECTION_LIMIT)
+        .forEach { item ->
+            addEntry(
+                HomeHeroEntry(
+                    kind = HomeHeroKind.HISTORY,
+                    content = item.content,
+                    groupKey = item.groupKey,
+                ),
+            )
+        }
+
+    updateItems
+        .asSequence()
+        .take(HOME_HERO_SECTION_LIMIT)
+        .forEach { item ->
+            addEntry(
+                HomeHeroEntry(
+                    kind = HomeHeroKind.UPDATE,
+                    content = item.content,
+                    groupKey = item.groupKey,
+                    newChapters = item.newChapters,
+                ),
+            )
+        }
+
+    recommendationItems
+        .asSequence()
+        .take(HOME_HERO_SECTION_LIMIT)
+        .forEach { item ->
+            addEntry(
+                HomeHeroEntry(
+                    kind = HomeHeroKind.RECOMMENDATION,
+                    content = item.content,
+                    groupKey = item.groupKey,
+                ),
+            )
+        }
+
+    return entries
 }

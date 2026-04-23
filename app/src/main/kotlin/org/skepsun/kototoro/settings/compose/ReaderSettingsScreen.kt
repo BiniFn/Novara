@@ -3,6 +3,8 @@ package org.skepsun.kototoro.settings.compose
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ZoomMode
@@ -49,8 +52,15 @@ fun ReaderSettingsScreen(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier.verticalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp),
         ) {
+            SettingsPreferenceSection(
+                title = stringResource(R.string.reader_settings),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
             SettingsChoicePreference(
                 title = stringResource(R.string.default_mode),
                 options = stringArrayResource(R.array.reader_modes).mapIndexed { index, label ->
@@ -283,6 +293,7 @@ fun ReaderSettingsScreen(
                 valueText = { it.toString() },
                 onValueChange = { settings.prefs.edit { putInt(AppSettings.KEY_READER_PREFETCH_LIMIT, it) } }
             )
+            }
         }
     }
 }

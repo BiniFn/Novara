@@ -36,18 +36,25 @@ import org.skepsun.kototoro.backups.domain.ExternalBackupStorage
 import org.skepsun.kototoro.backups.ui.periodical.WebDavBackupUploader
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.entitygraph.data.EntityGraphRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
+import org.skepsun.kototoro.list.domain.ContentListMapper
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
+import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import javax.inject.Inject
 
 data class HomeRecentItem(
 	val content: Content,
+	val cardModel: ContentGridModel? = null,
+	val groupKey: Long = content.id,
 ) {
 	val title: String
 		get() = content.title
@@ -60,6 +67,8 @@ data class HomeRecentItem(
 data class HomeUpdateItem(
 	val content: Content,
 	val newChapters: Int,
+	val cardModel: ContentGridModel? = null,
+	val groupKey: Long = content.id,
 ) {
 	val title: String
 		get() = content.title
@@ -67,14 +76,21 @@ data class HomeUpdateItem(
 
 data class HomeRecommendationItem(
 	val content: Content,
+	val cardModel: ContentGridModel? = null,
+	val groupKey: Long = content.id,
 ) {
 	val title: String
 		get() = content.title
 }
 
+data class HomeRecentSearchItem(
+	val query: String,
+)
+
 data class HomeResumeState(
 	val content: Content? = null,
 	val progressPercent: Int? = null,
+	val groupKey: Long? = content?.id,
 ) {
 	val isAvailable: Boolean
 		get() = content != null
@@ -121,6 +137,7 @@ data class HomeSummaryState(
 	val recentUpdates: List<HomeUpdateItem> = emptyList(),
 	val recommendationsCount: Int = 0,
 	val recommendations: List<HomeRecommendationItem> = emptyList(),
+	val recentSearches: List<HomeRecentSearchItem> = emptyList(),
 	val enabledSourcesCount: Int = 0,
 	val sourceBreakdown: List<HomeSourceBreakdown> = emptyList(),
 	val syncState: HomeSyncState = HomeSyncState(),
@@ -142,9 +159,12 @@ class HomeViewModel @Inject constructor(
 	private val backupWebDavRestoreCoordinator: BackupWebDavRestoreCoordinator,
 	private val backupStorage: ExternalBackupStorage,
 	private val repository: BackupRepository,
+	private val entityGraphRepository: EntityGraphRepository,
 	private val sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
+	private val contentSearchRepository: ContentSearchRepository,
+	private val contentListMapper: ContentListMapper,
 	@ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -162,8 +182,26 @@ class HomeViewModel @Inject constructor(
 			if (id == -1L) flowOf(null)
 			else sourcePresetsRepository.observe(id)
 		}
-	private val lastHistoryContentFlow = historyRepository.observeLast()
-	private val resumeStateFlow = lastHistoryContentFlow
+	private val recentHistoryFlow = historyRepository.observeAll()
+	private val isHistoryNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_HISTORY_EXCLUDE_NSFW) { isHistoryExcludeNsfw }
+	private val resumeCandidateFlow = combine(
+		recentHistoryFlow,
+		selectedTabFlow,
+		selectedSourceTagsFlow,
+		activePresetFlow,
+		isHistoryNsfwDisabledFlow,
+	) { history, selectedTab, selectedSourceTags, preset, isHistoryNsfwDisabled ->
+		history.firstOrNull { item ->
+			item.matchesHomeFilters(
+				tab = selectedTab,
+				sourceTags = selectedSourceTags,
+				sourceGroupManager = sourceGroupManager,
+				preset = preset,
+				excludeNsfw = isHistoryNsfwDisabled,
+			)
+		}
+	}
+	private val resumeStateFlow = resumeCandidateFlow
 		.flatMapLatest { content ->
 			if (content == null) {
 				flowOf(HomeResumeState())
@@ -176,15 +214,14 @@ class HomeViewModel @Inject constructor(
 				}
 			}
 		}
-	private val recentHistoryFlow = historyRepository.observeAll()
 	private val favoritesCountFlow = favouritesRepository.observeContentCount()
 	private val favoriteCategoriesCountFlow = favouritesRepository.observeCategories().map { it.size }
 	private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
 	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT * 12, filterOptions = emptySet())
 	private val recommendationsFlow = suggestionRepository.observeAll()
+	private val recentSearchesFlow = contentSearchRepository.observeRecentQueries(HOME_COVER_PREVIEW_LIMIT)
 	private val isTrackerNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_TRACKER_NO_NSFW) { isTrackerNsfwDisabled }
 	private val isSuggestionNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_SUGGESTIONS_EXCLUDE_NSFW) { isSuggestionsExcludeNsfw }
-	private val isHistoryNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_HISTORY_EXCLUDE_NSFW) { isHistoryExcludeNsfw }
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
 	private val sourceBreakdownFlow = contentSourcesRepository.observeGroupCounts()
 		.map { counts ->
@@ -230,11 +267,12 @@ class HomeViewModel @Inject constructor(
 				unreadUpdatesCountFlow,
 				recentUpdatesFlow,
 				recommendationsFlow,
-			) { favoriteCategoriesCount, unreadUpdatesCount, recentUpdates, recommendations ->
-				Quadruple(favoriteCategoriesCount, unreadUpdatesCount, recentUpdates, recommendations)
+				recentSearchesFlow,
+			) { favoriteCategoriesCount, unreadUpdatesCount, recentUpdates, recommendations, recentSearches ->
+				Quintuple(favoriteCategoriesCount, unreadUpdatesCount, recentUpdates, recommendations, recentSearches)
 			},
 		) { left, right ->
-			Septuple(
+			Octuple(
 				left.first,
 				left.second,
 				left.third,
@@ -242,6 +280,7 @@ class HomeViewModel @Inject constructor(
 				right.second,
 				right.third,
 				right.fourth,
+				right.fifth,
 			)
 		},
 		combine(
@@ -265,40 +304,45 @@ class HomeViewModel @Inject constructor(
 		val isSuggestionNsfwDisabled = nsfwFlags.second
 		val isHistoryNsfwDisabled = nsfwFlags.third
 
-		val resumeState = left.first.filtered(selectedTab).filteredNsfw(isHistoryNsfwDisabled)
 		val allHistory = if (isHistoryNsfwDisabled) left.second.filterNot { it.isNsfw() } else left.second
-		val recentHistory = allHistory.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager, preset)
+		val allUpdates = if (isTrackerNsfwDisabled) left.sixth.filterNot { it.manga.isNsfw() } else left.sixth
+		val allRecommendations = if (isSuggestionNsfwDisabled) left.seventh.filterNot { it.isNsfw() } else left.seventh
+		val entityIdsByMangaId = entityGraphRepository.findEntityIdsByLocalMangaIds(
+			buildSet {
+				addAll(allHistory.map { it.id })
+				addAll(allUpdates.map { it.manga.id })
+				addAll(allRecommendations.map { it.id })
+			},
+		)
+
+		val resumeState = left.first
+			.filtered(
+				tab = selectedTab,
+				sourceTags = selectedSourceTags,
+				sourceGroupManager = sourceGroupManager,
+				preset = preset,
+			)
+			.filteredNsfw(isHistoryNsfwDisabled)
+			.withGroupKey(entityIdsByMangaId)
+		val recentHistory = allHistory
+			.aggregateHomeContentByEntity(entityIdsByMangaId)
+			.selectHomeHistoryByTab(selectedTab, selectedSourceTags, sourceGroupManager, preset)
 		val favoritesCount = left.third
 		val favoriteCategoriesCount = left.fourth
-		val unreadUpdatesCount = left.fifth
-		val allUpdates = if (isTrackerNsfwDisabled) left.sixth.filterNot { it.manga.isNsfw() } else left.sixth
-		val recentUpdates = allUpdates.groupTrackingsByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager, preset)
-		val allRecommendations = if (isSuggestionNsfwDisabled) left.seventh.filterNot { it.isNsfw() } else left.seventh
-		val recommendations = allRecommendations.groupByTabThenSelect(selectedTab, selectedSourceTags, sourceGroupManager, preset)
+		val recentUpdates = allUpdates
+			.aggregateHomeUpdatesByEntity(entityIdsByMangaId)
+			.selectHomeUpdatesByTab(selectedTab, selectedSourceTags, sourceGroupManager, preset)
+		val recommendations = allRecommendations
+			.aggregateHomeRecommendationsByEntity(entityIdsByMangaId)
+			.selectHomeRecommendationsByTab(selectedTab, selectedSourceTags, sourceGroupManager, preset)
+		val recentSearches = left.eighth
+		val historyPreview = recentHistory.take(HOME_COVER_PREVIEW_LIMIT).withHomeRecentGridModels(contentListMapper)
+		val updatesPreview = recentUpdates.take(HOME_COVER_PREVIEW_LIMIT).withHomeUpdateGridModels(contentListMapper)
+		val recommendationsPreview = recommendations.take(HOME_COVER_PREVIEW_LIMIT).withHomeRecommendationGridModels(contentListMapper)
 
-		val actualHistoryCount = allHistory.count { item ->
-			val source = item.source
-			if (preset != null && source.name !in preset.sources) return@count false
-			if (selectedTab != null && item.contentTab() != selectedTab) return@count false
-			if (selectedSourceTags.isNotEmpty()) {
-				val contentGroup = sourceGroupManager.getContentGroup(source)
-				val originGroup = sourceGroupManager.getOriginGroup(source)
-				if (!selectedSourceTags.any { it.matches(contentGroup, originGroup) }) return@count false
-			}
-			true
-		}
-
-		val actualRecommendationsCount = allRecommendations.count { item ->
-			val source = item.source
-			if (preset != null && source.name !in preset.sources) return@count false
-			if (selectedTab != null && item.contentTab() != selectedTab) return@count false
-			if (selectedSourceTags.isNotEmpty()) {
-				val contentGroup = sourceGroupManager.getContentGroup(source)
-				val originGroup = sourceGroupManager.getOriginGroup(source)
-				if (!selectedSourceTags.any { it.matches(contentGroup, originGroup) }) return@count false
-			}
-			true
-		}
+		val actualHistoryCount = recentHistory.size
+		val unreadUpdatesCount = recentUpdates.size
+		val actualRecommendationsCount = recommendations.size
 		val enabledSourcesCount = right.first
 		val sourceBreakdown = right.second
 		val syncState = right.third
@@ -306,14 +350,15 @@ class HomeViewModel @Inject constructor(
 		HomeSummaryState(
 			selectedTab = selectedTab,
 			recentHistoryCount = actualHistoryCount,
-			recentHistoryItems = recentHistory.take(HOME_COVER_PREVIEW_LIMIT).map { HomeRecentItem(it) },
+			recentHistoryItems = historyPreview,
 			resumeState = resumeState,
 			favoritesCount = favoritesCount,
 			favoriteCategoriesCount = favoriteCategoriesCount,
 			unreadUpdatesCount = unreadUpdatesCount,
-			recentUpdates = recentUpdates.take(HOME_COVER_PREVIEW_LIMIT).map { it.toHomeUpdateItem() },
+			recentUpdates = updatesPreview,
 			recommendationsCount = actualRecommendationsCount,
-			recommendations = recommendations.take(HOME_COVER_PREVIEW_LIMIT).map { HomeRecommendationItem(it) },
+			recommendations = recommendationsPreview,
+			recentSearches = recentSearches.map { HomeRecentSearchItem(it) },
 			enabledSourcesCount = enabledSourcesCount,
 			sourceBreakdown = sourceBreakdown,
 			syncState = syncState,
@@ -460,13 +505,16 @@ private data class Septuple<A, B, C, D, E, F, G>(
 	val seventh: G,
 )
 
-private fun ContentTracking.toHomeUpdateItem(): HomeUpdateItem {
-	return HomeUpdateItem(
-		content = manga,
-		newChapters = newChapters,
-	)
-}
-
+private data class Octuple<A, B, C, D, E, F, G, H>(
+	val first: A,
+	val second: B,
+	val third: C,
+	val fourth: D,
+	val fifth: E,
+	val sixth: F,
+	val seventh: G,
+	val eighth: H,
+)
 
 private fun HomeSourceOrigin.toBreakdown(count: Int?): HomeSourceBreakdown? {
 	if (count == null || count <= 0) return null
@@ -486,85 +534,255 @@ private fun Content.contentTab(): HomeContentTab? = source.getContentType().toHo
  * Group items by content type tab, take [HOME_COVER_PREVIEW_LIMIT] from each group,
  * then select based on the chosen tab. Filtering by [sourceTags] occurs first.
  */
-private fun List<Content>.groupByTabThenSelect(
+private fun List<HomeRecentItem>.selectHomeHistoryByTab(
 	tab: HomeContentTab?,
 	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
 	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
-): List<Content> {
-	val filtered = if (sourceTags.isEmpty() && preset == null) this else filter { item ->
-		val source = item.source
-		if (preset != null && source.name !in preset.sources) return@filter false
-		if (sourceTags.isEmpty()) return@filter true
-		val contentGroup = sourceGroupManager.getContentGroup(source)
-		val originGroup = sourceGroupManager.getOriginGroup(source)
-		sourceTags.any { it.matches(contentGroup, originGroup) }
+): List<HomeRecentItem> {
+	val filtered = filter { item ->
+		item.content.matchesHomeFilters(
+			tab = null,
+			sourceTags = sourceTags,
+			sourceGroupManager = sourceGroupManager,
+			preset = preset,
+		)
 	}
 
 	val limit = HOME_COVER_PREVIEW_LIMIT
 	if (tab != null) {
-		// Specific tab: filter and take limit
-		return filtered.filter { it.contentTab() == tab }.take(limit)
+		return filtered.filter { it.content.contentTab() == tab }.take(limit)
 	}
-	// All tabs: take limit from each type, then merge preserving original order
-	val taken = mutableSetOf<Content>()
+	val taken = mutableSetOf<Long>()
 	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
 	for (item in filtered) {
-		val itemTab = item.contentTab()
+		val itemTab = item.content.contentTab()
 		val current = countPerTab.getOrDefault(itemTab, 0)
 		if (current < limit) {
-			taken.add(item)
+			taken.add(item.groupKey)
 			countPerTab[itemTab] = current + 1
 		}
 	}
-	// Return in original order (already sorted by recency from DB)
-	return filtered.filter { it in taken }
+	return filtered.filter { it.groupKey in taken }
 }
 
 
 /**
- * Same grouping logic for [ContentTracking] items.
+ * Same grouping logic for [HomeUpdateItem] items.
  */
-@JvmName("groupTrackingsByTab")
-private fun List<ContentTracking>.groupTrackingsByTabThenSelect(
+private fun List<HomeUpdateItem>.selectHomeUpdatesByTab(
 	tab: HomeContentTab?,
 	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
 	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
 	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
-): List<ContentTracking> {
-	val filtered = if (sourceTags.isEmpty() && preset == null) this else filter { item ->
-		val source = item.manga.source
-		if (preset != null && source.name !in preset.sources) return@filter false
-		if (sourceTags.isEmpty()) return@filter true
-		val contentGroup = sourceGroupManager.getContentGroup(source)
-		val originGroup = sourceGroupManager.getOriginGroup(source)
-		sourceTags.any { it.matches(contentGroup, originGroup) }
+): List<HomeUpdateItem> {
+	val filtered = filter { item ->
+		item.content.matchesHomeFilters(
+			tab = null,
+			sourceTags = sourceTags,
+			sourceGroupManager = sourceGroupManager,
+			preset = preset,
+		)
 	}
 
 	val limit = HOME_COVER_PREVIEW_LIMIT
 	if (tab != null) {
-		return filtered.filter { it.manga.contentTab() == tab }.take(limit)
+		return filtered.filter { it.content.contentTab() == tab }.take(limit)
 	}
-	val taken = mutableSetOf<ContentTracking>()
+	val taken = mutableSetOf<Long>()
 	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
 	for (item in filtered) {
-		val itemTab = item.manga.contentTab()
+		val itemTab = item.content.contentTab()
 		val current = countPerTab.getOrDefault(itemTab, 0)
 		if (current < limit) {
-			taken.add(item)
+			taken.add(item.groupKey)
 			countPerTab[itemTab] = current + 1
 		}
 	}
-	return filtered.filter { it in taken }
+	return filtered.filter { it.groupKey in taken }
 }
 
-private fun HomeResumeState.filtered(tab: HomeContentTab?): HomeResumeState {
-	return if (tab == null || content?.contentTab() == tab) this else HomeResumeState()
+private fun List<HomeRecommendationItem>.selectHomeRecommendationsByTab(
+	tab: HomeContentTab?,
+	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
+): List<HomeRecommendationItem> {
+	val filtered = filter { item ->
+		item.content.matchesHomeFilters(
+			tab = null,
+			sourceTags = sourceTags,
+			sourceGroupManager = sourceGroupManager,
+			preset = preset,
+		)
+	}
+
+	val limit = HOME_COVER_PREVIEW_LIMIT
+	if (tab != null) {
+		return filtered.filter { it.content.contentTab() == tab }.take(limit)
+	}
+	val taken = mutableSetOf<Long>()
+	val countPerTab = mutableMapOf<HomeContentTab?, Int>()
+	for (item in filtered) {
+		val itemTab = item.content.contentTab()
+		val current = countPerTab.getOrDefault(itemTab, 0)
+		if (current < limit) {
+			taken.add(item.groupKey)
+			countPerTab[itemTab] = current + 1
+		}
+	}
+	return filtered.filter { it.groupKey in taken }
+}
+
+private fun HomeResumeState.filtered(
+	tab: HomeContentTab?,
+	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
+): HomeResumeState {
+	val current = content ?: return this
+	return if (
+		current.matchesHomeFilters(
+			tab = tab,
+			sourceTags = sourceTags,
+			sourceGroupManager = sourceGroupManager,
+			preset = preset,
+		)
+	) {
+		this
+	} else {
+		HomeResumeState()
+	}
 }
 
 private fun HomeResumeState.filteredNsfw(isNsfwDisabled: Boolean): HomeResumeState {
 	return if (isNsfwDisabled && content?.isNsfw() == true) HomeResumeState() else this
 }
+
+private fun HomeResumeState.withGroupKey(entityIdsByMangaId: Map<Long, Long>): HomeResumeState {
+	val current = content ?: return this
+	return copy(
+		groupKey = entityIdsByMangaId[current.id]?.toHomeGroupKey() ?: current.id,
+	)
+}
+
+private fun Content.matchesHomeFilters(
+	tab: HomeContentTab?,
+	sourceTags: Set<org.skepsun.kototoro.explore.ui.model.SourceTag>,
+	sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
+	preset: org.skepsun.kototoro.explore.data.SourcePreset?,
+	excludeNsfw: Boolean = false,
+): Boolean {
+	if (excludeNsfw && isNsfw()) {
+		return false
+	}
+	if (tab != null && contentTab() != tab) {
+		return false
+	}
+	if (preset != null && source.name !in preset.sources) {
+		return false
+	}
+	if (sourceTags.isEmpty()) {
+		return true
+	}
+	val contentGroup = sourceGroupManager.getContentGroup(source)
+	val originGroup = sourceGroupManager.getOriginGroup(source)
+	return sourceTags.any { it.matches(contentGroup, originGroup) }
+}
+
+private fun List<Content>.aggregateHomeContentByEntity(entityIdsByMangaId: Map<Long, Long>): List<HomeRecentItem> {
+	if (isEmpty()) {
+		return emptyList()
+	}
+	val result = ArrayList<HomeRecentItem>(size)
+	val seen = LinkedHashSet<Long>()
+	for (item in this) {
+		val groupKey = entityIdsByMangaId[item.id]?.toHomeGroupKey() ?: item.id
+		if (seen.add(groupKey)) {
+			result += HomeRecentItem(
+				content = item,
+				groupKey = groupKey,
+			)
+		}
+	}
+	return result
+}
+
+private fun List<ContentTracking>.aggregateHomeUpdatesByEntity(entityIdsByMangaId: Map<Long, Long>): List<HomeUpdateItem> {
+	if (isEmpty()) {
+		return emptyList()
+	}
+	val grouped = LinkedHashMap<Long, HomeUpdateItem>()
+	for (item in this) {
+		val groupKey = entityIdsByMangaId[item.manga.id]?.toHomeGroupKey() ?: item.manga.id
+		val existing = grouped[groupKey]
+		grouped[groupKey] = if (existing == null) {
+			HomeUpdateItem(
+				content = item.manga,
+				newChapters = item.newChapters,
+				groupKey = groupKey,
+			)
+		} else {
+			existing.copy(
+				newChapters = existing.newChapters + item.newChapters,
+			)
+		}
+	}
+	return grouped.values.toList()
+}
+
+private fun List<Content>.aggregateHomeRecommendationsByEntity(entityIdsByMangaId: Map<Long, Long>): List<HomeRecommendationItem> {
+	if (isEmpty()) {
+		return emptyList()
+	}
+	val result = ArrayList<HomeRecommendationItem>(size)
+	val seen = LinkedHashSet<Long>()
+	for (item in this) {
+		val groupKey = entityIdsByMangaId[item.id]?.toHomeGroupKey() ?: item.id
+		if (seen.add(groupKey)) {
+			result += HomeRecommendationItem(
+				content = item,
+				groupKey = groupKey,
+			)
+		}
+	}
+	return result
+}
+
+private suspend fun List<HomeRecentItem>.withHomeRecentGridModels(
+	contentListMapper: ContentListMapper,
+): List<HomeRecentItem> {
+	if (isEmpty()) return this
+	val modelsById = contentListMapper
+		.toListModelList(map { it.content }, ListMode.GRID)
+		.filterIsInstance<ContentGridModel>()
+		.associateBy { it.manga.id }
+	return map { item -> item.copy(cardModel = modelsById[item.content.id]) }
+}
+
+private suspend fun List<HomeUpdateItem>.withHomeUpdateGridModels(
+	contentListMapper: ContentListMapper,
+): List<HomeUpdateItem> {
+	if (isEmpty()) return this
+	val modelsById = contentListMapper
+		.toListModelList(map { it.content }, ListMode.GRID)
+		.filterIsInstance<ContentGridModel>()
+		.associateBy { it.manga.id }
+	return map { item -> item.copy(cardModel = modelsById[item.content.id]) }
+}
+
+private suspend fun List<HomeRecommendationItem>.withHomeRecommendationGridModels(
+	contentListMapper: ContentListMapper,
+): List<HomeRecommendationItem> {
+	if (isEmpty()) return this
+	val modelsById = contentListMapper
+		.toListModelList(map { it.content }, ListMode.GRID)
+		.filterIsInstance<ContentGridModel>()
+		.associateBy { it.manga.id }
+	return map { item -> item.copy(cardModel = modelsById[item.content.id]) }
+}
+
+private fun Long.toHomeGroupKey(): Long = -this
 
 private fun ContentType.toHomeTab(): HomeContentTab? = when (this) {
 	ContentType.NOVEL,

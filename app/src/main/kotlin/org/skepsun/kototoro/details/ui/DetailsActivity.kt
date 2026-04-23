@@ -571,6 +571,14 @@ class DetailsActivity :
         isHeroOverlayVisible = true
         viewBinding.imageViewCover.removeCallbacks(pendingIntroStarter)
         viewBinding.imageViewCover.removeCallbacks(transitionCoverFadeOutRunnable)
+        if (viewBinding.imageViewTransitionBackground.drawable != null) {
+            viewBinding.imageViewTransitionBackground.apply {
+                alpha = 1f
+                visibility = View.VISIBLE
+                bringToFront()
+            }
+        }
+        viewBinding.imageViewCover.bringToFront()
         
         applyCoverBounds(currentBounds, alpha = 1f)
         viewBinding.imageViewCover.visibility = View.VISIBLE

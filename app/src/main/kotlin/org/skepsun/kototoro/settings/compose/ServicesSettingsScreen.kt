@@ -85,7 +85,6 @@ fun ServicesSettingsScreen(
                     SettingsActionPreference(
                         title = stringResource(R.string.anime_offline_database),
                         summary = state.animeOfflineSummary,
-                        iconRes = R.drawable.ic_content_video,
                         onClick = onAnimeOfflineClick,
                     )
                     SettingsSectionDivider()

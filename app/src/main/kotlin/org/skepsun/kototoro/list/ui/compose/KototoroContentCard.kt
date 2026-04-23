@@ -54,6 +54,10 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import java.util.Locale
+import androidx.compose.foundation.layout.Arrangement
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 
 @Composable
 fun KototoroContentCard(
@@ -101,16 +105,31 @@ fun KototoroContentCard(
 fun KototoroContentCardGrid(
     item: ContentGridModel,
     isSelected: Boolean = false,
-    showSourceInfo: Boolean = false,
+    showSourceInfo: Boolean = false, // Ignored in favor of new badge settings
     gridScale: Float = 1f,
     onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    
+    val badgesTopLeft by settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }
+    val badgesTopRight by settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }
+    val badgesBottomLeft by settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }
+
     val manga = item.manga
     val coverUrl = manga.coverUrl
     val posterStyle = compactPosterCardStyle(gridScale)
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
+    
+    val cardShape = MaterialTheme.shapes.medium
+    val cardRadius = (cardShape as? RoundedCornerShape)?.topStart?.toPx(
+        androidx.compose.ui.geometry.Size.Unspecified,
+        androidx.compose.ui.platform.LocalDensity.current
+    )?.let { with(androidx.compose.ui.platform.LocalDensity.current) { it.toDp() } } ?: 12.dp
+
+    val loadingStyle by settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }
 
     Column(
         modifier = modifier
@@ -132,7 +151,7 @@ fun KototoroContentCardGrid(
                 .onGloballyPositioned { coordinates ->
                     coverBounds = coordinates.boundsInRoot()
                 }
-                .clip(RoundedCornerShape(posterStyle.cornerRadius))
+                .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             AsyncImage(
@@ -152,30 +171,39 @@ fun KototoroContentCardGrid(
                 )
             }
 
-            CardTopStartBadges(
-                isFavorite = item.isFavorite,
-                isSaved = item.isSaved,
-                trackingService = item.metadataTrackingService,
-                cardCornerRadius = posterStyle.cornerRadius,
+            // Top Left Badges
+            ContentCardCornerBadges(
+                badges = badgesTopLeft,
+                item = item,
+                corner = Alignment.TopStart,
+                cardRadius = cardRadius,
                 modifier = Modifier.align(Alignment.TopStart),
             )
 
-            if (item.counter > 0) {
-                BadgedBox(
-                    badge = {
-                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                            Text(text = item.counter.toString(), color = MaterialTheme.colorScheme.onPrimary)
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                ) {
-                    // Badge container anchor
-                }
+            // Top Right Badges (includes counter if not handled by badges)
+            val effectiveTopRightBadges = remember(badgesTopRight, item.counter) {
+                if (item.counter > 0 && "counter" !in badgesTopRight) {
+                    badgesTopRight + "counter"
+                } else badgesTopRight
             }
+            ContentCardCornerBadges(
+                badges = effectiveTopRightBadges,
+                item = item,
+                corner = Alignment.TopEnd,
+                cardRadius = cardRadius,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
 
-            // Bottom Right Progress (Reading progress)
+            // Bottom Left Badges
+            ContentCardCornerBadges(
+                badges = badgesBottomLeft,
+                item = item,
+                corner = Alignment.BottomStart,
+                cardRadius = cardRadius,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+
+            // Bottom Right Progress (Always shown if progress exists)
             if (item.progress != null) {
                 Box(
                     modifier = Modifier
@@ -188,12 +216,12 @@ fun KototoroContentCardGrid(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(
+                    KototoroLoadingIndicator(
                         progress = { item.progress.percent },
                         modifier = Modifier.fillMaxSize(),
+                        style = loadingStyle,
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        strokeWidth = 2.dp,
                     )
                     Text(
                         text = "${(item.progress.percent * 100).toInt()}%",
@@ -202,15 +230,9 @@ fun KototoroContentCardGrid(
                     )
                 }
             }
-
-            if (showSourceInfo) {
-                SourceInfoPill(
-                    source = manga.source,
-                    cardCornerRadius = posterStyle.cornerRadius,
-                    modifier = Modifier.align(Alignment.BottomStart),
-                )
-            }
         }
+        
+        // Title... (rest of the code)
 
         Text(
             text = manga.title,
@@ -250,7 +272,7 @@ fun KototoroContentCardList(
                 .onGloballyPositioned { coordinates ->
                     coverBounds = coordinates.boundsInRoot()
                 }
-                .clip(RoundedCornerShape(4.dp))
+                .clip(MaterialTheme.shapes.small)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             AsyncImage(
@@ -296,143 +318,111 @@ fun KototoroContentCardList(
 }
 
 @Composable
-private fun CardTopStartBadges(
-    isFavorite: Boolean,
-    isSaved: Boolean,
-    trackingService: org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService?,
-    cardCornerRadius: androidx.compose.ui.unit.Dp,
+fun ContentCardCornerBadges(
+    badges: Set<String>,
+    item: ContentGridModel,
+    corner: Alignment,
+    cardRadius: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (!isFavorite && !isSaved && trackingService == null) return
-    // Match the card's top-left corner, open the opposite corner like the bottom pill.
-    val pillShape = RoundedCornerShape(
-        topStart = cardCornerRadius,
-        topEnd = 0.dp,
-        bottomStart = 0.dp,
-        bottomEnd = 9.dp,
-    )
-    Row(
-        modifier = modifier
-            .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                shape = pillShape,
-            )
-            .padding(start = 5.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (trackingService != null) {
-            Icon(
-                painter = painterResource(id = trackingService.iconResId),
-                contentDescription = trackingService.name,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(13.dp),
-            )
-        }
-        if (isSaved) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_storage),
-                contentDescription = "Local/Saved",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .padding(start = if (trackingService != null) 4.dp else 0.dp)
-                    .size(13.dp),
-            )
-        }
-        if (isFavorite) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_heart_outline),
-                contentDescription = "Favourite",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(start = if (trackingService != null || isSaved) 4.dp else 0.dp)
-                    .size(13.dp),
-            )
-        }
-    }
-}
+    if (badges.isEmpty()) return
 
-@Composable
-private fun CardStateIcons(
-    isFavorite: Boolean,
-    isSaved: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    if (!isFavorite && !isSaved) return
-
-    Row(
-        modifier = modifier
-            .background(
-                color = Color.Black.copy(alpha = 0.48f),
-                shape = RoundedCornerShape(999.dp),
-            )
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (isSaved) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_storage),
-                contentDescription = "Local/Saved",
-                tint = Color.White,
-                modifier = Modifier.size(14.dp),
-            )
-        }
-        if (isFavorite) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_heart_outline),
-                contentDescription = "Favourite",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(start = if (isSaved) 4.dp else 0.dp)
-                    .size(14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SourceInfoPill(
-    source: org.skepsun.kototoro.parsers.model.ContentSource,
-    modifier: Modifier = Modifier,
-    cardCornerRadius: androidx.compose.ui.unit.Dp = 10.dp,
-) {
-    val resolvedSource = rememberResolvedContentSource(source)
+    val resolvedSource = rememberResolvedContentSource(item.manga.source)
     val langText = remember(resolvedSource.name, resolvedSource.locale) {
         resolvedSource.getLocale()
             ?.language
             ?.uppercase(Locale.ROOT)
             ?.takeIf { it.isNotBlank() }
     }
+    val showTracker = "tracker" in badges && item.metadataTrackingService != null
+    val showFavorite = "favorite" in badges && item.isFavorite
+    val showSaved = "saved" in badges && item.isSaved
+    val showSource = "source" in badges
+    val showLanguage = "language" in badges && !langText.isNullOrBlank()
+    val showCounter = "counter" in badges && item.counter > 0
+
+    if (!showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter) {
+        return
+    }
+
+    val shape = when (corner) {
+        Alignment.TopStart -> RoundedCornerShape(topStart = cardRadius, bottomEnd = 9.dp)
+        Alignment.TopEnd -> RoundedCornerShape(topEnd = cardRadius, bottomStart = 9.dp)
+        Alignment.BottomStart -> RoundedCornerShape(bottomStart = cardRadius, topEnd = 9.dp)
+        Alignment.BottomEnd -> RoundedCornerShape(bottomEnd = cardRadius, topStart = 9.dp)
+        else -> RoundedCornerShape(9.dp)
+    }
 
     Row(
         modifier = modifier
             .background(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                shape = RoundedCornerShape(
-                    topStart = 0.dp,
-                    topEnd = 9.dp,
-                    bottomStart = cardCornerRadius,
-                    bottomEnd = 0.dp,
-                ),
+                shape = shape,
             )
-            .padding(start = 5.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        ContentSourceIcon(
-            source = resolvedSource,
-            contentDescription = resolvedSource.name,
-            modifier = Modifier.size(13.dp),
-        )
-        if (!langText.isNullOrBlank()) {
-            Text(
-                text = langText,
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                ),
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp),
-            )
+        badges.forEach { badge ->
+            when (badge) {
+                "tracker" -> {
+                    item.metadataTrackingService?.let { service ->
+                        Icon(
+                            painter = painterResource(id = service.iconResId),
+                            contentDescription = service.name,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+                "favorite" -> {
+                    if (item.isFavorite) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_heart_outline),
+                            contentDescription = "Favourite",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+                "saved" -> {
+                    if (item.isSaved) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_storage),
+                            contentDescription = "Local/Saved",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+                "source" -> {
+                    ContentSourceIcon(
+                        source = resolvedSource,
+                        contentDescription = resolvedSource.name,
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
+                "language" -> {
+                    if (!langText.isNullOrBlank()) {
+                        Text(
+                            text = langText,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 9.sp,
+                                lineHeight = 9.sp,
+                            ),
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                "counter" -> {
+                    if (item.counter > 0) {
+                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                            Text(text = item.counter.toString(), color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -460,7 +450,7 @@ fun KototoroContentCardDetailedList(
                 .onGloballyPositioned { coordinates ->
                     coverBounds = coordinates.boundsInRoot()
                 }
-                .clip(RoundedCornerShape(6.dp))
+                .clip(MaterialTheme.shapes.medium)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             AsyncImage(

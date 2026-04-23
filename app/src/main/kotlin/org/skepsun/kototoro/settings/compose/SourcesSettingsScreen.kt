@@ -21,7 +21,6 @@ import org.skepsun.kototoro.explore.data.SourcesSortOrder
 
 data class SourcesSettingsUiState(
     val sourcesSortOrder: SourcesSortOrder,
-    val isShowSourceOnCards: Boolean,
     val isSourcesGridMode: Boolean,
     val isSourcesGroupedByLanguage: Boolean,
     val remoteSourcesSummary: String,
@@ -53,7 +52,6 @@ fun SourcesSettingsScreen(
     sortOrderOptions: List<SettingsChoiceOption<SourcesSortOrder>>,
     incognitoOptions: List<SettingsChoiceOption<TriStateOption>>,
     onSourcesSortOrderChange: (SourcesSortOrder) -> Unit,
-    onShowSourceOnCardsChange: (Boolean) -> Unit,
     onSourcesGridModeChange: (Boolean) -> Unit,
     onSourcesGroupedByLanguageChange: (Boolean) -> Unit,
     onSetupWizardClick: () -> Unit,
@@ -98,12 +96,6 @@ fun SourcesSettingsScreen(
                         value = state.sourcesSortOrder,
                         options = sortOrderOptions,
                         onValueChange = onSourcesSortOrderChange,
-                    )
-                    SettingsSectionDivider()
-                    SettingsSwitchPreference(
-                        title = stringResource(R.string.show_source_on_cards),
-                        checked = state.isShowSourceOnCards,
-                        onCheckedChange = onShowSourceOnCardsChange,
                     )
                     SettingsSectionDivider()
                     SettingsSwitchPreference(

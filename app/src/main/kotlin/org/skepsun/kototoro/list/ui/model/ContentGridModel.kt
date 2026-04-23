@@ -11,6 +11,7 @@ data class ContentGridModel(
 	override val manga: Content,
 	override val override: ContentOverride?,
 	override val counter: Int,
+	override val id: Long = manga.id,
 	val progress: ReadingProgress?,
 	val isFavorite: Boolean,
 	val isSaved: Boolean,

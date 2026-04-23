@@ -30,6 +30,9 @@ import org.skepsun.kototoro.local.domain.model.LocalContent
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.explore.data.SourcePreset
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.prefs.ListMode
@@ -46,6 +49,7 @@ class SuggestionsViewModel @Inject constructor(
 	private val quickFilter: SuggestionsListQuickFilter,
 	private val suggestionsScheduler: SuggestionsWorker.Scheduler,
 	private val sourceGroupManager: SourceGroupManager,
+	private val sourcePresetsRepository: SourcePresetsRepository,
 	mangaDataRepository: ContentDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
@@ -73,14 +77,23 @@ class SuggestionsViewModel @Inject constructor(
 		observeListModeWithTriggers(),
 		currentGroupTab,
 		currentSourceTags,
+		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
+			.flatMapLatest { id ->
+				if (id == -1L) kotlinx.coroutines.flow.flowOf(null)
+				else sourcePresetsRepository.observe(id)
+			},
 	) { values: Array<Any?> ->
 		val list = values[0] as List<Content>
 		val filters = values[1] as Set<ListFilterOption>
 		val mode = values[2] as ListMode
 		val groupTab = values[3] as BrowseGroupTab
 		val sourceTags = values[4] as Set<SourceTag>
+		val preset = values[5] as? SourcePreset
 		val filteredList = list.filter { manga ->
 			val source = manga.source
+			if (!preset.matches(source)) {
+				return@filter false
+			}
 			val contentGroup = sourceGroupManager.getContentGroup(source)
 			val originGroup = sourceGroupManager.getOriginGroup(source)
 
@@ -141,5 +154,19 @@ class SuggestionsViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			suggestionsScheduler.startNow()
 		}
+	}
+
+	private fun SourcePreset?.matches(source: org.skepsun.kototoro.parsers.model.ContentSource): Boolean {
+		this ?: return true
+		if (sources.isNotEmpty() && source.name !in sources) {
+			return false
+		}
+		if (languages.isNotEmpty()) {
+			val localeLanguage = source.getLocale()?.language
+			if (localeLanguage !in languages) {
+				return false
+			}
+		}
+		return true
 	}
 }

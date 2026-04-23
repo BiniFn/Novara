@@ -182,11 +182,18 @@ class RootSettingsFragment : Fragment() {
 
         return settingsItem(
             key = "debug",
-            iconRes = R.drawable.ic_debug,
+            iconRes = resolveOptionalDebugIconRes(),
             title = getString(R.string.debug),
             summary = getString(R.string.debug),
             fragmentClass = fragmentClass,
         )
+    }
+
+    private fun resolveOptionalDebugIconRes(): Int {
+        val context = requireContext()
+        return context.resources.getIdentifier("ic_debug", "drawable", context.packageName)
+            .takeIf { it != 0 }
+            ?: R.drawable.ic_info_outline
     }
 
     private fun settingsItem(

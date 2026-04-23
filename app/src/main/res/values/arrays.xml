@@ -367,6 +367,22 @@
 		<item>@string/favourites</item>
 		<item>@string/saved_manga</item>
 	</string-array>
+	<string-array name="badge_options" translatable="false">
+		<item>@string/badge_tracker</item>
+		<item>@string/badge_score</item>
+		<item>@string/badge_favorite</item>
+		<item>@string/badge_saved</item>
+		<item>@string/badge_source_icon</item>
+		<item>@string/badge_language</item>
+	</string-array>
+	<string-array name="values_badge_options" translatable="false">
+		<item>tracker</item>
+		<item>score</item>
+		<item>favorite</item>
+		<item>saved</item>
+		<item>source</item>
+		<item>language</item>
+	</string-array>
 	<string-array name="incognito_nsfw_options" translatable="false">
 		<item>@string/enable</item>
 		<item>@string/ask_every_time</item>

@@ -76,6 +76,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 					onViewAllRecentClick = { router.openHistory(currentBrowseGroupTab()) },
 					onViewAllUpdatesClick = { /* router.openMangaUpdates(currentBrowseGroupTab()) */ },
 					onViewAllRecommendationsClick = { /* router.openSuggestions(currentBrowseGroupTab()) */ },
+					onRecentSearchClick = { query -> router.openSearch(query) },
 					onSourceSettingsClick = { router.openSourcesSettings() },
 					onLibraryOpenClick = { router.openFavorites() },
 					onBookmarksClick = { /* router.openBookmarks() */ },
@@ -136,7 +137,12 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 	}
 
 	override fun onSourceTagSelected(tag: SourceTag?) {
-		val selectedTags = if (tag != null) setOf(tag) else emptySet()
+		val current = getSelectedSourceTags()
+		val selectedTags = when {
+			tag == null -> emptySet()
+			tag in current -> current - tag
+			else -> current + tag
+		}
 		viewModel.setSelectedSourceTags(selectedTags)
 	}
 
