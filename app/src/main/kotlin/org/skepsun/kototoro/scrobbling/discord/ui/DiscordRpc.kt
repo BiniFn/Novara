@@ -89,6 +89,8 @@ class DiscordRpc @Inject constructor(
 				clearRpc()
 				return
 			}
+			val coverUrl = manga.largeCoverUrl?.takeIf { it.isNotBlank() }
+				?: manga.coverUrl?.takeIf { it.isNotBlank() }
 			updateRpcAsync(
 				activity = Activity(
 					applicationId = appId,
@@ -100,7 +102,7 @@ class DiscordRpc @Inject constructor(
 						start = lastActivity?.timestamps?.start ?: System.currentTimeMillis(),
 					),
 					assets = Assets(
-						largeImage = manga.coverUrl,
+						largeImage = coverUrl,
 						largeText = context.getString(R.string.reading_s, manga.title),
 						smallText = context.getString(R.string.discord_rpc_description),
 						smallImage = appIcon,

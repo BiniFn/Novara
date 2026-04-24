@@ -26,7 +26,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -67,6 +71,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlin.math.absoluteValue
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
@@ -74,6 +79,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
+import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.compose.AnimatedPanoramaBackdrop
@@ -233,86 +239,98 @@ private fun HomeHighlightsSections(
         allowRuntimeHaze = false,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (heroEntries.isNotEmpty()) {
                 HomeHeroCarousel(
                     entries = heroEntries,
                     onClick = onItemClick,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (historyItems.isNotEmpty() || updateItems.isNotEmpty() || recommendationItems.isNotEmpty() || recentSearches.isNotEmpty()) {
                     androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
                     )
                 }
             }
-            var firstSection = true
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 14.dp,
+                        end = 14.dp,
+                        top = if (heroEntries.isNotEmpty()) 0.dp else 10.dp,
+                        bottom = 10.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                var firstSection = true
 
-            if (historyItems.isNotEmpty()) {
-                HomeContentRowSection(
-                    title = stringResource(R.string.recent_history),
-                    iconRes = R.drawable.ic_history,
-                    items = historyDisplayItems,
-                    count = recentHistoryCount,
-                    posterStyle = posterStyle,
-                    onItemClick = onItemClick,
-                    onMoreClick = onViewAllRecentClick,
-                    addTopSpacing = false,
-                )
-                firstSection = false
-            }
-            if (updateItems.isNotEmpty()) {
-                if (!firstSection) {
-                    androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 2.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                if (historyItems.isNotEmpty()) {
+                    HomeContentRowSection(
+                        title = stringResource(R.string.recent_history),
+                        iconRes = R.drawable.ic_history,
+                        items = historyDisplayItems,
+                        count = recentHistoryCount,
+                        posterStyle = posterStyle,
+                        onItemClick = onItemClick,
+                        onMoreClick = onViewAllRecentClick,
+                        addTopSpacing = false,
+                    )
+                    firstSection = false
+                }
+                if (updateItems.isNotEmpty()) {
+                    if (!firstSection) {
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        )
+                    }
+                    HomeContentRowSection(
+                        title = stringResource(R.string.home_recent_updates),
+                        iconRes = R.drawable.ic_updated,
+                        items = updateDisplayItems,
+                        count = unreadUpdatesCount,
+                        posterStyle = posterStyle,
+                        onItemClick = onItemClick,
+                        onMoreClick = onViewAllUpdatesClick,
+                        addTopSpacing = false,
+                    )
+                    firstSection = false
+                }
+                if (recommendationItems.isNotEmpty()) {
+                    if (!firstSection) {
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        )
+                    }
+                    HomeContentRowSection(
+                        title = stringResource(R.string.suggestions),
+                        iconRes = R.drawable.ic_feed,
+                        items = recommendationDisplayItems,
+                        count = recommendationsCount,
+                        posterStyle = posterStyle,
+                        onItemClick = onItemClick,
+                        onMoreClick = onViewAllRecommendationsClick,
+                        addTopSpacing = false,
+                    )
+                    firstSection = false
+                }
+                if (recentSearches.isNotEmpty()) {
+                    if (!firstSection) {
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 2.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        )
+                    }
+                    HomeRecentSearchSection(
+                        queries = recentSearches,
+                        onQueryClick = onRecentSearchClick,
                     )
                 }
-                HomeContentRowSection(
-                    title = stringResource(R.string.home_recent_updates),
-                    iconRes = R.drawable.ic_updated,
-                    items = updateDisplayItems,
-                    count = unreadUpdatesCount,
-                    posterStyle = posterStyle,
-                    onItemClick = onItemClick,
-                    onMoreClick = onViewAllUpdatesClick,
-                    addTopSpacing = false,
-                )
-                firstSection = false
-            }
-            if (recommendationItems.isNotEmpty()) {
-                if (!firstSection) {
-                    androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 2.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                    )
-                }
-                HomeContentRowSection(
-                    title = stringResource(R.string.suggestions),
-                    iconRes = R.drawable.ic_feed,
-                    items = recommendationDisplayItems,
-                    count = recommendationsCount,
-                    posterStyle = posterStyle,
-                    onItemClick = onItemClick,
-                    onMoreClick = onViewAllRecommendationsClick,
-                    addTopSpacing = false,
-                )
-            }
-            if (recentSearches.isNotEmpty()) {
-                if (!firstSection) {
-                    androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 2.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                    )
-                }
-                HomeRecentSearchSection(
-                    queries = recentSearches,
-                    onQueryClick = onRecentSearchClick,
-                )
             }
         }
     }
@@ -322,6 +340,7 @@ private fun HomeHighlightsSections(
 private fun HomeHeroCarousel(
     entries: List<HomeHeroEntry>,
     onClick: (Content, Rect?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val pagerState = rememberPagerState(pageCount = { entries.size })
     val hasPagerIndicator = entries.size > 1
@@ -335,37 +354,58 @@ private fun HomeHeroCarousel(
         intervalMillis = 5200L,
     )
 
-    Box(
-        modifier = Modifier
+    BoxWithConstraints(
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 4.dp),
     ) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxWidth(),
-        ) { page ->
-            HomeHeroCard(
-                entry = entries[page],
-                bottomInset = if (hasPagerIndicator) 42.dp else 16.dp,
-                onClick = onClick,
-            )
-        }
-        if (hasPagerIndicator) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                HeroPagerIndicator(
-                    pageCount = entries.size,
-                    currentPage = selectedIndex,
+        val trailingPeek = 52.dp
+        val pageSpacing = 6.dp
+        val cardWidth = (maxWidth - trailingPeek).coerceAtLeast(264.dp)
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            HorizontalPager(
+                state = pagerState,
+                pageSize = PageSize.Fixed(cardWidth),
+                pageSpacing = pageSpacing,
+                beyondViewportPageCount = 2,
+                modifier = Modifier.fillMaxWidth(),
+            ) { page ->
+                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                    .absoluteValue
+                    .coerceIn(0f, 1f)
+                val focusProgress = 1f - pageOffset
+                val pageScale = 0.9f + (0.1f * focusProgress)
+                val pageAlpha = 0.72f + (0.28f * focusProgress)
+                HomeHeroCard(
+                    entry = entries[page],
+                    bottomInset = if (hasPagerIndicator) 42.dp else 16.dp,
+                    onClick = onClick,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = pageScale
+                        scaleY = pageScale
+                        alpha = pageAlpha
+                        translationY = (1f - focusProgress) * 16f
+                    },
                 )
-                HomeBadge(
-                    text = "${selectedIndex + 1}/${entries.size}",
-                    iconRes = entries[selectedIndex].kind.iconRes,
-                )
+            }
+            if (hasPagerIndicator) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    HeroPagerIndicator(
+                        pageCount = entries.size,
+                        currentPage = selectedIndex,
+                    )
+                    HomeBadge(
+                        text = "${selectedIndex + 1}/${entries.size}",
+                        iconRes = entries[selectedIndex].kind.iconRes,
+                    )
+                }
             }
         }
     }
@@ -376,6 +416,7 @@ private fun HomeHeroCard(
     entry: HomeHeroEntry,
     bottomInset: androidx.compose.ui.unit.Dp,
     onClick: (Content, Rect?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
@@ -391,7 +432,7 @@ private fun HomeHeroCard(
     var coverBounds by remember(entry.kind, content.id) { mutableStateOf<Rect?>(null) }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(216.dp)
             .clip(MaterialTheme.shapes.large)
@@ -570,6 +611,7 @@ private fun HomeContentRowSection(
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
+    val rowState = rememberLazyListState()
 
     Column(
         modifier = modifier
@@ -612,19 +654,26 @@ private fun HomeContentRowSection(
         }
 
         LazyRow(
+            state = rowState,
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 2.dp),
         ) {
-            items(
+            itemsIndexed(
                 items = items.take(12),
-                key = { it.content.id },
-            ) { item ->
-                HomeCoverRowItem(
-                    item = item,
-                    posterStyle = posterStyle,
-                    onClick = { coverBounds -> onItemClick(item.content, coverBounds) },
-                )
+                key = { _, item -> item.content.id },
+            ) { index, item ->
+                HorizontalRailAnimatedVisibility(
+                    animationKey = "home_row_${title}_${item.content.id}",
+                    index = index,
+                    listState = rowState,
+                ) {
+                    HomeCoverRowItem(
+                        item = item,
+                        posterStyle = posterStyle,
+                        onClick = { coverBounds -> onItemClick(item.content, coverBounds) },
+                    )
+                }
             }
         }
     }

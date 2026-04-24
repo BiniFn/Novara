@@ -11,7 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -41,6 +43,7 @@ fun UpdatedContentCarousel(
 	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
 	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
 	val posterStyle = remember(gridScale) { compactPosterCardStyle(gridScale) }
+	val listState = rememberLazyListState()
 
 	Column(modifier = modifier.fillMaxWidth()) {
 		// Header row
@@ -65,22 +68,29 @@ fun UpdatedContentCarousel(
 
 		// Horizontal items list
 		LazyRow(
+			state = listState,
 			contentPadding = PaddingValues(horizontal = 16.dp),
 			horizontalArrangement = Arrangement.spacedBy(8.dp)
 		) {
-			items(
+			itemsIndexed(
 				items = header.list,
-				key = { item -> "updated_${item.manga.id}" }
-			) { contentModel ->
-				KototoroContentCard(
-					model = contentModel,
-					isListLayout = false,
-					onClick = { coverBounds -> onItemClick(contentModel, coverBounds) },
-					onLongClick = { },
-					isSelected = false,
-					selectionModeActive = false,
-					modifier = Modifier.width(posterStyle.itemWidth)
-				)
+				key = { _, item -> "updated_${item.manga.id}" }
+			) { index, contentModel ->
+				HorizontalRailAnimatedVisibility(
+					animationKey = "updated_${contentModel.id}",
+					index = index,
+					listState = listState,
+				) { animatedModifier ->
+					KototoroContentCard(
+						model = contentModel,
+						isListLayout = false,
+						onClick = { coverBounds -> onItemClick(contentModel, coverBounds) },
+						onLongClick = { },
+						isSelected = false,
+						selectionModeActive = false,
+						modifier = animatedModifier.width(posterStyle.itemWidth)
+					)
+				}
 			}
 		}
 		

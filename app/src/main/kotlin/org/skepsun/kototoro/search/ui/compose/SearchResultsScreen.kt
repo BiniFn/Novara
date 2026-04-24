@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -64,6 +66,7 @@ import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
@@ -538,6 +541,7 @@ private fun SearchResultsSection(
 ) {
     val context = LocalContext.current
     val posterStyle = compactPosterCardStyle(gridScale)
+    val rowState = rememberLazyListState()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -568,23 +572,30 @@ private fun SearchResultsSection(
 
         if (section.list.isNotEmpty()) {
             LazyRow(
+                state = rowState,
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(
+                itemsIndexed(
                     items = section.list,
-                    key = { item -> item.id },
-                ) { item ->
-                    Box(
-                        modifier = Modifier.width(posterStyle.itemWidth + 20.dp),
-                    ) {
-                        KototoroContentCard(
-                            model = item,
-                            isSelected = item.id in selectedItemsIds,
-                            selectionModeActive = selectionEnabled,
-                            onClick = { onItemClick(item) },
-                            onLongClick = { onItemLongClick(item) },
-                        )
+                    key = { _, item -> item.id },
+                ) { index, item ->
+                    HorizontalRailAnimatedVisibility(
+                        animationKey = "search_${section.source.name}_${item.id}",
+                        index = index,
+                        listState = rowState,
+                    ) { animatedModifier ->
+                        Box(
+                            modifier = animatedModifier.width(posterStyle.itemWidth + 20.dp),
+                        ) {
+                            KototoroContentCard(
+                                model = item,
+                                isSelected = item.id in selectedItemsIds,
+                                selectionModeActive = selectionEnabled,
+                                onClick = { onItemClick(item) },
+                                onLongClick = { onItemLongClick(item) },
+                            )
+                        }
                     }
                 }
             }

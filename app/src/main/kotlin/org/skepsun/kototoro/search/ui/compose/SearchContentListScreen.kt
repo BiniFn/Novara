@@ -28,11 +28,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -42,6 +44,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,8 +57,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,6 +84,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -659,21 +661,23 @@ private fun SearchContentTopBar(
                 }
             }
 
-            if (quickFilter != null) {
-                QuickFilterPinnedRow(
-                    quickFilter = quickFilter,
-                    onQuickFilterOptionClick = onQuickFilterOptionClick,
-                )
-            } else {
-                SourceTagsPinnedRow(
-                    tags = extractedTags,
-                    selectedTags = selectedTags,
-                    onToggleTag = onToggleTag,
-                )
-            }
+            if (!searchMode) {
+                if (quickFilter != null) {
+                    QuickFilterPinnedRow(
+                        quickFilter = quickFilter,
+                        onQuickFilterOptionClick = onQuickFilterOptionClick,
+                    )
+                } else {
+                    SourceTagsPinnedRow(
+                        tags = extractedTags,
+                        selectedTags = selectedTags,
+                        onToggleTag = onToggleTag,
+                    )
+                }
 
-            if (!activeQuery.isNullOrBlank()) {
-                ActiveQueryRow(query = activeQuery)
+                if (!activeQuery.isNullOrBlank()) {
+                    ActiveQueryRow(query = activeQuery)
+                }
             }
         }
     }
@@ -737,8 +741,8 @@ private fun SearchInputRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(SearchTopActionsHeight)
-            .padding(horizontal = 4.dp),
+            .height(48.dp)
+            .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onClose) {
@@ -747,21 +751,37 @@ private fun SearchInputRow(
                 contentDescription = stringResource(R.string.close),
             )
         }
-        TextField(
+        BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
                 .weight(1f)
-                .focusRequester(focusRequester),
-            placeholder = { Text(stringResource(R.string.search)) },
+                .focusRequester(focusRequester)
+                .padding(horizontal = 6.dp),
             singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.merge(
+                TextStyle(color = MaterialTheme.colorScheme.onSurface),
+            ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-            ),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.search),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
         )
         if (value.isNotEmpty()) {
             IconButton(onClick = { onValueChange("") }) {
@@ -849,22 +869,10 @@ private fun SourceListTopActionsRow(
                     }
                 },
             ) {
-                TextButton(
-                    onClick = onFilterClick,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        text = currentSortLabel,
-                        maxLines = 1,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                IconButton(onClick = onFilterClick) {
                     Icon(
                         painter = painterResource(R.drawable.ic_filter_menu),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(16.dp),
+                        contentDescription = currentSortLabel,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -1202,7 +1210,7 @@ private fun SearchFilterPanel(
         FilterSection(title = stringResource(R.string.sort_order)) {
             FilterChipFlow {
                 sortOrders.forEach { item ->
-                    FilterChip(
+                    SearchPanelChip(
                         selected = item == selectedSortOrder,
                         onClick = { onSortOrderChange(item) },
                         label = { Text(stringResource(item.titleRes)) },
@@ -1216,7 +1224,7 @@ private fun SearchFilterPanel(
                 FilterChipFlow {
                     contentTypes.forEach { type ->
                         val isSelected = type in selectedContentTypes
-                        FilterChip(
+                        SearchPanelChip(
                             selected = isSelected,
                             onClick = { onToggleContentType(type, !isSelected) },
                             label = { Text(stringResource(type.titleResId)) },
@@ -1229,9 +1237,9 @@ private fun SearchFilterPanel(
         if (states.isNotEmpty()) {
             FilterSection(title = stringResource(R.string.state)) {
                 FilterChipFlow {
-                    states.forEach { state ->
+                    states.forEach { state -> 
                         val isSelected = state in selectedStates
-                        FilterChip(
+                        SearchPanelChip(
                             selected = isSelected,
                             onClick = { onToggleState(state, !isSelected) },
                             label = { Text(stringResource(state.titleResId)) },
@@ -1246,7 +1254,7 @@ private fun SearchFilterPanel(
                 FilterChipFlow {
                     locales.forEach { locale ->
                         val isSelected = locale == selectedLocale
-                        FilterChip(
+                        SearchPanelChip(
                             selected = isSelected,
                             onClick = { onLocaleChange(if (isSelected) null else locale) },
                             label = {
@@ -1277,7 +1285,7 @@ private fun SearchFilterPanel(
                 FilterChipFlow {
                     authors.take(12).forEach { author ->
                         val isSelected = author == selectedAuthor
-                        FilterChip(
+                        SearchPanelChip(
                             selected = isSelected,
                             onClick = { onAuthorChange(if (isSelected) null else author) },
                             label = { Text(author) },
@@ -1298,7 +1306,7 @@ private fun SearchFilterPanel(
                     FilterChipFlow {
                         orderedTags.forEach { tag ->
                             val isSelected = tag in group.selected
-                            FilterChip(
+                            SearchPanelChip(
                                 selected = isSelected,
                                 onClick = { onToggleTag(tag, !isSelected) },
                                 label = { Text(tag.title) },
@@ -1316,13 +1324,25 @@ private fun FilterSection(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        content()
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            content()
+        }
     }
 }
 
@@ -1337,6 +1357,46 @@ private fun FilterChipFlow(
     ) {
         content()
     }
+}
+
+@Composable
+private fun SearchPanelChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        label = label,
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        } else {
+            null
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = if (selected) {
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
+    )
 }
 
 private fun ListMode.iconRes(): Int = when (this) {

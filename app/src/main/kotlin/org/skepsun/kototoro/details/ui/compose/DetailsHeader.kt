@@ -72,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -217,8 +218,8 @@ fun DetailsHeader(
     }
     val readingLanguageLabelRes = when (resolvedContentType) {
         ContentType.VIDEO,
-        ContentType.HENTAI_VIDEO -> R.string.details_playback_language
-        else -> R.string.details_reading_language
+        ContentType.HENTAI_VIDEO -> R.string.details_playback_language_short
+        else -> R.string.details_reading_language_short
     }
 
     val normalizedCoverUrl = coverUrl?.takeIf { it.isNotBlank() }
@@ -271,7 +272,7 @@ fun DetailsHeader(
         )
         add(
             DetailsInfoItem(
-                label = stringResource(R.string.original_language),
+                label = stringResource(R.string.details_original_language_short),
                 value = originalLanguage.ifBlank { stringResource(R.string.unknown) },
                 iconRes = R.drawable.ic_language,
             ),
@@ -327,21 +328,24 @@ fun DetailsHeader(
                 modifier = Modifier
                     .weight(1f)
                     .alpha(1f - textCollapseProgress),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = displayTitle,
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 28.sp,
+                    ),
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 4,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (alternateTitles.isNotEmpty()) {
                     Text(
                         text = alternateTitles.joinToString(" / "),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(lineHeight = 16.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -370,9 +374,8 @@ fun DetailsHeader(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    DetailsHeaderActionButton(
+                    DetailsHeaderIconButton(
                         iconRes = if (isFavourite) R.drawable.ic_heart else R.drawable.ic_heart_outline,
-                        label = stringResource(R.string.favourites),
                         onClick = onFavoriteClick,
                         filled = isFavourite,
                     )
@@ -391,17 +394,8 @@ fun DetailsHeader(
                         )
                     }
                     if (showTranslateAction) {
-                        DetailsHeaderActionButton(
+                        DetailsHeaderIconButton(
                             iconRes = R.drawable.ic_translate,
-                            label = stringResource(
-                                if (hasTranslationCache && isShowingTranslation) {
-                                    R.string.details_show_original
-                                } else if (hasTranslationCache) {
-                                    R.string.details_show_translation
-                                } else {
-                                    R.string.translate_title
-                                },
-                            ),
                             onClick = {
                                 if (hasTranslationCache) {
                                     onToggleTranslationClick()

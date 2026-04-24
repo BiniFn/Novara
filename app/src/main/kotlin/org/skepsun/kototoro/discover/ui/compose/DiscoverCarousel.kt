@@ -40,6 +40,7 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -86,13 +87,20 @@ fun DiscoverCarousel(
 			itemsIndexed(
 				items = row.items,
 				key = { _, item -> "carousel_${row.category.id}_${(item as? ContentListModel)?.manga?.id ?: item.hashCode()}" }
-			) { _, contentModel ->
+			) { index, contentModel ->
 				(contentModel as? ContentListModel)?.let { model ->
-					DiscoverPosterCard(
-						model = model,
-						posterStyle = posterStyle,
-						onClick = { coverBounds -> onItemClick(model, coverBounds) },
-					)
+					HorizontalRailAnimatedVisibility(
+						animationKey = "discover_${row.category.id}_${model.id}",
+						index = index,
+						listState = listState,
+					) { animatedModifier ->
+						DiscoverPosterCard(
+							model = model,
+							posterStyle = posterStyle,
+							onClick = { coverBounds -> onItemClick(model, coverBounds) },
+							modifier = animatedModifier,
+						)
+					}
 				}
 			}
 		}

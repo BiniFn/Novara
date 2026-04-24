@@ -17,6 +17,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +48,7 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ErrorState
 import org.skepsun.kototoro.list.ui.model.InfoModel
+import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.QuickFilter
@@ -255,6 +257,7 @@ private fun SupplementaryListItem(
     onRetry: () -> Unit,
 ) {
     when (item) {
+        is ListHeader -> ListHeaderItem(item)
         is QuickFilter -> QuickFilterSection(
             quickFilter = item,
             onQuickFilterOptionClick = onQuickFilterOptionClick,
@@ -263,6 +266,32 @@ private fun SupplementaryListItem(
         is EmptyState -> EmptyStateCard(item, onEmptyActionClick)
         is ErrorState -> ErrorStateCard(item, onRetry)
         LoadingState -> LoadingStateItem()
+    }
+}
+
+@Composable
+private fun ListHeaderItem(item: ListHeader) {
+    val context = LocalContext.current
+    val title = item.getText(context)?.toString().orEmpty()
+    if (title.isBlank()) return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (item.buttonTextRes != 0) {
+            TextButton(onClick = {}) {
+                Text(stringResource(item.buttonTextRes))
+            }
+        }
     }
 }
 
