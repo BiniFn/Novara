@@ -27,7 +27,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
+import androidx.room.withTransaction
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.alternatives.domain.MigrateUseCase
 import org.skepsun.kototoro.details.ui.model.ActiveLocalSourceOption
 import org.skepsun.kototoro.details.ui.model.EntityChapterSourceInfo
 import org.skepsun.kototoro.details.ui.model.toListItem
@@ -107,6 +109,7 @@ import org.skepsun.kototoro.entitygraph.domain.TrackingCharacterDto
 import org.skepsun.kototoro.entitygraph.domain.TrackingPersonDto
 import org.skepsun.kototoro.entitygraph.domain.TrackingStaffDto
 import org.skepsun.kototoro.entitygraph.domain.TrackingWorkDto
+import org.skepsun.kototoro.entitygraph.data.EntityBindingRecord
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationSection
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationItem
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -141,6 +144,7 @@ class DetailsViewModel @Inject constructor(
 	private val detailsLoadUseCase: DetailsLoadUseCase,
 	private val progressUpdateUseCase: ProgressUpdateUseCase,
 	private val readingTimeUseCase: ReadingTimeUseCase,
+	private val migrateUseCase: MigrateUseCase,
 	statsRepository: StatsRepository,
 	private val epubChapterMappingDao: org.skepsun.kototoro.core.db.dao.EpubChapterMappingDao,
 	private val localEpubSource: org.skepsun.kototoro.local.epub.LocalEpubSource,
@@ -1808,35 +1812,71 @@ class DetailsViewModel @Inject constructor(
 
 	fun bindReadingCandidateToTracking(content: Content, onComplete: (() -> Unit)? = null) {
 		val selection = selectedMetadataSource.value as? MetadataSourceSelection.Tracking
-		if (selection == null) {
-			onComplete?.invoke()
-			return
-		}
 		launchJob(Dispatchers.IO + SkipErrors) {
 			try {
-				// MangaPrefsEntity has a FK to MangaEntity; persist the candidate first
-				// so setMetadataSourceSelection can't fail with a foreign key constraint
-				// on a brand-new candidate that has never been opened.
-				runCatchingCancellable {
-					dataRepository.storeContent(content, replaceExisting = false)
+				val currentContent = getContentOrNull()
+				val targetContent = if (currentContent != null && currentContent.id != content.id) {
+					runCatchingCancellable {
+						migrateUseCase(currentContent, content)
+						dataRepository.findContentById(content.id, withChapters = false) ?: content
+					}.getOrElse { content }
+				} else {
+					runCatchingCancellable {
+						dataRepository.storeContent(content, replaceExisting = false)
+						content
+					}.getOrDefault(content)
 				}
 				runCatchingCancellable {
-					trackingSiteMatcher.confirmMatch(selection.service, content.id, selection.remoteId)
+					bindReadingCandidateToCurrentEntity(targetContent.id)
 				}
-				runCatchingCancellable {
-					dataRepository.setMetadataSourceSelection(
-						mangaId = content.id,
-						selection = PersistedMetadataSourceSelection.Tracking(
-							serviceId = selection.service.id,
-							remoteId = selection.remoteId,
-						),
-					)
+				if (selection != null) {
+					runCatchingCancellable {
+						trackingSiteMatcher.confirmMatch(selection.service, targetContent.id, selection.remoteId)
+					}
+					runCatchingCancellable {
+						dataRepository.setMetadataSourceSelection(
+							mangaId = targetContent.id,
+							selection = PersistedMetadataSourceSelection.Tracking(
+								serviceId = selection.service.id,
+								remoteId = selection.remoteId,
+							),
+						)
+					}
 				}
 			} finally {
 				withContext(Dispatchers.Main) {
 					onComplete?.invoke()
 				}
 			}
+		}
+	}
+
+	private suspend fun bindReadingCandidateToCurrentEntity(mangaId: Long) {
+		if (mangaId <= 0L) {
+			return
+		}
+		val entityId = resolveContextualEntityId() ?: return
+		val dao = db.getEntityGraphDao()
+		if (
+			dao.findBinding("local_manga", mangaId.toString()) != null ||
+			dao.findBinding("0", mangaId.toString()) != null
+		) {
+			return
+		}
+		val currentConfidence = activeMangaIdFlow.value?.let { activeMangaId ->
+			dao.findBinding("local_manga", activeMangaId.toString())?.confidence
+				?: dao.findBinding("0", activeMangaId.toString())?.confidence
+		} ?: 1f
+		db.withTransaction {
+			dao.upsertBinding(
+				EntityBindingRecord(
+					entityId = entityId,
+					source = "local_manga",
+					externalId = mangaId.toString(),
+					confidence = currentConfidence,
+					isPrimary = false,
+				),
+			)
 		}
 	}
 

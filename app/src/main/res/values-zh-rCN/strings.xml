@@ -913,6 +913,9 @@
     <string name="popular_in_month">本月热门</string>
     <string name="popular_in_year">年度热门</string>
     <string name="original_language">原语言</string>
+    <string name="details_original_language_short">原文</string>
+    <string name="details_reading_language_short">阅读</string>
+    <string name="details_playback_language_short">播放</string>
     <string name="year">年</string>
     <string name="demographics">受众人群</string>
     <string name="demographic_shounen">少年漫</string>

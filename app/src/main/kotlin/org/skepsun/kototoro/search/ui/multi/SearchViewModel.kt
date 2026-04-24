@@ -77,11 +77,8 @@ class SearchViewModel @Inject constructor(
 	private val favouritesRepository: FavouritesRepository,
 ) : BaseViewModel() {
 
-	val query = savedStateHandle.get<String>(AppRouter.KEY_QUERY).orEmpty()
-	val kind = savedStateHandle.get<SearchKind>(AppRouter.KEY_KIND)
-		?: savedStateHandle.get<String>(AppRouter.KEY_KIND)
-			?.let { encoded -> runCatching { SearchKind.valueOf(Uri.decode(encoded)) }.getOrNull() }
-		?: SearchKind.SIMPLE
+	val query = savedStateHandle.getStringArg(AppRouter.KEY_QUERY).orEmpty()
+	val kind = savedStateHandle.getSearchKindArg(AppRouter.KEY_KIND) ?: SearchKind.SIMPLE
 	
 	val advancedQuery = if (kind == SearchKind.ADVANCED) {
 		AdvancedSearchParams(
@@ -93,8 +90,8 @@ class SearchViewModel @Inject constructor(
 	} else null
 
 	private var includeDisabledSources = MutableStateFlow(false)
-	private var pinnedOnly = MutableStateFlow(savedStateHandle.get<Boolean>(AppRouter.KEY_PINNED_ONLY) == true)
-	private var hideEmpty = MutableStateFlow(savedStateHandle.get<Boolean>(AppRouter.KEY_HIDE_EMPTY) == true)
+	private var pinnedOnly = MutableStateFlow(savedStateHandle.getBooleanArg(AppRouter.KEY_PINNED_ONLY) == true)
+	private var hideEmpty = MutableStateFlow(savedStateHandle.getBooleanArg(AppRouter.KEY_HIDE_EMPTY) == true)
 	private var sourceTypes = MutableStateFlow(
 		sourceTypesFromNames(savedStateHandle.getStringList(AppRouter.KEY_SOURCE_TYPES))
 			?: sourceTypesFromTags(globalFavoritesState.selectedSourceTags.value),
@@ -495,8 +492,38 @@ class SearchViewModel @Inject constructor(
 }
 
 private fun SavedStateHandle.getStringList(key: String): ArrayList<String>? {
-	get<ArrayList<String>>(key)?.let { return it }
-	val raw = get<String>(key)?.let(Uri::decode).orEmpty()
-	if (raw.isBlank()) return null
-	return ArrayList(raw.split(',').map { it.trim() }.filter { it.isNotEmpty() })
+	return when (val raw = get<Any?>(key)) {
+		is ArrayList<*> -> ArrayList(raw.filterIsInstance<String>().map { it.trim() }.filter { it.isNotEmpty() })
+			.takeIf { it.isNotEmpty() }
+		is Collection<*> -> ArrayList(raw.filterIsInstance<String>().map { it.trim() }.filter { it.isNotEmpty() })
+			.takeIf { it.isNotEmpty() }
+		is String -> Uri.decode(raw)
+			.takeIf { it.isNotBlank() }
+			?.split(',')
+			?.map { it.trim() }
+			?.filter { it.isNotEmpty() }
+			?.let(::ArrayList)
+		else -> null
+	}
+}
+
+private fun SavedStateHandle.getStringArg(key: String): String? = when (val raw = get<Any?>(key)) {
+	is String -> Uri.decode(raw)
+	is CharSequence -> raw.toString()
+	is Enum<*> -> raw.name
+	else -> null
+}
+
+private fun SavedStateHandle.getBooleanArg(key: String): Boolean? = when (val raw = get<Any?>(key)) {
+	is Boolean -> raw
+	is String -> Uri.decode(raw).toBooleanStrictOrNull()
+	is Number -> raw.toInt() != 0
+	else -> null
+}
+
+private fun SavedStateHandle.getSearchKindArg(key: String): SearchKind? = when (val raw = get<Any?>(key)) {
+	is SearchKind -> raw
+	is String -> runCatching { SearchKind.valueOf(Uri.decode(raw)) }.getOrNull()
+	is Enum<*> -> runCatching { SearchKind.valueOf(raw.name) }.getOrNull()
+	else -> null
 }

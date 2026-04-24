@@ -732,7 +732,6 @@ fun DetailsScreen(
                         isStatsAvailable = isStatsAvailable,
                         hasMetadataBrowserTarget = metadataBrowserTarget != null,
                         hasLocalBrowserTarget = localBrowserTarget != null,
-                        isAlternativesAvailable = content?.isLocal == false,
                         hasOnlineVariant = remoteContent != null,
                         isDeleteLocalAvailable = content?.source == LocalMangaSource,
                         isEditOverrideAvailable = content != null,
@@ -2480,7 +2479,6 @@ private fun DetailsOverflowMenu(
     isStatsAvailable: Boolean,
     hasMetadataBrowserTarget: Boolean,
     hasLocalBrowserTarget: Boolean,
-    isAlternativesAvailable: Boolean,
     hasOnlineVariant: Boolean,
     isDeleteLocalAvailable: Boolean,
     isEditOverrideAvailable: Boolean,
@@ -2575,15 +2573,6 @@ private fun DetailsOverflowMenu(
                     onActionClick(DetailsAction.FindSimilar)
                 },
             )
-            if (isAlternativesAvailable) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.alternatives)) },
-                    onClick = {
-                        expanded = false
-                        onActionClick(DetailsAction.OpenAlternatives)
-                    },
-                )
-            }
             if (hasOnlineVariant) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.online_variant)) },

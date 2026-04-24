@@ -1427,6 +1427,7 @@
     <string name="popular_in_month">Popular this month</string>
     <string name="popular_in_year">Popular this year</string>
     <string name="original_language">Original language</string>
+    <string name="details_original_language_short">Original</string>
     <string name="year">Year</string>
     <string name="demographics">Demographics</string>
     <string name="demographic_shounen">Shounen</string>
@@ -1488,6 +1489,8 @@
     <string name="details_playback_source">Playback Source</string>
     <string name="details_reading_language">Reading language</string>
     <string name="details_playback_language">Playback language</string>
+    <string name="details_reading_language_short">Reading</string>
+    <string name="details_playback_language_short">Playback</string>
     <string name="details_comments">Comments</string>
     <string name="details_more_comments">More</string>
     <string name="details_no_comments">No comments yet.</string>

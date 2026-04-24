@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -83,6 +85,7 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
@@ -123,7 +126,7 @@ private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics
     val interpolatedColumns = 5f + ((3f - 5f) * normalized)
     return SourceQuickAccessMetrics(
         columns = interpolatedColumns.toInt().coerceIn(3, 5),
-        cardHeight = lerp(78.dp, 66.dp, normalized),
+        cardHeight = lerp(96.dp, 84.dp, normalized),
         gridSpacing = lerp(8.dp, 6.dp, normalized),
         iconContainerSize = lerp(44.dp, 36.dp, normalized),
         iconSize = lerp(34.dp, 28.dp, normalized),
@@ -700,9 +703,9 @@ private fun SourceQuickAccessCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 8.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Top,
         ) {
             Box(
                 modifier = Modifier
@@ -729,15 +732,18 @@ private fun SourceQuickAccessCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
                 color = if (isSelected) {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 1.dp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -861,6 +867,7 @@ private fun TrackingCategoryRow(
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
+    val rowState = rememberLazyListState()
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -885,18 +892,26 @@ private fun TrackingCategoryRow(
             }
         }
         LazyRow(
+            state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 2.dp),
         ) {
-            items(
+            itemsIndexed(
                 items = items,
-                key = { it.id },
-            ) { item ->
-                TrackingCompactPoster(
-                    item = item,
-                    posterStyle = posterStyle,
-                    onClick = { onItemClick(item) },
-                )
+                key = { _, item -> item.id },
+            ) { index, item ->
+                HorizontalRailAnimatedVisibility(
+                    animationKey = "explore_${title}_${item.id}",
+                    index = index,
+                    listState = rowState,
+                ) { animatedModifier ->
+                    TrackingCompactPoster(
+                        item = item,
+                        posterStyle = posterStyle,
+                        onClick = { onItemClick(item) },
+                        modifier = animatedModifier,
+                    )
+                }
             }
         }
     }
@@ -1038,6 +1053,7 @@ private fun TrackingCompactPoster(
     item: ContentListModel,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val imageRequest = remember(item.coverUrl, item.id) {
@@ -1048,7 +1064,7 @@ private fun TrackingCompactPoster(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(posterStyle.itemWidth)
             .height(posterStyle.posterHeight + 32.dp)
             .clickable(onClick = onClick),
